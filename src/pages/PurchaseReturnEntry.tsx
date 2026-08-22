@@ -38,6 +38,12 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
+import {
+  resolvePurchaseBarcodesForStockReport,
+  type PurchaseBarcodeStockClient,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 
 function parseReturnQty(uom: string | undefined, raw: string): number {
   if (isDecimalUOM(uom)) {
@@ -669,8 +675,10 @@ const PurchaseReturnEntry = () => {
 
   const lookupVariantByBarcode = useCallback(
     async (raw: string): Promise<ProductVariant | null> => {
-      const barcode = raw.trim();
-      if (!barcode || !currentOrganization?.id) return null;
+      if (!currentOrganization?.id) return null;
+
+      const candidates = expandBarcodeScanCandidates(raw);
+      if (!candidates.length) return null;
 
       const base = () =>
         supabase
@@ -680,21 +688,63 @@ const PurchaseReturnEntry = () => {
           .eq("active", true)
           .is("deleted_at", null);
 
-      const { data: exactRows, error: exactErr } = await base().eq("barcode", barcode).limit(5);
-      if (!exactErr && exactRows?.length) {
-        const mapped = exactRows.map((r) => mapVariantFromDbRow(r as Record<string, unknown>)).filter(Boolean);
-        if (mapped.length === 1) return mapped[0] as ProductVariant;
-        const ci = mapped.find((m) => m!.barcode.trim().toLowerCase() === barcode.toLowerCase());
-        if (ci) return ci;
+      const tryExactBarcode = async (barcode: string): Promise<ProductVariant | null> => {
+        const { data: exactRows, error: exactErr } = await base().eq("barcode", barcode).limit(5);
+        if (!exactErr && exactRows?.length) {
+          const mapped = exactRows
+            .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
+            .filter(Boolean);
+          if (mapped.length === 1) return mapped[0] as ProductVariant;
+          const ci = mapped.find((m) => m!.barcode.trim().toLowerCase() === barcode.toLowerCase());
+          if (ci) return ci;
+        }
+
+        const { data: ilikeRows, error: ilikeErr } = await base().ilike("barcode", barcode).limit(5);
+        if (!ilikeErr && ilikeRows?.length) {
+          const mapped = ilikeRows
+            .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
+            .filter(Boolean) as ProductVariant[];
+          const ci = mapped.find((m) => m.barcode.trim().toLowerCase() === barcode.toLowerCase());
+          return ci || (mapped.length === 1 ? mapped[0] : null);
+        }
+
+        return null;
+      };
+
+      for (const candidate of candidates) {
+        const hit = await tryExactBarcode(candidate);
+        if (hit) return hit;
       }
 
-      const { data: ilikeRows, error: ilikeErr } = await base().ilike("barcode", barcode).limit(5);
-      if (!ilikeErr && ilikeRows?.length) {
-        const mapped = ilikeRows
+      // Align with Stock Report / POS: purchase_items.barcode may differ from live variant after merges.
+      for (const candidate of candidates) {
+        if (!/^\d{4,}$/.test(candidate)) continue;
+
+        const resolutions = await resolvePurchaseBarcodesForStockReport(
+          supabase as unknown as PurchaseBarcodeStockClient,
+          currentOrganization.id,
+          candidate,
+        );
+        const skuIds = resolutions
+          .filter((r) => !r.excludeReason && r.skuId)
+          .map((r) => r.skuId);
+        if (!skuIds.length) continue;
+
+        const { data: bySkuRows, error: bySkuErr } = await base().in("id", skuIds).limit(5);
+        if (bySkuErr || !bySkuRows?.length) continue;
+
+        const mapped = bySkuRows
           .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
           .filter(Boolean) as ProductVariant[];
-        const ci = mapped.find((m) => m.barcode.trim().toLowerCase() === barcode.toLowerCase());
-        return ci || (mapped.length === 1 ? mapped[0] : null);
+
+        if (mapped.length === 1) return mapped[0];
+
+        const liveMatch = mapped.find((m) =>
+          candidates.some((c) => m.barcode.trim().toLowerCase() === c.toLowerCase()),
+        );
+        if (liveMatch) return liveMatch;
+
+        return mapped[0] ?? null;
       }
 
       return null;
@@ -852,7 +902,7 @@ const PurchaseReturnEntry = () => {
   /** POS-style: scan / Enter adds line directly; dropdown only for slow manual typing. */
   const searchAndAddProduct = useCallback(
     async (searchTerm: string, options?: { fromScan?: boolean }) => {
-      const trimmed = searchTerm.trim();
+      const trimmed = normalizeProductSearchTerm(searchTerm);
       if (!trimmed || !currentOrganization?.id) return;
       if (processingBarcodeRef.current) return;
 

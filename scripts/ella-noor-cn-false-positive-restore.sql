@@ -269,11 +269,20 @@ BEGIN;
 CREATE TEMP TABLE _cn_fp_repair_targets ON COMMIT DROP AS
 SELECT
   ve.id                    AS voucher_id,
+  ve.voucher_number,
   ve.organization_id,
   ve.reference_id          AS sale_id,
   ve.total_amount          AS cn_amount,
+  LEAST(
+    ve.total_amount,
+    GREATEST(
+      0::numeric,
+      COALESCE(s.net_amount, 0) - COALESCE(s.paid_amount, 0) - COALESCE(s.sale_return_adjust, 0)
+    )
+  ) AS sra_to_apply,
   sr.id                    AS sale_return_id,
-  COALESCE(sr.net_amount, 0) AS return_net
+  COALESCE(sr.net_amount, 0) AS return_net,
+  active_dup.id            AS active_duplicate_voucher_id
 FROM public.voucher_entries ve
 INNER JOIN public.sales s
   ON s.id = ve.reference_id
@@ -284,6 +293,10 @@ LEFT JOIN public.sale_returns sr
  AND sr.organization_id = ve.organization_id
  AND sr.deleted_at IS NULL
  AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+LEFT JOIN public.voucher_entries active_dup
+  ON active_dup.voucher_number = ve.voucher_number
+ AND active_dup.deleted_at IS NULL
+ AND active_dup.id <> ve.id
 WHERE ve.voucher_type = 'receipt'
   AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
   AND ve.deleted_at IS NOT NULL
@@ -296,24 +309,25 @@ WHERE ve.voucher_type = 'receipt'
   )
   AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid;
 
--- 3a. Set sale_return_adjust on each affected invoice (= deleted CN amount).
+-- 3a. Set sale_return_adjust on each affected invoice (capped at invoice balance).
 UPDATE public.sales s
 SET
-  sale_return_adjust = fp.cn_amount,
-  credit_applied = fp.cn_amount,
+  sale_return_adjust = fp.sra_to_apply,
+  credit_applied = fp.sra_to_apply,
   payment_status = CASE
-    WHEN COALESCE(s.net_amount, 0) - COALESCE(s.paid_amount, 0) - fp.cn_amount <= 0.5
+    WHEN COALESCE(s.net_amount, 0) - COALESCE(s.paid_amount, 0) - fp.sra_to_apply <= 0.5
       THEN 'completed'
-    WHEN fp.cn_amount > 0.5 THEN 'partial'
+    WHEN fp.sra_to_apply > 0.5 THEN 'partial'
     ELSE s.payment_status
   END,
   updated_at = now()
 FROM _cn_fp_repair_targets fp
 WHERE fp.sale_id = s.id
   AND s.organization_id = fp.organization_id
-  AND COALESCE(s.sale_return_adjust, 0) < 0.5;
+  AND fp.sra_to_apply > 0.005;
 
 -- 3b. Restore the deleted CN-adjust receipts (clear deleted_at).
+-- Skip rows where an active voucher already holds the same voucher_number (uq_voucher_entries_number_active).
 UPDATE public.voucher_entries ve
 SET
   deleted_at = NULL,
@@ -323,7 +337,21 @@ SET
   updated_at = now()
 FROM _cn_fp_repair_targets fp
 WHERE fp.voucher_id = ve.id
-  AND ve.deleted_at IS NOT NULL;
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NULL;
+
+-- 3b-skip. Leave deleted twin in Recycle Bin with audit note when active receipt already exists.
+UPDATE public.voucher_entries ve
+SET
+  notes = COALESCE(ve.notes, '') ||
+    E'\n[cn_false_positive_restore_20260822] restore skipped — active voucher ' ||
+    fp.voucher_number || ' already exists (id=' || fp.active_duplicate_voucher_id || ')',
+  updated_at = now()
+FROM _cn_fp_repair_targets fp
+WHERE fp.voucher_id = ve.id
+  AND ve.deleted_at IS NOT NULL
+  AND fp.active_duplicate_voucher_id IS NOT NULL
+  AND COALESCE(ve.notes, '') NOT ILIKE '%restore skipped — active voucher%';
 
 -- 3c. Set credit_available_balance on linked sale returns (remainder after apply).
 UPDATE public.sale_returns sr
@@ -378,10 +406,12 @@ COMMIT;
 
 SELECT customer_name, signed_balance, direction, net_receivable
 FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-WHERE customer_name ILIKE ANY (ARRAY['%hanif%', '%arezah%', '%gulnaz%', '%fiza%'])
-ORDER BY customer_name;
-
-SELECT sale_number, net_amount, paid_amount, sale_return_adjust, payment_status
-FROM public.sales
-WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND sale_number = 'INV/26-27/287';
+WHERE customer_name ILIKE ANY (ARRAY[
+  '%AMNA DARVESH%', '%Sharmin Mewara%', '%GULNAZ%', '%MAHENOOR KAS%',
+  '%Amrin%', '%Muskan%', '%OSAMA%', '%QURRATUL AIN%', '%Shanawaz Memon%',
+  '%Mahi Supariwala%', '%Ruby Bhatia%', '%KHADIJA SHEIKH%', '%SAMEENA MADHIYA%',
+  '%FIZA CHAUDHARY%', '%Naeem Mukadam%', '%priyanka Yadav%', '%Nazbin Choudhury%',
+  '%Sadiqa Faisal Khan%', '%Sadiya Surat%', '%Arezah Nathani%', '%AYESHA MERCHANT%',
+  '%SABINA SAMEER%'
+])
+ORDER BY customer_name, signed_balance;
