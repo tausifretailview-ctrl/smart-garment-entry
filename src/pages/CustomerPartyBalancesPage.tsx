@@ -37,7 +37,7 @@ import { ReportSkeleton } from "@/components/ui/skeletons";
 import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
-import { fetchAllCustomerPartyBalances, fetchCustomerPhoneMap } from "@/utils/fetchAllRows";
+import { fetchCustomerPartyBalancesAligned, partyBalanceRowFacets, type CustomerPartyBalanceAlignedRow } from "@/utils/customerPartyBalanceSnapshot";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
@@ -50,23 +50,11 @@ import {
   type PartyDirectionFilter,
 } from "@/utils/customerPartyBalanceDisplay";
 import {
-  facetsFromPartySignedBalance,
   formatNetFacetLabel,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
 
-export type CustomerPartyBalanceRow = {
-  customer_id: string;
-  customer_name: string;
-  phone?: string;
-  signed_balance: number;
-  advance_available: number;
-  direction: string;
-  net_position: number;
-  total_dr: number;
-  total_cr: number;
-  net_receivable: number;
-};
+export type CustomerPartyBalanceRow = CustomerPartyBalanceAlignedRow;
 
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -119,23 +107,12 @@ export default function CustomerPartyBalancesPage() {
     queryKey: ["customer-party-balances", orgId],
     enabled: !!orgId,
     staleTime: 60_000,
-    queryFn: async () => {
-      const [partyRows, phoneMap] = await Promise.all([
-        fetchAllCustomerPartyBalances(orgId!),
-        fetchCustomerPhoneMap(orgId!),
-      ]);
-      return partyRows.map((row) => ({
-        ...row,
-        phone: phoneMap.get(row.customer_id) ?? "",
-      }));
-    },
+    queryFn: async () => fetchCustomerPartyBalancesAligned(orgId!),
   });
 
   /** Outstanding (unnetted) / Credit pool / Net — same facets as Customer Ledger. */
   const orgTotals = useMemo(() => {
-    const facets = rows.map((r) =>
-      facetsFromPartySignedBalance(r.signed_balance, r.advance_available),
-    );
+    const facets = rows.map((r) => partyBalanceRowFacets(r));
     const t = summarizeAccountFacets(facets);
     return {
       totalOutstandingDr: t.totalOutstandingDr,
@@ -221,7 +198,7 @@ export default function CustomerPartyBalancesPage() {
       [],
       ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
       ...filteredRows.map((row, index) => {
-        const f = facetsFromPartySignedBalance(row.signed_balance, row.advance_available);
+        const f = partyBalanceRowFacets(row);
         return [
           index + 1,
           row.customer_name,
@@ -305,7 +282,7 @@ export default function CustomerPartyBalancesPage() {
       }
 
       const direction = partyBalanceDirection(row);
-      const f = facetsFromPartySignedBalance(row.signed_balance, row.advance_available);
+      const f = partyBalanceRowFacets(row);
       const name = row.customer_name.length > 28 ? `${row.customer_name.slice(0, 28)}…` : row.customer_name;
 
       doc.setFontSize(7);
@@ -615,10 +592,7 @@ export default function CustomerPartyBalancesPage() {
                     ) : (
                       paginatedRows.map((row, index) => {
                         const direction = partyBalanceDirection(row);
-                        const f = facetsFromPartySignedBalance(
-                          row.signed_balance,
-                          row.advance_available,
-                        );
+                        const f = partyBalanceRowFacets(row);
                         const isDr = direction === "Dr";
                         const isCr = direction === "Cr";
                         const srNo = pageStart + index;

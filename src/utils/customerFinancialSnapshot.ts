@@ -247,6 +247,8 @@ export async function fetchCustomerFinancialSnapshotMap(
           advance_available?: number | null;
           cn_available_total?: number | null;
           cn_pending_count?: number | null;
+          gross_outstanding_dr?: number | null;
+          net_position?: number | null;
         }>) {
           if (!row?.customer_id) continue;
           map.set(row.customer_id, normalizeRow(row));
@@ -264,6 +266,42 @@ export async function fetchCustomerFinancialSnapshotMap(
   }
 
   return map instanceof Map ? map : new Map();
+}
+
+/**
+ * Whole-org snapshot map (set-based RPC). Preferred for Customer Balances list alignment.
+ * Returns empty map when RPC is unavailable — callers should batch-fallback.
+ */
+export async function fetchOrganizationFinancialSnapshotMap(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<Map<string, CustomerFinancialSnapshot>> {
+  const map = new Map<string, CustomerFinancialSnapshot>();
+  if (!organizationId) return map;
+
+  try {
+    const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_all", {
+      p_organization_id: organizationId,
+    });
+    if (error) throw error;
+
+    for (const row of (data || []) as Array<{
+      customer_id: string;
+      outstanding_dr?: number | null;
+      advance_available?: number | null;
+      cn_available_total?: number | null;
+      cn_pending_count?: number | null;
+      gross_outstanding_dr?: number | null;
+      net_position?: number | null;
+    }>) {
+      if (!row?.customer_id) continue;
+      map.set(row.customer_id, normalizeRow(row));
+    }
+  } catch (err) {
+    console.warn("[customerFinancialSnapshot] snapshot_all fetch failed", err);
+  }
+
+  return map;
 }
 
 export type OrganizationCustomerAccountTotals = {
@@ -354,6 +392,9 @@ export function invalidateCustomerFinancialSnapshot(
     });
     queryClient.invalidateQueries({
       queryKey: ["customer-balances-search", organizationId],
+    });
+    queryClient.invalidateQueries({
+      queryKey: ["customer-party-balances", organizationId],
     });
   }
   if (organizationId && customerId) {
