@@ -3073,12 +3073,6 @@ export default function POSSales() {
       // Master is bill-level flat only when there are zero brand-discount rows.
       const brandDiscount = getBrandDiscountForProduct(product.brand, product.product_name);
 
-      console.log("POS price mode at add:", {
-        grossBasis,
-        addSource,
-        hasOverridePrice: !!overridePrice,
-      });
-
       hasManuallyAddedNewItemRef.current = true;
       const addResult = billingAddLine({
         product,
