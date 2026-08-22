@@ -34,18 +34,19 @@ SELECT pv.id, p.product_name, pv.size, pv.color, pv.barcode,
        pv.stock_qty, pv.last_purchase_date, pv.updated_at
 FROM product_variants pv
 JOIN products p ON p.id = pv.product_id
-WHERE pv.organization_id = '<org_id>'
+WHERE pv.organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'
   AND pv.barcode = '0040017429'
   AND pv.deleted_at IS NULL;
 
 -- 2) Recent purchase lines with this barcode
 SELECT pi.barcode, pi.mrp, pi.sale_price, pi.sku_id, pi.product_name, pi.size,
-       pb.bill_number, pb.bill_date
+       pi.bill_number, pb.bill_date, pb.software_bill_no, pb.supplier_invoice_no
 FROM purchase_items pi
 JOIN purchase_bills pb ON pb.id = pi.bill_id
-WHERE pb.organization_id = '<org_id>'
+WHERE pb.organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'
   AND pi.barcode ILIKE '%0040017429%'
   AND pi.deleted_at IS NULL
+  AND pb.deleted_at IS NULL
 ORDER BY pb.bill_date DESC
 LIMIT 10;
 ```
