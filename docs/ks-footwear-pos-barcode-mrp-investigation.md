@@ -79,5 +79,30 @@ WHERE id = '<variant_id>'
 
 - [ ] Confirm one vs two variant rows for `0040017429`
 - [ ] If master MRP wrong → update variant or re-sync from latest purchase bill
+- [ ] **POS price mode:** KS uses Sale Price at billing, not MRP — run `scripts/ks-footwear-pos-sale-price-mode.sql` if footer still shows "MRP Price Mode Active"
 - [ ] Enable **Ask price on scan** in sale settings if shop wants cashier confirm every drift
 - [ ] After deploy: scan label → if drift remains, dialog should offer **Last purchase ₹204.5**
+
+## POS price mode (MRP vs Sale Price)
+
+KS Footwear had **POS Barcode Scan - Use MRP as Price** enabled (`sale_settings.pos_barcode_price_mode = 'mrp'`). That makes every scan add at **MRP** with no MRP−sale discount.
+
+To bill at **sale price** (e.g. barcode `0040017429`: unit **₹143** not **₹204.5**):
+
+**UI:** Settings → Enable MRP Field → turn **OFF** “POS Barcode Scan - Use MRP as Price”
+
+**SQL:** `scripts/ks-footwear-pos-sale-price-mode.sql`
+
+```sql
+UPDATE settings
+SET sale_settings = jsonb_set(
+      COALESCE(sale_settings, '{}'::jsonb),
+      '{pos_barcode_price_mode}',
+      '"sale_price"'::jsonb,
+      true
+    ),
+    updated_at = now()
+WHERE organization_id = '4bc73037-e877-4123-9261-eb6e3876698c';
+```
+
+After change, POS footer badge **“MRP Price Mode Active”** disappears; new lines use `variant.sale_price` as unit price.
