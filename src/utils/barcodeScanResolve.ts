@@ -1,5 +1,15 @@
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 
+/** True when a numeric scan is two identical halves (scanner duplicate or app concatenation). */
+export function isDoubledNumericBarcode(raw: string): boolean {
+  const normalized = normalizeProductSearchTerm(raw);
+  if (!/^\d+$/.test(normalized) || normalized.length < 8 || normalized.length % 2 !== 0) {
+    return false;
+  }
+  const halfLen = normalized.length / 2;
+  return normalized.slice(0, halfLen) === normalized.slice(halfLen);
+}
+
 /**
  * Barcode strings to try when resolving a hardware scan (order matters).
  * Handles doubled reads (scanner sends the same code twice in one burst).

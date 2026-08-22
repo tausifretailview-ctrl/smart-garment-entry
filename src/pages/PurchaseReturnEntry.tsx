@@ -38,12 +38,12 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
-import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "@/utils/barcodeScanResolve";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import {
-  resolvePurchaseBarcodesForStockReport,
-  type PurchaseBarcodeStockClient,
-} from "@/utils/stockReportPurchaseBarcodeResolve";
+  lookupVariantRowsByScan,
+  pickBestVariantScanRow,
+} from "@/utils/lookupVariantByScan";
 
 function parseReturnQty(uom: string | undefined, raw: string): number {
   if (isDecimalUOM(uom)) {
@@ -677,77 +677,14 @@ const PurchaseReturnEntry = () => {
     async (raw: string): Promise<ProductVariant | null> => {
       if (!currentOrganization?.id) return null;
 
-      const candidates = expandBarcodeScanCandidates(raw);
-      if (!candidates.length) return null;
-
-      const base = () =>
-        supabase
-          .from("product_variants")
-          .select(VARIANT_SELECT)
-          .eq("organization_id", currentOrganization.id)
-          .eq("active", true)
-          .is("deleted_at", null);
-
-      const tryExactBarcode = async (barcode: string): Promise<ProductVariant | null> => {
-        const { data: exactRows, error: exactErr } = await base().eq("barcode", barcode).limit(5);
-        if (!exactErr && exactRows?.length) {
-          const mapped = exactRows
-            .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
-            .filter(Boolean);
-          if (mapped.length === 1) return mapped[0] as ProductVariant;
-          const ci = mapped.find((m) => m!.barcode.trim().toLowerCase() === barcode.toLowerCase());
-          if (ci) return ci;
-        }
-
-        const { data: ilikeRows, error: ilikeErr } = await base().ilike("barcode", barcode).limit(5);
-        if (!ilikeErr && ilikeRows?.length) {
-          const mapped = ilikeRows
-            .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
-            .filter(Boolean) as ProductVariant[];
-          const ci = mapped.find((m) => m.barcode.trim().toLowerCase() === barcode.toLowerCase());
-          return ci || (mapped.length === 1 ? mapped[0] : null);
-        }
-
-        return null;
-      };
-
-      for (const candidate of candidates) {
-        const hit = await tryExactBarcode(candidate);
-        if (hit) return hit;
-      }
-
-      // Align with Stock Report / POS: purchase_items.barcode may differ from live variant after merges.
-      for (const candidate of candidates) {
-        if (!/^\d{4,}$/.test(candidate)) continue;
-
-        const resolutions = await resolvePurchaseBarcodesForStockReport(
-          supabase as unknown as PurchaseBarcodeStockClient,
-          currentOrganization.id,
-          candidate,
-        );
-        const skuIds = resolutions
-          .filter((r) => !r.excludeReason && r.skuId)
-          .map((r) => r.skuId);
-        if (!skuIds.length) continue;
-
-        const { data: bySkuRows, error: bySkuErr } = await base().in("id", skuIds).limit(5);
-        if (bySkuErr || !bySkuRows?.length) continue;
-
-        const mapped = bySkuRows
-          .map((r) => mapVariantFromDbRow(r as Record<string, unknown>))
-          .filter(Boolean) as ProductVariant[];
-
-        if (mapped.length === 1) return mapped[0];
-
-        const liveMatch = mapped.find((m) =>
-          candidates.some((c) => m.barcode.trim().toLowerCase() === c.toLowerCase()),
-        );
-        if (liveMatch) return liveMatch;
-
-        return mapped[0] ?? null;
-      }
-
-      return null;
+      const lookup = await lookupVariantRowsByScan(
+        currentOrganization.id,
+        raw,
+        VARIANT_SELECT,
+        supabase,
+      );
+      const row = pickBestVariantScanRow(lookup.rows, lookup.scanCandidates);
+      return row ? mapVariantFromDbRow(row) : null;
     },
     [currentOrganization?.id, mapVariantFromDbRow],
   );
@@ -911,25 +848,42 @@ const PurchaseReturnEntry = () => {
       barcodeScanner.cancelAutoSubmit();
 
       try {
+        const wasDoubledScan = isDoubledNumericBarcode(trimmed);
         let variant = await lookupVariantByBarcode(trimmed);
 
         if (!variant) {
-          const results = await fetchSearchVariants(trimmed);
-          if (results.length === 0) {
-            toast({
-              title: "Product not found",
-              description: `No product for barcode "${trimmed}"`,
-              variant: "destructive",
-            });
-            return;
+          const candidates = expandBarcodeScanCandidates(trimmed);
+          for (const candidate of candidates) {
+            const results = await fetchSearchVariants(candidate);
+            if (results.length === 0) continue;
+            const exact = results.find(
+              (r) => r.barcode.trim().toLowerCase() === candidate.toLowerCase(),
+            );
+            variant = exact || results[0];
+            break;
           }
-          const exact = results.find(
-            (r) => r.barcode.trim().toLowerCase() === trimmed.toLowerCase(),
-          );
-          variant = exact || results[0];
+        }
+
+        if (!variant) {
+          toast({
+            title: "Product not found",
+            description: wasDoubledScan
+              ? `No product for doubled scan "${trimmed}". Try scanning once slowly, or check scanner suffix settings.`
+              : `No product for barcode "${trimmed}"`,
+            variant: "destructive",
+          });
+          setSearchQuery("");
+          barcodeScanner.reset();
+          return;
         }
 
         await addVariantToReturn(variant);
+        if (wasDoubledScan) {
+          toast({
+            title: "Scanner sent barcode twice",
+            description: `Matched ${variant.barcode} (${variant.product_name}). Field cleared — scan once per item.`,
+          });
+        }
         setSearchQuery("");
         setShowSearch(false);
         setSearchResults([]);
