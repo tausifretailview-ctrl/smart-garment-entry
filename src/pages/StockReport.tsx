@@ -59,6 +59,10 @@ import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
+import {
+  isCompleteNumericBarcodeForStockReport,
+  stockReportOldBarcodeKeyMatches,
+} from "@/utils/posBarcodeCartLookup";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 
 interface StockItem {
@@ -431,6 +435,8 @@ export default function StockReport() {
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [openSettlementVariantIds, setOpenSettlementVariantIds] = useState<Set<string>>(() => new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  /** Committed on Search / Enter — draft searchTerm does not trigger fetch while typing. */
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
   const [sizeWiseSearch, setSizeWiseSearch] = useState("");
   const [sizeFilter, setSizeFilter] = useState<string>("all");
@@ -779,16 +785,20 @@ export default function StockReport() {
     if (!currentOrganization?.id) return;
     
     try {
-      // Search in purchase_items — scoped to current org via purchase_bills (no org col on lines).
-      const { data: purchaseData } = await supabase
+      const exactOnly = isCompleteNumericBarcodeForStockReport(barcode);
+      let purchaseQuery = supabase
         .from("purchase_items")
         .select("sku_id, barcode, purchase_bills!inner(organization_id)")
         .eq("purchase_bills.organization_id", currentOrganization.id)
         .is("purchase_bills.deleted_at", null)
-        .ilike("barcode", `%${barcode}%`)
         .not("sku_id", "is", null)
         .is("deleted_at", null)
         .limit(50);
+      purchaseQuery = exactOnly
+        ? purchaseQuery.eq("barcode", barcode.trim())
+        : purchaseQuery.ilike("barcode", `%${barcode.trim()}%`);
+
+      const { data: purchaseData } = await purchaseQuery;
 
       const newMap = new Map<string, string>();
 
@@ -804,6 +814,7 @@ export default function StockReport() {
         supabase,
         currentOrganization.id,
         barcode,
+        { exactOnly },
       );
       saleMap.forEach((variantId, bc) => newMap.set(bc, variantId));
 
@@ -831,8 +842,7 @@ export default function StockReport() {
     }
   };
 
-  const stockReportHasFilters =
-    !!searchTerm.trim() ||
+  const hasDropdownOrPinFilters =
     !!productNameFilter.trim() ||
     brandFilter !== "all" ||
     departmentFilter !== "all" ||
@@ -844,9 +854,18 @@ export default function StockReport() {
     stockStatusFilter !== "all" ||
     pinnedProducts.length > 0;
 
+  const stockReportFetchHasFilters =
+    !!appliedSearchTerm.trim() || hasDropdownOrPinFilters;
+
+  const stockReportHasFilters =
+    !!searchTerm.trim() || hasDropdownOrPinFilters;
+
   const fetchStockReportPage = useCallback(
-    async (page: number) => {
-      if (!currentOrganization?.id || !stockReportHasFilters) return;
+    async (page: number, searchForFetch?: string) => {
+      if (!currentOrganization?.id) return;
+      const activeSearch = (searchForFetch ?? appliedSearchTerm).trim();
+      const canFetch = !!activeSearch || hasDropdownOrPinFilters;
+      if (!canFetch) return;
 
       const requestId = ++searchRequestIdRef.current;
       setLoading(true);
@@ -856,8 +875,8 @@ export default function StockReport() {
 
       try {
         const oldBarcodePromise =
-          searchTerm && searchTerm.length >= 4
-            ? searchOldBarcodes(searchTerm)
+          activeSearch && activeSearch.length >= 4
+            ? searchOldBarcodes(activeSearch)
             : Promise.resolve();
 
         const { data, error } = await (
@@ -870,7 +889,7 @@ export default function StockReport() {
         ).rpc("get_stock_report", {
           ...buildStockReportRpcFilters({
             orgId: currentOrganization.id,
-            searchTerm,
+            searchTerm: activeSearch,
             categoryFilter,
             brandFilter,
             stockStatusFilter,
@@ -902,18 +921,20 @@ export default function StockReport() {
         // retry get_stock_report with the live barcode(s) pointed at by sku_id.
         if (
           rows.length === 0 &&
-          isStockReportBarcodeLikeSearch(searchTerm) &&
+          isStockReportBarcodeLikeSearch(activeSearch) &&
           currentOrganization?.id
         ) {
           try {
+            const barcodeExactOnly = isCompleteNumericBarcodeForStockReport(activeSearch);
             const resolutions = await resolvePurchaseBarcodesForStockReport(
               supabase as unknown as PurchaseBarcodeStockClient,
               currentOrganization.id,
-              searchTerm,
+              activeSearch,
+              { exactOnly: barcodeExactOnly },
             );
             if (requestId !== searchRequestIdRef.current) return;
 
-            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, searchTerm);
+            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, activeSearch);
             if (retryBarcodes.length > 0) {
               const merged = new Map<string, StockReportRpcRow>();
               for (const liveBc of retryBarcodes.slice(0, 5)) {
@@ -950,7 +971,7 @@ export default function StockReport() {
                 }
               }
               rows = [...merged.values()];
-              const searchBc = searchTerm.trim();
+              const searchBc = activeSearch;
               for (const r of resolutions) {
                 if (r.excludeReason || !r.skuId) continue;
                 const live = (r.liveBarcode || "").trim();
@@ -1028,9 +1049,9 @@ export default function StockReport() {
     },
     [
       currentOrganization?.id,
-      stockReportHasFilters,
+      hasDropdownOrPinFilters,
       activeTab,
-      searchTerm,
+      appliedSearchTerm,
       productNameFilter,
       pinnedProducts,
       categoryFilter,
@@ -1048,11 +1069,14 @@ export default function StockReport() {
   );
 
   const handleSearch = useCallback(async () => {
-    if (!stockReportHasFilters) return;
+    const nextApplied = searchTerm.trim();
+    setAppliedSearchTerm(nextApplied);
+    const canFetch = !!nextApplied || hasDropdownOrPinFilters;
+    if (!canFetch) return;
     setHasSearched(true);
     setCurrentPage(1);
-    await fetchStockReportPage(1);
-  }, [stockReportHasFilters, fetchStockReportPage]);
+    await fetchStockReportPage(1, nextApplied);
+  }, [searchTerm, hasDropdownOrPinFilters, fetchStockReportPage]);
 
   const autoSearchTrigger = useMemo(
     () =>
@@ -1066,7 +1090,6 @@ export default function StockReport() {
         supplierFilter,
         supplierInvoiceFilter,
         stockStatusFilter,
-        searchTerm,
         lowStockThreshold,
         activeTab,
         pinned: pinnedProducts
@@ -1084,7 +1107,6 @@ export default function StockReport() {
       supplierFilter,
       supplierInvoiceFilter,
       stockStatusFilter,
-      searchTerm,
       lowStockThreshold,
       activeTab,
       pinnedProducts,
@@ -1098,7 +1120,7 @@ export default function StockReport() {
       if (!currentOrganization?.id) return null;
       return {
         orgId: currentOrganization.id,
-        searchTerm,
+        searchTerm: appliedSearchTerm,
         categoryFilter,
         brandFilter,
         stockStatusFilter,
@@ -1114,7 +1136,7 @@ export default function StockReport() {
     },
     [
       currentOrganization?.id,
-      searchTerm,
+      appliedSearchTerm,
       categoryFilter,
       brandFilter,
       stockStatusFilter,
@@ -1166,19 +1188,21 @@ export default function StockReport() {
     enabled:
       !!stockReportRpcFilterInput &&
       hasSearched &&
-      stockReportHasFilters &&
+      stockReportFetchHasFilters &&
       !hasClientOnlyFilters,
     ...REPORT_CACHE,
   });
 
-  // Auto-load when dropdown / product filters change (text search still uses Search button or Enter).
+  // Auto-load when dropdown / pinned filters change (text/barcode search uses Search or Enter).
   useEffect(() => {
     if (!filtersReady || !currentOrganization?.id) return;
 
-    if (!stockReportHasFilters) {
-      setHasSearched(false);
-      setStockItems([]);
-      setServerTotalRows(0);
+    if (!hasDropdownOrPinFilters) {
+      if (!appliedSearchTerm.trim()) {
+        setHasSearched(false);
+        setStockItems([]);
+        setServerTotalRows(0);
+      }
       return;
     }
 
@@ -1189,7 +1213,8 @@ export default function StockReport() {
     filtersReady,
     currentOrganization?.id,
     autoSearchTrigger,
-    stockReportHasFilters,
+    hasDropdownOrPinFilters,
+    appliedSearchTerm,
     fetchStockReportPage,
   ]);
 
@@ -1210,10 +1235,10 @@ export default function StockReport() {
   const filteredStockItems = useMemo(() => {
     // Get variant IDs that match old barcodes
     const variantIdsFromOldBarcodes = new Set<string>();
-    if (searchTerm && searchTerm.length >= 4) {
-      const search = searchTerm.toLowerCase();
+    if (appliedSearchTerm && appliedSearchTerm.length >= 4) {
+      const search = appliedSearchTerm.toLowerCase();
       oldBarcodeVariantMap.forEach((variantId, barcode) => {
-        if (barcode.includes(search)) {
+        if (stockReportOldBarcodeKeyMatches(search, barcode)) {
           variantIdsFromOldBarcodes.add(variantId);
         }
       });
@@ -1236,12 +1261,12 @@ export default function StockReport() {
       }
 
       // General search filter — multi-token AND
-      if (searchTerm) {
+      if (appliedSearchTerm) {
         const matchesOldBarcode = variantIdsFromOldBarcodes.has(item.id);
         if (
           !matchesOldBarcode &&
           !multiTokenMatch(
-            searchTerm,
+            appliedSearchTerm,
             item.product_name,
             item.brand,
             item.color,
@@ -1260,7 +1285,7 @@ export default function StockReport() {
 
       return true;
     });
-  }, [stockItems, searchTerm, productNameFilter, oldBarcodeVariantMap, pinnedProducts]);
+  }, [stockItems, appliedSearchTerm, productNameFilter, oldBarcodeVariantMap, pinnedProducts]);
 
 
   // Size-wise stock report data
@@ -1391,10 +1416,11 @@ export default function StockReport() {
   useEffect(() => {
     if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
-  }, [searchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
+  }, [appliedSearchTerm, productNameFilter, brandFilter, departmentFilter, sizeFilter, colorFilter, supplierFilter, supplierInvoiceFilter, categoryFilter, stockStatusFilter]);
 
   const clearFilters = () => {
     setSearchTerm("");
+    setAppliedSearchTerm("");
     setProductNameFilter("");
     setBrandFilter("all");
     setDepartmentFilter("all");
@@ -2332,7 +2358,7 @@ export default function StockReport() {
                         </TableRow>
                       ) : (
                         paginatedStockItems.map((item, index) => {
-                          const highlightQuery = searchTerm.trim();
+                          const highlightQuery = appliedSearchTerm.trim();
                           const rowHighlight = highlightQuery && stockItemMatchesSearch(item, highlightQuery);
                           return (
                           <TableRow

@@ -29,7 +29,20 @@ export function isCompleteNumericBarcodeForPosCart(term: string): boolean {
   return isPosServiceShortNumericBarcode(t);
 }
 
-/** Enter on numeric barcode must exact-match lookup, not dropdown partial pick. */
+/** Stock report fetch uses the same complete numeric barcode rule as POS cart. */
+export function isCompleteNumericBarcodeForStockReport(term: string): boolean {
+  return isCompleteNumericBarcodeForPosCart(term);
+}
+
+/** Exact barcode string match (case-insensitive), else substring for text search. */
+export function stockReportOldBarcodeKeyMatches(search: string, barcodeKey: string): boolean {
+  const s = search.trim().toLowerCase();
+  const b = barcodeKey.trim().toLowerCase();
+  if (!s || !b) return false;
+  if (/^\d+$/.test(s)) return b === s;
+  return b.includes(s);
+}
+
 export function shouldPosEnterUseExactBarcodeLookup(term: string): boolean {
   const t = term.trim();
   if (!/^\d+$/.test(t)) return false;

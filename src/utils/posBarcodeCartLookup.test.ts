@@ -3,10 +3,14 @@ import {
   POS_NUMERIC_BARCODE_MIN_LENGTH,
 cursor/ks-footwear-pos-barcode-mrp-fix-0051
   shouldPosEnterUseExactBarcodeLookup,
+<<<<<<< HEAD
 =======
   isCompleteNumericBarcodeForPosCart,
   isPosServiceShortNumericBarcode,
  main
+=======
+  stockReportOldBarcodeKeyMatches,
+>>>>>>> a93c713da (Stock Report: require Search/Enter for barcode; exact numeric match)
 } from "./posBarcodeCartLookup";
 
 describe("posBarcodeCartLookup", () => {
@@ -43,5 +47,16 @@ describe("shouldPosEnterUseExactBarcodeLookup", () => {
 
   it("quick service codes use dropdown path", () => {
     expect(shouldPosEnterUseExactBarcodeLookup("3")).toBe(false);
+  });
+});
+
+describe("stockReportOldBarcodeKeyMatches", () => {
+  it("exact match for numeric barcode keys", () => {
+    expect(stockReportOldBarcodeKeyMatches("0040017429", "0040017429")).toBe(true);
+    expect(stockReportOldBarcodeKeyMatches("0040", "0040017429")).toBe(false);
+  });
+
+  it("substring match for text keys", () => {
+    expect(stockReportOldBarcodeKeyMatches("bhg", "label-bhg215")).toBe(true);
   });
 });

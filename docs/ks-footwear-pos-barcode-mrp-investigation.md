@@ -84,7 +84,12 @@ WHERE id = '<variant_id>'
 - [ ] Enable **Ask price on scan** in sale settings if shop wants cashier confirm every drift
 - [ ] After deploy: scan label → if drift remains, dialog should offer **Last purchase ₹204.5**
 
-## POS price mode (MRP vs Sale Price)
+## Stock Report (same org)
+
+- Typing in the search box no longer auto-loads the grid — click **Search** or press **Enter**.
+- Numeric barcode search uses **exact** purchase-label match (no partial `0040` → wrong row).
+- Label barcode `0040017429` may show live barcode `40003024` with **Label 0040017429** badge — same SKU after master merge, not a wrong product.
+
 
 KS Footwear had **POS Barcode Scan - Use MRP as Price** enabled (`sale_settings.pos_barcode_price_mode = 'mrp'`). That makes every scan add at **MRP** with no MRP−sale discount.
 
