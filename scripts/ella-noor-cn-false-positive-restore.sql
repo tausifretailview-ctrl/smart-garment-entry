@@ -3,6 +3,9 @@
 -- =============================================================================
 -- Org: 3fdca631-1e0c-4417-9704-421f5129ff67
 --
+-- STANDALONE: does NOT require migration 20260822120000 (cn_false_positive_deleted_receipts
+-- view). Run each section separately in Supabase SQL editor.
+--
 -- ROOT CAUSE (read-only investigation, Aug 2026):
 --   On 06-Jun-2026 the cn_over_apply_repair_20260606 batch soft-deleted 28
 --   credit_note_adjustment receipts. It assumed returns with credit_status='adjusted'
@@ -23,19 +26,117 @@
 --      owed as credit. Hanif ₹3,050 / Arezah ₹3,150 / GULNAZ ₹750 / FIZA ₹200.
 --   3. Do NOT use Recycle Bin "Restore" — it undeletes the voucher without setting
 --      sales.sale_return_adjust, which leaves the invoice stuck unpaid.
---
--- AFTER RUNNING:
---   SELECT * FROM cn_false_positive_deleted_receipts
---     WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
---   -- expect 0 rows
---   SELECT customer_name, signed_balance FROM get_customer_party_balances(
---     '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) WHERE customer_name ILIKE '%hanif%';
 -- =============================================================================
+
+-- Inline detection (same logic as cn_false_positive_deleted_receipts view).
+-- Reused in every section below so this script runs before that migration ships.
+--
+--   false_positive_fp AS (
+--     SELECT ve.id AS voucher_id, ve.reference_id AS sale_id, ...
+--     FROM voucher_entries ve JOIN sales s ...
+--     WHERE ve.deleted_at IS NOT NULL AND s.sale_return_adjust < 0.5 AND repair tags
+--   )
+
+
+-- ═══════════════════════════════════════════════════════
+-- SECTION 0 (optional) — Create detection view for ongoing monitoring
+-- Skip if migration 20260822120000 is already deployed.
+-- ═══════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW public.cn_false_positive_deleted_receipts
+WITH (security_invoker = true) AS
+SELECT
+  ve.id                    AS voucher_id,
+  ve.voucher_number,
+  ve.organization_id,
+  ve.reference_id          AS sale_id,
+  s.sale_number,
+  s.customer_id,
+  c.customer_name,
+  ve.total_amount          AS cn_amount,
+  COALESCE(s.sale_return_adjust, 0) AS invoice_sra,
+  COALESCE(s.paid_amount, 0)      AS invoice_paid,
+  COALESCE(s.net_amount, 0)
+    - COALESCE(s.paid_amount, 0)
+    - COALESCE(s.sale_return_adjust, 0) AS invoice_outstanding,
+  ve.deleted_at,
+  ve.notes,
+  ve.description,
+  sr.id                    AS sale_return_id,
+  sr.return_number,
+  COALESCE(sr.net_amount, 0) AS return_net,
+  COALESCE(sr.credit_available_balance, sr.net_amount, 0) AS return_cab
+FROM public.voucher_entries ve
+INNER JOIN public.sales s
+  ON s.id = ve.reference_id
+ AND s.organization_id = ve.organization_id
+ AND s.deleted_at IS NULL
+LEFT JOIN public.customers c
+  ON c.id = s.customer_id
+ AND c.organization_id = ve.organization_id
+LEFT JOIN public.sale_returns sr
+  ON sr.linked_sale_id = s.id
+ AND sr.organization_id = ve.organization_id
+ AND sr.deleted_at IS NULL
+ AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+WHERE ve.voucher_type = 'receipt'
+  AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+  AND ve.deleted_at IS NOT NULL
+  AND COALESCE(s.sale_return_adjust, 0) < 0.5
+  AND (
+    COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+    OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+    OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+    OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+  );
+
+GRANT SELECT ON public.cn_false_positive_deleted_receipts TO authenticated;
+
 
 -- ═══════════════════════════════════════════════════════
 -- SECTION 1 — DRY RUN (read-only): rows that WILL be repaired
 -- ═══════════════════════════════════════════════════════
 
+WITH false_positive_fp AS (
+  SELECT
+    ve.id                    AS voucher_id,
+    ve.voucher_number,
+    ve.organization_id,
+    ve.reference_id          AS sale_id,
+    s.sale_number,
+    c.customer_name,
+    ve.total_amount          AS cn_amount,
+    COALESCE(s.net_amount, 0)
+      - COALESCE(s.paid_amount, 0)
+      - COALESCE(s.sale_return_adjust, 0) AS invoice_outstanding,
+    sr.id                    AS sale_return_id,
+    sr.return_number,
+    COALESCE(sr.net_amount, 0) AS return_net
+  FROM public.voucher_entries ve
+  INNER JOIN public.sales s
+    ON s.id = ve.reference_id
+   AND s.organization_id = ve.organization_id
+   AND s.deleted_at IS NULL
+  LEFT JOIN public.customers c
+    ON c.id = s.customer_id
+   AND c.organization_id = ve.organization_id
+  LEFT JOIN public.sale_returns sr
+    ON sr.linked_sale_id = s.id
+   AND sr.organization_id = ve.organization_id
+   AND sr.deleted_at IS NULL
+   AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+  WHERE ve.voucher_type = 'receipt'
+    AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+    AND ve.deleted_at IS NOT NULL
+    AND COALESCE(s.sale_return_adjust, 0) < 0.5
+    AND (
+      COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+      OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+    )
+    AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+)
 SELECT
   v.voucher_number,
   v.customer_name,
@@ -50,8 +151,7 @@ SELECT
       THEN 'REVIEW — remainder may need refund voucher'
     ELSE 'OK — full apply'
   END AS repair_flag
-FROM public.cn_false_positive_deleted_receipts v
-WHERE v.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+FROM false_positive_fp v
 ORDER BY v.cn_amount DESC;
 
 
@@ -66,14 +166,57 @@ CREATE TABLE IF NOT EXISTS public.ella_noor_cn_false_positive_restore_20260822_s
   captured_at timestamptz NOT NULL DEFAULT now()
 );
 
+WITH false_positive_fp AS (
+  SELECT
+    ve.id AS voucher_id,
+    ve.reference_id AS sale_id,
+    sr.id AS sale_return_id
+  FROM public.voucher_entries ve
+  INNER JOIN public.sales s
+    ON s.id = ve.reference_id
+   AND s.organization_id = ve.organization_id
+   AND s.deleted_at IS NULL
+  LEFT JOIN public.sale_returns sr
+    ON sr.linked_sale_id = s.id
+   AND sr.organization_id = ve.organization_id
+   AND sr.deleted_at IS NULL
+   AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+  WHERE ve.voucher_type = 'receipt'
+    AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+    AND ve.deleted_at IS NOT NULL
+    AND COALESCE(s.sale_return_adjust, 0) < 0.5
+    AND (
+      COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+      OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+    )
+    AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+)
 INSERT INTO public.ella_noor_cn_false_positive_restore_20260822_snapshot(snapshot_kind, row_id, payload)
 SELECT 'voucher_entry', ve.id, to_jsonb(ve)
 FROM public.voucher_entries ve
-WHERE ve.id IN (
-  SELECT voucher_id FROM public.cn_false_positive_deleted_receipts
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-);
+WHERE ve.id IN (SELECT voucher_id FROM false_positive_fp);
 
+WITH false_positive_fp AS (
+  SELECT ve.reference_id AS sale_id
+  FROM public.voucher_entries ve
+  INNER JOIN public.sales s
+    ON s.id = ve.reference_id
+   AND s.organization_id = ve.organization_id
+   AND s.deleted_at IS NULL
+  WHERE ve.voucher_type = 'receipt'
+    AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+    AND ve.deleted_at IS NOT NULL
+    AND COALESCE(s.sale_return_adjust, 0) < 0.5
+    AND (
+      COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+      OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+    )
+    AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+)
 INSERT INTO public.ella_noor_cn_false_positive_restore_20260822_snapshot(snapshot_kind, row_id, payload)
 SELECT 'sale', s.id,
   jsonb_build_object(
@@ -85,19 +228,36 @@ SELECT 'sale', s.id,
     'customer_id', s.customer_id
   )
 FROM public.sales s
-WHERE s.id IN (
-  SELECT sale_id FROM public.cn_false_positive_deleted_receipts
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-);
+WHERE s.id IN (SELECT sale_id FROM false_positive_fp);
 
+WITH false_positive_fp AS (
+  SELECT sr.id AS sale_return_id
+  FROM public.voucher_entries ve
+  INNER JOIN public.sales s
+    ON s.id = ve.reference_id
+   AND s.organization_id = ve.organization_id
+   AND s.deleted_at IS NULL
+  INNER JOIN public.sale_returns sr
+    ON sr.linked_sale_id = s.id
+   AND sr.organization_id = ve.organization_id
+   AND sr.deleted_at IS NULL
+   AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+  WHERE ve.voucher_type = 'receipt'
+    AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+    AND ve.deleted_at IS NOT NULL
+    AND COALESCE(s.sale_return_adjust, 0) < 0.5
+    AND (
+      COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+      OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+      OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+    )
+    AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+)
 INSERT INTO public.ella_noor_cn_false_positive_restore_20260822_snapshot(snapshot_kind, row_id, payload)
 SELECT 'sale_return', sr.id, to_jsonb(sr)
 FROM public.sale_returns sr
-WHERE sr.id IN (
-  SELECT sale_return_id FROM public.cn_false_positive_deleted_receipts
-  WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-    AND sale_return_id IS NOT NULL
-);
+WHERE sr.id IN (SELECT sale_return_id FROM false_positive_fp);
 
 
 -- ═══════════════════════════════════════════════════════
@@ -105,6 +265,36 @@ WHERE sr.id IN (
 -- ═══════════════════════════════════════════════════════
 
 BEGIN;
+
+CREATE TEMP TABLE _cn_fp_repair_targets ON COMMIT DROP AS
+SELECT
+  ve.id                    AS voucher_id,
+  ve.organization_id,
+  ve.reference_id          AS sale_id,
+  ve.total_amount          AS cn_amount,
+  sr.id                    AS sale_return_id,
+  COALESCE(sr.net_amount, 0) AS return_net
+FROM public.voucher_entries ve
+INNER JOIN public.sales s
+  ON s.id = ve.reference_id
+ AND s.organization_id = ve.organization_id
+ AND s.deleted_at IS NULL
+LEFT JOIN public.sale_returns sr
+  ON sr.linked_sale_id = s.id
+ AND sr.organization_id = ve.organization_id
+ AND sr.deleted_at IS NULL
+ AND LOWER(COALESCE(sr.credit_status, '')) = 'adjusted'
+WHERE ve.voucher_type = 'receipt'
+  AND LOWER(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+  AND ve.deleted_at IS NOT NULL
+  AND COALESCE(s.sale_return_adjust, 0) < 0.5
+  AND (
+    COALESCE(ve.notes, '') ILIKE '%cn_over_apply_repair%'
+    OR COALESCE(ve.notes, '') ILIKE '%phantom_cn_repair%'
+    OR COALESCE(ve.notes, '') ILIKE '%phantom credit_note_adjustment%'
+    OR COALESCE(ve.description, '') ILIKE '%credit note adjusted%'
+  )
+  AND ve.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid;
 
 -- 3a. Set sale_return_adjust on each affected invoice (= deleted CN amount).
 UPDATE public.sales s
@@ -118,9 +308,8 @@ SET
     ELSE s.payment_status
   END,
   updated_at = now()
-FROM public.cn_false_positive_deleted_receipts fp
-WHERE fp.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND fp.sale_id = s.id
+FROM _cn_fp_repair_targets fp
+WHERE fp.sale_id = s.id
   AND s.organization_id = fp.organization_id
   AND COALESCE(s.sale_return_adjust, 0) < 0.5;
 
@@ -132,9 +321,8 @@ SET
   notes = COALESCE(ve.notes, '') ||
     E'\n[cn_false_positive_restore_20260822] restored after cn_over_apply false-positive review',
   updated_at = now()
-FROM public.cn_false_positive_deleted_receipts fp
-WHERE fp.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND fp.voucher_id = ve.id
+FROM _cn_fp_repair_targets fp
+WHERE fp.voucher_id = ve.id
   AND ve.deleted_at IS NOT NULL;
 
 -- 3c. Set credit_available_balance on linked sale returns (remainder after apply).
@@ -146,9 +334,8 @@ SET
     ELSE 'partially_adjusted'
   END,
   updated_at = now()
-FROM public.cn_false_positive_deleted_receipts fp
-WHERE fp.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  AND fp.sale_return_id = sr.id
+FROM _cn_fp_repair_targets fp
+WHERE fp.sale_return_id = sr.id
   AND sr.deleted_at IS NULL;
 
 -- 3d. Resync paid_amount via canonical settlement (non-regressive).
@@ -162,10 +349,7 @@ WITH recomputed AS (
   FROM public.sales s
   CROSS JOIN LATERAL public.compute_sale_settlement(s.id, s.organization_id) AS c
   WHERE s.organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-    AND s.id IN (
-      SELECT sale_id FROM public.cn_false_positive_deleted_receipts
-      WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-    )
+    AND s.id IN (SELECT sale_id FROM _cn_fp_repair_targets)
     AND s.deleted_at IS NULL
     AND c.new_paid IS NOT NULL
 )
@@ -182,8 +366,7 @@ WHERE r.id = s.id
   AND NOT (r.new_paid < COALESCE(r.old_paid, 0) - 0.009 AND r.new_status <> 'completed');
 
 -- Verify inside transaction before COMMIT:
--- SELECT count(*) FROM cn_false_positive_deleted_receipts
---   WHERE organization_id = '3fdca631-1e0c-4417-9704-421f5129ff67';
+-- SELECT count(*) FROM _cn_fp_repair_targets;
 
 COMMIT;
 -- ROLLBACK;  -- use if verification fails
