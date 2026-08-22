@@ -2258,6 +2258,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ella_noor_cn_false_positive_restore_20260822_snapshot: {
+        Row: {
+          captured_at: string
+          payload: Json
+          row_id: string
+          snapshot_kind: string
+        }
+        Insert: {
+          captured_at?: string
+          payload: Json
+          row_id: string
+          snapshot_kind: string
+        }
+        Update: {
+          captured_at?: string
+          payload?: Json
+          row_id?: string
+          snapshot_kind?: string
+        }
+        Relationships: []
+      }
       employees: {
         Row: {
           address: string | null
@@ -8505,6 +8526,10 @@ export type Database = {
         }
         Returns: number
       }
+      _customer_sale_return_credit_total: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: number
+      }
       _draft_references_product: {
         Args: { p_draft_data: Json; p_product_id: string }
         Returns: boolean
@@ -8583,6 +8608,14 @@ export type Database = {
       _product_is_orphan: {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
+      }
+      _sale_return_remaining_credit_for_balance: {
+        Args: {
+          p_credit_available_balance: number
+          p_linked_sale_return_adjust: number
+          p_net_amount: number
+        }
+        Returns: number
       }
       _school_fee_get_debit_account: {
         Args: { p_mapped_method: string; p_org: string }
