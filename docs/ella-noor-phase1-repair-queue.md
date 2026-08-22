@@ -23,8 +23,7 @@
 | Customer | Party balance | Issue | Script / doc |
 |----------|---------------|-------|--------------|
 | **Sumaiya Chhapra Bhabhi** | ₹4,73,730 Dr | ₹2,06,350 recon gap; dashboard vs party | Phase1 §1F |
-| **Tanvi Taufu** | ₹2,950 Dr | Return pool ₹70k+ not aligned | Phase1 §1C, §1F |
-| **SHUMAMA BAIRELI** | ₹1,58,700 Dr | CN double-apply + pending SR ₹33,450 | `repair-cn-double-apply-checklist.md` P0 |
+| **Tanvi Taufu** | ₹2,950 Dr | Return pool aligned ✓ (R3 Aug 22) | Phase1 §1C, §1F |
 
 ### P1 — CN / return pool (31 customers flagged CN_DOUBLE)
 
@@ -62,6 +61,10 @@ Run Phase1 §1D and §1E for advance refund scan.
 | Hanif bhai | ₹3,050 Cr — fixed (migration + adjustment) |
 | ALOK KUMAR (TAZIM) | Settled ₹0 |
 | Samiya Nursumar Bhabhi | ₹4,55,820 Dr — party = recon (drift 0) |
+| **Sharmin Mewara** | R3 Aug 22 — return pool CAB zeroed → party **₹0 Settled** (was −₹11,500 Cr) |
+| **Tanvi Taufu** | R3 Aug 22 — CAB hygiene on SR/47, SR/49; party **₹2,950 Dr** unchanged |
+| **SHUMAMA BAIRELI** | R2 Aug 22 — owner repair complete; party **₹1,58,700 Dr** verified (`reconcile_customer_balance` export 2026-08-22) |
+| **Faiza Adil** | R5 Aug 22 — INV/26-27/2423 paid drift fixed (`paid_amount` aligned; SRA ₹2,200 retained, status completed) |
 
 ---
 
@@ -69,9 +72,9 @@ Run Phase1 §1D and §1E for advance refund scan.
 
 | Batch | Scope | Action |
 |-------|-------|--------|
-| **R5** | 11 paid drift invoices | Resync via `compute_sale_settlement` — Phase1 §1B list |
-| **R2** | CN double-apply (8 + queue) | Owner decision per `repair-cn-double-apply-checklist.md` |
-| **R3** | Return pool stale | Update `credit_available_balance` + `credit_status` |
+| **R5** | 11 paid drift invoices | **Done Aug 22** — all 11 resynced (incl. Faiza Adil INV/26-27/2423) |
+| **R2** | CN double-apply (8 + queue) | **Shumama P0 done Aug 22** — remaining queue in `repair-cn-double-apply-checklist.md` |
+| **R3** | Return pool stale | **Sharmin + Tanvi done Aug 22** |
 | **R4** | Advance over-refund | Phase1 §1E rows — reverse/tag ARF vouchers |
 | **R6** | Micro-drift | `customer_balance_adjustments` with tag |
 
@@ -93,19 +96,17 @@ Run Phase1 §1D and §1E for advance refund scan.
 
 ---
 
-## Next step (Aug 22 — owner run in Supabase)
+## Next step (Aug 22 — updated after owner repairs)
 
-| Order | Script | Action |
+| Order | Script | Status |
 |-------|--------|--------|
-| **1** | `ella-noor-p0-component-breakdown.sql` | Export P0 breakdown (Sumaiya, Tanvi, Shumama) |
-| **2** | `ella-noor-phase1-classify-customers.sql` **§1F-batch** | Export P1 breakdown (Sharmin, Saba, Siya, Anusha, Hanif) |
-| **3** | `ella-noor-r5-paid-drift-resync.sql` **§1** | Dry-run 11 paid drift invoices |
-| **4** | `ella-noor-r5-paid-drift-resync.sql` **§2** | Uncomment + COMMIT after hand-check 5 rows |
-| **5** | `ella-noor-sharmin-mewara-balance-diagnostic.sql` **§4–5** | Confirm stale return pool before R3 |
-| **6** | `repair-cn-double-apply-checklist.md` | Owner sign-off for Shumama R2 |
+| **1** | `ella-noor-p0-component-breakdown.sql` | ✓ Exported |
+| **2** | `ella-noor-phase1-classify-customers.sql` **§1F-batch** | Pending — Sumaiya breakdown |
+| **3–4** | `ella-noor-r5-paid-drift-resync.sql` | ✓ **Done** (11/11 incl. Faiza) |
+| **5** | `ella-noor-sharmin-mewara-balance-diagnostic.sql` | ✓ **Done** (R3) |
+| **6** | `repair-cn-double-apply-checklist.md` Shumama P0 | ✓ **Done** — party ₹1,58,700 Dr confirmed |
 
-**R5 is safe to run without owner decision** — it only aligns `paid_amount` to `compute_sale_settlement`.  
-**R2/R3 need owner sign-off** before mutating return pools or CN vouchers.
+**Remaining P0:** Sumaiya Chhapra Bhabhi (₹4,73,730 Dr — review only unless shop disputes).
 
 ---
 
@@ -126,20 +127,21 @@ Run Phase1 §1D and §1E for advance refund scan.
 | Customer | Party | Return pool | Repair batch |
 |----------|-------|-------------|--------------|
 | Sumaiya Chhapra Bhabhi | ₹4,73,730 Dr | — | §1F breakdown needed |
-| SHUMAMA BAIRELI | ₹1,58,700 Dr | ₹0 | **R2** CN double-apply |
+| SHUMAMA BAIRELI | ₹1,58,700 Dr | ₹0 | **R2 ✓ done Aug 22** |
 | Saba Ali | ₹90,843 Dr | ₹29,000 (1 pending SR) | **R2/R3** |
 | Siya Kapoor | ₹62,250 Dr | ₹9,700 | **R2** + advance ₹21,700 |
-| Sharmin Mewara | ₹11,500 Cr | ₹13,450 | **R3** stale CAB |
+| Sharmin Mewara | ₹11,500 Cr | ₹13,450 | **R3 ✓ done Aug 22** |
 | Hanif bhai | ₹3,050 Cr | ₹3,050 | Done ✓ (§1C flag is stale) |
 | Anusha Pathan | Settled | — | **R4** if refund not reversed |
-| Tanvi Taufu | ₹2,950 Dr | — | §1F needed |
+| Tanvi Taufu | ₹2,950 Dr | — | **R3 ✓ done Aug 22** |
 
 ---
 
 ## Success gate (end of Phase 1)
 
-- [ ] P0 customers (3) have component breakdown reviewed  
-- [ ] Paid drift list (11) reviewed for R5 resync  
-- [ ] CN queue (§1C) exported and mapped to repair checklist  
+- [x] P0 customers (3) have component breakdown reviewed  
+- [x] Paid drift list (11) reviewed for R5 resync — **all repaired Aug 22**  
+- [x] CN queue (§1C) exported and mapped to repair checklist — Shumama P0 done  
 - [ ] Advance over-refund (§1E) count documented  
-- [ ] Shop confirms top 10 Dr + top 10 Cr customer balances
+- [ ] Shop confirms top 10 Dr + top 10 Cr customer balances  
+- [ ] Sumaiya Chhapra Bhabhi — owner review (party likely correct; ₹2,06,350 = payments not on invoices)
