@@ -109,6 +109,7 @@ import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountD
 import { InvoiceDashboardBulkBar } from "@/components/sales-invoice-dashboard/InvoiceDashboardBulkBar";
 import {
   invoiceOutstandingAmount,
+  saleReturnAdjustAmount,
   recordInvoiceFullCashPayment,
 } from "@/utils/recordInvoiceDashboardCashPayment";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -1377,19 +1378,7 @@ export default function SalesInvoiceDashboard() {
   const pageTotals = useMemo(() => {
     const activeInvoices = paginatedInvoices.filter((inv: any) => !isSaleInvoiceCancelled(inv));
     const balanceDue = (inv: any) =>
-      isSaleInvoiceCancelled(inv)
-        ? 0
-        : Math.round(
-            Number(
-              inv.outstanding ??
-                Math.max(
-                  0,
-                  (inv.net_amount || 0) -
-                    (inv.paid_amount || 0) -
-                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
-                ),
-            ),
-          );
+      isSaleInvoiceCancelled(inv) ? 0 : Math.round(invoiceOutstandingAmount(inv));
     return {
       qty: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.total_qty || 0), 0),
       discount: activeInvoices.reduce((sum: number, inv: any) => sum + (inv.discount_amount || 0) + (inv.flat_discount_amount || 0), 0),
@@ -1437,16 +1426,8 @@ export default function SalesInvoiceDashboard() {
         'Discount': (inv.discount_amount || 0) + (inv.flat_discount_amount || 0),
         'Net Amount': inv.net_amount || 0,
         'Paid Amount': inv.paid_amount || 0,
-        'Balance': Math.max(
-          0,
-          Number(
-            inv.outstanding ??
-              (inv.net_amount || 0) -
-                (inv.paid_amount || 0) -
-                Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
-          ),
-        ),
-        'Credit Note Adj.': Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+        'Balance': invoiceOutstandingAmount(inv),
+        'Credit Note Adj.': saleReturnAdjustAmount(inv),
         'Payment Status': formatInvoiceDashboardPaymentStatusLabel(inv),
         'Delivery Status': inv.delivery_status || '',
         'Salesman': inv.salesman || '',
@@ -1645,7 +1626,7 @@ export default function SalesInvoiceDashboard() {
     "Net Amount": inv.net_amount || 0,
     "Paid Amount": inv.paid_amount || 0,
     Balance: invoiceBalanceDue(inv),
-    "Credit Note Adj.": Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
+    "Credit Note Adj.": saleReturnAdjustAmount(inv),
     "Payment Status": formatInvoiceDashboardPaymentStatusLabel(inv),
     "Delivery Status": inv.delivery_status || "",
     Salesman: inv.salesman || "",
@@ -2421,11 +2402,7 @@ export default function SalesInvoiceDashboard() {
 
   const openPaymentDialog = (invoice: any) => {
     setSelectedInvoiceForPayment(invoice);
-    const pendingAmount = Math.round(
-      invoice.net_amount -
-        (invoice.paid_amount || 0) -
-        Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0),
-    );
+    const pendingAmount = Math.round(invoiceOutstandingAmount(invoice));
     setPaidAmount(Math.max(0, pendingAmount).toString());
     setPaymentDate(new Date());
     setPaymentMode("cash");
@@ -2459,15 +2436,7 @@ export default function SalesInvoiceDashboard() {
         // Customer overpayments / refund liabilities must be returned via Refund or converted into a new
         // Advance booking — they cannot be re-spent here as advance.
         setAdvanceBalance(bookingBalance);
-        const pendingAmount = Math.max(
-          0,
-          selectedInvoiceForPayment.net_amount -
-            (selectedInvoiceForPayment.paid_amount || 0) -
-            Math.max(
-              selectedInvoiceForPayment.sale_return_adjust || 0,
-              selectedInvoiceForPayment.credit_applied || 0,
-            ),
-        );
+        const pendingAmount = invoiceOutstandingAmount(selectedInvoiceForPayment);
         setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
 
         // Party Cr after S/R on advance-paid invoices leaves used_amount locked — detect releasable.
@@ -2500,15 +2469,7 @@ export default function SalesInvoiceDashboard() {
         );
 
         setAvailableCNBalance(totalAvailable);
-        const pendingAmount = Math.max(
-          0,
-          selectedInvoiceForPayment.net_amount -
-            (selectedInvoiceForPayment.paid_amount || 0) -
-            Math.max(
-              selectedInvoiceForPayment.sale_return_adjust || 0,
-              selectedInvoiceForPayment.credit_applied || 0,
-            ),
-        );
+        const pendingAmount = invoiceOutstandingAmount(selectedInvoiceForPayment);
         setPaidAmount(Math.min(totalAvailable, pendingAmount).toString());
       } catch (error) {
         console.error("Failed to fetch CN balance:", error);
@@ -3439,15 +3400,7 @@ export default function SalesInvoiceDashboard() {
               <p className="text-sm font-medium">No invoices found</p>
             </div>
           ) : paginatedInvoices.map((inv: any) => {
-            const pending = Number(
-              inv.outstanding ??
-                Math.max(
-                  0,
-                  (inv.net_amount || 0) -
-                    (inv.paid_amount || 0) -
-                    Math.max(inv.sale_return_adjust || 0, inv.credit_applied || 0),
-                )
-            );
+            const pending = invoiceOutstandingAmount(inv);
             const effectiveStatus = getInvoiceDashboardDisplayStatus(inv);
             const sc: Record<string, string> = {
               completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -4339,7 +4292,7 @@ export default function SalesInvoiceDashboard() {
                             )}
                             {columnSettings.status && (
                               <TableCell className="text-right text-base font-medium tabular-nums" onClick={() => toggleExpanded(invoice.id, invoice.sale_number)}>
-                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(Number(invoice.outstanding ?? Math.max(0, (invoice.net_amount || 0) - (invoice.paid_amount || 0) - Math.max(invoice.sale_return_adjust || 0, invoice.credit_applied || 0)))).toLocaleString('en-IN')}
+                                 ₹{isSaleInvoiceCancelled(invoice) ? 0 : Math.round(invoiceOutstandingAmount(invoice)).toLocaleString('en-IN')}
                               </TableCell>
                             )}
                             {columnSettings.delivery && (
@@ -5043,7 +4996,7 @@ export default function SalesInvoiceDashboard() {
                 <span className="font-medium">₹{Math.round(selectedInvoiceForPayment?.paid_amount || 0).toLocaleString('en-IN')}</span>
                 <span className="text-muted-foreground">This invoice pending:</span>
                 <span className="font-semibold text-orange-600">
-                  ₹{Math.max(0, Math.round((selectedInvoiceForPayment?.net_amount || 0) - (selectedInvoiceForPayment?.paid_amount || 0) - Math.max(selectedInvoiceForPayment?.sale_return_adjust || 0, selectedInvoiceForPayment?.credit_applied || 0))).toLocaleString('en-IN')}
+                  ₹{Math.round(invoiceOutstandingAmount(selectedInvoiceForPayment ?? { id: '', sale_number: '', net_amount: 0 })).toLocaleString('en-IN')}
                 </span>
               </div>
               <div>
@@ -5133,15 +5086,7 @@ export default function SalesInvoiceDashboard() {
                               setAdvanceFromBookings(bookingBalance);
                               setAdvanceBalance(bookingBalance);
                               setLockedAdvanceReleasable(0);
-                              const pendingAmount = Math.max(
-                                0,
-                                selectedInvoiceForPayment.net_amount -
-                                  (selectedInvoiceForPayment.paid_amount || 0) -
-                                  Math.max(
-                                    selectedInvoiceForPayment.sale_return_adjust || 0,
-                                    selectedInvoiceForPayment.credit_applied || 0,
-                                  ),
-                              );
+                              const pendingAmount = invoiceOutstandingAmount(selectedInvoiceForPayment);
                               setPaidAmount(Math.min(bookingBalance, pendingAmount).toString());
                               toast({
                                 title: "Advance restored",

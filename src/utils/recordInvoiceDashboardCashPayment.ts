@@ -11,10 +11,14 @@ export type BulkCashPaymentInvoice = {
   net_amount: number;
   paid_amount?: number | null;
   sale_return_adjust?: number | null;
-  credit_applied?: number | null;
   outstanding?: number | null;
   payment_status?: string | null;
 };
+
+/** Canonical per-invoice receivable reduction — sale_return_adjust only (credit_applied is legacy). */
+export function saleReturnAdjustAmount(inv: { sale_return_adjust?: number | null }): number {
+  return Number(inv.sale_return_adjust || 0);
+}
 
 export function invoiceOutstandingAmount(inv: BulkCashPaymentInvoice): number {
   const raw =
@@ -23,7 +27,7 @@ export function invoiceOutstandingAmount(inv: BulkCashPaymentInvoice): number {
       0,
       Number(inv.net_amount || 0) -
         Number(inv.paid_amount || 0) -
-        Math.max(Number(inv.sale_return_adjust || 0), Number(inv.credit_applied || 0)),
+        saleReturnAdjustAmount(inv),
     );
   return Math.round(Number(raw) * 100) / 100;
 }
@@ -113,10 +117,7 @@ export async function recordInvoiceFullCashPayment(
       ? Number(invoice.paid_amount || 0) + outstanding
       : recomputed.paidAmount;
     const paymentStatus = recomputed.skipped ? "completed" : recomputed.paymentStatus;
-    const sra = Math.max(
-      Number(invoice.sale_return_adjust || 0),
-      Number(invoice.credit_applied || 0),
-    );
+    const sra = saleReturnAdjustAmount(invoice);
     const net = Number(invoice.net_amount || 0);
     const outstandingAfter =
       paymentStatus === "completed"

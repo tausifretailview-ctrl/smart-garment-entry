@@ -21,6 +21,10 @@ import {
   fetchOrgLedgerCustomersReference,
   fetchOrgLedgerSalesSummaryReference,
 } from "@/hooks/useOrgLedgerReferenceData";
+import {
+  fetchCustomerFinancialSnapshotMap,
+  fetchCustomersWithFinancialActivity,
+} from "@/utils/customerFinancialSnapshot";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -121,38 +125,8 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         .eq("voucher_type", "receipt")
         .is("deleted_at", null);
 
-      // Also fetch sale returns and unused advances per customer
-      const [saleReturnsResult, advancesResult] = await Promise.all([
-        supabase
-          .from("sale_returns")
-          .select("customer_id, net_amount")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null),
-        supabase
-          .from("customer_advances")
-          .select("customer_id, amount, used_amount")
-          .eq("organization_id", organizationId)
-          .in("status", ["active", "partially_used"]),
-      ]);
-
-      const customerSaleReturnTotals = new Map<string, number>();
-      saleReturnsResult.data?.forEach((sr: any) => {
-        if (sr.customer_id)
-          customerSaleReturnTotals.set(
-            sr.customer_id,
-            (customerSaleReturnTotals.get(sr.customer_id) || 0) + (sr.net_amount || 0)
-          );
-      });
-
-      const customerUnusedAdvances = new Map<string, number>();
-      advancesResult.data?.forEach((adv: any) => {
-        const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
-        if (unused > 0 && adv.customer_id)
-          customerUnusedAdvances.set(
-            adv.customer_id,
-            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused
-          );
-      });
+      // Also fetch sale returns and unused advances per customer — removed for headline;
+      // authoritative balance comes from get_customer_financial_snapshot below.
 
       // Build voucher payment map (sale_id -> total paid via vouchers)
       const invoiceVoucherPayments = new Map<string, number>();
@@ -203,9 +177,10 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         if (!sale.customer_id) return;
         const netAmount = sale.net_amount || 0;
         const salePaid = sale.paid_amount || 0;
+        const sra = sale.sale_return_adjust || 0;
         const voucherPaid = invoiceVoucherPayments.get(sale.id) || 0;
         const effectivePaid = Math.max(salePaid, voucherPaid);
-        const outstanding = Math.max(0, Math.round(netAmount - effectivePaid));
+        const outstanding = Math.max(0, Math.round(netAmount - effectivePaid - sra));
 
         if (outstanding < 1) return;
 
@@ -263,31 +238,50 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         entry.oldestDays = Math.max(entry.oldestDays, 365);
       });
 
-      // Apply customer-level credits: sale returns + unused advances reduce outstanding.
-      // Distribute the credit proportionally across aging buckets so the buckets stay consistent.
+      // Headline balance: authoritative snapshot RPC (matches Payment tab / POS picker).
+      const financialIds = await fetchCustomersWithFinancialActivity(organizationId, supabase);
+      const snapshotCustomerIds = customersData
+        .map((c: { id: string }) => c.id)
+        .filter((id: string) => financialIds.has(id));
+      const snapMap = await fetchCustomerFinancialSnapshotMap(
+        organizationId,
+        snapshotCustomerIds,
+        supabase,
+      );
+
       const result: CustomerOutstanding[] = [];
+      const seen = new Set<string>();
+
+      snapMap.forEach((snap, customerId) => {
+        if (snap.outstandingDr < 1) return;
+        const customer = customerMap.get(customerId);
+        if (!customer) return;
+        seen.add(customerId);
+        const agingEntry = customerOutstandings.get(customerId);
+        result.push({
+          id: customerId,
+          name: customer.customer_name,
+          phone: customer.phone,
+          totalOutstanding: snap.outstandingDr,
+          invoiceCount: agingEntry?.invoiceCount ?? 0,
+          oldestDays: agingEntry?.oldestDays ?? 0,
+          aging: agingEntry?.aging ?? {
+            current: 0,
+            d30: 0,
+            d60: 0,
+            d90: 0,
+            d90plus: 0,
+          },
+        });
+      });
+
+      // Include invoice-aging rows whose snapshot is still loading as zero (edge case).
       customerOutstandings.forEach((entry) => {
-        const srCredit = customerSaleReturnTotals.get(entry.id) || 0;
-        const advCredit = customerUnusedAdvances.get(entry.id) || 0;
-        const totalCredit = srCredit + advCredit;
-        if (totalCredit <= 0) {
-          result.push(entry);
-          return;
-        }
-        const raw = entry.totalOutstanding;
-        const netOutstanding = Math.max(0, raw - totalCredit);
-        if (netOutstanding < 1) return; // fully covered by credits
-        const ratio = raw > 0 ? netOutstanding / raw : 0;
-        entry.totalOutstanding = netOutstanding;
-        entry.aging = {
-          current: entry.aging.current * ratio,
-          d30: entry.aging.d30 * ratio,
-          d60: entry.aging.d60 * ratio,
-          d90: entry.aging.d90 * ratio,
-          d90plus: entry.aging.d90plus * ratio,
-        };
+        if (seen.has(entry.id)) return;
+        if (entry.totalOutstanding < 1) return;
         result.push(entry);
       });
+
       return result;
     },
     enabled: !!organizationId && tabActive,

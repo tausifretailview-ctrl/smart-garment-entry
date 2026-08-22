@@ -2,7 +2,7 @@
 
 **Goal:** One accurate customer balance on every page; no paid_amount / CN / return-pool drift on future transactions.
 
-**Status:** Phase 1 (P0 app writes) — P0-1 + P0-2 complete on branch `cursor/customer-balance-hardening-p0-0051`
+**Status:** Phase 1 (P0 app writes + UI) — P0-1 + P0-2 + P0-3 complete on branch `cursor/customer-balance-ui-p0-3-0051`
 
 ---
 
@@ -55,15 +55,18 @@
 
 **Tests:** `test/money/cnAdjustConsistency.test.ts` — guard, RPC meta parse, pool helpers
 
-### P0-3 One headline balance in UI — planned
+### P0-3 One headline balance in UI ✅ complete
 
 Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 
 | Replace | With |
 |---------|------|
-| `OutstandingDashboardTab` invoice sum | Snapshot RPC or party list |
-| `credit_applied` in invoice dashboard | `sale_return_adjust` only |
-| Payment picker fallback ledger math | Retry RPC / show unavailable |
+| `OutstandingDashboardTab` invoice sum + SR/advance hack | Snapshot RPC headline; aging still invoice-based with SRA |
+| `credit_applied` in invoice dashboard | `sale_return_adjust` only via `invoiceOutstandingAmount` |
+| Payment picker sales-ledger fallback | `fetchCustomerFinancialSnapshotMap` retry |
+| POS `FloatingPayments` inline fallback | `fetchCustomerFinancialSnapshot` |
+
+**Tests:** `test/money/invoiceOutstandingDisplay.test.ts`
 
 ---
 
@@ -100,5 +103,5 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 
 - [x] All post-voucher write paths use `applyRecomputedSalePaymentState`
 - [x] CN apply uses single RPC writer (no client duplicate voucher)
-- [ ] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1)
+- [x] Customer Balances = Payment tab = POS picker = Ledger header (within ₹1)
 - [ ] No new paid drift rows after 30 days of production traffic

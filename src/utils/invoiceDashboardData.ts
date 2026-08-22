@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { invoiceOutstandingAmount } from "@/utils/recordInvoiceDashboardCashPayment";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
 
@@ -125,15 +126,7 @@ function applyQuickInvoiceDisplayFields(inv: any): any {
   if (inv.payment_status === "hold") {
     return { ...inv };
   }
-  const outstanding = Math.max(
-    0,
-    Number(inv.net_amount || 0) -
-      Number(inv.paid_amount || 0) -
-      Math.max(
-        Number(inv.sale_return_adjust || 0),
-        Number(inv.credit_applied || 0),
-      ),
-  );
+  const outstanding = invoiceOutstandingAmount(inv);
   return { ...inv, outstanding };
 }
 
@@ -545,21 +538,7 @@ export function getInvoiceDashboardDisplayStatus(invoice: {
     return invoice.payment_status || "pending";
   }
   const outstanding = roundKhataMoney(
-    Math.max(
-      0,
-      Number(
-        invoice.outstanding ??
-          Math.max(
-            0,
-            Number(invoice.net_amount || 0) -
-              Number(invoice.paid_amount || 0) -
-              Math.max(
-                Number(invoice.sale_return_adjust || 0),
-                Number(invoice.credit_applied || 0),
-              ),
-          ),
-      ),
-    ),
+    Math.max(0, Number(invoice.outstanding ?? invoiceOutstandingAmount(invoice))),
   );
   if (outstanding <= 0.01) {
     return "completed";
@@ -605,15 +584,7 @@ export function sumInvoiceDashboardOutstanding(rows: any[]): number {
       if (inv.payment_status === "hold") return sum;
       const outstanding = Math.max(
         0,
-        Number(
-          inv.outstanding ??
-            Math.max(
-              0,
-              Number(inv.net_amount || 0) -
-                Number(inv.paid_amount || 0) -
-                Math.max(Number(inv.sale_return_adjust || 0), Number(inv.credit_applied || 0)),
-            ),
-        ),
+        Number(inv.outstanding ?? invoiceOutstandingAmount(inv)),
       );
       return sum + outstanding;
     }, 0),

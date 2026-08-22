@@ -60,7 +60,7 @@ async function fetchActivityOverdueSlice(
 ): Promise<Pick<ActivityPaymentSummary, "overdueCount" | "overdueAmount" | "updatedAt">> {
   const { data, error } = await supabase
     .from("sales")
-    .select("due_date, sale_date, net_amount, paid_amount, sale_return_adjust, credit_applied")
+    .select("due_date, sale_date, net_amount, paid_amount, sale_return_adjust")
     .eq("organization_id", organizationId)
     .eq("sale_type", "invoice")
     .is("deleted_at", null)
@@ -85,8 +85,7 @@ async function fetchActivityOverdueSlice(
         0,
         Number(row.net_amount || 0) -
           Number(row.paid_amount || 0) -
-          Number(row.sale_return_adjust || 0) -
-          Number(row.credit_applied || 0),
+          Number(row.sale_return_adjust || 0),
       ),
     );
     if (outstanding <= 0.5) continue;
@@ -116,7 +115,7 @@ async function fetchActivityPaymentSummaryLegacy(
   const { data, error } = await supabase
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, sale_return_adjust, credit_applied, payment_status, due_date, sale_date",
+      "id, net_amount, paid_amount, sale_return_adjust, payment_status, due_date, sale_date",
     )
     .eq("organization_id", organizationId)
     .eq("sale_type", "invoice")
@@ -143,8 +142,7 @@ async function fetchActivityPaymentSummaryLegacy(
         0,
         Number(row.net_amount || 0) -
           Number(row.paid_amount || 0) -
-          Number(row.sale_return_adjust || 0) -
-          Number(row.credit_applied || 0),
+          Number(row.sale_return_adjust || 0),
       ),
     );
     if (outstanding <= 0.5) continue;
