@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { reconcileSaleInvoiceWithSplit } from "@/utils/customerBalanceUtils";
 import {
+  computeCashierActualNetReceivable,
   createSameDaySaleReceiptOverlapTracker,
   reduceCashierCashIn,
 } from "@/utils/posCashierCashIn";
@@ -138,5 +139,113 @@ describe("POS Dashboard dual-write / cash-in", () => {
     expect(rec.paid_amount).toBe(5300);
     expect(rec.payment_status).toBe("completed");
     expect(rec.outstanding).toBe(0);
+  });
+});
+
+describe("Cashier Report Actual Net Receivable", () => {
+  const SALE_ID = "sale-partial-credit";
+
+  it("partial credit invoice paid same day does not double-count sale-linked RCP", () => {
+    const net = 10_000;
+    const partial = 3_000;
+    const balanceRcp = 7_000;
+
+    const result = computeCashierActualNetReceivable({
+      sales: [
+        {
+          id: SALE_ID,
+          net_amount: net,
+          paid_amount: net,
+          cash_amount: 0,
+          card_amount: 0,
+          upi_amount: 0,
+          payment_status: "completed",
+        },
+      ],
+      receipts: [
+        {
+          voucher_type: "receipt",
+          total_amount: partial,
+          reference_type: "sale",
+          reference_id: SALE_ID,
+        },
+        {
+          voucher_type: "receipt",
+          total_amount: balanceRcp,
+          reference_type: "sale",
+          reference_id: SALE_ID,
+        },
+      ],
+      resolveNet: (s) => Number(s.net_amount) || 0,
+    });
+
+    expect(result.oldBalanceReceiptTotal).toBe(0);
+    expect(result.actualNetReceivable).toBe(net);
+  });
+
+  it("partial credit with balance RCP before paid_amount sync still reaches net", () => {
+    const net = 10_000;
+    const partial = 3_000;
+    const balanceRcp = 7_000;
+
+    const result = computeCashierActualNetReceivable({
+      sales: [
+        {
+          id: SALE_ID,
+          net_amount: net,
+          paid_amount: partial,
+          cash_amount: partial,
+          card_amount: 0,
+          upi_amount: 0,
+          payment_status: "partial",
+        },
+      ],
+      receipts: [
+        {
+          voucher_type: "receipt",
+          total_amount: balanceRcp,
+          reference_type: "sale",
+          reference_id: SALE_ID,
+        },
+      ],
+      resolveNet: (s) => Number(s.net_amount) || 0,
+    });
+
+    expect(result.actualNetReceivable).toBe(net);
+    expect(result.oldBalanceReceiptTotal).toBe(0);
+  });
+
+  it("prior-day sale receipt and customer OB still count as old balance", () => {
+    const result = computeCashierActualNetReceivable({
+      sales: [
+        {
+          id: "today-sale",
+          net_amount: 5_000,
+          paid_amount: 5_000,
+          cash_amount: 5_000,
+          payment_status: "completed",
+        },
+      ],
+      receipts: [
+        {
+          voucher_type: "receipt",
+          total_amount: 2_000,
+          reference_type: "sale",
+          reference_id: "yesterday-sale",
+        },
+        {
+          voucher_type: "receipt",
+          total_amount: 1_500,
+          reference_type: "customer",
+          reference_id: "cust-1",
+        },
+      ],
+      resolveNet: (s) => Number(s.net_amount) || 0,
+      feeTotal: 200,
+    });
+
+    expect(result.oldBalanceReceiptTotal).toBe(3_500);
+    expect(result.oldBalanceReceiptCount).toBe(2);
+    expect(result.actualNetReceivable).toBe(5_000 + 3_500 + 200);
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+﻿import { useState, useMemo } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
@@ -14,12 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
 import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import type * as XLSXType from "xlsx";
-/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
+/** Lazily loaded on export ΓÇö keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 import type jsPDFType from "jspdf";
-/** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
+/** Lazily loaded on export ΓÇö keeps jsPDF/html2canvas off this page's initial chunk. */
 let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
 const loadJsPdf = (): Promise<typeof jsPDFType> =>
   (jsPdfPromise ??= import("jspdf").then((m) => m.default));
@@ -40,7 +40,10 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
-import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import {
+  computeCashierActualNetReceivable,
+  createSameDaySaleReceiptOverlapTracker,
+} from "@/utils/posCashierCashIn";
 import {
   Table,
   TableBody,
@@ -54,7 +57,7 @@ type PeriodType = "daily" | "monthly" | "quarterly";
 
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
-  // Calendar-day default — query keys use YMD strings (not raw Date) so remount reuses cache.
+  // Calendar-day default ΓÇö query keys use YMD strings (not raw Date) so remount reuses cache.
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -114,7 +117,7 @@ const DailyCashierReport = () => {
   const rangeStartYmd = format(startDate, "yyyy-MM-dd");
   const rangeEndYmd = format(endDate, "yyyy-MM-dd");
 
-  // Fetch sales — same local-day bounds as Floating POS cashier (includes early-morning POS bills)
+  // Fetch sales ΓÇö same local-day bounds as Floating POS cashier (includes early-morning POS bills)
   const { data: salesData, isLoading: salesLoading } = useQuery({
     queryKey: ["cashier-report-sales-v2", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
@@ -213,7 +216,7 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  // Customer overpayment / CN cash refunds (payment vouchers) — drawer outflow by mode
+  // Customer overpayment / CN cash refunds (payment vouchers) ΓÇö drawer outflow by mode
   const { data: customerRefundVouchers, isLoading: customerRefundsLoading } = useQuery({
     queryKey: ["cashier-report-customer-refunds", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
     queryFn: async () => {
@@ -308,6 +311,9 @@ const DailyCashierReport = () => {
         rcpOtherCollection: 0,
         rcpTotalCollection: 0,
         rcpCount: 0,
+        oldBalanceReceiptTotal: 0,
+        oldBalanceReceiptCount: 0,
+        actualNetReceivable: 0,
         // Cash refunds from sale returns + customer overpayment/CN payment vouchers
         cashRefundTotal: 0,
         cashRefundCount: 0,
@@ -357,9 +363,9 @@ const DailyCashierReport = () => {
         // NOTE: Refund-only sales (negative net_amount from S/R Adjust > bill) are
         // INCLUDED here. Their cash_amount/upi_amount/card_amount are stored as
         // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
-        // cardSale below — no separate "Less: Refund" subtraction is needed.
+        // cardSale below ΓÇö no separate "Less: Refund" subtraction is needed.
         grossSale += getSaleReportGrossAmount(sale);
-        // Fold round-off into Discount so Gross − Discount matches Net / collections.
+        // Fold round-off into Discount so Gross ΓêÆ Discount matches Net / collections.
         totalDiscount += getSaleReportDiscountAmount(sale);
         totalRoundOff += getSaleReportRoundOff(sale);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
@@ -561,6 +567,30 @@ const DailyCashierReport = () => {
     // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
     const netReceivable = totalSale;
 
+    const receivableTotals = computeCashierActualNetReceivable({
+      sales: eligibleSales.map((sale: any) => ({
+        id: sale.id as string,
+        net_amount: sale.net_amount,
+        paid_amount: sale.paid_amount,
+        cash_amount: sale.cash_amount,
+        card_amount: sale.card_amount,
+        upi_amount: sale.upi_amount,
+        payment_status: sale.payment_status,
+        sale_number: sale.sale_number,
+        is_cancelled: sale.is_cancelled,
+      })),
+      receipts: (receiptData || []).map((r: any) => ({
+        voucher_type: "receipt",
+        total_amount: r.total_amount,
+        payment_method: r.payment_method,
+        description: r.description,
+        reference_type: r.reference_type,
+        reference_id: r.reference_id,
+      })),
+      resolveNet: (sale) => getSaleReportNetAmount(sale),
+      feeTotal: feeTotalCollection,
+    });
+
     return {
       grossSale,
       totalDiscount,
@@ -588,6 +618,9 @@ const DailyCashierReport = () => {
       rcpOtherCollection,
       rcpTotalCollection,
       rcpCount: receiptData?.length || 0,
+      oldBalanceReceiptTotal: receivableTotals.oldBalanceReceiptTotal,
+      oldBalanceReceiptCount: receivableTotals.oldBalanceReceiptCount,
+      actualNetReceivable: receivableTotals.actualNetReceivable,
       // Cash refunds (S/R cash_refund rows + customer overpayment/CN cash vouchers)
       cashRefundTotal,
       cashRefundCount:
@@ -860,7 +893,7 @@ const DailyCashierReport = () => {
         </div>
 
         <div className="px-4 space-y-4 pb-4">
-          {/* Gross → Discount → Net summary */}
+          {/* Gross ΓåÆ Discount ΓåÆ Net summary */}
           <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
             <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 text-white">
               <p className="text-xs font-medium opacity-90">Gross Sale</p>
@@ -872,12 +905,12 @@ const DailyCashierReport = () => {
               <div className="flex justify-between items-center">
                 <p className="text-xs text-muted-foreground">Less: Discount</p>
                 {isLoading ? <Skeleton className="h-5 w-20" />
-                  : <p className="text-sm font-bold tabular-nums text-red-600">−{formatCurrency(totals.totalDiscount)}</p>}
+                  : <p className="text-sm font-bold tabular-nums text-red-600">ΓêÆ{formatCurrency(totals.totalDiscount)}</p>}
               </div>
               {totals.totalSRAdjusted > 0 && (
                 <div className="flex justify-between items-center">
                   <p className="text-xs text-muted-foreground">S/R Adjusted</p>
-                  <p className="text-sm font-bold tabular-nums text-amber-600">−{formatCurrency(totals.totalSRAdjusted)}</p>
+                  <p className="text-sm font-bold tabular-nums text-amber-600">ΓêÆ{formatCurrency(totals.totalSRAdjusted)}</p>
                 </div>
               )}
             </div>
@@ -887,7 +920,7 @@ const DailyCashierReport = () => {
                 : <p className="text-2xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300 mt-0.5">{formatCurrency(totals.totalSale)}</p>}
               {!isLoading && totals.totalDiscount > 0 && (
                 <p className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 mt-1">
-                  {formatCurrency(totals.grossSale)} − {formatCurrency(totals.totalDiscount)} = {formatCurrency(totals.totalSale)}
+                  {formatCurrency(totals.grossSale)} ΓêÆ {formatCurrency(totals.totalDiscount)} = {formatCurrency(totals.totalSale)}
                 </p>
               )}
             </div>
@@ -1121,8 +1154,8 @@ const DailyCashierReport = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totals.rcpTotalCollection)}</p>
-                <p className="text-xs text-white/70">{totals.rcpCount} Receipt{totals.rcpCount === 1 ? "" : "s"} • Against existing balance</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.oldBalanceReceiptTotal)}</p>
+                <p className="text-xs text-white/70">{totals.oldBalanceReceiptCount} Receipt{totals.oldBalanceReceiptCount === 1 ? "" : "s"} ΓÇó Against existing balance</p>
               </CardContent>
             </Card>
 
@@ -1134,8 +1167,8 @@ const DailyCashierReport = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</p>
-                <p className="text-xs text-white/70">Net - Balance + Receipts + Fees</p>
+                <p className="text-2xl font-bold text-white">{formatCurrency(totals.actualNetReceivable)}</p>
+                <p className="text-xs text-white/70">Settled today + old balance receipts + fees</p>
               </CardContent>
             </Card>
           </div>
@@ -1227,7 +1260,7 @@ const DailyCashierReport = () => {
                     <>
                       <TableRow className="bg-rose-50/80 dark:bg-rose-950/40">
                         <TableCell colSpan={2} className="font-semibold text-rose-700 dark:text-rose-300">
-                          Customer refunds (overpayment / CN) — {totals.customerRefundCount} vouchers
+                          Customer refunds (overpayment / CN) ΓÇö {totals.customerRefundCount} vouchers
                         </TableCell>
                       </TableRow>
                       {totals.customerRefundCash > 0 && (
@@ -1310,7 +1343,7 @@ const DailyCashierReport = () => {
                     <>
                       <TableRow className="bg-amber-50 dark:bg-amber-950">
                         <TableCell colSpan={2} className="font-semibold text-amber-700 dark:text-amber-300">
-                          📚 Student Fee Collections - {totals.feeCount} receipts
+                          ≡ƒôÜ Student Fee Collections - {totals.feeCount} receipts
                         </TableCell>
                       </TableRow>
                       <TableRow>
@@ -1342,7 +1375,7 @@ const DailyCashierReport = () => {
                     <>
                       <TableRow className="bg-red-50 dark:bg-red-950">
                         <TableCell colSpan={2} className="font-semibold text-destructive">
-                          💸 Expense Outflows — {totals.expenseCount} entries
+                          ≡ƒÆ╕ Expense Outflows ΓÇö {totals.expenseCount} entries
                         </TableCell>
                       </TableRow>
                       {Object.entries(totals.expenseByCategory).sort(([,a],[,b]) => b.total - a.total).map(([cat, vals]) => (
@@ -1399,7 +1432,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold text-green-700 dark:text-green-300">Actual Net Receivable</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</TableCell>
+                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.actualNetReceivable)}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -1441,7 +1474,7 @@ const DailyCashierReport = () => {
                 </div>
                 <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold bg-green-100 dark:bg-green-900/30 px-2 -mx-2 rounded">
                   <span className="text-green-700 dark:text-green-400">Actual Net Receivable</span>
-                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.netReceivable - totals.totalBalance + totals.rcpTotalCollection + totals.feeTotalCollection)}</span>
+                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.actualNetReceivable)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
@@ -1485,14 +1518,14 @@ const DailyCashierReport = () => {
                   )}
                   {totals.feeTotalCollection > 0 && (
                     <div className="flex justify-between text-amber-600">
-                      <span className="text-muted-foreground">📚 Fee Collection ({totals.feeCount})</span>
+                      <span className="text-muted-foreground">≡ƒôÜ Fee Collection ({totals.feeCount})</span>
                       <span>{formatCurrency(totals.feeTotalCollection)}</span>
                     </div>
                   )}
                 </div>
                 {totals.expenseTotal > 0 && (
                   <div className="flex justify-between py-2 border-b text-destructive">
-                    <span className="text-muted-foreground">💸 Total Expenses ({totals.expenseCount})</span>
+                    <span className="text-muted-foreground">≡ƒÆ╕ Total Expenses ({totals.expenseCount})</span>
                     <span className="font-semibold">- {formatCurrency(totals.expenseTotal)}</span>
                   </div>
                 )}
