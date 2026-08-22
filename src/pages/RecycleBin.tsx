@@ -18,6 +18,11 @@ import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText,
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import {
+  extractRepairTag,
+  formatRecycleBinDeletedBy,
+  isRepairTaggedDeletion,
+} from "@/utils/recycleBinDeletionReason";
 
 interface DeletedRecord {
   id: string;
@@ -229,6 +234,8 @@ export default function RecycleBin() {
     productId: string;
     relations: Array<{ type: string; count: number; samples: string[] }>;
   }>({ open: false, productName: "", productId: "", relations: [] });
+  const [restoreRepairDialogOpen, setRestoreRepairDialogOpen] = useState(false);
+  const [recordToRestore, setRecordToRestore] = useState<DeletedRecord | null>(null);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -566,11 +573,11 @@ export default function RecycleBin() {
     setBulkDeleteDialogOpen(false);
   };
 
-  const handleRestore = async (record: DeletedRecord) => {
+  const performRestore = async (record: DeletedRecord) => {
     setIsRestoring(record.id);
     const success = await restore(activeTab, record.id);
     setIsRestoring(null);
-    
+
     if (success) {
       toast({
         title: "Restored",
@@ -583,6 +590,29 @@ export default function RecycleBin() {
         return next;
       });
     }
+  };
+
+  const handleRestore = (record: DeletedRecord) => {
+    if (
+      activeTab === "voucher_entries" &&
+      isRepairTaggedDeletion({
+        deletedBy: record.deleted_by,
+        notes: record.notes,
+        description: record.description,
+      })
+    ) {
+      setRecordToRestore(record);
+      setRestoreRepairDialogOpen(true);
+      return;
+    }
+    void performRestore(record);
+  };
+
+  const handleConfirmRepairRestore = async () => {
+    if (!recordToRestore) return;
+    setRestoreRepairDialogOpen(false);
+    await performRestore(recordToRestore);
+    setRecordToRestore(null);
   };
 
   return (
@@ -700,6 +730,12 @@ export default function RecycleBin() {
                                   {field.label}
                                 </TableHead>
                               ))}
+                              {activeTab === "voucher_entries" && (
+                                <>
+                                  <TableHead className="font-semibold hidden lg:table-cell">Deleted By</TableHead>
+                                  <TableHead className="font-semibold hidden lg:table-cell">Reason</TableHead>
+                                </>
+                              )}
                               <TableHead className="font-semibold">Deleted At</TableHead>
                               <TableHead className="font-semibold text-right">Actions</TableHead>
                             </TableRow>
@@ -737,6 +773,32 @@ export default function RecycleBin() {
                                     {formatValue(record[field.key], field)}
                                   </TableCell>
                                 ))}
+                                {activeTab === "voucher_entries" && (
+                                  <>
+                                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
+                                      <Badge
+                                        variant={
+                                          formatRecycleBinDeletedBy({
+                                            deletedBy: record.deleted_by,
+                                            notes: record.notes,
+                                            description: record.description,
+                                          }) === "System repair"
+                                            ? "secondary"
+                                            : "outline"
+                                        }
+                                      >
+                                        {formatRecycleBinDeletedBy({
+                                          deletedBy: record.deleted_by,
+                                          notes: record.notes,
+                                          description: record.description,
+                                        })}
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell className="hidden lg:table-cell max-w-[200px] truncate text-xs text-muted-foreground">
+                                      {extractRepairTag(record.notes, record.description) || "—"}
+                                    </TableCell>
+                                  </>
+                                )}
                                 <TableCell className="whitespace-nowrap">
                                   {record.deleted_at
                                     ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
@@ -831,6 +893,40 @@ export default function RecycleBin() {
               ) : (
                 "Delete Permanently"
               )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={restoreRepairDialogOpen} onOpenChange={setRestoreRepairDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>System repair deletion</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <strong>{recordToRestore?.[config.displayField]}</strong> was removed by an
+                  automated data-repair script, not by a user. Restoring it from Recycle Bin may
+                  re-introduce a double-count or leave the linked invoice unpaid.
+                </p>
+                <p>
+                  For credit-note adjustment receipts, use the audited repair script which also
+                  sets sale_return_adjust on the invoice.
+                </p>
+                {recordToRestore && (
+                  <p className="text-xs">
+                    Tag:{" "}
+                    {extractRepairTag(recordToRestore.notes, recordToRestore.description) ||
+                      "automated repair"}
+                  </p>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setRecordToRestore(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirmRepairRestore()}>
+              Restore anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
