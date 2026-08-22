@@ -17,7 +17,7 @@ POS resolves the correct **variant row** and reads **`product_variants.mrp`** (o
 
 1. **Stale master MRP** — Variant master still **164.5** after a repurchase/label print at **204.5** without `syncVariantPriceFromPurchase` updating master MRP.
 
-2. **Price dialog gap** — `ask_price_on_scan` dialog only opened when **`last_purchase_sale_price ≠ master sale_price`**. If sale price stayed **164.5** but **`last_purchase_mrp = 204.5`**, cashier never got prompted (fixed in PR: also compare MRP).
+2. **Price dialog gap** — `ask_price_on_scan` dialog only opened when **`last_purchase_sale_price ≠ master sale_price`**. If sale price stayed **164.5** but **`last_purchase_mrp = 204.5`**, cashier never got prompted (fixed: also compare MRP). When **MRP billing mode** is ON, dialog is skipped — scan adds directly at variant MRP.
 
 3. **Duplicate barcode / MRP tiers** — Shared EAN at two MRP tiers: if only the **164.5** tier is in stock, POS picked it silently without MRP picker (fixed: force picker when MRP tiers differ).
 
