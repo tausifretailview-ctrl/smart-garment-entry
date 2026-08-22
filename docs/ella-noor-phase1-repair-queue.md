@@ -60,6 +60,9 @@ Run Phase1 §1D and §1E for advance refund scan.
 | Customer | Status |
 |----------|--------|
 | Hanif bhai | ₹3,050 Cr — fixed (migration + adjustment) |
+| Sharmin Mewara | **₹0 Settled** — R3 SR/25-26/39 CAB zeroed (Aug 22) |
+| Tanvi Taufu | **₹2,950 Dr** — R3 CAB hygiene; balance unchanged |
+| R5 paid drift | **10/11 invoices** resynced via `compute_sale_settlement` |
 | ALOK KUMAR (TAZIM) | Settled ₹0 |
 | Samiya Nursumar Bhabhi | ₹4,55,820 Dr — party = recon (drift 0) |
 
