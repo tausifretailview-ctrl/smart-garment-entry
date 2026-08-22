@@ -376,7 +376,7 @@ function TabPageFallback({
       elapsed += delta;
       if (elapsed >= SOFT_LOADING_HINT_MS) {
         setShowSoftHint(true);
-        if (!softFired && !silent) {
+        if (!softFired) {
           softFired = true;
           console.warn(
             `[TabCachedPages] Soft-retry cold chunk: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
@@ -435,7 +435,9 @@ function TabPageFallback({
 
   // Desktop-like tab switch: keep the previous pane visible (dimmed) instead of
   // replacing it with DashboardSkeleton / AppBootSplash (Sales POS ↔ Invoice feel).
-  if (resolveTabPageFallbackKind(silent) === "empty") return null;
+  // After the soft hint, always show a route-shaped shell — silent null left users
+  // on a blank white pane until the 6s timeout when a sibling was dimmed behind.
+  if (silent && !showSoftHint) return null;
 
   // Immediate route-shaped shell (<150ms target). Soft hint is second-stage only.
   return (
