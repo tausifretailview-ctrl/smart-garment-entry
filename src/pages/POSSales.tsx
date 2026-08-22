@@ -11,6 +11,13 @@ import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
+import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
+import {
+  posBarcodeMatchesNeedMrpPicker,
+  posVariantDisplayMrp,
+  shouldPromptPosPriceSelection,
+} from "@/utils/posScanPriceSelection";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -336,26 +343,29 @@ async function fetchPosExactBarcodeMatches(
   return out;
 }
 
-async function fetchPosVariantByBarcode(
+async function fetchPosVariantByBarcodeOnce(
   orgId: string,
-  barcode: string,
+  trimmed: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
 ): Promise<{
   product: PosProductRow;
   variant: PosVariantRow;
-  /** Set when resolved via purchase_items because live barcode differs from scan. */
   remappedLiveBarcode?: string;
 } | null> {
-  const trimmed = barcode.trim();
   if (!trimmed) return null;
 
   const { data: exactData, error: exactError } = await posVariantBaseQuery(orgId)
     .eq('barcode', trimmed)
-    .limit(1);
+    .order('stock_qty', { ascending: false })
+    .limit(25);
   if (exactError) throw exactError;
 
+  const exactRow = pickBestVariantScanRow(
+    (exactData || []) as Record<string, unknown>[],
+    [trimmed],
+  );
   const exact = mapPosVariantLookupRow(
-    exactData?.[0] as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    exactRow as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
   );
   if (exact) return exact;
 
@@ -415,6 +425,22 @@ async function fetchPosVariantByBarcode(
     console.error('POS purchase-barcode resolve failed:', err);
     return null;
   }
+}
+
+async function fetchPosVariantByBarcode(
+  orgId: string,
+  barcode: string,
+  mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+): Promise<{
+  product: PosProductRow;
+  variant: PosVariantRow;
+  remappedLiveBarcode?: string;
+} | null> {
+  for (const candidate of expandBarcodeScanCandidates(barcode)) {
+    const hit = await fetchPosVariantByBarcodeOnce(orgId, candidate, mobileERPConfig);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
@@ -2591,7 +2617,12 @@ export default function POSSales() {
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
       // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
-      const exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, trimmedTerm);
+      const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
+      let exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+      for (const candidate of scanCandidates) {
+        exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
+        if (exactBarcodeMatches.length > 0) break;
+      }
       let barcodeMatch:
         | { product: PosProductRow; variant: PosVariantRow; remappedLiveBarcode?: string }
         | null = null;
@@ -2603,14 +2634,19 @@ export default function POSSales() {
             !isStockTrackedPosProduct(m.product) ||
             productRequiresImei(m.product, mobileERP),
         );
-        const choices = inStock.length > 0 ? inStock : exactBarcodeMatches;
-        if (choices.length > 1) {
+        const needMrpPicker = posBarcodeMatchesNeedMrpPicker(exactBarcodeMatches);
+        const showPicker = needMrpPicker || inStock.length > 1;
+        const pickerChoices = needMrpPicker
+          ? exactBarcodeMatches
+          : inStock.length > 0
+            ? inStock
+            : exactBarcodeMatches;
+        if (showPicker) {
           setProductSearchResults(
-            choices.map((m) => {
+            pickerChoices.map((m) => {
               const p = m.product;
               const v = m.variant;
-              const tier =
-                (Number(v.mrp) > 0 ? Number(v.mrp) : Number(v.sale_price)) || 0;
+              const tier = posVariantDisplayMrp(v);
               return {
                 product: p,
                 variant: v,
@@ -2621,12 +2657,17 @@ export default function POSSales() {
           );
           setOpenProductSearch(true);
           setSearchInput(trimmedTerm);
-          toast.message("Multiple products share this barcode", {
-            description: "Pick the correct product / MRP from the list.",
-          });
+          toast.message(
+            needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
+            {
+              description: needMrpPicker
+                ? "Pick the MRP that matches the label (e.g. ₹204.5 vs ₹164.5)."
+                : "Pick the correct product / MRP from the list.",
+            },
+          );
           return;
         }
-        barcodeMatch = choices[0] ?? null;
+        barcodeMatch = inStock[0] ?? exactBarcodeMatches[0] ?? null;
       } else if (exactBarcodeMatches.length === 1) {
         barcodeMatch = exactBarcodeMatches[0];
       } else {
@@ -3031,7 +3072,16 @@ export default function POSSales() {
       
       // If no override provided and last purchase prices differ, show dialog (unless disabled in settings)
       const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
-      if (!overridePrice && askPriceOnScan && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice) {
+      if (
+        shouldPromptPosPriceSelection({
+          askPriceOnScan,
+          hasOverridePrice: !!overridePrice,
+          masterSalePrice,
+          masterMrp,
+          lastPurchaseSalePrice,
+          lastPurchaseMrp,
+        })
+      ) {
         setPendingPriceSelection({
           product,
           variant,
