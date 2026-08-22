@@ -33,10 +33,139 @@ export type CashierReceiptRow = {
 export type SaleForCashierOverlap = {
   id: string;
   net_amount?: number | null;
+  paid_amount?: number | null;
   cash_amount?: number | null;
   card_amount?: number | null;
   upi_amount?: number | null;
 };
+
+export type CashierReceivableSale = SaleForCashierOverlap & {
+  payment_status?: string | null;
+  sale_number?: string | null;
+  is_cancelled?: boolean | null;
+};
+
+/** Raw same-day invoice-linked receipt totals keyed by sale id. */
+export function sumSameDaySaleLinkedReceiptsBySaleId(
+  sales: SaleForCashierOverlap[],
+  receipts: Array<{
+    voucher_type?: string | null;
+    reference_type?: string | null;
+    reference_id?: string | null;
+    total_amount?: number | null;
+  }>,
+): Map<string, number> {
+  const salesById = new Map<string, SaleForCashierOverlap>();
+  for (const s of sales) {
+    if (s?.id) salesById.set(s.id, s);
+  }
+
+  const receiptSumBySale = new Map<string, number>();
+  for (const v of receipts) {
+    if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+    if (!isInvoiceLinkedSaleReceipt(v.reference_type)) continue;
+    const sid = v.reference_id;
+    if (!sid || !salesById.has(sid)) continue;
+    const amt = Number(v.total_amount) || 0;
+    if (amt <= 0) continue;
+    receiptSumBySale.set(sid, (receiptSumBySale.get(sid) || 0) + amt);
+  }
+  return receiptSumBySale;
+}
+
+/**
+ * Same-day sale RCP increment for effective settlement — excludes receipts already
+ * reflected in paid_amount (partial credit paid same day).
+ */
+export function sameDaySaleRcpIncrementForEffectivePaid(
+  paid: number,
+  tender: number,
+  rcpSum: number,
+  net: number,
+): number {
+  if (rcpSum <= OVERLAP_EPS) return 0;
+  if (paid >= net - OVERLAP_EPS) return 0;
+  if (paid >= tender + rcpSum - OVERLAP_EPS) return 0;
+  return rcpSum;
+}
+
+export function computeEffectivePaidOnSale(
+  net: number,
+  paid: number,
+  tender: number,
+  sameDaySaleRcpSum: number,
+): number {
+  const increment = sameDaySaleRcpIncrementForEffectivePaid(
+    paid,
+    tender,
+    sameDaySaleRcpSum,
+    net,
+  );
+  return Math.min(Math.max(0, net), paid + increment);
+}
+
+/**
+ * Cashier Report Actual Net Receivable:
+ *   sum(effective paid on today's sales) + old-balance receipts + fees.
+ * Same-day invoice RCP is folded into effective paid (not Old Payment Receipts).
+ */
+export function computeCashierActualNetReceivable(params: {
+  sales: CashierReceivableSale[];
+  receipts: CashierReceiptRow[];
+  resolveNet: (sale: CashierReceivableSale) => number;
+  feeTotal?: number;
+}): {
+  effectivePaidTotal: number;
+  oldBalanceReceiptTotal: number;
+  oldBalanceReceiptCount: number;
+  actualNetReceivable: number;
+} {
+  const eligibleSales = params.sales.filter((sale) => {
+    if (sale.is_cancelled) return false;
+    if (sale.payment_status === "cancelled") return false;
+    if (isHoldLikeSale(sale)) return false;
+    return !!sale.id;
+  });
+
+  const salesById = new Set(eligibleSales.map((s) => s.id as string));
+  const receiptSumBySale = sumSameDaySaleLinkedReceiptsBySaleId(
+    eligibleSales,
+    params.receipts,
+  );
+
+  let effectivePaidTotal = 0;
+  for (const sale of eligibleSales) {
+    const net = params.resolveNet(sale);
+    const paid = Math.max(0, Number(sale.paid_amount) || 0);
+    const tender = saleTenderTotal(sale);
+    const rcpSum = receiptSumBySale.get(sale.id as string) || 0;
+    effectivePaidTotal += computeEffectivePaidOnSale(net, paid, tender, rcpSum);
+  }
+
+  let oldBalanceReceiptTotal = 0;
+  let oldBalanceReceiptCount = 0;
+  for (const v of params.receipts) {
+    if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
+    const amt = Number(v.total_amount) || 0;
+    if (amt <= 0) continue;
+    const sid = v.reference_id;
+    if (isInvoiceLinkedSaleReceipt(v.reference_type) && sid && salesById.has(sid)) {
+      continue;
+    }
+    oldBalanceReceiptTotal += amt;
+    oldBalanceReceiptCount += 1;
+  }
+
+  const feeTotal = Number(params.feeTotal || 0);
+  const actualNetReceivable = effectivePaidTotal + oldBalanceReceiptTotal + feeTotal;
+
+  return {
+    effectivePaidTotal: Math.round(effectivePaidTotal * 100) / 100,
+    oldBalanceReceiptTotal: Math.round(oldBalanceReceiptTotal * 100) / 100,
+    oldBalanceReceiptCount,
+    actualNetReceivable: Math.round(actualNetReceivable * 100) / 100,
+  };
+}
 
 /** Invoice-linked RCP (balance collect / FloatingPayments against a sale id). */
 export function isInvoiceLinkedSaleReceipt(
