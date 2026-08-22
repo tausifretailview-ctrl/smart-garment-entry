@@ -21,13 +21,14 @@ if (offline.status !== 0) {
 
 console.log("\n=== Phase D — Unified customer balance gate ===\n");
 console.log("Offline gates: PASS (vitest)\n");
-console.log("Post-deploy SQL gates (run in Supabase SQL editor as postgres — use snapshot_all gates):");
-console.log("  scripts/verify-customer-balance-unified-gate.sql  (start with DIAG block)");
+console.log("Post-deploy SQL gates:");
+console.log("  scripts/verify-customer-balance-unified-gate.sql");
+console.log("    → SECTION A (party-only) for SQL editor — gates A-1..A-5");
+console.log("    → SECTION B (snapshot_all) only if DIAG shows postgres/service_role");
 console.log("  scripts/verify-snapshot-facet-semantics.sql");
-console.log("  scripts/verify-customer-party-balances-parity.sql");
 console.log("");
-console.log("Note: per-customer get_customer_financial_snapshot fails in SQL editor");
-console.log("(Authentication required). Gates D-1/D-3/D-5 use get_customer_financial_snapshot_all instead.");
+console.log("SQL editor: do NOT use get_customer_financial_snapshot per row or");
+console.log("get_customer_true_outstanding — Authentication required (42501).");
 console.log("Required migrations:");
 console.log("  20260822183000_snapshot_facet_semantics.sql");
 console.log("  20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql (POS orgs)\n");
