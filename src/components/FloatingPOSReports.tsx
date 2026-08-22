@@ -47,6 +47,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { lookupBarcodeSales, type BarcodeSaleRecord } from "@/utils/lookupBarcodeSales";
+import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
+import { isStockReportBarcodeLikeSearch } from "@/utils/stockReportPurchaseBarcodeResolve";
 
 interface FloatingPOSReportsProps {
   showCashierReport: boolean;
@@ -574,6 +576,31 @@ const QUICK_STOCK_VARIANT_SELECT = `
   product:products!inner(id, product_name, brand, category, style, deleted_at, organization_id)
 `;
 
+/** Same join shape as QUICK_STOCK but for lookupVariantRowsByScan (products alias). */
+const QUICK_STOCK_SCAN_SELECT = `
+  id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
+  products!inner(id, product_name, brand, category, style, deleted_at, organization_id)
+`;
+
+function mapQuickStockScanRows(rows: Record<string, unknown>[]): any[] {
+  return rows.map((row) => {
+    const products = row.products as Record<string, unknown> | undefined;
+    return {
+      ...row,
+      product: products ?? (row as { product?: unknown }).product,
+    };
+  });
+}
+
+async function searchQuickStockByBarcodeScan(orgId: string, term: string): Promise<any[]> {
+  if (!isStockReportBarcodeLikeSearch(term)) return [];
+
+  const scan = await lookupVariantRowsByScan(orgId, term, QUICK_STOCK_SCAN_SELECT.trim());
+  if (!scan.rows.length) return [];
+
+  return mapQuickStockScanRows(scan.rows);
+}
+
 async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
   if (productIds.length === 0) return [] as any[];
 
@@ -613,6 +640,10 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
   if (!term) return [] as any[];
   const safeTerm = term.replace(/[%_,()]/g, " ").trim();
   if (!safeTerm) return [] as any[];
+
+  // 0) Canonical scan resolution — purchase-label barcode + doubled scan (same as POS)
+  const scanMatches = await searchQuickStockByBarcodeScan(orgId, term);
+  if (scanMatches.length > 0) return scanMatches;
 
   // 1) Exact barcode (scanner / numeric paste)
   const exact = await supabase
