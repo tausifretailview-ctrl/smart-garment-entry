@@ -98,6 +98,8 @@ export type CustomerBalanceCoreSaleReturn = {
   net_amount?: number | null;
   credit_status?: string | null;
   linked_sale_id?: string | null;
+  credit_available_balance?: number | null;
+  refund_type?: string | null;
 };
 
 export type CustomerBalanceCoreParams = {
@@ -222,9 +224,29 @@ export function computePaidAmountDrift(
   return drift;
 }
 
+/** Remaining customer-favour credit from one sale return (matches SQL helper). */
+export function saleReturnRemainingCreditForBalance(
+  sr: {
+    net_amount?: number | null;
+    credit_available_balance?: number | null;
+    linked_sale_id?: string | null;
+  },
+  linkedSaleReturnAdjust?: number | null,
+): number {
+  const cabRaw = sr.credit_available_balance;
+  if (cabRaw != null && !Number.isNaN(Number(cabRaw))) {
+    return Math.max(0, Number(cabRaw));
+  }
+  const net = Math.max(0, Number(sr.net_amount || 0));
+  const linked = String(sr.linked_sale_id || "").trim();
+  const absorb = linked ? Math.max(0, Number(linkedSaleReturnAdjust ?? 0)) : 0;
+  return Math.max(0, net - absorb);
+}
+
 /**
- * Pending sale-return credit toward lifetime outstanding (matches SQL `pending_sale_returns` line).
- * Net of `sale_return_adjust` already counted on a linked invoice — avoids double-count vs ledger.
+ * Sale-return credit toward lifetime outstanding (matches SQL `pending_sale_returns` line).
+ * Includes pending, partially_adjusted, and adjusted rows with a remaining pool — not only
+ * credit_status=pending (Hanif bhai / ELLA NOOR: adjusted return with ₹3,050 remainder).
  */
 export function computePendingStandaloneSaleReturns(
   saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
@@ -237,18 +259,16 @@ export function computePendingStandaloneSaleReturns(
     if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
   }
 
-  const pendingRows = saleReturns.filter(
-    (sr) => normalizeStatus(sr.credit_status) === "pending",
-  );
   let sum = 0;
+  for (const sr of saleReturns) {
+    const status = normalizeStatus(sr.credit_status);
+    if (status === "refunded") continue;
+    if (String(sr.refund_type || "").toLowerCase() === "cash_refund") continue;
 
-  for (const sr of pendingRows) {
-    const net = Number(sr.net_amount) || 0;
     const linked = String(sr.linked_sale_id || "").trim();
-    // Match SQL pending_sale_returns: only offset by SRA on the *linked* invoice.
-    // Do not consume a global SRA pool — that SRA is already subtracted in auditFormulaOutstanding.
-    const absorb = linked ? Math.min(net, saleReturnAdjustById.get(linked) || 0) : 0;
-    sum += Math.max(0, net - absorb);
+    const absorb = linked ? saleReturnAdjustById.get(linked) || 0 : 0;
+    const remaining = saleReturnRemainingCreditForBalance(sr, absorb);
+    if (remaining > 0.005) sum += remaining;
   }
 
   return sum;

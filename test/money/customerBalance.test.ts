@@ -170,6 +170,35 @@ describe("computeCustomerBalanceCore — advance application", () => {
     expect(result.customerPaymentDebits).toBeCloseTo(600, 0);
     expect(result.balance).toBeCloseTo(0, 0);
   });
+
+  it("Hanif bhai — adjusted return remainder shows 3050 Cr not 3200 Dr", () => {
+    const settled = computeCustomerBalanceCore({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "inv-287",
+          net_amount: 3200,
+          paid_amount: 0,
+          sale_return_adjust: 3200,
+          items_gross: 3200,
+        },
+      ],
+      voucherEntries: [],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 6250,
+          credit_status: "adjusted",
+          linked_sale_id: "inv-287",
+          credit_available_balance: 3050,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(settled.balance).toBeCloseTo(-3050, 0);
+    expect(settled.pendingStandaloneSaleReturns).toBeCloseTo(3050, 0);
+  });
 });
 
 describe("net receivable = gross outstanding − credit pool", () => {
