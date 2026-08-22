@@ -86,7 +86,37 @@ Run Phase1 §1D and §1E for advance refund scan.
 3. **§1C** — CN double-apply queue  
 4. **§1D + §1E** — advance outliers  
 5. **§1G** — P0/P1 spot list  
-6. **§1F** — per-customer breakdown (change name pattern each time)
+6. **§1F** — per-customer breakdown (change name pattern each time)  
+7. **§1F-batch** — same breakdown for multiple customers (edit `name_patterns` array)
+
+**SQL editor gotcha:** Never paste bare `AND c.customer_name ILIKE ...` lines — they are not valid SQL. Run the full **§1F** or **§1F-batch** block.
+
+---
+
+## Phase 1 export analysis (Aug 22 exports)
+
+| Export | Section | Rows | Key finding |
+|--------|---------|------|-------------|
+| 17-12-21 | §1A party list | 774 | 783 customers; top Dr: Sumaiya ₹4.73L, Shumama ₹1.59L |
+| 17-12-48 | §1B paid drift | 11 | KHADIJA SHEIKH INV/25-26/585 worst (−₹21k paid) |
+| 17-13-36 | §1C CN double | 15 | Hanif still flagged (CN ₹3,200 vs SRA ₹0 — post-repair residual) |
+| 17-14-29 | §1D advance-heavy | 290 | NASIM VAPI ₹44.8k unused advance; Sana Nasir ₹11L used |
+| 17-15-47 | §1E over-refund | 53 | Anusha Pathan ₹5,450 over-refund on ADV/25-26/849 |
+| 17-16-10 | §1G P0/P1 spot | 13 | Sharmin return pool ₹13,450 vs party −₹11,500 |
+| 17-16-39 | §1F Shumama | 9 | CN + SRA both −₹61,900; party ₹1,58,700 Dr confirmed |
+
+### P0/P1 spot-check (§1G)
+
+| Customer | Party | Return pool | Repair batch |
+|----------|-------|-------------|--------------|
+| Sumaiya Chhapra Bhabhi | ₹4,73,730 Dr | — | §1F breakdown needed |
+| SHUMAMA BAIRELI | ₹1,58,700 Dr | ₹0 | **R2** CN double-apply |
+| Saba Ali | ₹90,843 Dr | ₹29,000 (1 pending SR) | **R2/R3** |
+| Siya Kapoor | ₹62,250 Dr | ₹9,700 | **R2** + advance ₹21,700 |
+| Sharmin Mewara | ₹11,500 Cr | ₹13,450 | **R3** stale CAB |
+| Hanif bhai | ₹3,050 Cr | ₹3,050 | Done ✓ (§1C flag is stale) |
+| Anusha Pathan | Settled | — | **R4** if refund not reversed |
+| Tanvi Taufu | ₹2,950 Dr | — | §1F needed |
 
 ---
 
