@@ -27,16 +27,17 @@
 
 ### P1 — CN / return pool (31 customers flagged CN_DOUBLE)
 
-| Customer | Party | Notes |
-|----------|-------|-------|
-| Saba Ali | ₹90,843 Dr | ₹43,933 recon gap |
-| Siya Kapoor | ₹62,250 Dr | CN + advance ₹21,700 |
-| KHADIJA SHEIKH | ₹8,800 Cr | CN repair batch customer |
-| MAHENOOR KAS | ₹1,000 Cr | Partial SRA after bulk repair |
-| Sharmin Mewara | ₹11,500 Cr | Return pool stale — `ella-noor-sharmin-mewara-balance-diagnostic.sql` |
-| SHEHNAZ HALAI | ₹51,010 Dr | Advance ₹24,850 + recon gap |
+| Customer | Party | Notes | Script |
+|----------|-------|-------|--------|
+| **FAIZA SALMAN MERCHANT** | — | SR/35 CAB drift | `ella-noor-p1-cn-repair.sql` §3a |
+| **Parina Bhujwala** | — | SR/64 pending vs INV/1245 | `ella-noor-p1-cn-repair.sql` §3b |
+| Saba Ali | ₹90,843 Dr | ₹43,933 recon gap | `ella-noor-p1-cn-breakdown.sql` |
+| Siya Kapoor | ₹62,250 Dr | CN + advance ₹21,700 | `ella-noor-p1-cn-breakdown.sql` |
+| KHADIJA SHEIKH | ₹8,800 Cr | CN repair batch customer | §1C export |
+| MAHENOOR KAS | ₹1,000 Cr | Partial SRA after bulk repair | review only |
+| SHEHNAZ HALAI | ₹51,010 Dr | Advance ₹24,850 + recon gap | §1D / §1E |
 
-Full CN queue: run `scripts/audit-cn-double-apply.sql` Block A2 with org filter.
+Full CN queue: `scripts/audit-cn-double-apply.sql` Block A2 (org filter) or `ella-noor-p1-cn-repair.sql` §0.
 
 ### P2 — advance-heavy Cr balances (25 customers)
 
@@ -107,6 +108,16 @@ Run Phase1 §1D and §1E for advance refund scan.
 | **6** | `repair-cn-double-apply-checklist.md` Shumama P0 | ✓ **Done** — party ₹1,58,700 Dr confirmed |
 
 **Remaining P0:** Sumaiya Chhapra Bhabhi (₹4,73,730 Dr — review only unless shop disputes).
+
+**P1 CN (next owner run):**
+
+| Order | Script | Action |
+|-------|--------|--------|
+| **7** | `ella-noor-p1-cn-breakdown.sql` | Export P1 component breakdown (Faiza Salman, Parina, Saba, Siya) |
+| **8** | `ella-noor-p1-cn-repair.sql` **§0–§2** | Dry-run FAIZA SALMAN + Parina |
+| **9** | `ella-noor-p1-cn-repair.sql` **§3a** | FAIZA SALMAN CAB sync (owner: ₹200 tail vs fully adjusted) |
+| **10** | `ella-noor-p1-cn-repair.sql` **§3b** | Parina SR/64 consume (owner: return ₹3,350 vs ₹6,350 on invoice) |
+| **11** | `ella-noor-p1-cn-repair.sql` **§5** | Verify party balances + re-run A2 |
 
 ---
 

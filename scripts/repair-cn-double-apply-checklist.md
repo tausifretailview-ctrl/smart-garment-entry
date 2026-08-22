@@ -10,9 +10,9 @@
 
 | Priority | Customer | CN vouchers | Pending/partial CAB | Ceiling |
 |----------|----------|-------------|---------------------|---------|
-| P0 | Shumama Baireli | ₹40,150 | ₹33,450 | ₹73,600 |
-| P1 | FAIZA SALMAN MERCHANT | ₹6,000 | ₹6,200 | ₹12,200 |
-| P1 | Parina Bhujwala | ₹6,350 | ₹3,350 | ₹9,700 |
+| P0 | Shumama Baireli | ₹40,150 | ₹33,450 | ₹73,600 | **✓ Done Aug 22** |
+| P1 | FAIZA SALMAN MERCHANT | ₹6,000 | ₹6,200 | ₹12,200 | `ella-noor-p1-cn-repair.sql` §3a |
+| P1 | Parina Bhujwala | ₹6,350 | ₹3,350 | ₹9,700 | `ella-noor-p1-cn-repair.sql` §3b |
 | P2 | Faiza Sheikh | ₹13,100 | ₹400 | ₹13,500 |
 | P2 | Atiya Merchant | ₹6,950 | ₹1,850 | ₹8,800 |
 | P3 | MONIKA VERMA | ₹5,500 | ₹200 | ₹5,700 |
@@ -68,6 +68,8 @@
 
 ## P1 — Parina Bhujwala
 
+**Script:** `scripts/ella-noor-p1-cn-repair.sql` — §1 diagnostic, §2 dry-run, **§3b Option A** (return ₹3,350)
+
 ### A2
 
 - CN applied: **₹6,350** | Pending CAB: **₹3,350** | Ceiling: **₹9,700**
@@ -93,6 +95,8 @@
 ---
 
 ## P1 — FAIZA SALMAN MERCHANT
+
+**Script:** `scripts/ella-noor-p1-cn-repair.sql` — §1 diagnostic, **§3a** (CAB → ₹200 partial) or §3a-full (CAB → 0)
 
 ### A2
 
