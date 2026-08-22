@@ -13,6 +13,7 @@ import {
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
 import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
 import {
   posBarcodeMatchesNeedMrpPicker,
@@ -2557,6 +2558,23 @@ export default function POSSales() {
       for (const candidate of scanCandidates) {
         exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
         if (exactBarcodeMatches.length > 0) break;
+      }
+      if (exactBarcodeMatches.length === 0) {
+        const scan = await lookupVariantRowsByScan(orgId, trimmedTerm, POS_VARIANT_LOOKUP_SELECT);
+        for (const row of scan.rows) {
+          const mapped = mapPosVariantLookupRow(
+            row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+          );
+          if (mapped) exactBarcodeMatches.push(mapped);
+        }
+      }
+      if (exactBarcodeMatches.length > 1) {
+        const seen = new Set<string>();
+        exactBarcodeMatches = exactBarcodeMatches.filter((m) => {
+          if (seen.has(m.variant.id)) return false;
+          seen.add(m.variant.id);
+          return true;
+        });
       }
       let barcodeMatch:
         | { product: PosProductRow; variant: PosVariantRow; remappedLiveBarcode?: string }
