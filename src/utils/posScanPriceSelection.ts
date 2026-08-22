@@ -35,6 +35,8 @@ export function posBarcodeMatchesNeedMrpPicker(
 export function shouldPromptPosPriceSelection(params: {
   askPriceOnScan: boolean;
   hasOverridePrice: boolean;
+  /** When POS bills at MRP (pos_barcode_price_mode = mrp), skip — sale-price drift is irrelevant. */
+  posUsesMrpAsPrice?: boolean;
   masterSalePrice: number;
   masterMrp: number;
   lastPurchaseSalePrice: number | null;
@@ -42,6 +44,7 @@ export function shouldPromptPosPriceSelection(params: {
   tolerance?: number;
 }): boolean {
   if (!params.askPriceOnScan || params.hasOverridePrice) return false;
+  if (params.posUsesMrpAsPrice) return false;
   const tol = params.tolerance ?? POS_PRICE_DRIFT_TOLERANCE;
 
   if (

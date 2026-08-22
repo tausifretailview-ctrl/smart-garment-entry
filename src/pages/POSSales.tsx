@@ -3045,6 +3045,7 @@ export default function POSSales() {
         shouldPromptPosPriceSelection({
           askPriceOnScan,
           hasOverridePrice: !!overridePrice,
+          posUsesMrpAsPrice: grossBasis === "mrp",
           masterSalePrice,
           masterMrp,
           lastPurchaseSalePrice,

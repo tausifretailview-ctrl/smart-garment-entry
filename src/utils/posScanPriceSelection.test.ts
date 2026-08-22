@@ -57,6 +57,20 @@ describe("shouldPromptPosPriceSelection", () => {
       }),
     ).toBe(false);
   });
+
+  it("skips when POS bills at MRP (sale-price drift irrelevant)", () => {
+    expect(
+      shouldPromptPosPriceSelection({
+        askPriceOnScan: true,
+        hasOverridePrice: false,
+        posUsesMrpAsPrice: true,
+        masterSalePrice: 115.15,
+        masterMrp: 204.5,
+        lastPurchaseSalePrice: 143,
+        lastPurchaseMrp: 204.5,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("posBarcodeMatchesNeedMrpPicker", () => {
