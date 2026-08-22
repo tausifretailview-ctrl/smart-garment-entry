@@ -1,26 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
-  POS_NUMERIC_BARCODE_MIN_LENGTH,
-cursor/ks-footwear-pos-barcode-mrp-fix-0051
-  shouldPosEnterUseExactBarcodeLookup,
-=======
   isCompleteNumericBarcodeForPosCart,
-  isPosServiceShortNumericBarcode,
- main
+  POS_NUMERIC_BARCODE_MIN_LENGTH,
+  shouldPosEnterUseExactBarcodeLookup,
+  stockReportOldBarcodeKeyMatches,
 } from "./posBarcodeCartLookup";
 
 describe("posBarcodeCartLookup", () => {
   it("accepts 3–7 digit service barcodes (501) for POS cart lookup", () => {
-    expect(isPosServiceShortNumericBarcode("501")).toBe(true);
-    expect(isPosServiceShortNumericBarcode("8001")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("501")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("8001")).toBe(true);
   });
 
   it("still requires 8+ digits for long retail EAN-style codes", () => {
-    expect(isCompleteNumericBarcodeForPosCart("1234567")).toBe(true);
-    expect(isCompleteNumericBarcodeForPosCart("12345678")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("12")).toBe(false);
+    expect(isCompleteNumericBarcodeForPosCart("00400114")).toBe(true);
+    expect(isCompleteNumericBarcodeForPosCart("0040017429")).toBe(true);
     expect(POS_NUMERIC_BARCODE_MIN_LENGTH).toBe(8);
   });
 
@@ -43,5 +38,16 @@ describe("shouldPosEnterUseExactBarcodeLookup", () => {
 
   it("quick service codes use dropdown path", () => {
     expect(shouldPosEnterUseExactBarcodeLookup("3")).toBe(false);
+  });
+});
+
+describe("stockReportOldBarcodeKeyMatches", () => {
+  it("exact match for numeric barcode keys", () => {
+    expect(stockReportOldBarcodeKeyMatches("0040017429", "0040017429")).toBe(true);
+    expect(stockReportOldBarcodeKeyMatches("0040", "0040017429")).toBe(false);
+  });
+
+  it("substring match for text keys", () => {
+    expect(stockReportOldBarcodeKeyMatches("bhg", "label-bhg215")).toBe(true);
   });
 });

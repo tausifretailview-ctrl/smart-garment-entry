@@ -20,17 +20,26 @@ export async function fetchOldBarcodeSaleItemMappings(
   client: OldBarcodeSaleItemsClient,
   organizationId: string,
   barcode: string,
+  options?: { exactOnly?: boolean },
 ): Promise<Map<string, string>> {
   if (!organizationId || !barcode.trim()) return new Map();
 
-  const { data, error } = await client
+  const trimmed = barcode.trim();
+  let query = client
     .from("sale_items")
     .select(OLD_BARCODE_SALE_ITEMS_SELECT)
     .eq("sales.organization_id", organizationId)
     .is("sales.deleted_at", null)
-    .ilike("barcode", `%${barcode}%`)
     .is("deleted_at", null)
     .limit(50);
+
+  if (options?.exactOnly) {
+    query = query.eq("barcode", trimmed);
+  } else {
+    query = query.ilike("barcode", `%${trimmed}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
