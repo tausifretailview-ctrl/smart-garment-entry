@@ -32,10 +32,8 @@ import {
   paymentPickerAmountBadgeClass,
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
-import {
-  fetchCustomerOpeningBalanceRemaining,
-  resolveCustomerOpeningBalance,
-} from "@/utils/customerOpeningBalanceRemaining";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
@@ -269,43 +267,21 @@ function CustomerPaymentForm({
     [customersWithBalance, referenceId],
   );
 
-  // Fallback only when picker list has not loaded this customer yet.
+  // Fallback: snapshot RPC when picker list has not loaded this customer yet.
   const { data: customerBalanceFallback } = useQuery({
-    queryKey: ["customer-balance", organizationId, referenceId],
+    queryKey: ["customer-financial-snapshot", organizationId, referenceId, "pos-picker"],
     queryFn: async () => {
-      const ob = await resolveCustomerOpeningBalance(organizationId, referenceId, queryClient);
-      const { data: sales } = await supabase
-        .from("sales")
-        .select("net_amount, paid_amount, sale_return_adjust")
-        .eq("organization_id", organizationId)
-        .eq("customer_id", referenceId)
-        .in("payment_status", ["pending", "partial"])
-        .is("deleted_at", null);
-      const invoiceOutstanding =
-        sales?.reduce(
-          (sum, s) =>
-            sum +
-            Math.max(
-              0,
-              Number(s.net_amount || 0) -
-                Number(s.paid_amount || 0) -
-                Number(s.sale_return_adjust || 0),
-            ),
-          0,
-        ) || 0;
-      const { data: obPayments } = await supabase
-        .from("voucher_entries")
-        .select("total_amount, discount_amount, reference_id")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "receipt")
-        .eq("reference_type", "customer")
-        .is("deleted_at", null);
-      const obPaid = obPayments?.filter(p => p.reference_id === referenceId).reduce((sum, p) => sum + (Number(p.total_amount) || 0) + (Number((p as { discount_amount?: number }).discount_amount) || 0), 0) || 0;
-      return ob + invoiceOutstanding - obPaid;
+      const snap = await fetchCustomerFinancialSnapshot(
+        supabase,
+        organizationId,
+        referenceId,
+      );
+      return snap.outstandingDr;
     },
     enabled: !!organizationId && !!referenceId && dialogOpen && pickerOutstanding === undefined,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 60 * 1000,
+    retry: 2,
   });
 
   const customerBalance = pickerOutstanding ?? customerBalanceFallback;
