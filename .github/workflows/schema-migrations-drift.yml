@@ -1,0 +1,37 @@
+name: Schema migration drift
+
+# Repo-only manifest check runs on every PR via ci.yml.
+# This workflow is the live bidirectional compare. It stays skipped until
+# staging (or an explicit production allow) credentials are configured.
+
+on:
+  schedule:
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  live-compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Compare repo migrations to live schema_migrations
+        env:
+          SUPABASE_DRIFT_URL: ${{ secrets.SUPABASE_DRIFT_URL }}
+          SUPABASE_DRIFT_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_DRIFT_SERVICE_ROLE_KEY }}
+          ALLOW_PRODUCTION_DRIFT_CHECK: ${{ secrets.ALLOW_PRODUCTION_DRIFT_CHECK }}
+        run: |
+          if [ -z "$SUPABASE_DRIFT_URL" ] || [ -z "$SUPABASE_DRIFT_SERVICE_ROLE_KEY" ]; then
+            echo "Skipping live compare — configure SUPABASE_DRIFT_URL and SUPABASE_DRIFT_SERVICE_ROLE_KEY."
+            exit 0
+          fi
+          npm run check:schema-drift:live

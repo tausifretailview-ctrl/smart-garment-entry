@@ -28,6 +28,7 @@ but may be absent from `supabase_migrations.schema_migrations`.
 
 ## Drift report (all missing repo migrations)
 
-Run `scripts/report-schema-migrations-drift.sql` and paste the result set into
-the PR / incident note. This is the third live-vs-repo drift this month — treat
-a non-empty report as a release-process failure, not a one-off.
+Run `npm run check:schema-drift:live` (needs staging or explicit production
+credentials — see `scripts/README-schema-migrations-drift.md`) and paste the
+output into the PR / incident note. This is the third live-vs-repo drift this
+month — treat a non-empty report as a release-process failure, not a one-off.

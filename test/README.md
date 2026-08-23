@@ -139,6 +139,17 @@ Ephemeral fixtures: each suite calls `seedMoneyTestFixtures` in `beforeAll` and 
 | Excel PRate/SRate/MRP mapping | ✅ | — |
 | Completed-but-underpaid drift | ✅ | — |
 
+## Schema-migration drift
+
+`npm run check:schema-drift` compares `supabase/migrations/*.sql` to
+`scripts/schema-migrations-manifest.json` (wired in CI). After adding a
+migration, run `npm run check:schema-drift:write` and commit the manifest.
+
+Live bidirectional compare (`npm run check:schema-drift:live`) needs
+`SUPABASE_DRIFT_*` or staging `SUPABASE_TEST_*`. It refuses the production
+project URL unless `--allow-production` is set. See
+`scripts/README-schema-migrations-drift.md`.
+
 ## CI follow-up (not wired yet)
 
 Add a GitHub Actions job with staging secrets:
