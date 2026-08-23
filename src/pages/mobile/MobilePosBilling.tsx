@@ -22,6 +22,7 @@ import {
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
 import type { PosGrossBasis } from "@/lib/posBilling";
+import { posBarcodeMatchesNeedMrpPicker } from "@/utils/posScanPriceSelection";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -220,18 +221,43 @@ export default function MobilePosBilling() {
         .is("deleted_at", null)
         .is("products.deleted_at", null)
         .eq("barcode", code)
-        .limit(1)
-        .maybeSingle();
+        .order("stock_qty", { ascending: false })
+        .limit(50);
       if (error) {
         toast.error("Scan failed", { description: error.message });
         return;
       }
-      if (!data?.products) {
+      const rows = ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
+        .filter((row) => row.products);
+      if (rows.length === 0) {
         toast.error("Not found", { description: `No product for barcode ${code}` });
         return;
       }
-      const row = data as unknown as SearchHit["variant"] & { products: SearchHit["product"] };
-      addFromHit({ variant: row, product: row.products });
+      if (rows.length === 1) {
+        addFromHit({ variant: rows[0], product: rows[0].products });
+        return;
+      }
+      // Branded/universal barcodes (e.g. Jockey) can carry the same code at more than
+      // one MRP tier. Force the picker even when only one tier is currently in stock —
+      // matches the desktop POS / Sale Billing scan picker.
+      const needMrpPicker = posBarcodeMatchesNeedMrpPicker(rows.map((r) => ({ variant: r })));
+      const withStock = rows.filter((r) => Number(r.stock_qty) > 0);
+      const choices = needMrpPicker ? rows : withStock.length > 0 ? withStock : rows;
+      if (needMrpPicker || choices.length > 1) {
+        // Reuse the existing search-hits list as the picker: seed it with this barcode.
+        setSearchInput(code);
+        setDebouncedSearch(code);
+        toast.message(
+          needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
+          {
+            description: needMrpPicker
+              ? "Pick the MRP that matches the label."
+              : "Pick the correct product / MRP from the list.",
+          },
+        );
+        return;
+      }
+      addFromHit({ variant: choices[0], product: choices[0].products });
     },
     [addFromHit, currentOrganization?.id],
   );
@@ -420,6 +446,7 @@ export default function MobilePosBilling() {
             )}
             {searchHits.map((hit) => {
               const salePrice = Number(hit.variant.sale_price) || 0;
+              const mrp = Number(hit.variant.mrp) || 0;
               const stock = Number(hit.variant.stock_qty) || 0;
               return (
                 <button
@@ -436,7 +463,12 @@ export default function MobilePosBilling() {
                       {" · "}Stock {stock}
                     </p>
                   </div>
-                  <p className="shrink-0 text-sm font-semibold tabular-nums">₹{formatInr(salePrice)}</p>
+                  <div className="shrink-0 text-right">
+                    {mrp > 0 && mrp !== salePrice && (
+                      <p className="text-xs text-muted-foreground line-through">MRP: ₹{formatInr(mrp)}</p>
+                    )}
+                    <p className="text-sm font-semibold tabular-nums">₹{formatInr(salePrice)}</p>
+                  </div>
                 </button>
               );
             })}

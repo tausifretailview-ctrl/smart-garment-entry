@@ -10,6 +10,7 @@ import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
+import { posBarcodeMatchesNeedMrpPicker } from "@/utils/posScanPriceSelection";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
@@ -1892,9 +1893,17 @@ export default function SalesInvoice() {
 
       const rows = (dbVariants || []).filter((row: any) => row?.products);
       if (rows.length > 1) {
+        // Branded/universal barcodes (e.g. Jockey) can carry the same code at more
+        // than one MRP tier. Force the picker even when only one tier is currently
+        // in stock — matches the POS scan picker (posBarcodeMatchesNeedMrpPicker).
+        const needMrpPicker = posBarcodeMatchesNeedMrpPicker(
+          rows.map((r: any) => ({ variant: r })),
+        );
         const withStock = rows.filter((r: any) => Number(r.stock_qty) > 0);
-        const choices = withStock.length > 0 ? withStock : rows;
-        if (choices.length > 1) {
+        const choices = needMrpPicker ? rows : withStock.length > 0 ? withStock : rows;
+        if (needMrpPicker || choices.length > 1) {
+          // Renderer already shows variant.mrp per row (struck-through vs sale_price),
+          // so each MRP tier is visibly distinguishable without extra fields.
           setProductSearchResults(
             choices.map((r: any) => ({
               product: r.products,
@@ -1904,8 +1913,10 @@ export default function SalesInvoice() {
           setOpenProductSearch(true);
           setSearchInput(searchTerm.trim());
           toast({
-            title: "Multiple products share this barcode",
-            description: "Pick the correct product / MRP from the list.",
+            title: needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
+            description: needMrpPicker
+              ? "Pick the MRP that matches the label."
+              : "Pick the correct product / MRP from the list.",
           });
           return;
         }

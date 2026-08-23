@@ -216,6 +216,7 @@ interface PendingPriceSelection {
 interface POSBarcodeRuntimeSettings {
   pos_barcode_price_mode: 'mrp' | 'sale_price';
   enable_mrp: boolean;
+  pos_quick_price_code: boolean;
 }
 
 const POS_CART_BARCODE_COL_MIN = 128;
@@ -327,6 +328,41 @@ function mapPosVariantLookupRow(
 ) {
   if (!row?.products) return null;
   return { product: row.products, variant: row };
+}
+
+/**
+ * Fast-counter shorthand for no-barcode shops: "S200" -> letters "s", price 200.
+ * Requires at least 2 digits so it can't collide with the 1-9 quick-service codes
+ * or a short numeric barcode fragment (both purely numeric, never letters+digits).
+ */
+function parsePosQuickPriceCode(term: string): { letters: string; price: number } | null {
+  const m = term.trim().match(/^([A-Za-z]{1,6})(\d{2,6})$/);
+  if (!m) return null;
+  const price = Number(m[2]);
+  if (!Number.isFinite(price) || price <= 0) return null;
+  return { letters: m[1].toLowerCase(), price };
+}
+
+async function fetchPosQuickPriceCodeMatches(
+  orgId: string,
+  letters: string,
+  price: number,
+): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+  const { data, error } = await posVariantBaseQuery(orgId)
+    .ilike("products.product_name", `${letters}%`)
+    .eq("sale_price", price)
+    .order("stock_qty", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+
+  const out: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  for (const row of data || []) {
+    const mapped = mapPosVariantLookupRow(
+      row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+    );
+    if (mapped) out.push(mapped);
+  }
+  return out;
 }
 
 async function fetchPosExactBarcodeMatches(
@@ -601,6 +637,7 @@ export default function POSSales() {
     const next: POSBarcodeRuntimeSettings = {
       pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
       enable_mrp: purchaseSettings.show_mrp === true,
+      pos_quick_price_code: saleSettings.pos_quick_price_code === true,
     };
     setPosRuntimeSettings(next);
     posRuntimeSettingsRef.current = next;
@@ -2564,6 +2601,41 @@ export default function POSSales() {
     posSearchAndAddInFlight.add(trimmedTerm);
 
     try {
+      // Fast-counter price-shorthand: "S200" -> product name starting with S,
+      // sale_price 200 (no barcode). Org opt-in only (Settings → Sale → POS quick
+      // price-code search). Falls through to normal search on no match.
+      const quickCode = posRuntimeSettingsRef.current?.pos_quick_price_code
+        ? parsePosQuickPriceCode(trimmedTerm)
+        : null;
+      if (quickCode) {
+        const codeMatches = await fetchPosQuickPriceCodeMatches(orgId, quickCode.letters, quickCode.price);
+        if (codeMatches.length > 0) {
+          const distinctProducts = new Map<string, { product: PosProductRow; variant: PosVariantRow }>();
+          for (const m of codeMatches) {
+            const existing = distinctProducts.get(m.product.id);
+            if (!existing || (Number(m.variant.stock_qty) || 0) > (Number(existing.variant.stock_qty) || 0)) {
+              distinctProducts.set(m.product.id, m);
+            }
+          }
+          const choices = Array.from(distinctProducts.values());
+          if (choices.length === 1) {
+            setSearchInput("");
+            await addItemToCart(choices[0].product, choices[0].variant, undefined, 'barcode');
+            recordPosBarcodeScanSuccess(trimmedTerm);
+            return;
+          }
+          // Ambiguous — more than one product starts with these letters at this price.
+          setProductSearchResults(choices.map((c) => ({ product: c.product, variant: c.variant })));
+          setOpenProductSearch(true);
+          setSearchInput(trimmedTerm);
+          toast.message("Multiple products match this code", {
+            description: `Pick which "${quickCode.letters.toUpperCase()}" product you mean.`,
+          });
+          return;
+        }
+        // No product matches the shorthand — fall through to normal barcode/name search.
+      }
+
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
       if (/^[1-9]$/.test(trimmedTerm)) {
         const shortMatch = await fetchPosVariantByBarcode(orgId, trimmedTerm, mobileERP);
