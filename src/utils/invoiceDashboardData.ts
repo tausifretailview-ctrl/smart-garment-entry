@@ -1016,6 +1016,34 @@ export function buildDefaultWeeklyInvoiceDashboardFilters(
 
 export const INVOICE_DASHBOARD_DEFAULT_PAGE_SIZE = 50;
 
+export type InvoiceDashboardDisplayRowsInput = {
+  dashboardPage?: {
+    invoices?: any[];
+    totalCount?: number;
+    sourceRows?: any[];
+  } | null;
+  reconciledPageInvoices?: any[] | null;
+  /** Joined sale ids from the current page fetch — empty when search/filter matched nothing. */
+  reconcileSourceKey: string;
+};
+
+/**
+ * Pick table rows for the current filter/search. Never reuse background-reconcile cache
+ * when the page fetch returned no source rows (search with 0 hits kept showing the prior page).
+ */
+export function resolveInvoiceDashboardDisplayRows(
+  input: InvoiceDashboardDisplayRowsInput,
+): any[] {
+  const quickRows = input.dashboardPage?.invoices ?? [];
+  if ((input.dashboardPage?.totalCount ?? 0) === 0) {
+    return quickRows;
+  }
+  if (!input.reconcileSourceKey.length) {
+    return quickRows;
+  }
+  return input.reconciledPageInvoices ?? quickRows;
+}
+
 export const INVOICE_DASHBOARD_QUERY_KEY = "invoice-dashboard-unified" as const;
 
 /** Invalidate page, stats, and reconcile queries after a dashboard mutation. */

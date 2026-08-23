@@ -150,6 +150,7 @@ import {
   patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
   refetchInvoiceDashboardQueries,
+  resolveInvoiceDashboardDisplayRows,
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
@@ -888,6 +889,7 @@ export default function SalesInvoiceDashboard() {
   const {
     data: dashboardPage,
     isLoading,
+    isFetching: isPageFetching,
     refetch,
     error: invoicesError,
     dataUpdatedAt: invoicesUpdatedAt,
@@ -930,6 +932,8 @@ export default function SalesInvoiceDashboard() {
     },
     enabled: dashboardQueryEnabled && reconcileSourceKey.length > 0,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    // Do not keep prior search/page reconcile rows while filters change.
+    placeholderData: undefined,
   });
 
   const isDashboardInitialLoad = isLoading && dashboardPage === undefined;
@@ -953,8 +957,32 @@ export default function SalesInvoiceDashboard() {
     });
   }, [invoicesError, toast]);
 
-  const paginatedInvoices =
-    reconciledPageInvoices ?? dashboardPage?.invoices ?? [];
+  const paginatedInvoices = useMemo(() => {
+    const rows = resolveInvoiceDashboardDisplayRows({
+      dashboardPage,
+      reconciledPageInvoices,
+      reconcileSourceKey,
+    });
+    if (
+      debouncedSearch.trim() &&
+      dashboardStats &&
+      dashboardStats.totalInvoices === 0 &&
+      !isStatsLoading &&
+      isPageFetching &&
+      (dashboardPage?.totalCount ?? 0) > 0
+    ) {
+      return [];
+    }
+    return rows;
+  }, [
+    dashboardPage,
+    reconciledPageInvoices,
+    reconcileSourceKey,
+    debouncedSearch,
+    dashboardStats,
+    isStatsLoading,
+    isPageFetching,
+  ]);
   const reconciledStats = dashboardStats;
   const totalCount =
     paymentStatusFilter.length > 0 &&
