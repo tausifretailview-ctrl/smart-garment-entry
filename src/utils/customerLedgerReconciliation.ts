@@ -77,3 +77,19 @@ export function computeRefundableCreditBalance(params: {
   }
   return Math.round(Math.max(0, unused + cn - inv));
 }
+
+/**
+ * Sale-return credit for Balance Reconciliation — one economic effect per rupee.
+ *
+ * Running-balance / Credit column use gross `displayCredit`; recon must not also
+ * count the applied slice in `invoiceCnApplied` (Farhaan Fab: CN ₹2,800, ₹2,700
+ * applied → Outstanding Cr must be ₹100, not ₹2,800).
+ */
+export function saleReturnCreditForReconciliation(row: {
+  credit?: number | null;
+  displayCredit?: number | null;
+}): number {
+  const displayCredit = (row.displayCredit ?? row.credit) || 0;
+  const remainingCredit = (row.credit ?? 0) || 0;
+  return displayCredit > remainingCredit + 0.005 ? remainingCredit : displayCredit;
+}
