@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -59,7 +59,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard, MobileListCardSkeleton } from "@/components/mobile/MobileListCard";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { useOrganizationCustomerAccountTotals } from "@/hooks/useOrganizationCustomerAccountTotals";
+import {
+  fetchPaymentsDashboardPage,
+  fetchPaymentsDashboardStats,
+  type PaymentsDashboardInvoice,
+} from "@/utils/paymentsDashboard";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import {
   fetchCustomerFinancialSnapshot,
@@ -75,21 +81,7 @@ import {
   accountsHistoryThClass,
 } from "@/components/accounts/accountsHistoryUi";
 
-interface Invoice {
-  id: string;
-  sale_number: string;
-  customer_name: string;
-  customer_phone: string | null;
-  customer_email: string | null;
-  sale_date: string;
-  due_date: string | null;
-  net_amount: number;
-  payment_status: string;
-  payment_date: string | null;
-  payment_method: string;
-  paid_amount?: number;
-  [key: string]: any;
-}
+interface Invoice extends PaymentsDashboardInvoice {}
 
 interface ColumnSettings {
   [key: string]: boolean;
@@ -204,11 +196,25 @@ export default function PaymentsDashboard() {
   };
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(() => startOfMonth(new Date()));
+  const [dateTo, setDateTo] = useState<Date | undefined>(() => endOfMonth(new Date()));
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(50);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, dateFrom, dateTo, itemsPerPage, customerIdParam]);
 
   const paymentsFilterSnapshot = useMemo(
     () => ({
@@ -243,8 +249,8 @@ export default function PaymentsDashboard() {
       });
     },
   );
-  
-  // Payment recording dialog state
+
+    // Payment recording dialog state
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<string>("");
@@ -273,8 +279,17 @@ export default function PaymentsDashboard() {
   const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
 
-  const { totals: accountTotals, isLoading: accountTotalsLoading } = useOrganizationCustomerAccountTotals(
-    currentOrganization?.id,
+  const { summary: receivablesSummary, isLoading: receivablesSummaryLoading } =
+    useOrganizationReceivablesSummary(currentOrganization?.id);
+
+  const [loadCnMetrics, setLoadCnMetrics] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setLoadCnMetrics(true), 250);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const { totals: cnTotals, isLoading: cnTotalsLoading } = useOrganizationCustomerAccountTotals(
+    loadCnMetrics ? currentOrganization?.id : undefined,
   );
 
   const { snapshot: filteredCustomerSnapshot } = useCustomerFinancialSnapshot(
@@ -298,66 +313,70 @@ export default function PaymentsDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const { data: invoices, isLoading, refetch } = useQuery<Invoice[]>({
-    queryKey: ['payment-invoices', currentOrganization?.id, statusFilter, dateFrom, dateTo],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
+  const paymentsListParams = useMemo(
+    () => ({
+      organizationId: currentOrganization!.id,
+      statusFilter,
+      dateFrom,
+      dateTo,
+      searchQuery: debouncedSearch,
+      customerId: customerIdParam,
+    }),
+    [currentOrganization?.id, statusFilter, dateFrom, dateTo, debouncedSearch, customerIdParam],
+  );
 
-      let query = supabase
-        .from('sales')
-        .select('id, sale_number, sale_date, customer_name, customer_id, customer_phone, customer_email, net_amount, paid_amount, cash_amount, payment_method, payment_status, payment_date, due_date, flat_discount_amount, flat_discount_percent, discount_amount, gross_amount, round_off, salesman, notes')
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .order('sale_date', { ascending: false });
-
-      // Apply status filter
-      if (statusFilter === 'pending') {
-        query = query.eq('payment_status', 'pending');
-      } else if (statusFilter === 'partial') {
-        query = query.eq('payment_status', 'partial');
-      } else if (statusFilter === 'completed') {
-        query = query.eq('payment_status', 'completed');
-      }
-
-      // Apply date filters - normalize to yyyy-MM-dd format for accurate comparison
-      if (dateFrom) {
-        const startDateStr = format(dateFrom, 'yyyy-MM-dd');
-        query = query.gte('sale_date', startDateStr);
-      }
-      if (dateTo) {
-        const endDateStr = format(dateTo, 'yyyy-MM-dd');
-        query = query.lte('sale_date', endDateStr);
-      }
-
-      const { data: salesData, error } = await query;
-      if (error) throw error;
-
-      // Return sales with paid_amount already in the table
-      // paid_amount includes cash_amount + card_amount + upi_amount from mixed payments
-      return salesData || [];
-    },
+  const {
+    data: paymentsPage,
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: [
+      "payment-invoices",
+      currentOrganization?.id,
+      statusFilter,
+      dateFrom ? format(dateFrom, "yyyy-MM-dd") : null,
+      dateTo ? format(dateTo, "yyyy-MM-dd") : null,
+      debouncedSearch,
+      customerIdParam,
+      currentPage,
+      itemsPerPage,
+    ],
+    queryFn: () =>
+      fetchPaymentsDashboardPage({
+        ...paymentsListParams,
+        page: currentPage,
+        pageSize: itemsPerPage,
+      }),
     enabled: !!currentOrganization?.id,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
-  const summaryStats = useMemo(() => {
-    const rows = invoices || [];
-    const totalRevenue = rows.reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0);
-    const pendingAmount = rows
-      .filter((inv) => inv.payment_status !== "completed")
-      .reduce((sum, inv) => sum + Math.max(0, Number(inv.net_amount || 0) - Number(inv.paid_amount || 0)), 0);
-    const completedAmount = rows
-      .filter((inv) => inv.payment_status === "completed")
-      .reduce((sum, inv) => sum + Number(inv.net_amount || 0), 0);
-    return {
-      total: rows.length,
-      totalRevenue,
-      pendingAmount,
-      completedAmount,
-      collectionRate: totalRevenue > 0 ? (completedAmount / totalRevenue) * 100 : 0,
-    };
-  }, [invoices]);
+  const { data: summaryStats = {
+    total: 0,
+    totalRevenue: 0,
+    pendingAmount: 0,
+    completedAmount: 0,
+    collectionRate: 0,
+  } } = useQuery({
+    queryKey: [
+      "payment-invoices-stats",
+      currentOrganization?.id,
+      statusFilter,
+      dateFrom ? format(dateFrom, "yyyy-MM-dd") : null,
+      dateTo ? format(dateTo, "yyyy-MM-dd") : null,
+      debouncedSearch,
+      customerIdParam,
+    ],
+    queryFn: () => fetchPaymentsDashboardStats(paymentsListParams),
+    enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const paginatedInvoices = paymentsPage?.rows ?? [];
+  const filteredInvoicesCount = paymentsPage?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(filteredInvoicesCount / itemsPerPage));
 
   const periodLabel =
     dateFrom || dateTo
@@ -394,25 +413,11 @@ export default function PaymentsDashboard() {
     setDateTo(undefined);
   };
 
-  const filteredInvoices = useMemo(() => {
-    const searchLower = searchQuery.toLowerCase();
-    return (invoices || []).filter((invoice) => {
-      if (customerIdParam && invoice.customer_id !== customerIdParam) return false;
-      if (!searchLower) return true;
-      return (
-        invoice.sale_number?.toLowerCase().includes(searchLower) ||
-        invoice.customer_name?.toLowerCase().includes(searchLower) ||
-        invoice.customer_phone?.toLowerCase().includes(searchLower) ||
-        invoice.customer_email?.toLowerCase().includes(searchLower)
-      );
-    });
-  }, [invoices, searchQuery, customerIdParam]);
+  const filteredInvoices = paginatedInvoices;
 
-  // Pagination
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const paginatedInvoices = filteredInvoices.slice(startIndex, endIndex);
+  // Pagination indices (server-side page already applied)
+  const startIndex = filteredInvoicesCount === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredInvoicesCount);
 
   const handleSendPaymentReminder = async (invoice: Invoice) => {
     if (!invoice.customer_phone) {
@@ -610,6 +615,7 @@ export default function PaymentsDashboard() {
       if (currentOrganization?.id) {
         invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, selectedInvoice.customer_id);
         queryClient.invalidateQueries({ queryKey: ["payment-invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["payment-invoices-stats"] });
         queryClient.invalidateQueries({ queryKey: ["accounts-dashboard-metrics", currentOrganization.id] });
       }
       refetch();
@@ -926,7 +932,7 @@ Thank you for your business!`;
         <div className="flex flex-col min-h-screen bg-muted/30 pb-8">
           <MobilePageHeader
             title="Payments"
-            subtitle={`${filteredInvoices.length} invoices`}
+            subtitle={`${filteredInvoicesCount} invoices`}
           />
 
           <div className="px-4 pt-3">
@@ -948,19 +954,19 @@ Thank you for your business!`;
               { label: "Inv. Due", value: fmtShort(summaryStats.pendingAmount), color: "text-rose-600", bg: "bg-rose-50" },
               {
                 label: "Cust. Due",
-                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalOutstandingDr),
+                value: receivablesSummaryLoading ? "…" : fmtShort(receivablesSummary.grossReceivableDr),
                 color: "text-orange-600",
                 bg: "bg-orange-50",
               },
               {
                 label: "Advance",
-                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalAdvanceAvailable),
+                value: receivablesSummaryLoading ? "…" : fmtShort(receivablesSummary.advanceAvailable),
                 color: "text-teal-600",
                 bg: "bg-teal-50",
               },
               {
                 label: "CN",
-                value: accountTotalsLoading ? "…" : fmtShort(accountTotals.totalCnAvailable),
+                value: cnTotalsLoading ? "…" : fmtShort(cnTotals.totalCnAvailable),
                 color: "text-amber-600",
                 bg: "bg-amber-50",
               },
@@ -1165,24 +1171,24 @@ Thank you for your business!`;
         />
         <MetricCard
           label="Customer Due"
-          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalOutstandingDr)}
-          sub={`${accountTotals.customersWithOutstanding} with balance · ledger`}
+          value={receivablesSummaryLoading ? "…" : fmtInr(receivablesSummary.grossReceivableDr)}
+          sub={`${receivablesSummary.customersOwing} with balance · ledger`}
           gradient="bg-gradient-to-br from-rose-500 to-rose-600"
           icon={TrendingUp}
           onClick={() => navigate("/accounts")}
         />
         <MetricCard
           label="Advance"
-          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalAdvanceAvailable)}
-          sub={`${accountTotals.customersWithAdvance} customers`}
+          value={receivablesSummaryLoading ? "…" : fmtInr(receivablesSummary.advanceAvailable)}
+          sub={`${receivablesSummary.customerCount} customers`}
           gradient="bg-gradient-to-br from-teal-500 to-teal-600"
           icon={Wallet}
           onClick={() => navigate("/accounts?tab=customer-payment")}
         />
         <MetricCard
           label="CN Available"
-          value={accountTotalsLoading ? "…" : fmtInr(accountTotals.totalCnAvailable)}
-          sub={`${accountTotals.totalCnPendingCount} pending returns`}
+          value={cnTotalsLoading ? "…" : fmtInr(cnTotals.totalCnAvailable)}
+          sub={`${cnTotals.totalCnPendingCount} pending returns`}
           gradient="bg-gradient-to-br from-amber-500 to-amber-600"
           icon={BookOpen}
           onClick={() => navigate("/accounts?tab=customer-ledger")}
@@ -1316,7 +1322,7 @@ Thank you for your business!`;
         </div>
 
         <div className="px-3 py-1.5 border-b border-slate-100 bg-slate-50/50 text-xs text-slate-600 shrink-0">
-          Invoice payments ({filteredInvoices.length}) · showing {paginatedInvoices.length} on this page
+          Invoice payments ({filteredInvoicesCount}) · showing {paginatedInvoices.length} on this page
         </div>
 
         <div className={cn(accountsHistoryTableWrapClass, "flex-1")}>
@@ -1450,7 +1456,7 @@ Thank you for your business!`;
               </Table>
         </div>
 
-        {(totalPages > 1 || filteredInvoices.length > 0) && (
+        {(totalPages > 1 || filteredInvoicesCount > 0) && (
           <div className={accountsHistoryFooterClass}>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Per page:</span>
@@ -1495,7 +1501,7 @@ Thank you for your business!`;
                 </Button>
               </div>
             ) : (
-              <span className="text-muted-foreground">{filteredInvoices.length} invoices</span>
+              <span className="text-muted-foreground">{filteredInvoicesCount} invoices</span>
             )}
           </div>
         )}
