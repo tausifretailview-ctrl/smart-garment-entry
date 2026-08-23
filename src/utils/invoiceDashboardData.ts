@@ -538,7 +538,7 @@ export function getInvoiceDashboardDisplayStatus(invoice: {
     return invoice.payment_status || "pending";
   }
   const outstanding = roundKhataMoney(
-    Math.max(0, Number(invoice.outstanding ?? invoiceOutstandingAmount(invoice))),
+    Math.max(0, Number(invoice.outstanding ?? invoiceOutstandingAmount(invoice as Parameters<typeof invoiceOutstandingAmount>[0]))),
   );
   if (outstanding <= 0.01) {
     return "completed";

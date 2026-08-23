@@ -62,7 +62,7 @@ export async function lookupVariantRowsByScan(
     const { data: exactRows, error: exactErr } = await base().eq("barcode", candidate).limit(25);
     if (!exactErr && exactRows?.length) {
       return {
-        rows: exactRows as Record<string, unknown>[],
+        rows: exactRows as unknown as Record<string, unknown>[],
         matchedCandidate: candidate,
         wasDoubledScan: isDoubledNumericBarcode(raw),
         resolvedVia: "variant-exact",
@@ -79,7 +79,7 @@ export async function lookupVariantRowsByScan(
         .limit(25);
       if (!fuzzyErr && fuzzyRows?.length) {
         return {
-          rows: fuzzyRows as Record<string, unknown>[],
+          rows: fuzzyRows as unknown as Record<string, unknown>[],
           matchedCandidate: candidate,
           wasDoubledScan: isDoubledNumericBarcode(raw),
           resolvedVia: "variant-fuzzy",
@@ -104,7 +104,7 @@ export async function lookupVariantRowsByScan(
     const { data: bySkuRows, error: bySkuErr } = await base().in("id", skuIds).limit(25);
     if (!bySkuErr && bySkuRows?.length) {
       return {
-        rows: bySkuRows as Record<string, unknown>[],
+        rows: bySkuRows as unknown as Record<string, unknown>[],
         matchedCandidate: candidate,
         wasDoubledScan: isDoubledNumericBarcode(raw),
         resolvedVia: "purchase-items",

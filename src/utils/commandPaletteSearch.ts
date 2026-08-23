@@ -14,6 +14,8 @@ const SNAPSHOT_CACHE_TTL_MS = 60_000;
 
 const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
   outstandingDr: 0,
+  grossOutstandingDr: 0,
+  netPosition: 0,
   advanceAvailable: 0,
   cnAvailableTotal: 0,
   cnPendingCount: 0,
