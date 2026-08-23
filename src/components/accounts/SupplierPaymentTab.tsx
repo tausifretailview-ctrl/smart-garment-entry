@@ -980,8 +980,8 @@ export function SupplierPaymentTab({
                     align="start"
                     sideOffset={4}
                   >
-                    <Command>
-                      <CommandInput placeholder="Search suppliers..." value={supplierSearchTerm} onValueChange={setSupplierSearchTerm} />
+                    <Command shouldFilter={false}>
+                      <CommandInput placeholder="Search suppliers (master or bill name)..." value={supplierSearchTerm} onValueChange={setSupplierSearchTerm} />
                       <CommandList className="max-h-[min(50vh,360px)]">
                         <CommandEmpty>No supplier found.</CommandEmpty>
                         <CommandGroup heading="Suppliers with Balance">
@@ -989,12 +989,12 @@ export function SupplierPaymentTab({
                             ?.filter((s) =>
                               s.supplier_name
                                 .toLowerCase()
-                                .includes(supplierSearchTerm.toLowerCase()),
+                                .includes(supplierSearchTerm.trim().toLowerCase()),
                             )
                             .map((supplier) => (
                             <CommandItem
                               key={supplier.id}
-                              value={supplier.supplier_name}
+                              value={`bal-${supplier.id}`}
                               className="flex items-center gap-2 py-2"
                               onSelect={() => {
                               setReferenceId(supplier.id);
@@ -1009,13 +1009,51 @@ export function SupplierPaymentTab({
                             </CommandItem>
                           ))}
                         </CommandGroup>
+                        {billNameMatches.filter(
+                          (m) =>
+                            !suppliersWithBalance?.some((sw) => sw.id === m.id) &&
+                            !searchedSuppliers.some((s) => s.id === m.id),
+                        ).length > 0 && (
+                          <CommandGroup heading="Matched from bill name">
+                            {billNameMatches
+                              .filter(
+                                (m) =>
+                                  !suppliersWithBalance?.some((sw) => sw.id === m.id) &&
+                                  !searchedSuppliers.some((s) => s.id === m.id),
+                              )
+                              .map((supplier) => (
+                                <CommandItem
+                                  key={`alias-${supplier.id}`}
+                                  value={`alias-${supplier.id}`}
+                                  className="flex items-center gap-2 py-2"
+                                  onSelect={() => {
+                                    setReferenceId(supplier.id);
+                                    setSelectedSupplierBillIds([]);
+                                    setAmount("");
+                                    setSupplierSearchOpen(false);
+                                    setSupplierSearchTerm("");
+                                  }}
+                                >
+                                  <Check className={cn("h-4 w-4 shrink-0", referenceId === supplier.id ? "opacity-100" : "opacity-0")} />
+                                  <span className="min-w-0 flex-1 text-left leading-snug">
+                                    {supplier.supplier_name}
+                                    {supplier.billedAs && supplier.billedAs !== supplier.supplier_name && (
+                                      <span className="block text-[11px] text-muted-foreground">
+                                        billed as {supplier.billedAs}
+                                      </span>
+                                    )}
+                                  </span>
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        )}
                         <CommandGroup heading="All Suppliers">
                           {searchedSuppliers
                             .filter((s) => !suppliersWithBalance?.some((sw) => sw.id === s.id))
                             .map((supplier) => (
                             <CommandItem
                               key={supplier.id}
-                              value={supplier.supplier_name}
+                              value={`all-${supplier.id}`}
                               className="flex items-center gap-2 py-2"
                               onSelect={() => {
                               setReferenceId(supplier.id);
@@ -1029,6 +1067,7 @@ export function SupplierPaymentTab({
                             </CommandItem>
                           ))}
                         </CommandGroup>
+
                       </CommandList>
                     </Command>
                   </PopoverContent>
