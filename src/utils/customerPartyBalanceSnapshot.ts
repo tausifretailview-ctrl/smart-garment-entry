@@ -10,6 +10,9 @@ import {
   type CustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import { partyBalanceDirection } from "@/utils/customerPartyBalanceDisplay";
+import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
+import { getCustomerAccountState } from "@/utils/customerBalanceCore";
+import { supabase } from "@/integrations/supabase/client";
 
 /** Party list row with headline numbers aligned to snapshot facet semantics. */
 export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
@@ -95,5 +98,63 @@ export async function fetchCustomerPartyBalancesAligned(
 
   return partyRows.map((row) =>
     alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""),
+  );
+}
+
+/** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
+export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
+
+/**
+ * Patch party list rows with canonical JS balance when SQL signed_balance drifts.
+ * Used for visible Customer Balances page slice until party RPC migration is live.
+ */
+export async function enrichPartyRowsWithCanonicalBalance(
+  organizationId: string,
+  rows: CustomerPartyBalanceAlignedRow[],
+): Promise<CustomerPartyBalanceAlignedRow[]> {
+  if (!organizationId || rows.length === 0 || rows.length > PARTY_BALANCE_CANONICAL_ENRICH_MAX) {
+    return rows;
+  }
+
+  return Promise.all(
+    rows.map(async (row) => {
+      try {
+        const bundle = await fetchCustomerAuditBundle(
+          supabase,
+          organizationId,
+          row.customer_id,
+        );
+        const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
+          (sum: number, a: { outstanding_difference?: number | null }) =>
+            sum + Number(a.outstanding_difference || 0),
+          0,
+        );
+        const state = getCustomerAccountState({
+          openingBalance: Number(bundle.customer.opening_balance || 0),
+          customerId: row.customer_id,
+          sales: bundle.allSales,
+          voucherEntries: bundle.vouchersMerged,
+          customerAdvances: bundle.advances,
+          advanceRefunds: bundle.refunds,
+          adjustmentTotal,
+          saleReturns: bundle.saleReturns,
+          options: { ledgerAlignedApplicationReceipts: true },
+        });
+        const signedNet = Math.round(state.netPosition);
+        if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
+          return row;
+        }
+        return alignPartyRowFromRpc(
+          {
+            ...row,
+            signed_balance: signedNet,
+            advance_available: state.unusedAdvancePool,
+          },
+          row.phone ?? "",
+        );
+      } catch {
+        return row;
+      }
+    }),
   );
 }

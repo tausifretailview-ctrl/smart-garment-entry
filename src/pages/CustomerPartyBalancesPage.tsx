@@ -37,7 +37,7 @@ import { ReportSkeleton } from "@/components/ui/skeletons";
 import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
-import { fetchCustomerPartyBalancesAligned, partyBalanceRowFacets, type CustomerPartyBalanceAlignedRow } from "@/utils/customerPartyBalanceSnapshot";
+import { fetchCustomerPartyBalancesAligned, enrichPartyRowsWithCanonicalBalance, partyBalanceRowFacets, type CustomerPartyBalanceAlignedRow } from "@/utils/customerPartyBalanceSnapshot";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
@@ -144,6 +144,21 @@ export default function CustomerPartyBalancesPage() {
     () => slicePartyBalancePage(filteredRows, currentPage),
     [filteredRows, currentPage],
   );
+
+  const paginatedRowKey = useMemo(
+    () => paginatedRows.map((r) => r.customer_id).join(","),
+    [paginatedRows],
+  );
+
+  /** Canonical JS balance for visible page — fixes partial-CN drift until SQL migration is live. */
+  const { data: displayPaginatedRows } = useQuery({
+    queryKey: ["customer-party-balances-canonical", orgId, paginatedRowKey],
+    enabled: Boolean(orgId && paginatedRows.length > 0),
+    staleTime: 30_000,
+    queryFn: () => enrichPartyRowsWithCanonicalBalance(orgId!, paginatedRows),
+  });
+
+  const tableRows = displayPaginatedRows ?? paginatedRows;
 
   const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
   const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);
@@ -590,7 +605,7 @@ export default function CustomerPartyBalancesPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      paginatedRows.map((row, index) => {
+                      tableRows.map((row, index) => {
                         const direction = partyBalanceDirection(row);
                         const f = partyBalanceRowFacets(row);
                         const isDr = direction === "Dr";

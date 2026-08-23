@@ -1,9 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
-import {
-  accountFacetsFromFinancialSnapshot,
-  fetchCustomerFinancialSnapshot,
-} from "@/utils/customerFinancialSnapshot";
+import { getCustomerAccountState } from "@/utils/customerBalanceCore";
 
 /** One unused advance booking line for hover/expand decomposition. */
 export type CustomerAdvanceLegView = {
@@ -36,20 +33,33 @@ function roundRupee(n: number): number {
 }
 
 /**
- * Load canonical customer account facets from the SQL snapshot RPC.
- * Advance legs still come from the audit bundle (display-only decomposition).
+ * Load canonical customer account facets from audit bundle (`getCustomerAccountState`).
+ * Advance legs come from the same bundle (display-only decomposition).
  */
 export async function fetchCustomerAccountStateView(
   client: SupabaseClient,
   organizationId: string,
   customerId: string,
 ): Promise<CustomerAccountStateView> {
-  const [snap, bundle] = await Promise.all([
-    fetchCustomerFinancialSnapshot(client, organizationId, customerId),
-    fetchCustomerAuditBundle(client, organizationId, customerId),
-  ]);
+  const bundle = await fetchCustomerAuditBundle(client, organizationId, customerId);
 
-  const facets = accountFacetsFromFinancialSnapshot(snap);
+  const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
+    (sum: number, a: { outstanding_difference?: number | null }) =>
+      sum + Number(a.outstanding_difference || 0),
+    0,
+  );
+
+  const state = getCustomerAccountState({
+    openingBalance: Number(bundle.customer.opening_balance || 0),
+    customerId,
+    sales: bundle.allSales,
+    voucherEntries: bundle.vouchersMerged,
+    customerAdvances: bundle.advances,
+    advanceRefunds: bundle.refunds,
+    adjustmentTotal,
+    saleReturns: bundle.saleReturns,
+    options: { ledgerAlignedApplicationReceipts: true },
+  });
 
   const advanceLegs: CustomerAdvanceLegView[] = (bundle.advances || [])
     .map((a: {
@@ -77,10 +87,10 @@ export async function fetchCustomerAccountStateView(
     customerName: String(
       (bundle.customer as { customer_name?: string }).customer_name || "",
     ).trim(),
-    outstanding: facets.outstanding,
-    unusedAdvance: facets.unusedAdvance,
-    unclaimedSaleReturn: roundRupee(snap.cnAvailableTotal),
-    netPosition: facets.netPosition,
+    outstanding: state.outstanding,
+    unusedAdvance: state.unusedAdvancePool,
+    unclaimedSaleReturn: state.unclaimedSaleReturnCredit,
+    netPosition: state.netPosition,
     openingBalance: roundRupee(Number(bundle.customer.opening_balance || 0)),
     advanceLegs,
   };
