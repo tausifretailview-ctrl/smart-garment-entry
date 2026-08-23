@@ -56,6 +56,14 @@ export function allocateSupplierCreditToBills(
   return map;
 }
 
+/** Same open-bill test as Purchase Dashboard Not Paid / Partial (before CN FIFO). */
+export function isSupplierBillOpenOnDashboard(
+  bill: SupplierBillRow,
+  voucherPaidByBillId?: Map<string, number>,
+): boolean {
+  return getSupplierBillRawOutstanding(bill, voucherPaidByBillId) >= SUPPLIER_MIN_PENDING_RUPEE;
+}
+
 export function sumSupplierBillNetPayable(
   breakdown: Map<string, SupplierBillOutstandingBreakdown>,
 ): number {
