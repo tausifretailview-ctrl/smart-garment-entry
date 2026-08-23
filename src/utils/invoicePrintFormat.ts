@@ -51,9 +51,9 @@ export function resolvePosInvoiceTemplate(
 export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4-gst-classic']);
 
 /**
- * Real Tast Bill of Supply is a single 210×297mm leaf.
- * POS used to wrap it in another 297mm print-source box and add 10mm @page
- * margins — Chrome printed a blank first page and clipped the bill on page 2.
+ * Real Tast Bill of Supply prints on A4 with zero page margin.
+ * Do not lock the leaf to 297mm — that stretched blank SN rows and left a
+ * hole between Total Qty and Note. Extra paper white stays at the sheet bottom.
  */
 export function getRealTastA4PrintPageStyle(): string {
   return `
@@ -88,13 +88,15 @@ export function getRealTastA4PrintPageStyle(): string {
         .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
           width: 210mm !important;
           max-width: 210mm !important;
-          height: 297mm !important;
-          max-height: 297mm !important;
+          height: auto !important;
+          min-height: 0 !important;
+          max-height: none !important;
           margin: 0 !important;
           box-sizing: border-box !important;
-          overflow: hidden !important;
-          page-break-after: avoid !important;
-          page-break-inside: avoid !important;
+          overflow: visible !important;
+        }
+        .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-footer {
+          margin-top: 0 !important;
         }
       }
   `;
