@@ -67,7 +67,7 @@ export function resolvePosDashboardQueryDates(
 }
 
 /** When All Time has no dates, bound fetch to rolling 12 months (UI label unchanged). */
-function resolvePosDashboardDateRange(startDate: string, endDate: string) {
+export function resolvePosDashboardDateRange(startDate: string, endDate: string) {
   if (startDate || endDate) {
     return { startDate, endDate };
   }
@@ -335,7 +335,32 @@ export type PosDashboardFilters = {
 export type PosDashboardPageOptions = {
   page: number;
   pageSize: number;
+  /** When false, skip receipt settlement for faster first paint (background reconcile). */
+  reconcile?: boolean;
 };
+
+export type PosDashboardPageResult = PosDashboardSalesPayload & {
+  totalCount: number;
+  /** Raw DB rows for background receipt reconcile. */
+  sourceRows?: any[];
+};
+
+function applyQuickPosDisplayFields(sale: any): any {
+  if (sale.is_cancelled || sale.payment_status === "cancelled") {
+    return { ...sale, payment_status: "cancelled", pos_outstanding: 0 };
+  }
+  if (isHoldLikePosSale(sale)) {
+    return { ...sale };
+  }
+  const modes = getPosPaymentModeDisplayAmounts(sale);
+  return {
+    ...sale,
+    cash_amount: modes.cash,
+    card_amount: modes.card,
+    upi_amount: modes.upi,
+    pos_outstanding: getPosSaleOutstandingBalance(sale),
+  };
+}
 
 export type PosDashboardSummaryStats = {
   totalBills: number;
@@ -1009,6 +1034,17 @@ async function enrichPosSalesWithReceiptSettlement(
   });
 }
 
+/** Receipt settlement for visible POS rows (call after enrichPosSalesWithCreditNotes). */
+export async function reconcilePosDashboardRows(
+  client: SupabaseClient,
+  organizationId: string,
+  sales: any[],
+  options?: { voucherDateFrom?: string | null; voucherDateTo?: string | null },
+): Promise<any[]> {
+  if (sales.length === 0) return [];
+  return enrichPosSalesWithReceiptSettlement(client, organizationId, sales, options);
+}
+
 export function computePosDashboardSummaryStats(
   rows: PosDashboardSaleLike[],
 ): PosDashboardSummaryStats {
@@ -1099,23 +1135,22 @@ export async function fetchPosDashboardPage(
   client: SupabaseClient,
   filters: PosDashboardFilters,
   options: PosDashboardPageOptions,
-): Promise<PosDashboardSalesPayload & { totalCount: number }> {
+): Promise<PosDashboardPageResult> {
   if (!filters.organizationId) {
     return { sales: [], creditNoteUsage: {}, totalCount: 0 };
   }
 
+  const reconcile = options.reconcile !== false;
   const from = (options.page - 1) * options.pageSize;
   const to = from + options.pageSize - 1;
 
   // Resolve search once — count + page previously each ran sale_items ILIKE batches.
   const searchResolution = await withDashboardTimeout(
-
     resolvePosSearch(client, filters),
     "POS dashboard search resolution",
   );
 
   const [totalCount, dataResult] = await Promise.all([
-
     countFilteredPosSales(client, filters, searchResolution),
     (async () => {
       let query: any = buildPosDashboardBaseQuery(
@@ -1130,22 +1165,41 @@ export async function fetchPosDashboardPage(
   const { data, error } = await dataResult;
   if (error) throw error;
 
-  const enriched = await enrichPosSalesWithCreditNotes(data || []);
-  // Bound customer-level receipt fan-out (sale-id receipts stay unbounded).
-  // Short ranges (daily) use a tighter lookback so post-save dashboard open stays snappy.
+  const pageRows = data || [];
+  if (pageRows.length === 0) {
+    return { sales: [], creditNoteUsage: {}, totalCount, searchMeta: searchResolution?.searchMeta };
+  }
+
+  const enriched = await enrichPosSalesWithCreditNotes(pageRows);
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
   const voucherDateFrom = resolvePosDashboardVoucherLookbackFrom(
     bounded.startDate,
     bounded.endDate,
   );
+  const settlementOpts = {
+    voucherDateFrom,
+    voucherDateTo: bounded.endDate || null,
+  };
+
+  if (!reconcile) {
+    const quickSales = enriched.sales.map(applyQuickPosDisplayFields);
+    const rankedSales = filters.search.trim()
+      ? rankPosDashboardSearchResults(quickSales, filters.search)
+      : quickSales;
+    return {
+      sales: rankedSales,
+      creditNoteUsage: enriched.creditNoteUsage,
+      totalCount,
+      sourceRows: enriched.sales,
+      searchMeta: searchResolution?.searchMeta,
+    };
+  }
+
   const settled = await enrichPosSalesWithReceiptSettlement(
     client,
     filters.organizationId,
     enriched.sales,
-    {
-      voucherDateFrom,
-      voucherDateTo: bounded.endDate || null,
-    },
+    settlementOpts,
   );
   const rankedSales = filters.search.trim()
     ? rankPosDashboardSearchResults(settled, filters.search)

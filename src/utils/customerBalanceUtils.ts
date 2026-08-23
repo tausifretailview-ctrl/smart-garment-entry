@@ -610,6 +610,24 @@ async function fetchSaleReceiptVoucherRowsForInvoicesInternal(
     ...new Set(invoices.map((i) => i.customer_id).filter(Boolean)),
   ] as string[];
 
+  try {
+    const { data, error } = await client.rpc("get_sale_receipt_voucher_rows_batch", {
+      p_organization_id: organizationId,
+      p_sale_ids: saleIds,
+      p_customer_ids: customerIds.length > 0 ? customerIds : null,
+      p_voucher_date_from: options?.voucherDateFrom || null,
+      p_voucher_date_to: options?.voucherDateTo || null,
+    });
+    if (!error && Array.isArray(data)) {
+      return dedupeReceiptRows(data as SaleReceiptVoucherRow[]);
+    }
+    if (error && !isMissingReceiptBatchRpcError(error)) {
+      console.warn("[customerBalance] get_sale_receipt_voucher_rows_batch failed, falling back", error);
+    }
+  } catch (batchErr) {
+    console.warn("[customerBalance] get_sale_receipt_voucher_rows_batch unavailable, falling back", batchErr);
+  }
+
   const applyVoucherDateBounds = (q: any) => {
     let bounded = q;
     if (options?.voucherDateFrom) {
@@ -659,6 +677,12 @@ const RECEIPT_SPLIT_SELECT =
 
 const RECEIPT_VOUCHER_PAGE = 1000;
 const SALE_ID_IN_CHUNK = 80;
+
+function isMissingReceiptBatchRpcError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST202" || error.code === "42883") return true;
+  return /get_sale_receipt_voucher_rows_batch/i.test(String(error.message || ""));
+}
 
 function dedupeReceiptRows(rows: SaleReceiptVoucherRow[]): SaleReceiptVoucherRow[] {
   const seen = new Set<string>();
