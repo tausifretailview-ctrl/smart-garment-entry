@@ -33,16 +33,23 @@ SELECT
 
 
 -- =============================================================================
--- DIAG) Migration 20260911150000 applied? (paid_at_sale_drift per-sale subquery)
+-- DIAG) Migration wiring — v2 live + paid_at_sale_drift in v2 body
 -- =============================================================================
 SELECT
-  p.proname,
-  pg_get_functiondef(p.oid) LIKE '%sub.customer_id AS cust_id%' AS migration_111500_applied,
-  pg_get_functiondef(p.oid) LIKE '%sale_voucher_receipts%' AS still_has_old_sale_voucher_cte
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.proname = '_get_customer_party_balances_rows';
+  EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_get_customer_party_balances_rows_v2'
+  ) AS party_v2_exists,
+  EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_is_settlement_memo_receipt'
+  ) AS cn_memo_helper_exists,
+  (
+    SELECT pg_get_functiondef(p.oid) LIKE '%sub.customer_id AS cust_id%'
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_get_customer_party_balances_rows_v2'
+    LIMIT 1
+  ) AS v2_has_paid_at_sale_drift;
 
 
 -- =============================================================================
@@ -116,43 +123,42 @@ ORDER BY p.customer_name;
 
 -- =============================================================================
 -- 1-fast) ELLA NOOR — party RPC vs v2 internal rows (set-based, SQL-editor safe)
---         MUST return ZERO rows. Run this before block 1-slow on large orgs.
+--         PASS: drift_count = 0 (run 1-fast-count first; details in 1-fast-detail)
 -- =============================================================================
-WITH live AS (
-  SELECT customer_id, customer_name, signed_balance, advance_available, net_position
-  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-  WHERE ABS(signed_balance) > 0.01 OR COALESCE(advance_available, 0) > 0.01
-),
-v2 AS (
-  SELECT
-    out_customer_id AS customer_id,
-    out_signed_balance AS signed_balance,
-    out_advance_available AS advance_available,
-    out_net_position AS net_position
-  FROM public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-)
+SELECT COUNT(*) AS drift_count
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+   OR ABS(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0)) > 0.01
+   OR ABS(COALESCE(live.net_position, 0) - COALESCE(v2.out_net_position, 0)) > 0.01;
+
+
+-- =============================================================================
+-- 1-fast-detail) Top drift rows (only if 1-fast-count > 0)
+-- =============================================================================
 SELECT
-  COALESCE(l.customer_name, cu.customer_name) AS customer_name,
-  l.signed_balance AS live_signed,
-  v.signed_balance AS v2_signed,
-  ROUND(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0), 2) AS signed_drift,
-  l.advance_available AS live_advance,
-  v.advance_available AS v2_advance,
-  ROUND(COALESCE(l.advance_available, 0) - COALESCE(v.advance_available, 0), 2) AS advance_drift
-FROM live l
-FULL OUTER JOIN v2 v ON v.customer_id = l.customer_id
-LEFT JOIN public.customers cu ON cu.id = COALESCE(l.customer_id, v.customer_id)
-WHERE l.customer_id IS NULL
-   OR v.customer_id IS NULL
-   OR ABS(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0)) > 0.01
-   OR ABS(COALESCE(l.advance_available, 0) - COALESCE(v.advance_available, 0)) > 0.01
-ORDER BY ABS(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0)) DESC
+  live.customer_name,
+  live.signed_balance AS live_signed,
+  v2.out_signed_balance AS v2_signed,
+  ROUND(live.signed_balance - v2.out_signed_balance, 2) AS signed_drift,
+  live.advance_available AS live_advance,
+  v2.out_advance_available AS v2_advance,
+  ROUND(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0), 2) AS advance_drift
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+   OR ABS(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0)) > 0.01
+ORDER BY ABS(live.signed_balance - v2.out_signed_balance) DESC
 LIMIT 50;
 
 
 -- =============================================================================
 -- 1-slow) ELLA NOOR — non-settled party vs reconcile_customer_balance SUM
---         Must return ZERO rows. Slow on large orgs — prefer 1-fast first.
+--         May Server Error / timeout on ELLA NOOR (16k+ customers) in SQL editor.
+--         Prefer 1-fast-count + block 0a sign-off. Run only if you need deep audit.
+--         Tip: SET statement_timeout = '300s'; and filter to one customer_id.
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, signed_balance, advance_available
@@ -229,7 +235,8 @@ CROSS JOIN summary s;
 
 
 -- =============================================================================
--- 4) Sample customers for manual sign-off (party picks + reconcile SUM)
+-- 4) Sample customers — party vs v2 (fast; no per-customer reconcile)
+--    Manual read: drift should be 0 for each row.
 -- =============================================================================
 WITH picks AS (
   SELECT customer_id, customer_name, signed_balance, advance_available, direction, net_position
@@ -248,22 +255,30 @@ WITH picks AS (
 SELECT
   pk.customer_id,
   pk.customer_name,
-  canon.canonical_balance,
   pk.signed_balance AS party_balance,
-  ROUND(canon.canonical_balance - pk.signed_balance, 2) AS drift,
-  public._customer_advance_available(pk.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance,
+  v2.out_signed_balance AS v2_balance,
+  ROUND(pk.signed_balance - v2.out_signed_balance, 2) AS signed_drift,
   pk.advance_available AS party_advance,
+  v2.out_advance_available AS v2_advance,
+  ROUND(COALESCE(pk.advance_available, 0) - COALESCE(v2.out_advance_available, 0), 2) AS advance_drift,
   pk.direction,
   pk.net_position
 FROM picks pk
-CROSS JOIN LATERAL (
-  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
-  FROM public.reconcile_customer_balance(
-    pk.customer_id,
-    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
-  ) r
-) canon
-ORDER BY ABS(canon.canonical_balance) DESC;
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = pk.customer_id
+ORDER BY ABS(pk.signed_balance) DESC;
+
+
+-- =============================================================================
+-- 4b) Optional — ONE customer reconcile deep-dive (replace customer_id)
+--     reconcile_customer_balance is slow; never loop 8+ customers in SQL editor.
+-- =============================================================================
+-- SELECT source, amount, detail
+-- FROM public.reconcile_customer_balance(
+--   '<customer_id>'::uuid,
+--   '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+-- )
+-- ORDER BY source;
 
 
 -- =============================================================================

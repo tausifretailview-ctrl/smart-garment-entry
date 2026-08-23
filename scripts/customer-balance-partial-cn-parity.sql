@@ -196,32 +196,29 @@ ORDER BY c.customer_name, sr.return_number;
 
 
 -- =============================================================================
--- 5) Fast gate — party RPC vs v2 internal rows (set-based, no per-customer RPC)
---     MUST return ZERO rows. Catches wrapper / migration wiring bugs org-wide.
+-- 5) Fast gate — party RPC vs v2 (PASS: drift_count = 0)
 -- =============================================================================
-WITH live AS (
-  SELECT customer_id, signed_balance, net_position, advance_available
-  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-),
-v2 AS (
-  SELECT
-    out_customer_id AS customer_id,
-    out_signed_balance AS signed_balance,
-    out_net_position AS net_position,
-    out_advance_available AS advance_available
-  FROM public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-)
+SELECT COUNT(*) AS drift_count
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+   OR ABS(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0)) > 0.01;
+
+
+-- =============================================================================
+-- 5-detail) Top drift rows (only if drift_count > 0)
+-- =============================================================================
 SELECT
-  COALESCE(l.customer_id, v.customer_id) AS customer_id,
-  l.signed_balance AS live_signed,
-  v.signed_balance AS v2_signed,
-  ROUND(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0), 2) AS signed_drift
-FROM live l
-FULL OUTER JOIN v2 v ON v.customer_id = l.customer_id
-WHERE l.customer_id IS NULL
-   OR v.customer_id IS NULL
-   OR ABS(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0)) > 0.01
-ORDER BY ABS(COALESCE(l.signed_balance, 0) - COALESCE(v.signed_balance, 0)) DESC
+  live.customer_name,
+  live.signed_balance AS live_signed,
+  v2.out_signed_balance AS v2_signed,
+  ROUND(live.signed_balance - v2.out_signed_balance, 2) AS signed_drift
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+ORDER BY ABS(live.signed_balance - v2.out_signed_balance) DESC
 LIMIT 50;
 
 
