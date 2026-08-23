@@ -85,6 +85,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "advance-booking-dashboard": { label: "Advance Booking", icon: "Wallet" },
   "barcode-printing": { label: "Barcode Print", icon: "Printer" },
   settings: { label: "Settings", icon: "Settings" },
+  website: { label: "Website", icon: "Store" },
   profile: { label: "Profile", icon: "UserCheck" },
   "audit-log": { label: "Audit Log", icon: "History" },
   "user-rights": { label: "User Rights", icon: "UserCheck" },

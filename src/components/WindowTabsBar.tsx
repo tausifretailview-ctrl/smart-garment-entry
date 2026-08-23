@@ -43,6 +43,7 @@ const QUICK_OPEN_PAGES = [
   { path: "accounts", label: "Accounts", icon: "BookOpen", category: "Accounts" },
   { path: "delivery-dashboard", label: "Delivery", icon: "Truck", category: "Delivery" },
   { path: "settings", label: "Settings", icon: "Settings", category: "System" },
+  { path: "website", label: "Website", icon: "Store", category: "System" },
 ];
 
 export function WindowTabsBar({ className }: WindowTabsBarProps) {

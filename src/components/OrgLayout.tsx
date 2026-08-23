@@ -475,8 +475,9 @@ export const OrgLayout = () => {
   const isPublicInvoiceRoute = location.pathname.includes('/invoice/view/');
   const isPublicInstallRoute = /^\/[^/]+\/install\/?$/.test(location.pathname);
   const isPublicPortalRoute = /^\/[^/]+\/portal(\/|$)/.test(location.pathname);
+  const isPublicStoreRoute = /^\/[^/]+\/store(\/|$)/.test(location.pathname);
   const isFieldSalesRoute = /^\/[^/]+\/field-sales\/?$/.test(location.pathname);
-  const isPublicRoute = isPublicInvoiceRoute || isPublicInstallRoute || isPublicPortalRoute || isFieldSalesRoute;
+  const isPublicRoute = isPublicInvoiceRoute || isPublicInstallRoute || isPublicPortalRoute || isPublicStoreRoute || isFieldSalesRoute;
 
   // Per-page window/tab title (browser + Electron chrome). Skip public routes that
   // own their own title (e.g. PublicInvoiceView).

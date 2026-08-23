@@ -12,7 +12,9 @@ export const SuspensionGate = ({ children }: { children: ReactNode }) => {
   const { isPlatformAdmin } = useUserRoles();
   const location = useLocation();
 
-  const onAllowedPath = ALLOW_PATHS.some((p) => location.pathname.startsWith(p));
+  const onAllowedPath =
+    ALLOW_PATHS.some((p) => location.pathname.startsWith(p)) ||
+    /\/[^/]+\/store(\/|$)/.test(location.pathname);
 
   if (
     currentOrganization?.is_suspended &&

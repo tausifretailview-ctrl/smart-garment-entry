@@ -57,6 +57,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "delivery-challan-entry": "delivery_challan_entry",
   "delivery-challan-dashboard": "delivery_challan_dashboard",
   settings: "settings_view",
+  website: "website_settings",
   "barcode-printing": "barcode_printing",
   "stock-adjustment": "stock_adjustment",
   "stock-settlement": "stock_settlement",
@@ -104,7 +105,7 @@ export function normalizeStoredMenuPermissions(
 
 /** True when submenu is enabled and parent "Dashboard" main menu is enabled (if permissions exist). */
 /** Menu items enabled by default when custom permissions exist but the key was never saved. */
-const DEFAULT_ON_MENU_IDS = new Set(["business_insights"]);
+const DEFAULT_ON_MENU_IDS = new Set(["business_insights", "website_settings"]);
 
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,

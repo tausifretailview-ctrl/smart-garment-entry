@@ -269,6 +269,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  website: {
+    loader: () => import("@/pages/WebsiteSettings"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "audit-log": {
     loader: () => import("@/pages/AuditLog"),
     layout: "layout",
