@@ -379,36 +379,36 @@ export function invalidateCustomerFinancialSnapshot(
   organizationId?: string | null,
   customerId?: string | null,
 ) {
-  queryClient.invalidateQueries({
+  void queryClient.invalidateQueries({
     queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY],
   });
   if (organizationId) {
     invalidateOrgLedgerReferenceData(queryClient, organizationId);
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "org-totals", organizationId],
     });
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, organizationId],
     });
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: ["customer-balances-search", organizationId],
     });
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: ["customer-party-balances", organizationId],
     });
   }
   if (organizationId && customerId) {
-    queryClient.invalidateQueries({
+    void queryClient.invalidateQueries({
       queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, organizationId, customerId],
     });
   }
-  queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
-  queryClient.invalidateQueries({
+  void queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+  void queryClient.invalidateQueries({
     queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "balance-hook"],
   });
-  queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
-  queryClient.invalidateQueries({ queryKey: ["customer-advances-search"] });
-  queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-search"] });
-  queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta"] });
-  queryClient.invalidateQueries({ queryKey: ["salesman-outstanding"] });
+  void queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+  void queryClient.invalidateQueries({ queryKey: ["customer-advances-search"] });
+  void queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-search"] });
+  void queryClient.invalidateQueries({ queryKey: ["cn-adjust-return-meta"] });
+  void queryClient.invalidateQueries({ queryKey: ["salesman-outstanding"] });
 }
