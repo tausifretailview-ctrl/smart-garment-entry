@@ -204,12 +204,20 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   /** A5 Retail ERP: fixed 10 SN lines; Terms + QR stay pinned in the page footer. */
   const A5_RETAIL_SN_ROWS = 10;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
-  const TARGET_ROWS = isPreprintedAny
-    ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
-    : isA4
-      ? Math.max(14, minItemRows)
-      : A5_RETAIL_SN_ROWS;
-  const MIN_BLANK_ROWS = isPreprintedAny ? PREPRINTED_DEFAULT_ROWS : isA5Retail ? A5_RETAIL_SN_ROWS : 2;
+  const TARGET_ROWS = isRealTast
+    ? Math.max(items.length, 1)
+    : isPreprintedAny
+      ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
+      : isA4
+        ? Math.max(14, minItemRows)
+        : A5_RETAIL_SN_ROWS;
+  const MIN_BLANK_ROWS = isRealTast
+    ? 0
+    : isPreprintedAny
+      ? PREPRINTED_DEFAULT_ROWS
+      : isA5Retail
+        ? A5_RETAIL_SN_ROWS
+        : 2;
 
   const fmt = (amount: number) => {
     const value = amountWithDecimal ? amount.toFixed(2) : Math.round(amount).toString();
@@ -227,7 +235,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     const chunk: (InvoiceItem | null)[] = items.slice(i, i + MAX_ITEMS_PER_PAGE);
     itemPages.push(chunk);
   }
-  if (itemPages.length > 0) {
+  if (itemPages.length > 0 && !isRealTast) {
     const lastPage = itemPages[itemPages.length - 1];
     const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
     while (lastPage.length < minRows) {
@@ -699,7 +707,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             }
             style={{
               width: pageW,
-              ...(isRealTast || isPreprintedAny || isA5Retail
+              ...(isPreprintedAny || isA5Retail
                 ? { minHeight: pageH, height: pageH, maxHeight: pageH, overflow: "hidden" }
                 : {}),
               // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
@@ -714,7 +722,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               display: "flex",
               flexDirection: "column",
               position: "relative",
-              overflow: isRealTast || isPreprintedAny || isA5Retail ? "hidden" : "visible",
+              overflow: isPreprintedAny || isA5Retail ? "hidden" : "visible",
             }}
           >
             <div
@@ -723,11 +731,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 border: B2,
                 outline: isA5Retail ? B2 : undefined,
                 outlineOffset: isA5Retail ? "-2px" : undefined,
-                flex: 1,
-                minHeight: 0,
+                flex: isRealTast ? "0 0 auto" : 1,
+                minHeight: isRealTast ? undefined : 0,
                 display: "flex",
                 flexDirection: "column",
-                overflow: isRealTast || isPreprintedAny || isA5Retail ? "hidden" : "visible",
+                overflow: isPreprintedAny || isA5Retail ? "hidden" : "visible",
                 justifyContent: "flex-start",
                 boxSizing: "border-box",
               }}
@@ -874,11 +882,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   tableLayout: "fixed",
                   flex: isPreprintedAny || isA5Retail
                     ? "1 1 auto"
-                    : isRealTast
-                      ? 1
-                      : isLastPage
-                        ? "0 0 auto"
-                        : "1 1 auto",
+                    : isLastPage
+                      ? "0 0 auto"
+                      : "1 1 auto",
                 }}
               >
                 <colgroup>
@@ -1208,7 +1214,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   borderTop: B2,
                   fontSize: fsBody,
                   flexShrink: 0,
-                  marginTop: "auto",
+                  marginTop: isRealTast ? 0 : "auto",
                   display: "flex",
                   flexDirection: "column",
                   minHeight: 0,
@@ -1575,7 +1581,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       >
                         For {businessName}
                       </div>
-                      {isRealTast && <div style={{ flex: 1, minHeight: "48px" }} aria-hidden="true" />}
+                      {isRealTast && <div style={{ minHeight: "8px" }} aria-hidden="true" />}
                       {showPaymentQr && (
                         <div
                           className="retail-erp-qr-box"
@@ -1706,13 +1712,28 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             width: 100% !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
-            height: ${pageH} !important;
-            min-height: ${pageH} !important;
-            overflow: hidden !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="real-tast"] > .retail-erp-page-border {
+            flex: 0 0 auto !important;
+            min-height: 0 !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-items-grow {
+            flex: 0 0 auto !important;
+            overflow: visible !important;
+            height: auto !important;
+          }
+          .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-footer {
+            margin-top: 0 !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] table {
             table-layout: fixed !important;
             width: 100% !important;
+            height: auto !important;
+            flex: 0 0 auto !important;
           }
           .retail-erp-invoice-template td,
           .retail-erp-invoice-template th,
