@@ -41,6 +41,11 @@ jobs:
       - name: Test
         run: npm test
 
+      # Repo-only: supabase/migrations/*.sql vs scripts/schema-migrations-manifest.json.
+      # Does not prove production applied them — that is the scheduled live compare.
+      - name: Schema migration manifest
+        run: npm run check:schema-drift
+
       # Floating-promise ratchet. Fails only if the count RISES above the
       # baseline in .eslint-floating-promises-baseline.json.
       - name: Lint ratchet
