@@ -175,18 +175,38 @@ export function SupplierPaymentTab({
     return ids.sort();
   }, [supplierBalanceMap]);
 
-  /** Suppliers with payable balance — resolve only those ids from the balance map. */
+  /** Safety net: suppliers with bills where net_amount > paid_amount, straight from purchase_bills. */
+  const { data: suppliersWithUnpaidBills = [] } = useQuery({
+    queryKey: ["suppliers-unpaid-bills", organizationId],
+    queryFn: () => fetchSuppliersWithUnpaidBills(organizationId),
+    enabled: !!organizationId && tabActive,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  /** Suppliers with payable balance — balance map + any supplier holding unpaid bills. */
   const { data: suppliersWithBalance } = useQuery({
-    queryKey: ["suppliers-with-balance", organizationId, owedSupplierIds],
+    queryKey: ["suppliers-with-balance", organizationId, owedSupplierIds, suppliersWithUnpaidBills.length],
     queryFn: async () => {
       const balanceMap = supplierBalanceMap!.balanceMap;
       const rows = await fetchSuppliersByIds(organizationId, owedSupplierIds);
-      return rows
-        .map((s) => ({
+      const byId = new Map<string, { id: string; supplier_name: string; phone: string | null; email: string | null; outstandingBalance: number }>();
+      for (const s of rows) {
+        byId.set(s.id, {
           ...s,
           outstandingBalance: safeMapGet<SupplierBalanceSnapshot>(balanceMap, s.id)?.balance ?? 0,
-        }))
-        .sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
+        });
+      }
+      for (const s of suppliersWithUnpaidBills) {
+        if (byId.has(s.id)) continue;
+        byId.set(s.id, {
+          id: s.id,
+          supplier_name: s.supplier_name,
+          phone: s.phone,
+          email: s.email,
+          outstandingBalance: s.unpaidAmount,
+        });
+      }
+      return [...byId.values()].sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
     },
     enabled: !!organizationId && tabActive && !!supplierBalanceMap,
     staleTime: 2 * 60 * 1000,
@@ -197,6 +217,14 @@ export function SupplierPaymentTab({
     queryFn: () => searchSuppliers(organizationId, debouncedSupplierSearch),
     enabled: !!organizationId && tabActive && (supplierSearchOpen || !!debouncedSupplierSearch),
     staleTime: 30 * 1000,
+  });
+
+  /** Spelling drift: find suppliers by the name printed on their purchase bills. */
+  const { data: billNameMatches = [] } = useQuery({
+    queryKey: ["suppliers-search-bill-name", organizationId, debouncedSupplierSearch],
+    queryFn: () => searchSuppliersByBillName(organizationId, debouncedSupplierSearch),
+    enabled: !!organizationId && tabActive && debouncedSupplierSearch.trim().length >= 2,
+    staleTime: 60 * 1000,
   });
 
   const voucherSupplierIds = useMemo(() => {
