@@ -1903,7 +1903,8 @@ export default function SalesInvoice() {
           );
           setOpenProductSearch(true);
           setSearchInput(searchTerm.trim());
-          toast.message("Multiple products share this barcode", {
+          toast({
+            title: "Multiple products share this barcode",
             description: "Pick the correct product / MRP from the list.",
           });
           return;
