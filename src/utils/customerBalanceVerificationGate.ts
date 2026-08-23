@@ -4,6 +4,12 @@ import {
   alignPartyRowWithSnapshot,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
+import {
+  computeCustomerBalanceCore,
+  isCreditNoteApplicationReceiptLedgerAligned,
+  type CustomerBalanceCoreParams,
+  type CustomerBalanceCoreResult,
+} from "@/utils/customerBalanceCore";
 import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
 
 /** UI QA / cross-screen parity tolerance (₹1). */
@@ -157,6 +163,65 @@ export function verifyLegacyPartyNetNotDoubleSubtracted(
   }
 
   return [];
+}
+
+/**
+ * Gate 5 — partial CN: CN memo receipts must not inflate cash when invoice SRA already
+ * counts the applied slice (Farhaan Fab: -2800 if memo counted, -100 when excluded).
+ */
+export function verifyPartialCnMemoExclusion(
+  params: CustomerBalanceCoreParams,
+  alignedResult?: CustomerBalanceCoreResult,
+): BalanceGateViolation[] {
+  const hasPartialCn = (params.saleReturns ?? []).some((sr) => {
+    const status = String(sr.credit_status || "").toLowerCase();
+    const remainder = Number(sr.credit_available_balance ?? 0);
+    return status === "partially_adjusted" && remainder > 0.01;
+  });
+  if (!hasPartialCn) return [];
+
+  const cnMemoTotal = params.voucherEntries
+    .filter(isCreditNoteApplicationReceiptLedgerAligned)
+    .reduce(
+      (sum, v) =>
+        sum + Math.max(0, Number(v.total_amount || 0) + Number(v.discount_amount || 0)),
+      0,
+    );
+  if (cnMemoTotal <= 0.01) return [];
+
+  const aligned =
+    alignedResult ??
+    computeCustomerBalanceCore({
+      ...params,
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+  const withoutExclusion = computeCustomerBalanceCore({
+    ...params,
+    options: { ledgerAlignedApplicationReceipts: false },
+  });
+
+  const violations: BalanceGateViolation[] = [];
+  const exclusionDelta = round2(withoutExclusion.balance - aligned.balance);
+
+  if (Math.abs(Math.abs(exclusionDelta) - cnMemoTotal) > SNAPSHOT_FACET_TOLERANCE) {
+    violations.push({
+      gate: "partial_cn_memo_exclusion_delta",
+      message:
+        "CN memo exclusion should change balance by memo total when partially_adjusted remainder exists",
+      delta: round2(Math.abs(exclusionDelta) - cnMemoTotal),
+    });
+  }
+
+  const sraTotal = aligned.totalSaleReturnAdjustOnInvoices;
+  if (sraTotal > 0.01 && Math.abs(cnMemoTotal - sraTotal) > 1) {
+    violations.push({
+      gate: "partial_cn_memo_sra_mismatch",
+      message: "CN memo total should match invoice sale_return_adjust for partial-CN fixture",
+      delta: round2(cnMemoTotal - sraTotal),
+    });
+  }
+
+  return violations;
 }
 
 /** Simulate party-page alignment and return all gate violations for one customer. */
