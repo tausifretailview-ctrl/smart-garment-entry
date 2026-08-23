@@ -37,7 +37,13 @@ import { ReportSkeleton } from "@/components/ui/skeletons";
 import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
-import { fetchCustomerPartyBalancesAligned, enrichPartyRowsWithCanonicalBalance, partyBalanceRowFacets, type CustomerPartyBalanceAlignedRow } from "@/utils/customerPartyBalanceSnapshot";
+import {
+  fetchCustomerPartyBalancesAligned,
+  enrichPartyRowsWithCanonicalBalance,
+  PARTY_BALANCE_CANONICAL_ENRICH_MAX,
+  partyBalanceRowFacets,
+  type CustomerPartyBalanceAlignedRow,
+} from "@/utils/customerPartyBalanceSnapshot";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
@@ -140,9 +146,25 @@ export default function CustomerPartyBalancesPage() {
     setPage(1);
   }, [search, showSettled, directionFilter]);
 
+  const filteredRowKey = useMemo(
+    () => filteredRows.map((r) => r.customer_id).join(","),
+    [filteredRows],
+  );
+
+  /** When search/filter narrows the list, enrich all filtered rows once (Hanif bhai search). */
+  const enrichFilteredSubset = filteredRows.length > 0 && filteredRows.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX;
+  const { data: canonicalFilteredRows } = useQuery({
+    queryKey: ["customer-party-balances-canonical-filtered", orgId, filteredRowKey],
+    enabled: Boolean(orgId && enrichFilteredSubset),
+    staleTime: 30_000,
+    queryFn: () => enrichPartyRowsWithCanonicalBalance(orgId!, filteredRows),
+  });
+
+  const rowsForList = enrichFilteredSubset ? (canonicalFilteredRows ?? filteredRows) : filteredRows;
+
   const paginatedRows = useMemo(
-    () => slicePartyBalancePage(filteredRows, currentPage),
-    [filteredRows, currentPage],
+    () => slicePartyBalancePage(rowsForList, currentPage),
+    [rowsForList, currentPage],
   );
 
   const paginatedRowKey = useMemo(
@@ -150,15 +172,15 @@ export default function CustomerPartyBalancesPage() {
     [paginatedRows],
   );
 
-  /** Canonical JS balance for visible page — fixes partial-CN drift until SQL migration is live. */
+  /** Large org: enrich visible page only (subset search uses canonicalFilteredRows above). */
   const { data: displayPaginatedRows } = useQuery({
-    queryKey: ["customer-party-balances-canonical", orgId, paginatedRowKey],
-    enabled: Boolean(orgId && paginatedRows.length > 0),
+    queryKey: ["customer-party-balances-canonical-page", orgId, paginatedRowKey],
+    enabled: Boolean(orgId && !enrichFilteredSubset && paginatedRows.length > 0),
     staleTime: 30_000,
     queryFn: () => enrichPartyRowsWithCanonicalBalance(orgId!, paginatedRows),
   });
 
-  const tableRows = displayPaginatedRows ?? paginatedRows;
+  const tableRows = enrichFilteredSubset ? paginatedRows : (displayPaginatedRows ?? paginatedRows);
 
   const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
   const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);

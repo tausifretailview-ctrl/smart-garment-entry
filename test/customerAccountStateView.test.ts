@@ -131,6 +131,37 @@ describe("getCustomerAccountState facets (no parallel maths)", () => {
     expect(state.netPosition).toBe(3600);
   });
 
+  it("Hanif bhai — adjusted return CAB ₹3,050 → net Cr ₹3,050 not ₹6,250", () => {
+    const state = getCustomerAccountState({
+      openingBalance: 0,
+      customerId: "hanif",
+      sales: [
+        {
+          id: "inv-287",
+          net_amount: 3200,
+          paid_amount: 0,
+          sale_return_adjust: 3200,
+          items_gross: 3200,
+        },
+      ],
+      voucherEntries: [],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 6250,
+          credit_status: "adjusted",
+          linked_sale_id: "inv-287",
+          credit_available_balance: 3050,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(state.netPosition).toBeCloseTo(-3050, 0);
+    expect(state.unclaimedSaleReturnCredit).toBeCloseTo(3050, 0);
+    expect(state.outstanding).toBeCloseTo(-3050, 0);
+  });
+
   it("Farhaan Fab — partial CN ₹2,800 with ₹2,700 applied → net Cr ₹100", () => {
     const state = getCustomerAccountState({
       openingBalance: 0,
