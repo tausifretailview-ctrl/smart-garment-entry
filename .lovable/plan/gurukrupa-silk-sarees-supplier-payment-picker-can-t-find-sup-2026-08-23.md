@@ -28,6 +28,8 @@ Why the payment screen fails: the supplier picker in Accounts → Supplier Payme
 
 "Samrudhi Saree Center" does not exist in the data at all. Is it a new supplier to be created, or is it the shop's spoken name for one of the existing masters (which one)?
 
+approval this plan Samrudhi Saree Center not supplier my typing mistake & update spelling all pages same for supplier & show all pending supplier invoices in list properly supplier payment 
+
 ## Technical notes
 
 - Files: `src/components/accounts/SupplierPaymentTab.tsx` (picker query + groups, `<Command shouldFilter={false}>`), `src/utils/supplierSearch.ts` (new snapshot-name resolver alongside `searchSuppliers`).
