@@ -681,7 +681,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     if (error) toast.error(error.message);
     else {
       toast.success("Enquiry updated");
-      queryClient.invalidateQueries({ queryKey: ["website_enquiries", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["website_enquiries", orgId] });
     }
   };
 
