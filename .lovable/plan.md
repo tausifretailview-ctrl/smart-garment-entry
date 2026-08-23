@@ -1,38 +1,35 @@
-# ELLA NOOR — the 70 deleted vouchers in Recycle Bin: what they actually are
+# Gurukrupa Silk Sarees — supplier payment picker can't find suppliers by the name on the bill
 
-Read-only investigation done. Nothing was written. Of the 70, **64 were deleted by automated repair scripts** (agent/SQL batches, no `deleted_by` user) and **6 were deleted by one signed-in user**.
+## What I found (verified against live data)
 
-## Breakdown by deletion event
+Org: Gurukrupa Silk Sarees. Every purchase bill in this org is correctly linked to a live supplier master (no orphans, no deleted masters). So the purchases are fine — the problem is **name spelling drift** between the bill snapshot and the supplier master.
 
-| When (UTC) | Rows | Amount | What it was | Actor |
-|---|---|---|---|---|
-| 09-May 11:17 | 1 | 11,300 | credit note CN-00004 (from SR/26-27/24) | script |
-| 12-May 15:17 + 15:32 | 4 | 17,650 | "Adjusted from advance balance" receipts | script |
-| 01-Jun 18:00 | 17 | 93,750 | credit_note_adjustment batch — **verified justified** (each linked sale carries a matching `sale_return_adjust`) | script |
-| 06-Jun 19:25 | 28 | 143,600 | tagged `[cn_over_apply_repair_20260606] phantom credit_note_adjustment receipt removed` — **the false-positive batch** (Hanif bhai case came from here) | script |
-| 07-Jun 14:17 | 1 | 4,500 | RCP/26-27/1488 payment on INV/26-27/1312 | user 49d3…5e40d |
-| 25-Jun 16:14 | 1 | 7,500 | RCP/26-27/2100 advance application | user 49d3…5e40d |
-| 01-Jul 10:01 / 10:04 | 4 | 8,900 | tagged `phantom_cn_repair_2026 | Cr balance applied…` — created then deleted by the July repair itself | script |
-| 13-Jul 10:59 | 3 | 11,050 | FIFO reallocation of legacy balance-adjustment credit | user 49d3…5e40d |
-| 16-Jul 10:38 | 1 | 2,600 | ARF/26-27/30 advance refund, Zoya Ali | script |
-| 17-Jul 09:40 | 1 | 1,600 | balance adjustment on INV/26-27/1498 | user 49d3…5e40d |
-| 28-Jul 11:42 | 1 | 100 | EXP/26-27/252 FREIGHT — ordinary expense delete | script/UI |
-| 29-Jul 12:17–12:29 | 6 | 47,300 | tagged `[reversed 29-07-2026: duplicate advance application …]` | script |
-| 08-Aug 18:32 | 2 | 5,120 | RCP/1917 + RCP/1918, identical ₹2,560 twice on INV/26-27/1653 — duplicate payment cleanup | script |
+Examples in this org (bill snapshot name → supplier master name):
 
-Only the EXP/26-27/252 freight row looks like a normal day-to-day shop deletion. Everything else is repair-batch activity from the credit-note / advance-balance clean-ups, plus 6 deliberate deletions by one user.
+- SARSWATI SAREE DEPOT LTD. (28 bills, ₹7.79L) → master is **SARASWATI** SAREE DEPOT LTD.
+- MV TRADRERS (6 bills) → master is **M VISHAL TRADRERS**
+- AVSAR CREATION (1 bill) → master is **AVSAR FASHION**
+- GAYTRI SILK (2 bills) → master is **GAYATRI SILK**
+- MAHI EXCLUSIVE → master is **MAAHI EXCLUSIVE**
+- SAI SJHIV ENTERPRISES → master is **SAI SHIV ENTERPRISE**
 
-## What is safe and what is not
+MARUDHAR SAREES does exist as a master with 11 bills, of which 4 are unpaid (₹1,24,714 outstanding) — it should appear in the payment list. There is **no supplier or bill named "Samrudhi Saree Center"** anywhere in the database, so that one is either a different spelling of an existing master or was never created.
 
-- The 01-Jun 17 and the 29-Jul 6 removed **genuine double counts**. Restoring them would credit money twice. Leave them.
-- The 06-Jun 28 is the batch already under review; 11 of those are the wrongly-deleted set, of which 7 are still clean candidates (₹42,350) pending the shop's answers on the Hanif ₹3,050 / Arezah ₹3,150 / GULNAZ ₹750 / FIZA ₹200 remainders.
-- The 01-Jul 4 rows are the July repair's own receipts, deleted the same minute they were made — noise, not lost money.
-- The 6 user deletions and the 08-Aug duplicate pair should be confirmed with the shop but each has a clear reason recorded.
+Why the payment screen fails: the supplier picker in Accounts → Supplier Payment searches **only the supplier master name**, and the dropdown additionally applies the command-menu's own fuzzy filter. Typing the name as printed on the purchase bill (e.g. "SARSWATI", "MV TRADRERS") returns "No supplier found", even though bills for that supplier are sitting unpaid.
 
-## Proposed next steps
+## Fix
 
-1. Ask the shop to confirm the 6 user-made deletions (07-Jun, 25-Jun, 13-Jul ×3, 17-Jul) were intentional. If any was a mistake it is restorable individually — those are not part of the June batch.
-2. Do not use the Recycle Bin "Restore" button on any script-tagged row. Restoring a repair-batch receipt re-introduces the double count the repair removed; the correct restores go through the audited Phase C in the earlier plan, tagged and logged.
-3. Optional hygiene so this reads clearly next time: surface `notes` (the repair tag) as a "Deleted by" / "Reason" column in the Vouchers tab of Recycle Bin, and label rows with no `deleted_by` as "System repair" instead of leaving the actor blank. Read-only UI change in the Recycle Bin page, no data touched.
+1. **Search bills, not just the master.** In the supplier payment picker, when the typed term doesn't match a master name, also look up `purchase_bills.supplier_name` (snapshot) in the org and resolve those bills' `supplier_id` back to their masters — same technique already used for the purchase bill dashboard search. Matches surface under a "Matched from bill name" group showing both names, e.g. `SARASWATI SAREE DEPOT LTD. (billed as SARSWATI SAREE DEPOT LTD.)`.
+2. **Stop the double filter.** Disable the command menu's built-in fuzzy filtering in that picker so server/parent-filtered results are never silently hidden.
+3. **Show every supplier that has unpaid bills.** The "Suppliers with Balance" group is driven by the balance snapshot; add a safety net so any supplier with `net_amount > paid_amount` on a non-deleted bill also appears, with its outstanding total.
+4. **Cleanup (data, optional and separate).** After the search fix, the shop can use the existing Merge Suppliers tool to normalise the six drifted spellings above so the bill snapshots and masters agree going forward. No data change in this task.
 
-Nothing above has been written to the database.
+## Before I build — one question
+
+"Samrudhi Saree Center" does not exist in the data at all. Is it a new supplier to be created, or is it the shop's spoken name for one of the existing masters (which one)?
+
+## Technical notes
+
+- Files: `src/components/accounts/SupplierPaymentTab.tsx` (picker query + groups, `<Command shouldFilter={false}>`), `src/utils/supplierSearch.ts` (new snapshot-name resolver alongside `searchSuppliers`).
+- Reuse the paging/batching shape of `src/utils/purchaseBillDashboardSearch.ts`; all queries stay scoped to `organization_id` and `deleted_at is null`.
+- Bill selection itself already runs off `supplier_id`, so once the right supplier is picked, all its bills — regardless of snapshot spelling — are already listed correctly. No change needed there.
