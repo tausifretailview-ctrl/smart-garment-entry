@@ -16,8 +16,12 @@ SELECT * FROM public.reconcile_customer_balance(
 
 Expected sources: `opening_balance`, `total_invoiced`, `sale_return_adjust_on_invoices`,
 `receipt_payments`, `balance_adjustment`, plus pending standalone returns / advances.
-The signed sum of these rows IS `get_customer_true_outstanding`, which IS
-`reconcile_customer_balances.calculated_balance` for this customer.
+The signed sum of these rows IS the canonical lifetime outstanding (same as
+`get_customer_true_outstanding` when called from the authenticated app).
+
+**SQL editor note:** `get_customer_true_outstanding` fails with `42501 Authentication required`
+(`assert_org_member`). In the dashboard SQL editor, use `reconcile_customer_balance` and
+`SUM(amount)` instead — it works when `auth.uid()` IS NULL.
 
 ## 2. Compare against Customer Ledger
 
