@@ -132,6 +132,7 @@ import {
   resolvePosThermalPaper,
   posThermalPageCss,
   toInvoiceWrapperFormat,
+  getRealTastA4PrintPageStyle,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -712,24 +713,26 @@ const POSDashboard = () => {
               ? thermalCss.sourceWidth
               : "148mm",
       minHeight:
-        effectivePosBillFormat === "a4"
-          ? "297mm"
-          : effectivePosBillFormat === "thermal"
-            ? "auto"
-            : effectivePosBillFormat === "a5-horizontal"
-              ? "148mm"
-              : "210mm",
+        posInvoiceTemplate === "real-tast"
+          ? "auto"
+          : effectivePosBillFormat === "a4"
+            ? "297mm"
+            : effectivePosBillFormat === "thermal"
+              ? "auto"
+              : effectivePosBillFormat === "a5-horizontal"
+                ? "148mm"
+                : "210mm",
       maxHeight:
-        effectivePosBillFormat === "a4"
-          ? "297mm"
-          : effectivePosBillFormat === "thermal"
-            ? "none"
+        posInvoiceTemplate === "real-tast" || effectivePosBillFormat === "thermal"
+          ? "none"
+          : effectivePosBillFormat === "a4"
+            ? "297mm"
             : effectivePosBillFormat === "a5-horizontal"
               ? "148mm"
               : "210mm",
     };
     },
-    [effectivePosBillFormat, posThermalPaper],
+    [effectivePosBillFormat, posThermalPaper, posInvoiceTemplate],
   );
 
   const queryDateRange = useMemo(
@@ -1391,6 +1394,12 @@ const POSDashboard = () => {
   // Note: toggleSelectAll moved after filteredSales is defined
 
   const getPageStyle = () => {
+    if (posInvoiceTemplate === "real-tast") {
+      return `${getRealTastA4PrintPageStyle()}
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+    }
+
     if (posInvoiceTemplate === "retail-erp-preprinted") {
       const isA5 =
         effectivePosBillFormat === "a5" || effectivePosBillFormat === "a5-horizontal";
