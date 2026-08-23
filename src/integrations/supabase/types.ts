@@ -8548,6 +8548,20 @@ export type Database = {
           out_total_dr: number
         }[]
       }
+      _get_customer_party_balances_rows_v2: {
+        Args: { p_organization_id: string }
+        Returns: {
+          out_advance_available: number
+          out_customer_id: string
+          out_customer_name: string
+          out_direction: string
+          out_net_position: number
+          out_net_receivable: number
+          out_signed_balance: number
+          out_total_cr: number
+          out_total_dr: number
+        }[]
+      }
       _get_stock_reconciliation_rows: {
         Args: { p_organization_id: string }
         Returns: {
@@ -8595,6 +8609,10 @@ export type Database = {
           p_voucher_number: string
           p_voucher_type: string
         }
+        Returns: boolean
+      }
+      _is_settlement_memo_receipt: {
+        Args: { p_description: string; p_payment_method: string }
         Returns: boolean
       }
       _next_supplier_invoice_in_series: {
@@ -9024,6 +9042,8 @@ export type Database = {
           advance_available: number
           cn_available_total: number
           cn_pending_count: number
+          gross_outstanding_dr: number
+          net_position: number
           outstanding_dr: number
         }[]
       }
@@ -9034,6 +9054,8 @@ export type Database = {
           cn_available_total: number
           cn_pending_count: number
           customer_id: string
+          gross_outstanding_dr: number
+          net_position: number
           outstanding_dr: number
         }[]
       }
@@ -9044,6 +9066,8 @@ export type Database = {
           cn_available_total: number
           cn_pending_count: number
           customer_id: string
+          gross_outstanding_dr: number
+          net_position: number
           outstanding_dr: number
         }[]
       }
@@ -9486,6 +9510,23 @@ export type Database = {
           pending_value: number
           total: number
           total_value: number
+        }[]
+      }
+      get_sale_receipt_voucher_rows_batch: {
+        Args: {
+          p_customer_ids?: string[]
+          p_organization_id: string
+          p_sale_ids: string[]
+          p_voucher_date_from?: string
+          p_voucher_date_to?: string
+        }
+        Returns: {
+          description: string
+          discount_amount: number
+          payment_method: string
+          reference_id: string
+          reference_type: string
+          total_amount: number
         }[]
       }
       get_sales_daily_summary: {
@@ -9964,6 +10005,18 @@ export type Database = {
         }
         Returns: {
           sale_id: string
+        }[]
+      }
+      search_purchase_bill_ids: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_org_id: string
+          p_search: string
+        }
+        Returns: {
+          bill_id: string
         }[]
       }
       set_whatsapp_send_provider: {
