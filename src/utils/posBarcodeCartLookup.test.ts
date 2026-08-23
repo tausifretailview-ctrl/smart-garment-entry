@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isCompleteNumericBarcodeForPosCart,
+  isPosServiceShortNumericBarcode,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
   stockReportOldBarcodeKeyMatches,
@@ -13,13 +14,12 @@ describe("posBarcodeCartLookup", () => {
   });
 
   it("still requires 8+ digits for long retail EAN-style codes", () => {
-    expect(isCompleteNumericBarcodeForPosCart("12")).toBe(false); cursor/pos-service-short-barcode
+    expect(isCompleteNumericBarcodeForPosCart("12")).toBe(false);
     expect(isCompleteNumericBarcodeForPosCart("004001")).toBe(false);
     expect(isPosServiceShortNumericBarcode("004001")).toBe(false);
 
     expect(isCompleteNumericBarcodeForPosCart("00400114")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("0040017429")).toBe(true);
-    main
     expect(POS_NUMERIC_BARCODE_MIN_LENGTH).toBe(8);
   });
 
