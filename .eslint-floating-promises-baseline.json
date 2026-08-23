@@ -1,6 +1,6 @@
 {
   "rule": "@typescript-eslint/no-floating-promises",
-  "baseline": 842,
-  "recorded": "2026-08-11",
+  "baseline": 831,
+  "recorded": "2026-08-23",
   "note": "Ratchet baseline. CI fails only if the count exceeds this number. Lower it opportunistically when real bugs are fixed; never raise it."
 }

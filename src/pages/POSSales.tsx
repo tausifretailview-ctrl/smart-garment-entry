@@ -6227,7 +6227,7 @@ export default function POSSales() {
                                   item.displayBarcode !== item.variant.barcode
                                     ? { ...item.variant, barcode: item.displayBarcode }
                                     : item.variant;
-                                addItemToCart(product, variantForCart);
+                                void addItemToCart(product, variantForCart);
                               }}
                               className={`cursor-pointer group text-slate-900 dark:text-slate-100 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground ${
                                 index === selectedProductIndex

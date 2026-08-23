@@ -151,9 +151,9 @@ export function InvariantDigestPanel() {
       const { data, error } = await supabase.functions.invoke("run-invariant-digest", { body: {} });
       if (error) throw error;
       toast.success(`Snapshot taken — ${(data as any)?.totals?.violations ?? 0} violations`);
-      qc.invalidateQueries({ queryKey: ["invariant_digest"] });
-      qc.invalidateQueries({ queryKey: ["invariant_last_snapshot"] });
-      qc.invalidateQueries({ queryKey: ["paid_settlement_mismatch_digest"] });
+      void qc.invalidateQueries({ queryKey: ["invariant_digest"] });
+      void qc.invalidateQueries({ queryKey: ["invariant_last_snapshot"] });
+      void qc.invalidateQueries({ queryKey: ["paid_settlement_mismatch_digest"] });
     } catch (e: any) {
       toast.error(e?.message || "Failed to run digest");
     } finally {
