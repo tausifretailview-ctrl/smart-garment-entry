@@ -129,15 +129,15 @@ export function assertLiveUrlAllowed(url, allowProduction) {
   }
 }
 
-function printList(title, items, extra = {}) {
-  console.log(`\n${title} (${items.length})`);
+function printList(title, items, extra = {}, log = console.log) {
+  log(`\n${title} (${items.length})`);
   if (items.length === 0) {
-    console.log("  (none)");
+    log("  (none)");
     return;
   }
   for (const item of items) {
     const reason = extra[item];
-    console.log(reason ? `  - ${item}  ${reason}` : `  - ${item}`);
+    log(reason ? `  - ${item}  ${reason}` : `  - ${item}`);
   }
 }
 
@@ -189,18 +189,22 @@ export async function runSchemaMigrationsDriftCheck({
       currentFiles.length !== expectedFiles.length ||
       currentFiles.some((file, i) => file !== expectedFiles[i]);
     if (stale.inRepoNotLive.length || stale.inLiveNotRepo.length || filesDrift) {
-      printList("Manifest missing repo versions", stale.inRepoNotLive);
-      printList("Manifest has versions not in repo", stale.inLiveNotRepo);
+      printList("Manifest missing repo versions", stale.inRepoNotLive, {}, log);
+      printList("Manifest has versions not in repo", stale.inLiveNotRepo, {}, log);
       if (filesDrift) {
         const currentSet = new Set(currentFiles);
         const expectedSet = new Set(expectedFiles);
         printList(
           "Manifest missing repo files",
           expectedFiles.filter((f) => !currentSet.has(f)),
+          {},
+          log,
         );
         printList(
           "Manifest has files not in repo",
           currentFiles.filter((f) => !expectedSet.has(f)),
+          {},
+          log,
         );
       }
       error("\nRegenerate with: node scripts/check-schema-migrations-drift.mjs --write");
@@ -253,11 +257,12 @@ export async function runSchemaMigrationsDriftCheck({
       "CRITICAL repo migrations NOT applied live",
       criticalMissing.map((r) => r.version),
       Object.fromEntries(criticalMissing.map((r) => [r.version, r.reason])),
+      log,
     );
   }
 
-  printList("In repo, not live (committed but never applied)", diff.inRepoNotLive);
-  printList("In live, not repo (applied outside git)", diff.inLiveNotRepo);
+  printList("In repo, not live (committed but never applied)", diff.inRepoNotLive, {}, log);
+  printList("In live, not repo (applied outside git)", diff.inLiveNotRepo, {}, log);
 
   if (criticalMissing.length || diff.inRepoNotLive.length || diff.inLiveNotRepo.length) {
     error("\nSchema-migration drift detected.");
