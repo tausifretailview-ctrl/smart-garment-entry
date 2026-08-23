@@ -725,7 +725,6 @@ export default function Accounts() {
 
   const needsSales =
     visitedTabs.has("customer-payment") ||
-    visitedTabs.has("customer-ledger") ||
     visitedTabs.has("outstanding");
   const needsCustomers =
     visitedTabs.has("customer-payment") ||
