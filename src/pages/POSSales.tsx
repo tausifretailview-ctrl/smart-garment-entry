@@ -95,6 +95,7 @@ import {
   resolvePosThermalPaper,
   posThermalPageCss,
   toInvoiceWrapperFormat,
+  getRealTastA4PrintPageStyle,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -1422,15 +1423,17 @@ export default function POSSales() {
             ? thermalCss.sourceWidth
             : '148mm';
     const minHeight =
-      posBillFormat === 'a4'
-        ? '297mm'
-        : posBillFormat === 'a5-horizontal'
-          ? '148mm'
-          : posBillFormat === 'thermal'
-            ? 'auto'
-            : 'auto';
+      posInvoiceTemplate === 'real-tast'
+        ? 'auto'
+        : posBillFormat === 'a4'
+          ? '297mm'
+          : posBillFormat === 'a5-horizontal'
+            ? '148mm'
+            : posBillFormat === 'thermal'
+              ? 'auto'
+              : 'auto';
     const maxHeight =
-      posBillFormat === 'thermal'
+      posInvoiceTemplate === 'real-tast' || posBillFormat === 'thermal'
         ? 'none'
         : posBillFormat === 'a4'
           ? '297mm'
@@ -1438,7 +1441,7 @@ export default function POSSales() {
             ? '148mm'
             : '210mm';
     return { width, minHeight, maxHeight, overflow: 'visible' as const };
-  }, [posBillFormat, posThermalPaper]);
+  }, [posBillFormat, posThermalPaper, posInvoiceTemplate]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType = resolvePosDefaultTaxType(_posSaleSettings);
   const retainPosSalesman = _posSaleSettings.pos_retain_salesman === true;
@@ -4328,6 +4331,12 @@ export default function POSSales() {
     const format = posBillFormat;
     let size = 'A5 portrait';
     let margin = '5mm';
+
+    if (posInvoiceTemplate === 'real-tast') {
+      return `${getRealTastA4PrintPageStyle()}
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+    }
 
     if (posInvoiceTemplate === 'retail-erp-preprinted') {
       const isA5 = format === 'a5' || format === 'a5-horizontal';

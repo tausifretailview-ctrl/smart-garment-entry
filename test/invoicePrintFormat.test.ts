@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getRealTastA4PrintPageStyle,
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
   resolveSaleBillFormat,
@@ -77,5 +78,15 @@ describe('resolveSaleBillFormat', () => {
 
   it('follows sale A5 for preprinted letterhead template', () => {
     expect(resolveSaleBillFormat('retail-erp-preprinted', 'a5', 'a4')).toBe('a5');
+  });
+});
+
+describe('getRealTastA4PrintPageStyle', () => {
+  it('prints one full A4 leaf without extra page margin or wrapper height', () => {
+    const css = getRealTastA4PrintPageStyle();
+    expect(css).toContain('size: 210mm 297mm');
+    expect(css).toContain('margin: 0');
+    expect(css).toContain('min-height: 0 !important');
+    expect(css).toContain('data-invoice-variant="real-tast"');
   });
 });
