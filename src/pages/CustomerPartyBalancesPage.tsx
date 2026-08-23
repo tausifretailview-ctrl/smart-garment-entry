@@ -472,7 +472,7 @@ export default function CustomerPartyBalancesPage() {
                       {searchIncludesSettled
                         ? " · search includes settled"
                         : !showSettled
-                          ? " · settled hidden"
+                          ? " · list hides settled · cards are all parties"
                           : ""}
                     </>
                   }
@@ -499,21 +499,21 @@ export default function CustomerPartyBalancesPage() {
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(orgTotals.totalOutstandingDr)}
             </p>
-            <p className="text-[10px] text-white/70 mt-0.5 truncate">Invoice debt before advance</p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Gross — advance on the same party is not netted</p>
           </div>
           <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Total Credit (Cr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(orgTotals.totalCreditPoolCr)}
             </p>
-            <p className="text-[10px] text-white/70 mt-0.5 truncate">Advances / credits held</p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Unused advances + invoice credits (CN / overpay)</p>
           </div>
           <div className="rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Net Receivable</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               {formatNetFacetLabel(orgTotals.netReceivable)}
             </p>
-            <p className="text-[10px] text-white/70 mt-0.5 truncate">Outstanding − advances</p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">All parties, including settled</p>
           </div>
         </div>
 

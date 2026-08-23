@@ -25,6 +25,24 @@ export type CustomerLedgerListRow = {
   discount_percent?: number | null;
 };
 
+/** Per-row money from party RPC. Never copy window total_dr/total_cr (org totals). */
+export function partyLedgerListMoneyFields(
+  party: CustomerPartyBalanceRpcRow,
+  phone: string,
+): Pick<
+  CustomerLedgerListRow,
+  "totalSales" | "totalPaid" | "balance" | "unusedAdvanceTotal" | "totalCashPaid"
+> {
+  const aligned = alignPartyRowFromRpc(party, phone);
+  return {
+    totalSales: 0,
+    totalPaid: 0,
+    balance: aligned.gross_outstanding,
+    unusedAdvanceTotal: aligned.advance_available,
+    totalCashPaid: 0,
+  };
+}
+
 /**
  * Fast customer list for Customer Ledger — one party-balances RPC + customer directory.
  * Replaces per-customer JS recompute from full-org sales/voucher crawls on initial paint.
@@ -59,18 +77,12 @@ export async function buildCustomerLedgerListFromPartyBalances(
       };
     }
 
-    const aligned = alignPartyRowFromRpc(party, customer.phone ?? "");
-    const totalDr = Math.round(Number(party.total_dr) || 0);
-    const totalCr = Math.round(Number(party.total_cr) || 0);
+    const money = partyLedgerListMoneyFields(party, customer.phone ?? "");
 
     return {
       ...customer,
       opening_balance: openingBalance,
-      totalSales: totalDr,
-      totalPaid: totalCr,
-      balance: aligned.net_position,
-      unusedAdvanceTotal: aligned.advance_available,
-      totalCashPaid: totalCr,
+      ...money,
       totalAdvanceApplied: 0,
       totalCnApplied: 0,
       adjustmentTotal: 0,

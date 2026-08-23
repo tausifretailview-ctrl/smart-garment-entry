@@ -7,7 +7,6 @@ import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tansta
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
-import { fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
 import { buildCustomerLedgerListFromPartyBalances } from "@/utils/customerLedgerListFromPartyBalances";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,15 +58,17 @@ import {
   formatNetFacetLabel,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
+import {
+  clearRepeatedOrgSalesPaid,
+  listHasRepeatedSalesPaid,
+  stripPartyWindowTotals,
+} from "@/utils/ledgerListDisplay";
 import { useBusinessInfo } from "@/hooks/useSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
-  type VoucherLedgerRow,
-  type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import {
@@ -419,8 +420,7 @@ export function CustomerLedger({
     { enabled: !!persistenceWindowId },
   );
   
-  const { fetchCustomers: fetchLedgerCustomers, fetchSalesSummary: fetchLedgerSalesSummary } =
-    useOrgLedgerReferenceFetcher();
+  const { fetchCustomers: fetchLedgerCustomers } = useOrgLedgerReferenceFetcher();
 
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
@@ -830,7 +830,11 @@ export function CustomerLedger({
   const isCustomersInitialLoad = isLoading && customers === undefined;
   const isCustomersBackgroundRefresh = isCustomersFetching && !isCustomersInitialLoad;
 
-  const customersForList = customers;
+  const salesPaidLeaked = listHasRepeatedSalesPaid(customers ?? []);
+  const customersForList = useMemo(() => {
+    const raw = (customers ?? []).map((c) => stripPartyWindowTotals(c as Record<string, unknown>) as typeof c);
+    return salesPaidLeaked ? clearRepeatedOrgSalesPaid(raw) : raw;
+  }, [customers, salesPaidLeaked]);
   /** Facet cards (Outstanding / Credit / Net) prefer the loaded customer list. */
   const facetCardsLoading =
     !isSchool && !(customersForList?.length) && orgReceivablesSummaryLoading;
@@ -2791,8 +2795,8 @@ export function CustomerLedger({
         Phone: c.phone || "",
         Email: c.email || "",
         "Opening Balance": Math.round(c.opening_balance || 0),
-        "Total Sales": Math.round(c.totalSales),
-        "Total Paid": Math.round(c.totalPaid),
+        "Total Sales": salesPaidLeaked ? "—" : Math.round(c.totalSales),
+        "Total Paid": salesPaidLeaked ? "—" : Math.round(c.totalPaid),
         Outstanding: f.outstanding,
         "Unused Advance": f.unusedAdvance,
         Net: f.netPosition,
@@ -2806,7 +2810,7 @@ export function CustomerLedger({
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
     XLSX.writeFile(wb, `Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
     toast.success("Customer ledger exported to Excel");
-  }, [filteredCustomers]);
+  }, [filteredCustomers, salesPaidLeaked]);
 
   // Export customer list to PDF
   const handleExportCustomerListPDF = useCallback(async () => {
@@ -2868,8 +2872,8 @@ export function CustomerLedger({
         String(idx + 1),
         c.customer_name.substring(0, 28),
         (c.phone || "").substring(0, 12),
-        `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
-        `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
+        salesPaidLeaked ? "—" : `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
+        salesPaidLeaked ? "—" : `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
         `₹${Math.round(f.outstanding).toLocaleString("en-IN")}`,
         `₹${Math.round(f.unusedAdvance).toLocaleString("en-IN")}`,
         formatNetFacetLabel(f.netPosition).replace("₹", ""),
@@ -2890,7 +2894,7 @@ export function CustomerLedger({
 
     doc.save(`Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
     toast.success("Customer ledger exported to PDF");
-  }, [filteredCustomers, summary]);
+  }, [filteredCustomers, summary, salesPaidLeaked]);
 
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };
@@ -6126,7 +6130,9 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </div>
                     <p className="text-xs text-white/65 mt-0.5 truncate">
-                      {isSchool ? "Fees pending collection" : "Invoice outstanding (before advance)"}
+                      {isSchool
+                        ? "Fees pending collection"
+                        : "Netted per customer (advance offsets that party first)"}
                     </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
@@ -6515,10 +6521,14 @@ Please clear your dues at the earliest. Thank you!`;
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          ₹{customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          {salesPaidLeaked
+                            ? "—"
+                            : `₹${customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-green-600 dark:text-green-400">
-                          ₹{customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          {salesPaidLeaked
+                            ? "—"
+                            : `₹${customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
                         </TableCell>
                         <TableCell className="text-right tabular-nums font-medium text-red-600 dark:text-red-400">
                           ₹{Math.abs(f.outstanding).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
