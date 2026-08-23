@@ -14,7 +14,7 @@ type ToasterToast = ToastProps & {
   action?: ToastActionElement;
   /** When true, render destructive toast as bottom-right toast (skip modal). */
   inline?: boolean;
-  /** When true, destructive toast opens blocking ErrorDialog until OK (rare / critical only). */
+  /** @deprecated Destructive toasts are window dialogs unless `inline`. Kept for old callers. */
   persistent?: boolean;
 };
 
@@ -68,8 +68,8 @@ const addToRemoveQueue = (
     return;
   }
 
-  // Only blocking modal errors stay until the user clicks OK.
-  if (variant === "destructive" && persistent && !inline) return;
+  // Window-style error dialogs stay until the user clicks OK.
+  if (variant === "destructive" && !inline) return;
 
   const timeout = setTimeout(() => {
     toastTimeouts.delete(toastId);
@@ -181,7 +181,7 @@ function toast({ ...props }: Toast) {
     },
   });
 
-  if (!(props.variant === "destructive" && props.persistent)) {
+  if (!(props.variant === "destructive" && !props.inline)) {
     window.setTimeout(() => dismiss(), TOAST_REMOVE_DELAY);
   }
 

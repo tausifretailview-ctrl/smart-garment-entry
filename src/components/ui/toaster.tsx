@@ -7,15 +7,20 @@ export function Toaster() {
   const { toasts, dismiss } = useToast();
   const [activeError, setActiveError] = useState<{ id: string; title?: string; message: string } | null>(null);
 
-  // Pick the next unhandled destructive (non-inline) toast and route it to the modal
+  // Destructive errors open a centered window unless marked inline
   useEffect(() => {
     if (activeError) return; // wait until current modal is closed
     const next = toasts.find(
-      (t: any) => t.variant === "destructive" && t.persistent && t.open !== false,
+      (t: any) => t.variant === "destructive" && !t.inline && t.open !== false,
     );
     if (next) {
       const titleStr = typeof next.title === "string" ? next.title : undefined;
-      const descStr = typeof next.description === "string" ? next.description : undefined;
+      const descStr =
+        typeof next.description === "string"
+          ? next.description
+          : typeof next.description === "number"
+            ? String(next.description)
+            : undefined;
       setActiveError({
         id: next.id,
         title: titleStr,
@@ -31,9 +36,9 @@ export function Toaster() {
     }
   };
 
-  // Bottom-right toasts — auto-dismiss; blocking modal only when persistent destructive
+  // Bottom-right: success / info / inline only. Errors use ErrorDialog.
   const viewportToasts = toasts.filter(
-    (t: any) => !(t.variant === "destructive" && t.persistent),
+    (t: any) => !(t.variant === "destructive" && !t.inline),
   );
 
   return (
