@@ -12,7 +12,7 @@ export type CustomerAdvanceLegView = {
 };
 
 /**
- * Pure Outstanding facets for UI — same maths as Accounting Spec / getCustomerAccountState.
+ * Pure Outstanding facets for UI — sourced from `get_customer_financial_snapshot`.
  * Outstanding includes opening balance; unused advance is NOT folded into Outstanding.
  */
 export type CustomerAccountStateView = {
@@ -22,7 +22,7 @@ export type CustomerAccountStateView = {
   outstanding: number;
   unusedAdvance: number;
   unclaimedSaleReturn: number;
-  /** outstanding − unusedAdvance (economic net the ledger party balance matches). */
+  /** Signed net receivable: matches snapshot `outstanding_dr`. */
   netPosition: number;
   openingBalance: number;
   advanceLegs: CustomerAdvanceLegView[];
@@ -33,7 +33,8 @@ function roundRupee(n: number): number {
 }
 
 /**
- * Load canonical customer account facets. Do not re-derive in UI — display these.
+ * Load canonical customer account facets from audit bundle (`getCustomerAccountState`).
+ * Advance legs come from the same bundle (display-only decomposition).
  */
 export async function fetchCustomerAccountStateView(
   client: SupabaseClient,
@@ -41,6 +42,7 @@ export async function fetchCustomerAccountStateView(
   customerId: string,
 ): Promise<CustomerAccountStateView> {
   const bundle = await fetchCustomerAuditBundle(client, organizationId, customerId);
+
   const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
     (sum: number, a: { outstanding_difference?: number | null }) =>
       sum + Number(a.outstanding_difference || 0),
@@ -85,11 +87,11 @@ export async function fetchCustomerAccountStateView(
     customerName: String(
       (bundle.customer as { customer_name?: string }).customer_name || "",
     ).trim(),
-    outstanding: roundRupee(state.outstanding),
-    unusedAdvance: roundRupee(state.unusedAdvancePool),
-    unclaimedSaleReturn: roundRupee(state.unclaimedSaleReturnCredit),
-    netPosition: roundRupee(state.netPosition),
-    openingBalance: roundRupee(state.openingBalance),
+    outstanding: state.outstanding,
+    unusedAdvance: state.unusedAdvancePool,
+    unclaimedSaleReturn: state.unclaimedSaleReturnCredit,
+    netPosition: state.netPosition,
+    openingBalance: roundRupee(Number(bundle.customer.opening_balance || 0)),
     advanceLegs,
   };
 }

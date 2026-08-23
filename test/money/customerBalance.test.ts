@@ -199,6 +199,82 @@ describe("computeCustomerBalanceCore — advance application", () => {
     expect(settled.balance).toBeCloseTo(-3050, 0);
     expect(settled.pendingStandaloneSaleReturns).toBeCloseTo(3050, 0);
   });
+
+  it("Farhaan Fab — partial CN ₹2,800 with ₹2,700 applied → balance Cr ₹100 (canonical path)", () => {
+    const core = computeCustomerBalanceCore({
+      openingBalance: 0,
+      sales: [
+        { id: "inv-a", net_amount: 11800, paid_amount: 11800, sale_return_adjust: 0, items_gross: 11800 },
+        { id: "inv-b", net_amount: 2800, paid_amount: 2800, sale_return_adjust: 0, items_gross: 2800 },
+        { id: "inv-c", net_amount: 2700, paid_amount: 0, sale_return_adjust: 2700, items_gross: 2700 },
+      ],
+      voucherEntries: [
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-a", total_amount: 11800, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1700, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1100, discount_amount: 0, payment_method: "cash" },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 2800,
+          credit_status: "partially_adjusted",
+          credit_available_balance: 100,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(core.totalSaleReturnAdjustOnInvoices).toBeCloseTo(2700, 0);
+    expect(core.pendingStandaloneSaleReturns).toBeCloseTo(100, 0);
+    expect(core.balance).toBeCloseTo(-100, 0);
+  });
+
+  it("Farhaan Fab — CN memo receipt must not double-count with invoice SRA (prod voucher path)", () => {
+    const params = {
+      openingBalance: 0,
+      sales: [
+        { id: "inv-a", net_amount: 11800, paid_amount: 11800, sale_return_adjust: 0, items_gross: 11800 },
+        { id: "inv-b", net_amount: 2800, paid_amount: 2800, sale_return_adjust: 0, items_gross: 2800 },
+        { id: "inv-c", net_amount: 2700, paid_amount: 0, sale_return_adjust: 2700, items_gross: 2700 },
+      ],
+      voucherEntries: [
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-a", total_amount: 11800, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1700, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1100, discount_amount: 0, payment_method: "cash" },
+        {
+          voucher_type: "receipt" as const,
+          reference_type: "sale",
+          reference_id: "inv-c",
+          total_amount: 2700,
+          discount_amount: 0,
+          payment_method: "credit_note_adjustment",
+          description: "Credit note adjusted against invoice INV/26-27/xxx",
+        },
+      ],
+      customerAdvances: [] as Array<{ amount?: number | null; used_amount?: number | null }>,
+      advanceRefunds: [] as Array<{ refund_amount?: number | null }>,
+      saleReturns: [
+        {
+          net_amount: 2800,
+          credit_status: "partially_adjusted",
+          credit_available_balance: 100,
+        },
+      ],
+    };
+
+    const aligned = computeCustomerBalanceCore({
+      ...params,
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(aligned.balance).toBeCloseTo(-100, 0);
+    expect(aligned.pendingStandaloneSaleReturns).toBeCloseTo(100, 0);
+
+    const buggy = computeCustomerBalanceCore({
+      ...params,
+      options: { ledgerAlignedApplicationReceipts: false },
+    });
+    expect(buggy.balance).toBeCloseTo(-2800, 0);
+  });
 });
 
 describe("net receivable = gross outstanding − credit pool", () => {

@@ -44,8 +44,8 @@ export function facetsFromInvoiceOutstanding(
 }
 
 /**
- * From Customer Balances SQL row where `signed_balance` already nets unused advance.
- * Do not use RPC `net_position` (it subtracts unused again).
+ * From Customer Balances SQL row where `signed_balance` is signed net receivable.
+ * gross outstanding = signed + advance_available; net_position = signed (after migration 20260822183000).
  */
 export function facetsFromPartySignedBalance(
   signedBalance: number,

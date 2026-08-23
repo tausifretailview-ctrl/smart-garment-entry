@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, type ReactNode } from "react";
+import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
-import { useBarcodeLabelSettings } from "@/hooks/useBarcodeLabelSettings";
+import { useSettings } from "@/hooks/useSettings";
+import { BillTabSheetPresetOptions } from "@/components/settings/BillTabSheetPresetOptions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -377,11 +378,6 @@ interface Settings {
 }
 
 /** Settings columns read by this page (excludes id, timestamps, dashboard_settings, accounting_engine_enabled, books_closed_before_date). */
-const SETTINGS_FETCH_COLUMNS =
-  "business_name,address,mobile_number,owner_phone,email_id,gst_number," +
-  "product_settings,purchase_settings,sale_settings,bill_barcode_settings,report_settings," +
-  "auto_backup_enabled,backup_email,backup_retention_days,last_auto_backup_at";
-
 const QZStatusBadge = () => {
   const [status, setStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
   
@@ -421,7 +417,8 @@ export default function Settings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { currentOrganization, organizations } = useOrganization();
-  const { customPresets: savedSheetPresets } = useBarcodeLabelSettings();
+  const { data: cachedSettings } = useSettings();
+  const settingsHydratedRef = useRef(false);
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["company"]));
   const [currentTab, setCurrentTab] = useState("company");
   const [loading, setLoading] = useState(false);
@@ -709,10 +706,31 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchSettings();
-    }
+    settingsHydratedRef.current = false;
   }, [currentOrganization?.id]);
+
+  useEffect(() => {
+    if (!cachedSettings || settingsHydratedRef.current) return;
+    settingsHydratedRef.current = true;
+    const settingsData = cachedSettings as any;
+    setSettings({
+      business_name: settingsData.business_name || "",
+      address: settingsData.address || "",
+      mobile_number: settingsData.mobile_number || "",
+      owner_phone: settingsData.owner_phone || "",
+      email_id: settingsData.email_id || "",
+      gst_number: settingsData.gst_number || "",
+      product_settings: (settingsData.product_settings as ProductSettings) || {},
+      purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
+      sale_settings: (settingsData.sale_settings as SaleSettings) || {},
+      bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
+      report_settings: (settingsData.report_settings as ReportSettings) || {},
+      auto_backup_enabled: settingsData.auto_backup_enabled || false,
+      backup_email: settingsData.backup_email || "",
+      backup_retention_days: settingsData.backup_retention_days ?? DEFAULT_BACKUP_RETENTION_DAYS,
+      last_auto_backup_at: settingsData.last_auto_backup_at ?? null,
+    });
+  }, [cachedSettings, currentOrganization?.id]);
 
   useEffect(() => {
     if (!currentOrganization?.id || !visitedTabs.has("bill")) return;
@@ -780,42 +798,6 @@ export default function Settings() {
       setSizeGroups(data || []);
     } catch (error) {
       console.error("Error fetching size groups:", error);
-    }
-  };
-
-  const fetchSettings = async () => {
-    if (!currentOrganization?.id) return;
-    
-    try {
-      const { data, error } = await supabase
-        .from("settings" as any)
-        .select(SETTINGS_FETCH_COLUMNS)
-        .eq("organization_id", currentOrganization.id)
-        .maybeSingle();
-
-      if (error) throw error;
-      if (data) {
-        const settingsData = data as any;
-        setSettings({
-          business_name: settingsData.business_name || "",
-          address: settingsData.address || "",
-          mobile_number: settingsData.mobile_number || "",
-          owner_phone: settingsData.owner_phone || "",
-          email_id: settingsData.email_id || "",
-          gst_number: settingsData.gst_number || "",
-          product_settings: (settingsData.product_settings as ProductSettings) || {},
-          purchase_settings: (settingsData.purchase_settings as PurchaseSettings) || {},
-          sale_settings: (settingsData.sale_settings as SaleSettings) || {},
-          bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
-          report_settings: (settingsData.report_settings as ReportSettings) || {},
-          auto_backup_enabled: settingsData.auto_backup_enabled || false,
-          backup_email: settingsData.backup_email || "",
-          backup_retention_days: settingsData.backup_retention_days ?? DEFAULT_BACKUP_RETENTION_DAYS,
-          last_auto_backup_at: settingsData.last_auto_backup_at ?? null,
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching settings:", error);
     }
   };
 
@@ -5279,16 +5261,7 @@ export default function Settings() {
                           ))}
                         </SelectGroup>
                       ))}
-                      {savedSheetPresets.length > 0 && (
-                        <SelectGroup>
-                          <SelectLabel>💾 My Saved Presets</SelectLabel>
-                          {savedSheetPresets.map((preset) => (
-                            <SelectItem key={preset.name} value={`preset_${preset.name}`}>
-                              {preset.name} ({preset.width}×{preset.height}mm, {preset.cols}×{preset.rows})
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      )}
+                      {visitedTabs.has("bill") ? <BillTabSheetPresetOptions /> : null}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">

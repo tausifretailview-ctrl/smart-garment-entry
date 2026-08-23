@@ -10,9 +10,13 @@ import {
   invalidatePosDashboardQueries,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
+  reconcilePosDashboardRows,
   resolvePosDashboardQueryDates,
+  resolvePosDashboardDateRange,
+  resolvePosDashboardVoucherLookbackFrom,
   type PosDashboardSummaryStats,
 } from "@/utils/posDashboardSales";
+import { rankPosDashboardSearchResults } from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
@@ -804,9 +808,48 @@ const POSDashboard = () => {
       return fetchPosDashboardPage(supabase, posDashboardFilters, {
         page: currentPage,
         pageSize: itemsPerPage,
+        reconcile: false,
       });
     },
     enabled: posQueryEnabled,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const posReconcileSourceKey = useMemo(
+    () => salesPayload?.sourceRows?.map((row: { id: string }) => row.id).join(",") ?? "",
+    [salesPayload?.sourceRows],
+  );
+
+  const posSettlementOpts = useMemo(() => {
+    const bounded = resolvePosDashboardDateRange(
+      posDashboardFilters.startDate,
+      posDashboardFilters.endDate,
+    );
+    return {
+      voucherDateFrom: resolvePosDashboardVoucherLookbackFrom(
+        bounded.startDate,
+        bounded.endDate,
+      ),
+      voucherDateTo: bounded.endDate || null,
+    };
+  }, [posDashboardFilters.startDate, posDashboardFilters.endDate]);
+
+  const { data: reconciledPosSales } = useQuery({
+    queryKey: [...posDashboardQueryKey, "reconcile", posReconcileSourceKey],
+    queryFn: async () => {
+      const sourceRows = salesPayload?.sourceRows;
+      if (!sourceRows?.length || !currentOrganization?.id) return [];
+      const settled = await reconcilePosDashboardRows(
+        supabase,
+        currentOrganization.id,
+        sourceRows,
+        posSettlementOpts,
+      );
+      return posDashboardFilters.search.trim()
+        ? rankPosDashboardSearchResults(settled, posDashboardFilters.search)
+        : settled;
+    },
+    enabled: posQueryEnabled && posReconcileSourceKey.length > 0,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -869,7 +912,7 @@ const POSDashboard = () => {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const paginatedSales = salesPayload?.sales ?? [];
+  const paginatedSales = reconciledPosSales ?? salesPayload?.sales ?? [];
   const creditNoteUsage = salesPayload?.creditNoteUsage ?? {};
   const totalCount = salesPayload?.totalCount ?? 0;
 

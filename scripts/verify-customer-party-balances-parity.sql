@@ -1,9 +1,17 @@
 -- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balance.
 -- Run in Supabase SQL editor AFTER applying migrations through
--- 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql.
+-- 20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql (partial CN + CN memo)
+-- and 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql (POS paid-at-sale).
 --
 -- IMPORTANT: Select and run ONE block at a time (do not Run entire file).
 -- Heavy gates: run `SET statement_timeout = '120s';` first if you hit timeout.
+--
+-- SQL EDITOR AUTH:
+--   Do NOT use get_customer_true_outstanding — fails with 42501 Authentication required
+--   (assert_org_member). Do NOT use reconcile_customer_balances — it calls the same helper.
+--   USE instead:
+--     SUM(amount) FROM reconcile_customer_balance(customer_id, org_id)  — per-customer, OK
+--     get_customer_party_balances(org_id) vs _get_customer_party_balances_rows_v2 — fast org gate
 --
 -- Orgs:
 --   ELLA NOOR (invoice) 3fdca631-1e0c-4417-9704-421f5129ff67
@@ -12,29 +20,49 @@
 
 
 -- =============================================================================
--- DIAG) Migration 20260911150000 applied? (paid_at_sale_drift per-sale subquery)
---     migration_applied should be TRUE before POS parity gates pass.
+-- DIAG) Auth context — run first
 -- =============================================================================
 SELECT
-  p.proname,
-  pg_get_functiondef(p.oid) LIKE '%sub.customer_id AS cust_id%' AS migration_111500_applied,
-  pg_get_functiondef(p.oid) LIKE '%sale_voucher_receipts%' AS still_has_old_sale_voucher_cte
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname = 'public'
-  AND p.proname = '_get_customer_party_balances_rows';
+  current_user AS db_role,
+  auth.uid() AS auth_uid,
+  auth.role() AS auth_role,
+  CASE
+    WHEN auth.uid() IS NULL THEN 'Use reconcile_customer_balance SUM (this script)'
+    ELSE 'Authenticated session'
+  END AS editor_hint;
 
 
 -- =============================================================================
--- DIAG) Smoke — party RPC compiles and returns rows (pick org below)
+-- DIAG) Migration wiring — v2 live + paid_at_sale_drift in v2 body
+-- =============================================================================
+SELECT
+  EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_get_customer_party_balances_rows_v2'
+  ) AS party_v2_exists,
+  EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_is_settlement_memo_receipt'
+  ) AS cn_memo_helper_exists,
+  (
+    SELECT pg_get_functiondef(p.oid) LIKE '%sub.customer_id AS cust_id%'
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = '_get_customer_party_balances_rows_v2'
+    LIMIT 1
+  ) AS v2_has_paid_at_sale_drift;
+
+
+-- =============================================================================
+-- DIAG) Smoke — party RPC compiles and returns rows
 -- =============================================================================
 SELECT COUNT(*) AS party_row_count
 FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid);
 
 
 -- =============================================================================
--- 0a) Six-customer sign-off — drift must be 0
---     SHEHNAZ HALAI, Fariba Qureshi, Sana Nasir, Shumama Baireli, Samiya Nursumar, ALOK
+-- 0a) Seven-customer sign-off — drift must be 0
+--     SHEHNAZ HALAI, Fariba Qureshi, Sana Nasir, Shumama Baireli, Samiya Nursumar, ALOK,
+--     Farhaan Fab (partial CN ₹100 remainder)
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, customer_name, signed_balance, advance_available
@@ -45,20 +73,28 @@ WITH party AS (
      OR customer_name ILIKE '%shumama%baireli%'
      OR customer_name ILIKE '%samiya%nursumar%'
      OR customer_name ILIKE '%alok%kumar%tazim%'
+     OR customer_name ILIKE '%farhaan%fab%'
 )
 SELECT
   p.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid), 2) AS drift,
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift,
   p.advance_available AS party_advance,
   public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance
 FROM party p
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+  ) r
+) canon
 ORDER BY p.customer_name;
 
 
 -- =============================================================================
--- 0) Three-customer sign-off (ELLA NOOR): Samiya, ALOK, SHEHNAZ HALAI — drift must be 0
+-- 0) Three-customer sign-off (ELLA NOOR): Samiya, ALOK, SHEHNAZ HALAI
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, customer_name, signed_balance, advance_available
@@ -70,18 +106,59 @@ WITH party AS (
 SELECT
   p.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid), 2) AS drift,
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift,
   p.advance_available AS party_advance,
   public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance
 FROM party p
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+  ) r
+) canon
 ORDER BY p.customer_name;
 
 
 -- =============================================================================
--- 1) ELLA NOOR — non-settled drift gate (fast; avoids per-customer loop on all parties)
---    Must return ZERO rows (|drift| > 0.01)
---    Tip: SET statement_timeout = '120s'; if this still times out on very large orgs.
+-- 1-fast) ELLA NOOR — party RPC vs v2 internal rows (set-based, SQL-editor safe)
+--         PASS: drift_count = 0 (run 1-fast-count first; details in 1-fast-detail)
+-- =============================================================================
+SELECT COUNT(*) AS drift_count
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+   OR ABS(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0)) > 0.01
+   OR ABS(COALESCE(live.net_position, 0) - COALESCE(v2.out_net_position, 0)) > 0.01;
+
+
+-- =============================================================================
+-- 1-fast-detail) Top drift rows (only if 1-fast-count > 0)
+-- =============================================================================
+SELECT
+  live.customer_name,
+  live.signed_balance AS live_signed,
+  v2.out_signed_balance AS v2_signed,
+  ROUND(live.signed_balance - v2.out_signed_balance, 2) AS signed_drift,
+  live.advance_available AS live_advance,
+  v2.out_advance_available AS v2_advance,
+  ROUND(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0), 2) AS advance_drift
+FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) live
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = live.customer_id
+WHERE ABS(live.signed_balance - v2.out_signed_balance) > 0.01
+   OR ABS(COALESCE(live.advance_available, 0) - COALESCE(v2.out_advance_available, 0)) > 0.01
+ORDER BY ABS(live.signed_balance - v2.out_signed_balance) DESC
+LIMIT 50;
+
+
+-- =============================================================================
+-- 1-slow) ELLA NOOR — non-settled party vs reconcile_customer_balance SUM
+--         May Server Error / timeout on ELLA NOOR (16k+ customers) in SQL editor.
+--         Prefer 1-fast-count + block 0a sign-off. Run only if you need deep audit.
+--         Tip: SET statement_timeout = '300s'; and filter to one customer_id.
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, signed_balance, advance_available
@@ -92,8 +169,8 @@ WITH party AS (
 SELECT
   cu.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid), 2) AS drift,
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift,
   p.advance_available AS party_advance,
   public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) AS canonical_advance,
   ROUND(
@@ -103,44 +180,23 @@ SELECT
   ) AS advance_drift
 FROM party p
 JOIN public.customers cu ON cu.id = p.customer_id
-WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)) > 0.01
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+  ) r
+) canon
+WHERE ABS(p.signed_balance - canon.canonical_balance) > 0.01
    OR ABS(
      COALESCE(p.advance_available, 0)
      - public._customer_advance_available(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
    ) > 0.01
-ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)) DESC;
+ORDER BY ABS(p.signed_balance - canon.canonical_balance) DESC;
 
 
 -- =============================================================================
--- 1b) ELLA NOOR — party vs reconcile_customer_balances (non-settled only)
---     reconcile_customer_balances times out on full org in SQL editor; filter first.
--- =============================================================================
-WITH party AS (
-  SELECT customer_id, signed_balance, advance_available
-  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
-  WHERE ABS(signed_balance) > 0.01
-     OR COALESCE(advance_available, 0) > 0.01
-),
-reconcile AS (
-  SELECT r.customer_id, r.calculated_balance, r.advance_available AS reconcile_advance
-  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) r
-  INNER JOIN party p ON p.customer_id = r.customer_id
-)
-SELECT
-  r.customer_id,
-  cu.customer_name,
-  r.calculated_balance,
-  p.signed_balance,
-  ROUND(r.calculated_balance - p.signed_balance, 2) AS drift
-FROM reconcile r
-JOIN party p ON p.customer_id = r.customer_id
-JOIN public.customers cu ON cu.id = r.customer_id
-WHERE ABS(r.calculated_balance - p.signed_balance) > 0.01
-   OR ABS(COALESCE(r.reconcile_advance, 0) - COALESCE(p.advance_available, 0)) > 0.01;
-
-
--- =============================================================================
--- 2) Customers in reconcile but missing from party list (should be none — party returns ALL customers)
+-- 2) Customers missing from party list (should be none)
 -- =============================================================================
 SELECT c.id, c.customer_name
 FROM public.customers c
@@ -179,41 +235,54 @@ CROSS JOIN summary s;
 
 
 -- =============================================================================
--- 4) Sample customers for manual sign-off (advance / credit / CN / debtor / settled)
+-- 4) Sample customers — party vs v2 (fast; no per-customer reconcile)
+--    Manual read: drift should be 0 for each row.
 -- =============================================================================
 WITH picks AS (
-  SELECT customer_id, calculated_balance, advance_available, notes
-  FROM public.reconcile_customer_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
+  SELECT customer_id, customer_name, signed_balance, advance_available, direction, net_position
+  FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid)
   ORDER BY
     CASE
       WHEN advance_available > 0.01 THEN 0
-      WHEN calculated_balance < -0.5 THEN 1
-      WHEN calculated_balance > 100000 THEN 2
-      WHEN ABS(calculated_balance) <= 0.5 THEN 3
+      WHEN signed_balance < -0.5 THEN 1
+      WHEN signed_balance > 100000 THEN 2
+      WHEN ABS(signed_balance) <= 0.5 THEN 3
       ELSE 4
     END,
-    ABS(calculated_balance) DESC
+    ABS(signed_balance) DESC
   LIMIT 8
 )
 SELECT
   pk.customer_id,
-  cu.customer_name,
-  pk.calculated_balance AS canonical_balance,
-  pb.signed_balance AS party_balance,
-  ROUND(pk.calculated_balance - pb.signed_balance, 2) AS drift,
-  pk.advance_available AS canonical_advance,
-  pb.advance_available AS party_advance,
-  pb.direction,
-  pb.net_position,
-  pk.notes AS reconcile_notes
+  pk.customer_name,
+  pk.signed_balance AS party_balance,
+  v2.out_signed_balance AS v2_balance,
+  ROUND(pk.signed_balance - v2.out_signed_balance, 2) AS signed_drift,
+  pk.advance_available AS party_advance,
+  v2.out_advance_available AS v2_advance,
+  ROUND(COALESCE(pk.advance_available, 0) - COALESCE(v2.out_advance_available, 0), 2) AS advance_drift,
+  pk.direction,
+  pk.net_position
 FROM picks pk
-JOIN public.customers cu ON cu.id = pk.customer_id
-JOIN public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) pb ON pb.customer_id = pk.customer_id
-ORDER BY ABS(pk.calculated_balance) DESC;
+INNER JOIN public._get_customer_party_balances_rows_v2('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid) v2
+  ON v2.out_customer_id = pk.customer_id
+ORDER BY ABS(pk.signed_balance) DESC;
 
 
 -- =============================================================================
--- 5) Performance smoke — party RPC only (safe; reconcile full-org may timeout)
+-- 4b) Optional — ONE customer reconcile deep-dive (replace customer_id)
+--     reconcile_customer_balance is slow; never loop 8+ customers in SQL editor.
+-- =============================================================================
+-- SELECT source, amount, detail
+-- FROM public.reconcile_customer_balance(
+--   '<customer_id>'::uuid,
+--   '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid
+-- )
+-- ORDER BY source;
+
+
+-- =============================================================================
+-- 5) Performance smoke — party RPC only
 -- =============================================================================
 EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
 SELECT COUNT(*), SUM(signed_balance)
@@ -221,8 +290,8 @@ FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::
 
 
 -- =============================================================================
--- 6) KS FOOTWEAR POS org — VAVIA + JOHNSON spot check (drift must be 0 after 111500)
---    Org: 4bc73037-e877-4123-9261-eb6e3876698c
+-- 6) KS FOOTWEAR POS — VAVIA + JOHNSON spot check
+--     Org: 4bc73037-e877-4123-9261-eb6e3876698c
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, customer_name, signed_balance
@@ -235,9 +304,16 @@ WITH party AS (
 SELECT
   p.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid), 2) AS drift
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift
 FROM party p
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    '4bc73037-e877-4123-9261-eb6e3876698c'::uuid
+  ) r
+) canon
 ORDER BY p.customer_name;
 
 
@@ -250,17 +326,24 @@ WITH party AS (
 SELECT
   cu.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid), 2) AS drift
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift
 FROM party p
 JOIN public.customers cu ON cu.id = p.customer_id
-WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)) > 0.01
-ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, '4bc73037-e877-4123-9261-eb6e3876698c'::uuid)) DESC;
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    '4bc73037-e877-4123-9261-eb6e3876698c'::uuid
+  ) r
+) canon
+WHERE ABS(p.signed_balance - canon.canonical_balance) > 0.01
+ORDER BY ABS(p.signed_balance - canon.canonical_balance) DESC;
 
 
 -- =============================================================================
--- 7) Velvet POS org — RUSHITA + KALPANA + BEENA spot check (drift must be 0 after 111500)
---    Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
+-- 7) Velvet POS — RUSHITA + KALPANA + BEENA spot check
+--     Org: dafc3d0c-874e-4784-bac3-5eab5f3c85b5
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, customer_name, signed_balance
@@ -272,13 +355,20 @@ WITH party AS (
 SELECT
   p.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid), 2) AS drift
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift
 FROM party p
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
+  ) r
+) canon
 ORDER BY p.customer_name;
 
 
--- Velvet — non-settled drift gate (must return ZERO rows; ~34 parties, not all 185)
+-- Velvet — non-settled drift gate (must return ZERO rows)
 WITH party AS (
   SELECT customer_id, signed_balance
   FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)
@@ -287,9 +377,16 @@ WITH party AS (
 SELECT
   cu.customer_name,
   p.signed_balance AS party_balance,
-  public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid) AS canonical_balance,
-  ROUND(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid), 2) AS drift
+  canon.canonical_balance,
+  ROUND(p.signed_balance - canon.canonical_balance, 2) AS drift
 FROM party p
 JOIN public.customers cu ON cu.id = p.customer_id
-WHERE ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)) > 0.01
-ORDER BY ABS(p.signed_balance - public.get_customer_true_outstanding(p.customer_id, 'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid)) DESC;
+CROSS JOIN LATERAL (
+  SELECT COALESCE(SUM(r.amount), 0)::numeric AS canonical_balance
+  FROM public.reconcile_customer_balance(
+    p.customer_id,
+    'dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::uuid
+  ) r
+) canon
+WHERE ABS(p.signed_balance - canon.canonical_balance) > 0.01
+ORDER BY ABS(p.signed_balance - canon.canonical_balance) DESC;

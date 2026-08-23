@@ -2,12 +2,20 @@ import type { QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { invalidateOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
+import {
+  type CustomerAccountFacets,
+} from "@/utils/customerAccountFacets";
 
 export type CustomerFinancialSnapshot = {
+  /** Signed net receivable (= net_position). Legacy name kept for backward compat. */
   outstandingDr: number;
   advanceAvailable: number;
   cnAvailableTotal: number;
   cnPendingCount: number;
+  /** Invoice + OB outstanding before netting unused advance (SQL facet). */
+  grossOutstandingDr: number;
+  /** Economic net receivable (= outstandingDr). */
+  netPosition: number;
 };
 
 export const CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY = "customer-financial-snapshot";
@@ -17,6 +25,8 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
   advanceAvailable: 0,
   cnAvailableTotal: 0,
   cnPendingCount: 0,
+  grossOutstandingDr: 0,
+  netPosition: 0,
 };
 
 /**
@@ -117,13 +127,53 @@ function normalizeRow(row: {
   advance_available?: number | null;
   cn_available_total?: number | null;
   cn_pending_count?: number | null;
+  gross_outstanding_dr?: number | null;
+  net_position?: number | null;
 }): CustomerFinancialSnapshot {
+  const outstandingDr = Math.round(Number(row.outstanding_dr ?? 0));
+  const advanceAvailable = Math.round(Number(row.advance_available ?? 0) * 100) / 100;
+  const signedNet =
+    row.net_position != null && !Number.isNaN(Number(row.net_position))
+      ? Math.round(Number(row.net_position))
+      : outstandingDr;
+  const grossFromSql =
+    row.gross_outstanding_dr != null && !Number.isNaN(Number(row.gross_outstanding_dr))
+      ? Math.round(Number(row.gross_outstanding_dr))
+      : null;
+  const grossOutstandingDr =
+    grossFromSql ??
+    Math.round(signedNet + Math.max(0, advanceAvailable));
+
   return {
-    outstandingDr: Math.round(Number(row.outstanding_dr ?? 0)),
-    advanceAvailable: Math.round(Number(row.advance_available ?? 0) * 100) / 100,
+    outstandingDr: signedNet,
+    advanceAvailable,
     cnAvailableTotal: Math.round(Number(row.cn_available_total ?? 0) * 100) / 100,
     cnPendingCount: Math.max(0, Math.floor(Number(row.cn_pending_count ?? 0))),
+    grossOutstandingDr,
+    netPosition: signedNet,
   };
+}
+
+/**
+ * Map SQL snapshot rows to UI facets.
+ * Prefers explicit gross_outstanding_dr / net_position when migration 20260822183000 is live;
+ * otherwise recovers gross from signed net + advance (pre-migration RPCs).
+ */
+export function accountFacetsFromFinancialSnapshot(
+  snap: CustomerFinancialSnapshot,
+): CustomerAccountFacets {
+  return {
+    outstanding: snap.grossOutstandingDr,
+    unusedAdvance: Math.max(0, Math.round(snap.advanceAvailable)),
+    netPosition: snap.netPosition,
+  };
+}
+
+/** Gross invoice + OB outstanding (unused advance not subtracted). */
+export function grossOutstandingFromFinancialSnapshot(
+  snap: CustomerFinancialSnapshot,
+): number {
+  return snap.grossOutstandingDr;
 }
 
 /**
@@ -197,6 +247,8 @@ export async function fetchCustomerFinancialSnapshotMap(
           advance_available?: number | null;
           cn_available_total?: number | null;
           cn_pending_count?: number | null;
+          gross_outstanding_dr?: number | null;
+          net_position?: number | null;
         }>) {
           if (!row?.customer_id) continue;
           map.set(row.customer_id, normalizeRow(row));
@@ -214,6 +266,42 @@ export async function fetchCustomerFinancialSnapshotMap(
   }
 
   return map instanceof Map ? map : new Map();
+}
+
+/**
+ * Whole-org snapshot map (set-based RPC). Preferred for Customer Balances list alignment.
+ * Returns empty map when RPC is unavailable — callers should batch-fallback.
+ */
+export async function fetchOrganizationFinancialSnapshotMap(
+  organizationId: string,
+  client: SupabaseClient = supabase,
+): Promise<Map<string, CustomerFinancialSnapshot>> {
+  const map = new Map<string, CustomerFinancialSnapshot>();
+  if (!organizationId) return map;
+
+  try {
+    const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_all", {
+      p_organization_id: organizationId,
+    });
+    if (error) throw error;
+
+    for (const row of (data || []) as Array<{
+      customer_id: string;
+      outstanding_dr?: number | null;
+      advance_available?: number | null;
+      cn_available_total?: number | null;
+      cn_pending_count?: number | null;
+      gross_outstanding_dr?: number | null;
+      net_position?: number | null;
+    }>) {
+      if (!row?.customer_id) continue;
+      map.set(row.customer_id, normalizeRow(row));
+    }
+  } catch (err) {
+    console.warn("[customerFinancialSnapshot] snapshot_all fetch failed", err);
+  }
+
+  return map;
 }
 
 export type OrganizationCustomerAccountTotals = {
@@ -305,6 +393,9 @@ export function invalidateCustomerFinancialSnapshot(
     queryClient.invalidateQueries({
       queryKey: ["customer-balances-search", organizationId],
     });
+    queryClient.invalidateQueries({
+      queryKey: ["customer-party-balances", organizationId],
+    });
   }
   if (organizationId && customerId) {
     queryClient.invalidateQueries({
@@ -312,6 +403,9 @@ export function invalidateCustomerFinancialSnapshot(
     });
   }
   queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+  queryClient.invalidateQueries({
+    queryKey: [CUSTOMER_FINANCIAL_SNAPSHOT_QUERY_KEY, "balance-hook"],
+  });
   queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
   queryClient.invalidateQueries({ queryKey: ["customer-advances-search"] });
   queryClient.invalidateQueries({ queryKey: ["customer-credit-notes-search"] });

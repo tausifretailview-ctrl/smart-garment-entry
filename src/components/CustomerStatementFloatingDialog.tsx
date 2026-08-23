@@ -8,7 +8,6 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -119,13 +118,11 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
   const orgId = currentOrganization?.id ?? "";
 
   const balanceDetail = useCustomerBalance(selectedId, currentOrganization?.id ?? null);
-  const {
-    advanceAvailable: financialAdvance,
-    cnAvailableTotal: financialCn,
-    isLoading: financialLoading,
-  } = useCustomerFinancialSnapshot(selectedId, currentOrganization?.id ?? null);
-  /** Same basis as Customer Ledger (computeCustomerBalanceCore); matches SQL snapshot after pending-return migration. */
+  /** Same basis as Customer Ledger / POS picker (SQL snapshot RPC). */
   const financialOutstanding = balanceDetail.balance;
+  const financialAdvance = balanceDetail.unusedAdvanceTotal;
+  const financialCn = balanceDetail.cnAvailableTotal;
+  const financialLoading = balanceDetail.isLoading;
 
   const openAuditPage = () => {
     if (!selectedId) return;

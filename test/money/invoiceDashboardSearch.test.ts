@@ -5,6 +5,40 @@ import {
   shouldUnionSaleItemsForInvoiceSearch,
 } from "@/utils/invoiceDashboardData";
 
+describe("resolveInvoiceDashboardDisplayRows", () => {
+  it("returns empty when page count is zero even if stale reconcile cache exists", async () => {
+    const { resolveInvoiceDashboardDisplayRows } = await import(
+      "@/utils/invoiceDashboardData"
+    );
+    const staleReconciled = [{ id: "old-1", customer_name: "ANAM GHEEWALA" }];
+    expect(
+      resolveInvoiceDashboardDisplayRows({
+        dashboardPage: { invoices: [], totalCount: 0, sourceRows: [] },
+        reconciledPageInvoices: staleReconciled,
+        reconcileSourceKey: "",
+      }),
+    ).toEqual([]);
+  });
+
+  it("uses reconciled rows when source key matches current page", async () => {
+    const { resolveInvoiceDashboardDisplayRows } = await import(
+      "@/utils/invoiceDashboardData"
+    );
+    const reconciled = [{ id: "a", customer_name: "FARHAN FAB" }];
+    expect(
+      resolveInvoiceDashboardDisplayRows({
+        dashboardPage: {
+          invoices: [{ id: "a", customer_name: "FARHAN FAB" }],
+          totalCount: 1,
+          sourceRows: [{ id: "a" }],
+        },
+        reconciledPageInvoices: reconciled,
+        reconcileSourceKey: "a",
+      }),
+    ).toEqual(reconciled);
+  });
+});
+
 describe("shouldUnionSaleItemsForInvoiceSearch", () => {
   it("runs line-item path for customer-like names ≥4 letters (item 1 NOT gating)", () => {
     expect(shouldUnionSaleItemsForInvoiceSearch("ANUSHA PATHAN")).toBe(true);

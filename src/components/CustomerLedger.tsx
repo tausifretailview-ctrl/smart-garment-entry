@@ -7,8 +7,8 @@ import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tansta
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
-import { fetchItemsGrossBySaleId } from "@/utils/fetchAllRows";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
+import { buildCustomerLedgerListFromPartyBalances } from "@/utils/customerLedgerListFromPartyBalances";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,6 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import {
   fetchCustomerAccountStateView,
@@ -67,12 +66,9 @@ import {
 import { useBusinessInfo } from "@/hooks/useSettings";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  computeCustomerOutstanding,
   reconcileSaleInvoiceDisplay,
   splitSaleLinkedReceiptRows,
   type SaleReceiptVoucherSplit,
-  type VoucherLedgerRow,
-  type SaleReturnLedgerRow,
 } from "@/utils/customerBalanceUtils";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
 import {
@@ -84,6 +80,7 @@ import {
 import {
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
+  saleReturnCreditForReconciliation,
 } from "@/utils/customerLedgerReconciliation";
 import { saleReturnRunningBalanceCredit } from "@/utils/customerLedgerSaleReturnBalance";
 import {
@@ -423,8 +420,7 @@ export function CustomerLedger({
     { enabled: !!persistenceWindowId },
   );
   
-  const { fetchCustomers: fetchLedgerCustomers, fetchSalesSummary: fetchLedgerSalesSummary } =
-    useOrgLedgerReferenceFetcher();
+  const { fetchCustomers: fetchLedgerCustomers } = useOrgLedgerReferenceFetcher();
 
   const isMobile = useIsMobile();
   const { sendWhatsApp } = useWhatsAppSend();
@@ -444,19 +440,16 @@ export function CustomerLedger({
   const [overpaymentRefundNote, setOverpaymentRefundNote] = useState('');
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const queryClient = useQueryClient();
-  const { balance: authoritativeBalance } = useCustomerBalance(
-    isSchool ? null : selectedCustomer?.id || null,
-    organizationId || null
-  );
-
   const {
-    outstandingDr: snapshotOutstandingDr,
-    advanceAvailable: snapshotAdvanceAvailable,
+    balance: authoritativeBalance,
+    unusedAdvanceTotal: snapshotAdvanceAvailable,
     cnAvailableTotal: snapshotCnAvailable,
-  } = useCustomerFinancialSnapshot(
-    isSchool ? null : selectedCustomer?.id,
+  } = useCustomerBalance(
+    isSchool ? null : selectedCustomer?.id || null,
     organizationId || null,
   );
+
+  const snapshotOutstandingDr = authoritativeBalance;
 
   /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
   const { data: ledgerAuditClosingBalance } = useQuery({
@@ -584,6 +577,10 @@ export function CustomerLedger({
       endDate ? format(endDate, "yyyy-MM-dd") : null,
     ],
     queryFn: async () => {
+      if (!isSchool) {
+        return buildCustomerLedgerListFromPartyBalances(organizationId);
+      }
+
       // Fetch ALL customers using range pagination (bypasses 1000-row limit)
       const customersData = await fetchLedgerCustomers(organizationId);
 
@@ -822,258 +819,6 @@ export function CustomerLedger({
 
         return customerTotals;
       }
-
-      // --- Business org logic ---
-      // Fetch ALL sales using range pagination (bypasses 1000-row limit)
-      const salesData = await fetchLedgerSalesSummary(organizationId);
-      const itemsGrossBySale = await fetchItemsGrossBySaleId(
-        organizationId,
-        salesData.map((s: { id: string }) => s.id),
-      );
-
-      // Paginate receipts/payments — bare select is capped at 1000 and under-counts paid.
-      const allVouchers: any[] = [];
-      {
-        let offset = 0;
-        const pageSize = 1000;
-        for (;;) {
-          const { data, error: voucherError } = await supabase
-            .from("voucher_entries")
-            .select(
-              "reference_id, reference_type, total_amount, discount_amount, voucher_type, description, payment_method, voucher_number",
-            )
-            .eq("organization_id", organizationId)
-            .in("voucher_type", ["receipt", "payment"])
-            .is("deleted_at", null)
-            .range(offset, offset + pageSize - 1);
-          if (voucherError) {
-            console.error("Error fetching voucher payments:", voucherError);
-            break;
-          }
-          if (!data?.length) break;
-          allVouchers.push(...data);
-          if (data.length < pageSize) break;
-          offset += pageSize;
-        }
-      }
-
-      // Fetch ALL balance adjustments
-      const { data: allAdjustments, error: adjError } = await supabase
-        .from('customer_balance_adjustments')
-        .select('customer_id, outstanding_difference')
-        .eq('organization_id', organizationId)
-        .is('materialized_at', null);
-
-      if (adjError) console.error('Error fetching adjustments:', adjError);
-
-      // Build adjustment totals per customer
-      const customerAdjustments = new Map<string, number>();
-      allAdjustments?.forEach((adj: any) => {
-        customerAdjustments.set(adj.customer_id, 
-          (customerAdjustments.get(adj.customer_id) || 0) + (adj.outstanding_difference || 0));
-      });
-
-      // ALL advances (including fully_used) — list Outstanding needs used_amount.
-      // Filtering to active/partially_used left Anusha-class invoices looking unpaid.
-      const allAdvances: any[] = [];
-      {
-        let offset = 0;
-        const pageSize = 1000;
-        for (;;) {
-          const { data, error: advError } = await supabase
-            .from("customer_advances")
-            .select("id, customer_id, amount, used_amount, status")
-            .eq("organization_id", organizationId)
-            .range(offset, offset + pageSize - 1);
-          if (advError) {
-            console.error("Error fetching advances:", advError);
-            break;
-          }
-          if (!data?.length) break;
-          allAdvances.push(...data);
-          if (data.length < pageSize) break;
-          offset += pageSize;
-        }
-      }
-
-      // Booking residual (amount − used) for Advance column — matches ledger PDF footnote.
-      const customerUnusedAdvances = new Map<string, number>();
-      allAdvances.forEach((adv: any) => {
-        const unused = Math.max(0, (adv.amount || 0) - (adv.used_amount || 0));
-        if (unused > 0) {
-          customerUnusedAdvances.set(
-            adv.customer_id,
-            (customerUnusedAdvances.get(adv.customer_id) || 0) + unused,
-          );
-        }
-      });
-
-      // Advance refunds for ALL advance ids (fully_used rows can still have ARF history)
-      const advanceIdsAll = allAdvances.map((a: any) => a.id).filter(Boolean);
-      const customerAdvanceRefunds = new Map<string, number>();
-      const advToCustomer = new Map<string, string>();
-      allAdvances.forEach((a: any) => {
-        if (a.id) advToCustomer.set(a.id, a.customer_id);
-      });
-      for (let i = 0; i < advanceIdsAll.length; i += 200) {
-        const chunk = advanceIdsAll.slice(i, i + 200);
-        const { data: advRefunds } = await supabase
-          .from("advance_refunds")
-          .select("advance_id, refund_amount")
-          .in("advance_id", chunk);
-        advRefunds?.forEach((r: any) => {
-          const custId = advToCustomer.get(r.advance_id);
-          if (custId) {
-            customerAdvanceRefunds.set(
-              custId,
-              (customerAdvanceRefunds.get(custId) || 0) + (r.refund_amount || 0),
-            );
-          }
-        });
-      }
-
-      // Customer payment refunds — exclude POS exchange + advance-refund (ARF) vouchers.
-      // ARF already reduces unused advance; counting it as invoice debit invented phantom Outstanding.
-      const customerRefundsPaid = new Map<string, number>();
-      allVouchers.forEach((v: any) => {
-        if (v.voucher_type !== "payment") return;
-        if (String(v.reference_type || "").toLowerCase() !== "customer") return;
-        if (!v.reference_id) return;
-        if (isPosExchangeRefundPaymentVoucher(v)) return;
-        if (isAdvanceRefundPaymentVoucher(v)) return;
-        customerRefundsPaid.set(
-          v.reference_id,
-          (customerRefundsPaid.get(v.reference_id) || 0) + (v.total_amount || 0),
-        );
-      });
-
-      // Build sale_id -> customer_id map for routing receipt vouchers to customers
-      const saleToCustomerMap = new Map<string, string>();
-      salesData.forEach((s: any) => {
-        if (s.customer_id) {
-          saleToCustomerMap.set(s.id, s.customer_id);
-        }
-      });
-
-      // Sale returns with credit_status + linked_sale_id (matches computeCustomerOutstanding / useCustomerBalance)
-      const { data: allSaleReturns, error: srFetchError } = await supabase
-        .from("sale_returns")
-        .select("customer_id, net_amount, credit_status, linked_sale_id")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null);
-      if (srFetchError) console.error("Error fetching sale returns:", srFetchError);
-
-      const saleReturnsByCustomer = new Map<string, SaleReturnLedgerRow[]>();
-      (allSaleReturns || []).forEach((sr: any) => {
-        if (!sr.customer_id) return;
-        const row: SaleReturnLedgerRow = {
-          net_amount: sr.net_amount,
-          credit_status: sr.credit_status,
-          linked_sale_id: sr.linked_sale_id,
-        };
-        const list = saleReturnsByCustomer.get(sr.customer_id) || [];
-        list.push(row);
-        saleReturnsByCustomer.set(sr.customer_id, list);
-      });
-
-      // Receipt vouchers per customer (sale-linked + customer opening / CN rows)
-      const vouchersByCustomer = new Map<string, VoucherLedgerRow[]>();
-      customersData.forEach((c: any) => vouchersByCustomer.set(c.id, []));
-
-      (allVouchers || []).forEach((v: any) => {
-        if (v.voucher_type !== "receipt" || !v.reference_id) return;
-        const row: VoucherLedgerRow = {
-          reference_id: v.reference_id,
-          reference_type: v.reference_type,
-          total_amount: v.total_amount,
-          discount_amount: v.discount_amount,
-          payment_method: v.payment_method,
-          description: v.description,
-        };
-        const saleCustId = saleToCustomerMap.get(v.reference_id);
-        if (saleCustId) {
-          vouchersByCustomer.get(saleCustId)?.push(row);
-        } else if (v.reference_type === "customer") {
-          vouchersByCustomer.get(v.reference_id)?.push(row);
-        }
-      });
-
-      const advancesByCustomer = new Map<
-        string,
-        Array<{ id: string; amount: number | null; used_amount: number | null }>
-      >();
-      allAdvances?.forEach((adv: any) => {
-        if (!adv.customer_id || !adv.id) return;
-        const list = advancesByCustomer.get(adv.customer_id) || [];
-        list.push({
-          id: adv.id,
-          amount: adv.amount,
-          used_amount: adv.used_amount,
-        });
-        advancesByCustomer.set(adv.customer_id, list);
-      });
-
-      // List totals + balance: single source of truth (avoids double-counting CN in
-      // sale_returns + sale_return_adjust + voucher paid, which showed phantom Advance).
-      const customerTotals = customersData.map((customer: any) => {
-        const customerSales = salesData.filter(
-          (s: any) =>
-            s.customer_id === customer.id &&
-            s.payment_status !== "cancelled" &&
-            s.payment_status !== "hold"
-        );
-        const openingBalance = customer.opening_balance || 0;
-        const adjustmentTotal = customerAdjustments.get(customer.id) || 0;
-        const unusedAdvanceTotal = customerUnusedAdvances.get(customer.id) || 0;
-        const advanceRefundTotal = customerAdvanceRefunds.get(customer.id) || 0;
-        // Refunds already reduce each booking's residual via `used_amount`; subtracting the
-        // refund total again clamped genuine advance credit to ₹0.
-        const effectiveUnusedAdvances = Math.max(0, unusedAdvanceTotal);
-        const refundsPaidTotal = customerRefundsPaid.get(customer.id) || 0;
-
-        const co = computeCustomerOutstanding({
-          openingBalance,
-          customerId: customer.id,
-          sales: customerSales.map((s: any) => ({
-            id: s.id,
-            net_amount: s.net_amount,
-            paid_amount: s.paid_amount,
-            cash_amount: s.cash_amount,
-            card_amount: s.card_amount,
-            upi_amount: s.upi_amount,
-            sale_return_adjust: s.sale_return_adjust,
-            items_gross: itemsGrossBySale.get(s.id) ?? 0,
-          })),
-          vouchers: vouchersByCustomer.get(customer.id) || [],
-          adjustmentTotal,
-          advances: advancesByCustomer.get(customer.id) || [],
-          advanceRefundTotal,
-          saleReturns: saleReturnsByCustomer.get(customer.id) || [],
-          refundsPaidTotal,
-        });
-
-        const safeCustomer = stripPartyWindowTotals(customer as Record<string, unknown>);
-        return {
-          ...safeCustomer,
-          id: customer.id,
-          customer_name: customer.customer_name,
-          phone: customer.phone,
-          email: customer.email,
-          address: customer.address,
-          opening_balance: Math.round(openingBalance),
-          totalSales: co.totalSales,
-          totalSalesGross: co.totalSalesGross,
-          totalPaid: co.totalPaid,
-          balance: co.balance,
-          unusedAdvanceTotal: Math.round(effectiveUnusedAdvances),
-          totalCashPaid: co.totalCashPaid || 0,
-          totalAdvanceApplied: co.totalAdvanceApplied || 0,
-          totalCnApplied: co.totalCnApplied || 0,
-          adjustmentTotal: co.adjustmentTotal || 0,
-        };
-      });
-
-      return customerTotals;
     },
     enabled: !!organizationId && !embeddedSingleCustomer,
     staleTime: STALE_DASHBOARD_TAB_RETURN,
@@ -2871,10 +2616,9 @@ export function CustomerLedger({
         grossInvoiced += t.grossBill ?? t.displayDebit ?? t.debit ?? 0;
         invoiceCnApplied += t.saleReturnAdjustApplied ?? 0;
       } else if (t.type === "return") {
-        // Same gross as Credit column / running Balance (displayCredit). Using
-        // t.credit alone (remaining after CN apply) left applied CN out of recon
-        // and disagreed with the column gap (Hanif: ₹150 Dr vs ₹3,050 Cr).
-        saleReturns += (t.displayCredit ?? t.credit) || 0;
+        // Gross displayCredit drives the Credit column / running balance; recon uses
+        // remaining credit when part of the return is already in invoiceCnApplied.
+        saleReturns += saleReturnCreditForReconciliation(t);
       } else if (t.type === "payment") {
         const discount = t.paymentBreakdown?.settlementDiscount || 0;
         const cash =

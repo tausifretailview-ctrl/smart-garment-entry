@@ -635,15 +635,18 @@ const ProductDashboard = () => {
   ]);
 
   const { data: sizeGroups = [] } = useQuery({
-    queryKey: ["product-size-groups"],
+    queryKey: ["product-size-groups", currentOrganization?.id],
     queryFn: async () => {
+      if (!currentOrganization?.id) return [];
       const { data, error } = await supabase
         .from("size_groups")
         .select("id, group_name")
+        .eq("organization_id", currentOrganization.id)
         .order("group_name");
       if (error) throw error;
       return data || [];
     },
+    enabled: !!currentOrganization?.id,
     staleTime: STALE_REFERENCE,
   });
 
@@ -654,34 +657,16 @@ const ProductDashboard = () => {
     queryFn: async () => {
       if (!currentOrganization?.id) return { categories: [] as string[], productTypes: [] as string[] };
 
-      const organizationId = currentOrganization.id;
-      const [categoryRes, typeRes] = await Promise.all([
-        supabase
-          .from("products")
-          .select("category")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null)
-          .not("category", "is", null)
-          .order("category"),
-        supabase
-          .from("products")
-          .select("product_type")
-          .eq("organization_id", organizationId)
-          .is("deleted_at", null)
-          .not("product_type", "is", null)
-          .order("product_type"),
-      ]);
-      if (categoryRes.error) throw categoryRes.error;
-      if (typeRes.error) throw typeRes.error;
+      const { data, error } = await supabase.rpc("get_product_filter_options", {
+        p_org_id: currentOrganization.id,
+      });
+      if (error) throw error;
 
-      const categories = [
-        ...new Set(categoryRes.data?.map((r) => r.category).filter(Boolean) ?? []),
-      ] as string[];
-      const productTypes = [
-        ...new Set(typeRes.data?.map((r) => r.product_type).filter(Boolean) ?? []),
-      ] as string[];
-
-      return { categories, productTypes };
+      const payload = (data ?? {}) as { categories?: string[]; product_types?: string[] };
+      return {
+        categories: payload.categories ?? [],
+        productTypes: payload.product_types ?? [],
+      };
     },
     enabled: !!currentOrganization?.id,
     staleTime: PRODUCT_FILTER_OPTIONS_STALE_MS,
