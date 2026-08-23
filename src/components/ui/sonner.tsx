@@ -1,6 +1,20 @@
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
 import { ENTRY_SCREEN_TOAST_MS } from "@/utils/entryScreenToast";
+import { showError } from "@/hooks/use-toast";
+
+function toastNodeText(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return undefined;
+}
+
+toast.error = ((message: unknown, data?: { description?: unknown }) => {
+  const title = toastNodeText(message) || "Error";
+  const description = toastNodeText(data?.description);
+  showError(description || title, description ? title : "Error");
+  return "error-dialog";
+}) as typeof toast.error;
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 

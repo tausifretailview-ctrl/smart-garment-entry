@@ -516,8 +516,10 @@ export default function SaleReturnEntry() {
 
       if (!variant || !product) {
         toast({
-          title: "Not Found",
-          description: "No sold product found with this barcode. Load the original invoice if the sticker is an old merge barcode.",
+          title: "Product not found",
+          description:
+            `Barcode "${query}" is not on an active product and no sold invoice line matches it.\n\n` +
+            "If this box was billed, type the original invoice number (INV/… or POS/…) above and click Load Items.",
           variant: "destructive",
         });
         setBarcodeInput("");

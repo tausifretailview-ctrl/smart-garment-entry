@@ -725,8 +725,10 @@ export const FloatingSaleReturn = ({
 
       if (!variant || !product) {
         toast({
-          title: "Not Found",
-          description: "No sold product found with this barcode",
+          title: "Product not found",
+          description:
+            `Barcode "${query}" is not on an active product and no sold invoice line matches it.\n\n` +
+            "Load the original invoice if this is an old sticker barcode.",
           variant: "destructive",
         });
         setBarcodeInput("");
