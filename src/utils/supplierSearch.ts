@@ -180,3 +180,90 @@ export async function fetchSuppliersWithUnpaidBills(
     }))
     .sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
 }
+
+export type SupplierPaymentBillRow = {
+  id: string;
+  supplier_id: string | null;
+  supplier_name: string | null;
+  software_bill_no: string | null;
+  supplier_invoice_no: string | null;
+  bill_date: string | null;
+  net_amount: number | null;
+  paid_amount: number | null;
+  payment_status: string | null;
+  is_cancelled?: boolean | null;
+};
+
+const PAYMENT_BILL_COLUMNS =
+  "id, supplier_id, supplier_name, software_bill_no, supplier_invoice_no, bill_date, net_amount, paid_amount, payment_status, is_cancelled";
+
+async function fetchAllPurchaseBillPages(
+  build: (from: number, to: number) => Promise<{ data: SupplierPaymentBillRow[] | null; error: { message?: string } | null }>,
+): Promise<SupplierPaymentBillRow[]> {
+  const PAGE = 1000;
+  const all: SupplierPaymentBillRow[] = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await build(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return all;
+}
+
+/**
+ * Every non-cancelled purchase bill for a supplier payment picker.
+ * Pages past PostgREST's 1000-row cap and also picks up same-name / null-id
+ * bills so a dashboard "Not Paid" row is not dropped when supplier_id drifted.
+ */
+export async function fetchPurchaseBillsForSupplierPayment(
+  organizationId: string,
+  supplierId: string,
+  supplierName?: string | null,
+): Promise<SupplierPaymentBillRow[]> {
+  const byId = await fetchAllPurchaseBillPages(async (from, to) => {
+    const { data, error } = await supabase
+      .from("purchase_bills")
+      .select(PAYMENT_BILL_COLUMNS)
+      .eq("organization_id", organizationId)
+      .eq("supplier_id", supplierId)
+      .is("deleted_at", null)
+      .or("is_cancelled.is.null,is_cancelled.eq.false")
+      .order("bill_date", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    return { data: (data || null) as SupplierPaymentBillRow[] | null, error };
+  });
+
+  const trimmedName = (supplierName || "").trim();
+  let byName: SupplierPaymentBillRow[] = [];
+  if (trimmedName.length >= 2) {
+    byName = await fetchAllPurchaseBillPages(async (from, to) => {
+      const { data, error } = await supabase
+        .from("purchase_bills")
+        .select(PAYMENT_BILL_COLUMNS)
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .or("is_cancelled.is.null,is_cancelled.eq.false")
+        .ilike("supplier_name", trimmedName)
+        .order("bill_date", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+      return { data: (data || null) as SupplierPaymentBillRow[] | null, error };
+    });
+  }
+
+  const merged = new Map<string, SupplierPaymentBillRow>();
+  for (const row of [...byId, ...byName]) {
+    if (row?.id) merged.set(row.id, row);
+  }
+  return [...merged.values()].sort((a, b) => {
+    const da = a.bill_date ? new Date(a.bill_date).getTime() : 0;
+    const db = b.bill_date ? new Date(b.bill_date).getTime() : 0;
+    if (db !== da) return db - da;
+    return String(b.id).localeCompare(String(a.id));
+  });
+}

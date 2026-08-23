@@ -44,6 +44,7 @@ import {
   SUPPLIER_MIN_PENDING_RUPEE,
   allocateSupplierCreditToBills,
   getSupplierBillRawOutstanding,
+  isSupplierBillOpenOnDashboard,
   sumSupplierBillNetPayable,
   type SupplierBillOutstandingBreakdown,
 } from "@/utils/supplierBillOutstanding";
@@ -58,6 +59,7 @@ import {
 } from "@/utils/paymentSettlementBreakdown";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import {
+  fetchPurchaseBillsForSupplierPayment,
   fetchSuppliersByIds,
   fetchSuppliersWithUnpaidBills,
   searchSuppliers,
@@ -280,36 +282,44 @@ export function SupplierPaymentTab({
 
   const lifetimePayable = supplierSnapshot?.balance ?? 0;
 
+  const selectedSupplierName = supplierNameById.get(referenceId) || "";
+
   // Supplier bills
   const { data: supplierBillsData } = useQuery({
-    queryKey: ["supplier-bills", organizationId, referenceId],
+    queryKey: ["supplier-bills", organizationId, referenceId, selectedSupplierName],
     queryFn: async () => {
-      const { data, error } = await supabase.from("purchase_bills").select("*").eq("supplier_id", referenceId).is("deleted_at", null).order("bill_date", { ascending: false });
-      if (error) throw error;
-      const bills = data || [];
-      const billIds = bills.map((b: any) => b.id).filter(Boolean);
+      const bills = await fetchPurchaseBillsForSupplierPayment(
+        organizationId,
+        referenceId,
+        selectedSupplierName,
+      );
+      const billIds = bills.map((b) => b.id).filter(Boolean);
       const voucherPaidByBill = new Map<string, number>();
 
       if (billIds.length > 0) {
-        const { data: paymentRows, error: paymentError } = await supabase
-          .from("voucher_entries")
-          .select("reference_id, total_amount, discount_amount")
-          .eq("organization_id", organizationId)
-          .eq("reference_type", "supplier")
-          .eq("voucher_type", "payment")
-          .is("deleted_at", null)
-          .in("reference_id", billIds);
-        if (paymentError) throw paymentError;
+        const CHUNK = 200;
+        for (let i = 0; i < billIds.length; i += CHUNK) {
+          const slice = billIds.slice(i, i + CHUNK);
+          const { data: paymentRows, error: paymentError } = await supabase
+            .from("voucher_entries")
+            .select("reference_id, total_amount, discount_amount")
+            .eq("organization_id", organizationId)
+            .eq("reference_type", "supplier")
+            .eq("voucher_type", "payment")
+            .is("deleted_at", null)
+            .in("reference_id", slice);
+          if (paymentError) throw paymentError;
 
-        for (const row of paymentRows || []) {
-          if (!row?.reference_id) continue;
-          try {
-            voucherPaidByBill.set(
-              row.reference_id,
-              (voucherPaidByBill.get(row.reference_id) || 0) + voucherSettlementCredit(row),
-            );
-          } catch (rowErr) {
-            console.warn("SupplierPaymentTab: skip voucher payment row", rowErr);
+          for (const row of paymentRows || []) {
+            if (!row?.reference_id) continue;
+            try {
+              voucherPaidByBill.set(
+                row.reference_id,
+                (voucherPaidByBill.get(row.reference_id) || 0) + voucherSettlementCredit(row),
+              );
+            } catch (rowErr) {
+              console.warn("SupplierPaymentTab: skip voucher payment row", rowErr);
+            }
           }
         }
       }
@@ -341,7 +351,7 @@ export function SupplierPaymentTab({
       }
 
       return {
-        bills: bills.filter((bill: any) => getSupplierBillRawOutstanding(bill, voucherPaidByBill) > 0.009),
+        bills: bills.filter((bill) => isSupplierBillOpenOnDashboard(bill, voucherPaidByBill)),
         voucherPaidByBill,
       };
     },
@@ -404,18 +414,20 @@ export function SupplierPaymentTab({
 
   const payableBills = useMemo(
     () =>
-      (supplierBills ?? []).filter(
-        (bill) =>
-          (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.netPayable ?? 0) >= SUPPLIER_MIN_PENDING_RUPEE,
+      (supplierBills ?? []).filter((bill) =>
+        isSupplierBillOpenOnDashboard(bill, voucherPaidByBill),
       ),
-    [supplierBills, billOutstandingMap],
+    [supplierBills, voucherPaidByBill],
   );
 
   const getSelectedPayableTotal = () =>
     (supplierBills ?? [])
       .filter((bill) => selectedSupplierBillIds.includes(bill.id))
       .reduce(
-        (sum, bill) => sum + (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.netPayable ?? 0),
+        (sum, bill) =>
+          sum +
+          (safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id)?.rawOutstanding ??
+            getSupplierBillRawOutstanding(bill, voucherPaidByBill)),
         0,
       );
 
@@ -553,8 +565,8 @@ export function SupplierPaymentTab({
           const prevPaid = Number(currentPaid);
           const prevStatus = (bill.payment_status || "unpaid") as string;
           const netDue =
-            safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, billId)?.netPayable ??
-            Math.max(0, Number(bill.net_amount || 0) - Number(currentPaid));
+            safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, billId)?.rawOutstanding ??
+            getSupplierBillRawOutstanding(bill, voucherPaidByBill);
           const pool = remainingCash + remainingDiscount;
           if (pool <= 0 || netDue <= 0) continue;
           const amountToApply = Math.min(pool, netDue);
@@ -1079,7 +1091,14 @@ export function SupplierPaymentTab({
             {referenceId && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className={cn(compact ? "text-xs font-medium" : "text-sm font-semibold")}>Select Bills (Optional)</Label>
+                  <div>
+                    <Label className={cn(compact ? "text-xs font-medium" : "text-sm font-semibold")}>
+                      Select Bills (Optional)
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Same open bills as Purchase Dashboard (Not Paid / Partial), including older bills.
+                    </p>
+                  </div>
                   {selectedSupplierBillIds.length > 0 && (
                     <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedSupplierBillIds([]); setAmount(""); }}>
                       <X className="h-4 w-4 mr-1" /> Clear Selection
@@ -1117,7 +1136,7 @@ export function SupplierPaymentTab({
                           );
                           const breakdown = safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, bill.id);
                           const cnOffset = breakdown?.creditAllocated ?? 0;
-                          const netPayable = breakdown?.netPayable ?? 0;
+                          const netPayable = breakdown?.rawOutstanding ?? getSupplierBillRawOutstanding(bill, voucherPaidByBill);
                           const isSelected = selectedSupplierBillIds.includes(bill.id);
                           const billDate = bill.bill_date ? new Date(bill.bill_date) : null;
                           const billDateText = billDate && !Number.isNaN(billDate.getTime()) ? format(billDate, "dd/MM/yyyy") : "-";
@@ -1188,7 +1207,7 @@ export function SupplierPaymentTab({
                         </div>
                         {getSelectedCreditApplied() > 0 && (
                           <div className="text-emerald-700 dark:text-emerald-400">
-                            Less: Credit Notes / Returns: -₹{getSelectedCreditApplied().toFixed(2)}
+                            Unused supplier credit (not deducted from this payment): ₹{getSelectedCreditApplied().toFixed(2)}
                           </div>
                         )}
                         <div className="font-semibold text-foreground">
