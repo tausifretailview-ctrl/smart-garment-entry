@@ -16,6 +16,7 @@
 | CN double-apply | Shumama ₹61,900 ×2 | SRA + CN voucher both count |
 | Return pool stale | Sharmin −₹11,500 Cr | `credit_available_balance` null on adjusted returns |
 | Page disagreement | Ledger vs Party vs Outstanding tab | 3+ balance sources in UI |
+| Partial CN remainder | Farhaan Fab −₹2,800 vs −₹100 | v2 ignored `partially_adjusted` CAB; CN memo counted in receipts |
 
 ---
 
@@ -79,6 +80,22 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 - Remove `warnSettlementPathMismatch` once all paths migrated
 - Unify settlement tolerance (₹1 DB vs ₹0.99 UI)
 
+### Partial CN hardening (20260823160000–180000) ✅
+
+**SQL invariants for any future party-balance / reconcile rewrite:**
+
+1. Sale-return credit: `_sale_return_remaining_credit_for_balance(net, cab, linked_sra)` — never `credit_status = 'pending'` only.
+2. Receipt totals: exclude memos via `_is_settlement_memo_receipt(payment_method, description)` — not just `advance_adjustment`.
+3. Never count CN applied slice twice: `sale_return_adjust_on_invoices` + full gross SR + CN adjust receipt.
+
+**Verification gates added:**
+
+| Gate | Location | Pass |
+|------|----------|------|
+| Partial CN SQL | `scripts/customer-balance-partial-cn-parity.sql` | Zero drift on blocks 2–3 |
+| Farhaan sign-off | `scripts/verify-customer-party-balances-parity.sql` §0a | Farhaan Fab drift = 0 |
+| Offline CN memo | `verifyPartialCnMemoExclusion` + Farhaan fixture test | Balance −100 with CN voucher |
+
 ---
 
 ## P2 — Polish
@@ -97,6 +114,7 @@ Standardize display on `get_customer_financial_snapshot.outstanding_dr`:
 | Unit (money path) | `npm run test:money` | All money tests green |
 | SQL facet semantics | `scripts/verify-customer-balance-unified-gate.sql` gates D-0–D-4 | Zero drift rows after migration `20260822183000` |
 | SQL party parity | `scripts/verify-customer-party-balances-parity.sql` | Zero drift rows (Ella Noor + POS orgs) |
+| Partial CN parity | `scripts/customer-balance-partial-cn-parity.sql` | Zero drift on partially_adjusted subset |
 | Paid invariant | `scripts/verify-paid-settlement-invariant-ella-noor.sql` | No new paid drift |
 | UI QA | Customer Reconciliation | 0 rows > ₹1 drift |
 | UI QA | Customer Balance Activity | RPC vs legacy within ₹1 |

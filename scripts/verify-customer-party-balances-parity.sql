@@ -1,6 +1,7 @@
 -- Parity gate for get_customer_party_balances vs canonical reconcile_customer_balance.
 -- Run in Supabase SQL editor AFTER applying migrations through
--- 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql.
+-- 20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql (partial CN + CN memo)
+-- and 20260911150000_fix_party_balances_paid_at_sale_drift_parity.sql (POS paid-at-sale).
 --
 -- IMPORTANT: Select and run ONE block at a time (do not Run entire file).
 -- Heavy gates: run `SET statement_timeout = '120s';` first if you hit timeout.
@@ -33,8 +34,9 @@ FROM public.get_customer_party_balances('dafc3d0c-874e-4784-bac3-5eab5f3c85b5'::
 
 
 -- =============================================================================
--- 0a) Six-customer sign-off — drift must be 0
---     SHEHNAZ HALAI, Fariba Qureshi, Sana Nasir, Shumama Baireli, Samiya Nursumar, ALOK
+-- 0a) Seven-customer sign-off — drift must be 0
+--     SHEHNAZ HALAI, Fariba Qureshi, Sana Nasir, Shumama Baireli, Samiya Nursumar, ALOK,
+--     Farhaan Fab (partial CN ₹100 remainder — regression for 20260823160000/180000)
 -- =============================================================================
 WITH party AS (
   SELECT customer_id, customer_name, signed_balance, advance_available
@@ -45,6 +47,7 @@ WITH party AS (
      OR customer_name ILIKE '%shumama%baireli%'
      OR customer_name ILIKE '%samiya%nursumar%'
      OR customer_name ILIKE '%alok%kumar%tazim%'
+     OR customer_name ILIKE '%farhaan%fab%'
 )
 SELECT
   p.customer_name,

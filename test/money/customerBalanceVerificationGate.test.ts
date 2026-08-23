@@ -8,8 +8,10 @@ import {
   verifyCrossScreenHeadlineParity,
   verifyCustomerBalanceUnifiedGate,
   verifyLegacyPartyNetNotDoubleSubtracted,
+  verifyPartialCnMemoExclusion,
   verifySnapshotFacetIdentities,
 } from "@/utils/customerBalanceVerificationGate";
+import { computeCustomerBalanceCore } from "@/utils/customerBalanceCore";
 import { alignPartyRowWithSnapshot } from "@/utils/customerPartyBalanceSnapshot";
 
 const aafraSnap: CustomerFinancialSnapshot = {
@@ -146,5 +148,69 @@ describe("verifyCustomerBalanceUnifiedGate — end-to-end offline", () => {
       hookAdvance: 10_000,
     });
     expect(balanceGatePassed(v)).toBe(true);
+  });
+});
+
+describe("verifyPartialCnMemoExclusion — Farhaan Fab regression", () => {
+  const farhaanParams = {
+    openingBalance: 0,
+    sales: [
+      { id: "inv-a", net_amount: 11800, sale_return_adjust: 0, items_gross: 11800 },
+      { id: "inv-b", net_amount: 2800, sale_return_adjust: 0, items_gross: 2800 },
+      { id: "inv-c", net_amount: 2700, sale_return_adjust: 2700, items_gross: 2700 },
+    ],
+    voucherEntries: [
+      {
+        voucher_type: "receipt",
+        reference_type: "sale",
+        reference_id: "inv-a",
+        total_amount: 11800,
+        payment_method: "cash",
+      },
+      {
+        voucher_type: "receipt",
+        reference_type: "sale",
+        reference_id: "inv-b",
+        total_amount: 2800,
+        payment_method: "cash",
+      },
+      {
+        voucher_type: "receipt",
+        reference_type: "sale",
+        reference_id: "inv-c",
+        total_amount: 2700,
+        payment_method: "credit_note_adjustment",
+        description: "Credit note adjusted against invoice",
+      },
+    ],
+    customerAdvances: [],
+    advanceRefunds: [],
+    saleReturns: [
+      {
+        net_amount: 2800,
+        credit_status: "partially_adjusted",
+        credit_available_balance: 100,
+      },
+    ],
+  };
+
+  it("passes when CN memo is excluded from receipt totals", () => {
+    const aligned = computeCustomerBalanceCore({
+      ...farhaanParams,
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(aligned.balance).toBeCloseTo(-100, 0);
+    expect(balanceGatePassed(verifyPartialCnMemoExclusion(farhaanParams, aligned))).toBe(
+      true,
+    );
+  });
+
+  it("flags when aligned balance still counts CN memo (simulated SQL drift)", () => {
+    const buggyAligned = computeCustomerBalanceCore({
+      ...farhaanParams,
+      options: { ledgerAlignedApplicationReceipts: false },
+    });
+    const v = verifyPartialCnMemoExclusion(farhaanParams, buggyAligned);
+    expect(v.some((x) => x.gate === "partial_cn_memo_exclusion_delta")).toBe(true);
   });
 });

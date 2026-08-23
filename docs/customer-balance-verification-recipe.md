@@ -55,12 +55,29 @@ Any line that differs identifies the bucket to debug.
    include returns linked to cancelled/hold invoices. Fixed in migration
    `20260606185930`.
 
+5. **Partial CN remainder ignored** — `credit_status='partially_adjusted'` with
+   `credit_available_balance > 0` must count the **remainder** in pending sale-return
+   credit, not the full return net. Fixed in migrations `20260822150000` (helper
+   `_sale_return_remaining_credit_for_balance`) and `20260823160000` (party v2).
+
+6. **CN memo receipt double-count** — `credit_note_adjustment` receipt on an
+   invoice is already represented in `sale_return_adjust_on_invoices`. Counting
+   it again in `receipt_payments` inflates cash by the applied slice (Farhaan Fab:
+   -2800 instead of -100). Fixed in migration `20260823180000` via
+   `_is_settlement_memo_receipt` (matches JS `isReceiptMemoApplicationLedgerAligned`).
+   **Any future SQL rewrite of party balances or reconcile MUST call this helper**
+   for receipt totals — never hand-filter only `advance_adjustment`.
+
 ## 4. Parity audit (org-wide)
 
 Run `scripts/audit-balance-formula-parity.sql` to compare
 `get_customer_true_outstanding` against the TS `computeCustomerBalanceCore`
 output (via a logged debug snapshot) for every customer in an org. Drift
-> ₹1 indicates one of the four causes above.
+> ₹1 indicates one of the causes above.
+
+**Partial CN gate (post 20260823180000):** Run
+`scripts/customer-balance-partial-cn-parity.sql` on ELLA NOOR and any org with
+`partially_adjusted` sale returns. Blocks 2–3 must return zero drift rows.
 
 **Unified balance gate (Phase D):** After migration `20260822183000`, run
 `scripts/verify-customer-balance-unified-gate.sql` and locally
