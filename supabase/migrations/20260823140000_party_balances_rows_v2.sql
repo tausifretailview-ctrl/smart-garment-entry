@@ -179,26 +179,26 @@ AS $$
   pending_sale_returns AS (
     SELECT
       sr.customer_id,
-      COALESCE(SUM(
-        GREATEST(
-          0::numeric,
-          COALESCE(sr.net_amount, 0)
-            - COALESCE(
-              (
-                SELECT s.sale_return_adjust
-                FROM public.sales s
-                WHERE s.id = sr.linked_sale_id
-                  AND s.organization_id = p_organization_id
-                  AND s.deleted_at IS NULL
-              ),
-              0
-            )
-        )
-      ), 0)::numeric AS amt
-    FROM public.sale_returns sr
-    WHERE sr.organization_id = p_organization_id
-      AND sr.deleted_at IS NULL
-      AND lower(trim(COALESCE(sr.credit_status, ''))) = 'pending'
+      COALESCE(SUM(row_credit), 0)::numeric AS amt
+    FROM (
+      SELECT
+        sr.customer_id,
+        public._sale_return_remaining_credit_for_balance(
+          sr.net_amount,
+          sr.credit_available_balance,
+          COALESCE(ls.sale_return_adjust, 0)
+        ) AS row_credit
+      FROM public.sale_returns sr
+      LEFT JOIN public.sales ls
+        ON ls.id = sr.linked_sale_id
+       AND ls.organization_id = p_organization_id
+       AND ls.deleted_at IS NULL
+      WHERE sr.organization_id = p_organization_id
+        AND sr.deleted_at IS NULL
+        AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('refunded')
+        AND COALESCE(lower(sr.refund_type::text), '') <> 'cash_refund'
+    ) sr
+    WHERE sr.row_credit > 0.005
     GROUP BY sr.customer_id
   ),
   credit_note_vouchers AS (
