@@ -38,6 +38,10 @@ import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { cn } from "@/lib/utils";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
+import {
+  countSoldAndReturnedForSaleReturn,
+  lookupSoldVariantForSaleReturn,
+} from "@/utils/saleReturnBarcodeLookup";
 
 interface Customer {
   id: string;
@@ -419,22 +423,14 @@ export default function SaleReturnEntry() {
   };
 
   // Helper: fetch max returnable qty for a variant
-  const getMaxReturnable = async (variantId: string): Promise<number> => {
-    const { data: soldData } = await supabase
-      .from('sale_items')
-      .select('quantity')
-      .eq('variant_id', variantId)
-      .is('deleted_at', null);
-    const totalSold = (soldData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
-
-    const { data: returnedData } = await supabase
-      .from('sale_return_items')
-      .select('quantity')
-      .eq('variant_id', variantId)
-      .is('deleted_at', null);
-    const alreadyReturned = (returnedData || []).reduce((sum, r) => sum + (r.quantity || 0), 0);
-
-    return totalSold - alreadyReturned;
+  const getMaxReturnable = async (variantId: string, barcode?: string | null): Promise<number> => {
+    if (!currentOrganization?.id) return 0;
+    const { maxReturnable } = await countSoldAndReturnedForSaleReturn(
+      currentOrganization.id,
+      variantId,
+      (barcode || "").trim(),
+    );
+    return maxReturnable;
   };
 
   const addProduct = async (productId: string, variantId: string) => {
@@ -443,7 +439,7 @@ export default function SaleReturnEntry() {
 
     if (!product || !variant) return;
 
-    const maxReturnable = await getMaxReturnable(variantId);
+    const maxReturnable = await getMaxReturnable(variantId, variant.barcode);
     if (maxReturnable <= 0) {
       toast({ title: "Cannot Return", description: `${product.product_name} (${variant.size}) — all sold units already returned`, variant: "destructive" });
       setSearchOpen(false);
@@ -490,6 +486,24 @@ export default function SaleReturnEntry() {
       let variant = variants.find((v) => v.barcode === query);
       let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
 
+      if (!variant || !product) {
+        try {
+          const soldMatch = await lookupSoldVariantForSaleReturn(currentOrganization.id, query);
+          if (soldMatch) {
+            product = soldMatch.product;
+            variant = soldMatch.variant;
+            setProducts((prev) =>
+              prev.some((p) => p.id === soldMatch.product.id) ? prev : [...prev, soldMatch.product],
+            );
+            setVariants((prev) =>
+              prev.some((v) => v.id === soldMatch.variant.id) ? prev : [...prev, soldMatch.variant],
+            );
+          }
+        } catch (err) {
+          console.error("DB barcode lookup error:", err);
+        }
+      }
+
       if (!variant) {
         const matchedProduct = products.find((p) =>
           p.product_name.toLowerCase().includes(query.toLowerCase()),
@@ -501,64 +515,16 @@ export default function SaleReturnEntry() {
       }
 
       if (!variant || !product) {
-        try {
-          const { data: dbVariant } = await supabase
-            .from("product_variants")
-            .select("id, product_id, size, color, sale_price, stock_qty, barcode, products(id, product_name, brand, category, hsn_code, gst_per, status, deleted_at)")
-            .eq("organization_id", currentOrganization.id)
-            .eq("barcode", query)
-            .eq("active", true)
-            .is("deleted_at", null)
-            .maybeSingle();
-
-          if (
-            dbVariant &&
-            (dbVariant.products as any)?.status === "active" &&
-            !(dbVariant.products as any)?.deleted_at
-          ) {
-            const { count } = await supabase
-              .from("sale_items")
-              .select("id", { count: "exact", head: true })
-              .eq("variant_id", dbVariant.id)
-              .is("deleted_at", null);
-
-            if (count && count > 0) {
-              const p = dbVariant.products as any;
-              product = {
-                id: p.id,
-                product_name: p.product_name,
-                brand: p.brand,
-                category: p.category,
-                hsn_code: p.hsn_code,
-              };
-              variant = {
-                id: dbVariant.id,
-                product_id: dbVariant.product_id,
-                size: dbVariant.size,
-                color: dbVariant.color || null,
-                sale_price: dbVariant.sale_price || 0,
-                stock_qty: dbVariant.stock_qty,
-                barcode: dbVariant.barcode,
-                gst_per: p.gst_per || 0,
-              };
-            }
-          }
-        } catch (err) {
-          console.error("DB barcode lookup error:", err);
-        }
-      }
-
-      if (!variant || !product) {
         toast({
           title: "Not Found",
-          description: "No product found with this barcode or name",
+          description: "No sold product found with this barcode. Load the original invoice if the sticker is an old merge barcode.",
           variant: "destructive",
         });
         setBarcodeInput("");
         return;
       }
 
-      const maxReturnable = await getMaxReturnable(variant.id);
+      const maxReturnable = await getMaxReturnable(variant.id, query);
       const variantId = variant.id;
       const productSnap = product;
       const variantSnap = variant;
