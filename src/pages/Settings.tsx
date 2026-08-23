@@ -2782,6 +2782,33 @@ export default function Settings() {
                   />
                 </div>
 
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pos_quick_price_code" className="text-sm font-medium">
+                      POS quick price-code search (no-barcode shops)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Type a short code like "S200" in the POS scan box to add a product by its first
+                      letters + sale price, without a barcode — e.g. "S" for Shirt at ₹200. If the code
+                      matches more than one product, POS asks which one instead of guessing. Off by default;
+                      enable only for shops billing by name + price rather than barcode/size.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_quick_price_code"
+                    checked={(settings.sale_settings as any)?.pos_quick_price_code === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_quick_price_code: checked,
+                        } as any,
+                      })
+                    }
+                  />
+                </div>
+
                 {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
                   <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                     <div className="space-y-0.5">

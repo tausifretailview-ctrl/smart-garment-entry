@@ -46,8 +46,14 @@ export const isAdvanceApplicationReceiptLedgerAligned = (v: {
   if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
   const pm = String(v.payment_method || "").toLowerCase();
   if (pm === "advance_adjustment") return true;
-  const desc = (v.description || "").toLowerCase();
-  return desc.includes("adjusted from advance balance") || desc.includes("advance adjusted");
+  const desc = (v.description || "").toLowerCase().trim();
+  // Kept in sync with public._is_settlement_memo_receipt (SQL) — see
+  // supabase/migrations/20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql.
+  return (
+    desc.includes("adjusted from advance balance") ||
+    desc.includes("advance adjusted") ||
+    desc.startsWith("advance applied to ")
+  );
 };
 
 export const isCreditNoteApplicationReceiptLedgerAligned = (v: {
@@ -58,8 +64,16 @@ export const isCreditNoteApplicationReceiptLedgerAligned = (v: {
   if (String(v.voucher_type || "").toLowerCase() !== "receipt") return false;
   const pm = String(v.payment_method || "").toLowerCase();
   if (pm === "credit_note_adjustment") return true;
-  const desc = (v.description || "").toLowerCase();
-  return desc.includes("credit note adjusted") || desc.includes("cn adjusted");
+  const desc = (v.description || "").toLowerCase().trim();
+  // Kept in sync with public._is_settlement_memo_receipt (SQL) — see
+  // supabase/migrations/20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql.
+  return (
+    desc.includes("credit note adjusted") ||
+    desc.includes("cn adjusted") ||
+    desc.startsWith("credit note adjusted against invoice") ||
+    desc.startsWith("credit note from sale return") ||
+    /credit note .*(->|\u2192).*/.test(desc)
+  );
 };
 
 export const isReceiptMemoApplicationLedgerAligned = (v: {
