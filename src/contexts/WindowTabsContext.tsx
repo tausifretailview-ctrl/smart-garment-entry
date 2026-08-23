@@ -11,7 +11,7 @@ import {
   ShoppingCart, BarChart3, FileText, Users, Package, Settings, 
   Home, Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck,
   Building2, Layers, Tag, PieChart, Wallet, BookOpen, CalendarDays,
-  FileSpreadsheet, History, TrendingUp, Printer
+  FileSpreadsheet, History, TrendingUp, Printer, Store
 } from "lucide-react";
 
 interface WindowTab {
@@ -390,7 +390,7 @@ export const getTabIcon = (iconName: string) => {
     Home, ShoppingCart, BarChart3, FileText, Users, Package, Settings,
     Truck, Receipt, ArrowLeftRight, ClipboardList, UserCheck, Building2,
     Layers, Tag, PieChart, Wallet, BookOpen, CalendarDays, FileSpreadsheet,
-    History, TrendingUp, Printer
+    History, TrendingUp, Printer, Store
   };
   return icons[iconName] || FileText;
 };

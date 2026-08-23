@@ -7,6 +7,7 @@ import {
   Package,
   Receipt,
   Settings,
+  Store,
   ShoppingCart,
   TrendingUp,
   Users,
@@ -242,6 +243,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     icon: Settings,
     path: "/settings",
     permission: "settings_view",
+  },
+  {
+    id: "nav-website",
+    group: "Go to",
+    label: "Website",
+    subtitle: "Public store and enquiries",
+    icon: Store,
+    path: "/website",
+    permission: "website_settings",
+    keywords: ["store", "storefront", "catalogue", "enquiry"],
   },
 ];
 

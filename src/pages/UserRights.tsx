@@ -137,6 +137,7 @@ const menuStructure = [
     submenus: [
       { id: "profile_view", name: "Profile" },
       { id: "settings_view", name: "Settings" },
+      { id: "website_settings", name: "Website / Store" },
       { id: "organization_management", name: "Organization" },
       { id: "barcode_printing_settings", name: "Barcode Printing" },
       { id: "whatsapp_logs", name: "WhatsApp Logs" },
@@ -284,6 +285,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   payments_dashboard: true,
   payment_recording: true,
   settings_view: true,
+  website_settings: true,
   recycle_bin: true,
   user_rights: true,
   stock_adjustment: true,

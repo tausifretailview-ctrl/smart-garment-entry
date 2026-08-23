@@ -182,6 +182,8 @@ const PortalCatalogue = lazyWithRetry(() => import("./pages/portal/PortalCatalog
 const PortalOrders = lazyWithRetry(() => import("./pages/portal/PortalOrders"));
 const PortalInvoices = lazyWithRetry(() => import("./pages/portal/PortalInvoices"));
 const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount"));
+const PublicStorefront = lazyWithRetry(() => import("./pages/PublicStorefront"));
+const WebsiteSettings = lazyWithRetry(() => import("./pages/WebsiteSettings"));
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
@@ -521,6 +523,10 @@ const App = () => {
                 <Route path="portal/orders" element={<PortalOrders />} />
                 <Route path="portal/invoices" element={<PortalInvoices />} />
                 <Route path="portal/account" element={<PortalAccount />} />
+                {/* Public storefront — browse + enquiry, no login. Prefer a full
+                    navigation so main.tsx loads the lite storefront bundle. */}
+                <Route path="store" element={<PublicStorefront />} />
+                <Route path="store/p/:productId" element={<PublicStorefront />} />
                 {/* Org home: mobile → business dashboard, desktop → main dashboard */}
                 <Route
                   index
@@ -731,6 +737,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <Settings />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="website"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <WebsiteSettings />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>

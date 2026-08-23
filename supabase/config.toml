@@ -65,3 +65,6 @@ verify_jwt = false
 
 [functions.serve-wappconnect-pdf]
 verify_jwt = false
+
+[functions.submit-storefront-enquiry]
+verify_jwt = false

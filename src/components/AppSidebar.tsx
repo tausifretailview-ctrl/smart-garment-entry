@@ -49,6 +49,7 @@ import {
   LayoutList,
   Scale,
   Gift,
+  Store,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
@@ -185,7 +186,7 @@ export function AppSidebar() {
     "/ledger-opening-balances",
     "/payments-dashboard",
   ];
-  const settingsPaths = ["/profile", "/settings", "/organization-management", "/barcode-printing"];
+  const settingsPaths = ["/profile", "/settings", "/website", "/organization-management", "/barcode-printing"];
   const schoolPaths = ["/students", "/student-entry", "/teachers", "/fee-collection", "/fee-heads", "/fee-structures", "/academic-years", "/classes", "/student-reports", "/student-promotion", "/student-ledger"];
 
   const orgInitials = (currentOrganization?.name || "OR")
@@ -1248,6 +1249,16 @@ export function AppSidebar() {
                             <NavLink to="/settings" className="flex items-center gap-2 group">
                               <Settings className="h-4 w-4 sidebar-icon text-primary" />
                               <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Settings</span>
+                            </NavLink>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      )}
+                      {(isAdmin || isAdminPermissions || hasMenuAccess("website_settings") || hasMenuAccess("settings_view")) && (
+                        <SidebarMenuSubItem>
+                          <SidebarMenuSubButton asChild isActive={isActive("/website")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
+                            <NavLink to="/website" className="flex items-center gap-2 group">
+                              <Store className="h-4 w-4 sidebar-icon text-primary" />
+                              <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Website</span>
                             </NavLink>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

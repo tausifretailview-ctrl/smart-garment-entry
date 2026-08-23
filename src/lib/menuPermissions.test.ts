@@ -31,6 +31,20 @@ describe("menuPermissions", () => {
     ).toBe(false);
   });
 
+  it("maps website path to website_settings permission", () => {
+    expect(getMenuPermissionForPath("website")).toBe("website_settings");
+    expect(getMenuPermissionForPath("/website")).toBe("website_settings");
+  });
+
+  it("enables website_settings by default when the key was never saved", () => {
+    expect(
+      isMenuPermissionGranted({ menu: { settings_view: true }, mainMenu: { settings: true } }, "website_settings"),
+    ).toBe(true);
+    expect(
+      isMenuPermissionGranted({ menu: { website_settings: false }, mainMenu: { settings: true } }, "website_settings"),
+    ).toBe(false);
+  });
+
   it("maps mobile-dashboard path to main_dashboard permission", () => {
     expect(getMenuPermissionForPath("mobile-dashboard")).toBe("main_dashboard");
     expect(getMenuPermissionForPath("/mobile-dashboard")).toBe("main_dashboard");
