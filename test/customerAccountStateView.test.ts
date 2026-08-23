@@ -130,4 +130,33 @@ describe("getCustomerAccountState facets (no parallel maths)", () => {
     expect(state.outstanding).toBe(4600);
     expect(state.netPosition).toBe(3600);
   });
+
+  it("Farhaan Fab — partial CN ₹2,800 with ₹2,700 applied → net Cr ₹100", () => {
+    const state = getCustomerAccountState({
+      openingBalance: 0,
+      customerId: "farhaan",
+      sales: [
+        { id: "inv-a", net_amount: 11800, paid_amount: 11800, sale_return_adjust: 0, items_gross: 11800 },
+        { id: "inv-b", net_amount: 2800, paid_amount: 2800, sale_return_adjust: 0, items_gross: 2800 },
+        { id: "inv-c", net_amount: 2700, paid_amount: 0, sale_return_adjust: 2700, items_gross: 2700 },
+      ],
+      voucherEntries: [
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-a", total_amount: 11800, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1700, discount_amount: 0, payment_method: "cash" },
+        { voucher_type: "receipt", reference_type: "sale", reference_id: "inv-b", total_amount: 1100, discount_amount: 0, payment_method: "cash" },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 2800,
+          credit_status: "partially_adjusted",
+          credit_available_balance: 100,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(state.netPosition).toBeCloseTo(-100, 0);
+    expect(state.unclaimedSaleReturnCredit).toBeCloseTo(100, 0);
+  });
 });

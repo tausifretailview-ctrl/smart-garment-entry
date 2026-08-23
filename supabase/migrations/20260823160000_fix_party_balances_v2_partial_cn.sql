@@ -1,16 +1,10 @@
--- Performance rewrite: _get_customer_party_balances_rows_v2
+-- Fix _get_customer_party_balances_rows_v2 pending_sale_returns regression.
 --
--- Problem (measured 2026-08-23, idle instance):
---   2,301-customer org: 1,600 ms / 1,008,281 buffers (8 kB pages)
---   16,903-customer org: 5,426 ms / 2,378,056 buffers
--- Root cause: paid_at_sale_drift correlated subquery per sale, receipt_payments leg A
--- text-cast join disabling index use, items_gross scanning all sale_items history.
+-- v2 perf rewrite (20260823140000) accidentally:
+--   1) filtered credit_status = 'pending' only (excludes partially_adjusted remainders)
+--   2) ignored credit_available_balance (Farhaan Fab: ₹100 remainder ignored → ₹2,700 Cr drift)
 --
--- Fix: pre-aggregate voucher_entries once (sale_receipts CTE), join instead of rescan.
--- No arithmetic, filter, or column changes — output must match _get_customer_party_balances_rows.
---
--- DO NOT repoint get_customer_party_balances here. Apply swap migration only after parity gate
--- (scripts/party-balances-parity.sql) returns zero rows on all required orgs.
+-- Restore v1 semantics via _sale_return_remaining_credit_for_balance helper (20260822150000).
 
 CREATE OR REPLACE FUNCTION public._get_customer_party_balances_rows_v2(p_organization_id uuid)
 RETURNS TABLE (
@@ -49,9 +43,6 @@ AS $$
       AND s.customer_id IS NOT NULL
   ),
   items_gross AS (
-    -- Scoped to sales with sale_return_adjust > 0 only. Output-identical because
-    -- sale_return_adjust CASE requires both ig.gross > 0 AND s.sale_return_adjust > 0;
-    -- for sale_return_adjust = 0 the CASE falls to ELSE 0 regardless of ig.gross.
     SELECT
       si.sale_id,
       SUM(COALESCE(si.quantity, 0) * COALESCE(si.mrp, 0))::numeric AS gross
@@ -312,9 +303,8 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION public._get_customer_party_balances_rows_v2(uuid) IS
-  'Performance rewrite of _get_customer_party_balances_rows. Pre-aggregates sale receipts '
-  'once (sale_receipts CTE) instead of per-sale correlated subqueries. Parity-gated; '
-  'not live until swap migration applied.';
+  'Performance rewrite of party balances. pending_sale_returns uses remaining credit '
+  '(partially_adjusted/adjusted remainder) via _sale_return_remaining_credit_for_balance.';
 
 REVOKE EXECUTE ON FUNCTION public._get_customer_party_balances_rows_v2(uuid) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public._get_customer_party_balances_rows_v2(uuid) FROM anon;

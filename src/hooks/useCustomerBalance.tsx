@@ -6,7 +6,10 @@ import {
   type CustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
-import { computeCustomerBalanceCore } from "@/utils/customerBalanceCore";
+import {
+  getCustomerAccountState,
+  warnCustomerBalanceMismatch,
+} from "@/utils/customerBalanceCore";
 import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 
 interface CustomerBalanceResult {
@@ -43,8 +46,8 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
 };
 
 /**
- * Headline customer balance — single SQL snapshot RPC (`get_customer_financial_snapshot`).
- * Breakdown totals (sales, paid, etc.) come from the same audit bundle used for cross-check only.
+ * Headline customer balance — canonical JS from audit bundle (`getCustomerAccountState`).
+ * SQL snapshot is fetched for parity warnings only until RPCs match on all partial-CN rows.
  */
 export function useCustomerBalance(
   customerId: string | null,
@@ -85,7 +88,7 @@ export function useCustomerBalance(
         0,
       );
 
-      const core = computeCustomerBalanceCore({
+      const state = getCustomerAccountState({
         openingBalance: Number(bundle.customer.opening_balance || 0),
         customerId,
         sales: bundle.allSales,
@@ -97,27 +100,34 @@ export function useCustomerBalance(
         options: { ledgerAlignedApplicationReceipts: true },
       });
 
-      const totalCashPaid = Math.round(core.receiptCredits + core.paidAmountDrift);
+      warnCustomerBalanceMismatch(
+        "useCustomerBalance",
+        snap.netPosition,
+        state.netPosition,
+        { customerId, sqlCnAvailable: snap.cnAvailableTotal },
+      );
+
+      const totalCashPaid = Math.round(state.receiptCredits + state.paidAmountDrift);
       const totalPaid = Math.round(
-        totalCashPaid + core.creditNoteCredits + core.totalAdvanceUsed,
+        totalCashPaid + state.creditNoteCredits + state.totalAdvanceUsed,
       );
 
       return {
-        balance: snap.netPosition,
-        grossOutstanding: snap.grossOutstandingDr,
-        netPosition: snap.netPosition,
-        openingBalance: core.openingBalance,
-        totalSales: core.totalSalesNet,
+        balance: state.netPosition,
+        grossOutstanding: state.outstanding,
+        netPosition: state.netPosition,
+        openingBalance: state.openingBalance,
+        totalSales: state.totalSalesNet,
         totalPaid,
-        adjustmentTotal: core.adjustmentTotal,
-        unusedAdvanceTotal: snap.advanceAvailable,
-        saleReturnTotal: snap.cnAvailableTotal,
-        totalSalesGross: core.totalInvoicedGross,
-        totalSaleReturnAdjustOnSales: core.totalSaleReturnAdjustOnSales,
+        adjustmentTotal: state.adjustmentTotal,
+        unusedAdvanceTotal: state.unusedAdvancePool,
+        saleReturnTotal: state.unclaimedSaleReturnCredit,
+        totalSalesGross: state.totalInvoicedGross,
+        totalSaleReturnAdjustOnSales: state.totalSaleReturnAdjustOnInvoices,
         totalCashPaid,
-        totalAdvanceApplied: core.totalAdvanceUsed,
-        totalCnApplied: core.creditNoteCredits,
-        cnAvailableTotal: snap.cnAvailableTotal,
+        totalAdvanceApplied: state.totalAdvanceUsed,
+        totalCnApplied: state.creditNoteCredits,
+        cnAvailableTotal: state.unclaimedSaleReturnCredit,
         snapshot: snap,
       };
     },
