@@ -89,3 +89,94 @@ export async function fetchSuppliersByIds(
   }
   return out;
 }
+
+export type SupplierAliasMatch = SupplierPickerRow & {
+  /** The name stored on the purchase bill (snapshot) that matched the search term. */
+  billedAs: string;
+};
+
+/**
+ * Suppliers found by the name printed on their purchase bills (snapshot), not the master name.
+ * Handles spelling drift, e.g. bills saved as "SARSWATI SAREE DEPOT LTD." while the
+ * master is "SARASWATI SAREE DEPOT LTD.".
+ */
+export async function searchSuppliersByBillName(
+  organizationId: string,
+  term: string,
+  opts?: { limit?: number },
+): Promise<SupplierAliasMatch[]> {
+  const trimmed = term.trim();
+  if (trimmed.length < 2) return [];
+  const limit = Math.max(1, Math.min(opts?.limit ?? 20, 50));
+
+  const { data, error } = await supabase
+    .from("purchase_bills")
+    .select("supplier_id, supplier_name")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .ilike("supplier_name", `%${trimmed}%`)
+    .not("supplier_id", "is", null)
+    .limit(500);
+  if (error) throw error;
+
+  const billedById = new Map<string, string>();
+  for (const row of data || []) {
+    const id = row.supplier_id as string | null;
+    if (!id || billedById.has(id)) continue;
+    billedById.set(id, (row.supplier_name as string) || "");
+    if (billedById.size >= limit) break;
+  }
+  if (billedById.size === 0) return [];
+
+  const masters = await fetchSuppliersByIds(organizationId, [...billedById.keys()]);
+  return masters.map((m) => ({ ...m, billedAs: billedById.get(m.id) || "" }));
+}
+
+export type SupplierUnpaidTotal = SupplierPickerRow & { unpaidAmount: number; unpaidBills: number };
+
+/**
+ * Safety net for the payment picker: every supplier that still has bills where
+ * net_amount > paid_amount, computed straight from purchase_bills (independent of
+ * the balance snapshot).
+ */
+export async function fetchSuppliersWithUnpaidBills(
+  organizationId: string,
+): Promise<SupplierUnpaidTotal[]> {
+  const PAGE = 1000;
+  let offset = 0;
+  const agg = new Map<string, { due: number; count: number }>();
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("purchase_bills")
+      .select("supplier_id, net_amount, paid_amount")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .not("supplier_id", "is", null)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+
+    for (const row of data) {
+      const id = row.supplier_id as string | null;
+      if (!id) continue;
+      const due = (Number(row.net_amount) || 0) - (Number(row.paid_amount) || 0);
+      if (due <= 0.01) continue;
+      const prev = agg.get(id) || { due: 0, count: 0 };
+      agg.set(id, { due: prev.due + due, count: prev.count + 1 });
+    }
+
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  if (agg.size === 0) return [];
+  const masters = await fetchSuppliersByIds(organizationId, [...agg.keys()]);
+  return masters
+    .map((m) => ({
+      ...m,
+      unpaidAmount: agg.get(m.id)?.due ?? 0,
+      unpaidBills: agg.get(m.id)?.count ?? 0,
+    }))
+    .sort((a, b) => a.supplier_name.localeCompare(b.supplier_name));
+}
