@@ -38,6 +38,7 @@ import {
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
+import { lookupSoldVariantForSaleReturn } from "@/utils/saleReturnBarcodeLookup";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
@@ -686,6 +687,32 @@ export const FloatingSaleReturn = ({
       let variant = variants.find((v) => v.barcode === query);
       let product = variant ? products.find((p) => p.id === variant!.product_id) : null;
 
+      if (!variant || !product) {
+        try {
+          const soldMatch = await lookupSoldVariantForSaleReturn(organizationId, query);
+          if (soldMatch) {
+            product = {
+              id: soldMatch.product.id,
+              product_name: soldMatch.product.product_name,
+              brand: soldMatch.product.brand,
+              hsn_code: soldMatch.product.hsn_code,
+            };
+            variant = {
+              id: soldMatch.variant.id,
+              product_id: soldMatch.variant.product_id,
+              size: soldMatch.variant.size,
+              sale_price: soldMatch.variant.sale_price,
+              barcode: soldMatch.variant.barcode,
+              gst_per: soldMatch.variant.gst_per,
+            };
+            if (!products.find((pp) => pp.id === product.id)) setProducts((prev) => [...prev, product!]);
+            if (!variants.find((vv) => vv.id === variant.id)) setVariants((prev) => [...prev, variant!]);
+          }
+        } catch (err) {
+          console.error("DB barcode lookup error:", err);
+        }
+      }
+
       if (!variant) {
         const matchedProduct = products.find((p) =>
           p.product_name.toLowerCase().includes(query.toLowerCase()),
@@ -693,49 +720,6 @@ export const FloatingSaleReturn = ({
         if (matchedProduct) {
           product = matchedProduct;
           variant = variants.find((v) => v.product_id === matchedProduct.id);
-        }
-      }
-
-      if (!variant || !product) {
-        try {
-          const { data: dbVariant } = await supabase
-            .from("product_variants")
-            .select("id, product_id, size, sale_price, barcode, products(id, product_name, brand, hsn_code, gst_per, status, deleted_at)")
-            .eq("organization_id", organizationId)
-            .eq("barcode", query)
-            .eq("active", true)
-            .is("deleted_at", null)
-            .maybeSingle();
-
-          if (
-            dbVariant &&
-            (dbVariant.products as any)?.status === "active" &&
-            !(dbVariant.products as any)?.deleted_at
-          ) {
-            const { count } = await supabase
-              .from("sale_items")
-              .select("id", { count: "exact", head: true })
-              .eq("variant_id", dbVariant.id)
-              .is("deleted_at", null);
-
-            if (count && count > 0) {
-              const p = dbVariant.products as any;
-              product = { id: p.id, product_name: p.product_name, brand: p.brand, hsn_code: p.hsn_code };
-              variant = {
-                id: dbVariant.id,
-                product_id: dbVariant.product_id,
-                size: dbVariant.size,
-                sale_price: dbVariant.sale_price || 0,
-                barcode: dbVariant.barcode,
-                gst_per: p.gst_per || 0,
-              };
-
-              if (!products.find((pp) => pp.id === p.id)) setProducts((prev) => [...prev, product!]);
-              if (!variants.find((vv) => vv.id === dbVariant.id)) setVariants((prev) => [...prev, variant!]);
-            }
-          }
-        } catch (err) {
-          console.error("DB barcode lookup error:", err);
         }
       }
 
@@ -750,7 +734,9 @@ export const FloatingSaleReturn = ({
       }
 
       if (billSaleId && billItems.length > 0) {
-        const inBill = billItems.find((bi) => bi.variant_id === variant!.id);
+        const inBill = billItems.find(
+          (bi) => bi.variant_id === variant!.id || (bi.barcode && bi.barcode === query),
+        );
         if (!inBill) {
           toast({ title: "Warning", description: "This item was not found in the specified bill" });
         }
