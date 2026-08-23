@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
+  saleReturnCreditForReconciliation,
   sumReconciliationLinesToOutstanding,
   type LedgerReconciliationFacets,
 } from "@/utils/customerLedgerReconciliation";
@@ -199,5 +200,47 @@ describe("computeRefundableCreditBalance", () => {
         invoiceOutstanding: -2_000,
       }),
     ).toBe(2_000);
+  });
+});
+
+describe("saleReturnCreditForReconciliation", () => {
+  it("Farhaan Fab-shaped partial CN: recon counts remaining only (applied on invoice separately)", () => {
+    expect(
+      saleReturnCreditForReconciliation({ displayCredit: 2_800, credit: 100 }),
+    ).toBe(100);
+  });
+
+  it("full pending return uses gross display credit", () => {
+    expect(
+      saleReturnCreditForReconciliation({ displayCredit: 600, credit: 600 }),
+    ).toBe(600);
+  });
+});
+
+describe("Farhaan Fab partial CN outstanding", () => {
+  it("CN ₹2,800 with ₹2,700 applied → Outstanding Cr ₹100 (not ₹2,800)", () => {
+    const facets: LedgerReconciliationFacets = {
+      opening: 0,
+      grossInvoiced: 17_300,
+      invoiceCnApplied: 2_700,
+      saleReturns: saleReturnCreditForReconciliation({
+        displayCredit: 2_800,
+        credit: 100,
+      }),
+      paymentsCash: 14_600,
+      paymentsDiscount: 0,
+      advanceApplied: 0,
+      adjustments: 0,
+      cnRefunded: 0,
+    };
+    expect(facets.saleReturns).toBe(100);
+    expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(-100);
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 0,
+        invoiceOutstanding: -100,
+      }),
+    ).toBe(100);
   });
 });

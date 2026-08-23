@@ -79,6 +79,7 @@ import {
 import {
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
+  saleReturnCreditForReconciliation,
 } from "@/utils/customerLedgerReconciliation";
 import { saleReturnRunningBalanceCredit } from "@/utils/customerLedgerSaleReturnBalance";
 import {
@@ -2611,10 +2612,9 @@ export function CustomerLedger({
         grossInvoiced += t.grossBill ?? t.displayDebit ?? t.debit ?? 0;
         invoiceCnApplied += t.saleReturnAdjustApplied ?? 0;
       } else if (t.type === "return") {
-        // Same gross as Credit column / running Balance (displayCredit). Using
-        // t.credit alone (remaining after CN apply) left applied CN out of recon
-        // and disagreed with the column gap (Hanif: ₹150 Dr vs ₹3,050 Cr).
-        saleReturns += (t.displayCredit ?? t.credit) || 0;
+        // Gross displayCredit drives the Credit column / running balance; recon uses
+        // remaining credit when part of the return is already in invoiceCnApplied.
+        saleReturns += saleReturnCreditForReconciliation(t);
       } else if (t.type === "payment") {
         const discount = t.paymentBreakdown?.settlementDiscount || 0;
         const cash =
