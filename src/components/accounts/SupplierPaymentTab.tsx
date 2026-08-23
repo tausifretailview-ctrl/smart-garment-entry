@@ -57,7 +57,12 @@ import {
   voucherSettlementCredit,
 } from "@/utils/paymentSettlementBreakdown";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
-import { fetchSuppliersByIds, searchSuppliers } from "@/utils/supplierSearch";
+import {
+  fetchSuppliersByIds,
+  fetchSuppliersWithUnpaidBills,
+  searchSuppliers,
+  searchSuppliersByBillName,
+} from "@/utils/supplierSearch";
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
