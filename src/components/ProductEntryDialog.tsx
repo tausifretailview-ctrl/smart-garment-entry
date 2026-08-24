@@ -67,6 +67,14 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import {
+  clearProductEntryUnsavedDraft,
+  productEntryDraftIsMeaningful,
+  readProductEntryUnsavedDraft,
+  restoredProductVariantLockMatches,
+  writeProductEntryUnsavedDraft,
+  type ProductEntryUnsavedDraft,
+} from "@/utils/productEntryUnsavedDraft";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -496,6 +504,13 @@ export const ProductEntryDialog = ({
   const [customSizeInput, setCustomSizeInput] = useState("");
   const autoBarcodePending = useRef(false);
   const prevPurchaseQtyTotalRef = useRef(0);
+  const restoredVariantLockRef = useRef<{
+    sizeGroupId: string;
+    colorsKey: string;
+    customSizesKey: string;
+    mobileERPQty: number;
+  } | null>(null);
+  const skipUnsavedDraftPersistRef = useRef(false);
 
   // Purchase bill: after first qty entry, scroll variant details into view
   useEffect(() => {
@@ -659,13 +674,28 @@ export const ProductEntryDialog = ({
       ? { id: NO_SIZE_GROUP, group_name: "None", sizes: ["None"] }
       : sizeGroups.find((g) => g.id === id);
 
-  // Reset form when dialog opens - pre-fill from last saved product.
+  // Reset form when dialog opens — restore unsaved accidental-close draft, else last saved product.
   useEffect(() => {
     if (open) {
       if (currentOrganization?.id) {
         applySuggestionCache(loadProductSuggestionCache(currentOrganization.id));
       }
-      resetForm();
+      const skipRestore = Boolean((initialBarcode || "").trim());
+      skipUnsavedDraftPersistRef.current = false;
+      const draft =
+        !skipRestore && currentOrganization?.id
+          ? readProductEntryUnsavedDraft(currentOrganization.id)
+          : null;
+      if (draft) {
+        applyUnsavedProductDraft(draft);
+        toast({
+          title: "Restored unsaved product",
+          description: "The last Add Product details were kept after the window closed.",
+          duration: 4000,
+        });
+      } else {
+        resetForm();
+      }
       setCopySearch("");
       setCopyResults([]);
       setShowCopyDropdown(false);
@@ -673,7 +703,7 @@ export const ProductEntryDialog = ({
       // Auto-focus product name field
       setTimeout(() => productNameInputRef.current?.focus(), 150);
     }
-  }, [open, currentOrganization?.id, applySuggestionCache]);
+  }, [open, currentOrganization?.id, applySuggestionCache, initialBarcode]);
 
   // Gate network fetches on AuthContext.loading=false so they don't race a cold-start getSession.
   useEffect(() => {
@@ -698,8 +728,19 @@ export const ProductEntryDialog = ({
     });
   }, [open, garmentGstSettings, formData.default_sale_price, formData.purchase_gst_percent]);
 
+  const holdRestoredProductVariants = restoredProductVariantLockMatches(
+    restoredVariantLockRef.current,
+    {
+      sizeGroupId: formData.size_group_id,
+      colors: formData.colors,
+      customSizes,
+      mobileERPQty,
+    },
+  );
+
   // Mobile ERP mode: auto-generate variants without needing a size group
   useEffect(() => {
+    if (holdRestoredProductVariants) return;
     if (mobileERPMode?.locked_size_qty && hideOpeningQty && !formData.size_group_id) {
       const colorsToUse = formData.colors.length > 0 ? formData.colors : [""];
       const sharedBarcode = "";
@@ -742,6 +783,7 @@ export const ProductEntryDialog = ({
 
   // Accessories (requires_imei off): one UI row per unit for shared EAN scan; save collapses to 1 SKU.
   useEffect(() => {
+    if (holdRestoredProductVariants) return;
     if (!mobileERPMode?.locked_size_qty || !hideOpeningQty) return;
     if (formData.requires_imei !== false) return;
     const qty = Math.max(1, mobileERPQty);
@@ -899,6 +941,8 @@ export const ProductEntryDialog = ({
 
   // Sync selectedSizes and auto-generate variants when size_group_id or colors change
   useEffect(() => {
+    if (holdRestoredProductVariants) return;
+    if (restoredVariantLockRef.current) restoredVariantLockRef.current = null;
     // Skip auto-generation for roll-wise MTR mode — variants are created via Generate button
     if (rollWiseMtrEnabled && formData.uom === 'MTR') return;
     if (formData.size_group_id && (formData.size_group_id === NO_SIZE_GROUP || sizeGroups.length > 0)) {
@@ -1185,7 +1229,103 @@ export const ProductEntryDialog = ({
     setProductImage(null);
     setMobileERPQty(1);
     setImeiScanOpen(false);
+    restoredVariantLockRef.current = null;
   };
+
+  const applyUnsavedProductDraft = (draft: ProductEntryUnsavedDraft) => {
+    const f = draft.formData;
+    const colors = Array.isArray(f.colors) ? f.colors.map((c) => String(c ?? "")) : [];
+    setFormData({
+      product_type: f.product_type === "service" || f.product_type === "combo" ? f.product_type : "goods",
+      product_name: String(f.product_name || ""),
+      category: String(f.category || ""),
+      brand: String(f.brand || ""),
+      style: String(f.style || ""),
+      colors,
+      size_group_id: String(f.size_group_id || ""),
+      hsn_code: String(f.hsn_code || ""),
+      gst_per: normalizeGstPercent(f.gst_per, 18),
+      purchase_gst_percent: normalizeGstPercent(f.purchase_gst_percent ?? f.gst_per, 18),
+      sale_gst_percent: normalizeGstPercent(f.sale_gst_percent ?? f.gst_per, 18),
+      uom: String(f.uom || DEFAULT_UOM),
+      default_pur_price: f.default_pur_price as number | undefined,
+      default_sale_price: f.default_sale_price as number | undefined,
+      default_mrp: f.default_mrp as number | undefined,
+      default_pur_discount: undefined,
+      default_sale_discount: undefined,
+      status: String(f.status || "active"),
+      requires_imei: f.requires_imei === true,
+    });
+    setColorInput(draft.colorInput);
+    setMarkupPercent(draft.markupPercent);
+    setSelectedSizes(draft.selectedSizes);
+    setDisabledSizes(new Set(draft.disabledSizes));
+    setCustomSizes(draft.customSizes);
+    setCustomSizeInput(draft.customSizeInput);
+    setVariants(Array.isArray(draft.variants) ? (draft.variants as ProductVariant[]) : []);
+    setShowVariants(draft.showVariants || draft.variants.length > 0);
+    setMobileERPQty(draft.mobileERPQty);
+    setColorRollLengths(draft.colorRollLengths || {});
+    setRollWiseMtrEnabled(draft.rollWiseMtrEnabled);
+    setImeiScanOpen(false);
+    restoredVariantLockRef.current = {
+      sizeGroupId: String(f.size_group_id || ""),
+      colorsKey: JSON.stringify(colors),
+      customSizesKey: JSON.stringify(draft.customSizes),
+      mobileERPQty: draft.mobileERPQty,
+    };
+  };
+
+  const persistUnsavedProductDraft = () => {
+    if (skipUnsavedDraftPersistRef.current) return;
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    const draft: ProductEntryUnsavedDraft = {
+      v: 1,
+      savedAt: Date.now(),
+      formData: { ...formData },
+      colorInput,
+      markupPercent,
+      selectedSizes,
+      disabledSizes: [...disabledSizes],
+      customSizes,
+      customSizeInput,
+      variants,
+      showVariants,
+      mobileERPQty,
+      colorRollLengths,
+      rollWiseMtrEnabled,
+    };
+    if (productEntryDraftIsMeaningful(draft)) {
+      writeProductEntryUnsavedDraft(orgId, draft);
+    }
+  };
+
+  const handleDialogOpenChange = (next: boolean) => {
+    if (!next) persistUnsavedProductDraft();
+    onOpenChange(next);
+  };
+
+  useEffect(() => {
+    if (!open || !currentOrganization?.id) return;
+    const timer = window.setTimeout(() => persistUnsavedProductDraft(), 400);
+    return () => window.clearTimeout(timer);
+  }, [
+    open,
+    currentOrganization?.id,
+    formData,
+    colorInput,
+    markupPercent,
+    selectedSizes,
+    disabledSizes,
+    customSizes,
+    customSizeInput,
+    variants,
+    showVariants,
+    mobileERPQty,
+    colorRollLengths,
+    rollWiseMtrEnabled,
+  ]);
 
   // Save current product details to localStorage for next time
   const saveLastProductDetails = () => {
@@ -2106,6 +2246,10 @@ export const ProductEntryDialog = ({
 
       // Save last product details for quick entry next time
       saveLastProductDetails();
+      skipUnsavedDraftPersistRef.current = true;
+      if (currentOrganization?.id) {
+        clearProductEntryUnsavedDraft(currentOrganization.id);
+      }
       commitProductFormSuggestions(formData);
 
       // Call the callback with product data — include purchase_qty from variants
@@ -2261,7 +2405,7 @@ export const ProductEntryDialog = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent
           className={cn(
             "p-0 font-outfit !flex !flex-col gap-0 overflow-hidden",
@@ -4175,7 +4319,7 @@ export const ProductEntryDialog = ({
             )}
             <Button
               variant="ghost"
-              onClick={() => onOpenChange(false)}
+              onClick={() => handleDialogOpenChange(false)}
               disabled={loading}
               className={cn("font-outfit font-semibold", isPurchaseBillForm && "h-11 text-[15px] px-5")}
             >
