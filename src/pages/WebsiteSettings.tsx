@@ -690,7 +690,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     }
   };
 
-  const rows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
+
 
   return (
     <div className="space-y-3">
