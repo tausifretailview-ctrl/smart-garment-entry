@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowLeft,
   Check,
   Copy,
   ExternalLink,
@@ -9,6 +10,7 @@ import {
   Loader2,
   MessageCircle,
   Phone,
+  Search,
   Store,
   Trash2,
 } from "lucide-react";
@@ -20,9 +22,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_SUB_TAB_LIST,
+  INSIGHTS_SUB_TAB_TRIGGER,
+  INSIGHTS_TAB_SHELL,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { compressImageFile } from "@/lib/compressImage";
 import { STALE_FREQUENT, STALE_LIVE, STALE_REFERENCE, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import {
@@ -33,6 +48,7 @@ import {
 import { classifyStorefrontStock, formatStorefrontPrice, aggregateWebsiteVariantStock } from "@/lib/storefrontStock";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
+import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 
 type CatalogProduct = {
@@ -50,13 +66,31 @@ type VariantRow = {
   stock_qty: number;
 };
 
+type WebsiteTabId = "catalogue" | "add" | "profile" | "enquiries";
+
 const ENQUIRY_STATUSES: WebsiteEnquiryStatus[] = ["new", "contacted", "converted", "closed"];
+
+const WEBSITE_TAB_TRIGGER = cn(
+  "h-9 px-4 text-sm font-semibold rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm",
+  "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
+);
 
 export default function WebsiteSettingsPage() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const orgId = currentOrganization?.id;
   const orgSlug = currentOrganization?.slug || "";
   const queryClient = useQueryClient();
+  const [selectedTab, setSelectedTab] = useState<WebsiteTabId>("catalogue");
+  const [visitedTabs, setVisitedTabs] = useState<Set<WebsiteTabId>>(() => new Set(["catalogue"]));
+
+  const handleTabChange = useCallback((tab: string) => {
+    const id = tab as WebsiteTabId;
+    setSelectedTab(id);
+    setVisitedTabs((prev) => (prev.has(id) ? prev : new Set([...prev, id])));
+  }, []);
+
+  const shouldMountTab = useCallback((tab: WebsiteTabId) => visitedTabs.has(tab), [visitedTabs]);
 
   const settingsQuery = useQuery({
     queryKey: ["website_settings", orgId],
@@ -91,60 +125,99 @@ export default function WebsiteSettingsPage() {
   const listingsError = listingsQuery.error instanceof Error ? listingsQuery.error.message : "";
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b bg-background px-4 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-semibold">
-              <Store className="h-5 w-5 text-primary" />
-              Website
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Publish selected products to a public store page. Customers enquire — no cart in Phase 1.
-            </p>
+    <div className="website-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/settings")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Settings
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Store className="h-5 w-5 shrink-0" />
+                Website
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Catalogue · Add products · Store profile · Enquiries
+              </p>
+            </div>
           </div>
-          <ShareButtons storeUrl={storeUrl} shopName={currentOrganization?.name || "our shop"} whatsapp={settingsQuery.data?.whatsapp_number} />
+          <ShareButtons
+            storeUrl={storeUrl}
+            shopName={currentOrganization?.name || "our shop"}
+            whatsapp={settingsQuery.data?.whatsapp_number}
+          />
         </div>
-      </div>
 
-      <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
         {listingsError ? (
-          <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          <p className="shrink-0 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             Could not load the catalogue. {listingsError}
           </p>
         ) : null}
-        <Tabs defaultValue="catalogue">
-          <TabsList>
-            <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
-            <TabsTrigger value="add">Add products</TabsTrigger>
-            <TabsTrigger value="profile">Store profile</TabsTrigger>
-            <TabsTrigger value="enquiries">Enquiries</TabsTrigger>
+
+        <Tabs
+          value={selectedTab}
+          onValueChange={handleTabChange}
+          className="flex flex-col flex-1 min-h-0 gap-2"
+        >
+          <TabsList className="no-print flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+            <TabsTrigger value="catalogue" className={WEBSITE_TAB_TRIGGER}>
+              Catalogue
+            </TabsTrigger>
+            <TabsTrigger value="add" className={WEBSITE_TAB_TRIGGER}>
+              Add products
+            </TabsTrigger>
+            <TabsTrigger value="profile" className={WEBSITE_TAB_TRIGGER}>
+              Store profile
+            </TabsTrigger>
+            <TabsTrigger value="enquiries" className={WEBSITE_TAB_TRIGGER}>
+              Enquiries
+            </TabsTrigger>
           </TabsList>
-          <TabsContent value="catalogue" className="mt-4">
-            <PublishedCatalogue
-              orgId={orgId}
-              listings={listings}
-              loading={listingsQuery.isLoading}
-              onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
-            />
+
+          <TabsContent
+            value="catalogue"
+            className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden"
+          >
+            {shouldMountTab("catalogue") ? (
+              <PublishedCatalogue
+                orgId={orgId}
+                listings={listings}
+                loading={listingsQuery.isLoading}
+                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
+              />
+            ) : null}
           </TabsContent>
-          <TabsContent value="add" className="mt-4">
-            <AddProducts
-              orgId={orgId}
-              listings={listings}
-              onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
-            />
+
+          <TabsContent value="add" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("add") ? (
+              <AddProducts
+                orgId={orgId}
+                listings={listings}
+                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
+              />
+            ) : null}
           </TabsContent>
-          <TabsContent value="profile" className="mt-4">
-            <StoreProfile
-              orgId={orgId}
-              orgSlug={orgSlug}
-              settings={settingsQuery.data || null}
-              onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] })}
-            />
+
+          <TabsContent value="profile" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("profile") ? (
+              <StoreProfile
+                orgId={orgId}
+                orgSlug={orgSlug}
+                settings={settingsQuery.data || null}
+                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] })}
+              />
+            ) : null}
           </TabsContent>
-          <TabsContent value="enquiries" className="mt-4">
-            <EnquiryInbox orgId={orgId} />
+
+          <TabsContent value="enquiries" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("enquiries") ? <EnquiryInbox orgId={orgId} /> : null}
           </TabsContent>
         </Tabs>
       </div>
@@ -170,18 +243,18 @@ function ShareButtons({
     window.setTimeout(() => setCopied(false), 1500);
   };
   return (
-    <div className="flex flex-wrap gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={copy} disabled={!storeUrl}>
+    <div className="flex flex-wrap gap-2 shrink-0">
+      <Button type="button" variant="outline" size="sm" className="h-9 text-sm" onClick={copy} disabled={!storeUrl}>
         {copied ? <Check className="mr-1.5 h-4 w-4" /> : <Copy className="mr-1.5 h-4 w-4" />}
         Copy link
       </Button>
-      <Button type="button" variant="outline" size="sm" asChild disabled={!storeUrl}>
+      <Button type="button" variant="outline" size="sm" className="h-9 text-sm" asChild disabled={!storeUrl}>
         <a href={storeUrl} target="_blank" rel="noreferrer">
           <ExternalLink className="mr-1.5 h-4 w-4" />
           View store
         </a>
       </Button>
-      <Button type="button" size="sm" asChild disabled={!storeUrl}>
+      <Button type="button" size="sm" className="h-9 text-sm" asChild disabled={!storeUrl}>
         <a
           href={whatsappShareUrl(storefrontWhatsAppShareText(shopName, storeUrl), whatsapp)}
           target="_blank"
@@ -245,39 +318,75 @@ function StoreProfile({
   });
 
   return (
-    <div className="max-w-xl space-y-4">
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div>
-          <div className="font-medium">Publish store</div>
-          <p className="text-sm text-muted-foreground">
-            When on, anyone with the link can browse published products.
-          </p>
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsPanel title="Store profile" subtitle="Public store link, contact details, and theme">
+        <div className="max-w-xl space-y-4 p-4">
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+            <div>
+              <div className="text-sm font-bold text-slate-800">Publish store</div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When on, anyone with the link can browse published products.
+              </p>
+            </div>
+            <Switch checked={published} onCheckedChange={setPublished} />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              WhatsApp number
+            </Label>
+            <Input
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              placeholder="9198XXXXXXXX"
+              className="h-9 text-sm border-slate-200 bg-white"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Instagram URL
+            </Label>
+            <Input
+              value={instagram}
+              onChange={(e) => setInstagram(e.target.value)}
+              placeholder="https://instagram.com/..."
+              className="h-9 text-sm border-slate-200 bg-white"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Facebook URL
+            </Label>
+            <Input
+              value={facebook}
+              onChange={(e) => setFacebook(e.target.value)}
+              placeholder="https://facebook.com/..."
+              className="h-9 text-sm border-slate-200 bg-white"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Accent color
+            </Label>
+            <div className="flex items-center gap-3">
+              <Input
+                type="color"
+                value={accent}
+                onChange={(e) => setAccent(e.target.value)}
+                className="h-9 w-16 p-1 border-slate-200"
+              />
+              <Input
+                value={accent}
+                onChange={(e) => setAccent(e.target.value)}
+                className="h-9 font-mono text-sm border-slate-200 bg-white"
+              />
+            </div>
+          </div>
+          <Button type="button" className="h-9 text-sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Save profile
+          </Button>
         </div>
-        <Switch checked={published} onCheckedChange={setPublished} />
-      </div>
-      <div className="space-y-2">
-        <Label>WhatsApp number</Label>
-        <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="9198XXXXXXXX" />
-      </div>
-      <div className="space-y-2">
-        <Label>Instagram URL</Label>
-        <Input value={instagram} onChange={(e) => setInstagram(e.target.value)} placeholder="https://instagram.com/..." />
-      </div>
-      <div className="space-y-2">
-        <Label>Facebook URL</Label>
-        <Input value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://facebook.com/..." />
-      </div>
-      <div className="space-y-2">
-        <Label>Accent color</Label>
-        <div className="flex items-center gap-3">
-          <Input type="color" value={accent} onChange={(e) => setAccent(e.target.value)} className="h-10 w-16 p-1" />
-          <Input value={accent} onChange={(e) => setAccent(e.target.value)} className="font-mono" />
-        </div>
-      </div>
-      <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>
-        {save.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-        Save profile
-      </Button>
+      </InsightsPanel>
     </div>
   );
 }
@@ -342,34 +451,52 @@ function AddProducts({
   const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products to publish"
-          className="max-w-sm"
-        />
-        <Button type="button" onClick={() => publish.mutate()} disabled={selected.size === 0 || publish.isPending}>
-          Publish selected ({selected.size})
-        </Button>
-      </div>
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left">
-            <tr>
-              <th className="w-10 px-3 py-2" />
-              <th className="px-3 py-2">Product</th>
-              <th className="px-3 py-2">Brand</th>
-              <th className="px-3 py-2 text-right">Sale price</th>
-            </tr>
-          </thead>
-          <tbody>
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsPanel
+        title="Add products to store"
+        subtitle="Search ERP products and publish to the public catalogue"
+        className="flex-1 min-h-0"
+        toolbar={
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search products…"
+                className="h-9 w-56 pl-8 text-sm border-slate-200 bg-white"
+              />
+            </div>
+            <Button
+              type="button"
+              className="h-9 text-sm"
+              onClick={() => publish.mutate()}
+              disabled={selected.size === 0 || publish.isPending}
+            >
+              Publish selected ({selected.size})
+            </Button>
+          </div>
+        }
+        footer={
+          <span className="text-xs text-muted-foreground">
+            {rows.length} unpublished product{rows.length === 1 ? "" : "s"} shown
+          </span>
+        }
+      >
+        <Table className="w-full min-w-max">
+          <InsightsTableHeader>
+            <InsightsStaticTh label="" className="w-10" />
+            <InsightsStaticTh label="Product" />
+            <InsightsStaticTh label="Brand" />
+            <InsightsStaticTh label="Sale price" className="text-right" />
+          </InsightsTableHeader>
+          <TableBody>
             {rows.map((p) => (
-              <tr key={p.id} className="border-t">
-                <td className="px-3 py-2">
+              <TableRow key={p.id} className={INSIGHTS_BODY_ROW}>
+                <TableCell className={INSIGHTS_BODY_CELL}>
                   <input
                     type="checkbox"
+                    className="h-4 w-4"
                     checked={selected.has(p.id)}
                     onChange={(e) => {
                       const next = new Set(selected);
@@ -378,24 +505,26 @@ function AddProducts({
                       setSelected(next);
                     }}
                   />
-                </td>
-                <td className="px-3 py-2 font-medium">{p.product_name}</td>
-                <td className="px-3 py-2 text-muted-foreground">{p.brand || "—"}</td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">
+                </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900")}>
+                  {p.product_name}
+                </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.brand || "—"}</TableCell>
+                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
                   {formatStorefrontPrice(p.default_sale_price) || "—"}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {rows.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={4} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading ? "Loading…" : "No unpublished products match."}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ) : null}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </InsightsPanel>
     </div>
   );
 }
@@ -474,43 +603,86 @@ function PublishedCatalogue({
     }
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">Loading catalogue…</p>;
+  if (loading) {
+    return (
+      <div className={INSIGHTS_TAB_SHELL}>
+        <InsightsPanel title="Published catalogue" className="flex-1 min-h-0">
+          <p className="p-4 text-sm text-muted-foreground">Loading catalogue…</p>
+        </InsightsPanel>
+      </div>
+    );
+  }
+
   if (listings.length === 0) {
-    return <p className="text-sm text-muted-foreground">No products published yet. Use Add products.</p>;
+    return (
+      <div className={INSIGHTS_TAB_SHELL}>
+        <InsightsPanel title="Published catalogue" className="flex-1 min-h-0">
+          <p className="p-4 text-sm text-muted-foreground">
+            No products published yet. Use the Add products tab.
+          </p>
+        </InsightsPanel>
+      </div>
+    );
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={order} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-2">
-          {order.map((id) => {
-            const listing = listingById[id];
-            if (!listing) return null;
-            const product = lookupMap<CatalogProduct>(productsQuery.data, listing.product_id);
-            const stock = lookupMap<{ qty: number; price: number | null }>(
-              variantsQuery.data,
-              listing.product_id,
-            );
-            const publicStock = classifyStorefrontStock(stock?.qty ?? 0);
-            return (
-              <SortableListing
-                key={id}
-                listing={listing}
-                product={product}
-                stockLabel={publicStock.label}
-                salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
-                orgId={orgId!}
-                onChanged={onChanged}
-              />
-            );
-          })}
-        </ul>
-      </SortableContext>
-    </DndContext>
+    <div className={INSIGHTS_TAB_SHELL}>
+      <InsightsPanel
+        title="Published catalogue"
+        subtitle="Drag rows to reorder · edit display price · toggle visibility"
+        className="flex-1 min-h-0"
+        footer={
+          <span className="text-xs text-muted-foreground">
+            {listings.length} product{listings.length === 1 ? "" : "s"} on store
+          </span>
+        }
+      >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="" className="w-10" />
+                <InsightsStaticTh label="Photo" className="w-16" />
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Brand" />
+                <InsightsStaticTh label="Stock" />
+                <InsightsStaticTh label="Display price" className="text-right" />
+                <InsightsStaticTh label="Upload" className="w-24" />
+                <InsightsStaticTh label="Active" className="w-20" />
+                <InsightsStaticTh label="" className="w-12" />
+              </InsightsTableHeader>
+              <TableBody>
+                {order.map((id) => {
+                  const listing = listingById[id];
+                  if (!listing) return null;
+                  const product = lookupMap<CatalogProduct>(productsQuery.data, listing.product_id);
+                  const stock = lookupMap<{ qty: number; price: number | null }>(
+                    variantsQuery.data,
+                    listing.product_id,
+                  );
+                  const publicStock = classifyStorefrontStock(stock?.qty ?? 0);
+                  return (
+                    <SortableListingRow
+                      key={id}
+                      listing={listing}
+                      product={product}
+                      stockLabel={publicStock.label}
+                      salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
+                      orgId={orgId!}
+                      onChanged={onChanged}
+                    />
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </SortableContext>
+        </DndContext>
+      </InsightsPanel>
+    </div>
   );
 }
 
-function SortableListing({
+function SortableListingRow({
   listing,
   product,
   stockLabel,
@@ -590,33 +762,44 @@ function SortableListing({
     }
   };
 
+  const thumbUrl = listing.photo_urls?.[0] || product?.image_url || "";
+
   return (
-    <li ref={setNodeRef} style={style} className="flex flex-col gap-3 rounded-lg border bg-background p-3 sm:flex-row sm:items-center">
-      <button type="button" className="cursor-grab text-muted-foreground" {...attributes} {...listeners}>
-        <GripVertical className="h-4 w-4" />
-      </button>
-      <div className="h-14 w-14 overflow-hidden rounded-md bg-muted">
-        {(listing.photo_urls?.[0] || product?.image_url) ? (
-          <img src={listing.photo_urls?.[0] || product?.image_url || ""} alt="" className="h-full w-full object-cover" />
-        ) : null}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="font-medium">{product?.product_name || listing.product_id}</div>
-        <div className="text-xs text-muted-foreground">
-          {product?.brand || "—"} · public stock: {stockLabel}
+    <TableRow ref={setNodeRef} style={style} className={INSIGHTS_BODY_ROW}>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "w-10")}>
+        <button
+          type="button"
+          className="cursor-grab text-slate-400 hover:text-slate-600"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        <div className="h-11 w-11 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+          {thumbUrl ? <img src={thumbUrl} alt="" className="h-full w-full object-cover" /> : null}
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
+      </TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900 min-w-[10rem]")}>
+        {product?.product_name || listing.product_id}
+      </TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{product?.brand || "—"}</TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 whitespace-nowrap")}>{stockLabel}</TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL_NUM}>
         <Input
           value={price}
           onChange={(e) => setPrice(e.target.value)}
           onBlur={savePrice}
-          placeholder={salePrice != null ? String(salePrice) : "Sale price"}
-          className="h-9 w-28 font-mono"
+          placeholder={salePrice != null ? String(salePrice) : "Price"}
+          className="h-9 w-28 font-mono text-sm tabular-nums border-slate-200 bg-white ml-auto"
         />
-        <label className="inline-flex cursor-pointer items-center rounded-md border px-2 py-1 text-xs">
+      </TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium hover:bg-slate-50">
           <ImagePlus className="mr-1 h-3.5 w-3.5" />
-          Photo
+          Upload
           <input
             type="file"
             accept="image/*"
@@ -628,15 +811,16 @@ function SortableListing({
             }}
           />
         </label>
-        <div className="flex items-center gap-2 text-xs">
-          <span>On</span>
-          <Switch checked={listing.is_active} onCheckedChange={toggleActive} />
-        </div>
-        <Button type="button" variant="ghost" size="icon" onClick={remove}>
-          <Trash2 className="h-4 w-4" />
+      </TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        <Switch checked={listing.is_active} onCheckedChange={toggleActive} />
+      </TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={remove}>
+          <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
-      </div>
-    </li>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -690,85 +874,103 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     }
   };
 
-
+  const statusTabs = (["all", ...ENQUIRY_STATUSES] as const).map((s) => ({
+    id: s,
+    label: s === "all" ? "All" : s[0].toUpperCase() + s.slice(1),
+  }));
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {(["all", ...ENQUIRY_STATUSES] as const).map((s) => (
-          <Button
-            key={s}
-            type="button"
-            size="sm"
-            variant={statusFilter === s ? "default" : "outline"}
-            onClick={() => setStatusFilter(s)}
+    <div className={INSIGHTS_TAB_SHELL}>
+      <Tabs
+        value={statusFilter}
+        onValueChange={(v) => setStatusFilter(v as WebsiteEnquiryStatus | "all")}
+        className="flex flex-col flex-1 min-h-0 gap-2"
+      >
+        <TabsList className={INSIGHTS_SUB_TAB_LIST}>
+          {statusTabs.map(({ id, label }) => (
+            <TabsTrigger key={id} value={id} className={INSIGHTS_SUB_TAB_TRIGGER}>
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <TabsContent value={statusFilter} className="mt-0 flex flex-1 min-h-0 flex-col focus-visible:outline-none">
+          <InsightsPanel
+            title="Customer enquiries"
+            subtitle="Messages from the public store — no cart in Phase 1"
+            className="flex-1 min-h-0"
+            footer={
+              <span className="text-xs text-muted-foreground">
+                {rows.length} enquir{rows.length === 1 ? "y" : "ies"}
+                {statusFilter !== "all" ? ` · ${statusFilter}` : ""}
+              </span>
+            }
           >
-            {s === "all" ? "All" : s[0].toUpperCase() + s.slice(1)}
-          </Button>
-        ))}
-      </div>
-      <div className="overflow-hidden rounded-lg border">
-        <table className="w-full text-sm">
-          <thead className="bg-muted/50 text-left">
-            <tr>
-              <th className="px-3 py-2">Customer</th>
-              <th className="px-3 py-2">Product</th>
-              <th className="px-3 py-2">Message</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2">When</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-t align-top">
-                <td className="px-3 py-2">
-                  <div className="font-medium">{row.customer_name}</div>
-                  <div className="mt-1 flex gap-2">
-                    <a className="inline-flex items-center text-xs text-primary" href={`tel:${row.customer_phone}`}>
-                      <Phone className="mr-1 h-3 w-3" />
-                      {row.customer_phone}
-                    </a>
-                    <a
-                      className="inline-flex items-center text-xs text-emerald-700"
-                      href={whatsappShareUrl(`Hi ${row.customer_name}`, row.customer_phone)}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <MessageCircle className="mr-1 h-3 w-3" />
-                      WhatsApp
-                    </a>
-                  </div>
-                </td>
-                <td className="px-3 py-2">{(row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "—"}</td>
-                <td className="max-w-xs px-3 py-2 text-muted-foreground">{row.message || "—"}</td>
-                <td className="px-3 py-2">
-                  <select
-                    className="h-8 rounded-md border bg-background px-2 text-xs"
-                    value={row.status}
-                    onChange={(e) => setStatus(row.id, e.target.value as WebsiteEnquiryStatus)}
-                  >
-                    {ENQUIRY_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-3 py-2 text-xs text-muted-foreground">
-                  {new Date(row.created_at).toLocaleString()}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">
-                  {enquiriesQuery.isLoading ? "Loading…" : "No enquiries yet."}
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+            <Table className="w-full min-w-max">
+              <InsightsTableHeader>
+                <InsightsStaticTh label="Customer" />
+                <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Message" />
+                <InsightsStaticTh label="Status" />
+                <InsightsStaticTh label="When" />
+              </InsightsTableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id} className={cn(INSIGHTS_BODY_ROW, "align-top")}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
+                      <div className="font-semibold text-slate-900">{row.customer_name}</div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        <a className="inline-flex items-center text-xs text-primary" href={`tel:${row.customer_phone}`}>
+                          <Phone className="mr-1 h-3 w-3" />
+                          {row.customer_phone}
+                        </a>
+                        <a
+                          className="inline-flex items-center text-xs text-emerald-700"
+                          href={whatsappShareUrl(`Hi ${row.customer_name}`, row.customer_phone)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MessageCircle className="mr-1 h-3 w-3" />
+                          WhatsApp
+                        </a>
+                      </div>
+                    </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-700")}>
+                      {(row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "—"}
+                    </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "max-w-xs text-slate-600")}>
+                      {row.message || "—"}
+                    </TableCell>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
+                      <select
+                        className="h-9 rounded-md border border-slate-200 bg-white px-2 text-sm"
+                        value={row.status}
+                        onChange={(e) => setStatus(row.id, e.target.value as WebsiteEnquiryStatus)}
+                      >
+                        {ENQUIRY_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s[0].toUpperCase() + s.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground whitespace-nowrap")}>
+                      {new Date(row.created_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {rows.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={5} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                      {enquiriesQuery.isLoading ? "Loading…" : "No enquiries yet."}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          </InsightsPanel>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
