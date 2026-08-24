@@ -35,3 +35,20 @@ export function formatStorefrontPrice(amount: number | null | undefined): string
     maximumFractionDigits: 0,
   }).format(Number(amount));
 }
+
+export type WebsiteVariantStock = { qty: number; price: number | null };
+
+/** Sum stock (and first sale price) per product. Returns a plain object so TanStack persist cannot turn it into a broken Map. */
+export function aggregateWebsiteVariantStock(
+  rows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>,
+): Record<string, WebsiteVariantStock> {
+  const map: Record<string, WebsiteVariantStock> = {};
+  for (const row of rows) {
+    const prev = map[row.product_id] || { qty: 0, price: null };
+    prev.qty += Number(row.stock_qty || 0);
+    if (prev.price == null && row.sale_price != null) prev.price = Number(row.sale_price);
+    map[row.product_id] = prev;
+  }
+  return map;
+}
+

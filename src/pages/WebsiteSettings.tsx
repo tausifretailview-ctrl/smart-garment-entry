@@ -30,7 +30,8 @@ import {
   storefrontWhatsAppShareText,
   whatsappShareUrl,
 } from "@/lib/storefrontShare";
-import { classifyStorefrontStock, formatStorefrontPrice } from "@/lib/storefrontStock";
+import { classifyStorefrontStock, formatStorefrontPrice, aggregateWebsiteVariantStock } from "@/lib/storefrontStock";
+import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 
@@ -85,7 +86,9 @@ export default function WebsiteSettingsPage() {
     },
   });
 
+  const listings = coerceToArray<WebsiteProduct>(listingsQuery.data);
   const storeUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const listingsError = listingsQuery.error instanceof Error ? listingsQuery.error.message : "";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -105,6 +108,11 @@ export default function WebsiteSettingsPage() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-4 py-4 sm:px-6">
+        {listingsError ? (
+          <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            Could not load the catalogue. {listingsError}
+          </p>
+        ) : null}
         <Tabs defaultValue="catalogue">
           <TabsList>
             <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
@@ -115,7 +123,7 @@ export default function WebsiteSettingsPage() {
           <TabsContent value="catalogue" className="mt-4">
             <PublishedCatalogue
               orgId={orgId}
-              listings={listingsQuery.data || []}
+              listings={listings}
               loading={listingsQuery.isLoading}
               onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
             />
@@ -123,7 +131,7 @@ export default function WebsiteSettingsPage() {
           <TabsContent value="add" className="mt-4">
             <AddProducts
               orgId={orgId}
-              listings={listingsQuery.data || []}
+              listings={listings}
               onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
             />
           </TabsContent>
@@ -331,7 +339,7 @@ function AddProducts({
     onError: (err: Error) => toast.error(err.message || "Could not publish"),
   });
 
-  const rows = (productsQuery.data || []).filter((p) => !publishedIds.has(p.id));
+  const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
 
   return (
     <div className="space-y-3">
@@ -431,14 +439,7 @@ function PublishedCatalogue({
         .in("product_id", productIds)
         .is("deleted_at", null);
       if (error) throw error;
-      const map = new Map<string, { qty: number; price: number | null }>();
-      for (const row of (data || []) as VariantRow[]) {
-        const prev = map.get(row.product_id) || { qty: 0, price: null };
-        prev.qty += Number(row.stock_qty || 0);
-        if (prev.price == null && row.sale_price != null) prev.price = Number(row.sale_price);
-        map.set(row.product_id, prev);
-      }
-      return map;
+      return aggregateWebsiteVariantStock((data || []) as VariantRow[]);
     },
   });
 
@@ -485,8 +486,11 @@ function PublishedCatalogue({
           {order.map((id) => {
             const listing = listingById[id];
             if (!listing) return null;
-            const product = productsQuery.data?.[listing.product_id];
-            const stock = variantsQuery.data?.get(listing.product_id);
+            const product = lookupMap<CatalogProduct>(productsQuery.data, listing.product_id);
+            const stock = lookupMap<{ qty: number; price: number | null }>(
+              variantsQuery.data,
+              listing.product_id,
+            );
             const publicStock = classifyStorefrontStock(stock?.qty ?? 0);
             return (
               <SortableListing
@@ -657,7 +661,8 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     },
   });
 
-  const productIds = [...new Set((enquiriesQuery.data || []).map((e) => e.product_id).filter(Boolean))] as string[];
+  const rows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
+  const productIds = [...new Set(rows.map((e) => e.product_id).filter(Boolean))] as string[];
   const namesQuery = useQuery({
     queryKey: ["website_enquiry_products", orgId, productIds.join(",")],
     enabled: !!orgId && productIds.length > 0,
@@ -685,7 +690,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
     }
   };
 
-  const rows = enquiriesQuery.data || [];
+  const rows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
 
   return (
     <div className="space-y-3">
@@ -734,7 +739,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                     </a>
                   </div>
                 </td>
-                <td className="px-3 py-2">{(row.product_id && namesQuery.data?.[row.product_id]) || "—"}</td>
+                <td className="px-3 py-2">{(row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "—"}</td>
                 <td className="max-w-xs px-3 py-2 text-muted-foreground">{row.message || "—"}</td>
                 <td className="px-3 py-2">
                   <select
