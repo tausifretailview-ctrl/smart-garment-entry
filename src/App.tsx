@@ -118,6 +118,9 @@ const RecycleBin = lazyWithRetry(() => import("./pages/RecycleBin"));
 const ListSkeletonSpotCheck = import.meta.env.DEV
   ? lazyWithRetry(() => import("./pages/dev/ListSkeletonSpotCheck"))
   : null;
+const DialogA11ySpotCheck = import.meta.env.DEV
+  ? lazyWithRetry(() => import("./pages/dev/DialogA11ySpotCheck"))
+  : null;
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
@@ -458,6 +461,9 @@ const App = () => {
               <Route path="/pay" element={<PublicPaymentPage />} />
               {ListSkeletonSpotCheck ? (
                 <Route path="/__dev__/list-skeletons" element={<ListSkeletonSpotCheck />} />
+              ) : null}
+              {DialogA11ySpotCheck ? (
+                <Route path="/__dev__/dialog-a11y" element={<DialogA11ySpotCheck />} />
               ) : null}
 
               {/* MCP OAuth 2.1 consent screen (Supabase authorization server) */}
