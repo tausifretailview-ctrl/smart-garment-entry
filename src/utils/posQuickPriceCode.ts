@@ -29,30 +29,44 @@ export function posProductNameMatchesQuickLetters(
   return Boolean(name && prefix && name.startsWith(prefix));
 }
 
-/** Typed rupees match sale price or MRP (POS may bill from either column). */
+/** Typed rupees match current sale price or MRP only — not last-purchase history. */
 export function posVariantMatchesQuickPrice(
   variant: {
     sale_price?: unknown;
     mrp?: unknown;
-    last_purchase_sale_price?: unknown;
   },
   price: number,
 ): boolean {
   const want = posQuickPriceRupees(price);
   if (want <= 0) return false;
-  return (
-    posQuickPriceRupees(variant.sale_price) === want ||
-    posQuickPriceRupees(variant.mrp) === want ||
-    posQuickPriceRupees(variant.last_purchase_sale_price) === want
-  );
+  return posQuickPriceRupees(variant.sale_price) === want || posQuickPriceRupees(variant.mrp) === want;
 }
+
+/**
+ * Same half-open band as Math.round for positive rupees: [n - 0.5, n + 0.5).
+ * 299.50 → 300, 300.50 → 301. The old 0.49 lower bound dropped common *.50 costs.
+ */
+export function posQuickPriceRupeeWindow(price: number): { lo: number; hi: number } {
+  const want = posQuickPriceRupees(price);
+  return { lo: want - 0.5, hi: want + 0.5 };
+}
+
+/** Half-open rupee window so 300.00 / 299.50 match typed 300 without using last-purchase. */
+export function posQuickPricePostgrestOr(price: number): string {
+  const { lo, hi } = posQuickPriceRupeeWindow(price);
+  return `and(sale_price.gte.${lo},sale_price.lt.${hi}),and(mrp.gte.${lo},mrp.lt.${hi})`;
+}
+
+/** Name-prefix product cap. Must not be shared with per-SKU size/color rows. */
+export const POS_QUICK_PRICE_NAME_PRODUCT_LIMIT = 80;
+/** Variants at the SQL price window across those products. */
+export const POS_QUICK_PRICE_VARIANT_LIMIT = 1000;
 
 export function filterPosQuickPriceCodeRows<
   T extends {
     products?: { product_name?: string | null } | null;
     sale_price?: unknown;
     mrp?: unknown;
-    last_purchase_sale_price?: unknown;
   },
 >(rows: T[] | null | undefined, letters: string, price: number): T[] {
   return (rows || []).filter((row) => {
@@ -69,7 +83,12 @@ export async function fetchPosQuickPriceCodeMatches(
   price: number,
   variantSelect: string,
 ): Promise<Array<{ product: Record<string, unknown>; variant: Record<string, unknown> }>> {
+  const want = posQuickPriceRupees(price);
+  if (want <= 0) return [];
   const prefix = `${letters}%`;
+  const priceOr = posQuickPricePostgrestOr(want);
+
+  // Product ids first so one size-grid cannot fill a variant cap and hide Jacket.
   const { data: products, error: productError } = await supabase
     .from("products")
     .select("id")
@@ -77,7 +96,7 @@ export async function fetchPosQuickPriceCodeMatches(
     .eq("status", "active")
     .is("deleted_at", null)
     .ilike("product_name", prefix)
-    .limit(80);
+    .limit(POS_QUICK_PRICE_NAME_PRODUCT_LIMIT);
   if (productError) throw productError;
   if (!products?.length) return [];
 
@@ -91,8 +110,9 @@ export async function fetchPosQuickPriceCodeMatches(
     .is("products.deleted_at", null)
     .eq("products.organization_id", orgId)
     .eq("products.status", "active")
+    .or(priceOr)
     .order("stock_qty", { ascending: false })
-    .limit(200);
+    .limit(POS_QUICK_PRICE_VARIANT_LIMIT);
   if (variantError) throw variantError;
 
   const matched = filterPosQuickPriceCodeRows(
@@ -100,10 +120,9 @@ export async function fetchPosQuickPriceCodeMatches(
       products?: { product_name?: string | null } | null;
       sale_price?: unknown;
       mrp?: unknown;
-      last_purchase_sale_price?: unknown;
     }>,
     letters,
-    price,
+    want,
   );
 
   const out: Array<{ product: Record<string, unknown>; variant: Record<string, unknown> }> = [];

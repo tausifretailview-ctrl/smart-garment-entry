@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   filterPosQuickPriceCodeRows,
   parsePosQuickPriceCode,
+  POS_QUICK_PRICE_NAME_PRODUCT_LIMIT,
+  POS_QUICK_PRICE_VARIANT_LIMIT,
   posProductNameMatchesQuickLetters,
+  posQuickPricePostgrestOr,
   posQuickPriceRupees,
+  posQuickPriceRupeeWindow,
   posVariantMatchesQuickPrice,
 } from "./posQuickPriceCode";
 
@@ -46,6 +50,47 @@ describe("quick price row match", () => {
   it("matches MRP when sale_price is empty (POS billed from MRP)", () => {
     expect(posVariantMatchesQuickPrice({ sale_price: 0, mrp: 300 }, 300)).toBe(true);
     expect(posVariantMatchesQuickPrice({ sale_price: 199, mrp: 399 }, 300)).toBe(false);
+  });
+
+  it("does not match last-purchase sale price", () => {
+    expect(
+      posVariantMatchesQuickPrice(
+        { sale_price: 0, mrp: 0, last_purchase_sale_price: 300 } as {
+          sale_price: number;
+          mrp: number;
+          last_purchase_sale_price: number;
+        },
+        300,
+      ),
+    ).toBe(false);
+  });
+
+  it("builds a PostgREST or-filter on sale_price and mrp (not last purchase)", () => {
+    const filter = posQuickPricePostgrestOr(300);
+    expect(filter).toContain("sale_price.gte.");
+    expect(filter).toContain("mrp.gte.");
+    expect(filter).not.toContain("last_purchase");
+  });
+
+  it("includes half-rupee costs that Math.round maps to the typed price", () => {
+    expect(posQuickPriceRupees(299.5)).toBe(300);
+    expect(posQuickPriceRupees(300.5)).toBe(301);
+    expect(posVariantMatchesQuickPrice({ sale_price: 299.5, mrp: 0 }, 300)).toBe(true);
+    expect(posVariantMatchesQuickPrice({ sale_price: 300.5, mrp: 0 }, 300)).toBe(false);
+    const { lo, hi } = posQuickPriceRupeeWindow(300);
+    expect(lo).toBe(299.5);
+    expect(hi).toBe(300.5);
+    const filter = posQuickPricePostgrestOr(300);
+    expect(filter).toContain("sale_price.gte.299.5");
+    expect(filter).toContain("sale_price.lt.300.5");
+    expect(filter).not.toContain("gte.299.51");
+    expect(filter).not.toContain("gte.299.49");
+  });
+
+  it("does not let a size grid steal the variant cap from other name+price products", () => {
+    expect(POS_QUICK_PRICE_NAME_PRODUCT_LIMIT).toBe(80);
+    expect(POS_QUICK_PRICE_VARIANT_LIMIT).toBeGreaterThanOrEqual(1000);
+    expect(POS_QUICK_PRICE_VARIANT_LIMIT).toBeGreaterThan(POS_QUICK_PRICE_NAME_PRODUCT_LIMIT);
   });
 
   it("keeps badge/spec agreement: only name+price rows survive the filter", () => {
