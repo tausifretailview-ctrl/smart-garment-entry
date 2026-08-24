@@ -1,56 +1,79 @@
-# Hanif bhai (ELLA NOOR) — record the ₹3,050 April refund and close the credit note
+# ELLA NOOR — full customer balance audit (Dr / Cr) — read-only
 
-## What the data shows right now (verified read-only)
+## Goal
 
-- Customer: **Hanif bhai** (`00c34380-...`), phone 9867721264 — matches the UPI receipt "HANIF YUSUF MILLWALA".
-- Sale return **SR/26-27/11** (22-Apr-2026, ₹6,250) → credit note **CN/26-27/95**, status `partially_used`,
-  used ₹3,200, **remaining ₹3,050 still shown as available**.
-- Invoice **INV/26-27/287** (₹3,200) is settled by receipt **RCP/26-27/330** (credit-note adjustment,
-  restored on 20-Aug after the June false-positive repair). Invoice INV/25-26/1362 ₹10,550 is fully paid by RCP/25-26/1359.
-- **There is no refund transaction of ₹3,050 anywhere** — no payment voucher, no advance refund, no
-  credit-note redemption. The only other entry is a manual balance adjustment
-  `[hanif_balance_display_fix_20260822]` of **−₹3,200** on the customer.
+Independently prove whether the Dr/Cr figures on the Customer Balances page are the true
+position for every customer, and hand back a report listing exactly which accounts are correct
+and which are off, with the rupee amount and the reason for each mismatch.
 
-So this is not an application bug hiding a refund: the ₹3,050 the shop actually paid out by UPI on
-**23-Apr-2026 4:49 pm** was never entered in the software. The app is correctly showing the credit as
-still owed to the customer.
+## What we're auditing against (verified)
 
-## Second issue found alongside it
+The Customer Balances page reads `get_customer_party_balances` →
+`_get_customer_party_balances_rows_v2`. Reading that function's source, a customer's signed
+balance is built from seven components:
 
-The manual adjustment of **−₹3,200** (dated 22-Aug) was added while the CN receipt was already restored.
-With both present the customer's credit is being counted twice (₹3,050 CN remainder + ₹3,200 adjustment).
-This must be re-checked and removed as part of the same repair, otherwise the account will read
-₹6,250 Cr instead of ₹0.
+```text
+opening balance
++ total invoiced          (active, non-cancelled, non-hold sales)
+- sale return on invoice  (with a gate that ignores MRP-gross-absorbed returns)
+- receipt payments        (per-invoice + customer-level, advance adjustments excluded)
+- paid-at-sale drift      (cash/card/UPI recorded on the bill but no matching receipt)
+- pending credit-note / sale-return pool
+- unused advance pool
++ manual balance adjustments
+```
 
-## Repair (scoped to this customer + ELLA NOOR org)
+Current data volume in the org: **7,639 customers, 4,399 sales, 4,729 vouchers,
+217 sale returns, 101 credit notes, 1,600 advances, 139 manual balance adjustments.**
 
-1. Record the real refund: a **payment voucher of ₹3,050 dated 23-Apr-2026**, method UPI, narrated as
-   "Refund of credit note CN/26-27/95 remainder (UPI, HDFC)" — the same date/amount as the UPI receipt.
-2. Consume the credit note: `credit_notes.used_amount` → 6,250, `status` → `fully_used`;
-   `sale_returns.credit_available_balance` → 0, `credit_status` → `adjusted` on SR/26-27/11.
-3. Reverse the `[hanif_balance_display_fix_20260822]` −₹3,200 adjustment (soft-delete with a repair tag)
-   so the credit is not double-counted.
-4. Verify: customer party balance and ledger both read **₹0 / Settled**, invoice 287 stays Paid, and
-   no pending CN remains on the Sales dashboard.
+## The audit
 
-## Blast-radius check, same batch
+**Step 1 — independent recomputation.** Rebuild each of the seven components in a standalone
+read-only query (not by calling the same function the page calls), for all 7,639 customers, and
+compare component-by-component against what the page shows. Anything differing by more than ₹1
+is flagged.
 
-List every other ELLA NOOR customer that has (a) a `partially_used` / `partially_adjusted` credit note
-remainder **and** (b) a `[*_balance_display_fix_*]` or `[hanif_*]` style manual adjustment on the same
-customer. Those are the same double-count pattern and should be reviewed together. Report only —
-no bulk write without your confirmation.
+**Step 2 — classify every flagged account** into the known failure patterns:
 
-## Product change so this stops recurring
+| Pattern | Meaning |
+|---|---|
+| CN double-count | credit-note remainder counted in both the return pool and a receipt |
+| Manual-adjustment overlay | a `customer_balance_adjustments` row stacked on top of a fix that already landed (139 such rows exist and each one silently shifts a balance) |
+| Paid-amount drift | `sales.paid_amount` disagrees with the receipts actually on the invoice |
+| Advance over-application / over-refund | advance consumed or refunded beyond the pool |
+| Unrecorded cash/UPI refund | money paid out of the shop with no voucher (the Hanif bhai case) |
+| Orphan receipt | receipt pointing at a deleted or cancelled invoice |
+| Genuinely correct | page figure matches the recomputation |
 
-Add a **"Refund credit note balance"** action on the sale-return / credit-note screen that books the
-payout voucher and consumes the CN in one step. Today a cash/UPI refund against a credit note has no
-entry point, which is exactly why this ₹3,050 lived only on the shopkeeper's phone.
+**Step 3 — cross-checks that catch what per-customer math can't:**
+- Org totals: sum of Dr, sum of Cr, net receivable, unused advance pool — reconciled against
+  sales, receipts and returns totals independently.
+- Every one of the 139 manual adjustments listed with its tag, amount, date and whether the
+  underlying issue it was created for is still present.
+- Sale returns whose credit is visible in two places at once.
+- Invoices marked Paid with no receipt, and invoices marked Pending that are fully receipted.
+
+**Step 4 — the report.** Written to `docs/ella-noor-customer-balance-audit-2026-08.md` and
+summarised in chat:
+- Headline: how many of the 7,639 accounts are provably correct, how many are off, total rupees
+  of drift on each side.
+- Table of every mismatched customer: name, page balance, audited balance, difference,
+  pattern, and the specific document (invoice / return / voucher) causing it.
+- Top 25 Dr and top 25 Cr accounts individually verified line by line, since those carry the
+  money.
+- A prioritised repair queue (P0/P1/P2), each entry saying exactly what write would fix it.
+
+Nothing is changed in this pass — no vouchers, no adjustments, no balances. Repairs happen only
+after you review the report and approve them.
 
 ## Technical notes
 
-- Data repair via `run_sql` (data only, no schema change): voucher insert, `credit_notes` update,
-  `sale_returns` update, soft-delete of the `customer_balance_adjustments` row — all filtered by
-  `organization_id = 3fdca631-...` and this `customer_id`.
-- Every write carries the tag `[hanif_cn_refund_20260824]` in notes for audit traceability.
-- The new UI action reuses the existing voucher-number allocation (`generate_voucher_number`) and the
-  CN consumption helpers in `src/utils/saleReturnCnBalance.ts`.
+- All queries are `SELECT`-only via the read tool. `get_customer_party_balances`,
+  `reconcile_customer_balance` and `compute_sale_settlement` currently reject direct SQL
+  execution (EXECUTE was revoked from `PUBLIC` in the security hardening pass), so the audit
+  recomputes the formula inline rather than calling them — which is the stronger check anyway,
+  since it does not inherit the page's own bugs.
+- Customers are processed in batches to stay under the 1,000-row result cap; the report is
+  assembled from the batches.
+- Existing artefacts reused for continuity: `docs/customer-balance-verification-recipe.md`,
+  `docs/ella-noor-phase1-repair-queue.md`, and the `scripts/ella-noor-*` audit SQL.
