@@ -6,11 +6,11 @@
 /** Minimum digits for standard retail EAN-style barcodes at POS. */
 export const POS_NUMERIC_BARCODE_MIN_LENGTH = 8;
 
-/** Service products commonly use 3–7 digit POS codes (501, 502, 8001). */
-export const POS_SERVICE_NUMERIC_BARCODE_MIN_LENGTH = 3;
+/** Service products commonly use 2–7 digit POS codes (10, 18, 501, 8001). */
+export const POS_SERVICE_NUMERIC_BARCODE_MIN_LENGTH = 2;
 export const POS_SERVICE_NUMERIC_BARCODE_MAX_LENGTH = 7;
 
-/** True for 3–7 digit service-style numeric codes (not 1–2 digit partial prefixes). */
+/** True for 2–7 digit service-style numeric codes (not leading-zero EAN prefixes). */
 export function isPosServiceShortNumericBarcode(term: string): boolean {
   const t = term.trim();
   if (!/^\d+$/.test(t)) return false;
@@ -48,7 +48,10 @@ export function stockReportOldBarcodeKeyMatches(search: string, barcodeKey: stri
 export function shouldPosEnterUseExactBarcodeLookup(term: string): boolean {
   const t = term.trim();
   if (!/^\d+$/.test(t)) return false;
+  // Single-digit 1–9: quick-service dialog / dropdown, not exact-only.
   if (/^[1-9]$/.test(t)) return false;
+  // 2–7 digit service codes (10, 18, 501) and 8+ EANs: exact barcode, never first ILIKE hit.
+  if (isCompleteNumericBarcodeForPosCart(t)) return true;
   return t.length >= 4;
 }
 
