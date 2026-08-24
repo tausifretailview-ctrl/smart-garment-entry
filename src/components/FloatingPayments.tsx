@@ -22,7 +22,6 @@ import {
   recordExpenseVoucherJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { insertLedgerCredit } from "@/lib/customerLedger";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
@@ -506,17 +505,6 @@ function CustomerPaymentForm({
                 supabase
               );
             }
-            if (referenceId) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: vNum,
-                particulars: `Receipt for ${p.invoice.sale_number}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: p.amountApplied,
-              });
-            }
           }
         } else {
           const customerName = customersWithBalance?.find(c => c.id === referenceId)?.customer_name || 'Customer';
@@ -551,17 +539,6 @@ function CustomerPaymentForm({
               desc,
               supabase
             );
-          }
-          if (referenceId) {
-            insertLedgerCredit({
-              organizationId,
-              customerId: referenceId,
-              voucherType: 'RECEIPT',
-              voucherNo: voucherNumber,
-              particulars: isOpeningBalancePayment ? 'Opening Balance Receipt' : 'Receipt',
-              transactionDate: format(voucherDate, "yyyy-MM-dd"),
-              amount: paymentAmount,
-            });
           }
         }
 
