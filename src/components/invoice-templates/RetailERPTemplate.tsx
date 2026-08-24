@@ -203,16 +203,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
   /** A5 Retail ERP: fixed 10 SN lines; Terms + QR stay pinned in the page footer. */
   const A5_RETAIL_SN_ROWS = 10;
+  /** Real Tast A4: enough empty SN lines so the bordered sheet fills 297mm (old print). */
+  const REAL_TAST_SN_ROWS = 16;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
   const TARGET_ROWS = isRealTast
-    ? Math.max(items.length, 1)
+    ? Math.max(items.length, REAL_TAST_SN_ROWS)
     : isPreprintedAny
       ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
       : isA4
         ? Math.max(14, minItemRows)
         : A5_RETAIL_SN_ROWS;
   const MIN_BLANK_ROWS = isRealTast
-    ? 0
+    ? REAL_TAST_SN_ROWS
     : isPreprintedAny
       ? PREPRINTED_DEFAULT_ROWS
       : isA5Retail
@@ -235,7 +237,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     const chunk: (InvoiceItem | null)[] = items.slice(i, i + MAX_ITEMS_PER_PAGE);
     itemPages.push(chunk);
   }
-  if (itemPages.length > 0 && !isRealTast) {
+  if (itemPages.length > 0) {
     const lastPage = itemPages[itemPages.length - 1];
     const minRows = Math.max(TARGET_ROWS, lastPage.length, MIN_BLANK_ROWS);
     while (lastPage.length < minRows) {
@@ -707,7 +709,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             }
             style={{
               width: pageW,
-              ...(isPreprintedAny || isA5Retail
+              ...(isPreprintedAny || isA5Retail || isRealTast
                 ? { minHeight: pageH, height: pageH, maxHeight: pageH, overflow: "hidden" }
                 : {}),
               // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
@@ -722,7 +724,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               display: "flex",
               flexDirection: "column",
               position: "relative",
-              overflow: isPreprintedAny || isA5Retail ? "hidden" : "visible",
+              overflow: isPreprintedAny || isA5Retail || isRealTast ? "hidden" : "visible",
             }}
           >
             <div
@@ -731,11 +733,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 border: B2,
                 outline: isA5Retail ? B2 : undefined,
                 outlineOffset: isA5Retail ? "-2px" : undefined,
-                flex: isRealTast ? "0 0 auto" : 1,
-                minHeight: isRealTast ? undefined : 0,
+                flex: 1,
+                minHeight: 0,
                 display: "flex",
                 flexDirection: "column",
-                overflow: isPreprintedAny || isA5Retail ? "hidden" : "visible",
+                overflow: isPreprintedAny || isA5Retail || isRealTast ? "hidden" : "visible",
                 justifyContent: "flex-start",
                 boxSizing: "border-box",
               }}
@@ -858,17 +860,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 </div>
               </div>
 
-              {/* ===== ITEMS TABLE — grow on A5/preprinted so Terms + QR stay at page bottom ===== */}
+              {/* ===== ITEMS TABLE — grow on A4 Real Tast / A5 / preprinted so footer stays at page bottom ===== */}
               <div
-                className={isPreprintedAny || isA5Retail ? "retail-erp-items-grow" : undefined}
+                className={isPreprintedAny || isA5Retail || isRealTast ? "retail-erp-items-grow" : undefined}
                 style={
-                  isPreprintedAny || isA5Retail
+                  isPreprintedAny || isA5Retail || isRealTast
                     ? {
                         flex: 1,
                         minHeight: 0,
                         display: "flex",
                         flexDirection: "column",
-                        // Clip stretched grid so blank SN rows never paint over Note/totals.
                         overflow: "hidden",
                       }
                     : undefined
@@ -1214,7 +1215,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   borderTop: B2,
                   fontSize: fsBody,
                   flexShrink: 0,
-                  marginTop: isRealTast ? 0 : "auto",
+                  marginTop: "auto",
                   display: "flex",
                   flexDirection: "column",
                   minHeight: 0,
@@ -1712,28 +1713,27 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             width: 100% !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            overflow: visible !important;
+            height: ${pageH} !important;
+            min-height: ${pageH} !important;
+            max-height: ${pageH} !important;
+            overflow: hidden !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] > .retail-erp-page-border {
-            flex: 0 0 auto !important;
+            flex: 1 1 auto !important;
             min-height: 0 !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-items-grow {
-            flex: 0 0 auto !important;
-            overflow: visible !important;
-            height: auto !important;
+            flex: 1 1 auto !important;
+            overflow: hidden !important;
+            min-height: 0 !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-footer {
-            margin-top: 0 !important;
+            margin-top: auto !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="real-tast"] table {
             table-layout: fixed !important;
             width: 100% !important;
-            height: auto !important;
-            flex: 0 0 auto !important;
+            height: 100% !important;
           }
           .retail-erp-invoice-template td,
           .retail-erp-invoice-template th,
