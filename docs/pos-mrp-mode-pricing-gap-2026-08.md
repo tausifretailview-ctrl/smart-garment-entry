@@ -1,7 +1,7 @@
 # Phase 0 — POS MRP Price Mode bills full MRP, Rate override on nearly every line
 
 **Date:** 2026-08-24  
-**Status:** Phase 0 complete. Measurement + design only. **No formula change. No code change. No live database writes.**  
+**Status:** Phase 0 complete (addendum 2026-08-24 evening). Measurement + design only. **No formula change. No runtime change. No live database writes.**  
 **Org in the report:** KS FOOTWEAR (`ks-footwear`, `organization_id` `4bc73037-e877-4123-9261-eb6e3876698c`).  
 **Screenshot bill:** `POS/26-27/2898` — footer **MRP Price Mode Active**; two cart lines with **Rate override**; Disc% / Disc Rs = 0; Unit Price = 70% of MRP (599 → 419.30, 374.50 → 262.15); footer **↓ 30.0% off**.
 
@@ -10,23 +10,31 @@ Related (do not duplicate):
 - `docs/mrp-flag-audit-2026-07.md` — unshipped Phase 2 is a **display gate** when `enable_mrp` is **false**. This report is the opposite: MRP mode **on**.
 - `docs/pos-unit-price-override-2026-07.md` — shipped `rateAuthority` / typed Unit Price. Badge predicate in live UI is **not** that flag.
 - `docs/ks-footwear-pos-barcode-mrp-investigation.md` — earlier ops advice was “turn MRP mode off to bill sale price.” KS still shows the footer, so either the SQL was never applied or the setting was turned back on.
+- **PR #370 / `a74270890` (same day, 2026-08-24 13:01 UTC)** — “Skip Select Price on KS Footwear and bill at last purchase.” Merged to `main` as *KS Footwear: auto-use last purchase price on sale*. This is the **named ship** of mechanism 2 below; the first draft of this doc described the live code and missed the commit.
 - `docs/POS_ENGINE.md` quirk 4 — brand-discount toast can fire under MRP basis even though Disc% is forced to 0.
 
 SELECT-only measurement: `scripts/pos-mrp-mode-pricing-gap-measure-2026-08.sql`.
+
+Session evidence (repo copies of the Phase 0 probe, not session-local artifacts):
+
+- `docs/pos-mrp-mode-pricing-gap-2026-08/characterisation-2026-08-24.txt`
+- `docs/pos-mrp-mode-pricing-gap-2026-08/anon-rls-probe-2026-08-24.txt`
 
 ---
 
 ## Verdict
 
-Two independent mechanisms produce the screenshot. They look the same on the till. Staff confirmation (Q1) is required to say which one KS is actually doing. This environment cannot ask them.
+Two independent mechanisms produce the screenshot. They look the same on the till. Staff confirmation (Q1) is still useful, but **mechanism 2 is not a hypothetical** — it shipped on KS the same morning as this investigation.
 
 1. **Settings contract vs add-line default.** Settings copy and `resolveAddLinePrices()` agree: when `grossBasis === 'mrp'` and there is **no** `overridePrice`, a new line is billed at **catalogue MRP** with **Disc% forced to 0**. Master `sale_price` and brand / product sale-discount percents are computed, then discarded. Cashiers who want the tagged sale price must type it into Unit Price (if that setting is on) or leave the customer paying full MRP.
 
-2. **KS-specific last-purchase auto-apply silently disables (1).** Desktop POS (`POSSales.tsx`) calls `pickLastPurchaseScanPrice` **before** add, and `resolveSaleScanPriceSource` **defaults KS Footwear to `last_purchase`**. `resolveAddLinePrices` treats any `overridePrice` as “not MRP-as-price”: `unitCost = last_purchase_sale_price`, Disc% is **not** forced to 0, brand/product percents apply. The footer still says **MRP Price Mode Active**. Mobile POS does **not** run this path, so the same SKU can bill full MRP on phone and discounted last-purchase on desktop.
+2. **KS last-purchase auto-apply silently disables (1).** This is `a74270890` / PR #370, not a latent side effect we inferred. Desktop POS (`POSSales.tsx`) calls `pickLastPurchaseScanPrice` **before** add. `resolveSaleScanPriceSource` **defaults KS Footwear to `last_purchase`** (other orgs opt in via `sale_settings.auto_use_last_purchase_price`). `resolveAddLinePrices` treats any `overridePrice` as “not MRP-as-price”: `unitCost = last_purchase_sale_price`, Disc% is **not** forced to 0, brand/product percents apply. The footer still says **MRP Price Mode Active** because that chip reads org settings only. Mobile POS does **not** run this path, so the same SKU can bill full MRP on phone and discounted last-purchase on desktop.
 
-3. **The Rate override badge is not `rateAuthority`.** Live predicate is `enableMrp && mrp > unitCost + 0.001` (`POSSales.tsx` cart grid; same on `TabletPOSLayout.tsx`). `rateAuthority: "unit"` is set only when a human commits the Unit Price cell (`updatePrice` in `cartMutators.ts`, via `applyUnitPriceToCart` / `requestUnitPriceCommit`). Add-line never sets it. It is **not persisted** (`sale_items` has no `rateAuthority` / `price_overridden`; the July migration was never applied). So a last-purchase or sale-price gap lights the same sky-blue chip as a typed override.
+3. **The Rate override badge is not `rateAuthority`.** Live predicate is `enableMrp && mrp > unitCost + 0.001` (`POSSales.tsx` cart grid; same on `TabletPOSLayout.tsx`). `rateAuthority: "unit"` is set only when a human commits the Unit Price cell (`updatePrice` in `cartMutators.ts`, via `applyUnitPriceToCart` / `requestUnitPriceCommit`). Add-line never sets it. It is **not persisted**. So a last-purchase gap from `a74270890` lights the same sky-blue chip as a typed override. Git does **not** show an 24 Aug rewrite of this predicate from `rateAuthority === 'unit'` to `mrp > unitCost` — the July design doc wanted the former; live UI has been the gap test. What moved the same day is **what gets written into `unitCost` on a KS scan**.
 
-**Pending live SQL (query 3 on the screenshot bill, queries 4–5 on 14-day POS lines):** if `unit_price` matches `product_variants.last_purchase_sale_price` (or `sale_price`) and `allow_pos_edit_unit_price` is off, the cashiers are **not** typing — the system is. If `allow_pos_edit_unit_price` is on and unit prices do **not** match master/last-purchase, they are typing. Exact 30% off two SKUs is consistent with either a purchase-time 30% sale-price formula **or** a shop habit of always keying 30% off.
+**Q1, partially from code (still ask the shop):** cashiers did **not** have to type for the screenshot shape to appear. From 13:01 UTC 24 Aug, every KS desktop add with `last_purchase_sale_price` / `last_purchase_mrp` filled bills that last-purchase sale automatically, including under MRP mode. Query 3 on `POS/26-27/2898` still decides whether *that* bill’s units match last-purchase (post-deploy) or something else (typed, or pre-deploy MRP-as-price). Exact 30% off two SKUs is consistent with purchase-time `sale_price = 0.7 × mrp` **or** a typing habit; `a74270890` makes the first sufficient.
+
+**Do not invent a fourth pricing engine.** `a74270890` **is** mechanism 2, named and dated. The miss in the first draft was failing to cite the same-day ship and its intent (stop Select Price prompts on Sales Invoice FL505), not a separate formula.
 
 **Do not fold this into MRP-flag Phase 2.** That work gates chrome when `purchase_settings.show_mrp` is false. KS has the field on. Changing `resolveAddLinePrices` under `useMrpAsPrice` is a new, signed-off Phase 1.
 
@@ -48,7 +56,7 @@ Characterisation tests still encode today’s add-line contract (`src/lib/posBil
 | Who sets `rateAuthority: "unit"` | Only `updatePrice()` in `cartMutators.ts` (human Unit Price commit). `minUnitPriceForDiscountCap` stamps it on a **temporary copy** for cap math, not on the live cart. Disc% / Disc Rs editors set `'discount'` and restore `unitCost = mrp`. Add-line / last-purchase / edit-resume do **not** set it. |
 | What the badge actually tests | `enableMrp && (mrp > unitCost + 0.001)`. Title text: “Selling rate below MRP (manual rate / loaded invoice line)”. Tablet copy: “Unit price below MRP — line discount applied”. **Not** `rateAuthority`. |
 | Persist | `sale_items.unit_price`, `mrp`, `discount_percent`. No `price_overridden` column in generated types. Edit-resume comment: “rateAuthority unset until price_overridden column”. |
-| Last-purchase vs MRP mode | `shouldPromptPosPriceSelection` **skips the dialog** when `posUsesMrpAsPrice`. It does **not** skip `pickLastPurchaseScanPrice`. KS slug defaults that source to `last_purchase` unless `auto_use_last_purchase_price === false`. |
+| Last-purchase vs MRP mode | Shipped **24 Aug 2026** in `a74270890` (PR #370). `resolveSaleScanPriceSource` defaults KS to `last_purchase`; explicit `auto_use_last_purchase_price` overrides for any org. `shouldPromptPosPriceSelection` **skips the dialog** when `posUsesMrpAsPrice`, but `pickLastPurchaseScanPrice` runs **first** and still sets `overridePrice`. MRP mode therefore skips the prompt **and** still bills last-purchase sale on KS desktop. The new Settings toggle copy: “Skip the Select Price dialog and bill at last purchase sale price and MRP. On for KS Footwear by default.” That rule does **not** read `pos_barcode_price_mode`. |
 | Unit Price cell | Editable only when `sale_settings.allow_pos_edit_unit_price` **and** (admin / manager / `pos_edit_unit_price`). Default confirm threshold **30%** below MRP — typing the screenshot 30% off would open the confirm dialog on every line. Last-purchase add does **not** go through that dialog. |
 | Line net / cap | `calculatePosCartLineNet` / `sumLineDiscount`: MRP×qty − Disc% − Disc Rs − max(0, (MRP − unitCost)×qty). Cap `maxCombinedDiscountForGross(gross) = round(gross)` (100% of MRP total). Implicit MRP−unit gap already counts as discount. |
 | Sales Invoice (contrast) | Bills from `salePrice`, then extra Disc%. Does **not** also subtract (MRP − salePrice). POS sale-price basis **does** stack that implicit gap with brand Disc%. |
@@ -65,9 +73,41 @@ That shape is **unit below MRP + Disc% 0**. It is **not** Disc% = 30 with unit =
 
 ---
 
+## Same-day commit `a74270890` (PR #370) — this is mechanism 2, named
+
+The first draft described last-purchase auto-apply from live code and did not cite the commit that put it there **the same morning**.
+
+| | |
+|--|--|
+| Commit | `a74270890` *Skip Select Price on KS Footwear and bill at last purchase.* (2026-08-24 **13:01 UTC**) |
+| Merge | PR **#370** `245c7199d` *KS Footwear: auto-use last purchase price on sale* (2026-08-24 **13:01 UTC** / 18:31 IST) |
+| Intent (commit message) | Sales Invoice was prompting Master vs Last Purchase on every add when prices drifted (**FL505 7**: master ₹258.65 vs last ₹230.65). KS now uses last purchase sale/MRP automatically. Other orgs can opt in via Settings. |
+| Files | New `src/utils/saleScanPricePreference.ts` + tests; wired into **Sales Invoice, POS, and Sale Order**; Settings toggle `auto_use_last_purchase_price` (KS default on via slug, disables “Ask Price When Last Purchase Differs”). |
+
+This investigation’s Phase 0 branch was cut **after** #370 was already on `main`. The code reading was therefore of the post-`a74270890` tree. The gap was attribution and product framing, not a missed code path.
+
+**What `a74270890` does not do:** it does not change `resolveAddLinePrices`, MRP-mode Settings copy, or the Rate override predicate. It only injects `overridePrice = { sale_price: lastPurchaseSale, mrp: lastPurchaseMrp }` on add. That single assignment is enough, because `useMrpAsPrice = grossBasis === 'mrp' && !overridePrice`.
+
+**Precedence that already exists (do not redesign from zero):**
+
+```text
+auto_use_last_purchase_price === true     → last_purchase   (any org)
+auto_use_last_purchase_price === false    → master or ask   (respects ask_price_on_scan)
+slug === ks-footwear (flag unset)         → last_purchase
+otherwise                                 → ask (default) or master if ask is off
+```
+
+`pos_barcode_price_mode` is **not** in that function. Product decision 2 is therefore: should MRP mode **beat** this already-shipped per-org rule, or sit underneath it (today’s L1)? Inventing a new KS-only switch would duplicate `a74270890`.
+
+**Deploy vs screenshot:** `POS/26-27/2898` was captured in the Phase 0 prompt later the same afternoon (user message ~18:27 UTC). If production had deployed #370, the bill is explained without typing. If it had not, mechanism 1 (full MRP) plus typing is still in play. Query 3 is the tie-break; do not assume Vercel lag.
+
+---
+
 ## Q1 — Are cashiers typing the discounted price?
 
-**Not confirmed with KS staff.** This environment has no org login, no shop phone/WhatsApp, and no till session. Do not treat the screenshot as a substitute for their answer.
+**Not confirmed with KS staff.** This environment has no org login, no shop phone/WhatsApp, and no till session. Do not treat the screenshot as a substitute for a cashier’s “I typed it.”
+
+**Partial answer from `a74270890`:** for KS **desktop** POS, last-purchase billing is **automatic** whenever last-purchase columns exist. Staff did not need to type Unit Price for Rate override + Disc% 0 + unit below MRP to appear. That is sufficient to explain the *report* (“prices change automatically”) without inferring a typing habit. It is **not** yet proof that `POS/26-27/2898` itself came from last-purchase (query 3) or that nobody ever types a further special rate (Q1.2).
 
 Anon `GET /rest/v1/sale_items?select=id&limit=1` and `GET /rest/v1/settings?select=organization_id&limit=1` → **HTTP 200, `[]`**. Same RLS wall as other Phase 0 docs this month.
 
@@ -87,9 +127,9 @@ Ask a KS cashier who rings POS, while standing at the till with **MRP Price Mode
 |-------------|----------|
 | Disc% = 0 and unit = 70% of MRP | Unit-price path (typed **or** last-purchase/sale-price add). Not product/brand Disc%. |
 | Rate override on both lines | Only `mrp > unitCost`. Does **not** prove a keystroke. |
-| “Prices change automatically” (the report) | Fits last-purchase auto-apply and/or add-at-MRP then some other path. Fits typing poorly unless they mean “the system then tags it.” |
-| Exact 30.0% on two SKUs | Shop formula (purchase sale_price = 70% of MRP) **or** a habit of always keying 30% off. Query 3 distinguishes. |
-| Confirm dialog default 30% | If they type 30% off all day they would see the popup constantly unless the org raised the threshold. Ask Q1.3. |
+| “Prices change automatically” (the report) | Fits `a74270890` last-purchase auto-apply on KS desktop **without** a keystroke. Typing is no longer the leading hypothesis for *automatic* change. |
+| Exact 30.0% on two SKUs | Shop formula (purchase last/master sale_price = 70% of MRP) **or** a habit of always keying 30% off. Query 3 distinguishes. `a74270890` makes the formula path automatic. |
+| Confirm dialog default 30% | Only if they **type** Unit Price ≥30% below MRP. Last-purchase add does **not** open that dialog. If Q1.3 is “no popup,” that supports auto-apply, not typing. |
 
 **If query 2 shows `allow_pos_edit_unit_price` is not true**, cashiers **cannot** type Unit Price (unless admin/manager/special right). Then Q1 is answered by settings: the lower rate is automatic.
 
@@ -136,7 +176,7 @@ So an org that turned this on to negotiate from list (or to bill sticker MRP wit
 KS is a **poor** example of that workflow:
 
 - An earlier investigation already told them to **turn the switch off** so scans bill sale price (`docs/ks-footwear-pos-barcode-mrp-investigation.md`).
-- Slug default last-purchase already bills `last_purchase_sale_price` on desktop whenever those columns are filled, which **contradicts** the Settings sentence above.
+- Slug default last-purchase (`a74270890`) already bills `last_purchase_sale_price` on desktop whenever those columns are filled, which **contradicts** the Settings sentence above. That contradiction is now a **deliberate, same-day KS product change** (stop Select Price prompts), not an accidental interaction.
 - The screenshot is 30% off, not full MRP.
 
 **Phase 1 needs an opt-out** (keep today’s `unitCost = displayMrp` + Disc% 0) if query 1 returns any org whose query 4 is mostly billed-at-MRP. KS should not drive a blanket flip by itself.
@@ -219,13 +259,17 @@ If add-line bills `sale_price` under MRP mode, today’s badge predicate would f
 
 ### Last-purchase vs MRP mode (product call, do not bury)
 
+A **per-org last-purchase vs ask vs master** rule **already shipped** in `a74270890` (`resolveSaleScanPriceSource` + Settings `auto_use_last_purchase_price`, KS default on). Phase 1 must not invent a second KS-only switch for the same job.
+
+What does **not** exist yet: that rule consulting `pos_barcode_price_mode`. Today last-purchase **wins** over MRP-as-price on every KS desktop add with last-purchase data (L1 in live code).
+
 | Choice | Effect |
 |--------|--------|
-| **L1** Leave last-purchase override as today | KS desktop already bills last-purchase sale. Changing `useMrpAsPrice` only helps **mobile**, never-purchased SKUs, and non-KS MRP-mode orgs without auto last-purchase. |
-| **L2** Skip last-purchase (and the dialog) entirely when MRP mode is on | Honour Settings “bill MRP.” KS desktop would jump **to full MRP** — the opposite of the screenshot complaint. Only safe if Q1 says they want sticker MRP. |
+| **L1** Leave last-purchase override as today (`a74270890` unchanged) | KS desktop already bills last-purchase sale under the MRP-mode footer. Changing `useMrpAsPrice` only helps **mobile**, never-purchased SKUs, and non-KS MRP-mode orgs without auto last-purchase. |
+| **L2** Skip last-purchase (and the dialog) entirely when MRP mode is on | Honour Settings “bill MRP.” KS desktop would jump **to full MRP** — the opposite of the screenshot complaint, and it would **undo** the FL505 prompt fix on POS for MRP-mode orgs. Only safe if Q1 says they want sticker MRP. |
 | **L3** Last-purchase may override **MRP display** but selling rate stays tagged sale / last sale | Closest to “show real sticker, bill intended rate.” Needs an explicit rule when last MRP ≠ master MRP (the 164.50 vs 204.50 class of bug). |
 
-Default recommendation to put in front of Tausif: **L1 + add-line tagged sale when there is no override**, so mobile/unpurchased SKUs stop landing on full MRP, and KS desktop does not get a surprise full-MRP jump. Rewrite Settings copy so it no longer promises “MRP as the selling rate with no line discount” if we ship tagged-sale billing.
+Default recommendation to put in front of Tausif: **L1 + add-line tagged sale when there is no override**, so mobile/unpurchased SKUs stop landing on full MRP, and KS desktop does not get a surprise full-MRP jump that reverts #370. Rewrite Settings copy so it no longer promises “MRP as the selling rate with no line discount” while last-purchase can still win.
 
 ### Opt-out
 
@@ -256,30 +300,32 @@ Leave discarded at add (today). If a named customer has brand 10% and tagged sal
 
 ## Product decisions (stop — do not decide here)
 
-1. **Is MRP Price Mode “bill MRP” or “show MRP, bill tagged sale”?** Settings copy says the first; KS screenshot + earlier ops note want the second.
-2. **Last-purchase vs MRP mode:** L1 / L2 / L3 above.
+These remain Tausif’s. `a74270890` **narrows** 2 and 6; it does not pick 1.
+
+1. **Is MRP Price Mode “bill MRP” or “show MRP, bill tagged sale”?** Settings copy says the first; KS screenshot + earlier ops note + same-day last-purchase default want the second on the KS till. This is the meaning call. Do not delegate it into a code default.
+2. **Last-purchase vs MRP mode:** L1 / L2 / L3 above. A per-org last-purchase-vs-ask-vs-master rule **already exists** (`a74270890`). The open question is only whether MRP mode should **override** that rule. L2 would fight #370 on POS.
 3. **Badge after ship:** `rateAuthority` only (edit-resume silent) vs also persist `price_overridden`.
 4. **Orgs that bill full MRP today:** keep current add as opt-out, or split the setting.
 5. **Brand/product Disc% in MRP mode:** keep forced 0 at add, or sale-price-mode stacking.
-6. **Confirm-dialog default 30%:** if cashiers *are* typing 30% off, the popup is part of the pain; not a substitute for add-line.
+6. **Unit-price confirm-dialog default 30%:** relevant **only if** cashiers still type. After `a74270890`, KS automatic last-purchase **does not** hit that dialog. Do not treat the 30% confirm as the KS pain; the live precedence pain is last-purchase winning under an MRP-mode footer. If query 3 shows unmatched-below-MRP typing anyway, then the popup is still part of *that* path.
 
 ---
 
 ## Phase 1 build prompt (after Tausif signs off)
 
-Draft only — do not implement until the SQL paste-back and Q1 answers exist:
+Draft only — do not implement until the SQL paste-back exists and Tausif has taken decisions 1–2 (and 3–6 as needed):
 
-1. Paste query 1–5 results into this doc (or a short follow-up note). Confirm Q1 with KS.
+1. Paste query 1–5 results into this doc (or a short follow-up note). Use Q1 with KS to confirm they are not *also* typing special rates; do not use Q1 to rediscover `a74270890`.
 2. If the signed-off story is “show MRP, bill tagged sale”: implement the `resolveAddLinePrices` sketch; keep Disc% 0 at add; update characterisation tests; fix brand toast so it does not claim a % that was discarded.
 3. Change Rate override chip to `rateAuthority === 'unit'` on desktop + tablet.
-4. Rewrite Settings helper text to match the signed-off meaning. Add opt-out if Q3 found a full-MRP org.
-5. Decide L1/L2/L3; do not leave mobile vs desktop split undocumented.
+4. Rewrite Settings helper text to match the signed-off meaning (MRP mode copy currently lies when last-purchase wins). Add opt-out if Q3 found a full-MRP org.
+5. Decide L1/L2/L3 **against the already-shipped** `resolveSaleScanPriceSource` rule; do not leave mobile vs desktop split undocumented; do not revert #370 by accident.
 6. Do not touch print CSS, settlement formulas, or MRP-flag display-gate PRs.
 
 ---
 
 ## Waiting
 
-1. KS cashier answers to the five Q1 questions (Tausif / shop).  
-2. SQL Editor paste-back of `scripts/pos-mrp-mode-pricing-gap-measure-2026-08.sql`.  
-3. Sign-off on the six product decisions. Then a scoped Phase 1 prompt.
+1. SQL Editor paste-back of `scripts/pos-mrp-mode-pricing-gap-measure-2026-08.sql` (query 3 on `POS/26-27/2898` especially).  
+2. Optional KS cashier answers to Q1.2–Q1.5 (typing *on top of* auto last-purchase, phone vs PC). Q1.1 is largely answered by `a74270890` for desktop SKUs with last-purchase data.  
+3. Tausif sign-off on product decisions **1 and 2** first (MRP-mode meaning; last-purchase vs MRP precedence given #370). Then 3–6. Then a scoped Phase 1 prompt.

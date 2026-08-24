@@ -10,7 +10,10 @@
 --
 -- KS Footwear organization_id (from docs/ks-footwear-pos-barcode-mrp-investigation.md):
 --   4bc73037-e877-4123-9261-eb6e3876698c
--- Screenshot bill: POS/26-27/2898
+-- After 2026-08-24 13:01 UTC, KS desktop POS auto-bills last_purchase_sale_price
+-- (commit a74270890 / PR #370) even when pos_barcode_price_mode = 'mrp'.
+-- Query 5's matches_last_purchase_sale vs billed_at_full_mrp is the
+-- post-deploy fingerprint of that commit.
 
 -- 1) Orgs whose CURRENT settings would show MRP Price Mode Active
 --    AND the Rate override badge gate (enable_mrp = purchase_settings.show_mrp).
