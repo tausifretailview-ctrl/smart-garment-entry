@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-08-23",
-  "count": 718,
-  "fileCount": 734,
+  "generatedAt": "2026-08-24",
+  "count": 722,
+  "fileCount": 738,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -721,7 +721,11 @@
     "20261117120000",
     "20261120120000",
     "20261121120000",
-    "20261122120000"
+    "20261122120000",
+    "20261123120000",
+    "20261123121000",
+    "20261123122000",
+    "20261124120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1457,7 +1461,11 @@
     "20261117120000_get_customer_financial_snapshot_all.sql",
     "20261120120000_unique_active_product_name_per_org.sql",
     "20261121120000_paid_amount_settlement_invariant.sql",
-    "20261122120000_fix_v_dashboard_purchase_summary_no_distinct.sql"
+    "20261122120000_fix_v_dashboard_purchase_summary_no_distinct.sql",
+    "20261123120000_unschedule_purge_old_audit_logs.sql",
+    "20261123121000_journal_reversal_on_voucher_delete.sql",
+    "20261123122000_customer_ledger_atomic_triggers.sql",
+    "20261124120000_submit_public_storefront_enquiry_rpc.sql"
   ],
   "duplicateVersions": [
     {

@@ -40,15 +40,25 @@ export async function submitStorefrontEnquiry(payload: {
   message?: string | null;
   productId?: string | null;
 }): Promise<{ ok: boolean; error?: string; status?: number }> {
-  const { data, error } = await storefrontClient.functions.invoke("submit-storefront-enquiry", {
-    body: payload,
-  });
+  const { data, error } = await storefrontClient.rpc("submit_public_storefront_enquiry" as never, {
+    p_slug: payload.slug,
+    p_customer_name: payload.customerName,
+    p_customer_phone: payload.customerPhone,
+    p_message: payload.message ?? null,
+    p_product_id: payload.productId ?? null,
+  } as never);
+
   if (error) {
-    const status = (error as { context?: { status?: number } }).context?.status;
-    return { ok: false, error: error.message || "Could not submit enquiry", status };
+    return { ok: false, error: error.message || "Could not submit enquiry" };
   }
-  if (data && typeof data === "object" && "error" in data && data.error) {
-    return { ok: false, error: String(data.error) };
+
+  const result = data as { ok?: boolean; error?: string; status?: number } | null;
+  if (!result || result.ok === false) {
+    return {
+      ok: false,
+      error: result?.error || "Could not submit enquiry",
+      status: result?.status,
+    };
   }
   return { ok: true };
 }
