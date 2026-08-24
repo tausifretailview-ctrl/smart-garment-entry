@@ -42,6 +42,10 @@ export type WebsiteEnquiry = {
 export type PublicStorefrontShop = {
   name: string;
   slug: string;
+  /** Preferred trading name from company profile when available. */
+  display_name?: string | null;
+  logo_url?: string | null;
+  address?: string | null;
   whatsapp_number?: string | null;
   instagram_url?: string | null;
   facebook_url?: string | null;

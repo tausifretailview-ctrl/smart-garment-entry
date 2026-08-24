@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
+import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 
 const storefrontClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -14,13 +15,22 @@ const storefrontClient = createClient(
 );
 
 export async function loadPublicStorefront(slug: string): Promise<PublicStorefrontPayload> {
-  const { data, error } = await storefrontClient.rpc(
-    "get_public_storefront" as never,
-    { p_slug: slug } as never,
-  );
-  if (error) throw error;
+  const [storeRes, orgRes] = await Promise.all([
+    storefrontClient.rpc("get_public_storefront" as never, { p_slug: slug } as never),
+    storefrontClient.rpc("get_org_public_info" as never, { p_slug: slug } as never),
+  ]);
+  if (storeRes.error) throw storeRes.error;
+  const data = storeRes.data;
   if (!data || typeof data !== "object") return { published: false };
-  return data as PublicStorefrontPayload;
+
+  const payload = data as PublicStorefrontPayload;
+  const orgInfo = (orgRes.error ? null : orgRes.data) as OrgPublicInfoSlice | null;
+
+  if (payload.shop) {
+    payload.shop = enrichPublicStorefrontShop(payload.shop, orgInfo);
+  }
+
+  return payload;
 }
 
 export async function submitStorefrontEnquiry(payload: {

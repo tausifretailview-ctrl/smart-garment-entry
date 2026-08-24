@@ -4,6 +4,7 @@ import type { PublicStorefrontPayload, PublicStorefrontProduct } from "@/lib/web
 import { loadPublicStorefront } from "./storefrontClient";
 import { StorefrontHome } from "./StorefrontHome";
 import { StorefrontProduct } from "./StorefrontProduct";
+import { applyStorefrontThemeVars } from "./storefrontTheme";
 
 export function StorefrontApp() {
   const path = window.location.pathname;
@@ -38,12 +39,12 @@ export function StorefrontApp() {
     };
   }, [parsed?.orgSlug]);
 
-  const shopName = payload?.shop?.name || parsed?.orgSlug || "Store";
-  const accent = payload?.shop?.theme_accent_color || "#2563EB";
+  const shopName = payload?.shop?.display_name || payload?.shop?.name || parsed?.orgSlug || "Store";
+  const accent = payload?.shop?.theme_accent_color || "#E2A33B";
 
   useEffect(() => {
     document.title = payload?.published ? `${shopName} — Store` : "Store";
-    document.documentElement.style.setProperty("--store-accent", accent);
+    applyStorefrontThemeVars(accent);
   }, [shopName, accent, payload?.published]);
 
   if (!parsed) {
@@ -56,11 +57,7 @@ export function StorefrontApp() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-sm text-slate-500">Loading catalogue…</div>
-      </div>
-    );
+    return <div className="storefront-loading">Loading catalogue…</div>;
   }
 
   if (error || !payload?.published) {
@@ -119,15 +116,12 @@ function Unavailable({
   actionHref?: string;
 }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
+    <div className="storefront-page flex min-h-screen items-center justify-center px-6">
       <div className="max-w-md text-center">
-        <div className="text-lg font-semibold text-slate-900">{title}</div>
-        <p className="mt-2 text-sm text-slate-500">{body}</p>
+        <div className="text-lg font-semibold text-[color:var(--store-charcoal)]">{title}</div>
+        <p className="mt-2 text-sm text-[color:var(--store-muted)]">{body}</p>
         {actionLabel && actionHref ? (
-          <a
-            href={actionHref}
-            className="mt-5 inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white"
-          >
+          <a href={actionHref} className="storefront-btn-primary mt-5 inline-block px-6">
             {actionLabel}
           </a>
         ) : null}
