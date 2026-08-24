@@ -53,7 +53,7 @@ import { Check, FileText, X } from "lucide-react";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
-import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import {
   fetchSaleOrderCustomerOptions,
@@ -65,6 +65,14 @@ import {
   sumSaleOrderItemQtys,
   type SaleOrderListFilters,
 } from "@/utils/saleOrderListQueries";
+import {
+  isSaleOrderDashboardThisMonthRange,
+  resolveSaleOrderDashboardDates,
+  SALE_ORDER_DASHBOARD_PERIOD_CUSTOM,
+  SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH,
+  saleOrderDashboardThisMonthRange,
+  type SaleOrderDashboardPeriodFilter,
+} from "@/utils/saleOrderDashboardDates";
 import { sizeMatrixKey } from "@/utils/sizeSort";
 import {
   aggregateArticleStock,
@@ -174,8 +182,11 @@ export default function SaleOrderDashboard() {
     printedAt?: Date;
   } | null>(null);
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
-  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
-  const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [fromDate, setFromDate] = useState<Date>(() => saleOrderDashboardThisMonthRange().fromDate);
+  const [toDate, setToDate] = useState<Date>(() => saleOrderDashboardThisMonthRange().toDate);
+  const [periodFilter, setPeriodFilter] = useState<SaleOrderDashboardPeriodFilter>(
+    SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH,
+  );
 
   const saleOrderFilterSnapshot = useMemo(
     () => ({
@@ -184,12 +195,13 @@ export default function SaleOrderDashboard() {
       customerFilter,
       fromDate,
       toDate,
+      periodFilter,
       currentPage,
     }),
-    [searchQuery, statusFilter, customerFilter, fromDate, toDate, currentPage],
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate, periodFilter, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { filtersReady } = useDashboardFilterPersistence(
     "sale-order-dashboard",
     currentOrganization?.id,
     saleOrderFilterSnapshot,
@@ -200,14 +212,41 @@ export default function SaleOrderDashboard() {
           ["statusFilter", setStatusFilter],
           ["customerFilter", setCustomerFilter],
         ],
-        optionalDates: [
-          ["fromDate", setFromDate],
-          ["toDate", setToDate],
-        ],
         numbers: [["currentPage", setCurrentPage]],
       });
+      const restoredDates = resolveSaleOrderDashboardDates(saved);
+      setFromDate(restoredDates.fromDate);
+      setToDate(restoredDates.toDate);
+      setPeriodFilter(restoredDates.periodFilter);
     },
   );
+
+  const applyThisMonthFilter = useCallback(() => {
+    const { fromDate: from, toDate: to } = saleOrderDashboardThisMonthRange();
+    setFromDate(from);
+    setToDate(to);
+    setPeriodFilter(SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH);
+  }, []);
+
+  const onFromDateSelect = useCallback((next: Date | undefined) => {
+    if (!next) return;
+    setFromDate(next);
+    setPeriodFilter(
+      isSaleOrderDashboardThisMonthRange(next, toDate)
+        ? SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH
+        : SALE_ORDER_DASHBOARD_PERIOD_CUSTOM,
+    );
+  }, [toDate]);
+
+  const onToDateSelect = useCallback((next: Date | undefined) => {
+    if (!next) return;
+    setToDate(next);
+    setPeriodFilter(
+      isSaleOrderDashboardThisMonthRange(fromDate, next)
+        ? SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH
+        : SALE_ORDER_DASHBOARD_PERIOD_CUSTOM,
+    );
+  }, [fromDate]);
 
   const [orderToAccept, setOrderToAccept] = useState<any>(null);
   const [isAccepting, setIsAccepting] = useState(false);
@@ -245,6 +284,7 @@ export default function SaleOrderDashboard() {
   );
 
   useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
     setCurrentPage(1);
   }, [searchQuery, statusFilter, customerFilter, fromDate, toDate]);
 
@@ -268,7 +308,7 @@ export default function SaleOrderDashboard() {
         currentPage,
         SALE_ORDER_LIST_PAGE_SIZE,
       ),
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && filtersReady,
     placeholderData: (previous) => previous,
   });
 
@@ -1025,29 +1065,29 @@ export default function SaleOrderDashboard() {
           </div>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !fromDate && "text-muted-foreground")}>
+              <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white">
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {fromDate ? format(fromDate, "dd/MM/yy") : "From Date"}
+                {format(fromDate, "dd/MM/yy")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={fromDate} onSelect={setFromDate} initialFocus className="pointer-events-auto" />
+              <Calendar mode="single" selected={fromDate} onSelect={onFromDateSelect} initialFocus className="pointer-events-auto" />
             </PopoverContent>
           </Popover>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white", !toDate && "text-muted-foreground")}>
+              <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white">
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {toDate ? format(toDate, "dd/MM/yy") : "To Date"}
+                {format(toDate, "dd/MM/yy")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
-              <Calendar mode="single" selected={toDate} onSelect={setToDate} initialFocus className="pointer-events-auto" />
+              <Calendar mode="single" selected={toDate} onSelect={onToDateSelect} initialFocus className="pointer-events-auto" />
             </PopoverContent>
           </Popover>
-          {(fromDate || toDate) && (
-            <Button variant="ghost" size="sm" onClick={() => { setFromDate(undefined); setToDate(undefined); }}>
-              Clear Dates
+          {periodFilter !== SALE_ORDER_DASHBOARD_PERIOD_THIS_MONTH && (
+            <Button variant="ghost" size="sm" onClick={applyThisMonthFilter}>
+              This Month
             </Button>
           )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
