@@ -66,7 +66,6 @@ import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
-import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import {
   purchaseBillFields,
@@ -129,6 +128,12 @@ import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError, extractErrorInfo } from "@/lib/errorLogger";
+import {
+  gatePurchaseBarcodePrint,
+  hasUnsavedPurchaseLinesForBarcodePrint,
+  purchaseBarcodePrintBlockedMessage,
+  purchaseSaveFailedStockHint,
+} from "@/utils/purchaseBarcodePrintGuard";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
@@ -6170,11 +6175,12 @@ const PurchaseEntry = () => {
       const floorMsg = rawMsg.includes("PURCHASE_STOCK_FLOOR:")
         ? rawMsg.replace(/^.*PURCHASE_STOCK_FLOOR:\s*/i, "").replace(/^Error in purchase_item_\w+ trigger:\s*/i, "")
         : null;
+      const stockHint = floorMsg ? null : purchaseSaveFailedStockHint(lineItems);
       toast({
         title: floorMsg ? "Cannot reduce quantity" : "Bill Save Failed — Draft Preserved",
         description: floorMsg
           ? floorMsg
-          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.`,
+          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.${stockHint ? ` ${stockHint}` : ""}`,
         variant: "destructive",
         duration: 12000,
       });
@@ -6205,20 +6211,50 @@ const PurchaseEntry = () => {
     netAmount 
   };
 
+  const purchaseBarcodePrintGate = useMemo(
+    () =>
+      gatePurchaseBarcodePrint({
+        isEditMode,
+        editingBillId,
+        savedBillId,
+        currentLineCount: lineItems.length,
+        savedPurchaseItemCount: savedPurchaseItems.length,
+        hasUnsavedLines: hasUnsavedPurchaseLinesForBarcodePrint(
+          isEditMode,
+          originalLineItems,
+          lineItems,
+        ),
+      }),
+    [
+      isEditMode,
+      editingBillId,
+      savedBillId,
+      lineItems,
+      originalLineItems,
+      savedPurchaseItems.length,
+    ],
+  );
+
   const handlePrintBarcodes = async () => {
-    if (lineItems.length === 0) {
+    const gate = purchaseBarcodePrintGate;
+    if (!gate.allowed) {
+      const blocked = purchaseBarcodePrintBlockedMessage(gate.reason);
       toast({
-        title: "No Items",
-        description: "Add items to print barcodes",
+        title: blocked.title,
+        description: blocked.description,
         variant: "destructive",
       });
       return;
     }
 
+    const sourceItems =
+      gate.itemSource === "just-saved-items" ? savedPurchaseItems : lineItems;
+
     // Get items to print - either selected items or all items if none selected
-    const itemsToPrint = selectedForPrint.size > 0
-      ? lineItems.filter(item => selectedForPrint.has(item.temp_id))
-      : lineItems;
+    const itemsToPrint =
+      gate.itemSource === "current-edit-lines" && selectedForPrint.size > 0
+        ? sourceItems.filter((item) => selectedForPrint.has(item.temp_id))
+        : sourceItems;
 
     if (itemsToPrint.length === 0) {
       toast({
@@ -6263,10 +6299,11 @@ const PurchaseEntry = () => {
 
       // Clear selection after navigation
       setSelectedForPrint(new Set());
+      setShowPrintDialog(false);
 
       // Navigate to barcode printing page with items
       navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+        state: { purchaseItems: barcodeItems, billId: gate.billId } 
       });
     } catch (error) {
       console.error("Error preparing barcode data:", error);
@@ -7191,7 +7228,7 @@ const PurchaseEntry = () => {
           <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Bill Saved</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <Button variant="outline" onClick={() => { setShowPrintDialog(false); navigate("/barcode-printing", { state: { purchaseItems: savedPurchaseItems.length > 0 ? savedPurchaseItems : lineItems, billId: savedBillId || editingBillId } }); }} className="w-full gap-2"><Printer className="h-4 w-4" /> Print Barcodes</Button>
+              <Button variant="outline" onClick={() => { void handlePrintBarcodes(); }} className="w-full gap-2"><Printer className="h-4 w-4" /> Print Barcodes</Button>
               <Button variant="secondary" onClick={() => { setShowPrintDialog(false); if (savedBillId) navigate("/purchase-entry", { state: { editBillId: savedBillId } }); }} className="w-full gap-2"><Plus className="h-4 w-4" /> Continue Adding</Button>
               <Button variant="outline" onClick={() => setShowPrintDialog(false)} className="w-full">Skip</Button>
             </div>
@@ -8293,7 +8330,8 @@ const PurchaseEntry = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {(savedBillId || isEditMode) && (
+            {(purchaseBarcodePrintGate.allowed &&
+              purchaseBarcodePrintGate.itemSource === "current-edit-lines") && (
               <Button onClick={handlePrintBarcodes}
                 disabled={lineItems.length === 0}
                 size="sm"
@@ -8409,6 +8447,21 @@ const PurchaseEntry = () => {
                 {/* Print All Labels Button */}
                 <Button
                   onClick={async () => {
+                    if (
+                      !purchaseBarcodePrintGate.allowed ||
+                      purchaseBarcodePrintGate.itemSource !== "just-saved-items"
+                    ) {
+                      const reason = purchaseBarcodePrintGate.allowed
+                        ? "unsaved-draft"
+                        : purchaseBarcodePrintGate.reason;
+                      const blocked = purchaseBarcodePrintBlockedMessage(reason);
+                      toast({
+                        title: blocked.title,
+                        description: blocked.description,
+                        variant: "destructive",
+                      });
+                      return;
+                    }
                     try {
                       // Fetch supplier code from suppliers table
                       let supplierCode = "";
@@ -8450,7 +8503,7 @@ const PurchaseEntry = () => {
 
                       setShowPrintDialog(false);
                       navigate("/barcode-printing", { 
-                        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+                        state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                       });
                     } catch (error) {
                       console.error("Error preparing barcode data:", error);
@@ -8472,6 +8525,21 @@ const PurchaseEntry = () => {
                   <Button
                     variant="secondary"
                     onClick={async () => {
+                      if (
+                        !purchaseBarcodePrintGate.allowed ||
+                        purchaseBarcodePrintGate.itemSource !== "just-saved-items"
+                      ) {
+                        const reason = purchaseBarcodePrintGate.allowed
+                          ? "unsaved-draft"
+                          : purchaseBarcodePrintGate.reason;
+                        const blocked = purchaseBarcodePrintBlockedMessage(reason);
+                        toast({
+                          title: blocked.title,
+                          description: blocked.description,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
                       try {
                         // Fetch supplier code from suppliers table
                         let supplierCode = "";
@@ -8517,7 +8585,7 @@ const PurchaseEntry = () => {
 
                         setShowPrintDialog(false);
                         navigate("/barcode-printing", { 
-                          state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+                          state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                         });
                       } catch (error) {
                         console.error("Error preparing barcode data:", error);
