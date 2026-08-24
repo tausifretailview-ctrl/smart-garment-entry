@@ -42,13 +42,25 @@ export function posVariantMatchesQuickPrice(
   return posQuickPriceRupees(variant.sale_price) === want || posQuickPriceRupees(variant.mrp) === want;
 }
 
-/** Half-open rupee window so 300.00 matches typed 300 without using last-purchase. */
-export function posQuickPricePostgrestOr(price: number): string {
+/**
+ * Same half-open band as Math.round for positive rupees: [n - 0.5, n + 0.5).
+ * 299.50 → 300, 300.50 → 301. The old 0.49 lower bound dropped common *.50 costs.
+ */
+export function posQuickPriceRupeeWindow(price: number): { lo: number; hi: number } {
   const want = posQuickPriceRupees(price);
-  const lo = want - 0.49;
-  const hi = want + 0.5;
+  return { lo: want - 0.5, hi: want + 0.5 };
+}
+
+/** Half-open rupee window so 300.00 / 299.50 match typed 300 without using last-purchase. */
+export function posQuickPricePostgrestOr(price: number): string {
+  const { lo, hi } = posQuickPriceRupeeWindow(price);
   return `and(sale_price.gte.${lo},sale_price.lt.${hi}),and(mrp.gte.${lo},mrp.lt.${hi})`;
 }
+
+/** Name-prefix product cap. Must not be shared with per-SKU size/color rows. */
+export const POS_QUICK_PRICE_NAME_PRODUCT_LIMIT = 80;
+/** Variants at the SQL price window across those products. */
+export const POS_QUICK_PRICE_VARIANT_LIMIT = 1000;
 
 export function filterPosQuickPriceCodeRows<
   T extends {
@@ -76,18 +88,31 @@ export async function fetchPosQuickPriceCodeMatches(
   const prefix = `${letters}%`;
   const priceOr = posQuickPricePostgrestOr(want);
 
+  // Product ids first so one size-grid cannot fill a variant cap and hide Jacket.
+  const { data: products, error: productError } = await supabase
+    .from("products")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .ilike("product_name", prefix)
+    .limit(POS_QUICK_PRICE_NAME_PRODUCT_LIMIT);
+  if (productError) throw productError;
+  if (!products?.length) return [];
+
+  const productIds = products.map((p: { id: string }) => p.id);
   const { data: variants, error: variantError } = await supabase
     .from("product_variants")
     .select(variantSelect)
     .eq("organization_id", orgId)
+    .in("product_id", productIds)
     .is("deleted_at", null)
     .is("products.deleted_at", null)
     .eq("products.organization_id", orgId)
     .eq("products.status", "active")
-    .ilike("products.product_name", prefix)
     .or(priceOr)
     .order("stock_qty", { ascending: false })
-    .limit(50);
+    .limit(POS_QUICK_PRICE_VARIANT_LIMIT);
   if (variantError) throw variantError;
 
   const matched = filterPosQuickPriceCodeRows(
