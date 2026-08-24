@@ -1,7 +1,7 @@
 # Phase 0 — POS advance / opening-balance handling gap
 
 **Date:** 2026-08-24  
-**Status:** Phase 0 complete (read-only). **Phase 1 (choice A) implemented:** POS applies existing `customer_advances` via `consumeAdvanceFIFO` after save. Mix over-tender still blocked; POS never creates a booking from tender. POS Dashboard Record Payment → Advance uses the same FIFO helper (no `payment_method: 'advance'` receipt).
+**Status:** Phase 0 complete. **Phase 1 (choice A) shipped.** **Phase 2:** Settle Customer Account applies opening balance first (same FIFO as Payments / Bulk Adjust), then invoices by `sale_date`.
 
 Related: `docs/customer-accounts-consistency-v1.md` (advance apply = `consumeAdvanceFIFO` only), `docs/customer-balance-hardening-plan.md`, Payments OB-first FIFO in `CustomerPaymentTab.tsx`.
 
@@ -213,7 +213,7 @@ If B/C ever ships: same `createCustomerAdvance` helper as booking; never a secon
 
 - POS UI, `consumeAdvanceFIFO` callers, `customer_advances` writes, `derivePaidAndStatus` formula.
 - Fixing POS Dashboard `payment_method: 'advance'` (separate, worth a Phase 1 ticket so the fake workaround cannot keep drifting).
-- Teaching Settle dialog OB-first (Payments already has it).
+- Teaching Settle dialog OB-first — **Phase 2 (this follow-up).**
 
 ---
 
