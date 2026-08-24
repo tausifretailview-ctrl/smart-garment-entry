@@ -35,6 +35,7 @@ import {
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
+import { isKsFootwearSlug } from "@/utils/saleScanPricePreference";
 import {
   paperPatchesForInvoiceTemplate,
   resolvePosInvoiceTemplate,
@@ -2722,12 +2723,43 @@ export default function Settings() {
                   <Switch
                     id="ask_price_on_scan"
                     checked={(settings.sale_settings as any)?.ask_price_on_scan ?? true}
+                    disabled={
+                      ((settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                        isKsFootwearSlug(currentOrganization?.slug)) === true
+                    }
                     onCheckedChange={(checked) =>
                       setSettings({
                         ...settings,
                         sale_settings: {
                           ...settings.sale_settings,
                           ask_price_on_scan: checked,
+                        } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto_use_last_purchase_price" className="text-sm font-medium">
+                      Automatically use last purchase price
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Skip the Select Price dialog and bill at last purchase sale price and MRP. On for KS Footwear by default.
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto_use_last_purchase_price"
+                    checked={
+                      (settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                      isKsFootwearSlug(currentOrganization?.slug)
+                    }
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          auto_use_last_purchase_price: checked,
                         } as any,
                       })
                     }

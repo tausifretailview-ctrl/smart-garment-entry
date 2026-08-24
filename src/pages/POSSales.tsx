@@ -20,6 +20,7 @@ import {
   posVariantDisplayMrp,
   shouldPromptPosPriceSelection,
 } from "@/utils/posScanPriceSelection";
+import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import {
   isCompleteNumericBarcodeForPosCart,
   POS_BARCODE_CART_LOOKUP_EXACT,
@@ -3129,9 +3130,26 @@ export default function POSSales() {
       const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
+
+      const scanPriceSource = resolveSaleScanPriceSource({
+        orgSlug: currentOrganization?.slug,
+        askPriceOnScan: (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true,
+        autoUseLastPurchasePrice: (settingsData as any)?.sale_settings?.auto_use_last_purchase_price,
+      });
+      if (!overridePrice && scanPriceSource === "last_purchase") {
+        const picked = pickLastPurchaseScanPrice({
+          masterSalePrice,
+          masterMrp,
+          lastPurchaseSalePrice,
+          lastPurchaseMrp,
+        });
+        if (picked) {
+          overridePrice = picked;
+        }
+      }
       
       // If no override provided and last purchase prices differ, show dialog (unless disabled in settings)
-      const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
+      const askPriceOnScan = scanPriceSource === "ask";
       if (
         shouldPromptPosPriceSelection({
           askPriceOnScan,

@@ -59,6 +59,7 @@ import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
+import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 import {
@@ -711,6 +712,23 @@ export default function SaleOrderEntry() {
           sale_price: customerPrice.sale_price,  // Use customer's last sale price (e.g., ₹54)
           mrp: masterMrp,                        // MRP = actual product MRP (unchanged)
         };
+      }
+
+      if (!overridePrice) {
+        const scanPriceSource = resolveSaleScanPriceSource({
+          orgSlug: currentOrganization?.slug,
+          askPriceOnScan: (settings?.sale_settings as any)?.ask_price_on_scan ?? true,
+          autoUseLastPurchasePrice: (settings?.sale_settings as any)?.auto_use_last_purchase_price,
+        });
+        if (scanPriceSource === "last_purchase") {
+          overridePrice =
+            pickLastPurchaseScanPrice({
+              masterSalePrice,
+              masterMrp,
+              lastPurchaseSalePrice,
+              lastPurchaseMrp,
+            }) ?? undefined;
+        }
       }
       
       // Use override price or master price

@@ -119,6 +119,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import { CustomerPhoneLookupInput, type CustomerPhoneLookupRow } from "@/components/CustomerPhoneLookupInput";
@@ -2177,8 +2178,22 @@ export default function SalesInvoice() {
     }
     
     // If no override provided, check if prices differ and show selection dialog
-    if (!overridePrice) {
-      const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
+    let appliedOverride = overridePrice;
+    const scanPriceSource = resolveSaleScanPriceSource({
+      orgSlug: currentOrganization?.slug,
+      askPriceOnScan: (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true,
+      autoUseLastPurchasePrice: (settingsData as any)?.sale_settings?.auto_use_last_purchase_price,
+    });
+    if (!appliedOverride && scanPriceSource === "last_purchase") {
+      appliedOverride = pickLastPurchaseScanPrice({
+        masterSalePrice,
+        masterMrp,
+        lastPurchaseSalePrice,
+        lastPurchaseMrp,
+      }) ?? undefined;
+    }
+    if (!appliedOverride) {
+      const askPriceOnScan = scanPriceSource === "ask";
       const hasLastPurchaseDiff = askPriceOnScan && lastPurchaseSalePrice !== null && lastPurchaseSalePrice !== masterSalePrice;
       const hasCustomerDiff = customerPrice !== null;
 
@@ -2204,8 +2219,8 @@ export default function SalesInvoice() {
       }
     }
     
-    const salePrice = overridePrice?.sale_price ?? masterSalePrice;
-    const mrpToUse = overridePrice?.mrp ?? masterMrp;
+    const salePrice = appliedOverride?.sale_price ?? masterSalePrice;
+    const mrpToUse = appliedOverride?.mrp ?? masterMrp;
     const addQty =
       options?.quantity && options.quantity > 0 ? Math.max(1, Math.floor(options.quantity)) : 1;
     const descNote = (options?.description || "").trim();
