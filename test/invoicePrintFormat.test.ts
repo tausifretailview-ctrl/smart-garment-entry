@@ -91,4 +91,14 @@ describe('getRealTastA4PrintPageStyle', () => {
     expect(css).toContain('min-height: 297mm !important');
     expect(css).toContain('max-height: 297mm !important');
   });
+
+  it('does not clip extra pages — wrappers stay auto-height', () => {
+    const css = getRealTastA4PrintPageStyle();
+    expect(css).toMatch(/html, body \{[\s\S]*?height: auto !important/);
+    expect(css).toMatch(/html, body \{[\s\S]*?overflow: visible !important/);
+    expect(css).toMatch(/\.retail-erp-all-pages \{[\s\S]*?height: auto !important/);
+    expect(css).toMatch(/\.retail-erp-all-pages \{[\s\S]*?max-height: none !important/);
+    expect(css).toContain('page-break-after: always');
+    expect(css).toContain('break-after: page');
+  });
 });

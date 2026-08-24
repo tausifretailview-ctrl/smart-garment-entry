@@ -52,7 +52,7 @@ export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4
 
 /**
  * Real Tast Bill of Supply — full A4 portrait (210×297mm), zero page margin.
- * The leaf and border fill the sheet; empty SN rows occupy the space above totals.
+ * Each leaf fills one sheet; wrappers stay auto-height so page 2+ can print.
  */
 export function getRealTastA4PrintPageStyle(): string {
   return `
@@ -63,13 +63,13 @@ export function getRealTastA4PrintPageStyle(): string {
       @media print {
         html, body {
           width: 210mm !important;
-          height: 297mm !important;
+          height: auto !important;
           max-width: 210mm !important;
-          max-height: 297mm !important;
+          max-height: none !important;
           margin: 0 !important;
           padding: 0 !important;
           background: #fff !important;
-          overflow: hidden !important;
+          overflow: visible !important;
         }
         .invoice-print-source,
         .invoice-print-source-screen,
@@ -78,14 +78,14 @@ export function getRealTastA4PrintPageStyle(): string {
           width: 210mm !important;
           max-width: 210mm !important;
           min-height: 297mm !important;
-          height: 297mm !important;
-          max-height: 297mm !important;
+          height: auto !important;
+          max-height: none !important;
           margin: 0 !important;
           padding: 0 !important;
           visibility: visible !important;
           opacity: 1 !important;
           display: block !important;
-          overflow: hidden !important;
+          overflow: visible !important;
         }
         .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
           width: 210mm !important;
@@ -96,6 +96,10 @@ export function getRealTastA4PrintPageStyle(): string {
           margin: 0 !important;
           box-sizing: border-box !important;
           overflow: hidden !important;
+        }
+        .retail-erp-all-pages .retail-erp-invoice-template:not(:last-child) {
+          page-break-after: always;
+          break-after: page;
         }
         .retail-erp-invoice-template[data-invoice-variant="real-tast"] > .retail-erp-page-border {
           flex: 1 1 auto !important;
