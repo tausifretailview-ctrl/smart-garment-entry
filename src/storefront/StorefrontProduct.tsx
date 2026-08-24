@@ -38,6 +38,8 @@ export function StorefrontProduct({
           ← Back to catalogue
         </a>
 
+        <div className="storefront-product-layout">
+        <div className="storefront-product-media">
         <div className="storefront-product-gallery">
           {photo ? (
             <img src={photo} alt={product.name} />
@@ -61,7 +63,9 @@ export function StorefrontProduct({
             ))}
           </div>
         ) : null}
+        </div>
 
+        <div className="storefront-product-info">
         {product.brand ? (
           <p className="storefront-eyebrow mt-4 mb-0">{product.brand}</p>
         ) : null}
@@ -121,6 +125,8 @@ export function StorefrontProduct({
             shopWhatsApp={shop.whatsapp_number}
             productLabel={product.name}
           />
+        </div>
+        </div>
         </div>
       </main>
     </StorefrontShell>

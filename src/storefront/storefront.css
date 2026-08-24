@@ -22,23 +22,18 @@
 }
 
 .storefront-wrap {
-  max-width: 480px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
   min-height: 100vh;
   background: var(--store-paper);
   position: relative;
-  box-shadow: 0 0 60px rgba(0, 0, 0, 0.06);
 }
 
 @media (min-width: 640px) {
-  .storefront-wrap {
-    max-width: 720px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .storefront-wrap {
-    max-width: 960px;
+  .storefront-hero h1,
+  .storefront-hero p {
+    max-width: 36rem;
   }
 }
 
@@ -156,7 +151,7 @@
 .storefront-hero h1 {
   font-family: "Playfair Display", Georgia, serif;
   font-weight: 500;
-  font-size: clamp(28px, 7vw, 36px);
+  font-size: clamp(28px, 7vw, 44px);
   line-height: 1.08;
   margin: 0 0 12px;
   max-width: 20rem;
@@ -265,6 +260,58 @@
 @media (min-width: 640px) {
   .storefront-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .storefront-header,
+  .storefront-hero,
+  .storefront-section-label,
+  .storefront-footer {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .storefront-hero {
+    padding-top: 44px;
+    padding-bottom: 36px;
+  }
+
+  .storefront-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+    padding: 0 40px 16px;
+  }
+
+  .storefront-float-share {
+    width: auto;
+    max-width: 360px;
+    margin-left: 40px;
+  }
+
+  .storefront-product-main {
+    padding: 28px 40px 40px;
+  }
+
+  .storefront-product-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+    gap: 36px 48px;
+    align-items: start;
+  }
+
+  .storefront-product-info .storefront-eyebrow {
+    margin-top: 0;
+  }
+
+  .storefront-product-title {
+    margin-top: 8px;
+  }
+}
+
+@media (min-width: 1400px) {
+  .storefront-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

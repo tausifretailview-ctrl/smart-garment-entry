@@ -9684,6 +9684,16 @@ export type Database = {
         }[]
       }
       get_public_storefront: { Args: { p_slug: string }; Returns: Json }
+      submit_public_storefront_enquiry: {
+        Args: {
+          p_customer_name: string
+          p_customer_phone: string
+          p_message?: string | null
+          p_product_id?: string | null
+          p_slug: string
+        }
+        Returns: Json
+      }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
