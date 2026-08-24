@@ -1,0 +1,4 @@
+=== anon RLS probe 2026-08-24T18:33:02Z ===
+sale_items HTTP 200 []
+settings HTTP 200 []
+Do not treat empty as zero MRP-mode orgs.
