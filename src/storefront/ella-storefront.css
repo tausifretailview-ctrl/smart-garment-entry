@@ -38,7 +38,7 @@ body.ella-root {
 }
 
 .ella-store button {
-  background: none;
+  background: transparent;
   border: none;
   color: inherit;
   cursor: pointer;
@@ -253,6 +253,11 @@ body.ella-root {
   color: var(--ella-ink);
 }
 
+.ella-store button.ella-chip-active {
+  background: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
 .ella-section {
   display: flex;
   gap: 12px;
@@ -401,6 +406,8 @@ body.ella-root {
   z-index: 30;
 }
 
+.ella-store button.ella-btn,
+.ella-store a.ella-btn,
 .ella-btn {
   align-items: center;
   background: var(--ella-gold);
@@ -421,6 +428,8 @@ body.ella-root {
   opacity: 0.55;
 }
 
+.ella-store a.ella-btn-outline,
+.ella-store button.ella-btn-outline,
 .ella-btn-outline {
   background: transparent;
   border: 1px solid var(--ella-gold-line);

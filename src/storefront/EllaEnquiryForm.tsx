@@ -91,7 +91,14 @@ export function EllaEnquiryForm({
           {submitting ? "Sending" : "Send enquiry"}
         </button>
         {whatsAppHref ? (
-          <a className="ella-btn ella-btn-outline" href={whatsAppHref} target="_blank" rel="noreferrer">
+          <a
+            className="ella-btn ella-btn-outline"
+            href={whatsAppHref}
+            target="_blank"
+            rel="noreferrer"
+            data-ella-wa="product"
+            data-style-code={product?.code || ""}
+          >
             WhatsApp
           </a>
         ) : null}
