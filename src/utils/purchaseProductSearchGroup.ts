@@ -14,17 +14,29 @@ export type PurchaseSearchVariantLike = {
   size_range?: string | null;
   groupedVariantCount?: number;
   groupedProductIds?: string[];
+  /** How many distinct MRP tiers exist for this name+brand+style+colour. */
+  groupedMrpTierCount?: number;
 };
 
 function norm(value: string | null | undefined): string {
   return (value || "").trim().toLowerCase();
 }
 
-/** One dropdown row per product master (name + brand + style + colour), not per barcode. */
-export function purchaseProductMasterKey(
+export function purchaseStyleColorKey(
   v: Pick<PurchaseSearchVariantLike, "product_name" | "brand" | "style" | "color">,
 ): string {
   return [norm(v.product_name), norm(v.brand), norm(v.style), norm(v.color)].join("||");
+}
+
+function mrpBucket(mrp?: number): string {
+  return (Math.round((Number(mrp) || 0) * 100) / 100).toFixed(2);
+}
+
+/** One dropdown row per product master + MRP tier (not per barcode/size). */
+export function purchaseProductMasterKey(
+  v: Pick<PurchaseSearchVariantLike, "product_name" | "brand" | "style" | "color" | "mrp">,
+): string {
+  return [purchaseStyleColorKey(v), mrpBucket(v.mrp)].join("||");
 }
 
 function sizeRangeFromSizes(sizes: string[]): string | null {
@@ -45,7 +57,7 @@ export function groupPurchaseSearchByProductMaster<T extends PurchaseSearchVaria
     else buckets.set(key, [row]);
   }
 
-  return Array.from(buckets.values()).map((group) => {
+  const grouped = Array.from(buckets.values()).map((group) => {
     const representative = group[0];
     const productIds = [...new Set(group.map((g) => g.product_id).filter(Boolean))];
     const groupedProductIds = productIds.length > 0 ? productIds : [representative.product_id];
@@ -67,4 +79,14 @@ export function groupPurchaseSearchByProductMaster<T extends PurchaseSearchVaria
       groupedProductIds,
     };
   });
+
+  const tierCounts = new Map<string, number>();
+  for (const row of grouped) {
+    const styleKey = purchaseStyleColorKey(row);
+    tierCounts.set(styleKey, (tierCounts.get(styleKey) || 0) + 1);
+  }
+  return grouped.map((row) => ({
+    ...row,
+    groupedMrpTierCount: tierCounts.get(purchaseStyleColorKey(row)) || 1,
+  }));
 }
