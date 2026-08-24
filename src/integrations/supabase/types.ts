@@ -7495,6 +7495,219 @@ export type Database = {
           },
         ]
       }
+      website_enquiries: {
+        Row: {
+          created_at: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          message: string | null
+          organization_id: string
+          product_id: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name: string
+          customer_phone: string
+          id?: string
+          message?: string | null
+          organization_id: string
+          product_id?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          message?: string | null
+          organization_id?: string
+          product_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_enquiries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_enquiries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "website_enquiries_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_enquiry_rate_limits: {
+        Row: {
+          client_ip: string
+          hit_count: number
+          organization_id: string
+          window_started_at: string
+        }
+        Insert: {
+          client_ip: string
+          hit_count?: number
+          organization_id: string
+          window_started_at?: string
+        }
+        Update: {
+          client_ip?: string
+          hit_count?: number
+          organization_id?: string
+          window_started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_enquiry_rate_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_enquiry_rate_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      website_products: {
+        Row: {
+          created_at: string
+          display_order: number
+          display_price: number | null
+          id: string
+          is_active: boolean
+          organization_id: string
+          photo_urls: string[]
+          product_id: string
+          updated_at: string
+          variant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          display_price?: number | null
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          photo_urls?: string[]
+          product_id: string
+          updated_at?: string
+          variant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          display_price?: number | null
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          photo_urls?: string[]
+          product_id?: string
+          updated_at?: string
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_products_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "website_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_products_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_settings: {
+        Row: {
+          created_at: string
+          custom_domain: string | null
+          facebook_url: string | null
+          instagram_url: string | null
+          is_published: boolean
+          organization_id: string
+          slug: string
+          theme_accent_color: string | null
+          updated_at: string
+          whatsapp_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          custom_domain?: string | null
+          facebook_url?: string | null
+          instagram_url?: string | null
+          is_published?: boolean
+          organization_id: string
+          slug: string
+          theme_accent_color?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          custom_domain?: string | null
+          facebook_url?: string | null
+          instagram_url?: string | null
+          is_published?: boolean
+          organization_id?: string
+          slug?: string
+          theme_accent_color?: string | null
+          updated_at?: string
+          whatsapp_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       whatsapp_api_settings: {
         Row: {
           access_token: string | null
@@ -8746,6 +8959,10 @@ export type Database = {
       }
       assert_org_member: { Args: { p_org: string }; Returns: undefined }
       assert_platform_admin: { Args: never; Returns: undefined }
+      assert_variant_stock_decrease_allowed: {
+        Args: { p_decrease: number; p_variant_id: string }
+        Returns: undefined
+      }
       bulk_update_purchase_items: {
         Args: { p_bill_id: string; p_items: Json }
         Returns: number
@@ -9463,6 +9680,7 @@ export type Database = {
           total_qty: number
         }[]
       }
+      get_public_storefront: { Args: { p_slug: string }; Returns: Json }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
@@ -9798,6 +10016,10 @@ export type Database = {
       merge_suppliers: {
         Args: { p_source_supplier_id: string; p_target_supplier_id: string }
         Returns: Json
+      }
+      net_sold_qty_for_variant: {
+        Args: { p_variant_id: string }
+        Returns: number
       }
       normalize_product_brand_key: {
         Args: { p_brand: string }
