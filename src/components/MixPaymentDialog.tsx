@@ -32,6 +32,8 @@ interface MixPaymentDialogProps {
   onOpenChange: (open: boolean) => void;
   billAmount: number;
   creditApplied?: number;
+  /** Existing advance to consume after save; billAmount is already net of this. */
+  advanceApplied?: number;
   /** Same-bill exchange: Return / Applied / Refund due (shown in refund mode). */
   exchangeBreakdown?: MixExchangeBreakdown | null;
   /** When re-opening Mix Pay on an edited POS invoice, prefill tender rows from DB / saved snapshot. */
@@ -55,6 +57,7 @@ export function MixPaymentDialog({
   onOpenChange,
   billAmount,
   creditApplied = 0,
+  advanceApplied = 0,
   exchangeBreakdown = null,
   initialBreakdown = null,
   onSave,
@@ -197,7 +200,11 @@ export function MixPaymentDialog({
           <div className={`flex items-center justify-between p-3 rounded-lg ${isRefundMode ? 'bg-orange-100 dark:bg-orange-900' : 'bg-muted'}`}>
             <span className="text-sm font-medium">{isRefundMode ? "Refund Due:" : "Bill Amount:"}</span>
             <span className={`text-lg font-bold ${isRefundMode ? 'text-orange-600 dark:text-orange-400' : ''}`}>
-              {formatCurrency(isRefundMode ? refundRequired : billAmount + creditApplied)}
+              {formatCurrency(
+                isRefundMode
+                  ? refundRequired
+                  : billAmount + creditApplied + advanceApplied,
+              )}
             </span>
           </div>
 
@@ -209,8 +216,15 @@ export function MixPaymentDialog({
             </div>
           )}
 
-          {/* Net Payable after credit */}
-          {creditApplied > 0 && !isRefundMode && (
+          {advanceApplied > 0 && !isRefundMode && (
+            <div className="flex items-center justify-between p-3 bg-orange-100 dark:bg-orange-900 rounded-lg border border-orange-300 dark:border-orange-700">
+              <span className="text-sm font-medium text-orange-700 dark:text-orange-300">Advance Applied:</span>
+              <span className="text-lg font-bold text-orange-700 dark:text-orange-300">-{formatCurrency(advanceApplied)}</span>
+            </div>
+          )}
+
+          {/* Net Payable after credit / advance */}
+          {(creditApplied > 0 || advanceApplied > 0) && !isRefundMode && (
             <div className="flex items-center justify-between p-3 bg-green-100 dark:bg-green-900 rounded-lg border border-green-300 dark:border-green-700">
               <span className="text-sm font-medium text-green-700 dark:text-green-300">Net Payable:</span>
               <span className="text-lg font-bold text-green-700 dark:text-green-300">{formatCurrency(billAmount)}</span>

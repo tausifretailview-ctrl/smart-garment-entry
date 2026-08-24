@@ -79,7 +79,8 @@ import {
   deleteJournalEntryByReference,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
-import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { applyExistingAdvanceToSale } from "@/utils/posApplyAdvance";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -2107,59 +2108,112 @@ const POSDashboard = () => {
     );
 
     let insertedVoucherId: string | null = null;
+    const isAdvanceApply = paymentMode === "advance";
 
     try {
-      const { data: voucherData, error: voucherError } = await supabase.rpc(
-        'generate_voucher_number',
-        { p_type: 'receipt', p_date: voucherDateYmd }
-      );
+      let voucherData: string = "";
+      let rec: { outstanding: number };
 
-      if (voucherError) throw voucherError;
-
-      const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`;
-
-      const { data: vrow, error: voucherEntryError } = await supabase
-        .from('voucher_entries')
-        .insert({
-          organization_id: currentOrganization?.id,
-          voucher_number: voucherData,
-          voucher_type: 'receipt',
-          voucher_date: voucherDateYmd,
-          reference_type: 'sale',
-          reference_id: selectedSaleForPayment.id,
-          total_amount: amount,
-          description: receiptDescription,
-          payment_method: paymentMode,
-        })
-        .select("id")
-        .single();
-
-      if (voucherEntryError) throw voucherEntryError;
-      if (!vrow?.id) throw new Error("Receipt voucher insert failed");
-      insertedVoucherId = vrow.id as string;
-
-      // Receipt-only settle (same as Sale Billing / FloatingPayments / Collect & Pay).
-      // Do NOT bump cash_amount/card_amount/upi_amount — those are billing-time tenders.
-      // Bumping them double-counted the balance in cashier cash-in (tenders + RCP).
-      const rec = await syncSalePaymentFromVouchers(
-        selectedSaleForPayment.id,
-        currentOrganization!.id,
-        voucherDateYmd,
-        supabase,
-        { existingSale: selectedSaleForPayment },
-      );
-
-      if (postLedger) {
-        await recordCustomerReceiptJournalEntry(
-          insertedVoucherId,
-          currentOrganization!.id,
-          amount,
+      if (isAdvanceApply) {
+        if (!selectedSaleForPayment.customer_id) {
+          throw new Error("This sale has no customer — cannot apply advance");
+        }
+        const pending = Math.max(
           0,
-          paymentMode,
-          format(paymentDate, 'yyyy-MM-dd'),
-          receiptDescription,
-          supabase
+          Number(selectedSaleForPayment.net_amount || 0) - currentPaid - currentCNAdjust,
         );
+        const requested = Math.min(amount, advanceBalance, pending);
+        if (requested <= 0.01) {
+          throw new Error("No unused advance or pending amount to apply");
+        }
+        const { consumed, vouchers } = await applyExistingAdvanceToSale({
+          client: supabase,
+          customerId: selectedSaleForPayment.customer_id,
+          organizationId: currentOrganization!.id,
+          saleId: selectedSaleForPayment.id,
+          saleNumber: selectedSaleForPayment.sale_number,
+          requestedAmount: requested,
+          voucherDate: voucherDateYmd,
+          createdBy: user?.id ?? null,
+        });
+        insertedVoucherId = vouchers[vouchers.length - 1] || null;
+        if (insertedVoucherId) {
+          const { data: vrow } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("id", insertedVoucherId)
+            .maybeSingle();
+          voucherData = String(vrow?.voucher_number || "");
+        }
+        rec = await syncSalePaymentFromVouchers(
+          selectedSaleForPayment.id,
+          currentOrganization!.id,
+          voucherDateYmd,
+          supabase,
+          { existingSale: selectedSaleForPayment },
+        );
+        invalidateCustomerFinancialSnapshot(
+          queryClient,
+          currentOrganization!.id,
+          selectedSaleForPayment.customer_id,
+        );
+        if (consumed + 0.01 < requested) {
+          toast({
+            title: "Advance shortfall",
+            description: `Applied ₹${Math.round(consumed).toLocaleString("en-IN")} of ₹${Math.round(requested).toLocaleString("en-IN")}. Remaining due stays on the bill.`,
+          });
+        }
+      } else {
+        const { data: generatedNumber, error: voucherError } = await supabase.rpc(
+          "generate_voucher_number",
+          { p_type: "receipt", p_date: voucherDateYmd },
+        );
+
+        if (voucherError) throw voucherError;
+        voucherData = generatedNumber as string;
+
+        const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`;
+
+        const { data: vrow, error: voucherEntryError } = await supabase
+          .from("voucher_entries")
+          .insert({
+            organization_id: currentOrganization?.id,
+            voucher_number: voucherData,
+            voucher_type: "receipt",
+            voucher_date: voucherDateYmd,
+            reference_type: "sale",
+            reference_id: selectedSaleForPayment.id,
+            total_amount: amount,
+            description: receiptDescription,
+            payment_method: paymentMode,
+          })
+          .select("id")
+          .single();
+
+        if (voucherEntryError) throw voucherEntryError;
+        if (!vrow?.id) throw new Error("Receipt voucher insert failed");
+        insertedVoucherId = vrow.id as string;
+
+        rec = await syncSalePaymentFromVouchers(
+          selectedSaleForPayment.id,
+          currentOrganization!.id,
+          voucherDateYmd,
+          supabase,
+          { existingSale: selectedSaleForPayment },
+        );
+
+        if (postLedger) {
+          await recordCustomerReceiptJournalEntry(
+            insertedVoucherId,
+            currentOrganization!.id,
+            amount,
+            0,
+            paymentMode,
+            format(paymentDate, "yyyy-MM-dd"),
+            receiptDescription,
+            supabase,
+          );
+        }
       }
 
       toast({
@@ -2193,7 +2247,7 @@ const POSDashboard = () => {
       if (insertedVoucherId && currentOrganization?.id) {
         await deleteJournalEntryByReference(
           currentOrganization.id,
-          "CustomerReceipt",
+          isAdvanceApply ? "CustomerAdvanceApplication" : "CustomerReceipt",
           insertedVoucherId,
           supabase
         );
