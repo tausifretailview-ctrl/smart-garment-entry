@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
+import { whatsappShareUrl } from "@/lib/storefrontShare";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 
 export function EnquiryForm({
   slug,
   productId,
+  shopWhatsApp,
+  productLabel,
 }: {
   slug: string;
   productId?: string | null;
+  shopWhatsApp?: string | null;
+  productLabel?: string;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -18,7 +23,7 @@ export function EnquiryForm({
 
   if (done) {
     return (
-      <div className="mt-4 rounded-xl bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+      <div className="rounded-lg border border-[color:var(--store-line)] bg-[color:var(--store-ivory)] px-3 py-3 text-sm text-[color:var(--store-green)]">
         Thanks — the shop has your enquiry and will contact you shortly.
       </div>
     );
@@ -53,44 +58,59 @@ export function EnquiryForm({
     }
   };
 
+  const waText = productLabel
+    ? `Hi, I am interested in ${productLabel}.`
+    : "Hi, I have a product enquiry from your online catalogue.";
+
   return (
-    <form className="mt-4 space-y-3" onSubmit={onSubmit}>
-      <label className="block">
-        <span className="text-xs font-medium text-slate-600">Your name</span>
+    <form className="space-y-3" onSubmit={onSubmit}>
+      <div className="storefront-field">
+        <label htmlFor="sf-name">Your name</label>
         <input
+          id="sf-name"
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
           required
-          className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[color:var(--store-accent,#2563EB)]"
+          placeholder="e.g. Priya Sharma"
         />
-      </label>
-      <label className="block">
-        <span className="text-xs font-medium text-slate-600">Mobile number</span>
+      </div>
+      <div className="storefront-field">
+        <label htmlFor="sf-phone">Phone number</label>
         <input
+          id="sf-phone"
           value={customerPhone}
           onChange={(e) => setCustomerPhone(e.target.value)}
           required
           inputMode="tel"
-          className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-[color:var(--store-accent,#2563EB)]"
+          placeholder="+91 98765 43210"
         />
-      </label>
-      <label className="block">
-        <span className="text-xs font-medium text-slate-600">Message (optional)</span>
+      </div>
+      <div className="storefront-field">
+        <label htmlFor="sf-msg">Message (optional)</label>
         <textarea
+          id="sf-msg"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          rows={3}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[color:var(--store-accent,#2563EB)]"
+          rows={2}
+          placeholder="Do you have this in my size?"
         />
-      </label>
+      </div>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full rounded-full bg-[color:var(--store-accent,#2563EB)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-      >
-        {submitting ? "Sending…" : "Send enquiry"}
-      </button>
+      <div className="flex gap-2 pt-1">
+        <button type="submit" disabled={submitting} className="storefront-btn-primary flex-1">
+          {submitting ? "Sending…" : "Send enquiry"}
+        </button>
+        {shopWhatsApp ? (
+          <a
+            href={whatsappShareUrl(waText, shopWhatsApp)}
+            target="_blank"
+            rel="noreferrer"
+            className="storefront-btn-wa"
+          >
+            WhatsApp
+          </a>
+        ) : null}
+      </div>
     </form>
   );
 }

@@ -3,7 +3,7 @@ import { formatStorefrontPrice, storefrontStockLabel } from "@/lib/storefrontSto
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import { storefrontProductPath } from "@/lib/storefrontPath";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
-import { StorefrontFooter, StorefrontHeader } from "./StorefrontChrome";
+import { StorefrontShell } from "./StorefrontChrome";
 
 export function StorefrontHome({
   shop,
@@ -16,6 +16,8 @@ export function StorefrontHome({
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+
+  const displayName = shop.display_name || shop.name;
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -36,121 +38,113 @@ export function StorefrontHome({
   });
 
   const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const categoryEyebrow =
+    categories.length > 0 ? categories.slice(0, 3).join(" · ") : "Curated catalogue";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
-      <StorefrontHeader shop={shop} />
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{shop.name}</h1>
-            <p className="mt-1 text-sm text-slate-500">Browse in-stock products and send an enquiry.</p>
-          </div>
-          <a
-            href={whatsappShareUrl(storefrontWhatsAppShareText(shop.name, shareUrl), shop.whatsapp_number)}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center justify-center rounded-full bg-[color:var(--store-accent,#2563EB)] px-4 py-2 text-sm font-medium text-white"
-          >
-            Share on WhatsApp
-          </a>
-        </div>
+    <StorefrontShell shop={shop} orgSlug={orgSlug}>
+      <section className="storefront-hero">
+        <p className="storefront-eyebrow">{categoryEyebrow}</p>
+        <h1>{displayName}</h1>
+        <p>Browse our latest products and send an enquiry — we&apos;ll get back to you on WhatsApp.</p>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <div className="storefront-search">
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search products"
-            className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[color:var(--store-accent,#2563EB)]"
+            aria-label="Search products"
           />
         </div>
 
         {categories.length > 0 ? (
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-            <Chip active={!category} onClick={() => setCategory("")} label="All" />
+          <div className="storefront-chip-row">
+            <button
+              type="button"
+              className={`storefront-chip${!category ? " active" : ""}`}
+              onClick={() => setCategory("")}
+            >
+              All
+            </button>
             {categories.map((c) => (
-              <Chip key={c} active={category === c} onClick={() => setCategory(c)} label={c} />
+              <button
+                key={c}
+                type="button"
+                className={`storefront-chip${category === c ? " active" : ""}`}
+                onClick={() => setCategory(c)}
+              >
+                {c}
+              </button>
             ))}
           </div>
         ) : null}
+      </section>
 
-        {filtered.length === 0 ? (
-          <p className="mt-12 text-center text-sm text-slate-500">No products match this search.</p>
-        ) : (
-          <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {filtered.map((product) => (
-              <li key={product.id}>
-                <a
-                  href={storefrontProductPath(orgSlug, product.product_id)}
-                  className="group flex h-full w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm"
-                >
-                  <div className="aspect-square bg-slate-100">
-                    {product.photo_urls[0] ? (
-                      <img
-                        src={product.photo_urls[0]}
-                        alt={product.name}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition group-hover:scale-[1.02]"
-                      />
-                    ) : (
-                      <div className="flex h-full items-center justify-center text-xs text-slate-400">
-                        No photo
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1 p-3">
-                    <div className="line-clamp-2 text-sm font-semibold">{product.name}</div>
-                    {product.brand ? (
-                      <div className="text-xs text-slate-500">{product.brand}</div>
-                    ) : null}
-                    <div className="mt-auto flex items-center justify-between pt-2">
-                      <span className="text-sm font-semibold tabular-nums">
-                        {formatStorefrontPrice(product.display_price) || "Ask"}
-                      </span>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                          product.stock_status === "out_of_stock"
-                            ? "bg-slate-100 text-slate-500"
-                            : product.stock_status === "low_stock"
-                              ? "bg-amber-50 text-amber-700"
-                              : "bg-emerald-50 text-emerald-700"
-                        }`}
-                      >
-                        {storefrontStockLabel(product.stock_status, product.stock_left)}
-                      </span>
-                    </div>
-                  </div>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
-      <StorefrontFooter shop={shop} />
-    </div>
+      <div className="storefront-section-label">
+        <h2>Shop collection</h2>
+        <span>
+          {filtered.length} piece{filtered.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="storefront-empty">No products match this search.</p>
+      ) : (
+        <div className="storefront-grid">
+          {filtered.map((product) => (
+            <ProductCard key={product.id} product={product} orgSlug={orgSlug} />
+          ))}
+        </div>
+      )}
+
+      <a
+        href={whatsappShareUrl(storefrontWhatsAppShareText(displayName, shareUrl), shop.whatsapp_number)}
+        target="_blank"
+        rel="noreferrer"
+        className="storefront-float-share"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden>
+          <path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M16 6l-4-4-4 4M12 2v14" />
+        </svg>
+        Share this shop
+      </a>
+    </StorefrontShell>
   );
 }
 
-function Chip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function ProductCard({ product, orgSlug }: { product: PublicStorefrontProduct; orgSlug: string }) {
+  const outOfStock = product.stock_status === "out_of_stock";
+  const badgeClass =
+    product.stock_status === "out_of_stock"
+      ? "out"
+      : product.stock_status === "low_stock"
+        ? "low"
+        : "in";
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ${
-        active
-          ? "bg-slate-900 text-white"
-          : "bg-white text-slate-600 ring-1 ring-slate-200"
-      }`}
-    >
-      {label}
-    </button>
+    <a href={storefrontProductPath(orgSlug, product.product_id)} className="storefront-card">
+      <div className="storefront-card-photo">
+        <span className={`storefront-stock-badge ${badgeClass}`}>
+          {storefrontStockLabel(product.stock_status, product.stock_left)}
+        </span>
+        {product.photo_urls[0] ? (
+          <img src={product.photo_urls[0]} alt={product.name} loading="lazy" />
+        ) : (
+          <div className="storefront-card-photo-empty">No photo</div>
+        )}
+      </div>
+      <div className="storefront-card-body">
+        <div className="storefront-card-name">{product.name}</div>
+        {product.brand ? <div className="storefront-card-meta">{product.brand}</div> : null}
+        <div className="storefront-price-tag">
+          <span className="storefront-price-now">
+            {formatStorefrontPrice(product.display_price) || "Ask"}
+          </span>
+        </div>
+        <span className={`storefront-enquire-btn${outOfStock ? " disabled" : ""}`}>
+          {outOfStock ? "Notify shop" : "View & enquire"}
+        </span>
+      </div>
+    </a>
   );
 }
