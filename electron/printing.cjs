@@ -1,3 +1,6 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { BrowserWindow, dialog, ipcMain } = require('electron');
 
 let getMainWindow = () => null;
@@ -195,69 +198,124 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
   const isBarcode = printKind === 'barcode';
   const useCssPageSize = !!preferCSSPageSize || isReceipt || isBarcode;
 
+  const tmpFile = path.join(
+    os.tmpdir(),
+    `ezzy-print-${Date.now()}-${Math.random().toString(36).slice(2)}.html`,
+  );
+
   return new Promise((resolve) => {
     let printWin = new BrowserWindow({
       show: !printSilent,
+      // Hidden windows on Windows often spool a blank/no-op job. Keep painting.
+      paintWhenInitiallyHidden: true,
       width: isReceipt ? 340 : 800,
       height: isReceipt ? 900 : 600,
       webPreferences: { nodeIntegration: false, contextIsolation: true },
     });
 
-    // Offscreen print surface only ever loads the provided data: URL —
-    // block any window.open and any navigation away from it.
+    // Offscreen print surface: allow only the temp file / data document.
     printWin.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    printWin.webContents.on('will-navigate', (event) => {
+    printWin.webContents.on('will-navigate', (event, url) => {
+      if (
+        typeof url === 'string' &&
+        (url.startsWith('file:') || url.startsWith('data:'))
+      ) {
+        return;
+      }
       event.preventDefault();
     });
 
     let settled = false;
+    let loadTimer = null;
+    let printTimer = null;
     const finish = (result) => {
       if (settled) return;
       settled = true;
+      if (loadTimer) clearTimeout(loadTimer);
+      if (printTimer) clearTimeout(printTimer);
       try {
         if (printWin && !printWin.isDestroyed()) printWin.close();
       } catch {}
       printWin = null;
+      try {
+        fs.unlinkSync(tmpFile);
+      } catch {}
       resolve(result);
     };
 
-    // Safety timeout so a stuck render never hangs the renderer's await
-    const timeout = setTimeout(() => finish({ success: false, error: 'Print timed out' }), 15000);
+    loadTimer = setTimeout(
+      () => finish({ success: false, error: 'Print timed out' }),
+      15000,
+    );
 
-    printWin.webContents.once('did-finish-load', () => {
-      setTimeout(() => {
-        try {
-          printWin.webContents.print(
-            {
-              silent: printSilent,
-              deviceName: printerName || '',
-              pageSize: useCssPageSize ? undefined : (pageSize || 'A4'),
-              copies: copies || 1,
-              landscape: landscape || false,
-              margins: isReceipt || isBarcode
+    const startPrint = () => {
+      if (settled || !printWin || printWin.isDestroyed()) return;
+      if (loadTimer) {
+        clearTimeout(loadTimer);
+        loadTimer = null;
+      }
+      // Thermal/label spoolers are slow; do not abort the job at 15s.
+      printTimer = setTimeout(
+        () => finish({ success: false, error: 'Print timed out' }),
+        120000,
+      );
+      try {
+        printWin.webContents.print(
+          {
+            silent: printSilent,
+            deviceName: printerName || '',
+            pageSize: useCssPageSize ? undefined : pageSize || 'A4',
+            copies: copies || 1,
+            landscape: landscape || false,
+            margins:
+              isReceipt || isBarcode
                 ? { marginType: 'none' }
                 : margins || { marginType: 'default' },
-              printBackground: true,
-              preferCSSPageSize: useCssPageSize,
-            },
-            (success, failureReason) => {
-              clearTimeout(timeout);
-              finish({ success, error: failureReason || null });
-            },
-          );
-        } catch (err) {
-          clearTimeout(timeout);
-          finish({ success: false, error: String(err && err.message ? err.message : err) });
-        }
-      }, 300);
-    });
+            printBackground: true,
+            preferCSSPageSize: useCssPageSize,
+          },
+          (success, failureReason) => {
+            finish({ success, error: failureReason || null });
+          },
+        );
+      } catch (err) {
+        finish({
+          success: false,
+          error: String(err && err.message ? err.message : err),
+        });
+      }
+    };
 
-    printWin
-      .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
-      .catch((err) => {
-        clearTimeout(timeout);
-        finish({ success: false, error: String(err && err.message ? err.message : err) });
+    printWin.webContents.once('did-finish-load', () => {
+      setTimeout(startPrint, 400);
+    });
+    printWin.webContents.on(
+      'did-fail-load',
+      (_event, errorCode, errorDescription, _validatedURL, isMainFrame) => {
+        if (!isMainFrame || errorCode === -3) return;
+        finish({
+          success: false,
+          error: errorDescription || 'Failed to load print document',
+        });
+      },
+    );
+
+    try {
+      fs.writeFileSync(tmpFile, html, 'utf8');
+    } catch (err) {
+      finish({
+        success: false,
+        error: String(err && err.message ? err.message : err),
       });
+      return;
+    }
+
+    printWin.loadFile(tmpFile).catch((err) => {
+      finish({
+        success: false,
+        error: String(err && err.message ? err.message : err),
+      });
+    });
   });
 });
 
