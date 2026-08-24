@@ -51,9 +51,8 @@ export function resolvePosInvoiceTemplate(
 export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4-gst-classic']);
 
 /**
- * Real Tast Bill of Supply prints on A4 with zero page margin.
- * Do not lock the leaf to 297mm — that stretched blank SN rows and left a
- * hole between Total Qty and Note. Extra paper white stays at the sheet bottom.
+ * Real Tast Bill of Supply — full A4 portrait (210×297mm), zero page margin.
+ * The leaf and border fill the sheet; empty SN rows occupy the space above totals.
  */
 export function getRealTastA4PrintPageStyle(): string {
   return `
@@ -64,10 +63,13 @@ export function getRealTastA4PrintPageStyle(): string {
       @media print {
         html, body {
           width: 210mm !important;
+          height: 297mm !important;
+          max-width: 210mm !important;
+          max-height: 297mm !important;
           margin: 0 !important;
           padding: 0 !important;
           background: #fff !important;
-          overflow: visible !important;
+          overflow: hidden !important;
         }
         .invoice-print-source,
         .invoice-print-source-screen,
@@ -75,28 +77,39 @@ export function getRealTastA4PrintPageStyle(): string {
         .retail-erp-all-pages {
           width: 210mm !important;
           max-width: 210mm !important;
-          min-height: 0 !important;
-          height: auto !important;
-          max-height: none !important;
+          min-height: 297mm !important;
+          height: 297mm !important;
+          max-height: 297mm !important;
           margin: 0 !important;
           padding: 0 !important;
           visibility: visible !important;
           opacity: 1 !important;
           display: block !important;
-          overflow: visible !important;
+          overflow: hidden !important;
         }
         .retail-erp-invoice-template[data-invoice-variant="real-tast"] {
           width: 210mm !important;
           max-width: 210mm !important;
-          height: auto !important;
-          min-height: 0 !important;
-          max-height: none !important;
+          height: 297mm !important;
+          min-height: 297mm !important;
+          max-height: 297mm !important;
           margin: 0 !important;
           box-sizing: border-box !important;
-          overflow: visible !important;
+          overflow: hidden !important;
+        }
+        .retail-erp-invoice-template[data-invoice-variant="real-tast"] > .retail-erp-page-border {
+          flex: 1 1 auto !important;
+          min-height: 0 !important;
+        }
+        .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-items-grow {
+          flex: 1 1 auto !important;
+          min-height: 0 !important;
+        }
+        .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-items-grow > table {
+          height: 100% !important;
         }
         .retail-erp-invoice-template[data-invoice-variant="real-tast"] .retail-erp-footer {
-          margin-top: 0 !important;
+          margin-top: auto !important;
         }
       }
   `;

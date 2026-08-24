@@ -82,13 +82,13 @@ describe('resolveSaleBillFormat', () => {
 });
 
 describe('getRealTastA4PrintPageStyle', () => {
-  it('prints A4 with zero page margin and auto-height content (no mid-page gap)', () => {
+  it('prints a full A4 leaf (210×297mm) with zero page margin', () => {
     const css = getRealTastA4PrintPageStyle();
     expect(css).toContain('size: 210mm 297mm');
     expect(css).toContain('margin: 0');
-    expect(css).toContain('min-height: 0 !important');
     expect(css).toContain('data-invoice-variant="real-tast"');
-    expect(css).toContain('height: auto !important');
-    expect(css).toContain('margin-top: 0 !important');
+    expect(css).toContain('height: 297mm !important');
+    expect(css).toContain('min-height: 297mm !important');
+    expect(css).toContain('max-height: 297mm !important');
   });
 });
