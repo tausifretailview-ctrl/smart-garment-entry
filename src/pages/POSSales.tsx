@@ -57,7 +57,17 @@ import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearc
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
+import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import {
+  applyExistingAdvanceToSale,
+  capPosAdvanceApplyAmount,
+  posAdvanceApplyBlockReason,
+  posAdvanceApplyBlockToast,
+  posTenderDueAfterAdvance,
+} from "@/utils/posApplyAdvance";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
@@ -538,6 +548,7 @@ const PERF_PATH = "pos-sales";
 export default function POSSales() {
   useNavPerfPage(PERF_PATH);
   useEntryViewportSync();
+  const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
@@ -553,6 +564,9 @@ export default function POSSales() {
   const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
+  const [availableAdvanceBalance, setAvailableAdvanceBalance] = useState(0);
+  const [advanceApplied, setAdvanceApplied] = useState(0);
+  const [openingBalanceRemaining, setOpeningBalanceRemaining] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
@@ -1227,6 +1241,7 @@ export default function POSSales() {
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
+    setAdvanceApplied(0);
     // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
     clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
@@ -1697,6 +1712,9 @@ export default function POSSales() {
       setRefundAmount(0);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(null);
@@ -2177,6 +2195,51 @@ export default function POSSales() {
     };
     fetchCreditBalance();
   }, [customerId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAdvanceBalance = async () => {
+      if (!customerId || !currentOrganization?.id) {
+        setAvailableAdvanceBalance(0);
+        setAdvanceApplied(0);
+        setOpeningBalanceRemaining(0);
+        return;
+      }
+      try {
+        const [{ data: advRows }, obRemaining] = await Promise.all([
+          supabase
+            .from("customer_advances")
+            .select("amount, used_amount")
+            .eq("customer_id", customerId)
+            .eq("organization_id", currentOrganization.id),
+          fetchCustomerOpeningBalanceRemaining(
+            supabase,
+            currentOrganization.id,
+            customerId,
+            queryClient,
+          ),
+        ]);
+        if (cancelled) return;
+        const unused = (advRows || []).reduce((sum, row) => {
+          const available = (Number(row.amount) || 0) - (Number(row.used_amount) || 0);
+          return sum + Math.max(0, available);
+        }, 0);
+        setAvailableAdvanceBalance(unused);
+        setOpeningBalanceRemaining(obRemaining);
+        setAdvanceApplied(0);
+      } catch {
+        if (!cancelled) {
+          setAvailableAdvanceBalance(0);
+          setOpeningBalanceRemaining(0);
+          setAdvanceApplied(0);
+        }
+      }
+    };
+    void fetchAdvanceBalance();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, currentOrganization?.id, queryClient]);
 
   // Brand-wise takes precedence: master Disc % is bill flat only with no brand rows.
   // Wait for brand query so master 3% is never race-applied over brand 7%.
@@ -3362,10 +3425,17 @@ export default function POSSales() {
   );
   const exchangeRefundDue = Math.max(0, Math.round((saleReturnAdjust - exchangeSrApplied) * 100) / 100);
   /** Mix dialog bill: negative refund amount when exchange excess exists (even if net is 0). */
+  const posTenderDue = posTenderDueAfterAdvance(finalAmount, advanceApplied);
   const mixDialogBillAmount =
     finalAmount < -0.005 || exchangeRefundDue > 0.005
       ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-      : finalAmount;
+      : posTenderDue;
+
+  useEffect(() => {
+    if (exchangeRefundDue > 0.005 && advanceApplied > 0) {
+      setAdvanceApplied(0);
+    }
+  }, [exchangeRefundDue, advanceApplied]);
 
   const clampSaleReturnAdjust = (requested: number, opts?: { silent?: boolean }) => {
     const raw = Math.max(0, Math.round((Number(requested) || 0) * 100) / 100);
@@ -3678,6 +3748,70 @@ export default function POSSales() {
     setCreditApplied(maxApplicable);
   };
 
+  const handleApplyAdvance = (amount: number) => {
+    if (amount <= 0) {
+      setAdvanceApplied(0);
+      return;
+    }
+    const block = posAdvanceApplyBlockReason({
+      customerId,
+      availableAdvanceBalance,
+      billRoom: Math.max(0, finalAmount),
+      openingBalanceRemaining,
+      exchangeRefundDue,
+    });
+    if (block) {
+      toast.error("Cannot Apply Advance", { description: posAdvanceApplyBlockToast(block) });
+      return;
+    }
+    const maxApplicable = capPosAdvanceApplyAmount({
+      requested: amount,
+      availableAdvanceBalance,
+      billRoom: Math.max(0, finalAmount),
+    });
+    if (maxApplicable <= 0) {
+      toast.error("Cannot Apply Advance", {
+        description: "No unused advance or bill amount is too low",
+      });
+      return;
+    }
+    setAdvanceApplied(maxApplicable);
+  };
+
+  const applyAdvanceAfterSave = async (result: { id: string; sale_number?: string | null }) => {
+    if (!(advanceApplied > 0.01 && customerId && result?.id && currentOrganization?.id)) return;
+    try {
+      const { consumed } = await applyExistingAdvanceToSale({
+        client: supabase,
+        customerId,
+        organizationId: currentOrganization.id,
+        saleId: result.id,
+        saleNumber: result.sale_number,
+        requestedAmount: advanceApplied,
+        voucherDate: buildPosVoucherDate(),
+        createdBy: user?.id ?? null,
+      });
+      invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, customerId);
+      if (consumed + 0.01 < advanceApplied) {
+        toast.warning("Advance shortfall", {
+          description: `Applied ₹${Math.round(consumed).toLocaleString("en-IN")} of ₹${Math.round(advanceApplied).toLocaleString("en-IN")}. Remaining due stays on the bill.`,
+        });
+      }
+    } catch (err) {
+      toast.error("Could not apply advance", {
+        description:
+          err instanceof Error
+            ? err.message
+            : "Apply from Payments if needed.",
+      });
+    }
+  };
+
+  const withPosAdvance = <T extends { netAmount: number }>(saleData: T): T & { advanceApplied: number } => ({
+    ...saleData,
+    advanceApplied,
+  });
+
   const hasNamedPosCustomer = () =>
     !!customerName?.trim() && customerName.trim().toLowerCase() !== "walk-in customer";
 
@@ -3721,14 +3855,14 @@ export default function POSSales() {
       return;
     }
 
-    const saleData = buildSaleData({
+    const saleData = withPosAdvance(buildSaleData({
       customerId,
       customerName,
       customerPhone,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       saleDate: buildPosSaleDate(),
-    });
+    }));
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId
@@ -3785,6 +3919,7 @@ export default function POSSales() {
       if (creditApplied > 0 && customerId && result?.id) {
         void applyCredit(customerId, result.id, creditApplied);
       }
+      await applyAdvanceAfterSave(result);
       
       // Check for DC items — offer transfer to delivery challan for cash sales
       const effectivePayment = forcePaymentMethod || paymentMethod;
@@ -3836,6 +3971,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
@@ -3980,14 +4118,14 @@ export default function POSSales() {
     }
 
     // Save the sale with the selected payment method
-    const saleData = buildSaleData({
+    const saleData = withPosAdvance(buildSaleData({
       customerId,
       customerName,
       customerPhone,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       saleDate: buildPosSaleDate(),
-    });
+    }));
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
@@ -4028,6 +4166,8 @@ export default function POSSales() {
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
+
+      await applyAdvanceAfterSave(result);
       
       // Silent operation - no toast for POS save
       
@@ -4053,7 +4193,7 @@ export default function POSSales() {
         creditApplied: creditApplied,
         creditAmount: creditApplied,
         notes: saleNotes || null,
-        paidAmount: method === 'pay_later' ? 0 : finalAmount,
+        paidAmount: method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: customerBalance || 0,
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
@@ -4095,6 +4235,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
@@ -4184,14 +4327,14 @@ export default function POSSales() {
     // Explicit refundAmount (or issueCreditNote) tells save to settle excess instead of
     // toasting "remains for a future bill".
     const saleData = {
-      ...buildSaleData({
+      ...withPosAdvance(buildSaleData({
         customerId,
         customerName,
         customerPhone,
         salesman: selectedSalesman || null,
         notes: saleNotes || null,
         saleDate: buildPosSaleDate(),
-      }),
+      })),
       netAmount: finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
     };
@@ -4378,6 +4521,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
@@ -4405,6 +4551,9 @@ export default function POSSales() {
       
       if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
         applyCredit(customerId, result.id, creditApplied);
+      }
+      if (!isCreditNote && !isRefund) {
+        await applyAdvanceAfterSave(result);
       }
       if (!isCreditNote && pointsToRedeem > 0 && customerId) {
         redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
@@ -4722,8 +4871,8 @@ export default function POSSales() {
             }
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
             grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
+            cashPaid={savedInvoiceData?.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'cash' ? posTenderDue : 0}
+            upiPaid={savedInvoiceData?.method === 'upi' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'upi' ? posTenderDue : 0}
             paymentMethod={savedInvoiceData?.method || paymentMethod}
             cashAmount={savedInvoiceData?.cashAmount || 0}
             upiAmount={savedInvoiceData?.upiAmount || 0}
@@ -5142,6 +5291,9 @@ export default function POSSales() {
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
+    setAdvanceApplied(0);
+    setAvailableAdvanceBalance(0);
+    setOpeningBalanceRemaining(0);
     setSearchInput("");
     setCurrentSaleId(null);
     setOriginalItemsForEdit([]);
@@ -5164,6 +5316,9 @@ export default function POSSales() {
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
+    setAdvanceApplied(0);
+    setAvailableAdvanceBalance(0);
+    setOpeningBalanceRemaining(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
@@ -5674,6 +5829,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -5804,6 +5960,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -6760,6 +6917,35 @@ export default function POSSales() {
               </div>
             )}
 
+            {customerId && availableAdvanceBalance > 0 && advanceApplied === 0 && items.length > 0 && (
+              <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-orange-50 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-700 rounded-lg text-sm">
+                <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                  <IndianRupee className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong>₹{availableAdvanceBalance.toLocaleString('en-IN')}</strong> advance available for {customerName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxApplicable = capPosAdvanceApplyAmount({
+                      requested: availableAdvanceBalance,
+                      availableAdvanceBalance,
+                      billRoom: Math.max(0, finalAmount),
+                    });
+                    if (maxApplicable > 0) handleApplyAdvance(maxApplicable);
+                  }}
+                  className="ml-3 shrink-0 px-3 py-1 bg-orange-600 text-white text-xs font-semibold rounded hover:bg-orange-700 transition-colors"
+                >
+                  Apply ₹{capPosAdvanceApplyAmount({
+                    requested: availableAdvanceBalance,
+                    availableAdvanceBalance,
+                    billRoom: Math.max(0, finalAmount),
+                  }).toLocaleString('en-IN')} Now
+                </button>
+              </div>
+            )}
+
             <div
               ref={itemsContainerRef} 
               className="pos-sales-cart-scroll flex-1 min-h-0 overflow-y-auto overscroll-y-contain relative scroll-smooth"
@@ -7550,6 +7736,39 @@ export default function POSSales() {
                 </div>
               )}
 
+              {(availableAdvanceBalance > 0 || advanceApplied > 0) && (
+                <div className="text-center">
+                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Adv ₹{availableAdvanceBalance.toFixed(0)}</div>
+                  <Input
+                    type="number"
+                    className="w-24 h-10 bg-orange-100 text-orange-800 text-center text-lg font-semibold border-0 rounded-md"
+                    value={advanceApplied || ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      handleApplyAdvance(value);
+                    }}
+                    max={capPosAdvanceApplyAmount({
+                      requested: availableAdvanceBalance,
+                      availableAdvanceBalance,
+                      billRoom: Math.max(0, finalAmount),
+                    })}
+                    step="0.01"
+                    disabled={
+                      !customerId ||
+                      availableAdvanceBalance <= 0 ||
+                      exchangeRefundDue > 0.005 ||
+                      openingBalanceRemaining > 0.01
+                    }
+                  />
+                  {advanceApplied > 0 && (
+                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
+                      ✓ Applied
+                    </div>
+                  )}
+                </div>
+              )}
+
               {customerId && (
                 <div className="text-center shrink-0 min-w-[160px]">
                   <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Customer Balance</div>
@@ -7606,6 +7825,11 @@ export default function POSSales() {
               {enableMrp && effectiveDiscountPercent > 0 && (
                 <div className="text-xs font-extrabold text-lime-200 mt-0.5">
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
+                </div>
+              )}
+              {advanceApplied > 0.01 && posTenderDue !== Math.round(finalAmount) && (
+                <div className="text-[10px] text-orange-200 font-semibold mt-0.5 text-center">
+                  Due ₹{Math.round(posTenderDue).toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -7929,7 +8153,7 @@ export default function POSSales() {
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
-                cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
+                cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
                 cashAmount={savedInvoiceData.cashAmount || 0}
@@ -7958,6 +8182,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }

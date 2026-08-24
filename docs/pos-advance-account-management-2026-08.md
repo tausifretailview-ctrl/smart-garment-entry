@@ -1,8 +1,7 @@
 # Phase 0 — POS advance / opening-balance handling gap
 
 **Date:** 2026-08-24  
-**Status:** Read-only investigation + design proposal. **No formula changes. No writes. No POS UI.**  
-**Scope for Phase 1:** only after Tausif signs off this doc.
+**Status:** Phase 0 complete (read-only). **Phase 1 (choice A) implemented:** POS applies existing `customer_advances` via `consumeAdvanceFIFO` after save. Mix over-tender still blocked; POS never creates a booking from tender. POS Dashboard Record Payment → Advance uses the same FIFO helper (no `payment_method: 'advance'` receipt).
 
 Related: `docs/customer-accounts-consistency-v1.md` (advance apply = `consumeAdvanceFIFO` only), `docs/customer-balance-hardening-plan.md`, Payments OB-first FIFO in `CustomerPaymentTab.tsx`.
 
