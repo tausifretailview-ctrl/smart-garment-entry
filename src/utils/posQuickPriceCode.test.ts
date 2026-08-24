@@ -3,6 +3,7 @@ import {
   filterPosQuickPriceCodeRows,
   parsePosQuickPriceCode,
   posProductNameMatchesQuickLetters,
+  posQuickPricePostgrestOr,
   posQuickPriceRupees,
   posVariantMatchesQuickPrice,
 } from "./posQuickPriceCode";
@@ -46,6 +47,26 @@ describe("quick price row match", () => {
   it("matches MRP when sale_price is empty (POS billed from MRP)", () => {
     expect(posVariantMatchesQuickPrice({ sale_price: 0, mrp: 300 }, 300)).toBe(true);
     expect(posVariantMatchesQuickPrice({ sale_price: 199, mrp: 399 }, 300)).toBe(false);
+  });
+
+  it("does not match last-purchase sale price", () => {
+    expect(
+      posVariantMatchesQuickPrice(
+        { sale_price: 0, mrp: 0, last_purchase_sale_price: 300 } as {
+          sale_price: number;
+          mrp: number;
+          last_purchase_sale_price: number;
+        },
+        300,
+      ),
+    ).toBe(false);
+  });
+
+  it("builds a PostgREST or-filter on sale_price and mrp (not last purchase)", () => {
+    const filter = posQuickPricePostgrestOr(300);
+    expect(filter).toContain("sale_price.gte.");
+    expect(filter).toContain("mrp.gte.");
+    expect(filter).not.toContain("last_purchase");
   });
 
   it("keeps badge/spec agreement: only name+price rows survive the filter", () => {
