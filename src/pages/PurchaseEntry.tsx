@@ -241,6 +241,7 @@ interface ProductVariant {
   requires_imei?: boolean;
   groupedVariantCount?: number;
   groupedProductIds?: string[];
+  groupedMrpTierCount?: number;
 }
 
 interface LineItem {
@@ -2733,7 +2734,7 @@ const PurchaseEntry = () => {
     }
 
     if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
-      openSizeGridModal(variant.product_id, variant.groupedProductIds);
+      openSizeGridModal(variant.product_id, variant.groupedProductIds, variant.mrp);
     } else {
       await addInlineRow(variant);
       setTimeout(() => {
@@ -3506,7 +3507,7 @@ const PurchaseEntry = () => {
     }
 
     if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
-      openSizeGridModal(variant.product_id, variant.groupedProductIds);
+      openSizeGridModal(variant.product_id, variant.groupedProductIds, variant.mrp);
     } else {
       await addInlineRow(variant);
       // Scroll to and focus on quantity input after adding inline row
@@ -3517,7 +3518,7 @@ const PurchaseEntry = () => {
     }
   };
 
-  const openSizeGridModal = async (productId: string, productIds?: string[]) => {
+  const openSizeGridModal = async (productId: string, productIds?: string[], filterMrp?: number) => {
     if (!currentOrganization) return;
 
     const ids = [...new Set((productIds?.length ? productIds : [productId]).filter(Boolean))];
@@ -3575,11 +3576,18 @@ const PurchaseEntry = () => {
       return;
     }
 
+    const mrpBucket = (value?: number) => Math.round((Number(value) || 0) * 100);
+    const variantsForTier =
+      filterMrp == null
+        ? data
+        : data.filter((v: { mrp?: number }) => mrpBucket(v.mrp) === mrpBucket(filterMrp));
+    const tierData = variantsForTier.length > 0 ? variantsForTier : data;
+
     // If only one variant, add directly (close the loading dialog first)
-    if (data.length === 1) {
+    if (tierData.length === 1) {
       setShowSizeGrid(false);
       setSizeGridLoading(false);
-      const v = data[0];
+      const v = tierData[0];
       const product = v.products as any;
       let barcode = v.barcode || "";
       let skuId = v.id;
@@ -3634,7 +3642,7 @@ const PurchaseEntry = () => {
     }
 
     // Map variants with color info for SizeGridDialog
-    const mappedVariants = normalizeSizeGridVariants(data.map((v: any) => ({
+    const mappedVariants = normalizeSizeGridVariants(tierData.map((v: any) => ({
       id: v.id,
       size: v.size,
       sale_price: v.sale_price || v.products?.default_sale_price,
@@ -3647,7 +3655,7 @@ const PurchaseEntry = () => {
     })));
 
     // Check if this is a MTR product and roll-wise entry is enabled
-    const productData = data[0].products as any;
+    const productData = tierData[0].products as any;
     const productUom = productData?.uom || 'NOS';
     if (rollWiseMtrEntry && productUom === 'MTR') {
       setShowSizeGrid(false);
@@ -3984,8 +3992,11 @@ const PurchaseEntry = () => {
   // Add ALL active variants of a product as inline rows (qty=1 each).
   // Useful when the supplier ships every size/color of a style and the user
   // wants every variant pre-loaded into the purchase bill for editing.
-  const addAllVariantsRows = async (productId: string) => {
+  const addAllVariantsRows = async (productId: string, productIds?: string[], filterMrp?: number) => {
     if (!currentOrganization) return;
+
+    const ids = [...new Set((productIds?.length ? productIds : [productId]).filter(Boolean))];
+    if (ids.length === 0) return;
 
     if (searchAbortControllerRef.current) {
       searchAbortControllerRef.current.abort();
@@ -4006,7 +4017,7 @@ const PurchaseEntry = () => {
           purchase_discount_type, purchase_discount_value, uom
         )
       `)
-      .eq("product_id", productId)
+      .in("product_id", ids)
       .eq("organization_id", currentOrganization.id)
       .eq("active", true);
 
@@ -4019,7 +4030,14 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const sorted = [...data].sort((a: any, b: any) => {
+    const mrpBucket = (value?: number) => Math.round((Number(value) || 0) * 100);
+    const variantsForTier =
+      filterMrp == null
+        ? data
+        : data.filter((v: { mrp?: number }) => mrpBucket(v.mrp) === mrpBucket(filterMrp));
+    const tierData = variantsForTier.length > 0 ? variantsForTier : data;
+
+    const sorted = [...tierData].sort((a: any, b: any) => {
       const ca = (a.color || "").toString();
       const cb = (b.color || "").toString();
       if (ca !== cb) return ca.localeCompare(cb);
@@ -4045,7 +4063,7 @@ const PurchaseEntry = () => {
 
       newRows.push({
         temp_id: Date.now().toString() + Math.random() + idx,
-        product_id: productId,
+        product_id: product?.id || productId,
         sku_id: v.id,
         product_name: product?.product_name || "",
         size: v.size || "",
@@ -7054,6 +7072,11 @@ const PurchaseEntry = () => {
                           {result.groupedVariantCount && result.groupedVariantCount > 1 && (
                             <span className="text-[11px] text-muted-foreground">{result.groupedVariantCount} sizes</span>
                           )}
+                          {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-semibold">
+                              {result.groupedMrpTierCount} MRP
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -7686,6 +7709,11 @@ const PurchaseEntry = () => {
                                 {result.groupedVariantCount && result.groupedVariantCount > 1 && (
                                   <span>{result.groupedVariantCount} sizes</span>
                                 )}
+                                {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
+                                  <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                                    {result.groupedMrpTierCount} MRP
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="text-right shrink-0 tabular-nums font-mono">
@@ -7716,7 +7744,9 @@ const PurchaseEntry = () => {
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (result.product_id) addAllVariantsRows(result.product_id);
+                              if (result.product_id) {
+                                addAllVariantsRows(result.product_id, result.groupedProductIds, result.mrp);
+                              }
                             }}
                             className="shrink-0 self-center text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30"
                           >
@@ -8113,6 +8143,11 @@ const PurchaseEntry = () => {
                                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                       {result.groupedVariantCount && result.groupedVariantCount > 1 && (
                                         <span>{result.groupedVariantCount} sizes</span>
+                                      )}
+                                      {result.groupedMrpTierCount && result.groupedMrpTierCount > 1 && (
+                                        <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                                          {result.groupedMrpTierCount} MRP
+                                        </span>
                                       )}
                                       <span className="text-primary font-medium">
                                         Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
