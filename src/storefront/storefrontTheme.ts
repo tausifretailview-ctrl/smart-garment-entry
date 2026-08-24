@@ -66,3 +66,43 @@ function adjustHexBrightness(hex: string, delta: number): string {
   const b = Math.max(0, Math.min(255, Math.round(parseInt(n.slice(4, 6), 16) * (1 + delta))));
   return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
+
+/** Ella'Noor atelier tokens. Used only when the public store slug is ella-noor. */
+export const theme = {
+  ink: "#12100e",
+  inkRaised: "#171410",
+  panel: "#241f19",
+  paper: "#f4f1ea",
+  paperMuted: "rgba(244,241,234,.55)",
+  paperFaint: "rgba(244,241,234,.40)",
+  gold: "#c9a227",
+  goldLine: "rgba(201,162,39,.28)",
+  hairline: "rgba(244,241,234,.12)",
+  radius: "0px",
+} as const;
+
+export const ELLA_NOOR_SLUG = "ella-noor";
+
+export function isEllaNoorSlug(slug: string | null | undefined): boolean {
+  return String(slug || "").trim().toLowerCase() === ELLA_NOOR_SLUG;
+}
+
+export const ellaCopy = {
+  wordmark: "Ella'Noor",
+  designer: "by Sheza Amani",
+  collectionTitle: "Noor — the bridal edit",
+  collectionLead: "Hand-worked zardozi, made to order in 4–6 weeks.",
+  studioNote:
+    "Each piece is cut and embroidered to order. Lead time 4–6 weeks from confirmation. Studio visits by appointment.",
+  address: "Ella'Noor atelier · by appointment",
+  hours: "Tue–Sun · by appointment",
+  erpNote: "Stock synced live from Ezzy ERP",
+  enquiryNote: "Sent straight into Ezzy ERP as a customer enquiry against this style.",
+  defaultLeadWeeks: 6,
+  defaultFabric: "Raw silk · zardozi",
+  lowStockThreshold: 3,
+} as const;
+
+export const ELLA_CATEGORY_CHIPS = ["All", "Bridal", "Festive", "Ready"] as const;
+
+export type EllaChipCategory = (typeof ELLA_CATEGORY_CHIPS)[number];
