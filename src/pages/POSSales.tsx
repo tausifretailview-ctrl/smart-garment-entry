@@ -2565,7 +2565,8 @@ export default function POSSales() {
     if (!trimmedTerm) return;
 
     // Reject incomplete numeric barcodes — prefix match used to add wrong SKU mid-type.
-    if (/^\d+$/.test(trimmedTerm) && !/^[1-9]$/.test(trimmedTerm) && !isCompleteNumericBarcodeForPosCart(trimmedTerm)) {
+    // 1–9 and 2–7 digit service codes (10, 18, 501) are complete; leading-zero EAN prefixes are not.
+    if (/^\d+$/.test(trimmedTerm) && !isCompleteNumericBarcodeForPosCart(trimmedTerm)) {
       toast.message("Barcode incomplete", {
         description: `Enter at least ${POS_NUMERIC_BARCODE_MIN_LENGTH} digits or press Enter when done.`,
       });

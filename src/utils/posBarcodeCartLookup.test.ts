@@ -8,15 +8,20 @@ import {
 } from "./posBarcodeCartLookup";
 
 describe("posBarcodeCartLookup", () => {
-  it("accepts 3–7 digit service barcodes (501) for POS cart lookup", () => {
+  it("accepts 2–7 digit service barcodes (10, 18, 501) for POS cart lookup", () => {
+    expect(isCompleteNumericBarcodeForPosCart("10")).toBe(true);
+    expect(isCompleteNumericBarcodeForPosCart("18")).toBe(true);
+    expect(isCompleteNumericBarcodeForPosCart("19")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("501")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("8001")).toBe(true);
+    expect(isPosServiceShortNumericBarcode("18")).toBe(true);
   });
 
   it("still requires 8+ digits for long retail EAN-style codes", () => {
-    expect(isCompleteNumericBarcodeForPosCart("12")).toBe(false);
     expect(isCompleteNumericBarcodeForPosCart("004001")).toBe(false);
     expect(isPosServiceShortNumericBarcode("004001")).toBe(false);
+    expect(isPosServiceShortNumericBarcode("04")).toBe(false);
+    expect(isCompleteNumericBarcodeForPosCart("04")).toBe(false);
 
     expect(isCompleteNumericBarcodeForPosCart("00400114")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("0040017429")).toBe(true);
@@ -42,6 +47,11 @@ describe("shouldPosEnterUseExactBarcodeLookup", () => {
 
   it("quick service codes use dropdown path", () => {
     expect(shouldPosEnterUseExactBarcodeLookup("3")).toBe(false);
+  });
+
+  it("two-digit catering service codes use exact barcode lookup on Enter", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("10")).toBe(true);
+    expect(shouldPosEnterUseExactBarcodeLookup("18")).toBe(true);
   });
 });
 
