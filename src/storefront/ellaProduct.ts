@@ -29,10 +29,18 @@ export function mapEllaCategory(raw: string | null | undefined): EllaCategory {
   return "Ready";
 }
 
+function looksLikeStyleCode(value: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]{2,22}$/.test(value) && !/\s/.test(value);
+}
+
 export function mapEllaStyleCode(product: PublicStorefrontProduct): string {
   const brand = String(product.brand || "").trim();
-  if (brand && brand.length <= 18 && !/\s{2,}/.test(brand)) {
+  if (brand && looksLikeStyleCode(brand)) {
     return brand.toUpperCase();
+  }
+  const name = String(product.name || "").trim();
+  if (looksLikeStyleCode(name)) {
+    return name.toUpperCase();
   }
   const compact = String(product.product_id || product.id || "").replace(/-/g, "").slice(0, 6);
   return compact ? `EN-${compact.toUpperCase()}` : "EN-STYLE";

@@ -91,6 +91,10 @@ describe("toEllaStorefrontProduct", () => {
   it("builds a style code from the product id when brand is not a code", () => {
     expect(mapEllaStyleCode(sample({ brand: "A very long atelier brand name" }))).toBe("EN-111111");
   });
+
+  it("uses a SKU-like product name as the style code when brand is empty", () => {
+    expect(mapEllaStyleCode(sample({ brand: null, name: "ELN-A2-1464" }))).toBe("ELN-A2-1464");
+  });
 });
 
 describe("filter + WhatsApp", () => {
