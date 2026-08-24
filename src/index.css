@@ -2400,7 +2400,8 @@ main:has(.business-insights-workspace) {
 /* Customer Balances / Accounting Reports / Settings — sidebar-only full workspace (no header / tab strip) */
 .customer-party-balances-workspace,
 .accounting-reports-workspace,
-.settings-workspace {
+.settings-workspace,
+.website-workspace {
   height: 100%;
   min-height: 0;
   max-height: 100%;
@@ -2408,7 +2409,8 @@ main:has(.business-insights-workspace) {
 }
 main:has(.customer-party-balances-workspace),
 main:has(.accounting-reports-workspace),
-main:has(.settings-workspace) {
+main:has(.settings-workspace),
+main:has(.website-workspace) {
   overflow: hidden;
   padding: 0;
   scrollbar-gutter: auto;
@@ -2416,13 +2418,15 @@ main:has(.settings-workspace) {
 @media (min-width: 1024px) {
   main:has(.customer-party-balances-workspace),
   main:has(.accounting-reports-workspace),
-  main:has(.settings-workspace) {
+  main:has(.settings-workspace),
+  main:has(.website-workspace) {
     display: flex;
     flex-direction: column;
   }
   main:has(.customer-party-balances-workspace) .customer-party-balances-workspace,
   main:has(.accounting-reports-workspace) .accounting-reports-workspace,
-  main:has(.settings-workspace) .settings-workspace {
+  main:has(.settings-workspace) .settings-workspace,
+  main:has(.website-workspace) .website-workspace {
     flex: 1 1 0%;
     height: auto;
     max-height: 100%;
