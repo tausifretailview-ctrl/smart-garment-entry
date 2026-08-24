@@ -26,6 +26,10 @@ import {
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
 } from "@/utils/posBarcodeCartLookup";
+import {
+  fetchPosQuickPriceCodeMatches,
+  parsePosQuickPriceCode,
+} from "@/utils/posQuickPriceCode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -328,41 +332,6 @@ function mapPosVariantLookupRow(
 ) {
   if (!row?.products) return null;
   return { product: row.products, variant: row };
-}
-
-/**
- * Fast-counter shorthand for no-barcode shops: "S200" -> letters "s", price 200.
- * Requires at least 2 digits so it can't collide with the 1-9 quick-service codes
- * or a short numeric barcode fragment (both purely numeric, never letters+digits).
- */
-function parsePosQuickPriceCode(term: string): { letters: string; price: number } | null {
-  const m = term.trim().match(/^([A-Za-z]{1,6})(\d{2,6})$/);
-  if (!m) return null;
-  const price = Number(m[2]);
-  if (!Number.isFinite(price) || price <= 0) return null;
-  return { letters: m[1].toLowerCase(), price };
-}
-
-async function fetchPosQuickPriceCodeMatches(
-  orgId: string,
-  letters: string,
-  price: number,
-): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
-  const { data, error } = await posVariantBaseQuery(orgId)
-    .ilike("products.product_name", `${letters}%`)
-    .eq("sale_price", price)
-    .order("stock_qty", { ascending: false })
-    .limit(20);
-  if (error) throw error;
-
-  const out: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
-  for (const row of data || []) {
-    const mapped = mapPosVariantLookupRow(
-      row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-    );
-    if (mapped) out.push(mapped);
-  }
-  return out;
 }
 
 async function fetchPosExactBarcodeMatches(
@@ -2438,6 +2407,21 @@ export default function POSSales() {
           }
         }
       } else {
+        const quick =
+          posRuntimeSettingsRef.current?.pos_quick_price_code === true
+            ? parsePosQuickPriceCode(term)
+            : null;
+        if (quick) {
+          const hits = await fetchPosQuickPriceCodeMatches(
+            currentOrganization.id,
+            quick.letters,
+            quick.price,
+            variantSelect,
+          );
+          if (requestSeq !== productSearchSeqRef.current) return;
+          allData = hits.map((h) => h.variant);
+          tokens = [quick.letters, String(quick.price)];
+        } else {
         // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
         const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, term);
         if (requestSeq !== productSearchSeqRef.current) return;
@@ -2478,6 +2462,7 @@ export default function POSSales() {
           if (requestSeq !== productSearchSeqRef.current) return;
           if (error) throw error;
           allData = finalVariants || [];
+        }
         }
       }
 
@@ -2601,20 +2586,26 @@ export default function POSSales() {
     posSearchAndAddInFlight.add(trimmedTerm);
 
     try {
-      // Fast-counter price-shorthand: "S200" -> product name starting with S,
-      // sale_price 200 (no barcode). Org opt-in only (Settings → Sale → POS quick
-      // price-code search). Falls through to normal search on no match.
+      // Fast-counter price-shorthand: "J300" -> name starting with J at ₹300
+      // (sale_price or MRP). Org opt-in (Settings → Sale → POS quick price-code).
       const quickCode = posRuntimeSettingsRef.current?.pos_quick_price_code
         ? parsePosQuickPriceCode(trimmedTerm)
         : null;
       if (quickCode) {
-        const codeMatches = await fetchPosQuickPriceCodeMatches(orgId, quickCode.letters, quickCode.price);
+        const codeMatches = await fetchPosQuickPriceCodeMatches(
+          orgId,
+          quickCode.letters,
+          quickCode.price,
+          POS_VARIANT_LOOKUP_SELECT,
+        );
         if (codeMatches.length > 0) {
           const distinctProducts = new Map<string, { product: PosProductRow; variant: PosVariantRow }>();
           for (const m of codeMatches) {
-            const existing = distinctProducts.get(m.product.id);
-            if (!existing || (Number(m.variant.stock_qty) || 0) > (Number(existing.variant.stock_qty) || 0)) {
-              distinctProducts.set(m.product.id, m);
+            const product = m.product as PosProductRow;
+            const variant = m.variant as PosVariantRow;
+            const existing = distinctProducts.get(product.id);
+            if (!existing || (Number(variant.stock_qty) || 0) > (Number(existing.variant.stock_qty) || 0)) {
+              distinctProducts.set(product.id, { product, variant });
             }
           }
           const choices = Array.from(distinctProducts.values());
@@ -2633,7 +2624,13 @@ export default function POSSales() {
           });
           return;
         }
-        // No product matches the shorthand — fall through to normal barcode/name search.
+        playErrorBeep();
+        toast.error("Product not found", {
+          description: `No product starting with "${quickCode.letters.toUpperCase()}" at ₹${quickCode.price}. Check the name's first letters and the sale price or MRP.`,
+        });
+        setSearchInput("");
+        focusBarcodeScanInput();
+        return;
       }
 
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
@@ -6128,6 +6125,19 @@ export default function POSSales() {
                       onKeyDown={(e) => {
                         const rawValue =
                           (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
+                        if (
+                          (e.key === "Enter" || e.key === "Go" || (e as any).keyCode === 13) &&
+                          posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                          parsePosQuickPriceCode(rawValue)
+                        ) {
+                          e.preventDefault();
+                          clearPosBarcodeSubmitTimers();
+                          markSubmitted(rawValue);
+                          setOpenProductSearch(false);
+                          void searchAndAddProduct(rawValue);
+                          resetScannerDetection();
+                          return;
+                        }
                         if (openProductSearch && filteredProducts.length > 0) {
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
