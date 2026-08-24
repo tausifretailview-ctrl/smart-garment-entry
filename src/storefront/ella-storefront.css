@@ -1,0 +1,639 @@
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=Barlow+Condensed:wght@600&display=swap");
+
+html.ella-root,
+body.ella-root {
+  background: #12100e;
+  overflow-x: hidden;
+}
+
+.ella-store {
+  --ella-ink: #12100e;
+  --ella-ink-raised: #171410;
+  --ella-panel: #241f19;
+  --ella-paper: #f4f1ea;
+  --ella-paper-muted: rgba(244, 241, 234, 0.55);
+  --ella-paper-faint: rgba(244, 241, 234, 0.4);
+  --ella-gold: #c9a227;
+  --ella-gold-line: rgba(201, 162, 39, 0.28);
+  --ella-hairline: rgba(244, 241, 234, 0.12);
+  --ella-radius: 0px;
+  background: var(--ella-ink);
+  color: var(--ella-paper);
+  font-family: Barlow, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.55;
+  max-width: 560px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  overflow-x: clip;
+  text-wrap: pretty;
+}
+
+.ella-store *,
+.ella-store *::before,
+.ella-store *::after {
+  border-radius: var(--ella-radius);
+  box-shadow: none;
+}
+
+.ella-store button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+
+.ella-store a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ella-store :focus-visible {
+  outline: 1px solid var(--ella-gold);
+  outline-offset: 2px;
+}
+
+.ella-display {
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.ella-eyebrow {
+  color: var(--ella-paper-faint);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-hero {
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+}
+
+.ella-hero img,
+.ella-hero-ph {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ella-hero-ph {
+  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+}
+
+.ella-hero-veil {
+  background: linear-gradient(180deg, rgba(18, 16, 14, 0.15) 20%, rgba(18, 16, 14, 0.92) 100%);
+  inset: 0;
+  position: absolute;
+}
+
+.ella-hero-center,
+.ella-hero-foot {
+  left: 0;
+  padding: 0 24px;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  z-index: 1;
+}
+
+.ella-hero-center {
+  top: 42%;
+  transform: translateY(-50%);
+}
+
+.ella-hero-foot {
+  bottom: 28px;
+}
+
+.ella-wordmark {
+  font-size: 42px;
+  letter-spacing: 0.16em;
+}
+
+.ella-designer {
+  color: var(--ella-gold);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  margin-top: 10px;
+}
+
+.ella-collection-title {
+  font-size: 20px;
+  letter-spacing: 0.14em;
+}
+
+.ella-collection-lead {
+  color: var(--ella-paper-muted);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.ella-frame {
+  position: relative;
+}
+
+.ella-mark {
+  color: var(--ella-gold);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.ella-mark-tl {
+  left: 10px;
+  top: 10px;
+}
+.ella-mark-tr {
+  right: 10px;
+  top: 10px;
+}
+.ella-mark-bl {
+  bottom: 10px;
+  left: 10px;
+}
+.ella-mark-br {
+  bottom: 10px;
+  right: 10px;
+}
+
+.ella-sticky-head {
+  background: rgba(23, 20, 16, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ella-gold-line);
+  padding: 12px 20px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.ella-sticky-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.ella-sticky-wordmark {
+  flex: 0 1 auto;
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  max-width: 38%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ella-wa-pill {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold);
+  display: inline-flex;
+  font-size: 10.5px;
+  height: 44px;
+  letter-spacing: 0.14em;
+  min-width: 44px;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.ella-search {
+  background: transparent;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper);
+  flex: 1;
+  font-size: 13px;
+  height: 44px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.ella-search::placeholder {
+  color: var(--ella-paper-faint);
+}
+
+.ella-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ella-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.ella-chip {
+  background: transparent;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
+  flex: 0 0 auto;
+  font-size: 11px;
+  height: 44px;
+  letter-spacing: 0.14em;
+  padding: 0 14px;
+  text-transform: uppercase;
+  transition: background 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;
+}
+
+.ella-chip-active {
+  background: var(--ella-gold);
+  border-color: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-section {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 22px 22px 14px;
+}
+
+.ella-section h2 {
+  font-size: 20px;
+}
+
+.ella-count {
+  color: var(--ella-paper-faint);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-grid {
+  background: var(--ella-gold-line);
+  border-top: 1px solid var(--ella-gold-line);
+  display: grid;
+  gap: 1px;
+  grid-template-columns: 1fr 1fr;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ella-card {
+  background: var(--ella-ink);
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  width: 100%;
+}
+
+.ella-card-img {
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+  overflow: hidden;
+  position: relative;
+}
+
+.ella-card-dense .ella-card-img {
+  aspect-ratio: 4 / 5;
+}
+
+.ella-card-img img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ella-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 12px 16px;
+}
+
+.ella-card-name {
+  font-size: 17px;
+  letter-spacing: 0.1em;
+}
+
+.ella-price {
+  color: var(--ella-gold);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.ella-card-enquire {
+  border-top: 1px solid var(--ella-hairline);
+  color: var(--ella-gold);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  padding-top: 10px;
+  text-transform: uppercase;
+}
+
+.ella-badge {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding: 4px 8px;
+  position: absolute;
+  right: 8px;
+  text-transform: uppercase;
+  top: 8px;
+}
+
+.ella-badge-low {
+  background: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-badge-mto {
+  background: rgba(18, 16, 14, 0.55);
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold);
+}
+
+.ella-badge-in {
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
+}
+
+.ella-note {
+  border-top: 1px solid var(--ella-gold-line);
+  color: var(--ella-paper-muted);
+  font-size: 13px;
+  padding: 24px 22px 28px;
+}
+
+.ella-note-address {
+  margin-top: 12px;
+}
+
+.ella-footer {
+  border-top: 1px solid var(--ella-gold-line);
+  color: var(--ella-paper-faint);
+  display: flex;
+  flex-direction: column;
+  font-size: 11.5px;
+  gap: 6px;
+  letter-spacing: 0.08em;
+  padding: 22px 22px 120px;
+  text-transform: uppercase;
+}
+
+.ella-action-bar {
+  backdrop-filter: blur(6px);
+  background: linear-gradient(180deg, rgba(18, 16, 14, 0) 0%, rgba(18, 16, 14, 0.94) 38%);
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  left: 0;
+  margin: 0 auto;
+  max-width: 560px;
+  padding: 16px 20px 18px;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  z-index: 30;
+}
+
+.ella-btn {
+  align-items: center;
+  background: var(--ella-gold);
+  color: var(--ella-ink);
+  display: inline-flex;
+  flex: 1;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  height: 52px;
+  justify-content: center;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-btn:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.ella-btn-outline {
+  background: transparent;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold);
+}
+
+.ella-btn-square {
+  flex: none;
+  width: 52px;
+}
+
+.ella-scrim {
+  background: rgba(18, 16, 14, 0.72);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+.ella-sheet {
+  background: var(--ella-ink-raised);
+  border-top: 1px solid var(--ella-gold);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  margin: 0 auto;
+  max-height: 82%;
+  max-width: 560px;
+  overscroll-behavior: contain;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  z-index: 50;
+}
+
+.ella-sheet-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 22px 28px;
+}
+
+.ella-sheet-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ella-sheet-name {
+  font-size: 22px;
+  margin-top: 6px;
+}
+
+.ella-close {
+  color: var(--ella-paper);
+  font-size: 28px;
+  height: 44px;
+  line-height: 1;
+  width: 44px;
+}
+
+.ella-price-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.ella-spec {
+  border-top: 1px solid var(--ella-gold-line);
+  margin-top: 18px;
+}
+
+.ella-spec-row {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  font-size: 13px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.ella-spec-row dt {
+  color: var(--ella-paper-faint);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-spec-row dd {
+  text-align: right;
+}
+
+.ella-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.ella-form label span {
+  color: var(--ella-paper-faint);
+  display: block;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.ella-form input,
+.ella-form textarea {
+  background: transparent;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper);
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.ella-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.ella-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.ella-form-note {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+}
+
+.ella-success {
+  border: 1px solid var(--ella-gold);
+  color: var(--ella-paper);
+  font-size: 14px;
+  margin-top: 20px;
+  padding: 16px;
+}
+
+.ella-error {
+  color: #e8b4b4;
+  font-size: 12px;
+}
+
+.ella-skel-grid {
+  background: var(--ella-gold-line);
+  display: grid;
+  gap: 1px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ella-skel-card {
+  background: var(--ella-ink);
+  padding-bottom: 16px;
+}
+
+.ella-skel-img {
+  aspect-ratio: 3 / 4;
+  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+}
+
+.ella-skel-line {
+  background: var(--ella-hairline);
+  height: 10px;
+  margin: 12px 12px 0;
+}
+
+.ella-skel-line.short {
+  width: 40%;
+}
+
+.ella-empty {
+  color: var(--ella-paper-muted);
+  padding: 40px 22px;
+  text-align: center;
+}
+
+.ella-unavailable {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+}
+
+.ella-unavailable-inner {
+  max-width: 320px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ella-chip,
+  .ella-sheet {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ella-sheet {
+    animation: ella-sheet-in 220ms ease-out;
+  }
+}
+
+@keyframes ella-sheet-in {
+  from {
+    transform: translateY(18px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}

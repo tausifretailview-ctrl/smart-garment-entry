@@ -1,17 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath } from "@/lib/storefrontPath";
 import type { PublicStorefrontPayload, PublicStorefrontProduct } from "@/lib/websiteTypes";
+import { applyStorefrontThemeVars, isEllaNoorSlug } from "./storefrontTheme";
 import { loadPublicStorefront } from "./storefrontClient";
 import { StorefrontHome } from "./StorefrontHome";
 import { StorefrontProduct } from "./StorefrontProduct";
-import { applyStorefrontThemeVars } from "./storefrontTheme";
+import { EllaStorefront } from "./EllaStorefront";
+import { EllaStorefrontSkeleton } from "./EllaStorefrontHome";
+import "./ella-storefront.css";
 
 export function StorefrontApp() {
   const path = window.location.pathname;
   const parsed = useMemo(() => parseStorefrontPath(path), [path]);
+  const ella = isEllaNoorSlug(parsed?.orgSlug);
   const [payload, setPayload] = useState<PublicStorefrontPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ella) return;
+    document.documentElement.classList.add("ella-root");
+    document.body.classList.add("ella-root");
+    return () => {
+      document.documentElement.classList.remove("ella-root");
+      document.body.classList.remove("ella-root");
+    };
+  }, [ella]);
 
   useEffect(() => {
     if (!parsed?.orgSlug) {
@@ -20,24 +34,42 @@ export function StorefrontApp() {
       return;
     }
     let cancelled = false;
+    const load = () => {
+      loadPublicStorefront(parsed.orgSlug)
+        .then((data) => {
+          if (!cancelled) setPayload(data);
+        })
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            setError(err instanceof Error ? err.message : "Could not load this store");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
     setLoading(true);
     setError(null);
-    loadPublicStorefront(parsed.orgSlug)
-      .then((data) => {
-        if (!cancelled) setPayload(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Could not load this store");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    load();
+    const onFocus = () => {
+      if (!ella) return;
+      if (document.visibilityState === "hidden") return;
+      loadPublicStorefront(parsed.orgSlug)
+        .then((data) => {
+          if (!cancelled) setPayload(data);
+        })
+        .catch(() => {
+          /* keep last good catalogue on a background refresh failure */
+        });
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     return () => {
       cancelled = true;
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
-  }, [parsed?.orgSlug]);
+  }, [ella, parsed?.orgSlug]);
 
   const shopName = payload?.shop?.display_name || payload?.shop?.name || parsed?.orgSlug || "Store";
   const accent = payload?.shop?.theme_accent_color || "#E2A33B";
@@ -50,6 +82,7 @@ export function StorefrontApp() {
   if (!parsed) {
     return (
       <Unavailable
+        ella={false}
         title="Store not found"
         body="This link does not point to a shop catalogue."
       />
@@ -57,12 +90,13 @@ export function StorefrontApp() {
   }
 
   if (loading) {
-    return <div className="storefront-loading">Loading catalogue…</div>;
+    return ella ? <EllaStorefrontSkeleton /> : <div className="storefront-loading">Loading catalogue…</div>;
   }
 
   if (error || !payload?.published) {
     return (
       <Unavailable
+        ella={ella}
         title="Catalogue unavailable"
         body="This shop's catalogue is not available right now."
       />
@@ -74,9 +108,21 @@ export function StorefrontApp() {
     ? products.find((p) => p.product_id === parsed.productId || p.id === parsed.productId)
     : undefined;
 
+  if (ella) {
+    return (
+      <EllaStorefront
+        shop={payload.shop!}
+        orgSlug={parsed.orgSlug}
+        products={products}
+        initialProductId={parsed.productId}
+      />
+    );
+  }
+
   if (parsed.productId && !selected) {
     return (
       <Unavailable
+        ella={false}
         title="Product not found"
         body="This item is no longer listed."
         actionHref={storefrontHomePath(parsed.orgSlug)}
@@ -109,12 +155,26 @@ function Unavailable({
   body,
   actionLabel,
   actionHref,
+  ella,
 }: {
   title: string;
   body: string;
   actionLabel?: string;
   actionHref?: string;
+  ella: boolean;
 }) {
+  if (ella) {
+    return (
+      <div className="ella-store ella-unavailable">
+        <div className="ella-unavailable-inner">
+          <div className="ella-display" style={{ fontSize: 22 }}>
+            {title}
+          </div>
+          <p className="ella-collection-lead">{body}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="storefront-page flex min-h-screen items-center justify-center px-6">
       <div className="max-w-md text-center">
