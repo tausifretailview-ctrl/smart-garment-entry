@@ -2788,10 +2788,10 @@ export default function Settings() {
                       POS quick price-code search (no-barcode shops)
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Type a short code like "S200" in the POS scan box to add a product by its first
-                      letters + sale price, without a barcode — e.g. "S" for Shirt at ₹200. If the code
-                      matches more than one product, POS asks which one instead of guessing. Off by default;
-                      enable only for shops billing by name + price rather than barcode/size.
+                      Type a short code in the POS scan box: first letter(s) of the product name
+                      plus the rupee price, with no barcode — e.g. "J300" for Jeans at ₹300.
+                      Matches sale price or MRP. If more than one product matches, POS asks which
+                      one. Off by default.
                     </p>
                   </div>
                   <Switch
