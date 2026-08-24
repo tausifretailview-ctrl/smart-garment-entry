@@ -14,7 +14,9 @@ SELECT
     WHERE deleted_at IS NULL
       AND sale_number LIKE 'POS/%') AS orgs_with_any_pos_sale;
 
--- 2) Population: unused advance, then a POS sale after the latest unused booking
+-- 2) Population: unused remaining now, and a POS sale after the earliest
+--    still-unused booking. MIN not MAX: a later top-up must not hide a POS
+--    bill that was already rung while unused advance existed.
 WITH refunds AS (
   SELECT advance_id, COALESCE(SUM(refund_amount), 0) AS refunded
   FROM public.advance_refunds
@@ -42,7 +44,7 @@ unused AS (
     organization_id,
     customer_id,
     SUM(remaining) AS unused_balance,
-    MAX(created_at) AS last_advance_at
+    MIN(created_at) AS first_unused_advance_at
   FROM advance_rows
   WHERE remaining > 0.01
   GROUP BY organization_id, customer_id
@@ -52,7 +54,7 @@ pos_after AS (
     u.organization_id,
     u.customer_id,
     u.unused_balance,
-    u.last_advance_at,
+    u.first_unused_advance_at,
     COUNT(*)::int AS pos_sales_after
   FROM unused u
   INNER JOIN public.sales s
@@ -60,8 +62,8 @@ pos_after AS (
    AND s.customer_id = u.customer_id
    AND s.deleted_at IS NULL
    AND s.sale_number LIKE 'POS/%'
-   AND COALESCE(s.created_at, s.sale_date) > u.last_advance_at
-  GROUP BY u.organization_id, u.customer_id, u.unused_balance, u.last_advance_at
+   AND COALESCE(s.created_at, s.sale_date) > u.first_unused_advance_at
+  GROUP BY u.organization_id, u.customer_id, u.unused_balance, u.first_unused_advance_at
 )
 SELECT
   COUNT(*)::int AS customers_unused_advance_then_pos,

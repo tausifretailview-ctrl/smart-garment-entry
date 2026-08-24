@@ -68,7 +68,7 @@ Anon `GET /rest/v1/customer_advances?select=id&limit=1` → **HTTP 200, `[]`**. 
 
 ### Exact query (service-role / SQL editor) — unused advance then POS sale
 
-Remaining = `amount - used_amount - refunds`, status `active` or `partially_used`. POS sale = `sales.sale_number LIKE 'POS/%'` with `deleted_at IS NULL` **after** that customer’s latest unused advance row.
+Remaining = `amount - used_amount - refunds`, status `active` or `partially_used`. POS sale = `sales.sale_number LIKE 'POS/%'` with `deleted_at IS NULL` **after the earliest currently unused booking** (`MIN(created_at)` of rows that still have remaining). Using `MAX` would drop customers who booked again after a POS sale even though unused advance already existed at the counter.
 
 See `scripts/pos-advance-gap-measure-2026-08.sql` (SELECT-only). Capture:
 
