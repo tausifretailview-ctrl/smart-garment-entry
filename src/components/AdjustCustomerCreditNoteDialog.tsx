@@ -22,7 +22,6 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
-import { insertLedgerCredit } from "@/lib/customerLedger";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   ensureCreditNoteHeadroom,
@@ -512,20 +511,6 @@ export function AdjustCustomerCreditNoteDialog({
           .eq("id", saleReturnId);
 
         if (returnError) throw returnError;
-
-        // Mirror the refund into customer_ledger_entries so the
-        // Customer Account Statement report stays in sync.
-        if (currentOrganization?.id && customerId) {
-          await insertLedgerCredit({
-            organizationId: currentOrganization.id,
-            customerId,
-            voucherType: "PAYMENT",
-            voucherNo: newVoucherNumber,
-            particulars: `Refund paid for Sale Return ${returnNumber} (${refundMode})`,
-            transactionDate: today,
-            amount: liveCn,
-          });
-        }
 
         toast({
           title: "Success",

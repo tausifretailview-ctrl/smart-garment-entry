@@ -10,7 +10,6 @@ import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
-import { insertLedgerDebit, insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
@@ -298,16 +297,6 @@ export const useSaveSale = () => {
         payment_method: method,
       } as any);
       if (error) throw error;
-
-      await insertLedgerDebit({
-        organizationId: currentOrganization.id,
-        customerId: params.customerId,
-        voucherType: 'PAYMENT',
-        voucherNo: voucherNumber as string,
-        particulars: description,
-        transactionDate: params.txnDate,
-        amount,
-      });
     };
 
     await writePaymentVoucher(
@@ -940,38 +929,6 @@ export const useSaveSale = () => {
 
       await insertSaleItemsInChunks(supabase, saleItems);
       insertedSaleIdForRollback = null;
-
-      // Customer Account Statement — write double-entry ledger (fire-and-forget)
-      if (saleData.customerId) {
-        const txnDate = istCalendarYmd();
-        // For exchange-with-refund, debit the items value (positive) — the SR
-        // credit (already written when SR was created) will offset it. For
-        // normal sales, debit the net amount.
-        const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
-        if (saleDebitAmount > 0) {
-          insertLedgerDebit({
-            organizationId: currentOrganization.id,
-            customerId: saleData.customerId,
-            voucherType: 'SALE',
-            voucherNo: saleNumber,
-            particulars: `Sales Invoice ${saleNumber}`,
-            transactionDate: txnDate,
-            amount: saleDebitAmount,
-          });
-        }
-        // Only write a RECEIPT credit for actual cash received (not exchange).
-        if (!isExchangeRefund && paidAmt > 0) {
-          insertLedgerCredit({
-            organizationId: currentOrganization.id,
-            customerId: saleData.customerId,
-            voucherType: 'RECEIPT',
-            voucherNo: saleNumber,
-            particulars: `Payment at Sale ${saleNumber}`,
-            transactionDate: txnDate,
-            amount: paidAmt,
-          });
-        }
-      }
 
       if (isExchangeRefund && saleData.customerId) {
         try {
@@ -1762,39 +1719,6 @@ export const useSaveSale = () => {
             console.error("Auto-journal (sale update) failed:", journalErr);
           }
         })();
-      }
-
-      // Customer Account Statement — refresh ledger entries (delete + re-insert)
-      if (sale?.sale_number && currentOrganization?.id) {
-        await deleteLedgerEntries({
-          organizationId: currentOrganization.id,
-          voucherNo: sale.sale_number,
-          voucherTypes: ['SALE', 'RECEIPT'],
-        });
-        if (saleData.customerId) {
-          const txnDate = istCalendarYmd();
-          const saleDebitAmount = isExchangeRefund ? exchange.billAmount : saleData.netAmount;
-          insertLedgerDebit({
-            organizationId: currentOrganization.id,
-            customerId: saleData.customerId,
-            voucherType: 'SALE',
-            voucherNo: sale.sale_number,
-            particulars: `Sales Invoice ${sale.sale_number}`,
-            transactionDate: txnDate,
-            amount: saleDebitAmount,
-          });
-          if (!isExchangeRefund && paidAmt > 0) {
-            insertLedgerCredit({
-              organizationId: currentOrganization.id,
-              customerId: saleData.customerId,
-              voucherType: 'RECEIPT',
-              voucherNo: sale.sale_number,
-              particulars: `Payment at Sale ${sale.sale_number}`,
-              transactionDate: txnDate,
-              amount: paidAmt,
-            });
-          }
-        }
       }
 
       if (isExchangeRefund && saleData.customerId && sale?.sale_number) {

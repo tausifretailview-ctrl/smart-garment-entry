@@ -2963,6 +2963,7 @@ export type Database = {
           organization_id: string
           reference_id: string | null
           reference_type: string
+          reversed_journal_id: string | null
           total_amount: number
           updated_at: string
         }
@@ -2974,6 +2975,7 @@ export type Database = {
           organization_id: string
           reference_id?: string | null
           reference_type: string
+          reversed_journal_id?: string | null
           total_amount?: number
           updated_at?: string
         }
@@ -2985,6 +2987,7 @@ export type Database = {
           organization_id?: string
           reference_id?: string | null
           reference_type?: string
+          reversed_journal_id?: string | null
           total_amount?: number
           updated_at?: string
         }

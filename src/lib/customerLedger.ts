@@ -2,14 +2,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { logError } from "@/lib/errorLogger";
 
 /**
- * Customer Account Statement — double-entry ledger helpers.
+ * Customer Account Statement helpers.
  *
- * Writes to public.customer_ledger_entries. Used ONLY by the new
- * "Customer Account Statement" report. The existing Customer Ledger
- * report (CustomerLedger.tsx / useCustomerBalance) is unaffected.
- *
- * All operations are fire-and-forget: failures are logged to
- * app_error_logs but never thrown — they must not block the primary save.
+ * New SALE / RECEIPT / SALE_RETURN / customer PAYMENT rows are written by
+ * database triggers on sales, voucher_entries, and sale_returns (same
+ * transaction as the primary write). These client helpers remain for
+ * delete-on-cancel and any leftover callers; insert is fire-and-forget
+ * and must not be used as the primary write path.
  */
 
 export type LedgerVoucherType =

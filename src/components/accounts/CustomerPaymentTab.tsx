@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { insertLedgerCredit, deleteLedgerEntries } from "@/lib/customerLedger";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -743,17 +743,6 @@ export function CustomerPaymentTab({
                 supabase,
               );
             }
-            if (referenceId && lastVoucherId) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: "RECEIPT",
-                voucherNo: lastVoucherId,
-                particulars: "Advance adjusted for Opening Balance",
-                transactionDate: advYmd,
-                amount: applyAmt,
-              });
-            }
             remaining -= applyAmt;
           }
         }
@@ -788,17 +777,6 @@ export function CustomerPaymentTab({
               advDesc,
               supabase,
             );
-          }
-          if (referenceId && lastVoucherId) {
-            insertLedgerCredit({
-              organizationId,
-              customerId: referenceId,
-              voucherType: "RECEIPT",
-              voucherNo: lastVoucherId,
-              particulars: `Advance adjusted for ${invoice.sale_number}`,
-              transactionDate: advYmd,
-              amount: applyAmt,
-            });
           }
           advanceSyncedInvoiceIds.push(invoice.id);
           remaining -= applyAmt;
@@ -1063,30 +1041,6 @@ export function CustomerPaymentTab({
               throw glErr;
             }
           }
-          if (referenceId) {
-            if (openingBalanceCash > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: obVoucherNumber,
-                particulars: "Opening Balance Receipt",
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: openingBalanceCash,
-              });
-            }
-            if (openingBalanceDiscount > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: obVoucherNumber,
-                particulars: `Opening Balance — settlement discount${discountReason ? ` (${discountReason})` : ""}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: openingBalanceDiscount,
-              });
-            }
-          }
         }
         for (let i = 0; i < processedInvoices.length; i++) {
           const processed = processedInvoices[i];
@@ -1139,30 +1093,6 @@ export function CustomerPaymentTab({
               throw glErr;
             }
           }
-          if (referenceId) {
-            if (processed.cashApplied > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: invoiceVoucherNumber,
-                particulars: `Receipt for ${processed.invoice.sale_number}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: processed.cashApplied,
-              });
-            }
-            if (processed.discountApplied > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: invoiceVoucherNumber,
-                particulars: `Settlement discount — ${processed.invoice.sale_number}${discountReason ? ` (${discountReason})` : ""}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: processed.discountApplied,
-              });
-            }
-          }
         }
       } else {
         // total_amount = cash/collected only; discount_amount = CD/waiver. Settlement = sum (matches multi-invoice rows).
@@ -1209,55 +1139,6 @@ export function CustomerPaymentTab({
           } catch (glErr) {
             await rollbackCustomerReceiptVouchers(organizationId, createdVouchers, supabase);
             throw glErr;
-          }
-        }
-        if (referenceId) {
-          if (isOpeningBalancePayment) {
-            if (paymentAmount > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: voucherNumber,
-                particulars: 'Opening Balance Receipt',
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: paymentAmount,
-              });
-            }
-            if (discountValue > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: voucherNumber,
-                particulars: `Opening Balance — settlement discount${discountReason ? ` (${discountReason})` : ""}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: discountValue,
-              });
-            }
-          } else {
-            if (paymentAmount > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: voucherNumber,
-                particulars: 'Receipt',
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: paymentAmount,
-              });
-            }
-            if (discountValue > 0) {
-              insertLedgerCredit({
-                organizationId,
-                customerId: referenceId,
-                voucherType: 'RECEIPT',
-                voucherNo: voucherNumber,
-                particulars: `Settlement discount${discountReason ? ` (${discountReason})` : ""}`,
-                transactionDate: format(voucherDate, "yyyy-MM-dd"),
-                amount: discountValue,
-              });
-            }
           }
         }
       }

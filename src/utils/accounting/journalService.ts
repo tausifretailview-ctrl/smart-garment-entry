@@ -138,16 +138,30 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
 
   const desc = description.length > 500 ? description.slice(0, 497) + "…" : description;
 
-  const { data: existing } = await client
+  const { data: existingRows } = await client
     .from("journal_entries")
-    .select("id")
+    .select("id, reversed_journal_id")
     .eq("organization_id", organizationId)
     .eq("reference_type", referenceType)
-    .eq("reference_id", referenceId)
-    .maybeSingle();
+    .eq("reference_id", referenceId);
 
-  if (existing?.id) {
-    return { status: "already_exists", journalEntryId: existing.id as string };
+  const originals = (existingRows ?? []).filter((row: { reversed_journal_id?: string | null }) => !row.reversed_journal_id);
+  const originalIds = originals.map((row: { id: string }) => row.id);
+  let liveOriginalId: string | null = null;
+  if (originalIds.length) {
+    const { data: reversalRows } = await client
+      .from("journal_entries")
+      .select("reversed_journal_id")
+      .in("reversed_journal_id", originalIds);
+    const reversed = new Set(
+      (reversalRows ?? []).map((row: { reversed_journal_id: string }) => row.reversed_journal_id)
+    );
+    const live = originals.find((row: { id: string }) => !reversed.has(row.id));
+    liveOriginalId = live?.id ?? null;
+  }
+
+  if (liveOriginalId) {
+    return { status: "already_exists", journalEntryId: liveOriginalId };
   }
 
   const { data: entry, error: entryErr } = await client
@@ -165,16 +179,7 @@ export async function postJournalEntry(params: PostJournalEntryInput): Promise<P
 
   if (entryErr) {
     if (isUniqueViolation(entryErr)) {
-      const { data: row } = await client
-        .from("journal_entries")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("reference_type", referenceType)
-        .eq("reference_id", referenceId)
-        .single();
-      if (row?.id) {
-        return { status: "already_exists", journalEntryId: row.id as string };
-      }
+      return { status: "already_exists", journalEntryId: "" };
     }
     throw entryErr;
   }
