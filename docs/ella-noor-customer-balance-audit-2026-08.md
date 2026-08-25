@@ -1,9 +1,10 @@
 # ELLA NOOR — Customer balance audit (2026-08)
 
-**Status:** **Step 6 live (evening 2026-08-25).** Morning **717 / 647 / ₹1,10,91,413** was a recompute hole. After including `advance_adjustment` in receipts: **136 remaining mismatches**, **P0 = 1** (SHUMAMA BAIRELI, leftover = CN memos / SRA). Sana Nasir **closed**. **No writes. No `paid_amount` A/B recommendation.**  
+**Status:** **Step 6 live (evening 2026-08-25).** Morning **717 / 647 / ₹1,10,91,413** was a recompute hole. After including `advance_adjustment` in receipts: **136 remaining mismatches**, **P0 = 1** (SHUMAMA BAIRELI, leftover = CN memos / SRA). Derived 6d: **581 / 717 closed** (81%). Sana Nasir **closed**. **No writes. No `paid_amount` A/B recommendation.**  
 **Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67`  
 **Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance` (live page)  
-**Live CSVs:** `docs/ella-noor-customer-balance-audit-2026-08/step6b-cn-shape-2026-08-25.csv`, `step6e-remaining-2026-08-25.csv`
+**Live CSVs:** `docs/ella-noor-customer-balance-audit-2026-08/step6b-cn-shape-2026-08-25.csv`, `step6e-remaining-2026-08-25.csv`  
+**6d headline:** derived (not a SQL-editor paste) — `docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv`
 
 Related (do not duplicate, do not treat as this pass):
 
@@ -27,7 +28,7 @@ Including `advance_adjustment` in receipts does **not** double-count with `unuse
 
 `pending_sale_returns` **is** the same remaining-balance shape (via `_sale_return_remaining_credit_for_balance`). CN **consumption** is `sale_return_adjust`, not pending_sr. Including `credit_note_adjustment` on top of SRA is the Farhaan Fab −₹2,800 double-count. **Do not copy the advance fix onto CN** until STEP 6b says `looks_like_advance_hole` (expect `sra_matches_cn_memos` instead).
 
-**paid_amount option A vs B stays on hold — and looks unnecessary for the 647.** Sana Nasir is **absent from the remaining queue** (the advance fix closed her). Of 136 leftover rows, `excl_gap_was_paid_amount` is true on **8**. The morning 1e join was tagging the hole.
+**paid_amount option A vs B is off the table for this audit.** Derived 6d: 581 of 717 close when advance memos enter receipts. Sana Nasir is **absent from the remaining queue**. Of 136 leftover rows, `excl_gap_was_paid_amount` is true on **8**. The leftover is CN/SRA, not a `paid_amount` architecture decision.
 
 | Formula | Sana Nasir signed balance |
 |---------|---------------------------|
@@ -53,7 +54,7 @@ Do **not** put `credit_note_adjustment` into receipts. Consumption is already in
 
 CSV: `docs/ella-noor-customer-balance-audit-2026-08/step6e-remaining-2026-08-25.csv`
 
-Step 6d one-row headline was **not** in this paste. Implied from morning 717 vs this 136: most of the 717 close. Treat **136** as `n_mismatch_incl_advance_memo`. Paste 6d to confirm `n_closed_by_incl_advance_memo` and `n_zero_memo_formulas_differ`.
+Step 6d one-row SQL-editor result was **not uploaded**. Headline below is **derived** from morning Step 1 (717 / ₹1,15,59,763) plus this complete 6e remaining set. Same-day, not the same query — do not treat it as a 6d paste. `n_zero_memo_formulas_differ` stays **unknown**.
 
 | Slice | Live |
 |-------|------|
@@ -74,11 +75,31 @@ Corrected P0 (the only row with `queue_tier_after_correction = P0`):
 |----------|-------|----------------|--------------------|------------|----------------------------------|------|
 | SHUMAMA BAIRELI | 8859110000 | ₹96,800 | **₹61,900** | ₹61,900 | ₹4,70,600 / ₹4,70,600 | Leftover = CN/SRA, not paid_amount. R2 CN repair already done 22 Aug. |
 
-Top remaining after Shumama (all P1; leftover mostly `cn_memos`): Sharmin Mewara ₹24,750, SIBGAH GEELANI ₹33,000, Naseem Jahid ₹18,200, AMNA DARVESH ₹13,500. Full 136 in the CSV.
+Top remaining after Shumama (all P1; leftover mostly `cn_memos`): SIBGAH GEELANI ₹33,000, Sharmin Mewara ₹24,750, Naseem Jahid ₹18,200, ABIDA TABASSUM ₹14,900, KHUSHI GOPIKRISHNA VASIYA ₹14,700, AMNA DARVESH ₹13,500. Full 136 in the CSV.
 
-```
-(paste Step 6d one-row headline when available — n_closed, n_zero_memo_formulas_differ, n_p0_after_incl_advance)
-```
+### Step 6d — org headline (derived 2026-08-25, **not a 6d paste**)
+
+CSV: `docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv`
+
+Every 6e remaining row also has `|gap_excl_minus_party| > ₹1` (**0 overshoot**). Including `advance_adjustment` did not create new mismatches. Therefore `n_closed_by_incl_advance_memo` = 717 − 136 = **581**.
+
+Abs remaining dropped ₹1,06,53,963 (₹1,15,59,763 − ₹9,05,800). That difference is commentary, not a 6d column — remaining customers' gaps also shrank (Shumama excl ₹5,32,500 → incl ₹61,900).
+
+| Field | Value | Source |
+|-------|-------|--------|
+| `n_mismatch_excl_memo` | **717** | Morning Step 1 (memo-blind) |
+| `abs_drift_excl_memo` | **₹1,15,59,763** | Morning Step 1 |
+| `n_mismatch_incl_advance_memo` | **136** | Live 6e, complete set |
+| `abs_drift_incl_advance_memo` | **₹9,05,800** | Live 6e sum of \|gap_incl_advance\| |
+| `n_closed_by_incl_advance_memo` | **581** (81%) | Derived 717 − 136; 0 overshoot on 6e |
+| `n_p0_after_incl_advance` | **1** | Live 6e — SHUMAMA BAIRELI |
+| `n_zero_memo_formulas_differ` | *unknown* | Needs a real 6d paste (must be 0) |
+| `n_mismatch_plus_used_amount` | *unknown* | Needs 6d — org-wide |
+| `n_mismatch_incl_all_memo` | *unknown* | Needs 6d; do not use as truth |
+
+**paid_amount A vs B stays off the table.** 581 of the morning 717 close when advance memos enter receipts. The leftover 136 is a CN/SRA / other worklist (`gap ≈ cn_memos` on 74/136; `excl_gap_was_paid_amount` still true on 8/136; `excl_gap_was_advance_memos` on 0/136). Do not fold `paid_amount` into the seven-component recompute. Do not include `credit_note_adjustment` in receipts.
+
+A real 6d paste would still be useful for `n_zero_memo_formulas_differ` (the split-predicate identity). Until then, do not claim the zero-memo formulas match org-wide.
 
 ---
 
@@ -518,7 +539,7 @@ Tiers (this pass — matches Step 5 SQL; baseline-overlap-only is no longer a P0
 
 | `named_pattern` | Write that would fix it (still not authorised) |
 |-----------------|------------------------------------------------|
-| `party_trusts_paid_amount` | **On hold.** Morning pass left (A) correct `paid_amount` vs (B) stop crediting it in party. Sana Nasir shows the 1e join can fire on the recompute hole. No A/B until Step 6d. |
+| `party_trusts_paid_amount` | **Off the table for this audit.** Derived 6d: 581 of 717 close when advance memos enter receipts. Remaining 136 is CN/SRA leftover, not a `paid_amount` architecture decision. No option A vs B. |
 | `duplicate_receipt` | Soft-delete the **named voucher(s)** on the row after dry-run + 5-row hand-check (Parishma class — do not auto-delete). |
 | `legacy_paid_baseline` | Named **sale(s)** on the row (Asma Shareef / INV/26-27/2288 shape). Capture live `compute_sale_settlement` DDL first. Do not zero all baselines. |
 | `cn_double_count` | Named **sale(s)**. Repair only via `adjust_invoice_balance` (Shumama R2). No bare `createReceiptVoucher`. |
@@ -546,9 +567,9 @@ This is the number that decides how urgently the `paid_amount` architecture conv
 (paste Step 5b one-row result)
 ```
 
-### P0 names — Tausif review list (Step 5-P0) — **superseded pending Step 6**
+### P0 names — Tausif review list (Step 5-P0) — **superseded by 6d derived + 6e live**
 
-The 33-name list from `scripts/ella-noor-step5-p0-names.sql` was ranked on the **memo-blind** gap. Sana Nasir (largest line) is a recompute artifact, not a live debt. **Do not use that list for a `paid_amount` architecture decision.** After 6d/6e, the corrected P0 is `queue_tier_after_correction = P0` on remaining mismatches only.
+The 33-name list from `scripts/ella-noor-step5-p0-names.sql` was ranked on the **memo-blind** gap. Sana Nasir (largest line) is a recompute artifact, not a live debt. **Do not use that list for a `paid_amount` architecture decision.** Corrected P0 is `queue_tier_after_correction = P0` on remaining mismatches only: **SHUMAMA BAIRELI** (leftover = CN memos / SRA).
 
 **Runner:** paste `scripts/ella-noor-step5-p0-names.sql` as the **only** statement in the SQL editor (one result set, 33 rows). Same query lives as **Step 5-P0** in the big audit file. `legacy_paid_baseline_nonzero` is a flag on `valid_sales` (any sale with `legacy_paid_baseline > 0`), not a second voucher join tree.
 
@@ -613,8 +634,8 @@ In the SQL editor, in order. **Step 6 first — it supersedes 1–5 headlines:**
 
 0. **Step 6a** — Sana Nasir proof (`scripts/ella-noor-step6-memo-hole.sql`)  
 0b. **Step 6b** — CN remaining vs SRA vs cn_memos (same file)  
-0c. **Step 6d** — org headline (`scripts/ella-noor-step6-org.sql`)  
-0d. **Step 6e** — remaining names after incl-advance (same file)  
+0c. **Step 6d** — org headline (`scripts/ella-noor-step6-org.sql`) — **derived 2026-08-25** (581 closed / 136 remaining / P0=1). Paste a real 6d row only to fill `n_zero_memo_formulas_differ`.  
+0d. **Step 6e** — remaining names after incl-advance (same file) — **live 136 / P0=1**  
 1. Step 0 + 0b — vocabulary proof  
 2. Step 1b — org headlines  
 3. Step 1 — mismatch table with tender columns (page if 1000)  
@@ -660,7 +681,7 @@ Paste the result sets into the slots above. Still no writes.
 | 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
 | **6a** | `scripts/ella-noor-step6-memo-hole.sql` | Sana Nasir proof — live page vs excl-memo vs incl-advance |
 | **6b** | same | CN remaining vs SRA vs cn_memos — **live 0/25 hole, 20/25 SRA=CN** |
-| **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline — **not in this paste; 6e implies 136 remaining** |
+| **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline — **derived** 581 closed / 136 remaining / P0=1 (`step6d-org-headline-derived-2026-08-25.csv`). `n_zero_memo_formulas_differ` unknown. |
 | **6e** | same | Remaining after incl-advance — **live 136 rows, P0=1 Shumama** (`step6e-remaining-2026-08-25.csv`) |
 
 ## Appendix B — What was not done
@@ -670,7 +691,7 @@ Paste the result sets into the slots above. Still no writes.
 - No baseline zeroing
 - No change to `_get_customer_party_balances_rows`
 - No write to `paid_amount` / `legacy_paid_baseline`
-- **No `paid_amount` architecture recommendation (A or B) — on hold until Step 6d**
+- **No `paid_amount` architecture recommendation (A or B)** — derived 6d closed 581/717 via advance memos; leftover is CN/SRA, not that decision
 - No folding `paid_amount` into the seven-component recompute
 - No assumption that anon empty = zero drift
 - No reuse of receivables-audit Section 3’s new-vocab-only receipt filter

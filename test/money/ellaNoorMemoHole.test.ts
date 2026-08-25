@@ -270,3 +270,77 @@ describe("STEP 6 SQL is SELECT-only and keeps the excl-memo columns", () => {
     expect(org).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/im);
   });
 });
+
+function parseCsv(text: string, delimiter: string): Record<string, string>[] {
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(delimiter);
+  return lines.slice(1).map((line) => {
+    const cells = line.split(delimiter);
+    const row: Record<string, string> = {};
+    header.forEach((h, i) => {
+      row[h] = (cells[i] ?? "").trim();
+    });
+    return row;
+  });
+}
+
+function numField(s: string): number {
+  return Number((s || "0").replace(/,/g, "").replace(/\t/g, "").trim() || "0");
+}
+
+describe("Step 6d derived headline stays consistent with live 6e", () => {
+  const remaining = parseCsv(
+    readFileSync(
+      resolve(__dirname, "../../docs/ella-noor-customer-balance-audit-2026-08/step6e-remaining-2026-08-25.csv"),
+      "utf8",
+    ),
+    ";",
+  );
+  const derived = parseCsv(
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv",
+      ),
+      "utf8",
+    ),
+    ",",
+  );
+  const byField = Object.fromEntries(derived.map((r) => [r.field, r]));
+
+  it("labels itself derived, not a 6d paste, and leaves identity columns empty", () => {
+    expect(byField.provenance.value).toBe("derived_not_6d_paste");
+    expect(byField.n_zero_memo_formulas_differ.value).toBe("");
+    expect(byField.n_zero_memo_formulas_differ.source).toMatch(/unknown/);
+  });
+
+  it("6e remaining is complete: 136 rows, P0=1 Shumama, Sana Nasir absent, no overshoot", () => {
+    expect(remaining.length).toBe(136);
+    const p0 = remaining.filter((r) => r.queue_tier_after_correction === "P0");
+    expect(p0).toHaveLength(1);
+    expect(p0[0].customer_name).toBe("SHUMAMA BAIRELI");
+    expect(remaining.some((r) => /sana/i.test(r.customer_name) && /nasir/i.test(r.customer_name))).toBe(false);
+    const overshoot = remaining.filter((r) => Math.abs(numField(r.gap_excl_minus_party)) <= DRIFT_THRESHOLD);
+    expect(overshoot).toHaveLength(0);
+    expect(remaining.every((r) => numField(r.gap_incl_advance_minus_party) > 0)).toBe(true);
+  });
+
+  it("derived closed count = morning 717 minus 6e remaining, because 6e has 0 overshoot", () => {
+    const morningExcl = numField(byField.n_mismatch_excl_memo.value);
+    const remainingIncl = numField(byField.n_mismatch_incl_advance_memo.value);
+    const closed = numField(byField.n_closed_by_incl_advance_memo.value);
+    expect(morningExcl).toBe(717);
+    expect(remainingIncl).toBe(remaining.length);
+    expect(closed).toBe(morningExcl - remainingIncl);
+    expect(closed).toBe(581);
+    expect(numField(byField.n_p0_after_incl_advance.value)).toBe(1);
+  });
+
+  it("derived abs remaining matches SUM of 6e |gap_incl_advance|", () => {
+    const absIncl = remaining.reduce((s, r) => s + Math.abs(numField(r.gap_incl_advance_minus_party)), 0);
+    expect(absIncl).toBe(905800);
+    expect(numField(byField.abs_drift_incl_advance_memo.value)).toBe(absIncl);
+    expect(numField(byField.abs_drift_excl_memo.value)).toBe(11_559_763);
+    expect(numField(byField.implied_abs_rupees_closed.value)).toBe(11_559_763 - 905800);
+  });
+});

@@ -1,0 +1,17 @@
+field,value,source,notes
+provenance,derived_not_6d_paste,morning_step1+live_6e,"No SQL-editor 6d one-row result was uploaded. Do not treat this as a same-query 6d paste."
+n_mismatch_excl_memo,717,morning_step1_2026-08-25,memo-blind seven-component recompute vs party; threshold > 1
+abs_drift_excl_memo,11559763.00,morning_step1_2026-08-25,₹1,15,59,763
+n_mismatch_incl_advance_memo,136,step6e-remaining-2026-08-25.csv,complete remaining set (136 < LIMIT 1000)
+abs_drift_incl_advance_memo,905800.00,step6e-remaining-2026-08-25.csv,SUM of |gap_incl_advance_minus_party| on the 136
+n_closed_by_incl_advance_memo,581,derived_717_minus_136,81% of morning mismatches. Valid only because every 6e row also has |gap_excl_minus_party| > 1 (0 overshoot).
+n_p0_after_incl_advance,1,step6e-remaining-2026-08-25.csv,SHUMAMA BAIRELI only; leftover = cn_memos = SRA
+implied_abs_rupees_closed,10653963.00,11559763_minus_905800,commentary; not a 6d column. Remaining customers' gaps also shrank (Shumama excl 532500 → incl 61900).
+n_zero_memo_formulas_differ,,unknown_needs_6d_paste,Identity check: must be 0. Cannot be derived from the remaining-only 6e set.
+n_mismatch_plus_used_amount,,unknown_needs_6d_paste,Org-wide; 6e only has remaining after incl-advance
+n_mismatch_incl_all_memo,,unknown_needs_6d_paste,Do not use incl-all-memo as truth (Farhaan Fab CN double-count)
+n_excl_gap_equals_advance_memos,,unknown_needs_6d_paste,Org-wide among excl mismatches; remaining 6e has excl_gap_was_advance_memos = 0/136
+n_excl_gap_equals_used_amount,,unknown_needs_6d_paste,Org-wide
+n_excl_gap_equals_paid_amount,,unknown_needs_6d_paste,Org-wide; remaining 6e has excl_gap_was_paid_amount = 8/136
+n_used_amount_diverges_from_advance_memos,,unknown_needs_6d_paste,Org-wide
+n_zero_memo_customers,,unknown_needs_6d_paste,Org-wide
