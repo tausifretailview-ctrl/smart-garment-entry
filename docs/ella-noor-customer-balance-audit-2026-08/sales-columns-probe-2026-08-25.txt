@@ -1,0 +1,23 @@
+ELLA NOOR audit — live sales column confirmation
+Date: 2026-08-25
+Supabase REST, anon key, SELECT-only.
+
+1) GET /rest/v1/sales?select=paid_amount,credit_applied&limit=0
+   HTTP 200
+   body: []
+   content-range: */*
+   Meaning: both columns exist in the live PostgREST schema.
+   Empty body is RLS, not "sums are zero".
+
+2) GET /rest/v1/sales?select=this_column_does_not_exist&limit=0
+   HTTP 400 / JSON 42703
+   message: column sales.this_column_does_not_exist does not exist
+   Contrast with (1): paid_amount and credit_applied are real columns.
+
+3) Generated types (src/integrations/supabase/types.ts sales.Row)
+   paid_amount: number | null
+   credit_applied: number | null
+   points_redeemed_amount: number | null  (headline extra only)
+   legacy_paid_baseline: number
+
+No tenant aggregates were readable from this environment.

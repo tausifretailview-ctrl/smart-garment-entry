@@ -22,22 +22,19 @@ Related (do not duplicate, do not treat as this pass):
 
 This pass **did not repair anything** and **did not write**.
 
-**First SQL-editor Step 1 (receipts-only) undercounted cash.** `receipt_payments_both_eras` summed `voucher_entries` only and never the sale’s `cash_amount` / `card_amount` / `upi_amount`. Evidence from that run (not a guess):
+**Tender-column hypothesis: disproved for ELLA NOOR.** Step 1c came back with `paid_at_sale_tender = 0` on every customer, `n_dual_write_sales = 0`, and `abs_drift_with_tender_rupees` identical to the receipts-only figure (**₹1,15,59,763**). This org’s `cash_amount` / `card_amount` / `upi_amount` are empty. The tender diagnostic stays in the SQL (correct to have added; not this org’s answer). Do not revert it.
 
-| Observation | Value |
-|-------------|-------|
-| Mismatch rows | **717** |
-| Direction | party **always lower** than recomputed — zero exceptions |
-| Of those, `receipt_payments_both_eras = 0` | **247** customers, combined invoiced **₹44,81,578** |
-| Known-good counterexample | **Siya Kapoor** — Payments screen + PDF reconciliation in July, still in the 717 |
+**Receipts-only Step 1 is therefore still the live mismatch:** 717 customers, party always lower than recompute, **251** with invoiced amount and ₹0 receipts (and ₹0 tender). That is the set Step 1e inspects.
 
-That is the missing paid-at-sale tender residual, not 247 customers who never paid and not Siya’s balance being wrong.
+**Next measurement (Step 1e), not more tender tuning:** on those 251 customers’ valid sales, `SUM(paid_amount)` and `SUM(credit_applied)` — read, not trusted, not written. `credit_applied` is a documented legacy mirror of `sale_return_adjust`; the headline splits mirror vs leftover. `paid_amount` is **not** folded into the seven-component recompute (baseline self-reinflation).
 
-**Corrected Step 1** keeps the receipts-only columns and adds a **separate** tender diagnostic that matches live `compute_sale_settlement`: per sale `LEAST(net, GREATEST(receipts, tender))`, **not** `receipts + tender` (that double-counts `handleRecordPayment` dual-write). Dual-write sales are **flagged**, not repaired.
+Live Step 1e still has to run in the SQL editor. This Cloud Agent confirmed both columns exist on live `sales` (PostgREST `select=paid_amount,credit_applied` → 200; a bogus column → `42703`). It cannot aggregate tenant rows (`42501` / RLS empty). **Do not treat that as `SUM = 0`.** Decision rule after the 1e paste:
 
-Live recompute of “how many of the 717 now fall under ₹1 on `drift_with_tender`” still has to run in the SQL editor (Step 1c). This Cloud Agent cannot read tenant tables (`42501`). Empty / 401 is **not** zero remaining drift.
+- If `credit_applied` leftover (beyond SRA) covers a material share of the 251-customer gap → add it as a named diagnostic column (same pattern as tender) and re-run the close count. Not done in this revision because the share is not yet measured.
+- If `n_flagged_whose_gap_equals_paid_amount` is high → party is likely still crediting `paid_amount` (older `GREATEST(paid_amount, tender)` drift). That is **not** a query artifact to bake into the recompute; it is untrusted paid-amount / baseline drift → P0 queue.
+- If both `sum_paid_amount` and `sum_credit_applied_beyond_sra` are negligible vs the gap → stop retuning the recompute. The ₹1,15,59,763 / 717-customer drift is **real** and goes to the P0 repair queue.
 
-**Do not zero `legacy_paid_baseline` from this document.** Category-1 baselines (money paid with no reconstructable receipt) are legitimate; only the overlap shape `baseline > 0 AND receipts_total > 0` is the bug.
+**Do not zero `legacy_paid_baseline` from this document.**
 
 ---
 
@@ -173,28 +170,64 @@ This is the **before** snapshot. `party_signed` matched the captured `balance_be
 |--------|-------|
 | Mismatch (`ABS(party − recomputed_7_both_eras) > 1`) | **717** |
 | Sign | party < recompute on **every** row |
-| Zero-receipt mismatches with real invoices | **247** customers / **₹44,81,578** invoiced |
+| Zero-receipt mismatches with real invoices | **247** on first dump; **251** on Step 1c |
 | Siya Kapoor | in the 717; live Payments + PDF were already correct in July |
 
-### Tender-corrected Step 1c (this revision — paste live row)
-
-Run `scripts/ella-noor-customer-balance-audit-2026-08.sql` **Step 1c** in the SQL editor.
+### Tender-corrected Step 1c (SQL editor — **disproved for this org**)
 
 | Metric | Value |
 |--------|-------|
-| `n_mismatch_receipts_only` | *paste — expect 717 if data unchanged* |
-| `n_of_those_now_within_1` | *paste — how many of the 717 close on `drift_with_tender`* |
-| `n_mismatch_with_tender` | *paste — remaining mismatch count after tender* |
-| `abs_drift_receipts_only_rupees` | *paste* |
-| `abs_drift_with_tender_rupees` | *paste — new total drift rupees* |
-| `n_mismatch_zero_receipts_with_invoices` | *paste — expect 247 on the receipts-only side* |
-| `n_customers_with_dual_write` / `n_dual_write_sales` | *paste Step 1c + 1d — FLAG only* |
+| `n_mismatch_receipts_only` | **717** |
+| `n_of_those_now_within_1` | **0** |
+| `n_mismatch_with_tender` | **717** |
+| `abs_drift_receipts_only_rupees` | **₹1,15,59,763** |
+| `abs_drift_with_tender_rupees` | **₹1,15,59,763** (identical) |
+| `n_mismatch_zero_receipts_with_invoices` | **251** |
+| `n_dual_write_sales` | **0** |
+| `paid_at_sale_tender` | **₹0** on every customer |
+
+ELLA NOOR tender columns are empty. Keep the diagnostic; do not revert.
+
+### Step 1e — `paid_amount` / `credit_applied` on the 251 (paste live row)
+
+Both columns **exist** on live `sales` (confirmed 2026-08-25: PostgREST `select=paid_amount,credit_applied` HTTP 200; `this_column_does_not_exist` → `42703`). Generated `types.ts` matches (`sales.Row.paid_amount`, `sales.Row.credit_applied`).
+
+Repo context (not a substitute for the 1e row):
+
+- Latest `_get_customer_party_balances_rows` in-repo (`20260911150000`) does **not** read `paid_amount` or `credit_applied`.
+- Older party v2 (`20260823140000`) `paid_at_sale_drift` **does** use `GREATEST(paid_amount, tender)` and still fires when tender is 0 and `paid_amount > 0` — the 251 shape, if live DDL was not swapped.
+- `credit_applied` is a **legacy mirror of `sale_return_adjust`** (`docs/customer-accounts-consistency-v1.md`). It is not a party-RPC input. Subtracting it on top of SRA double-counts the mirror. Step 1e reports `sum_credit_applied_beyond_sra` separately.
+
+Run **Step 1e**. One row. SELECT-only. Do not write `paid_amount`.
+
+| Metric | Value |
+|--------|-------|
+| `n_flagged_customers` | *paste — expect 251* |
+| `n_sales_on_flagged` | *paste* |
+| `sum_paid_amount` | *paste* |
+| `n_sales_paid_amount_nz` | *paste* |
+| `sum_credit_applied` | *paste* |
+| `n_sales_credit_applied_nz` | *paste* |
+| `n_sales_either_nz` | *paste* |
+| `sum_credit_applied_beyond_sra` | *paste — new channel leftover, not the SRA mirror* |
+| `n_sales_credit_applied_eq_sra` | *paste — mirror count* |
+| `sum_gap_recompute_minus_party` / `abs_gap_on_flagged` | *paste* |
+| `paid_amount_vs_gap_rupees` | *paste — coverage only; do not fold into recompute* |
+| `credit_beyond_sra_vs_gap_rupees` | *paste* |
+| `n_flagged_whose_gap_equals_paid_amount` | *paste* |
+| `n_flagged_whose_gap_equals_credit_beyond_sra` | *paste* |
 
 ```
-(paste Step 1c one-row result)
+(paste Step 1e one-row result)
 ```
 
-This Cloud Agent still cannot execute Step 1c against live tenant data (`42501`). Do not fill the paste slot with zeros.
+This Cloud Agent cannot fill that row. **Empty RLS is not a zero sum.**
+
+How to read it:
+
+1. **`credit_beyond_sra` material and `n_flagged_whose_gap_equals_credit_beyond_sra` high** → add `credit_applied` leftover as a named diagnostic column (tender pattern) and re-run the 717 close count. Not folded in this revision.
+2. **`n_flagged_whose_gap_equals_paid_amount` high** → party is crediting `paid_amount` without receipts/tender. Do **not** add `paid_amount` to the seven-component sum. Treat as real paid-amount / `legacy_paid_baseline` drift → P0 queue.
+3. **Both sums negligible vs `abs_gap_on_flagged`** → stop recompute tuning. The ₹1,15,59,763 / 717-customer drift is **real** and needs the P0 repair queue, not another excluded column.
 
 ### Org headline (Step 1b)
 
@@ -231,8 +264,10 @@ Primary class is assigned in this **order** (first match wins) so duplicate rece
 
 | Class | What it is | Detector (this audit) | This-pass count | Last known |
 |-------|------------|------------------------|-----------------|------------|
-| **Paid-at-sale tender residual** | Voucher receipts missing; cash sits on `cash_amount`/`card_amount`/`upi_amount` | Step 1 `tender_closes_mismatch` | *paste 1c `n_of_those_now_within_1`* | **717** receipts-only flags; 247 with receipts=0 |
-| **Dual-write (receipt + tender)** | Same sale has a receipt voucher **and** non-zero tender — possible `handleRecordPayment` double recording | Step 1d FLAG list. **Do not pick a winner** | *paste 1c/1d* | Documented 15 Aug Collect Payment path |
+| **Paid-at-sale tender residual** | Voucher receipts missing; cash sits on `cash_amount`/`card_amount`/`upi_amount` | Step 1 `tender_closes_mismatch` | **0** (disproved — tender columns empty) | Diagnostic kept |
+| **Dual-write (receipt + tender)** | Same sale has a receipt voucher **and** non-zero tender | Step 1d FLAG list | **0 sales** | Keep the FLAG query |
+| **`paid_amount` on zero-receipt invoices** | Party may still credit `GREATEST(paid_amount, tender)` (older v2). Not folded into recompute | Step 1e `sum_paid_amount` / `n_flagged_whose_gap_equals_paid_amount` | *paste 1e* | Untrusted; baseline self-reinflation |
+| **`credit_applied` leftover** | Legacy SRA mirror vs a real at-sale credit channel | Step 1e `sum_credit_applied_beyond_sra` | *paste 1e* | Spec: mirror only; do not subtract on top of SRA until leftover is measured |
 | **Receipt vocabulary artifact** | Query filtered new tag only; pre-29-May `CustomerReceipt` cash exists | Step 1 `vocab_query_artifact` | *paste* | ₹2.75 crore org-history finding if the filter is wrong; should be **0** with the required `IN ('sale','CustomerReceipt')` |
 | **Duplicate receipt** | Multiple genuine receipt vouchers on one invoice (not a CN counted twice) | `v_accounting_invariants.rapid_duplicate_receipt` **joined**, not re-derived | *paste Step 2b* | **239** org-wide digest baseline |
 | **CN double-count** | SRA on the invoice **and** a `credit_note_adjustment` voucher **and** remaining return-pool credit | Step 2 `cn_double` (SRA + CN voucher + remaining CAB). Distinct from duplicate receipt | *paste* | Shumama ₹61,900 ×2 (R2 done Aug 22); §1C export had 15 rows |
@@ -384,12 +419,13 @@ In the SQL editor, in order:
 1. Step 0 + 0b — vocabulary proof  
 2. Step 1b — org headlines  
 3. Step 1 — mismatch table with tender columns (page if 1000)  
-4. Step 1c — how many of the 717 close  
-5. Step 1d — dual-write FLAG list  
-6. Step 2 + 2b — classification  
-7. Step 3a–3e — invariant join + named baseline check  
-8. Step 4a / 4b — top 25 Dr / Cr  
-9. Step 5 — queue  
+4. Step 1c — tender close count (**done: 0 of 717**)  
+5. Step 1d — dual-write FLAG list (**done: 0 sales**)  
+6. **Step 1e — `paid_amount` / `credit_applied` on the 251**  
+7. Step 2 + 2b — classification (after 1e is read)  
+8. Step 3a–3e — invariant join + named baseline check  
+9. Step 4a / 4b — top 25 Dr / Cr  
+10. Step 5 — queue  
 
 Paste the result sets into the slots above. Still no writes.
 
@@ -401,8 +437,9 @@ Paste the result sets into the slots above. Still no writes.
 |---------|------|----------|
 | 0 / 0b | `scripts/ella-noor-customer-balance-audit-2026-08.sql` | Vocabulary eras |
 | 1 / 1b | same | Mismatch table + org headlines |
-| 1c | same | How many of the 717 close once tender is counted |
-| 1d | same | Dual-write FLAG list (no repair) |
+| 1c | same | Tender close count — **0 of 717** on ELLA NOOR |
+| 1d | same | Dual-write FLAG list — **0 sales** |
+| 1e | same | `paid_amount` / `credit_applied` headline on the 251 |
 | 2 / 2b | same | Classification including duplicate receipt + baseline |
 | 3a–3d | same | `v_accounting_invariants` joins |
 | 3e / 3e-sum | same | Named `legacy_paid_baseline` check |
