@@ -1,9 +1,9 @@
 # ELLA NOOR — Customer balance audit (2026-08)
 
-**Status:** **SUPERSEDED (evening 2026-08-25).** Today's **717 / 647 / ₹1,10,91,413** classification is **not** to be treated as a live-data finding until Step 6 is pasted. SELECT-only. **No writes. No `paid_amount` architecture recommendation (A or B).**  
+**Status:** **Step 6 live (evening 2026-08-25).** Morning **717 / 647 / ₹1,10,91,413** was a recompute hole. After including `advance_adjustment` in receipts: **136 remaining mismatches**, **P0 = 1** (SHUMAMA BAIRELI, leftover = CN memos / SRA). Sana Nasir **closed**. **No writes. No `paid_amount` A/B recommendation.**  
 **Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67`  
 **Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance` (live page)  
-**Run next:** `scripts/ella-noor-step6-memo-hole.sql` (6a Sana, 6b CN shape) then `scripts/ella-noor-step6-org.sql` (6d headline, 6e remaining)
+**Live CSVs:** `docs/ella-noor-customer-balance-audit-2026-08/step6b-cn-shape-2026-08-25.csv`, `step6e-remaining-2026-08-25.csv`
 
 Related (do not duplicate, do not treat as this pass):
 
@@ -27,30 +27,57 @@ Including `advance_adjustment` in receipts does **not** double-count with `unuse
 
 `pending_sale_returns` **is** the same remaining-balance shape (via `_sale_return_remaining_credit_for_balance`). CN **consumption** is `sale_return_adjust`, not pending_sr. Including `credit_note_adjustment` on top of SRA is the Farhaan Fab −₹2,800 double-count. **Do not copy the advance fix onto CN** until STEP 6b says `looks_like_advance_hole` (expect `sra_matches_cn_memos` instead).
 
-**paid_amount option A vs B is on hold.** A large share of the 647 "party trusts `paid_amount`" rows may be this hole (Sana's 1e join would fire: gap = used_amount). No architecture recommendation until 6d is pasted.
+**paid_amount option A vs B stays on hold — and looks unnecessary for the 647.** Sana Nasir is **absent from the remaining queue** (the advance fix closed her). Of 136 leftover rows, `excl_gap_was_paid_amount` is true on **8**. The morning 1e join was tagging the hole.
 
 | Formula | Sana Nasir signed balance |
 |---------|---------------------------|
 | Live party | **−₹20,000** (correct) |
 | Today's excl-memo 7-sum | ₹10,80,900 (wrong — hole = used_amount) |
-| Incl `advance_adjustment` in receipts | **−₹20,000** |
+| Incl `advance_adjustment` in receipts | **−₹20,000** (she is not in Step 6e) |
 | Excl-memo plus subtract `used_amount` | **−₹20,000** |
 
-Paste slots (SQL editor):
+### Step 6b live — CN is not the advance hole (25 heaviest CN-memo customers)
 
-| Section | File | Expect |
-|---------|------|--------|
-| **6a** | `scripts/ella-noor-step6-memo-hole.sql` | Sana: `party_signed = −20000`, `recomputed_7_incl_advance_memo` matches, `used_plus_cash_equals_invoiced` |
-| **6b** | same | Top 25 CN-memo customers: `sra_matches_cn_memos` vs `looks_like_advance_hole` |
-| **6d** (includes 6c) | `scripts/ella-noor-step6-org.sql` | `n_closed_by_incl_advance_memo`; `n_zero_memo_formulas_differ = 0`; `n_p0_after_incl_advance` |
-| **6e** | same | Remaining names after correction, biggest `gap_incl_advance` first |
+CSV: `docs/ella-noor-customer-balance-audit-2026-08/step6b-cn-shape-2026-08-25.csv`
+
+| Check | Live |
+|-------|------|
+| `looks_like_advance_hole` | **0 / 25** |
+| `sra_matches_cn_memos` | **20 / 25** |
+| `has_sra_consumption` | **24 / 25** |
+| `has_remaining_cn_credit` | 10 / 25 |
+
+Do **not** put `credit_note_adjustment` into receipts. Consumption is already in SRA (Shumama: SRA = CN memos = ₹61,900; remaining CAB = 0). Farhaan Fab in 6e: excl-memo recompute **−₹100**, live party **−₹2,800**, incl-all-memo **−₹2,800** — that is the documented double-count, not a hole to fill.
+
+### Step 6e live — remaining after incl-advance (complete set, 136 < LIMIT 1000)
+
+CSV: `docs/ella-noor-customer-balance-audit-2026-08/step6e-remaining-2026-08-25.csv`
+
+Step 6d one-row headline was **not** in this paste. Implied from morning 717 vs this 136: most of the 717 close. Treat **136** as `n_mismatch_incl_advance_memo`. Paste 6d to confirm `n_closed_by_incl_advance_memo` and `n_zero_memo_formulas_differ`.
+
+| Slice | Live |
+|-------|------|
+| Remaining mismatches after incl-advance | **136** |
+| Abs remaining gap (`gap_incl_advance`) | **₹9,05,800** |
+| Morning memo-blind abs drift (do not act) | ₹1,15,59,763 |
+| P0 after correction | **1** (SHUMAMA BAIRELI) |
+| P1 | **83** |
+| P2 | **52** |
+| Remaining gap ≈ `cn_memos` | **74 / 136** |
+| `excl_gap_was_paid_amount` still true | **8 / 136** |
+| `excl_gap_was_advance_memos` still true | **0 / 136** (already included) |
+| Sana Nasir | **closed** (not in 6e) |
+
+Corrected P0 (the only row with `queue_tier_after_correction = P0`):
+
+| Customer | Phone | `party_signed` | `gap_incl_advance` | `cn_memos` | `advance_memos` / `used_amount` | Note |
+|----------|-------|----------------|--------------------|------------|----------------------------------|------|
+| SHUMAMA BAIRELI | 8859110000 | ₹96,800 | **₹61,900** | ₹61,900 | ₹4,70,600 / ₹4,70,600 | Leftover = CN/SRA, not paid_amount. R2 CN repair already done 22 Aug. |
+
+Top remaining after Shumama (all P1; leftover mostly `cn_memos`): Sharmin Mewara ₹24,750, SIBGAH GEELANI ₹33,000, Naseem Jahid ₹18,200, AMNA DARVESH ₹13,500. Full 136 in the CSV.
 
 ```
-(paste Step 6d one-row headline)
-```
-
-```
-(paste Step 6e remaining rows — this is the corrected P0/P1 list)
+(paste Step 6d one-row headline when available — n_closed, n_zero_memo_formulas_differ, n_p0_after_incl_advance)
 ```
 
 ---
@@ -632,9 +659,9 @@ Paste the result sets into the slots above. Still no writes.
 | 5b | same | P0 count — **33**, all `party_trusts_paid_amount` |
 | 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
 | **6a** | `scripts/ella-noor-step6-memo-hole.sql` | Sana Nasir proof — live page vs excl-memo vs incl-advance |
-| **6b** | same | CN remaining vs SRA vs cn_memos (do not assume the advance hole) |
-| **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline: how many of 717 close; zero-memo identity; corrected P0 count |
-| **6e** | same | Remaining mismatches after incl-advance (corrected review list) |
+| **6b** | same | CN remaining vs SRA vs cn_memos — **live 0/25 hole, 20/25 SRA=CN** |
+| **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline — **not in this paste; 6e implies 136 remaining** |
+| **6e** | same | Remaining after incl-advance — **live 136 rows, P0=1 Shumama** (`step6e-remaining-2026-08-25.csv`) |
 
 ## Appendix B — What was not done
 
