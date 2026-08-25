@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-25
 
-**Branch intent:** Phase 0 accepted. Phase 1 step 1 shipped (`20261126120000`, live Farhaan C-PARTY = −Rs 100). Step 2 equality tests merged. Step 3 migrates org totals/exports/dashboards + payment picker (batch 1–2).
+**Branch intent:** Phase 0 accepted. Phase 1 step 1 shipped (`20261126120000`, live Farhaan C-PARTY = −Rs 100). Step 2 equality tests merged. Step 3 batch 1–2 merged (#407). Step 3 batch 3: ledger exports, Khata FIFO, AI, POS WhatsApp.
 
 This month's three findings were the same gap:
 
@@ -89,8 +89,8 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | C03 | Customer Balances — Excel export | same `exportToExcel` | C-PARTY (`filteredRows`, never enriched) | SQL-only | **Right post `20261126120000`** |
 | C04 | Customer Balances — PDF export | same `exportToPdf` | C-PARTY (`filteredRows`) | SQL-only | **Right post `20261126120000`** |
 | C05 | Customer Ledger — list (Accounts tab + `/customer-ledger-report`) | `src/components/CustomerLedger.tsx` + `src/utils/customerLedgerListFromPartyBalances.ts` | C-PARTY+JS on filtered <=100 or paginated slice; seed is C-PARTY | SQL+JS-patched | **Right on visible slice**; search "Farhaan" (1 row) is patched. Unfiltered Excel of all filtered is not. |
-| C06 | Customer Ledger — list Excel | `CustomerLedger.tsx` `handleExportCustomerListExcel` | C-PARTY (`filteredCustomers` without enrich when >100) | SQL-only when filter >100 | **Wrong** on ELLA NOOR unfiltered export |
-| C07 | Customer Ledger — list PDF | `CustomerLedger.tsx` | same as C06 | same | same |
+| C06 | Customer Ledger — list Excel | `CustomerLedger.tsx` `handleExportCustomerListExcel` | C-PARTY+JS when filter ≤100 (`customersForLedgerExport`); else aligned C-PARTY | SQL+JS-patched / SQL | **Right** — enriched export when filtered slice ≤ cap |
+| C07 | Customer Ledger — list PDF | `CustomerLedger.tsx` | same as C06 | same | **Right** |
 | C08 | Customer Ledger — detail headline / unused advance | `useCustomerBalance` in `CustomerLedger.tsx` | C-JS | JS | **Right** |
 | C09 | Customer Ledger — on-screen Balance Reconciliation | `CustomerLedger.tsx` + `customerLedgerReconciliation.ts` | C-RECON-LEDGER | JS independent | Unverified (must match table; Phase 2 vs C-JS) |
 | C10 | Customer Ledger — PDF recon footer | `CustomerLedger.tsx` `handleExportToPDF` | C-RECON-LEDGER | JS independent | Unverified (same class as the old Sangamn footer bug) |
@@ -105,8 +105,8 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | C19 | Floating Payments — customer outstanding | `src/components/FloatingPayments.tsx` | C-JS (`useCustomerBalance`) then aligned picker | JS + SQL | **Right post step 3** |
 | C20 | POS — selected customer chip | `src/pages/POSSales.tsx` | C-JS (`useCustomerBalance`) | JS | **Right** |
 | C21 | POS — customer search dropdown | `useCustomerBalances` in `src/hooks/useCustomerSearch.tsx` | C-SNAP (`outstandingDr`, first 20 ids) | SQL | Snapshot path |
-| C22 | POS — WhatsApp invoice caption Outstanding Balance | `POSSales.tsx` (opening + sales - paid) | C-OB-SALES | JS independent | **Known wrong** |
-| C23 | POS Dashboard — WhatsApp outstanding | `src/pages/POSDashboard.tsx` | C-OB-SALES | JS independent | **Known wrong** |
+| C22 | POS — WhatsApp invoice caption Outstanding Balance | `POSSales.tsx` | C-SNAP (`fetchCustomerFinancialSnapshot.netPosition`) | SQL | Snapshot path (not C-OB-SALES) |
+| C23 | POS Dashboard — WhatsApp outstanding | `src/pages/POSDashboard.tsx` | C-SNAP | SQL | Snapshot path (not C-OB-SALES) |
 | C24 | Sales Invoice — header due/credit | `src/pages/SalesInvoice.tsx` | C-JS | JS | **Right** |
 | C25 | Sales Invoice — customer picker | `useCustomerBalances` | C-SNAP | SQL | Snapshot path |
 | C26 | Payments Dashboard — org receivable cards | `src/pages/PaymentsDashboard.tsx` | C-REC | SQL | Unverified; same family as C14 |
@@ -130,19 +130,16 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | C44 | Settle Customer Account | `src/components/SettleCustomerAccountDialog.tsx` | C-SNAP | SQL | Snapshot path |
 | C45 | Mobile Owner — customer balance report | `src/components/mobile/MobileOwnerBalanceReports.tsx` | C-SNAP | SQL | Snapshot path |
 | C46 | Accounting Reports / Balance Sheet — Accounts Receivable | `src/utils/accountingReportUtils.ts` and `src/pages/AccountingReports.tsx` | C-REC `grossReceivableDr` | SQL | Unverified; org-level |
-| C47 | AI assistant — outstanding / due / balance | `supabase/functions/ai-assistant/index.ts` | C-PARTY; fallback C-OB | SQL-only | **Wrong** (Farhaan-shape). Fallback **wrong**. |
-| C48 | Invoice dashboard — Khata FIFO ledger net | `src/utils/invoiceDashboardData.ts` `applyDisplayFifoForKhataCustomers` | C-PARTY `signed_balance` (no enricher) | SQL-only | **Wrong** for Farhaan-shape debtors (changes which invoices look pending) |
+| C47 | AI assistant — outstanding / due / balance | `supabase/functions/ai-assistant/index.ts` | C-PARTY aligned (`partyDebtorNetFromRpcRow` / `partyNetPositionFromRpcRow`); fallback C-OB | SQL-only | **Right post batch 3** for party path; opening_balance fallback still wrong |
+| C48 | Invoice dashboard — Khata FIFO ledger net | `src/utils/invoiceDashboardData.ts` `applyDisplayFifoForKhataCustomers` | C-PARTY aligned (`partyDebtorNetFromRpcRow`) | SQL-only | **Right post batch 3** (post-fix signed + explicit debtor net helper) |
 
 ### Customer known-wrong list (Farhaan / unpatched party)
 
 Must not be treated as "already fixed by the Balances-page enricher":
 
-- C06, C07 when filter > 100 (Ledger list exports)
-- C47 (AI)
-- C48 (invoice Khata FIFO)
-- C05 seed rows that are not on the visible/enriched slice
+- C05 seed rows that are not on the visible/enriched slice (post-fix aligned seed; enricher still patches residual drift ≤100 rows)
 
-Naive independent (also wrong, different formula): **C22, C23**, salesman list fallback, AI opening-balance fallback.
+Naive independent (also wrong, different formula): salesman list fallback, AI opening-balance fallback.
 
 ---
 
@@ -213,7 +210,7 @@ Each step is its own PR, its own `npm run test:money` run, and reports back befo
 
 1. **Root SQL (shipped, applied live):** `_get_customer_party_balances_rows` calls `_is_settlement_memo_receipt`; remaining sale-return credit restored. Farhaan live C-PARTY = −Rs 100. Enricher stays.
 2. **Equality tests (this step):** `test/money/balanceSsotEquality.lock.test.ts` — Farhaan (C-JS = C-PARTY = C-AUDIT = C-RECON = live −Rs 100), Sana Nasir (advance-heavy facets), Aafra (C-SNAP), Sangamn S-JS vs S-ORG third SQL. No screen migration.
-3. **Migrate in risk order (step 3 — batch 1–2 shipped):** org-wide totals and exports (post-fix C-PARTY — no code change needed beyond verification), Customer Payment picker + Floating Payments onto aligned C-PARTY / C-JS. Remaining surfaces in a follow-up.
+3. **Migrate in risk order (step 3):** batch 1–2 shipped (#407). **Batch 3 shipped:** ledger list exports (C06/C07), Khata FIFO (C48), AI party path (C47), POS WhatsApp (C22/C23). Remaining customer surfaces (C14–C16, C21, C29–C34, etc.) deferred.
 4. **Supplier track (not this PR):** `/supplier-party-balances` onto `supplierBalanceUtils`, then reconcile `get_organization_supplier_payable_summary` (S-ORG currently double-counts Sangamn paid_amount + vouchers: −Rs 55,680 vs S-JS Rs 1,54,648).
 5. **Enforcement last (not this PR):** one shared hook plus lint/review rule, only after 1–4 agree.
 
@@ -235,10 +232,15 @@ Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1 or 2.
 - payment picker uses aligned `net_position` (post step 3);
 - Sangamn snapshot fixture still equals **154648**.
 
-`test/money/balanceSsotMigrateStep3.lock.test.ts` (step 3) freezes:
+`test/money/balanceSsotMigrateStep3.lock.test.ts` (step 3 batch 1–2) freezes:
 
 - org card / export / dashboard facet paths on post-fix Farhaan + Shumama fixtures;
 - payment picker excludes Cr customers and maps debtor `net_position`.
+
+`test/money/balanceSsotMigrateBatch3.lock.test.ts` (step 3 batch 3) freezes:
+
+- ledger export source (`customersForLedgerExport`);
+- Khata FIFO debtor net gate (`partyDebtorNetFromRpcRow`).
 
 `test/money/balanceSsotEquality.lock.test.ts` (step 2) freezes:
 

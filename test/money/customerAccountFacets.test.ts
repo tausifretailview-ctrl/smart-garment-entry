@@ -3,6 +3,8 @@ import {
   accountFacetStatus,
   facetsFromInvoiceOutstanding,
   facetsFromPartySignedBalance,
+  partyDebtorNetFromRpcRow,
+  partyNetPositionFromRpcRow,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
 
@@ -44,5 +46,11 @@ describe("customerAccountFacets", () => {
     expect(t.totalOutstandingDr).toBe(14_800 + 5_000);
     expect(t.totalCreditPoolCr).toBe(10_000 + 2_000);
     expect(t.netReceivable).toBe(4_800 + 5_000 - 2_000);
+  });
+
+  it("partyDebtorNetFromRpcRow — Farhaan Cr nets to 0 Dr for Khata FIFO gate", () => {
+    expect(partyNetPositionFromRpcRow({ signed_balance: -100 })).toBe(-100);
+    expect(partyDebtorNetFromRpcRow({ signed_balance: -100 })).toBe(0);
+    expect(partyDebtorNetFromRpcRow({ signed_balance: 158_700 })).toBe(158_700);
   });
 });

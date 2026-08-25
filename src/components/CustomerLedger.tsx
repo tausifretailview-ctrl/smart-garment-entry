@@ -11,6 +11,7 @@ import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData"
 import {
   buildCustomerLedgerListFromPartyBalances,
   enrichLedgerListRowsWithCanonicalBalance,
+  customersForLedgerExport,
 } from "@/utils/customerLedgerListFromPartyBalances";
 import { PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "@/utils/customerPartyBalanceSnapshot";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2591,6 +2592,17 @@ export function CustomerLedger({
     ? (canonicalFilteredLedgerRows ?? filteredCustomers)
     : filteredCustomers;
 
+  /** C06/C07 — exports use enriched slice when filter ≤ cap; else post-fix aligned C-PARTY. */
+  const customersForExport = useMemo(
+    () =>
+      customersForLedgerExport(
+        filteredCustomers,
+        canonicalFilteredLedgerRows,
+        enrichFilteredLedgerSubset,
+      ),
+    [filteredCustomers, canonicalFilteredLedgerRows, enrichFilteredLedgerSubset],
+  );
+
   const paginatedCustomers = useMemo(() => {
     const start = customerPage * CUSTOMERS_PER_PAGE;
     return ledgerRowsForPaging.slice(start, start + CUSTOMERS_PER_PAGE);
@@ -2834,8 +2846,8 @@ export function CustomerLedger({
 
   // Export customer list to Excel
   const handleExportCustomerListExcel = useCallback(async () => {
-    if (!filteredCustomers.length) return;
-    const rows = filteredCustomers.map((c) => {
+    if (!customersForExport.length) return;
+    const rows = customersForExport.map((c) => {
       const f = facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0);
       const status = accountFacetStatus(f);
       return {
@@ -2858,11 +2870,11 @@ export function CustomerLedger({
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
     XLSX.writeFile(wb, `Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
     toast.success("Customer ledger exported to Excel");
-  }, [filteredCustomers, salesPaidLeaked]);
+  }, [customersForExport, salesPaidLeaked]);
 
   // Export customer list to PDF
   const handleExportCustomerListPDF = useCallback(async () => {
-    if (!filteredCustomers.length) return;
+    if (!customersForExport.length) return;
     const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -2870,7 +2882,7 @@ export function CustomerLedger({
     doc.setFontSize(16);
     doc.text("Customer Ledger Report", 14, 15);
     doc.setFontSize(9);
-    doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${filteredCustomers.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
+    doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${customersForExport.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
 
     const cols = ["#", "Customer Name", "Phone", "Sales", "Paid", "Outstanding", "Advance", "Net", "Status"];
     const colWidths = [8, 48, 28, 28, 28, 32, 28, 32, 24];
@@ -2889,7 +2901,7 @@ export function CustomerLedger({
     y += 6;
     doc.setTextColor(0, 0, 0);
 
-    filteredCustomers.forEach((c, idx) => {
+    customersForExport.forEach((c, idx) => {
       if (y > doc.internal.pageSize.getHeight() - 15) {
         doc.addPage();
         y = 15;
@@ -2942,7 +2954,7 @@ export function CustomerLedger({
 
     doc.save(`Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
     toast.success("Customer ledger exported to PDF");
-  }, [filteredCustomers, summary, salesPaidLeaked]);
+  }, [customersForExport, summary, salesPaidLeaked]);
 
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };

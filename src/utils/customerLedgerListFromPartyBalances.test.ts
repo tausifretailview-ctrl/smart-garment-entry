@@ -3,6 +3,7 @@ import { facetsFromInvoiceOutstanding } from "./customerAccountFacets";
 import { alignPartyRowFromRpc, PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "./customerPartyBalanceSnapshot";
 import {
   applyAlignedPartyToLedgerListRow,
+  customersForLedgerExport,
   enrichLedgerListRowsWithCanonicalBalance,
   ledgerListRowToAlignedParty,
   partyLedgerListMoneyFields,
@@ -88,6 +89,20 @@ describe("ledger list ↔ party row adapters", () => {
     const out = await enrichLedgerListRowsWithCanonicalBalance("org", rows);
     expect(out).toHaveLength(rows.length);
     expect(out[0].balance).toBe(50);
+  });
+});
+
+describe("customersForLedgerExport", () => {
+  it("prefers enriched filtered rows when the subset is within the enrich cap", () => {
+    const filtered = [listRow({ id: "ff", customer_name: "Farhaan Fab", balance: -2800 })];
+    const enriched = [listRow({ id: "ff", customer_name: "Farhaan Fab", balance: -100 })];
+    expect(customersForLedgerExport(filtered, enriched, true)).toEqual(enriched);
+  });
+
+  it("falls back to filtered aligned rows when enrich is off or above cap", () => {
+    const filtered = [listRow({ id: "ff", customer_name: "Farhaan Fab", balance: -100 })];
+    expect(customersForLedgerExport(filtered, undefined, false)).toBe(filtered);
+    expect(customersForLedgerExport(filtered, undefined, true)).toBe(filtered);
   });
 });
 
