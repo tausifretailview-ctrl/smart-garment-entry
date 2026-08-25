@@ -2270,8 +2270,8 @@ export default function Settings() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Enabled: every POS add (barcode, search, or product pick) uses MRP as the selling
-                          rate with no line discount. Disabled: uses Sale Price and shows MRP vs Sale Price
-                          discount on POS.
+                          rate with no line discount. Last-purchase sale price is not applied (KS Footwear
+                          included). Disabled: uses Sale Price and shows MRP vs Sale Price discount on POS.
                         </p>
                       </div>
                       <Switch

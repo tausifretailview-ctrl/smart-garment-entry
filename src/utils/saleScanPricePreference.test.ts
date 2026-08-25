@@ -3,6 +3,7 @@ import {
   isKsFootwearSlug,
   pickLastPurchaseScanPrice,
   resolveSaleScanPriceSource,
+  shouldApplyLastPurchaseScanOverride,
 } from "./saleScanPricePreference";
 
 describe("isKsFootwearSlug", () => {
@@ -85,5 +86,25 @@ describe("pickLastPurchaseScanPrice", () => {
         lastPurchaseMrp: null,
       }),
     ).toBeNull();
+  });
+});
+
+describe("shouldApplyLastPurchaseScanOverride", () => {
+  it("does not apply last-purchase sale when POS MRP price mode is on", () => {
+    expect(
+      shouldApplyLastPurchaseScanOverride({
+        scanPriceSource: "last_purchase",
+        posUsesMrpAsPrice: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("still applies last-purchase when POS bills at sale price (KS default)", () => {
+    expect(
+      shouldApplyLastPurchaseScanOverride({
+        scanPriceSource: "last_purchase",
+        posUsesMrpAsPrice: false,
+      }),
+    ).toBe(true);
   });
 });

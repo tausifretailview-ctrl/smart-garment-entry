@@ -27,6 +27,19 @@ export function resolveSaleScanPriceSource(params: {
   return "ask";
 }
 
+/**
+ * Auto last-purchase sale rate is only for sale-price POS.
+ * MRP price mode bills the variant MRP with no MRP-vs-sale discount; applying last
+ * purchase sale (KS Footwear default) would silently cut 1299 → 1250.
+ */
+export function shouldApplyLastPurchaseScanOverride(params: {
+  scanPriceSource: SaleScanPriceSource;
+  posUsesMrpAsPrice: boolean;
+}): boolean {
+  if (params.posUsesMrpAsPrice) return false;
+  return params.scanPriceSource === "last_purchase";
+}
+
 export function pickLastPurchaseScanPrice(params: {
   masterSalePrice: number;
   masterMrp: number;
