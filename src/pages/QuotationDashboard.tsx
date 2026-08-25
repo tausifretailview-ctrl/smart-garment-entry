@@ -690,7 +690,11 @@ export default function QuotationDashboard() {
 }
 
 // PDF download helper
-async function downloadQuotationPDF(printRef: React.RefObject<HTMLDivElement>, quotationNumber: string) {
+async function downloadQuotationPDF(
+  printRef: React.RefObject<HTMLDivElement>,
+  quotationNumber: string,
+  paper: "a4" | "a5" | "a5-horizontal" | "thermal",
+) {
   const { default: html2canvas } = await import('html2canvas');
   const { default: jsPDF } = await import('jspdf');
   
@@ -706,18 +710,45 @@ async function downloadQuotationPDF(printRef: React.RefObject<HTMLDivElement>, q
   const imgData = canvas.toDataURL('image/png');
   const imgWidth = canvas.width;
   const imgHeight = canvas.height;
-  
-  // Determine page size from aspect ratio
-  const pdfWidth = 148; // A5 width mm
-  const pdfHeight = (imgHeight * pdfWidth) / imgWidth;
-  
+
+  const pageW =
+    paper === "a4" ? 210 : paper === "a5-horizontal" ? 210 : paper === "thermal" ? 80 : 148;
+  const pageH =
+    paper === "a4" ? 297 : paper === "a5-horizontal" ? 148 : paper === "thermal"
+      ? (imgHeight * pageW) / imgWidth
+      : 210;
+  const landscape = pageW > pageH;
   const pdf = new jsPDF({
-    orientation: pdfHeight > pdfWidth ? 'portrait' : 'landscape',
-    unit: 'mm',
-    format: [pdfWidth, pdfHeight],
+    orientation: landscape ? "landscape" : "portrait",
+    unit: "mm",
+    format: paper === "thermal" ? [pageW, pageH] : [pageW, pageH],
   });
 
-  pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+  const pageHeightPx = (pageH / pageW) * imgWidth;
+  if (imgHeight <= pageHeightPx + 2) {
+    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH);
+  } else {
+    let y = 0;
+    let page = 0;
+    while (y < imgHeight) {
+      if (page > 0) pdf.addPage([pageW, pageH], landscape ? "landscape" : "portrait");
+      const sliceH = Math.min(pageHeightPx, imgHeight - y);
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = imgWidth;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, imgWidth, sliceH);
+        ctx.drawImage(canvas, 0, y, imgWidth, sliceH, 0, 0, imgWidth, sliceH);
+        const sliceHMm = (sliceH / imgWidth) * pageW;
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm);
+      }
+      y += pageHeightPx;
+      page += 1;
+    }
+  }
+
   pdf.save(`Quotation-${quotationNumber}.pdf`);
 }
 
@@ -783,6 +814,11 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
     format: printFormat as "a4" | "a5-vertical" | "a5-horizontal",
     colorScheme,
     brandColor,
+    salesman: quotation.salesman || quotation.salesman_name || undefined,
+    customerGSTIN: quotation.customer_gstin || quotation.customer_gst_number || undefined,
+    footerText: settings?.sale_settings?.invoice_footer_text || "",
+    showBankDetails: settings?.sale_settings?.show_bank_details ?? false,
+    bankDetails: settings?.sale_settings?.bank_details || null,
   };
 
   const onTemplateChange = (value: QuotationPrintTemplateId) => {
@@ -791,15 +827,19 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
   };
   
   const getPageStyle = () => {
+    const itBleed = printTemplate === "it-company";
+    const zero = "html, body { margin: 0; }";
     switch (selectedFormat) {
       case 'a5':
-        return '@page { size: 148mm 210mm; margin: 4mm; }';
+        return `@page { size: 148mm 210mm; margin: ${itBleed ? "0" : "4mm"}; } ${itBleed ? zero : ""}`;
       case 'a5-horizontal':
-        return '@page { size: 210mm 148mm; margin: 4mm; }';
+        return `@page { size: 210mm 148mm; margin: ${itBleed ? "0" : "4mm"}; } ${itBleed ? zero : ""}`;
       case 'thermal':
         return '@page { size: 80mm auto; margin: 2mm 4mm; }';
       default:
-        return '@page { size: A4 portrait; margin: 10mm; }';
+        return itBleed
+          ? `@page { size: 210mm 297mm; margin: 0; } ${zero}`
+          : '@page { size: A4 portrait; margin: 10mm; }';
     }
   };
   
@@ -812,7 +852,11 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
   const handleDownloadPDF = async () => {
     setIsDownloading(true);
     try {
-      await downloadQuotationPDF(printRef as React.RefObject<HTMLDivElement>, quotation.quotation_number);
+      await downloadQuotationPDF(
+        printRef as React.RefObject<HTMLDivElement>,
+        quotation.quotation_number,
+        selectedFormat,
+      );
     } catch (error) {
       console.error('PDF download error:', error);
     } finally {
