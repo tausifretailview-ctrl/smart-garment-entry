@@ -1,0 +1,5 @@
+2026-08-25 Step 5-P0 name list: anon REST cannot read tenant rows.
+POST /rest/v1/rpc/_get_customer_party_balances_rows -> HTTP 401 code 42501
+GET  /rest/v1/customers?select=customer_name,phone -> HTTP 401 code 42501
+Empty/401 is not an empty P0 list. Run scripts/ella-noor-customer-balance-audit-2026-08.sql section STEP 5-P0 in the SQL editor.
+Confirmed from Step 5b (user): n_p0=33, n_p0_party_trusts_paid_amount=33.
