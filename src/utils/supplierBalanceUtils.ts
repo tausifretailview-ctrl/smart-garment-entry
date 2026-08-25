@@ -18,6 +18,15 @@ import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturn
  * ## Refunds from supplier
  * `voucher_type = 'receipt'` with `reference_type = 'supplier'` reduces net payable
  * (cash/bank refund) and must be included in the list balance to match ledger running total.
+ *
+ * ## Reconciliation vs ledger table
+ * `paid_amount` on bills already includes cash-at-purchase and payments that
+ * FloatingPayments records with `reference_id = supplier` (no bill id). Adding those
+ * supplier-level vouchers on top of `paid_amount` doubles Paid. Bill-linked vouchers
+ * use `reference_id = purchase_bills.id`.
+ *
+ * Purchase returns with a CN voucher but a missing `credit_note_id` must not also
+ * appear in `unreflectedReturns` (same amount would hit the formula twice).
  */
 
 export type SupplierBalanceSnapshot = {
@@ -53,7 +62,7 @@ type VoucherPaymentRow = {
   reference_id: string | null;
   total_amount: number | null;
   discount_amount?: number | null;
-  description: string | null;
+  description?: string | null;
 };
 type CreditNoteRow = { id: string; reference_id: string | null; total_amount: number | null };
 type PurchaseReturnRow = {
@@ -125,6 +134,89 @@ async function fetchPurchaseReturnsForBalance(client: SupabaseClient, organizati
   return [];
 }
 
+const RETURN_AFFECTS_BALANCE = new Set(["adjusted", "adjusted_outstanding", "refunded"]);
+
+/**
+ * A purchase return is already in `totalCreditNotesNet` when its `credit_note_id`
+ * is a `voucher_entries` credit-note row (same id space as `creditNotes`).
+ *
+ * Older returns can still have a real CN voucher (`reference_type = supplier`)
+ * while `purchase_returns.credit_note_id` was never saved (auto-create CN
+ * catch-and-continue in PurchaseReturnEntry). Matching an unused supplier CN
+ * of the same amount treats that return as linked so it is not subtracted twice.
+ *
+ * This is not a `credit_notes` vs `voucher_entries` id mismatch: the FK is
+ * `purchase_returns_credit_note_id_fkey` → `voucher_entries.id`.
+ */
+function consumeUnreflectedPurchaseReturnAmount(
+  pr: PurchaseReturnRow,
+  allCreditNoteVoucherIds: Set<string>,
+  unusedSupplierCnByAmount: Map<number, number>,
+): number {
+  const amt = Number(pr.net_amount) || 0;
+  if (pr.credit_note_id && allCreditNoteVoucherIds.has(pr.credit_note_id)) {
+    return 0;
+  }
+  const key = roundMoney(amt);
+  const leftover = unusedSupplierCnByAmount.get(key) || 0;
+  if (leftover >= 1) {
+    unusedSupplierCnByAmount.set(key, leftover - 1);
+    return 0;
+  }
+  return amt;
+}
+
+/**
+ * Cash already on the bill (`paid_amount`) plus structurally bill-linked payment
+ * vouchers (`reference_id = bill.id`). Supplier-id vouchers are only added for
+ * the slice not already explained by bill residual (at-purchase / FloatingPayments
+ * also write `paid_amount` and a supplier-referenced voucher with no bill id).
+ *
+ * Do not use description substring matching — generic text like "Payment at purchase"
+ * is a ledger display label and often the voucher text as well.
+ */
+function computeSupplierTotalPaid(
+  supplierId: string,
+  supplierBills: BillRow[],
+  voucherPayments: VoucherPaymentRow[],
+  returnAdjustByBillId: Map<string, number>,
+): number {
+  const supplierBillIds = new Set(supplierBills.map((b) => b.id));
+  const perBillVoucherMap = new Map<string, number>();
+  let supplierLevelPayments = 0;
+
+  for (const v of voucherPayments || []) {
+    if (!v?.reference_id) continue;
+    try {
+      const credit = voucherSettlementCredit(v);
+      if (supplierBillIds.has(v.reference_id)) {
+        perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + credit);
+      } else if (v.reference_id === supplierId) {
+        supplierLevelPayments += credit;
+      }
+    } catch (rowErr) {
+      console.warn("[supplierBalance] skip voucher payment row", rowErr);
+    }
+  }
+
+  supplierLevelPayments = roundMoney(supplierLevelPayments);
+
+  let billSettled = 0;
+  let billLinkedTotal = 0;
+  for (const b of supplierBills) {
+    const voucherPaid = perBillVoucherMap.get(b.id) || 0;
+    billLinkedTotal += voucherPaid;
+    const returnAdjust = returnAdjustByBillId.get(b.id) || 0;
+    billSettled += Math.max(voucherPaid, Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust));
+  }
+  billSettled = roundMoney(billSettled);
+  billLinkedTotal = roundMoney(billLinkedTotal);
+
+  const residualOnBills = roundMoney(Math.max(0, billSettled - billLinkedTotal));
+  const extraOnAccount = roundMoney(Math.max(0, supplierLevelPayments - residualOnBills));
+  return roundMoney(billSettled + extraOnAccount);
+}
+
 async function fetchPurchaseBillsForBalance(client: SupabaseClient, organizationId: string): Promise<BillRow[]> {
   const base = () =>
     client
@@ -148,7 +240,7 @@ async function fetchPurchaseBillsForBalance(client: SupabaseClient, organization
   return [];
 }
 
-function computeSnapshotForSupplier(
+export function computeSnapshotForSupplier(
   supplierId: string,
   openingBalance: number,
   purchaseBillsData: BillRow[],
@@ -202,15 +294,28 @@ function computeSnapshotForSupplier(
     Math.max(0, totalCreditNotesNet - creditNotesAppliedToOutstanding - creditNotesRefunded)
   );
 
-  const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn) => cn.id));
+  const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn) => cn.id).filter(Boolean));
+  const claimedCnIds = new Set<string>();
+  for (const pr of allPurchaseReturns || []) {
+    if (pr.supplier_id !== supplierId || !pr.credit_note_id) continue;
+    if (allCreditNoteVoucherIds.has(pr.credit_note_id)) claimedCnIds.add(pr.credit_note_id);
+  }
+  const unusedSupplierCnByAmount = new Map<number, number>();
+  for (const cn of creditNotes || []) {
+    if (!cn?.id || cn.reference_id !== supplierId || claimedCnIds.has(cn.id)) continue;
+    const key = roundMoney(Number(cn.total_amount) || 0);
+    unusedSupplierCnByAmount.set(key, (unusedSupplierCnByAmount.get(key) || 0) + 1);
+  }
+
   let unreflectedReturns = 0;
   for (const pr of allPurchaseReturns || []) {
     if (pr.supplier_id !== supplierId) continue;
-    const notLinked = !pr.credit_note_id || !allCreditNoteVoucherIds.has(pr.credit_note_id);
-    const affectsBalance = ["adjusted", "adjusted_outstanding", "refunded"].includes(String(pr.credit_status || ""));
-    if (notLinked && affectsBalance) {
-      unreflectedReturns += Number(pr.net_amount) || 0;
-    }
+    if (!RETURN_AFFECTS_BALANCE.has(String(pr.credit_status || ""))) continue;
+    unreflectedReturns += consumeUnreflectedPurchaseReturnAmount(
+      pr,
+      allCreditNoteVoucherIds,
+      unusedSupplierCnByAmount,
+    );
   }
   unreflectedReturns = roundMoney(unreflectedReturns);
 
@@ -222,48 +327,16 @@ function computeSnapshotForSupplier(
     allCreditNoteVoucherIds,
   );
 
-  const supplierBillIds = supplierBills.map((b) => b.id);
-  const perBillVoucherMap = new Map<string, number>();
-  for (const v of voucherPayments || []) {
-    if (!v?.reference_id || !supplierBillIds.includes(v.reference_id)) continue;
-    try {
-      perBillVoucherMap.set(
-        v.reference_id,
-        (perBillVoucherMap.get(v.reference_id) || 0) + voucherSettlementCredit(v),
-      );
-    } catch (rowErr) {
-      console.warn("[supplierBalance] skip voucher payment row", rowErr);
-    }
-  }
-
   const totalPurchases = roundMoney(
     supplierBills.reduce((sum: number, b: BillRow) => sum + (Number(b.net_amount) || 0), 0)
   );
 
-  const totalPaidFromBills = roundMoney(
-    supplierBills.reduce((sum: number, b: BillRow) => {
-      const voucherPaid = perBillVoucherMap.get(b.id) || 0;
-      if (voucherPaid > 0) return sum + voucherPaid;
-      const returnAdjust = returnAdjustByBillId.get(b.id) || 0;
-      return sum + Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust);
-    }, 0)
+  const totalPaid = computeSupplierTotalPaid(
+    supplierId,
+    supplierBills,
+    voucherPayments || [],
+    returnAdjustByBillId,
   );
-
-  const billRefs = supplierBills
-    .map((b: BillRow) => b.software_bill_no || b.supplier_invoice_no)
-    .filter(Boolean) as string[];
-
-  const supplierLevelPayments = roundMoney(
-    (voucherPayments || [])
-      .filter((v: VoucherPaymentRow) => {
-        if (v.reference_id !== supplierId) return false;
-        const desc = (v.description || "") as string;
-        return !billRefs.some((r: string) => desc.includes(r));
-      })
-      .reduce((sum: number, v: VoucherPaymentRow) => sum + voucherSettlementCredit(v), 0)
-  );
-
-  const totalPaid = roundMoney(totalPaidFromBills + supplierLevelPayments);
   const refundsReceived = roundMoney(refundsBySupplier || 0);
 
   const balance = roundMoney(
