@@ -515,3 +515,77 @@ describe("Step 7 — 136 remaining classified from live 6e", () => {
     expect(classifyRemainingRow(remainingFromCsv(sibgah!))).toBe("cn_partial_leftover");
   });
 });
+
+describe("Step 7a/7c live SQL-editor CSVs", () => {
+  const headline7a = parseCsv(
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../docs/ella-noor-customer-balance-audit-2026-08/step7a-headline-live-2026-08-25.csv",
+      ),
+      "utf8",
+    ),
+    ";",
+  )[0];
+  const examples = parseCsv(
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../docs/ella-noor-customer-balance-audit-2026-08/step7c-examples-live-2026-08-25.csv",
+      ),
+      "utf8",
+    ),
+    ";",
+  );
+  const byName = Object.fromEntries(examples.map((r) => [r.customer_name, r]));
+
+  it("confirms offline class counts and splits class 1 as 72 Farhaan / 2 AMNA / 0 gated-away", () => {
+    expect(numField(headline7a.n_remaining)).toBe(STEP7_OFFLINE_HEADLINE.nRemaining);
+    expect(numField(headline7a.abs_remaining)).toBe(STEP7_OFFLINE_HEADLINE.absRemaining);
+    expect(numField(headline7a.n_cn_leftover_incl_all_matches_party)).toBe(STEP7_OFFLINE_HEADLINE.nCnLeftover);
+    expect(numField(headline7a.abs_cn_leftover)).toBe(STEP7_OFFLINE_HEADLINE.absCnLeftover);
+    expect(numField(headline7a.n_gap_equals_twice_used_minus_adv)).toBe(STEP7_OFFLINE_HEADLINE.nTwiceUsed);
+    expect(numField(headline7a.n_cn_partial_leftover)).toBe(STEP7_OFFLINE_HEADLINE.nCnPartial);
+    expect(numField(headline7a.n_used_amount_without_adv_voucher)).toBe(STEP7_OFFLINE_HEADLINE.nUsedWithoutVoucher);
+    expect(numField(headline7a.n_gap_equals_paid_amount)).toBe(STEP7_OFFLINE_HEADLINE.nGapEqualsPaid);
+    expect(numField(headline7a.n_unexplained)).toBe(STEP7_OFFLINE_HEADLINE.nUnexplained);
+    expect(numField(headline7a.n_p0_remaining)).toBe(1);
+    expect(numField(headline7a.n_cn_leftover_gap_equals_sra_gated_away)).toBe(0);
+    expect(numField(headline7a.n_cn_leftover_sra_fully_in_7sum)).toBe(72);
+    expect(numField(headline7a.n_cn_leftover_cn_without_sra)).toBe(2);
+    expect(
+      numField(headline7a.n_cn_leftover_sra_fully_in_7sum)
+        + numField(headline7a.n_cn_leftover_cn_without_sra)
+        + numField(headline7a.n_cn_leftover_gap_equals_sra_gated_away),
+    ).toBe(STEP7_OFFLINE_HEADLINE.nCnLeftover);
+  });
+
+  it("shows Shumama as Farhaan shape: SRA already in the 7-sum, party = incl-all, not gated-away", () => {
+    const s = byName["SHUMAMA BAIRELI"];
+    expect(s.named_remaining_class).toBe("cn_leftover_incl_all_matches_party");
+    expect(s.gap_equals_sra_gated_away).toBe("false");
+    expect(numField(s.sra_gated_away)).toBe(0);
+    expect(numField(s.sra_raw)).toBe(numField(s.sra_gated));
+    expect(numField(s.sra_raw)).toBe(numField(s.cn_memos));
+    expect(numField(s.total_invoiced) - numField(s.sra_gated) - numField(s.advance_memos)).toBe(
+      numField(s.recomputed_7_incl_advance_memo),
+    );
+    expect(numField(s.recomputed_7_incl_advance_memo) - numField(s.cn_memos)).toBe(
+      numField(s.recomputed_7_incl_all_memo),
+    );
+    expect(numField(s.recomputed_7_incl_all_memo)).toBe(numField(s.party_signed));
+  });
+
+  it("keeps KHUSHI twice-used distinct from Pitodia plus-used, both with unused=0", () => {
+    const k = byName["KHUSHI GOPIKRISHNA VASIYA"];
+    const p = byName["Fatima Pitodia"];
+    expect(numField(k.advance_deposited)).toBe(numField(k.used_amount));
+    expect(numField(k.unused_advances)).toBe(0);
+    expect(numField(k.party_signed)).toBe(-2 * numField(k.used_amount));
+    expect(numField(k.recomputed_7_plus_used_amount)).toBe(-numField(k.used_amount));
+    expect(numField(p.advance_deposited)).toBe(numField(p.used_amount));
+    expect(numField(p.unused_advances)).toBe(0);
+    expect(numField(p.party_signed)).toBe(numField(p.recomputed_7_plus_used_amount));
+    expect(numField(p.party_signed)).not.toBe(-2 * numField(p.used_amount));
+  });
+});
