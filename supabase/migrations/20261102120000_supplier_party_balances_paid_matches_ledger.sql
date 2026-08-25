@@ -100,10 +100,10 @@ AS $$
     SELECT
       ob.supplier_id,
       ROUND(COALESCE(SUM(
-        GREATEST(
-          COALESCE(pbv.voucher_paid, 0),
-          GREATEST(0::numeric, ob.paid_amount - COALESCE(ra.adj, 0))
-        )
+        CASE
+          WHEN COALESCE(pbv.voucher_paid, 0) > 0 THEN COALESCE(pbv.voucher_paid, 0)
+          ELSE GREATEST(0::numeric, ob.paid_amount - COALESCE(ra.adj, 0))
+        END
       ), 0)::numeric, 2) AS settled,
       ROUND(COALESCE(SUM(COALESCE(pbv.voucher_paid, 0)), 0)::numeric, 2) AS voucher_total
     FROM org_bills ob
@@ -197,7 +197,10 @@ AS $$
       AND (
         pr.credit_note_id IS NULL
         OR NOT EXISTS (
-          SELECT 1 FROM credit_note_vouchers cn WHERE cn.id = pr.credit_note_id
+          SELECT 1
+          FROM credit_note_vouchers cn
+          WHERE cn.id = pr.credit_note_id
+            AND cn.supplier_ref_trim = trim(pr.supplier_id::text)
         )
       )
       AND lower(trim(COALESCE(pr.credit_status, ''))) IN (
