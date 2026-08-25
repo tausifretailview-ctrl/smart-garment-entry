@@ -373,6 +373,7 @@ Before treating any Step 1 flag as a real customer error:
 3. Duplicate receipt hits come from `v_accounting_invariants`, not a homegrown 5-minute join. If the view count and a homemade detector disagree, **trust the view** and fix the homemade query.
 4. `legacy_paid_baseline` overlap is labelled that, even when `paid_amount` also disagrees with `compute_sale_settlement`. Do not collapse it into generic paid drift.
 5. CN double-count requires SRA **and** a CN voucher **and** remaining pool. Duplicate genuine RCP rows without a CN memo are **duplicate receipt**.
+6. Do not `SUM(receipts + tender)` on a dual-write sale. Residual is `LEAST(net, GREATEST(receipts, tender)) − receipts`. Dual-write rows stay a FLAG until a later pass.
 
 ---
 
@@ -415,3 +416,5 @@ Paste the result sets into the slots above. Still no writes.
 - No baseline zeroing
 - No assumption that anon empty = zero drift
 - No reuse of receivables-audit Section 3’s new-vocab-only receipt filter
+- No summing of tender columns onto receipts (dual-write would double-count)
+- No decision on which side of a dual-write sale is “the” payment
