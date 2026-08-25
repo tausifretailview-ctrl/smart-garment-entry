@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { voucherSettlementCredit } from "@/utils/paymentSettlementBreakdown";
-import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
+import { buildPurchaseReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
+import { supplierCreditNoteLedgerDebit } from "@/utils/purchaseSupplierLedgerCn";
 
 /**
  * Single source of truth for supplier (payables) balance used by Supplier Ledger,
@@ -27,6 +28,11 @@ import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturn
  *
  * Purchase returns with a CN voucher but a missing `credit_note_id` must not also
  * appear in `unreflectedReturns` (same amount would hit the formula twice).
+ *
+ * `paid_amount` also includes Adjust-CN-to-bill. That is not cash — strip it so
+ * Paid (Cash / Bank) matches the ledger payment column. Amount-match unused CNs
+ * only for outstanding/refunded returns, and only when the CN still hits the
+ * ledger (debit > 0); a fully bill-applied CN must not swallow an AO return.
  */
 
 export type SupplierBalanceSnapshot = {
@@ -56,6 +62,13 @@ export type SupplierBalanceSnapshot = {
 
 function roundMoney(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Ledger “CN Adj” = voucher CN debit + unvouchered returns. Same figure on every card. */
+export function supplierAccountAdjustmentTotal(
+  snap: Pick<SupplierBalanceSnapshot, "totalCreditNotesNet" | "unreflectedReturns">,
+): number {
+  return roundMoney((Number(snap.totalCreditNotesNet) || 0) + (Number(snap.unreflectedReturns) || 0));
 }
 
 type VoucherPaymentRow = {
@@ -156,6 +169,12 @@ function consumeUnreflectedPurchaseReturnAmount(
   const amt = Number(pr.net_amount) || 0;
   if (pr.credit_note_id && allCreditNoteVoucherIds.has(pr.credit_note_id)) {
     return 0;
+  }
+  const status = String(pr.credit_status || "");
+  // Do not pair bill-adjusted returns with leftover CN amounts — those CNs are
+  // already in paid_amount / creditNotesAppliedToBills.
+  if (status !== "adjusted_outstanding" && status !== "refunded") {
+    return amt;
   }
   const key = roundMoney(amt);
   const leftover = unusedSupplierCnByAmount.get(key) || 0;
@@ -303,6 +322,11 @@ export function computeSnapshotForSupplier(
   const unusedSupplierCnByAmount = new Map<number, number>();
   for (const cn of creditNotes || []) {
     if (!cn?.id || cn.reference_id !== supplierId || claimedCnIds.has(cn.id)) continue;
+    const linked = (allPurchaseReturns || []).filter(
+      (pr) => pr.supplier_id === supplierId && pr.credit_note_id === cn.id,
+    );
+    const debit = supplierCreditNoteLedgerDebit(Number(cn.total_amount) || 0, linked);
+    if (debit <= 0.005) continue;
     const key = roundMoney(Number(cn.total_amount) || 0);
     unusedSupplierCnByAmount.set(key, (unusedSupplierCnByAmount.get(key) || 0) + 1);
   }
@@ -319,13 +343,15 @@ export function computeSnapshotForSupplier(
   }
   unreflectedReturns = roundMoney(unreflectedReturns);
 
-  // Return credit adjusted straight onto a bill's paid_amount with no CN voucher.
-  // It is already subtracted once via `unreflectedReturns`, so strip it out of
-  // the bill's "paid" figure to avoid double-counting.
-  const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
+  // CN / return credit written into bill.paid_amount (Adjust CN → bill).
+  // Ledger shows that as a CN row (often ₹0 debit) plus cash payments separately.
+  const returnAdjustInfo = buildPurchaseReturnAdjustByBillId(
     (allPurchaseReturns || []).filter((pr) => pr.supplier_id === supplierId),
-    allCreditNoteVoucherIds,
   );
+  const returnAdjustByBillId = new Map<string, number>();
+  for (const [billId, info] of Object.entries(returnAdjustInfo)) {
+    returnAdjustByBillId.set(billId, info.purchase_return_adjust);
+  }
 
   const totalPurchases = roundMoney(
     supplierBills.reduce((sum: number, b: BillRow) => sum + (Number(b.net_amount) || 0), 0)

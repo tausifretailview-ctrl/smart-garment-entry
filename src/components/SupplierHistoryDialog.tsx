@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { Receipt, IndianRupee, TrendingDown, Wallet } from "lucide-react";
+import { fetchSupplierBalanceSnapshot, supplierAccountAdjustmentTotal } from "@/utils/supplierBalanceUtils";
 
 interface SupplierHistoryDialogProps {
   isOpen: boolean;
@@ -113,44 +113,18 @@ export const SupplierHistoryDialog = ({
     enabled: isOpen && !!supplierId,
   });
 
-  // Fetch credit notes for supplier
-  const { data: creditNotes, isLoading: loadingCreditNotes } = useQuery({
-    queryKey: ["supplier-credit-notes", supplierId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("voucher_entries")
-        .select("*")
-        .eq("reference_id", supplierId)
-        .eq("reference_type", "supplier")
-        .eq("voucher_type", "credit_note")
-        .is("deleted_at", null)
-        .order("voucher_date", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: isOpen && !!supplierId,
+
+  const { data: balanceSnap } = useQuery({
+    queryKey: ["supplier-balance-snapshot", organizationId, supplierId],
+    queryFn: () => fetchSupplierBalanceSnapshot(supabase, organizationId, supplierId),
+    enabled: isOpen && !!organizationId && !!supplierId,
   });
 
-  // Calculate totals matching ledger logic
-  const openingBalance = supplier?.opening_balance || 0;
-  const totalPurchases = purchaseBills?.reduce((sum, bill) => sum + (bill.net_amount || 0), 0) || 0;
-  const totalCreditNoteAdjust = creditNotes?.reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0) || 0;
-
-  // Use only voucher payments as the authoritative paid amount.
-  // bill.paid_amount may duplicate voucher entries — don't add both.
-  const voucherPaymentTotal = payments?.reduce(
-    (sum, p) => sum + (Number(p.total_amount) || 0), 0) || 0;
-  
-  // Fall back to bill.paid_amount only if no vouchers exist at all
-  const totalPaidOnBills = purchaseBills?.reduce(
-    (sum, bill) => sum + (bill.paid_amount || 0), 0) || 0;
-  
-  const totalPaid = voucherPaymentTotal > 0 
-    ? voucherPaymentTotal 
-    : totalPaidOnBills;
-
-  // Credit notes already represent returns — no separate totalReturns subtraction
-  const currentBalance = openingBalance + totalPurchases - totalPaid - totalCreditNoteAdjust;
+  const openingBalance = balanceSnap?.openingBalance ?? supplier?.opening_balance ?? 0;
+  const totalPurchases = balanceSnap?.totalPurchases ?? 0;
+  const totalCreditNoteAdjust = balanceSnap ? supplierAccountAdjustmentTotal(balanceSnap) : 0;
+  const totalPaid = balanceSnap?.totalPaid ?? 0;
+  const currentBalance = balanceSnap?.balance ?? 0;
 
   const getPaymentStatusBadge = (status: string | null | undefined) => {
     switch (status) {

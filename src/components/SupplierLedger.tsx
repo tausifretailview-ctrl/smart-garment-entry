@@ -23,6 +23,7 @@ import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHisto
 import { safeMapGet, coerceToArray } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
+  supplierAccountAdjustmentTotal,
   type SupplierBalanceMapForOrg,
 } from "@/utils/supplierBalanceUtils";
 import { fetchSupplierDirectory } from "@/utils/fetchAllRows";
@@ -855,8 +856,9 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
         yPos = 20;
       }
       const snap = selectedSupplierSnapshot;
+      const accountAdjust = supplierAccountAdjustmentTotal(snap);
       const netPurchases =
-        snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
+        snap.openingBalance + snap.totalPurchases - accountAdjust;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text("Balance Reconciliation", margin, yPos);
@@ -866,11 +868,8 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
       const reconLines: Array<[string, number]> = [
         ["Opening Balance", snap.openingBalance],
         ["(+) Total Purchases", snap.totalPurchases],
-        ...(snap.totalCreditNotesNet > 0
-          ? [["(-) Credit Notes Adjusted (net)", -snap.totalCreditNotesNet] as [string, number]]
-          : []),
-        ...(snap.unreflectedReturns > 0
-          ? [["(-) Purchase Returns Adjusted", -snap.unreflectedReturns] as [string, number]]
+        ...(accountAdjust > 0
+          ? [["(-) Credit Notes / Returns Adjusted", -accountAdjust] as [string, number]]
           : []),
         ["(=) Net Purchases", netPurchases],
         ["(-) Paid (Cash / Bank)", -snap.totalPaid],
@@ -1102,15 +1101,30 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Purchases</div>
                   <div className="text-2xl font-bold">
-                    ₹{selectedSupplier.totalPurchases.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(selectedSupplierSnapshot?.totalPurchases ?? selectedSupplier.totalPurchases).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
+              {((selectedSupplierSnapshot
+                ? supplierAccountAdjustmentTotal(selectedSupplierSnapshot)
+                : selectedSupplier.totalCreditNotes) > 0) && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-sm text-muted-foreground mb-1">Credit Notes / Returns</div>
+                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                      ₹{(selectedSupplierSnapshot
+                        ? supplierAccountAdjustmentTotal(selectedSupplierSnapshot)
+                        : selectedSupplier.totalCreditNotes
+                      ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Paid</div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    ₹{selectedSupplier.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(selectedSupplierSnapshot?.totalPaid ?? selectedSupplier.totalPaid).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
@@ -1295,8 +1309,9 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                 rows are hidden by a tab filter or a partial schema. */}
             {selectedSupplierSnapshot && (() => {
               const snap = selectedSupplierSnapshot;
+              const accountAdjust = supplierAccountAdjustmentTotal(snap);
               const netPurchases =
-                snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
+                snap.openingBalance + snap.totalPurchases - accountAdjust;
               const out = snap.balance;
               return (
                 <div className="mt-4 rounded-md border bg-muted/30 p-4">
@@ -1313,16 +1328,10 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                       <span>(+) Total Purchases</span>
                       <span className="font-medium">₹{Math.round(snap.totalPurchases).toLocaleString("en-IN")}</span>
                     </div>
-                    {snap.totalCreditNotesNet > 0 && (
+                    {accountAdjust > 0 && (
                       <div className="flex justify-between text-purple-700 dark:text-purple-400">
-                        <span>(−) Credit Notes Adjusted (net)</span>
-                        <span className="font-medium">₹{Math.round(snap.totalCreditNotesNet).toLocaleString("en-IN")}</span>
-                      </div>
-                    )}
-                    {snap.unreflectedReturns > 0 && (
-                      <div className="flex justify-between text-purple-700 dark:text-purple-400">
-                        <span>(−) Purchase Returns Adjusted</span>
-                        <span className="font-medium">₹{Math.round(snap.unreflectedReturns).toLocaleString("en-IN")}</span>
+                        <span>(−) Credit Notes / Returns Adjusted</span>
+                        <span className="font-medium">₹{Math.round(accountAdjust).toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     <div className="flex justify-between border-t pt-1.5">
