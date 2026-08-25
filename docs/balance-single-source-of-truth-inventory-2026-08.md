@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-25
 
-**Branch intent:** Phase 0 accepted. Phase 1 step 1 shipped (`20261126120000`, live Farhaan C-PARTY = −Rs 100). Step 2 equality tests merged. Step 3 batch 1–2 merged (#407). Step 3 batch 3: ledger exports, Khata FIFO, AI, POS WhatsApp.
+**Branch intent:** Phase 0 accepted. Phase 1 steps 1–3 shipped. Step 4 migrates supplier balances onto S-JS and aligns Owner Dashboard with Accounts payable KPI.
 
 This month's three findings were the same gap:
 
