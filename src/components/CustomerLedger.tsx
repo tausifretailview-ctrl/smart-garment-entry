@@ -8,7 +8,11 @@ import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/l
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
-import { buildCustomerLedgerListFromPartyBalances } from "@/utils/customerLedgerListFromPartyBalances";
+import {
+  buildCustomerLedgerListFromPartyBalances,
+  enrichLedgerListRowsWithCanonicalBalance,
+} from "@/utils/customerLedgerListFromPartyBalances";
+import { PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "@/utils/customerPartyBalanceSnapshot";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -2564,11 +2568,55 @@ export function CustomerLedger({
     setCustomerPage(0);
   }, [searchQuery, paymentStatusFilter]);
 
-  // Paginated customers
+  const filteredLedgerRowKey = useMemo(
+    () => filteredCustomers.map((c) => c.id).join(","),
+    [filteredCustomers],
+  );
+
+  /** Same cap as Customer Balances — never enrich the full org list. */
+  const enrichFilteredLedgerSubset =
+    !isSchool &&
+    !embeddedSingleCustomer &&
+    filteredCustomers.length > 0 &&
+    filteredCustomers.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX;
+
+  const { data: canonicalFilteredLedgerRows } = useQuery({
+    queryKey: ["customer-ledger-canonical-filtered", organizationId, filteredLedgerRowKey],
+    enabled: Boolean(organizationId && enrichFilteredLedgerSubset),
+    staleTime: 30_000,
+    queryFn: () => enrichLedgerListRowsWithCanonicalBalance(organizationId, filteredCustomers),
+  });
+
+  const ledgerRowsForPaging = enrichFilteredLedgerSubset
+    ? (canonicalFilteredLedgerRows ?? filteredCustomers)
+    : filteredCustomers;
+
   const paginatedCustomers = useMemo(() => {
     const start = customerPage * CUSTOMERS_PER_PAGE;
-    return filteredCustomers.slice(start, start + CUSTOMERS_PER_PAGE);
-  }, [filteredCustomers, customerPage]);
+    return ledgerRowsForPaging.slice(start, start + CUSTOMERS_PER_PAGE);
+  }, [ledgerRowsForPaging, customerPage]);
+
+  const paginatedLedgerRowKey = useMemo(
+    () => paginatedCustomers.map((c) => c.id).join(","),
+    [paginatedCustomers],
+  );
+
+  const { data: canonicalPageLedgerRows } = useQuery({
+    queryKey: ["customer-ledger-canonical-page", organizationId, paginatedLedgerRowKey],
+    enabled: Boolean(
+      organizationId &&
+        !isSchool &&
+        !embeddedSingleCustomer &&
+        !enrichFilteredLedgerSubset &&
+        paginatedCustomers.length > 0,
+    ),
+    staleTime: 30_000,
+    queryFn: () => enrichLedgerListRowsWithCanonicalBalance(organizationId, paginatedCustomers),
+  });
+
+  const tableCustomers = enrichFilteredLedgerSubset
+    ? paginatedCustomers
+    : (canonicalPageLedgerRows ?? paginatedCustomers);
 
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
 
@@ -6364,7 +6412,7 @@ Please clear your dues at the earliest. Thank you!`;
                   No customers found
                 </div>
               ) : (
-                paginatedCustomers.map((customer) => {
+                tableCustomers.map((customer) => {
                   const f = facetsFromInvoiceOutstanding(
                     customer.balance,
                     customer.unusedAdvanceTotal || 0,
@@ -6481,7 +6529,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedCustomers.map((customer) => {
+                    tableCustomers.map((customer) => {
                       const f = facetsFromInvoiceOutstanding(
                         customer.balance,
                         customer.unusedAdvanceTotal || 0,

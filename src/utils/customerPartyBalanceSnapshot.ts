@@ -106,7 +106,8 @@ export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
 
 /**
  * Patch party list rows with canonical JS balance when SQL signed_balance drifts.
- * Used for visible Customer Balances page slice until party RPC migration is live.
+ * Used for the visible Customer Balances page slice and the Customer Ledger list
+ * slice until party RPC CN-handling matches `_is_settlement_memo_receipt`.
  */
 export async function enrichPartyRowsWithCanonicalBalance(
   organizationId: string,

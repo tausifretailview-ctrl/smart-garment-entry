@@ -652,3 +652,16 @@ Paste the result sets into the slots above. Still no writes.
 - No repair of party-trusts-paid_amount (may be a recompute artifact)
 - No force-fit of the 35 unexplained into an existing named pattern
 - No including `credit_note_adjustment` in receipts until 6b confirms (Farhaan Fab)
+- **No re-run of the 717-row audit against canonical JS enrich** (open question below)
+
+---
+
+## Open question — party RPC vs canonical enrich (2026-08-25, not re-run)
+
+This audit compared the independent recompute to **`_get_customer_party_balances_rows` directly**. That SQL function is a known-drifting baseline on CN-heavy accounts: credit notes go through a separate `credit_note_vouchers` CTE (`voucher_type = 'credit_note'`), not the `_is_settlement_memo_receipt` exclusion used by the rest of this month’s CN-double-count work.
+
+**Live display (same org, same customer, two screens):** Farhaan Fab is **₹100 Cr** on Customer Balances (JS `enrichPartyRowsWithCanonicalBalance` overrides SQL when it disagrees by > ₹1) and was **₹2,800 Cr** on the Customer Ledger *list* tab (raw RPC, no enrich). That is parallel-implementation drift, not a third data-corruption cause. The list tab now reuses the same enricher on the visible slice only (`PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100`). Detail ledger math was never this list SQL.
+
+**What this means for the 717:** an unknown share of the mismatch table could be this same RPC CN-handling bug. Those customers may already have looked correct on Customer Balances (canonical JS) and only “wrong” because the audit used uncorrected SQL as the party column. That sits **on top of** the two causes already named today (`paid_amount`-trust, and the Sana Nasir advance-consumption hole). Do **not** re-run the full 717 against enrich / `getCustomerAccountState` in this pass — only flag it.
+
+**Actual root cause (follow-up, not this display fix):** migrate `_get_customer_party_balances_rows` onto `_is_settlement_memo_receipt`-based CN handling so the JS enricher can go away. Until that “party RPC migration” ships, any audit that treats the RPC as canonical will keep resurfacing Farhaan-Fab-shaped false flags.
