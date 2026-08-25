@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  partyDebtorNetFromRpcRow,
+  partyNetPositionFromRpcRow,
+} from "../_shared/customerPartyBalanceFacets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,12 +53,13 @@ const isUnpaidPurchaseStatus = (status: string | null | undefined): boolean => {
 
 const sumCustomerOutstandingFromRpc = async (supabase: any, orgId: string, customerId: string): Promise<number | null> => {
   try {
-    const { data, error } = await supabase.rpc("reconcile_customer_balance", {
-      p_customer_id: customerId,
+    const { data, error } = await supabase.rpc("get_customer_party_balances", {
       p_organization_id: orgId,
     });
-    if (error || !data) return null;
-    return (data as { amount: number }[]).reduce((acc, row) => acc + (Number(row.amount) || 0), 0);
+    if (error || !Array.isArray(data)) return null;
+    const row = data.find((r: { customer_id?: string }) => r.customer_id === customerId);
+    if (!row) return null;
+    return partyNetPositionFromRpcRow(row);
   } catch {
     return null;
   }
@@ -391,12 +396,12 @@ const fetchCustomerContext = async (supabase: any, orgId: string, query: string)
     });
     if (!balErr && Array.isArray(balances)) {
       const debtors = balances
-        .filter((r: any) => Number(r.signed_balance) > 0.5)
-        .sort((a: any, b: any) => Number(b.signed_balance) - Number(a.signed_balance))
+        .filter((r: any) => partyDebtorNetFromRpcRow(r) > 0.5)
+        .sort((a: any, b: any) => partyDebtorNetFromRpcRow(b) - partyDebtorNetFromRpcRow(a))
         .slice(0, 20)
         .map((r: any) => ({
           customer_name: r.customer_name,
-          outstanding: Number(r.signed_balance),
+          outstanding: partyDebtorNetFromRpcRow(r),
           advance_available: Number(r.advance_available || 0),
           direction: r.direction,
         }));

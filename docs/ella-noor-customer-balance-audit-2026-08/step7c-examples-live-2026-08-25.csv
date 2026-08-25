@@ -1,0 +1,8 @@
+advance_deposited;advance_memos;cn_memos;customer_name;gap_equals_sra_gated_away;gap_incl_advance;named_remaining_class;opening_balance;party_signed;pending_sale_returns;phone;receipts_excl_memo;recomputed_7_incl_advance_memo;recomputed_7_incl_all_memo;recomputed_7_plus_used_amount;sra_gated;sra_gated_away;sra_raw;total_invoiced;unused_advances;used_amount;used_minus_adv
+470600.00;470600.00;61900.00;SHUMAMA BAIRELI;false;61900.00;cn_leftover_incl_all_matches_party;0.00;96800.00;0.00;8859110000;0.00;158700.00;96800.00;158700.00;61900.00;0.00;61900.00;691200.00;0.00;470600.00;0.00
+0.00;0.00;14000.00;SIBGAH GEELANI;false;33000.00;cn_partial_leftover;0.00;-44150.00;18700.00;6005498295;32700.00;-11150.00;-25150.00;-11150.00;14000.00;0.00;14000.00;54250.00;0.00;0.00;0.00
+23899.00;16449.00;0.00;ABIDA TABASSUM;false;14900.00;gap_equals_twice_used_minus_adv;0.00;-14900.00;0.00;9051546932;0.00;0.00;0.00;-7450.00;0.00;0.00;0.00;16449.00;0.00;23899.00;7450.00
+7350.00;0.00;0.00;KHUSHI GOPIKRISHNA VASIYA;false;14700.00;gap_equals_twice_used_minus_adv;0.00;-14700.00;0.00;9969241750;0.00;0.00;0.00;-7350.00;0.00;0.00;0.00;0.00;0.00;7350.00;7350.00
+0.00;0.00;13500.00;AMNA DARVESH;false;13500.00;cn_leftover_incl_all_matches_party;0.00;-13500.00;0.00;7977118066;48000.00;0.00;-13500.00;0.00;0.00;0.00;0.00;48000.00;0.00;0.00;0.00
+11400.00;0.00;0.00;Fatima Pitodia;false;11400.00;used_amount_without_adv_voucher;0.00;-11400.00;0.00;9867866299;0.00;0.00;0.00;-11400.00;0.00;0.00;0.00;0.00;0.00;11400.00;11400.00
+0.00;0.00;2700.00;Farhaan Fab;false;2700.00;cn_leftover_incl_all_matches_party;0.00;-2800.00;100.00;7977353244;14600.00;-100.00;-2800.00;-100.00;2700.00;0.00;2700.00;17300.00;0.00;0.00;0.00

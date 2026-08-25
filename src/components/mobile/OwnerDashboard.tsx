@@ -26,10 +26,7 @@ import {
   AreaChart, Area,
 } from "recharts";
 import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanceOrgWindow";
-import {
-  ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY,
-  fetchOrganizationSupplierPayableSummary,
-} from "@/utils/organizationReceivables";
+import { useSupplierOrgBalanceWindow } from "@/hooks/useSupplierOrgBalanceWindow";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 /* ─── helpers ─── */
@@ -139,15 +136,14 @@ export const OwnerDashboard = () => {
       enabled: kpisEnabled,
     });
 
-  /* ── Primary KPI: org supplier payables (canonical RPC) ── */
-  const { data: supplierSummary, isLoading: supplierLoading } = useQuery({
-    queryKey: [ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY, "summary", orgId],
-    queryFn: () =>
-      withMobileQueryTimeout(() => fetchOrganizationSupplierPayableSummary(orgId!)),
-    enabled: kpisEnabled,
-    staleTime: BALANCE_STALE_MS,
-    retry: 1,
-  });
+  /* ── Primary KPI: org supplier payables (S-JS — same as Accounts Outstanding) ── */
+  const { window: supplierOrgWindow, isLoading: supplierLoading } = useSupplierOrgBalanceWindow(
+    orgId,
+    {
+      staleTime: BALANCE_STALE_MS,
+      enabled: kpisEnabled,
+    },
+  );
 
   /* Defer secondary sections until main KPI cards are ready */
   const [deferredReady, setDeferredReady] = useState(false);
@@ -357,8 +353,8 @@ export const OwnerDashboard = () => {
     totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
 
   const customerOs = partyReceivablesWindow.netReceivable;
-  const supplierOs = Math.max(0, supplierSummary?.netOutstanding ?? 0);
-  const suppliersPending = supplierSummary?.supplierCount ?? 0;
+  const supplierOs = supplierOrgWindow.totalPayableCr;
+  const suppliersPending = supplierOrgWindow.payableSupplierCount;
 
   /* ── Stat cards config ── */
   const statCards: StatCardConfig[] = [

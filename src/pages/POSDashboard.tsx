@@ -21,6 +21,7 @@ import { rankPosDashboardSearchResults } from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1903,62 +1904,19 @@ const POSDashboard = () => {
       baseUrl: window.location.origin,
     });
     
-    // Fetch customer balance if customer_id exists
+    // Fetch customer balance if customer_id exists (C-SNAP net — not opening + sales − paid)
     let customerBalance = 0;
-    if (sale.customer_id) {
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('opening_balance')
-        .eq('id', sale.customer_id)
-        .single();
-      
-      const openingBalance = customer?.opening_balance || 0;
-      
-      const { data: sales } = await supabase
-        .from('sales')
-        .select('id, net_amount, paid_amount')
-        .eq('customer_id', sale.customer_id)
-        .eq('organization_id', currentOrganization?.id)
-        .is('deleted_at', null);
-      
-      const saleIds = sales?.map(s => s.id) || [];
-      
-      // Fetch voucher payments for accurate balance
-      const { data: allVouchers } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount')
-        .eq('organization_id', currentOrganization?.id)
-        .eq('voucher_type', 'receipt')
-        .is('deleted_at', null);
-      
-      // Calculate using Math.max() logic to avoid double-counting
-      let totalSales = 0;
-      let totalPaidOnSales = 0;
-      let openingBalancePayments = 0;
-      
-      // Build invoice voucher payments map
-      const invoiceVoucherPayments = new Map<string, number>();
-      allVouchers?.forEach(v => {
-        if (!v.reference_id) return;
-        if (saleIds.includes(v.reference_id)) {
-          invoiceVoucherPayments.set(
-            v.reference_id,
-            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
-          );
-        } else if (v.reference_type === 'customer' && v.reference_id === sale.customer_id) {
-          openingBalancePayments += Number(v.total_amount) || 0;
-        }
-      });
-      
-      sales?.forEach(s => {
-        totalSales += s.net_amount || 0;
-        const salePaidAmount = s.paid_amount || 0;
-        const voucherAmount = invoiceVoucherPayments.get(s.id) || 0;
-        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
-      });
-      
-      const totalPaid = totalPaidOnSales + openingBalancePayments;
-      customerBalance = Math.round(openingBalance + totalSales - totalPaid);
+    if (sale.customer_id && currentOrganization?.id) {
+      try {
+        const snap = await fetchCustomerFinancialSnapshot(
+          supabase,
+          currentOrganization.id,
+          sale.customer_id,
+        );
+        customerBalance = Math.round(Number(snap.netPosition) || 0);
+      } catch {
+        customerBalance = 0;
+      }
     }
     
     // Use template for message

@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { Receipt } from "lucide-react";
 import { fetchSupplierBalanceSnapshot, supplierAccountAdjustmentTotal } from "@/utils/supplierBalanceUtils";
 
 interface SupplierHistoryDialogProps {
