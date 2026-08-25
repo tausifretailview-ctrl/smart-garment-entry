@@ -72,7 +72,14 @@
 --   Prefer the single-statement file scripts/ella-noor-step5-p0-names.sql
 --   (paste that file alone — do not paste this whole audit script).
 --
--- Drift threshold: ABS(party − recomputed_7) > 1  (rupees).
+-- ADDITION 8 — STEP 6 SUPERSEDES the 717 / 647 / ₹1,10,91,413 headline.
+--   Sana Nasir (₹11,00,900 gap): live page is correct (−₹20,000 Cr). The
+--   seven-component recompute omitted advances_applied (used_amount) while
+--   excluding advance_adjustment from receipts → consumed advances fell in
+--   a hole. Run scripts/ella-noor-step6-memo-hole.sql (6a, 6b) then
+--   scripts/ella-noor-step6-org.sql (6d headline, 6e remaining). Do NOT
+--   recommend paid_amount option A or B until 6d is pasted. Do not write.
+--
 -- =============================================================================
 
 -- Shared params (paste into each section that needs them, or run after SET).
