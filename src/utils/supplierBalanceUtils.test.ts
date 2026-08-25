@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+cursor/balance-ssot-supplier-fa12
+import { computeSnapshotForSupplier, supplierAccountAdjustmentTotal, summarizeSupplierOrgWindowFromSnapshots } from "@/utils/supplierBalanceUtils";
+=======
 import {
   computeSnapshotForSupplier,
   supplierAccountAdjustmentTotal,
   supplierLedgerReconFromTransactions,
 } from "@/utils/supplierBalanceUtils";
+main
 
 const SUPPLIER = "supplier-sangamn";
 const OTHER = "supplier-other";
@@ -319,5 +323,22 @@ describe("supplierLedgerReconFromTransactions", () => {
     expect(recon?.accountAdjust).toBe(87426.15);
     expect(recon?.totalPaid).toBe(706246.85);
     expect(recon?.balance).toBe(83137);
+  });
+});
+
+describe("summarizeSupplierOrgWindowFromSnapshots", () => {
+  it("sums payable/advance/net from S-JS map", () => {
+    const window = summarizeSupplierOrgWindowFromSnapshots(
+      new Map([
+        ["a", { balance: 1000 }],
+        ["b", { balance: -200 }],
+        ["c", { balance: 0.2 }],
+      ]),
+    );
+    expect(window.totalPayableCr).toBe(1000);
+    expect(window.totalAdvanceDr).toBe(200);
+    expect(window.netPayable).toBe(800.2);
+    expect(window.payableSupplierCount).toBe(1);
+    expect(window.activeSupplierCount).toBe(2);
   });
 });

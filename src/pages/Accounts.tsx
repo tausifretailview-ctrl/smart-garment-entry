@@ -52,7 +52,7 @@ import { RecentBalanceAdjustments } from "@/components/RecentBalanceAdjustments"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { coerceToMap } from "@/lib/coerceToMap";
-import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
+import { loadSupplierBalanceMapForOrg, sumOrgSupplierPayableFromSnapshots } from "@/utils/supplierBalanceUtils";
 import { useOrgLedgerReferenceData } from "@/hooks/useOrgLedgerReferenceData";
 import {
   deleteJournalEntryByReference,
@@ -96,17 +96,6 @@ const PERF_PATH = "accounts";
 
 const fmtOutstandingInr = (n: number) =>
   `₹${Math.round(n).toLocaleString("en-IN")}`;
-
-/** Sum positive supplier balances — matches Supplier Ledger "totalOutstanding". */
-function sumOrgSupplierPayableFromSnapshots(
-  map: Map<string, { balance: number }>,
-): number {
-  let sum = 0;
-  for (const snap of coerceToMap<string, { balance: number }>(map).values()) {
-    if (snap.balance > 0) sum += snap.balance;
-  }
-  return Math.round(sum * 100) / 100;
-}
 
 function AccountsOutstandingHeadlineCards({
   totalReceivable,

@@ -573,6 +573,60 @@ export async function loadSupplierBalanceMapForOrg(
 
 export type SupplierBalanceMapForOrg = Awaited<ReturnType<typeof loadSupplierBalanceMapForOrg>>;
 
+const SUPPLIER_SETTLED = 0.5;
+
+/** Org-level supplier totals from S-JS snapshots (matches Supplier Balances cards). */
+export type SupplierOrgBalanceWindow = {
+  /** Σ max(0, balance) — gross payable (Cr). */
+  totalPayableCr: number;
+  /** Σ max(0, −balance) — advance / overpaid (Dr). */
+  totalAdvanceDr: number;
+  /** Σ balance — signed net payable. */
+  netPayable: number;
+  /** Suppliers with |balance| > settled threshold. */
+  activeSupplierCount: number;
+  /** Suppliers with payable balance > settled threshold. */
+  payableSupplierCount: number;
+};
+
+export function summarizeSupplierOrgWindowFromSnapshots(
+  map: Map<string, Pick<SupplierBalanceSnapshot, "balance">>,
+): SupplierOrgBalanceWindow {
+  let totalPayableCr = 0;
+  let totalAdvanceDr = 0;
+  let netPayable = 0;
+  let activeSupplierCount = 0;
+  let payableSupplierCount = 0;
+
+  for (const snap of coerceToMap<string, Pick<SupplierBalanceSnapshot, "balance">>(map).values()) {
+    const b = roundMoney(Number(snap.balance) || 0);
+    netPayable += b;
+    if (b > SUPPLIER_SETTLED) {
+      totalPayableCr += b;
+      activeSupplierCount++;
+      payableSupplierCount++;
+    } else if (b < -SUPPLIER_SETTLED) {
+      totalAdvanceDr += Math.abs(b);
+      activeSupplierCount++;
+    }
+  }
+
+  return {
+    totalPayableCr: roundMoney(totalPayableCr),
+    totalAdvanceDr: roundMoney(totalAdvanceDr),
+    netPayable: roundMoney(netPayable),
+    activeSupplierCount,
+    payableSupplierCount,
+  };
+}
+
+/** Sum positive supplier balances — matches Accounts Outstanding payable headline (S11). */
+export function sumOrgSupplierPayableFromSnapshots(
+  map: Map<string, Pick<SupplierBalanceSnapshot, "balance">>,
+): number {
+  return summarizeSupplierOrgWindowFromSnapshots(map).totalPayableCr;
+}
+
 /** One supplier (e.g. payment form header). */
 export async function fetchSupplierBalanceSnapshot(
   client: SupabaseClient,
