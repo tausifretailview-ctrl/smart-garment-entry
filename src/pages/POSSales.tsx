@@ -20,7 +20,11 @@ import {
   posVariantDisplayMrp,
   shouldPromptPosPriceSelection,
 } from "@/utils/posScanPriceSelection";
-import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
+import {
+  pickLastPurchaseScanPrice,
+  resolveSaleScanPriceSource,
+  shouldApplyLastPurchaseScanOverride,
+} from "@/utils/saleScanPricePreference";
 import {
   isCompleteNumericBarcodeForPosCart,
   POS_BARCODE_CART_LOOKUP_EXACT,
@@ -3200,7 +3204,13 @@ export default function POSSales() {
         askPriceOnScan: (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true,
         autoUseLastPurchasePrice: (settingsData as any)?.sale_settings?.auto_use_last_purchase_price,
       });
-      if (!overridePrice && scanPriceSource === "last_purchase") {
+      if (
+        !overridePrice &&
+        shouldApplyLastPurchaseScanOverride({
+          scanPriceSource,
+          posUsesMrpAsPrice: grossBasis === "mrp",
+        })
+      ) {
         const picked = pickLastPurchaseScanPrice({
           masterSalePrice,
           masterMrp,
