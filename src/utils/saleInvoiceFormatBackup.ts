@@ -13,6 +13,7 @@ export const SALE_INVOICE_FORMAT_KEYS = [
   "thermal_receipt_style",
   "invoice_template",
   "pos_invoice_template",
+  "quotation_print_template",
   "invoice_color_scheme",
   "font_family",
   "logo_placement",
