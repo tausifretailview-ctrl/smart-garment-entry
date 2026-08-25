@@ -28,6 +28,7 @@ import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { isFillHeightDashboardPath, isHideGlobalHeaderPath, isMainDashboardPath, isSidebarOnlyWorkspacePath } from "@/lib/entryPageLayout";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { ActivityCenterProvider } from "@/contexts/ActivityCenterContext";
+import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
 
 interface LayoutProps {
   children: ReactNode;
@@ -137,6 +138,7 @@ export const Layout = ({ children }: LayoutProps) => {
 
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
             <WhatsAppMessageNotifier />
+            <OrgMoneyRealtimeInvalidation />
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />
