@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isPublicStorefrontPath,
   parseStorefrontPath,
+  publicOrgSlugKey,
   storefrontHomePath,
   storefrontProductPath,
 } from "./storefrontPath";
@@ -31,5 +32,10 @@ describe("storefrontPath", () => {
   it("builds shareable paths", () => {
     expect(storefrontHomePath("demo")).toBe("/demo/store");
     expect(storefrontProductPath("demo", "prod-1")).toBe("/demo/store/p/prod-1");
+  });
+
+  it("treats hyphenated and compacted shop slugs as the same key", () => {
+    expect(publicOrgSlugKey("ellanoor")).toBe(publicOrgSlugKey("ella-noor"));
+    expect(publicOrgSlugKey(" Ella-Noor ")).toBe("ellanoor");
   });
 });
