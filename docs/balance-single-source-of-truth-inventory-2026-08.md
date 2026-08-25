@@ -4,7 +4,7 @@
 
 **Date:** 2026-08-25
 
-**Branch intent:** Phase 0 inventory (accepted). Phase 1 is sequenced — step 1 only is the party-RPC CN SQL fix. Do not migrate screens in the same PR.
+**Branch intent:** Phase 0 accepted. Phase 1 step 1 shipped (`20261126120000`, live Farhaan C-PARTY = −Rs 100). Step 2 is equality tests only — no screen migration.
 
 This month's three findings were the same gap:
 
@@ -14,11 +14,11 @@ This month's three findings were the same gap:
 
 Nothing in the app forces every screen to agree. This file is the complete call-site list, not a patch list.
 
-Live Farhaan / Sangamn numbers were not re-queried here (production backend, no staging credentials). Per-row "agrees?" is classified from code path, using the already-proven cases:
+Live Farhaan C-PARTY was re-queried **after** `20261126120000` (export `farhaan-party-rpc-after-20261126120000-2026-08-25.csv`): **−Rs 100 Cr**. Unpatched C-PARTY was **−Rs 2,800 Cr**. Sangamn was not re-queried live.
 
 | Case | Correct | Known wrong |
 |---|---|---|
-| Farhaan Fab (ELLA NOOR, phone 7977353244) | **-Rs 100 Cr** (`getCustomerAccountState`) | **-Rs 2,800 Cr** (unpatched `get_customer_party_balances` / `_get_customer_party_balances_rows`) |
+| Farhaan Fab (ELLA NOOR, phone 7977353244) | **-Rs 100 Cr** (`getCustomerAccountState` **and** live C-PARTY after `20261126120000`) | **-Rs 2,800 Cr** (unpatched party SQL before that migration) |
 | SANGAMN FASHION (Gurukrupa ledger, 25-08-2026) | **Rs 1,54,648 Cr** (`computeSnapshotForSupplier`) | PDF footer previously **-Rs 1,16,008** (double-count of supplier-id payments + linked returns). Fixed in `supplierBalanceUtils` + PDF now prints `snap.balance`. |
 
 Anything that still reads unpatched party SQL for a customer figure is **known wrong** for Farhaan (and the 72 ELLA NOOR Farhaan-shape CN leftovers). Anything that still independently recomputes supplier payable is not proven against Sangamn unless it calls `supplierBalanceUtils`.
@@ -53,12 +53,12 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | ID | Function | Kind | Farhaan |
 |---|---|---|---|
 | **C-JS** | `getCustomerAccountState` in `src/utils/customerBalanceCore.ts` (also `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts`, which delegates here) | JS | **-Rs 100 known right** |
-| **C-PARTY** | `get_customer_party_balances` -> `_get_customer_party_balances_rows` | SQL | **-Rs 2,800 known wrong on live until `20261126120000` is applied.** Repo SQL after that migration calls `_is_settlement_memo_receipt` and restores remaining CN (Farhaan target **-Rs 100**). |
+| **C-PARTY** | `get_customer_party_balances` -> `_get_customer_party_balances_rows` | SQL | **Live after `20261126120000`: −Rs 100** (Farhaan query 2026-08-25). Unpatched was −Rs 2,800. |
 | **C-PARTY+JS** | C-PARTY list row, then `enrichPartyRowsWithCanonicalBalance` | SQL+JS-patched | **-Rs 100 only when the slice is <= 100 rows**. Cap: `PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100`. Above that, or on Excel/PDF export of the full filter, it silently falls back to C-PARTY. |
 | **C-SNAP** | `get_customer_financial_snapshot` / `_batch` / `_all` via `src/utils/customerFinancialSnapshot.ts` | SQL | Not the Farhaan -Rs 2,800 RPC. Facet comments say snapshot matches JS after migration `20260822183000`, but `useCustomerBalance` still displays C-JS and only warns if snapshot drifts. Treat as unverified vs Farhaan live; different from C-PARTY. `outstanding_dr` historically netted unused advance (Aafra class) — do not assume it equals C-JS outstanding. |
 | **C-REC** | `reconcile_customer_balance` / `reconcile_customer_balances` via `src/utils/organizationReceivables.ts` | SQL | Same family as `get_customer_true_outstanding` per comments. Unverified vs Farhaan live. Used for org AR cards and salesman list. |
 | **C-TRUE** | `get_customer_true_outstanding` | SQL | Wrapper `fetchCustomerTrueOutstandingMap` has **zero UI callers**. Dead for display. |
-| **C-RECON-LEDGER** | `src/utils/customerLedgerReconciliation.ts` from rendered ledger transactions | JS independent | Built to match the on-screen table, not C-JS. Phase 2 must assert Farhaan here. |
+| **C-RECON-LEDGER** | `src/utils/customerLedgerReconciliation.ts` from rendered ledger transactions | JS independent | **−Rs 100 locked** in `balanceSsotEquality.lock.test.ts` (same Farhaan fixture). |
 | **C-STMT** | `get_customer_ledger_statement` plus client merge of sales / returns / vouchers / advances / adjustments (`CustomerLedgerPage.tsx`) | SQL+JS independent | Own running balance. |
 | **C-AUDIT** | `computeCustomerOutstanding` in `src/utils/customerAuditMath.ts` | JS (delegates to core with a drift warning) | Should match C-JS when `ledgerAlignedApplicationReceipts: true`. Audit UIs can still disagree if they pass a date-sliced bundle. |
 | **C-OB-SALES** | `opening_balance + totalSales - totalPaid` | JS naive | **Known wrong** for any CN / advance / SRA customer. |
@@ -214,13 +214,13 @@ The enricher (`C-PARTY+JS`) is a temporary patch, not SSOT. It:
 
 Each step is its own PR, its own `npm run test:money` run, and reports back before the next starts. Do **not** migrate all 48+17 surfaces in one pass.
 
-1. **Root SQL (this step):** `_get_customer_party_balances_rows` calls `_is_settlement_memo_receipt` for receipt exclusion (including the `paid_at_sale_drift` subquery) and restores remaining sale-return credit via `_sale_return_remaining_credit_for_balance`. Closes Farhaan-shape CN double-count for every current C-PARTY surface without touching those files. Enricher stays until a later drift check shows zero patched rows live. Migration: `20261126120000_fix_party_balances_settlement_memo_helper.sql` (Lovable applies to the cloud project).
-2. **Equality tests (not this PR):** lock Farhaan, Sangamn, plus 2–3 spanning families in `npm run test:money` *before* any screen migration.
+1. **Root SQL (shipped, applied live):** `_get_customer_party_balances_rows` calls `_is_settlement_memo_receipt`; remaining sale-return credit restored. Farhaan live C-PARTY = −Rs 100. Enricher stays.
+2. **Equality tests (this step):** `test/money/balanceSsotEquality.lock.test.ts` — Farhaan (C-JS = C-PARTY = C-AUDIT = C-RECON = live −Rs 100), Sana Nasir (advance-heavy facets), Aafra (C-SNAP), Sangamn S-JS vs S-ORG third SQL. No screen migration.
 3. **Migrate in risk order (not this PR):** org-wide totals and exports first, then Customer Payment picker vs Floating Payments, then remaining surfaces.
-4. **Supplier track (not this PR):** `/supplier-party-balances` onto `supplierBalanceUtils`, then reconcile `get_organization_supplier_payable_summary`.
+4. **Supplier track (not this PR):** `/supplier-party-balances` onto `supplierBalanceUtils`, then reconcile `get_organization_supplier_payable_summary` (S-ORG currently double-counts Sangamn paid_amount + vouchers: −Rs 55,680 vs S-JS Rs 1,54,648).
 5. **Enforcement last (not this PR):** one shared hook plus lint/review rule, only after 1–4 agree.
 
-Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1.
+Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1 or 2.
 
 ## Phase 2 (after sign-off, not this PR)
 
@@ -237,4 +237,11 @@ Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1.
 - enricher cap = 100 and no-op above cap;
 - payment picker still maps raw `signed_balance` (Farhaan-shape debtor would show the unpatched number);
 - Sangamn snapshot fixture still equals **154648**.
+
+`test/money/balanceSsotEquality.lock.test.ts` (step 2) freezes:
+
+- Farhaan C-JS / C-UTILS / C-AUDIT / C-RECON / post-fix C-PARTY / live RPC export = **−Rs 100**;
+- Sana Nasir C-JS netPosition = C-PARTY signed **−Rs 20,000**;
+- Aafra C-SNAP = C-JS = C-PARTY facets (Rs 14,800 / 10,000 / 4,800);
+- Sangamn S-JS = **154648**, S-ORG third SQL = **−55680** on the same bills (do not treat as equal until step 4).
 
