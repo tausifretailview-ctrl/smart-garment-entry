@@ -71,6 +71,53 @@ export function supplierAccountAdjustmentTotal(
   return roundMoney((Number(snap.totalCreditNotesNet) || 0) + (Number(snap.unreflectedReturns) || 0));
 }
 
+export type SupplierLedgerReconLine = {
+  type: string;
+  reference?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type SupplierLedgerReconTotals = {
+  openingBalance: number;
+  totalPurchases: number;
+  totalPaid: number;
+  accountAdjust: number;
+  balance: number;
+};
+
+/**
+ * Totals from the supplier ledger transaction table (same rows as Grand Total).
+ * Reconciliation and header cards must use this when the table is loaded so they
+ * cannot diverge from the running balance.
+ */
+export function supplierLedgerReconFromTransactions(
+  txns: SupplierLedgerReconLine[] | null | undefined,
+): SupplierLedgerReconTotals | null {
+  if (!txns?.length) return null;
+  let openingBalance = 0;
+  let totalPurchases = 0;
+  let totalPaid = 0;
+  let accountAdjust = 0;
+  for (const t of txns) {
+    if (t.type === "bill" && t.reference === "Opening") {
+      openingBalance += Number(t.credit) || 0;
+      continue;
+    }
+    if (t.type === "bill") totalPurchases += Number(t.credit) || 0;
+    else if (t.type === "payment") totalPaid += Number(t.debit) || 0;
+    else if (t.type === "credit_note") accountAdjust += Number(t.debit) || 0;
+  }
+  return {
+    openingBalance: roundMoney(openingBalance),
+    totalPurchases: roundMoney(totalPurchases),
+    totalPaid: roundMoney(totalPaid),
+    accountAdjust: roundMoney(accountAdjust),
+    balance: roundMoney(Number(txns[txns.length - 1]?.balance) || 0),
+  };
+}
+
 type VoucherPaymentRow = {
   reference_id: string | null;
   total_amount: number | null;
@@ -226,7 +273,10 @@ function computeSupplierTotalPaid(
     const voucherPaid = perBillVoucherMap.get(b.id) || 0;
     billLinkedTotal += voucherPaid;
     const returnAdjust = returnAdjustByBillId.get(b.id) || 0;
-    billSettled += Math.max(voucherPaid, Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust));
+    // Bill-linked vouchers are cash/bank. `paid_amount` may also include CN-on-bill;
+    // never take max(voucher, paid_amount) — that is what inflated SARASWATI Paid.
+    if (voucherPaid > 0) billSettled += voucherPaid;
+    else billSettled += Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust);
   }
   billSettled = roundMoney(billSettled);
   billLinkedTotal = roundMoney(billLinkedTotal);
@@ -270,15 +320,15 @@ export function computeSnapshotForSupplier(
 ): SupplierBalanceSnapshot {
   const supplierBills = purchaseBillsData.filter((b) => b.supplier_id === supplierId);
 
-  const supplierCreditNotesGross = (creditNotes || [])
-    .filter((cn) => cn && cn.reference_id === supplierId)
-    .reduce((sum, cn) => sum + (Number(cn.total_amount) || 0), 0);
-
-  const cnById = new Map(
-    (creditNotes || [])
-      .filter((cn): cn is CreditNoteRow => Boolean(cn?.id))
-      .map((cn) => [cn.id, cn]),
+  const supplierCreditNotes = (creditNotes || []).filter(
+    (cn) => cn && cn.reference_id === supplierId && Boolean(cn.id),
   );
+  const supplierCreditNotesGross = supplierCreditNotes.reduce(
+    (sum, cn) => sum + (Number(cn.total_amount) || 0),
+    0,
+  );
+
+  const cnById = new Map(supplierCreditNotes.map((cn) => [cn.id, cn]));
   let creditNotesAppliedToBills = 0;
   for (const pr of allPurchaseReturns || []) {
     if (pr.supplier_id !== supplierId) continue;
@@ -291,7 +341,14 @@ export function computeSnapshotForSupplier(
     else creditNotesAppliedToBills += Math.max(0, vn - Number(rem));
   }
   creditNotesAppliedToBills = roundMoney(creditNotesAppliedToBills);
-  const totalCreditNotesNet = roundMoney(Math.max(0, supplierCreditNotesGross - creditNotesAppliedToBills));
+  let totalCreditNotesNet = 0;
+  for (const cn of supplierCreditNotes) {
+    const linked = (allPurchaseReturns || []).filter(
+      (pr) => pr.supplier_id === supplierId && pr.credit_note_id === cn.id,
+    );
+    totalCreditNotesNet += supplierCreditNoteLedgerDebit(Number(cn.total_amount) || 0, linked);
+  }
+  totalCreditNotesNet = roundMoney(Math.max(0, totalCreditNotesNet));
 
   // CN vouchers whose return has already been consumed (adjusted to outstanding or
   // refunded). These remain in `totalCreditNotesNet` (so the balance still reflects the
@@ -313,7 +370,7 @@ export function computeSnapshotForSupplier(
     Math.max(0, totalCreditNotesNet - creditNotesAppliedToOutstanding - creditNotesRefunded)
   );
 
-  const allCreditNoteVoucherIds = new Set((creditNotes || []).map((cn) => cn.id).filter(Boolean));
+  const allCreditNoteVoucherIds = new Set(supplierCreditNotes.map((cn) => cn.id));
   const claimedCnIds = new Set<string>();
   for (const pr of allPurchaseReturns || []) {
     if (pr.supplier_id !== supplierId || !pr.credit_note_id) continue;

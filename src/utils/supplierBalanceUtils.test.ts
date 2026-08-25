@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
+cursor/balance-ssot-supplier-fa12
 import { computeSnapshotForSupplier, supplierAccountAdjustmentTotal, summarizeSupplierOrgWindowFromSnapshots } from "@/utils/supplierBalanceUtils";
+=======
+import {
+  computeSnapshotForSupplier,
+  supplierAccountAdjustmentTotal,
+  supplierLedgerReconFromTransactions,
+} from "@/utils/supplierBalanceUtils";
+main
 
 const SUPPLIER = "supplier-sangamn";
 const OTHER = "supplier-other";
@@ -208,7 +216,7 @@ describe("computeSnapshotForSupplier", () => {
           id: "bill-cash",
           supplier_id: SUPPLIER,
           net_amount: 706246.85,
-          paid_amount: 706246.85,
+          paid_amount: 735837,
           software_bill_no: "2808",
           supplier_invoice_no: "2808",
         },
@@ -268,6 +276,53 @@ describe("computeSnapshotForSupplier", () => {
     expect(snap.totalCreditNotesNet).toBe(0);
     expect(supplierAccountAdjustmentTotal(snap)).toBe(87426.15);
     expect(snap.balance).toBe(83137);
+  });
+
+  it("does not treat a bill-referenced CN id as linking an outstanding return", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-1",
+          supplier_id: SUPPLIER,
+          net_amount: 50000,
+          paid_amount: 0,
+          software_bill_no: "B1",
+          supplier_invoice_no: "B1",
+        },
+      ],
+      [],
+      [{ id: "cn-on-bill", reference_id: "bill-1", total_amount: 15235.15 }],
+      [
+        {
+          supplier_id: SUPPLIER,
+          net_amount: 15235.15,
+          credit_note_id: "cn-on-bill",
+          credit_status: "adjusted_outstanding",
+          linked_bill_id: null,
+          credit_available_balance: null,
+        },
+      ],
+      0,
+    );
+    expect(snap.unreflectedReturns).toBe(15235.15);
+    expect(snap.totalCreditNotesNet).toBe(0);
+    expect(snap.balance).toBe(34764.85);
+  });
+});
+
+describe("supplierLedgerReconFromTransactions", () => {
+  it("SARASWATI table grand total: paid cash, CN adj, close 83137", () => {
+    const recon = supplierLedgerReconFromTransactions([
+      { type: "bill", reference: "3480", debit: 0, credit: 876810, balance: 876810 },
+      { type: "credit_note", reference: "PR/25-26/41", debit: 87426.15, credit: 0, balance: 789383.85 },
+      { type: "payment", reference: "PAY/1", debit: 706246.85, credit: 0, balance: 83137 },
+    ]);
+    expect(recon?.totalPurchases).toBe(876810);
+    expect(recon?.accountAdjust).toBe(87426.15);
+    expect(recon?.totalPaid).toBe(706246.85);
+    expect(recon?.balance).toBe(83137);
   });
 });
 

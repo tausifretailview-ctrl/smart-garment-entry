@@ -405,7 +405,13 @@ async function fetchInvoiceDashboardStatsClient(
               inv.payment_status !== "hold",
           );
 
-    return computeInvoiceDashboardStats(statsRows);
+    const baseStats = computeInvoiceDashboardStats(statsRows);
+    try {
+      const pendingAmount = await fetchInvoiceDashboardReconciledPendingAmount(client, filters);
+      return { ...baseStats, pendingAmount };
+    } catch {
+      return baseStats;
+    }
   } catch (err) {
     console.warn(
       "get_invoice_dashboard_stats client fallback failed:",
@@ -427,6 +433,64 @@ function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): Inv
     undeliveredCount: Number(row.undeliveredCount ?? 0),
     undeliveredAmount: Number(row.undeliveredAmount ?? 0),
   };
+}
+
+function statsRowsForPendingSum(
+  rows: any[],
+  paymentStatusFilter: string[],
+): any[] {
+  if (paymentStatusFilter.length > 0) {
+    return filterInvoiceDashboardRowsByPaymentStatus(rows, paymentStatusFilter);
+  }
+  return rows.filter(
+    (inv) =>
+      inv.is_cancelled !== true &&
+      inv.payment_status !== "cancelled" &&
+      inv.payment_status !== "hold",
+  );
+}
+
+/**
+ * Sum outstanding using the same receipt reconcile as the dashboard table.
+ * RPC pendingAmount can diverge when voucher splits differ from row reconcile.
+ */
+export async function fetchInvoiceDashboardReconciledPendingAmount(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<number> {
+  if (!filters.organizationId) return 0;
+
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+  const PAGE_SIZE = 500;
+  let offset = 0;
+  const allRows: any[] = [];
+
+  while (true) {
+    let query: any = buildFilteredSalesQuery(
+      client,
+      filters,
+      INVOICE_DASHBOARD_LIST_SELECT,
+    ).range(offset, offset + PAGE_SIZE - 1);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+    allRows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allRows.length === 0) return 0;
+
+  const reconciled: any[] = [];
+  for (let i = 0; i < allRows.length; i += PAGE_SIZE) {
+    const batch = allRows.slice(i, i + PAGE_SIZE);
+    reconciled.push(...(await reconcileInvoiceDashboardRows(client, filters, batch)));
+  }
+
+  return sumInvoiceDashboardOutstanding(
+    statsRowsForPendingSum(reconciled, filters.paymentStatusFilter),
+  );
 }
 
 /** Server-side summary tiles; falls back to client scan when RPC is unavailable. Never throws. */
@@ -456,7 +520,17 @@ export async function fetchInvoiceDashboardStats(
       return fetchInvoiceDashboardStatsClient(client, filters);
     }
 
-    return parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
+    const stats = parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
+    try {
+      const pendingAmount = await fetchInvoiceDashboardReconciledPendingAmount(client, filters);
+      return { ...stats, pendingAmount };
+    } catch (pendingErr) {
+      console.warn(
+        "invoice dashboard reconciled pendingAmount failed, using RPC value:",
+        invoiceDashboardRpcErrorMessage(pendingErr),
+      );
+      return stats;
+    }
   } catch (err) {
     console.warn(
       "get_invoice_dashboard_stats RPC failed, using client fallback:",
