@@ -2,7 +2,7 @@
 
 **Status:** measurement + classification + **repair queue (SELECT only)**. **No repairs. No voucher writes. No `paid_amount` / `legacy_paid_baseline` updates. No party-RPC patch.**  
 **Date of this pass:** 2026-08-25  
-**Named class:** Party trusts `paid_amount` over receipts — **647** of 717 (**₹1,10,91,413**, 96% of drift). **682** classified (95%); **35** genuinely unexplained (do not force-fit).  
+**Named class:** Party trusts `paid_amount` over receipts — **647** of 717 (**₹1,10,91,413**, 96% of drift). **682** classified (95%); **35** genuinely unexplained. **P0 = 33**, all `party_trusts_paid_amount` (Step 5b).  
 **Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67` (confirmed live via `get_org_public_info`)  
 **Runner SQL:** `scripts/ella-noor-customer-balance-audit-2026-08.sql`  
 **Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance`  
@@ -31,7 +31,7 @@ This pass **did not repair anything** and **did not write**. No change to `_get_
 
 **Step 2c (headline, live):** **682** of 717 customers classified (95%). **647** of those (**₹1,10,91,413**, 96% of ₹1,15,59,763) are **Party trusts `paid_amount` over receipts**. **35** other named patterns. **35** genuinely unexplained — their own worklist; do not force-fit.
 
-**Step 5 is now the repair queue** (names, phone, proposed write, P0/P1/P2). Still SELECT-only. The `paid_amount` architecture conversation (correct `paid_amount` vs stop crediting it in the party function) is gated on the **P0 count and P0 rupee exposure** from Step 5b.
+**Step 5b (live):** **`n_p0 = 33`**, **`n_p0_party_trusts_paid_amount = 33`**. Every P0 row is the named `paid_amount` pattern. The 33 names: paste **`scripts/ella-noor-step5-p0-names.sql`** as the only SQL-editor statement. This checkout has the anon key only (`42501` / RLS empty is not an empty P0 list).
 
 Do **not** fold `paid_amount` into the seven-component recompute. Repair needs Tausif’s sign-off, same as every other repair this month.
 
@@ -469,24 +469,36 @@ This is the number that decides how urgently the `paid_amount` architecture conv
 
 | Metric | Value |
 |--------|-------|
-| `n_p0` | *paste — P0 customer count* |
+| `n_p0` | **33** |
 | `abs_gap_p0` | *paste — P0 drift rupees (primary exposure)* |
 | `abs_party_p0` | *paste — sum of \|party_signed\| on P0* |
-| `n_p0_party_trusts_paid_amount` | *paste* |
-| `abs_gap_p0_party_trusts_paid_amount` | *paste — how much of P0 is the named paid_amount pattern* |
-| `n_p0_unexplained` | *paste — P0 that still need a fresh look* |
-| `n_p1` / `n_p2` | *paste* |
-| `n_classified` / `n_genuinely_unexplained` | expect **682** / **35** |
+| `n_p0_party_trusts_paid_amount` | **33** |
+| `abs_gap_p0_party_trusts_paid_amount` | *paste — same as `abs_gap_p0` if all 33 are this pattern* |
+| `n_p0_unexplained` | **0** |
+| `n_classified` / `n_genuinely_unexplained` | **682** / **35** |
 
 ```
 (paste Step 5b one-row result)
 ```
 
-### P0 names (paste Step 5 filtered `queue_tier = 'P0'`, or the top of the Step 5 sort — P0 is first)
+### P0 names — Tausif review list (Step 5-P0)
 
-| Customer | Phone | Party | Gap | Pattern | Proposed write (queue only) |
-|----------|-------|-------|-----|---------|-----------------------------|
-| *paste from Step 5* | | | | | |
+All **33** are `party_trusts_paid_amount`. Sorted `ABS(gap) DESC`. Architecture decision still open: **(A)** correct `paid_amount` to receipts+tender+advances, or **(B)** stop the party function crediting `paid_amount`. SELECT-only — no writes.
+
+**Runner:** paste `scripts/ella-noor-step5-p0-names.sql` as the **only** statement in the SQL editor (one result set, 33 rows). Same query lives as **Step 5-P0** in the big audit file. `legacy_paid_baseline_nonzero` is a flag on `valid_sales` (any sale with `legacy_paid_baseline > 0`), not a second voucher join tree.
+
+This Cloud Agent cannot fill the 33 names. Confirmed 2026-08-25: `_get_customer_party_balances_rows(p_organization_id)` → HTTP 401 `42501`; `customers` → HTTP 401 `42501`; `sales` → HTTP 200 `[]` (RLS empty, not zero sales). Empty/401 is not an empty P0 list. Paste the CSV below after the SQL editor run.
+
+| # | Customer | Phone | `party_signed` | `recomputed_7_both_eras` | `gap_recompute_minus_party` | `receipt_payments_both_eras` | `sum_paid_amount` | `legacy_paid_baseline_nonzero` |
+|---|----------|-------|----------------|--------------------------|-----------------------------|------------------------------|-------------------|--------------------------------|
+| 1 | | | | | | | | |
+| 2 | | | | | | | | |
+| 3 | | | | | | | | |
+| … | *paste remaining 30 from Step 5-P0* | | | | | | | |
+
+```
+(paste Step 5-P0 CSV / 33 rows)
+```
 
 ### The 35 genuinely unexplained (Step 5-unexplained)
 
@@ -548,8 +560,9 @@ In the SQL editor, in order:
 12. Step 3a–3e — invariant join + named baseline check  
 13. Step 4a / 4b — top 25 Dr / Cr  
 14. **Step 5** — 717-row queue (name, phone, pattern, proposed_write, P0/P1/P2)  
-15. **Step 5b** — P0 count + P0 rupee exposure  
-16. **Step 5-unexplained** — the 35 (do not force-fit)  
+15. **Step 5b** — P0 count (**done: 33 / 33 party_trusts_paid_amount**)  
+16. **Step 5-P0** — paste `scripts/ella-noor-step5-p0-names.sql` alone (the 33 names)  
+17. **Step 5-unexplained** — the 35 (do not force-fit)  
 
 Paste the result sets into the slots above. Still no writes.
 
@@ -573,7 +586,8 @@ Paste the result sets into the slots above. Still no writes.
 | 3e / 3e-sum | same | Named `legacy_paid_baseline` check |
 | 4a / 4b | same | Top-25 line-by-line |
 | 5 | same | 717-row P0/P1/P2 queue with `proposed_write` (SELECT only) |
-| 5b | same | **P0 count + P0 rupee exposure** (one row) |
+| 5-P0 | `scripts/ella-noor-step5-p0-names.sql` (also section in the big file) | **33 P0 names** for Tausif (gap DESC + `legacy_paid_baseline` flag) |
+| 5b | same | P0 count — **33**, all `party_trusts_paid_amount` |
 | 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
 
 ## Appendix B — What was not done
