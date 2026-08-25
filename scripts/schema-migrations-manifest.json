@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-08-25",
-  "count": 724,
-  "fileCount": 740,
+  "count": 725,
+  "fileCount": 741,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -727,7 +727,8 @@
     "20261123121000",
     "20261123122000",
     "20261124120000",
-    "20261125120000"
+    "20261125120000",
+    "20261126120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1469,7 +1470,8 @@
     "20261123121000_journal_reversal_on_voucher_delete.sql",
     "20261123122000_customer_ledger_atomic_triggers.sql",
     "20261124120000_submit_public_storefront_enquiry_rpc.sql",
-    "20261125120000_storefront_slug_hyphen_alias.sql"
+    "20261125120000_storefront_slug_hyphen_alias.sql",
+    "20261126120000_fix_party_balances_settlement_memo_helper.sql"
   ],
   "duplicateVersions": [
     {
@@ -1597,6 +1599,10 @@
     {
       "version": "20260628120000",
       "reason": "Reconcile gross invoiced CN receipts (ledger KPI)"
+    },
+    {
+      "version": "20261126120000",
+      "reason": "Party RPC CN memos via _is_settlement_memo_receipt + remaining sale-return credit"
     }
   ]
 }
