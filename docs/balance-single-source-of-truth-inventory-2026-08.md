@@ -158,9 +158,9 @@ Naive independent (also wrong, different formula): salesman list fallback, AI op
 | S09 | Adjust Credit Note dialog | `src/components/AdjustCreditNoteDialog.tsx` | S-JS | JS | **Right** |
 | S10 | Supplier History dialog | `src/components/SupplierHistoryDialog.tsx` | S-JS | JS | **Right** |
 | S11 | Accounts Outstanding — payable headline | `src/pages/Accounts.tsx` `sumOrgSupplierPayableFromSnapshots` | S-JS (sum of positive snapshot balances) | JS | **Right** (same function as S01) |
-| S12 | Owner Dashboard — supplier payable KPI | `OwnerDashboard.tsx` via `fetchOrganizationSupplierPayableSummary` | S-ORG | SQL | Unverified. Can disagree with S11. |
-| S13 | Supplier Balances page (`/supplier-party-balances`) | `src/pages/SupplierPartyBalancesPage.tsx` | S-PARTY | SQL-only | Unverified vs Sangamn. SQL rewrite exists in-repo to match S-JS paid/CN rules, but this page still never calls `supplierBalanceUtils`. Highest remaining recurrence risk until Phase 2 equality. |
-| S14 | Supplier Balances Excel / PDF | same | S-PARTY | SQL-only | Same as S13 |
+| S12 | Owner Dashboard — supplier payable KPI | `OwnerDashboard.tsx` via `useSupplierOrgBalanceWindow` | S-JS org window | JS | **Right post step 4** (matches S11) |
+| S13 | Supplier Balances page (`/supplier-party-balances`) | `src/pages/SupplierPartyBalancesPage.tsx` | S-JS (`fetchSupplierPartyBalancesAligned`) | JS | **Right post step 4** (matches S01/S11 on Sangamn fixture) |
+| S14 | Supplier Balances Excel / PDF | same | S-JS | JS | **Right post step 4** |
 | S15 | Mobile Owner — supplier balance report | `MobileOwnerBalanceReports.tsx` | S-JS | JS | **Right** |
 | S16 | Owner Purchase Dashboard — supplier outstanding list | `src/components/mobile/OwnerPurchaseDashboard.tsx` | S-OB (`opening_balance > 0`) | Master field | **Known wrong** as outstanding (not the Sangamn double-count; a different lie) |
 | S17 | AI assistant — supplier outstanding | `ai-assistant/index.ts` | S-OB | Master field | **Known wrong** |
@@ -211,7 +211,7 @@ Each step is its own PR, its own `npm run test:money` run, and reports back befo
 1. **Root SQL (shipped, applied live):** `_get_customer_party_balances_rows` calls `_is_settlement_memo_receipt`; remaining sale-return credit restored. Farhaan live C-PARTY = −Rs 100. Enricher stays.
 2. **Equality tests (this step):** `test/money/balanceSsotEquality.lock.test.ts` — Farhaan (C-JS = C-PARTY = C-AUDIT = C-RECON = live −Rs 100), Sana Nasir (advance-heavy facets), Aafra (C-SNAP), Sangamn S-JS vs S-ORG third SQL. No screen migration.
 3. **Migrate in risk order (step 3):** batch 1–2 shipped (#407). **Batch 3 shipped:** ledger list exports (C06/C07), Khata FIFO (C48), AI party path (C47), POS WhatsApp (C22/C23). Remaining customer surfaces (C14–C16, C21, C29–C34, etc.) deferred.
-4. **Supplier track (not this PR):** `/supplier-party-balances` onto `supplierBalanceUtils`, then reconcile `get_organization_supplier_payable_summary` (S-ORG currently double-counts Sangamn paid_amount + vouchers: −Rs 55,680 vs S-JS Rs 1,54,648).
+4. **Supplier track (step 4 — this step):** `/supplier-party-balances` onto `supplierBalanceUtils` (S-JS); Owner Dashboard supplier KPI onto S-JS org window (matches Accounts S11). S-ORG RPC retained but no longer used for display KPIs.
 5. **Enforcement last (not this PR):** one shared hook plus lint/review rule, only after 1–4 agree.
 
 Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1 or 2.
@@ -242,10 +242,15 @@ Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1 or 2.
 - ledger export source (`customersForLedgerExport`);
 - Khata FIFO debtor net gate (`partyDebtorNetFromRpcRow`).
 
+`test/money/balanceSsotSupplierStep4.lock.test.ts` (step 4) freezes:
+
+- SANGAMN S-JS org window = **154648**;
+- S-ORG −55680 is not the display org figure.
+
 `test/money/balanceSsotEquality.lock.test.ts` (step 2) freezes:
 
 - Farhaan C-JS / C-UTILS / C-AUDIT / C-RECON / post-fix C-PARTY / live RPC export = **−Rs 100**;
 - Sana Nasir C-JS netPosition = C-PARTY signed **−Rs 20,000**;
 - Aafra C-SNAP = C-JS = C-PARTY facets (Rs 14,800 / 10,000 / 4,800);
-- Sangamn S-JS = **154648**, S-ORG third SQL = **−55680** on the same bills (do not treat as equal until step 4).
+- Sangamn S-JS = **154648**, S-ORG third SQL = **−55680** on the same bills (display KPIs now use S-JS per step 4).
 

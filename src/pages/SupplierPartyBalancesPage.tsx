@@ -34,7 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ReportSkeleton } from "@/components/ui/skeletons";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
-import { fetchAllSupplierPartyBalances, fetchSupplierPhoneMap } from "@/utils/fetchAllRows";
+import { fetchSupplierPartyBalancesAligned, type SupplierPartyBalanceAlignedRow } from "@/utils/supplierPartyBalanceSnapshot";
 import {
   SUPPLIER_PARTY_BALANCES_PAGE_SIZE,
   clampSupplierPartyBalancePage,
@@ -47,16 +47,7 @@ import {
   type SupplierPartyDirectionFilter,
 } from "@/utils/supplierPartyBalanceDisplay";
 
-export type SupplierPartyBalanceRow = {
-  supplier_id: string;
-  supplier_name: string;
-  phone?: string;
-  signed_balance: number;
-  direction: string;
-  total_cr: number;
-  total_dr: number;
-  net_payable: number;
-};
+export type SupplierPartyBalanceRow = SupplierPartyBalanceAlignedRow;
 
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -79,16 +70,7 @@ export default function SupplierPartyBalancesPage() {
     queryKey: ["supplier-party-balances", orgId],
     enabled: !!orgId,
     staleTime: 60_000,
-    queryFn: async () => {
-      const [partyRows, phoneMap] = await Promise.all([
-        fetchAllSupplierPartyBalances(orgId!),
-        fetchSupplierPhoneMap(orgId!),
-      ]);
-      return partyRows.map((row) => ({
-        ...row,
-        phone: phoneMap.get(row.supplier_id) ?? "",
-      }));
-    },
+    queryFn: () => fetchSupplierPartyBalancesAligned(orgId!),
   });
 
   const orgTotals = useMemo(() => {
