@@ -50,5 +50,6 @@ export const DASHBOARD_REFRESH_QUERY_KEYS = [
   "purchase-trend",
   "top-products",
   "customer-segment-counts",
+  "customer-party-balance-org-window",
   "organization-receivables",
 ] as const;

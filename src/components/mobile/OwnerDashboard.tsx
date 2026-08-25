@@ -25,7 +25,7 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip,
   AreaChart, Area,
 } from "recharts";
-import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanceOrgWindow";
 import {
   ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY,
   fetchOrganizationSupplierPayableSummary,
@@ -132,9 +132,9 @@ export const OwnerDashboard = () => {
     retry: 1,
   });
 
-  /* ── Primary KPI: org receivables (canonical RPC, shared with Accounts) ── */
-  const { summary: receivablesSummary, isLoading: receivablesLoading } =
-    useOrganizationReceivablesSummary(orgId, {
+  /* ── Primary KPI: same Net Receivable as Customer Balances ── */
+  const { window: partyReceivablesWindow, isLoading: receivablesLoading } =
+    useCustomerPartyBalanceOrgWindow(orgId, {
       staleTime: BALANCE_STALE_MS,
       enabled: kpisEnabled,
     });
@@ -356,8 +356,7 @@ export const OwnerDashboard = () => {
   const profitMarginPct =
     totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
 
-  const customerOs = receivablesSummary.netReceivable;
-  const customersPending = receivablesSummary.customersOwing;
+  const customerOs = partyReceivablesWindow.netReceivable;
   const supplierOs = Math.max(0, supplierSummary?.netOutstanding ?? 0);
   const suppliersPending = supplierSummary?.supplierCount ?? 0;
 
@@ -411,14 +410,14 @@ export const OwnerDashboard = () => {
     {
       label: "Customer O/S",
       value: customerOs,
-      sub: `${customersPending} customer${customersPending === 1 ? "" : "s"} pending`,
+      sub: "Net receivable (Customer Balances)",
       icon: Users,
       gradient: "bg-gradient-to-br from-rose-500/15 via-rose-500/8 to-card",
       iconBg: "bg-rose-500/20",
       iconColor: "text-rose-600",
       valueClass: "text-destructive",
       loading: receivablesLoading,
-      path: `${MOBILE_REPORTS_PATH}?report=customer-balance`,
+      path: "/customer-party-balances",
     },
     {
       label: "Supplier O/S",

@@ -2816,7 +2816,7 @@ export function CustomerLedger({
         ),
       );
       return {
-        totalCustomers: orgReceivablesSummary.customerCount ?? list.length,
+        totalCustomers: list.length,
         totalOutstanding: totals.totalOutstandingDr,
         totalReceivable: orgReceivablesSummary.totalSales ?? 0,
         customerCreditPool: totals.totalCreditPoolCr,
@@ -6131,7 +6131,7 @@ Please clear your dues at the earliest. Thank you!`;
     <>
     <div className="space-y-3">
       {/* Summary Cards */}
-      <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-5"} gap-2`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-4"} gap-2`}>
         <Card
           className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-blue-500 to-blue-600"
           onClick={() => setPaymentStatusFilter("all")}
@@ -6143,14 +6143,20 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Students" : "Total Customers"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {kpiCardsLoading ? (
+                  {isSchool ? (
+                    kpiCardsLoading ? (
+                      <Skeleton className="h-8 w-16 bg-white/30" />
+                    ) : (
+                      summary.totalCustomers
+                    )
+                  ) : facetCardsLoading ? (
                     <Skeleton className="h-8 w-16 bg-white/30" />
                   ) : (
                     summary.totalCustomers
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
-                  {isSchool ? "Active student accounts" : "Active customer accounts"}
+                  {isSchool ? "Active student accounts" : "All parties, including settled"}
                 </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
@@ -6180,7 +6186,7 @@ Please clear your dues at the earliest. Thank you!`;
                     <p className="text-xs text-white/65 mt-0.5 truncate">
                       {isSchool
                         ? "Fees pending collection"
-                        : "Netted per customer (advance offsets that party first)"}
+                        : "Gross — advance on the same party is not netted"}
                     </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
@@ -6192,34 +6198,45 @@ Please clear your dues at the earliest. Thank you!`;
 
         <Card
           className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600"
-          onClick={() => setPaymentStatusFilter("all")}
+          onClick={() => setPaymentStatusFilter(isSchool ? "all" : "advance")}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-white/80">
-                  {isSchool ? "Total Fees Charged" : "Total Receivable"}
+                  {isSchool ? "Total Fees Charged" : "Total Credit (Cr)"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {kpiCardsLoading ? (
+                  {isSchool ? (
+                    kpiCardsLoading ? (
+                      <Skeleton className="h-8 w-28 bg-white/30" />
+                    ) : (
+                      <>₹{(summary.totalReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    )
+                  ) : facetCardsLoading ? (
                     <Skeleton className="h-8 w-28 bg-white/30" />
                   ) : (
-                    <>₹{(summary.totalReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
-                  {isSchool ? "Total fees value" : "Total sales value"}
+                  {isSchool
+                    ? "Total fees value"
+                    : "Unused advances + invoice credits (CN / overpay)"}
                 </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
-                <TrendingUp className="h-4 w-4 text-white" />
+                {isSchool ? (
+                  <TrendingUp className="h-4 w-4 text-white" />
+                ) : (
+                  <Wallet className="h-4 w-4 text-white" />
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
         {!isSchool && (
-          <>
             <Card
               className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-violet-500 to-violet-600"
               onClick={() => setPaymentStatusFilter("all")}
@@ -6227,7 +6244,7 @@ Please clear your dues at the earliest. Thank you!`;
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white/80">Net AR</p>
+                    <p className="text-xs font-medium text-white/80">Net Receivable</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
                       {facetCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
@@ -6235,7 +6252,7 @@ Please clear your dues at the earliest. Thank you!`;
                         <>₹{(summary.netReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                       )}
                     </div>
-                    <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − advances held</p>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">All parties, including settled</p>
                   </div>
                   <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
                     <Scale className="h-4 w-4 text-white" />
@@ -6243,31 +6260,6 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
               </CardContent>
             </Card>
-
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-amber-500 to-amber-600"
-              onClick={() => setPaymentStatusFilter("advance")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-white/80">Customer Credit Pool</p>
-                    <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      {facetCardsLoading ? (
-                        <Skeleton className="h-8 w-28 bg-white/30" />
-                      ) : (
-                        <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
-                      )}
-                    </div>
-                    <p className="text-xs text-white/65 mt-0.5 truncate">Advances / overpayments held</p>
-                  </div>
-                  <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Wallet className="h-4 w-4 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </>
         )}
       </div>
 
