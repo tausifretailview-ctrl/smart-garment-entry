@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-08-25",
-  "count": 723,
-  "fileCount": 739,
+  "count": 724,
+  "fileCount": 740,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -714,6 +714,7 @@
     "20261028140000",
     "20261029120000",
     "20261030120000",
+    "20261102120000",
     "20261109120000",
     "20261110120000",
     "20261111120000",
@@ -1455,6 +1456,7 @@
     "20261029120000_settlement_recompute_guard_on_receipt_sync.sql",
     "20261030120000_get_customer_segment_index.sql",
     "20261030120000_public_storefront_phase1.sql",
+    "20261102120000_supplier_party_balances_paid_matches_ledger.sql",
     "20261109120000_voucher_number_race_safe.sql",
     "20261110120000_advance_number_race_safe.sql",
     "20261111120000_search_invoice_sale_ids_trgm_union.sql",

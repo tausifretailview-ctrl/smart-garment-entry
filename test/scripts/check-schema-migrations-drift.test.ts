@@ -3,6 +3,7 @@ import {
   assertLiveUrlAllowed,
   duplicateVersionGroups,
   listRepoMigrationFiles,
+  manifestPayload,
   resolveLiveCredentials,
   runSchemaMigrationsDriftCheck,
 } from "../../scripts/check-schema-migrations-drift.mjs";
@@ -58,6 +59,13 @@ describe("assertLiveUrlAllowed", () => {
 });
 
 describe("runSchemaMigrationsDriftCheck live compare", () => {
+  /** Live-compare tests must not fail because the on-disk manifest is stale. */
+  async function matchingManifestRead() {
+    const { versions } = await listRepoMigrationFiles();
+    const payload = manifestPayload(versions, "2026-08-25");
+    return JSON.stringify(payload);
+  }
+
   it("fails when a critical repo migration is missing live", async () => {
     const logs: string[] = [];
     const errors: string[] = [];
@@ -68,6 +76,7 @@ describe("runSchemaMigrationsDriftCheck live compare", () => {
         SUPABASE_DRIFT_SERVICE_ROLE_KEY: "test-key",
       },
       fetchLive: async () => ["20260101000000"],
+      readFileFn: async () => matchingManifestRead(),
       log: (msg) => logs.push(String(msg)),
       error: (msg) => errors.push(String(msg)),
     });
@@ -80,6 +89,7 @@ describe("runSchemaMigrationsDriftCheck live compare", () => {
     const code = await runSchemaMigrationsDriftCheck({
       argv: ["--check"],
       envMap: {},
+      readFileFn: async () => matchingManifestRead(),
       log: (msg) => logs.push(String(msg)),
       error: () => {},
     });
