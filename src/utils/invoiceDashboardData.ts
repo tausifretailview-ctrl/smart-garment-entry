@@ -14,6 +14,7 @@ import {
   derivePaidAndStatus,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, credit_applied, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
@@ -641,7 +642,10 @@ export async function applyDisplayFifoForKhataCustomers(
     const customerId = String((row as { customer_id?: string }).customer_id ?? "");
     if (!customerId) continue;
     const signedBalance = Number((row as { signed_balance?: number }).signed_balance ?? 0);
-    ledgerNetDrByCustomer.set(customerId, roundKhataMoney(Math.max(0, signedBalance)));
+    ledgerNetDrByCustomer.set(
+      customerId,
+      roundKhataMoney(partyDebtorNetFromRpcRow({ signed_balance: signedBalance })),
+    );
   }
 
   const { data: fullSalesRaw, error: fullSalesError } = await client

@@ -64,7 +64,7 @@ import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   applyExistingAdvanceToSale,
   capPosAdvanceApplyAmount,
@@ -5031,23 +5031,26 @@ export default function POSSales() {
     if (custId) {
       const { data: customer } = await supabase
         .from('customers')
-        .select('opening_balance, points_balance, total_points_earned')
+        .select('points_balance, total_points_earned')
         .eq('id', custId)
         .single();
-      
-      const openingBalance = customer?.opening_balance || 0;
+
       const pointsBalance = customer?.points_balance || 0;
-      
-      const { data: salesData } = await supabase
-        .from('sales')
-        .select('net_amount, paid_amount')
-        .eq('customer_id', custId)
-        .eq('organization_id', currentOrganization?.id);
-      
-      const totalSales = salesData?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-      const totalPaid = salesData?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-      const customerBalance = openingBalance + totalSales - totalPaid;
-      
+
+      let customerBalance = 0;
+      if (currentOrganization?.id) {
+        try {
+          const snap = await fetchCustomerFinancialSnapshot(
+            supabase,
+            currentOrganization.id,
+            custId,
+          );
+          customerBalance = Math.round(Number(snap.netPosition) || 0);
+        } catch {
+          customerBalance = 0;
+        }
+      }
+
       if (customerBalance > 0) {
         outstandingText = `\n💰 *Outstanding Balance: ₹${Number(customerBalance).toLocaleString("en-IN")}*`;
       }

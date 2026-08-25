@@ -84,6 +84,18 @@ export function applyAlignedPartyToLedgerListRow(
  * Same canonical JS patch as Customer Balances. Caller must pass the visible
  * slice only (≤ PARTY_BALANCE_CANONICAL_ENRICH_MAX); the enricher no-ops above that.
  */
+/**
+ * Export rows match the visible enriched slice when filter narrows ≤ enrich cap;
+ * otherwise post-fix aligned C-PARTY (same as list seed).
+ */
+export function customersForLedgerExport(
+  filtered: CustomerLedgerListRow[],
+  enrichedFiltered: CustomerLedgerListRow[] | undefined,
+  enrichFilteredSubset: boolean,
+): CustomerLedgerListRow[] {
+  return enrichFilteredSubset ? (enrichedFiltered ?? filtered) : filtered;
+}
+
 export async function enrichLedgerListRowsWithCanonicalBalance(
   organizationId: string,
   rows: CustomerLedgerListRow[],
