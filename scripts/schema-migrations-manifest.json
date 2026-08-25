@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-08-25",
-  "count": 724,
-  "fileCount": 740,
+  "count": 723,
+  "fileCount": 739,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -646,7 +646,6 @@
     "20260823160000",
     "20260823170000",
     "20260823180000",
-    "20260824103000",
     "20260824120000",
     "20260825140000",
     "20260826120000",
@@ -1386,7 +1385,6 @@
     "20260823160000_fix_party_balances_v2_partial_cn.sql",
     "20260823170000_party_balances_swap_v2_live.sql",
     "20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql",
-    "20260824103000_barcode_start_digit_width.sql",
     "20260824120000_sale_payment_status_normalize_and_drift_report.sql",
     "20260825140000_whatsapp_wappconnect_per_org_config.sql",
     "20260826120000_whatsapp_logs_provider.sql",
