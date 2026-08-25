@@ -32,6 +32,7 @@ describe("isEllaNoorSlug", () => {
   it("matches only the ella-noor org slug", () => {
     expect(isEllaNoorSlug("ella-noor")).toBe(true);
     expect(isEllaNoorSlug("Ella-Noor")).toBe(true);
+    expect(isEllaNoorSlug("ellanoor")).toBe(true);
     expect(isEllaNoorSlug("demo")).toBe(false);
     expect(isEllaNoorSlug("")).toBe(false);
   });

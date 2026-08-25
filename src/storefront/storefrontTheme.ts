@@ -1,4 +1,5 @@
 import type { PublicStorefrontShop } from "@/lib/websiteTypes";
+import { publicOrgSlugKey } from "@/lib/storefrontPath";
 
 export type OrgPublicInfoSlice = {
   name?: string;
@@ -84,7 +85,7 @@ export const theme = {
 export const ELLA_NOOR_SLUG = "ella-noor";
 
 export function isEllaNoorSlug(slug: string | null | undefined): boolean {
-  return String(slug || "").trim().toLowerCase() === ELLA_NOOR_SLUG;
+  return publicOrgSlugKey(slug || "") === publicOrgSlugKey(ELLA_NOOR_SLUG);
 }
 
 export const ellaCopy = {
