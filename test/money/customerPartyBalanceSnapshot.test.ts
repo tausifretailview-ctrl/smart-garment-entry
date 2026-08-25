@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   alignPartyRowFromRpc,
   alignPartyRowWithSnapshot,
+  partyBalanceOrgWindowFromRpcRow,
   partyBalanceRowFacets,
 } from "@/utils/customerPartyBalanceSnapshot";
 import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
@@ -111,5 +112,19 @@ describe("alignPartyRowWithSnapshot", () => {
     );
     expect(aligned.gross_outstanding).toBe(0);
     expect(aligned.direction).toBe("Cr");
+  });
+});
+
+describe("partyBalanceOrgWindowFromRpcRow", () => {
+  it("reads window net_receivable, not a single signed_balance", () => {
+    expect(
+      partyBalanceOrgWindowFromRpcRow({
+        net_receivable: 457_518,
+      }),
+    ).toEqual({ netReceivable: 457_518 });
+  });
+
+  it("treats a missing row as zero", () => {
+    expect(partyBalanceOrgWindowFromRpcRow(undefined)).toEqual({ netReceivable: 0 });
   });
 });

@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
+import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanceOrgWindow";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
@@ -15,7 +15,10 @@ import {
   isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
-import type { OrganizationReceivablesSummary } from "@/utils/organizationReceivables";
+import {
+  CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY,
+  type CustomerPartyBalanceOrgWindow,
+} from "@/utils/customerPartyBalanceSnapshot";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
 import {
@@ -264,7 +267,7 @@ const DesktopDashboard = () => {
     [currentOrganization?.id],
   );
   const receivablesQueryKey = useMemo(
-    () => ["organization-receivables", "summary", currentOrganization?.id] as const,
+    () => [CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY, currentOrganization?.id] as const,
     [currentOrganization?.id],
   );
 
@@ -322,7 +325,7 @@ const DesktopDashboard = () => {
       if (
         head === "dashboard-stats" ||
         head === "customer-segment-counts" ||
-        head === "organization-receivables"
+        head === CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY
       ) {
         syncFromCache();
       }
@@ -415,24 +418,24 @@ const DesktopDashboard = () => {
 
   const cachedStatsUpdatedAt = queryClient.getQueryState(dashStatsQueryKey)?.dataUpdatedAt ?? null;
 
-  // Receivables = true net customer AR (Master Reconciliation), shared with the
-  // Customer Ledger card / Balance Sheet, instead of the invoice-only net−paid view.
-  const { summary: receivablesSummary, isFetching: receivablesFetching } = useOrganizationReceivablesSummary(
-    currentOrganization?.id,
-    { manualRefreshOnly: true, enabled: metricsQueryEnabled },
-  );
+  // Receivables = Customer Balances Net Receivable (party RPC window total).
+  const { window: partyReceivablesWindow, isFetching: receivablesFetching } =
+    useCustomerPartyBalanceOrgWindow(currentOrganization?.id, {
+      manualRefreshOnly: true,
+      enabled: metricsQueryEnabled,
+    });
 
-  const displayedReceivablesSummary = useMemo(() => {
+  const displayedReceivablesWindow = useMemo(() => {
     const cached =
-      queryClient.getQueryData<OrganizationReceivablesSummary>(receivablesQueryKey);
+      queryClient.getQueryData<CustomerPartyBalanceOrgWindow>(receivablesQueryKey);
     if (metricsLoadRequested && !receivablesFetching) {
-      return receivablesSummary;
+      return partyReceivablesWindow;
     }
-    return cached ?? receivablesSummary;
+    return cached ?? partyReceivablesWindow;
   }, [
     metricsLoadRequested,
     receivablesFetching,
-    receivablesSummary,
+    partyReceivablesWindow,
     queryClient,
     receivablesQueryKey,
     cacheTick,
@@ -464,7 +467,7 @@ const DesktopDashboard = () => {
   const stockValue = displayedDashStats?.total_stock_value || 0;
   const profitData = displayedDashStats?.gross_profit || 0;
   const cashCollection = displayedDashStats?.cash_collection || 0;
-  const receivablesData = { total: displayedReceivablesSummary.netReceivable || 0, count: displayedDashStats?.pending_count || 0 };
+  const receivablesData = { total: displayedReceivablesWindow.netReceivable || 0 };
   const saleReturnData = { total: displayedDashStats?.sale_return_total || 0, count: displayedDashStats?.sale_return_count || 0, returnQty: displayedDashStats?.sale_return_qty || 0 };
   const purchaseReturnData = { total: displayedDashStats?.purchase_return_total || 0, count: displayedDashStats?.purchase_return_count || 0, returnQty: displayedDashStats?.purchase_return_qty || 0 };
 
@@ -1052,8 +1055,8 @@ const DesktopDashboard = () => {
               value={receivablesData?.total || 0}
               icon={AlertCircle}
               accentColor="bg-red-500"
-              onClick={() => navigate("/payments-dashboard")}
-              tooltip={`Net customer receivable (after advances/credits). ${receivablesData?.count || 0} pending invoices. Click to view Payments Dashboard.`}
+              onClick={() => navigate("/customer-party-balances")}
+              tooltip="Same as Customer Balances Net Receivable: what customers owe minus credits they hold. Not cash collected."
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}

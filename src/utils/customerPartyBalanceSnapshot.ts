@@ -101,6 +101,39 @@ export async function fetchCustomerPartyBalancesAligned(
   );
 }
 
+export const CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY = "customer-party-balance-org-window";
+
+export type CustomerPartyBalanceOrgWindow = {
+  /** Σ signed_balance — same figure as Customer Balances Net Receivable. */
+  netReceivable: number;
+};
+
+export function partyBalanceOrgWindowFromRpcRow(
+  row: Pick<CustomerPartyBalanceRpcRow, "net_receivable"> | null | undefined,
+): CustomerPartyBalanceOrgWindow {
+  return { netReceivable: Math.round(Number(row?.net_receivable) || 0) };
+}
+
+/**
+ * One party-RPC row (window totals). Avoids get_organization_receivables_summary
+ * which diverges from Customer Balances on CN-heavy orgs.
+ */
+export async function fetchCustomerPartyBalanceOrgWindow(
+  organizationId: string,
+): Promise<CustomerPartyBalanceOrgWindow> {
+  if (!organizationId) return { netReceivable: 0 };
+
+  const { data, error } = await supabase
+    .rpc("get_customer_party_balances", {
+      p_organization_id: organizationId,
+    })
+    .range(0, 0);
+
+  if (error) throw error;
+  const row = ((data ?? []) as CustomerPartyBalanceRpcRow[])[0];
+  return partyBalanceOrgWindowFromRpcRow(row);
+}
+
 /** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
 export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
 
