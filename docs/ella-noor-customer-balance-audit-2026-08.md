@@ -20,17 +20,22 @@ Related (do not duplicate, do not treat as this pass):
 
 ## Verdict
 
-This pass **did not repair anything** and **did not write**. The audit SQL is complete, with the four required corrections folded in **before** the queries, not after.
+This pass **did not repair anything** and **did not write**.
 
-Live seven-component numbers, the full mismatch table, top-25 line-by-line, and live invariant hit counts **could not be filled from this Cloud Agent environment**. Anon REST against tenant tables and `v_accounting_invariants` returns `42501 permission denied` (see §0b). Empty / 401 is **not** zero drift.
+**First SQL-editor Step 1 (receipts-only) undercounted cash.** `receipt_payments_both_eras` summed `voucher_entries` only and never the sale’s `cash_amount` / `card_amount` / `upi_amount`. Evidence from that run (not a guess):
 
-What this document *does* contain:
+| Observation | Value |
+|-------------|-------|
+| Mismatch rows | **717** |
+| Direction | party **always lower** than recomputed — zero exceptions |
+| Of those, `receipt_payments_both_eras = 0` | **247** customers, combined invoiced **₹44,81,578** |
+| Known-good counterexample | **Siya Kapoor** — Payments screen + PDF reconciliation in July, still in the 717 |
 
-1. The measurement method (seven components, both receipt-vocabulary eras, ₹1 threshold, 1000-row paging).
-2. The Step 2 classification table with **Duplicate receipt** and **`legacy_paid_baseline`** as named rows.
-3. Step 3 cross-checks that **join** `v_accounting_invariants` rather than re-deriving detectors.
-4. A P0 / P1 / P2 **queue shape** plus the last-known Aug 22 names, clearly labelled stale.
-5. Paste-back slots for SQL-editor output so the four deliverables can be completed without rewriting the method.
+That is the missing paid-at-sale tender residual, not 247 customers who never paid and not Siya’s balance being wrong.
+
+**Corrected Step 1** keeps the receipts-only columns and adds a **separate** tender diagnostic that matches live `compute_sale_settlement`: per sale `LEAST(net, GREATEST(receipts, tender))`, **not** `receipts + tender` (that double-counts `handleRecordPayment` dual-write). Dual-write sales are **flagged**, not repaired.
+
+Live recompute of “how many of the 717 now fall under ₹1 on `drift_with_tender`” still has to run in the SQL editor (Step 1c). This Cloud Agent cannot read tenant tables (`42501`). Empty / 401 is **not** zero remaining drift.
 
 **Do not zero `legacy_paid_baseline` from this document.** Category-1 baselines (money paid with no reconstructable receipt) are legitimate; only the overlap shape `baseline > 0 AND receipts_total > 0` is the bug.
 
@@ -47,16 +52,17 @@ Signed sum, matching `reconcile_customer_balance` / the verification recipe. `sa
 | 1 | `opening_balance` | + | `customers.opening_balance` |
 | 2 | `total_invoiced` | + | `sales.net_amount` (excl cancelled / hold) |
 | 3 | `sale_return_adjust_on_invoices` | − | `sales.sale_return_adjust`, gated on `items_gross` (party CASE) |
-| 4 | `receipt_payments` | − | cash + settlement discount; **exclude** memos via `_is_settlement_memo_receipt` |
+| 4 | `receipt_payments` | − | cash + settlement discount on vouchers; **exclude** memos via `_is_settlement_memo_receipt`. **First run omitted POS/invoice tender columns** — see §1-tender |
+| 4b | `paid_at_sale_tender` (diagnostic) | − | per-sale residual after `compute_sale_settlement`: `LEAST(net, GREATEST(receipts, cash+card+upi)) − receipts`. **Not** a raw sum of tender onto receipts |
 | 5 | `balance_adjustment` | + | `customer_balance_adjustments.outstanding_difference` |
 | 6 | `pending_sale_returns` | − | `_sale_return_remaining_credit_for_balance` (not `credit_status = 'pending'` only) |
 | 7 | `unused_advances` | − | advance pool net of used + refunds |
 
-**Compare** `recomputed_7` to `_get_customer_party_balances_rows.out_signed_balance`. Flag when `ABS(party − recomputed_7) > 1`.
+**Compare** `recomputed_7_both_eras` (receipts only) **and** `recomputed_7_with_tender` to `_get_customer_party_balances_rows.out_signed_balance`. Flag when `ABS(party − recompute) > 1`. Do not drop the receipts-only figure — it is the before-snapshot for this correction.
 
-Party also subtracts four extra terms (`paid_at_sale_drift`, `credit_note_vouchers`, `customer_payment_refunds`, `advances_applied`). Those are **not** folded into the seven; Step 4 line-by-line (`reconcile_customer_balance`) shows them so a 7-vs-party gap that equals those extras is classified as extra-term alignment, not “customer is wrong”.
+Party also subtracts `paid_at_sale_drift` (tender minus receipts, **uncapped** in the party RPC) plus `credit_note_vouchers`, `customer_payment_refunds`, `advances_applied`. The Step 1 tender diagnostic uses the **capped** settlement function, not `paid_amount`, and not party’s uncapped `GREATEST(0, tender − receipts)`. Residual after tender-close can still be those extra terms or the cap difference.
 
-Canonical TS outstanding is `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts` (via `computeCustomerBalanceCore`). That helper reports unused advance **separately** and does not subtract it from `balance`; party **does** subtract it. This audit follows party / reconcile for component 7.
+Canonical TS outstanding is `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts` (via `computeCustomerBalanceCore`). That helper reports unused advance **separately** and does not subtract it from `balance`; party **does** subtract it. This audit follows party / reconcile for component 7. Ledger residual tender is `residualPaymentAtSaleTender` (`customerAuditBundle.ts`) — same “tender minus receipts, never sum” idea; settlement then caps at `net_amount`.
 
 ### Four required corrections (folded in before run)
 
@@ -102,6 +108,38 @@ on the same sale, with `receipts_total` using the both-eras filter. The `set_con
 
 Generic `paid_amount` vs `compute_sale_settlement.new_paid` remains a **separate** class (`paid_amount_drift`).
 
+### Why the original Step 1 undercounted (tender residual)
+
+The receipts-only recompute treated “paid” as **voucher_entries only**. Party / `reconcile_customer_balance` / `compute_sale_settlement` also credit cash that sits on the sale row (`cash_amount + card_amount + upi_amount`) when that tender is **not** already covered by a receipt. Skipping it makes every such customer look like they owe more than party says — hence 717 mismatches, all the same sign, including Siya Kapoor.
+
+**Do not fix that by summing tender onto receipts.** `SalesInvoiceDashboard.handleRecordPayment` (documented 15 Aug / `docs/legacy-paid-baseline-double-count-2026-08.md`) can write **both** a `paid_amount`/tender bump **and** a receipt voucher for the same money. Unconditional `receipts + tender` would double-count those bills up to `net_amount`.
+
+Live `compute_sale_settlement` (repo-latest body):
+
+```text
+tender = cash_amount + card_amount + upi_amount
+IF tender > receipts THEN
+  new_paid = LEAST(net_amount, GREATEST(receipts, tender))
+ELSE
+  new_paid = LEAST(net_amount, receipts)
+```
+
+That is `LEAST(net, GREATEST(receipts, tender))` — **max, then cap**. It does **not** read `paid_amount` or `legacy_paid_baseline`.
+
+Step 1 now emits, per customer, **without overwriting the first-run columns**:
+
+| Column | Meaning |
+|--------|---------|
+| `receipt_payments_both_eras` | Unchanged — voucher cash only, both vocabulary eras |
+| `paid_at_sale_tender` | Sum of per-sale residual `GREATEST(0, LEAST(net, GREATEST(receipts, tender)) − receipts)` |
+| `recomputed_7_both_eras` | Unchanged — receipts only |
+| `recomputed_7_with_tender` | Same seven-component formula with `(receipt_payments_both_eras + paid_at_sale_tender)` in place of receipts alone |
+| `drift_with_tender` | `party_signed − recomputed_7_with_tender` |
+| `tender_closes_mismatch` | True iff receipts-only drift > ₹1 **and** `|drift_with_tender| ≤ 1` |
+| `dual_write_sale_count` / `dual_write_overlap_est` | FLAG: sale has a non-memo receipt **and** non-zero tender. No winner picked this pass |
+
+Step 1c is the one-row headline for “how many of the 717 close”. Step 1d is the dual-write customer/sale list. Offline formula lock: `test/money/ellaNoorAuditTenderCap.test.ts`.
+
 ---
 
 ## 0b. What this environment actually ran
@@ -127,16 +165,43 @@ No writes were issued in this pass. No test org, no sample customers.
 
 ## 1. Headline numbers
 
-### This pass (2026-08-25)
+### Receipts-only Step 1 (SQL editor, 2026-08-25 — first run)
+
+This is the **before** snapshot. `party_signed` matched the captured `balance_before` exactly. Do not treat these 717 as real customer errors.
+
+| Metric | Value |
+|--------|-------|
+| Mismatch (`ABS(party − recomputed_7_both_eras) > 1`) | **717** |
+| Sign | party < recompute on **every** row |
+| Zero-receipt mismatches with real invoices | **247** customers / **₹44,81,578** invoiced |
+| Siya Kapoor | in the 717; live Payments + PDF were already correct in July |
+
+### Tender-corrected Step 1c (this revision — paste live row)
+
+Run `scripts/ella-noor-customer-balance-audit-2026-08.sql` **Step 1c** in the SQL editor.
+
+| Metric | Value |
+|--------|-------|
+| `n_mismatch_receipts_only` | *paste — expect 717 if data unchanged* |
+| `n_of_those_now_within_1` | *paste — how many of the 717 close on `drift_with_tender`* |
+| `n_mismatch_with_tender` | *paste — remaining mismatch count after tender* |
+| `abs_drift_receipts_only_rupees` | *paste* |
+| `abs_drift_with_tender_rupees` | *paste — new total drift rupees* |
+| `n_mismatch_zero_receipts_with_invoices` | *paste — expect 247 on the receipts-only side* |
+| `n_customers_with_dual_write` / `n_dual_write_sales` | *paste Step 1c + 1d — FLAG only* |
+
+```
+(paste Step 1c one-row result)
+```
+
+This Cloud Agent still cannot execute Step 1c against live tenant data (`42501`). Do not fill the paste slot with zeros.
+
+### Org headline (Step 1b)
 
 | Metric | Value |
 |--------|-------|
 | Org confirmed live | ELLA NOOR `3fdca631-1e0c-4417-9704-421f5129ff67` |
-| Customers / Dr / Cr / net / unused advance | **not measured here** (tenant RPC 401) |
-| Mismatch count (`ABS(party − recomputed_7) > 1`) | **not measured here** |
-| Vocab-artifact count (new-vocab-only drift, both-eras OK) | **not measured here** — paste Step 0b + Step 1 `vocab_query_artifact` |
-| `rapid_duplicate_receipt` hits (this pass) | **not measured here** (view 401). Standing digest baseline: **239** org-wide |
-| `legacy_paid_baseline` ∩ receipts (this pass) | **not measured here**. Last measurement (July window): **59** sales, **₹3,32,306** overstated |
+| Customers / Dr / Cr / net / unused advance | **not measured here** (tenant RPC 401) — paste Step 1b |
 
 Paste Step 1b / Step 0b / Step 2b / Step 3a / Step 3e-sum here:
 
@@ -166,6 +231,8 @@ Primary class is assigned in this **order** (first match wins) so duplicate rece
 
 | Class | What it is | Detector (this audit) | This-pass count | Last known |
 |-------|------------|------------------------|-----------------|------------|
+| **Paid-at-sale tender residual** | Voucher receipts missing; cash sits on `cash_amount`/`card_amount`/`upi_amount` | Step 1 `tender_closes_mismatch` | *paste 1c `n_of_those_now_within_1`* | **717** receipts-only flags; 247 with receipts=0 |
+| **Dual-write (receipt + tender)** | Same sale has a receipt voucher **and** non-zero tender — possible `handleRecordPayment` double recording | Step 1d FLAG list. **Do not pick a winner** | *paste 1c/1d* | Documented 15 Aug Collect Payment path |
 | **Receipt vocabulary artifact** | Query filtered new tag only; pre-29-May `CustomerReceipt` cash exists | Step 1 `vocab_query_artifact` | *paste* | ₹2.75 crore org-history finding if the filter is wrong; should be **0** with the required `IN ('sale','CustomerReceipt')` |
 | **Duplicate receipt** | Multiple genuine receipt vouchers on one invoice (not a CN counted twice) | `v_accounting_invariants.rapid_duplicate_receipt` **joined**, not re-derived | *paste Step 2b* | **239** org-wide digest baseline |
 | **CN double-count** | SRA on the invoice **and** a `credit_note_adjustment` voucher **and** remaining return-pool credit | Step 2 `cn_double` (SRA + CN voucher + remaining CAB). Distinct from duplicate receipt | *paste* | Shumama ₹61,900 ×2 (R2 done Aug 22); §1C export had 15 rows |
@@ -191,11 +258,16 @@ If a flagged customer’s mismatch **collapses** when `CustomerReceipt` is added
 |--------|---------|
 | `customer_id` / `customer_name` | Active customer |
 | `party_signed` / `party_direction` | Canonical |
-| `recomputed_7_both_eras` | Audit figure (required vocab pair) |
-| `drift_both_eras` | `party − recomputed_7_both_eras` |
-| `drift_new_vocab_only` | What a `'sale'`-only filter would print |
+| `receipt_payments_both_eras` | Voucher cash only (unchanged) |
+| `paid_at_sale_tender` | Settlement residual (max then cap); addable to receipts without dual-write SUM |
+| `recomputed_7_both_eras` | Receipts-only seven-component (first-run figure) |
+| `recomputed_7_with_tender` | Same formula with receipts + residual tender |
+| `drift_both_eras` | `party − recomputed_7_both_eras` (717-row before) |
+| `drift_with_tender` | `party − recomputed_7_with_tender` |
+| `tender_closes_mismatch` | Receipts-only flag that disappears under tender |
 | `vocab_query_artifact` | True iff new-vocab-only is a false flag |
-| seven component columns | opening, invoiced, SRA, receipts (both / legacy / new / other), adjustments, pending SR, unused advance |
+| `dual_write_sale_count` | FLAG — both a receipt and non-zero tender |
+| seven component columns | opening, invoiced, SRA, receipts (legacy / new / other), adjustments, pending SR, unused advance |
 
 Paste Step 1 CSV here:
 
@@ -301,6 +373,7 @@ Before treating any Step 1 flag as a real customer error:
 3. Duplicate receipt hits come from `v_accounting_invariants`, not a homegrown 5-minute join. If the view count and a homemade detector disagree, **trust the view** and fix the homemade query.
 4. `legacy_paid_baseline` overlap is labelled that, even when `paid_amount` also disagrees with `compute_sale_settlement`. Do not collapse it into generic paid drift.
 5. CN double-count requires SRA **and** a CN voucher **and** remaining pool. Duplicate genuine RCP rows without a CN memo are **duplicate receipt**.
+6. Do not `SUM(receipts + tender)` on a dual-write sale. Residual is `LEAST(net, GREATEST(receipts, tender)) − receipts`. Dual-write rows stay a FLAG until a later pass.
 
 ---
 
@@ -309,12 +382,14 @@ Before treating any Step 1 flag as a real customer error:
 In the SQL editor, in order:
 
 1. Step 0 + 0b — vocabulary proof  
-2. Step 1b — headlines  
-3. Step 1 — mismatch table (page if 1000)  
-4. Step 2 + 2b — classification  
-5. Step 3a–3e — invariant join + named baseline check  
-6. Step 4a / 4b — top 25 Dr / Cr  
-7. Step 5 — queue  
+2. Step 1b — org headlines  
+3. Step 1 — mismatch table with tender columns (page if 1000)  
+4. Step 1c — how many of the 717 close  
+5. Step 1d — dual-write FLAG list  
+6. Step 2 + 2b — classification  
+7. Step 3a–3e — invariant join + named baseline check  
+8. Step 4a / 4b — top 25 Dr / Cr  
+9. Step 5 — queue  
 
 Paste the result sets into the slots above. Still no writes.
 
@@ -325,7 +400,9 @@ Paste the result sets into the slots above. Still no writes.
 | Section | File | Delivers |
 |---------|------|----------|
 | 0 / 0b | `scripts/ella-noor-customer-balance-audit-2026-08.sql` | Vocabulary eras |
-| 1 / 1b | same | Mismatch table + headlines |
+| 1 / 1b | same | Mismatch table + org headlines |
+| 1c | same | How many of the 717 close once tender is counted |
+| 1d | same | Dual-write FLAG list (no repair) |
 | 2 / 2b | same | Classification including duplicate receipt + baseline |
 | 3a–3d | same | `v_accounting_invariants` joins |
 | 3e / 3e-sum | same | Named `legacy_paid_baseline` check |
@@ -339,3 +416,5 @@ Paste the result sets into the slots above. Still no writes.
 - No baseline zeroing
 - No assumption that anon empty = zero drift
 - No reuse of receivables-audit Section 3’s new-vocab-only receipt filter
+- No summing of tender columns onto receipts (dual-write would double-count)
+- No decision on which side of a dual-write sale is “the” payment
