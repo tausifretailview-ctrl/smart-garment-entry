@@ -43,6 +43,7 @@ import {
   resolveSaleInvoiceTemplate,
   type InvoiceTemplateId,
 } from "@/utils/invoicePrintFormat";
+import { persistQuotationPrintTemplate } from "@/utils/quotationPrintTemplate";
 import {
   hasExplicitPosDefaultTaxType,
   resolvePosDefaultTaxType,
@@ -222,6 +223,8 @@ interface SaleSettings {
   invoice_template?: InvoiceTemplateId;
   /** POS-only invoice layout; falls back to `invoice_template` when unset. */
   pos_invoice_template?: InvoiceTemplateId;
+  /** Quotation print layout: existing retail design vs IT-company (no MRP). */
+  quotation_print_template?: 'retail' | 'it-company';
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -3267,6 +3270,36 @@ export default function Settings() {
                         Grouped by A4 / A5 / Thermal. Can differ from Sale — switch Live Preview to POS to see it.
                       </p>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quotation_print_template" className="text-sm font-medium">
+                      Quotation Print Layout
+                    </Label>
+                    <Select
+                      value={settings.sale_settings?.quotation_print_template || "retail"}
+                      onValueChange={(value) => {
+                        persistQuotationPrintTemplate(value as "retail" | "it-company");
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            quotation_print_template: value as "retail" | "it-company",
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="quotation_print_template">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retail">Existing (Retail) — keeps MRP / size</SelectItem>
+                        <SelectItem value="it-company">IT Company — no MRP, Sale terms</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Also selectable on Print Quotation preview. Existing retail design stays available.
+                    </p>
                   </div>
 
                   {/* Thermal style — shown only when either format is thermal */}
