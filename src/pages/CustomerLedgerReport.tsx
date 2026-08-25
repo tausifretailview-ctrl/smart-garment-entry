@@ -1,12 +1,21 @@
 import { useSearchParams } from "react-router-dom";
+import { useMemo } from "react";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import { WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 
 export default function CustomerLedgerReport() {
   const { currentOrganization } = useOrganization();
   const [searchParams] = useSearchParams();
   const preSelectedCustomerId = searchParams.get("customer");
+  const orgId = currentOrganization?.id;
+  const visibilityKeys = useMemo(
+    () => (orgId ? getMoneyViewVisibilityQueryKeys(orgId) : []),
+    [orgId],
+  );
+  useVisibilityInvalidate(visibilityKeys);
 
   if (!currentOrganization?.id) {
     return (

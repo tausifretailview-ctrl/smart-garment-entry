@@ -59,6 +59,8 @@ import {
   formatNetFacetLabel,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 
 export type CustomerPartyBalanceRow = CustomerPartyBalanceAlignedRow;
 
@@ -81,6 +83,11 @@ export default function CustomerPartyBalancesPage() {
   const [ledgerCustomerPhone, setLedgerCustomerPhone] = useState<string | undefined>();
 
   const orgId = currentOrganization?.id;
+  const moneyViewVisibilityKeys = useMemo(
+    () => (orgId ? getMoneyViewVisibilityQueryKeys(orgId) : []),
+    [orgId],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
 
   /** Profile fetch before embedded ledger — avoids CustomerLedger stub with opening_balance=0. */
   const {

@@ -118,6 +118,8 @@ import {
   posSaleDateToLocalYmd,
   type PosSalesChangedDetail,
 } from "@/utils/posSalesRefresh";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
@@ -288,6 +290,14 @@ const POSDashboard = () => {
   const location = useLocation();
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
+  const moneyViewVisibilityKeys = useMemo(
+    () =>
+      currentOrganization?.id
+        ? getMoneyViewVisibilityQueryKeys(currentOrganization.id)
+        : [],
+    [currentOrganization?.id],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
   const refreshPosDashboard = useCallback(() => {
     invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
   }, [queryClient, currentOrganization?.id]);
