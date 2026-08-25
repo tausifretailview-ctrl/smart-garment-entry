@@ -6238,7 +6238,7 @@ const PurchaseEntry = () => {
   const handlePrintBarcodes = async () => {
     const gate = purchaseBarcodePrintGate;
     if (!gate.allowed) {
-      const blocked = purchaseBarcodePrintBlockedMessage(gate.reason);
+      const blocked = purchaseBarcodePrintBlockedMessage(("reason" in gate ? gate.reason : "unsaved-draft"));
       toast({
         title: blocked.title,
         description: blocked.description,
@@ -8453,7 +8453,7 @@ const PurchaseEntry = () => {
                     ) {
                       const reason = purchaseBarcodePrintGate.allowed
                         ? "unsaved-draft"
-                        : purchaseBarcodePrintGate.reason;
+                        : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
                       const blocked = purchaseBarcodePrintBlockedMessage(reason);
                       toast({
                         title: blocked.title,
@@ -8531,7 +8531,7 @@ const PurchaseEntry = () => {
                       ) {
                         const reason = purchaseBarcodePrintGate.allowed
                           ? "unsaved-draft"
-                          : purchaseBarcodePrintGate.reason;
+                          : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
                         const blocked = purchaseBarcodePrintBlockedMessage(reason);
                         toast({
                           title: blocked.title,
