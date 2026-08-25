@@ -71,7 +71,7 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | ID | Function | Kind | Sangamn |
 |---|---|---|---|
 | **S-JS** | `computeSnapshotForSupplier` / `fetchSupplierBalanceSnapshot` in `src/utils/supplierBalanceUtils.ts` | JS canonical | **Rs 1,54,648 Cr known right** (`src/utils/supplierBalanceUtils.test.ts`) |
-| **S-PARTY** | `get_supplier_party_balances` via `fetchAllSupplierPartyBalances` | SQL | Unverified. Separate function from S-JS. Supplier Balances page never calls `supplierBalanceUtils`. |
+| **S-PARTY** | `get_supplier_party_balances` via `fetchAllSupplierPartyBalances` | SQL | Repo migration `20261102120000_supplier_party_balances_paid_matches_ledger.sql` aims to align this RPC with S-JS. The Supplier Balances page still does not call `supplierBalanceUtils`. Treat as unverified vs Sangamn until a live equality check. |
 | **S-ORG** | `get_organization_supplier_payable_summary` | SQL org total | Unverified vs sum of S-JS. Owner Dashboard KPI uses this; Accounts Outstanding payable card uses sum of S-JS instead. |
 | **S-TXN** | Running balance from Supplier Ledger transaction rows | JS independent | Table close is this. PDF table total is this. PDF footer now uses S-JS (the Sangamn fix). If transaction construction drifts from S-JS, table and footer disagree again. |
 | **S-OB** | `suppliers.opening_balance` only | Master field | **Known wrong** as "outstanding" (Owner Purchase Dashboard, AI assistant fallback). |
@@ -165,7 +165,7 @@ Naive independent (also wrong, different formula): **C22, C23**, salesman list f
 | S10 | Supplier History dialog | `src/components/SupplierHistoryDialog.tsx` | S-JS | JS | **Right** |
 | S11 | Accounts Outstanding — payable headline | `src/pages/Accounts.tsx` `sumOrgSupplierPayableFromSnapshots` | S-JS (sum of positive snapshot balances) | JS | **Right** (same function as S01) |
 | S12 | Owner Dashboard — supplier payable KPI | `OwnerDashboard.tsx` via `fetchOrganizationSupplierPayableSummary` | S-ORG | SQL | Unverified. Can disagree with S11. |
-| S13 | Supplier Balances page (`/supplier-party-balances`) | `src/pages/SupplierPartyBalancesPage.tsx` | S-PARTY | SQL-only | Unverified. This is the supplier analogue of the Farhaan list bug: **no JS enricher, does not call `supplierBalanceUtils`.** Highest remaining recurrence risk. |
+| S13 | Supplier Balances page (`/supplier-party-balances`) | `src/pages/SupplierPartyBalancesPage.tsx` | S-PARTY | SQL-only | Unverified vs Sangamn. SQL rewrite exists in-repo to match S-JS paid/CN rules, but this page still never calls `supplierBalanceUtils`. Highest remaining recurrence risk until Phase 2 equality. |
 | S14 | Supplier Balances Excel / PDF | same | S-PARTY | SQL-only | Same as S13 |
 | S15 | Mobile Owner — supplier balance report | `MobileOwnerBalanceReports.tsx` | S-JS | JS | **Right** |
 | S16 | Owner Purchase Dashboard — supplier outstanding list | `src/components/mobile/OwnerPurchaseDashboard.tsx` | S-OB (`opening_balance > 0`) | Master field | **Known wrong** as outstanding (not the Sangamn double-count; a different lie) |
