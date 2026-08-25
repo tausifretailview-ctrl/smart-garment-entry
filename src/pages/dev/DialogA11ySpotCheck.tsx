@@ -35,7 +35,7 @@ export default function DialogA11ySpotCheck() {
         <Button onClick={() => setCustomerOpen(true)}>New Customer (no desc)</Button>
       </div>
 
-      <MixPaymentDialog open={mixOpen} onOpenChange={setMixOpen} billAmount={681} />
+      <MixPaymentDialog open={mixOpen} onOpenChange={setMixOpen} billAmount={681} onSave={() => setMixOpen(false)} />
       <KeyboardShortcutsModal open={keysOpen} onOpenChange={setKeysOpen} context="general" />
       <PriceSelectionDialog
         open={priceOpen}

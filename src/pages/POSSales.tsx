@@ -1153,7 +1153,7 @@ export default function POSSales() {
   const handleBarcodeInputBlur = useCallback(() => {
     if (isIOS) return;
     if (barcodeBlurRecoveryTimerRef.current) clearTimeout(barcodeBlurRecoveryTimerRef.current);
-    barcodeBlurRecoveryTimerRef.current = window.setTimeout(() => {
+    barcodeBlurRecoveryTimerRef.current = setTimeout(() => {
       barcodeBlurRecoveryTimerRef.current = null;
       if (shouldSkipBarcodeFocusRecovery(document.activeElement)) return;
       focusBarcodeScanInput();
@@ -1194,7 +1194,7 @@ export default function POSSales() {
     };
 
     if (!attachVisibilityObserver()) {
-      setupTimer = window.setTimeout(() => attachVisibilityObserver(), 200);
+      setupTimer = setTimeout(() => attachVisibilityObserver(), 200);
     }
 
     return () => {
