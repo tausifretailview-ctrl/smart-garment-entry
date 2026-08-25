@@ -882,11 +882,7 @@ export default function SaleOrderEntry() {
       customerForm.reset();
       setOpenCustomerDialog(false);
       
-      if (result.isExisting) {
-        toast({ title: "Customer Found", description: `${result.customer.customer_name} already exists and has been selected` });
-      } else {
-        toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
-      }
+      toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }

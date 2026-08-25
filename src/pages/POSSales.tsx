@@ -5648,7 +5648,7 @@ export default function POSSales() {
       }, 100);
     },
     onError: (error: any) => {
-      toast.error("Error adding customer", { description: error.message });
+      toast.error(error?.message || "Error adding customer");
     },
   });
 

@@ -2884,20 +2884,12 @@ export default function SalesInvoice() {
         transport_details: values.transport_details,
         organization_id: currentOrganization.id,
       });
-      
-      if (result.isExisting) {
-        toast({
-          title: "Customer Found",
-          description: `${result.customer.customer_name} already exists and has been selected`,
-        });
-      } else {
-        toast({
-          title: "Customer Created",
-          description: `${result.customer.customer_name} has been added successfully`,
-        });
-      }
-      
-      // Auto-select the customer
+
+      toast({
+        title: "Customer Created",
+        description: `${result.customer.customer_name} has been added successfully`,
+      });
+
       setSelectedCustomerId(result.customer.id);
       setSelectedCustomer(result.customer);
       

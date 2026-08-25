@@ -18,57 +18,135 @@ export interface CreateCustomerResult {
   isExisting: boolean;
 }
 
+export type CustomerDuplicateRow = {
+  id: string;
+  customer_name: string | null;
+  phone: string | null;
+};
+
+export const CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG =
+  "This name or number is already available. Use a different name or number.";
+
+export function normalizeCustomerNameKey(name?: string | null): string {
+  return (name || "").trim().toUpperCase();
+}
+
 /**
- * Creates a new customer or returns existing one if a customer with the same
- * normalized phone number already exists. This prevents duplicates across
- * different phone formats (e.g., 919819082836 vs 9819082836).
+ * Pick a name/phone duplicate from already-loaded rows (unit-tested).
+ * Name match is exact after trim + uppercase. Phone uses normalized last-10 digits.
+ */
+export function matchDuplicateCustomer(
+  rows: CustomerDuplicateRow[],
+  input: { nameKey: string; normalizedPhone: string | null },
+): CustomerDuplicateRow | null {
+  if (input.normalizedPhone) {
+    const byPhone = rows.find(
+      (c) => normalizePhoneNumber(c.phone) === input.normalizedPhone,
+    );
+    if (byPhone) return byPhone;
+  }
+  if (input.nameKey) {
+    const byName = rows.find(
+      (c) => normalizeCustomerNameKey(c.customer_name) === input.nameKey,
+    );
+    if (byName) return byName;
+  }
+  return null;
+}
+
+async function loadPhoneDuplicateCandidates(
+  organizationId: string,
+  normalizedPhone: string,
+  excludeId?: string,
+): Promise<CustomerDuplicateRow[]> {
+  let exactQuery = supabase
+    .from("customers")
+    .select("id, customer_name, phone")
+    .eq("organization_id", organizationId)
+    .eq("phone", normalizedPhone)
+    .is("deleted_at", null);
+  if (excludeId) exactQuery = exactQuery.neq("id", excludeId);
+
+  const { data: exactMatch, error: exactError } = await exactQuery.maybeSingle();
+  if (exactError) throw exactError;
+  if (exactMatch) return [exactMatch as CustomerDuplicateRow];
+
+  const lastDigits = normalizedPhone.slice(-10);
+  let fuzzyQuery = supabase
+    .from("customers")
+    .select("id, customer_name, phone")
+    .eq("organization_id", organizationId)
+    .ilike("phone", `%${lastDigits}`)
+    .is("deleted_at", null)
+    .limit(5);
+  if (excludeId) fuzzyQuery = fuzzyQuery.neq("id", excludeId);
+
+  const { data: fuzzyMatches, error: fuzzyError } = await fuzzyQuery;
+  if (fuzzyError) throw fuzzyError;
+  return (fuzzyMatches || []) as CustomerDuplicateRow[];
+}
+
+async function loadNameDuplicateCandidates(
+  organizationId: string,
+  nameKey: string,
+  excludeId?: string,
+): Promise<CustomerDuplicateRow[]> {
+  let query = supabase
+    .from("customers")
+    .select("id, customer_name, phone")
+    .eq("organization_id", organizationId)
+    .eq("customer_name", nameKey)
+    .is("deleted_at", null)
+    .limit(5);
+  if (excludeId) query = query.neq("id", excludeId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as CustomerDuplicateRow[];
+}
+
+/** Org-scoped active customer with the same name or normalized phone. */
+export async function findExistingCustomerByNameOrPhone(
+  organizationId: string,
+  params: { customer_name?: string; phone?: string | null },
+  options?: { excludeId?: string },
+): Promise<CustomerDuplicateRow | null> {
+  const nameKey = normalizeCustomerNameKey(params.customer_name);
+  const normalizedPhone = params.phone ? normalizePhoneNumber(params.phone) || null : null;
+  if (!nameKey && !normalizedPhone) return null;
+
+  const [phoneRows, nameRows] = await Promise.all([
+    normalizedPhone
+      ? loadPhoneDuplicateCandidates(organizationId, normalizedPhone, options?.excludeId)
+      : Promise.resolve([] as CustomerDuplicateRow[]),
+    nameKey
+      ? loadNameDuplicateCandidates(organizationId, nameKey, options?.excludeId)
+      : Promise.resolve([] as CustomerDuplicateRow[]),
+  ]);
+
+  return matchDuplicateCustomer([...phoneRows, ...nameRows], { nameKey, normalizedPhone });
+}
+
+/**
+ * Inserts a new customer. Throws if the same name or phone already exists
+ * in the organization — never silently reuses / "merges" the old row.
  */
 export async function createOrGetCustomer(params: CreateCustomerParams): Promise<CreateCustomerResult> {
   const normalizedPhone = params.phone ? normalizePhoneNumber(params.phone) : null;
-  
-  // If phone is provided, check for existing customer by phone
-  if (normalizedPhone) {
-    // Server-side search for existing customer by normalized phone
-    const { data: exactMatch, error: exactError } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("organization_id", params.organization_id)
-      .eq("phone", normalizedPhone)
-      .is("deleted_at", null)
-      .maybeSingle();
-    
-    if (exactError) throw exactError;
-    
-    if (exactMatch) {
-      return { customer: exactMatch, isExisting: true };
-    }
-    
-    // Also search for variations (with/without country code) using ilike
-    const lastDigits = normalizedPhone.slice(-10);
-    const { data: fuzzyMatches, error: fuzzyError } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("organization_id", params.organization_id)
-      .ilike("phone", `%${lastDigits}`)
-      .is("deleted_at", null)
-      .limit(5);
-    
-    if (fuzzyError) throw fuzzyError;
-    
-    const existing = fuzzyMatches?.find(c => 
-      normalizePhoneNumber(c.phone) === normalizedPhone
-    );
-    
-    if (existing) {
-      return { customer: existing, isExisting: true };
-    }
-  }
+  const nameKey = normalizeCustomerNameKey(params.customer_name);
 
-  if (!params.customer_name?.trim() && !normalizedPhone) {
+  if (!nameKey && !normalizedPhone) {
     throw new Error("Either customer name or phone number is required");
   }
-  
-  // Create new customer
+
+  const existing = await findExistingCustomerByNameOrPhone(params.organization_id, {
+    customer_name: params.customer_name,
+    phone: params.phone,
+  });
+  if (existing) {
+    throw new Error(CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG);
+  }
+
   const customerData: any = {
     customer_name: (params.customer_name?.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
     phone: normalizedPhone || null,
@@ -80,15 +158,15 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
     transport_details: params.transport_details || null,
     organization_id: params.organization_id,
   };
-  
+
   const { data: newCustomer, error } = await supabase
     .from("customers")
     .insert([customerData])
     .select()
     .single();
-    
+
   if (error) throw error;
-  
+
   return { customer: newCustomer, isExisting: false };
 }
 
@@ -97,13 +175,12 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
  */
 export async function findCustomerByNormalizedPhone(
   phone: string,
-  organizationId: string
+  organizationId: string,
 ): Promise<any | null> {
   const normalizedPhone = normalizePhoneNumber(phone);
-  
+
   if (!normalizedPhone) return null;
-  
-  // Server-side search for exact match first
+
   const { data: exactMatch, error: exactError } = await supabase
     .from("customers")
     .select("*")
@@ -111,11 +188,10 @@ export async function findCustomerByNormalizedPhone(
     .eq("phone", normalizedPhone)
     .is("deleted_at", null)
     .maybeSingle();
-  
+
   if (exactError) throw exactError;
   if (exactMatch) return exactMatch;
-  
-  // Fuzzy match for phone variations
+
   const lastDigits = normalizedPhone.slice(-10);
   const { data: fuzzyMatches, error: fuzzyError } = await supabase
     .from("customers")
@@ -124,8 +200,8 @@ export async function findCustomerByNormalizedPhone(
     .ilike("phone", `%${lastDigits}`)
     .is("deleted_at", null)
     .limit(5);
-  
+
   if (fuzzyError) throw fuzzyError;
-  
-  return fuzzyMatches?.find(c => normalizePhoneNumber(c.phone) === normalizedPhone) || null;
+
+  return fuzzyMatches?.find((c) => normalizePhoneNumber(c.phone) === normalizedPhone) || null;
 }
