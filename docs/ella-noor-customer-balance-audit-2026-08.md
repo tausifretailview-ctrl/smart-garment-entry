@@ -1,8 +1,8 @@
 # ELLA NOOR — Customer balance audit (2026-08)
 
-**Status:** measurement + classification only. **No repairs. No voucher writes. No `paid_amount` / `legacy_paid_baseline` updates. No party-RPC patch.**  
+**Status:** measurement + classification + **repair queue (SELECT only)**. **No repairs. No voucher writes. No `paid_amount` / `legacy_paid_baseline` updates. No party-RPC patch.**  
 **Date of this pass:** 2026-08-25  
-**Named class added:** Party trusts `paid_amount` over receipts — **234** of 251 zero-receipt mismatches (Step 1e join). 17 leftover + 466 with receipts: Step 2-17 / 2-466 / 2c.  
+**Named class:** Party trusts `paid_amount` over receipts — **647** of 717 (**₹1,10,91,413**, 96% of drift). **682** classified (95%); **35** genuinely unexplained (do not force-fit).  
 **Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67` (confirmed live via `get_org_public_info`)  
 **Runner SQL:** `scripts/ella-noor-customer-balance-audit-2026-08.sql`  
 **Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance`  
@@ -29,27 +29,27 @@ This pass **did not repair anything** and **did not write**. No change to `_get_
 
 **Step 1e (decisive, now classified):** of the **251** zero-receipt customers with real invoiced amount, **`n_flagged_whose_gap_equals_paid_amount = 234`**. That is the named pattern **Party trusts `paid_amount` over receipts** — live balance credits `sales.paid_amount` directly; independent recompute (receipts + tender + advances) disagrees. Same field as the documented `legacy_paid_baseline` self-reinflation bug. This is **not** a data-entry mistake on those 234 accounts. `credit_applied` did **not** explain the leftover **17**.
 
-Do **not** fold `paid_amount` into the seven-component recompute. Repair (party’s trust in `paid_amount`, and/or upstream baseline reinflation, or both) needs Tausif’s sign-off, same as every other repair this month.
+**Step 2c (headline, live):** **682** of 717 customers classified (95%). **647** of those (**₹1,10,91,413**, 96% of ₹1,15,59,763) are **Party trusts `paid_amount` over receipts**. **35** other named patterns. **35** genuinely unexplained — their own worklist; do not force-fit.
+
+**Step 5 is now the repair queue** (names, phone, proposed write, P0/P1/P2). Still SELECT-only. The `paid_amount` architecture conversation (correct `paid_amount` vs stop crediting it in the party function) is gated on the **P0 count and P0 rupee exposure** from Step 5b.
+
+Do **not** fold `paid_amount` into the seven-component recompute. Repair needs Tausif’s sign-off, same as every other repair this month.
 
 ### Classification headlines (717 customers / ₹1,15,59,763)
 
 | Slice | Customers | Rupees of abs drift |
 |-------|-----------|---------------------|
 | Total mismatch | **717** | **₹1,15,59,763** |
-| Zero-receipt + invoiced (Step 1e set) | **251** | *paste Step 2c / 1e `abs_gap_on_flagged`* |
-| **Party trusts `paid_amount`** — 1e join on the 251 | **234** | *paste Step 2-paid `SUM(abs_gap)` / Step 2c* |
-| Leftover of the 251 (`credit_applied` and `paid_amount` both ruled out) | **17** | *paste Step 2-17* |
-| Some receipts recorded, still mismatched | **466** (= 717 − 251) | *paste Step 2-466 `abs_gap_on_466`* |
-| Of those 466, same pattern fully (1e join) | *paste `n_466_full_1e_join`* | *paste `rupees_466_full`* |
-| Of those 466, inflation (gap ≈ paid − receipts) | *paste `n_466_inflation`* | *paste `rupees_466_inflation`* |
-| Of those 466, partial | *paste `n_466_partial`* | *paste `rupees_466_partial`* |
-| Of those 466, not this pattern | *paste `n_466_not_explained_by_paid`* | *paste `rupees_466_not_this_pattern`* |
-| **Named pattern total** (234 + 466 full/inflation/partial) | *paste Step 2c `n_named_party_trusts_paid_amount`* | *paste `rupees_party_trusts_paid_amount`* |
-| Other named patterns (dup receipt, CN, baseline, adj, advance, refund, orphan) — remainder only, no double-count | *paste `n_other_named_patterns`* | *paste `rupees_other_named_patterns`* |
-| **Classified** (named pattern + other named) | *paste `n_classified`* | sum of the two rupee rows |
-| **Genuinely unexplained** | *paste `n_genuinely_unexplained`* | *paste `rupees_genuinely_unexplained`* |
+| **Classified** | **682** (95%) | *paste Step 2c remainder + ₹1,10,91,413* |
+| **Party trusts `paid_amount` over receipts** | **647** | **₹1,10,91,413** (96% of total drift) |
+| Other named patterns (dup receipt, CN, baseline, adj, advance, refund, orphan) | **35** (= 682 − 647) | *paste `rupees_other_named_patterns`* |
+| **Genuinely unexplained** (own worklist — do not force-fit) | **35** | *paste `rupees_genuinely_unexplained`* |
+| Zero-receipt + invoiced (Step 1e set) | **251** | *paste* |
+| Of those 251, 1e join (subset of the 647) | **234** | *paste* |
+| Leftover of the 251 | **17** | *paste Step 2-17* |
+| Some receipts recorded, still mismatched | **466** | *paste Step 2-466* |
 
-Run **Step 2-paid**, **Step 2-17**, **Step 2-466**, **Step 2c** in the SQL editor. This Cloud Agent cannot aggregate tenant rows (`42501` / RLS empty). **Empty RLS is not a zero split.** Known counts that do not need a re-run: **234 / 17 / 251 / 466 / 717**. Names and rupees do.
+Run **Step 5 + 5b + 5-unexplained** in the SQL editor for names and the P0 exposure. This Cloud Agent cannot aggregate tenant rows (`42501` / RLS empty). **Empty RLS is not a zero P0.**
 
 **Do not zero `legacy_paid_baseline` from this document.**
 
@@ -287,11 +287,11 @@ From `docs/ella-noor-phase1-repair-queue.md`. Three days old. Use only as a scal
 
 ## 2. Step 2 classification table
 
-Primary class is assigned in this **order** (first match wins) so the 234 are tagged **Party trusts `paid_amount` over receipts**, not dumped into “unclear”. Duplicate receipts stay distinct from CN.
+Primary class is assigned in this **order** (first match wins) so `party_trusts_paid_amount` is tagged, not dumped into “unclear”. Duplicate receipts stay distinct from CN. **682** classified / **35** unexplained.
 
 | Class | What it is | Detector (this audit) | This-pass count | Last known |
 |-------|------------|------------------------|-----------------|------------|
-| **Party trusts `paid_amount` over receipts** | Live balance credits `sales.paid_amount` directly; independent recompute (receipts + tender + advances) disagrees. Same field behind `legacy_paid_baseline` self-reinflation. Not a data-entry mistake on the customer’s account — the party function is reading a less reliable source of truth. **Not folded into recompute.** | Step 1e / 2-paid join: `ABS(gap_recompute_minus_party − paid_amount_sum) <= 1`. On the 466, also inflation (`gap ≈ paid − receipts` or per-sale `SUM(GREATEST(0, paid − receipts_on_sale))`) and partial (inflation covers some of the gap). | **234** of the 251 (full 1e join). 466 full/partial: *paste Step 2-466* | Older party v2 `GREATEST(paid_amount, tender)` even when tender = 0 |
+| **Party trusts `paid_amount` over receipts** | Live balance credits `sales.paid_amount` directly; independent recompute (receipts + tender + advances) disagrees. Same field behind `legacy_paid_baseline` self-reinflation. Not a data-entry mistake on the customer’s account — the party function is reading a less reliable source of truth. **Not folded into recompute.** | Step 1e / 2-paid join: `ABS(gap_recompute_minus_party − paid_amount_sum) <= 1`. On the 466, also inflation (`gap ≈ paid − receipts` or per-sale `SUM(GREATEST(0, paid − receipts_on_sale))`) and partial (inflation covers some of the gap). | **647** customers / **₹1,10,91,413**. Includes **234** of the 251 zero-receipt 1e join. | Older party v2 `GREATEST(paid_amount, tender)` even when tender = 0 |
 | **Paid-at-sale tender residual** | Voucher receipts missing; cash sits on `cash_amount`/`card_amount`/`upi_amount` | Step 1 `tender_closes_mismatch` | **0** (disproved — tender columns empty) | Diagnostic kept |
 | **Dual-write (receipt + tender)** | Same sale has a receipt voucher **and** non-zero tender | Step 1d FLAG list | **0 sales** | Keep the FLAG query |
 | **`credit_applied` leftover** | Legacy SRA mirror vs a real at-sale credit channel | Step 1e `sum_credit_applied_beyond_sra` | **did not explain the leftover 17** | Spec: mirror only |
@@ -307,7 +307,7 @@ Primary class is assigned in this **order** (first match wins) so the 234 are ta
 | **Receipts exceed invoice** | Receipts > net + SRA + ₹1 | `v_accounting_invariants.receipts_exceed_invoice` joined | *paste Step 3a* | digest (29 Jul+) |
 | **Duplicate voucher number** | Two+ live vouchers share `voucher_number` | `v_accounting_invariants.duplicate_voucher_number` joined | *paste Step 3a* | digest (29 Jul+) |
 | **Return pool stale** | Remaining sale-return credit disagrees with party / CAB hygiene | Step 4 line-by-line `pending_sale_returns` vs party | *paste* | Sharmin / Tanvi R3 done Aug 22 |
-| **Off, cause unclear** | Residual after every named class (including party-trusts-paid_amount) | Step 2-17 / 2c `off_cause_unclear` | leftover **17** until 2-17 lands; 466 remainder *paste* | — |
+| **Off, cause unclear** | Residual after every named class (including party-trusts-paid_amount) | Step 2c / Step 5-unexplained `off_cause_unclear` | **35** — own worklist; do **not** force-fit | — |
 
 If a flagged customer’s mismatch **collapses** when `CustomerReceipt` is added to the receipt filter, the report line is a **query artifact**, not a customer error. Step 1’s `vocab_query_artifact` column is that test.
 
@@ -439,23 +439,64 @@ Paste Step 4a / 4b here:
 
 **No item in this list is authorised to run.** Dry-run SELECT, five-row hand-check, repair tag, and invariant digest remain mandatory before any future mutate — see bulk-money rules in `AGENTS.md`.
 
-Ranking in Step 5 SQL:
+The full 717-row export is **Step 5** in `scripts/ella-noor-customer-balance-audit-2026-08.sql` (`LIMIT 1000` — one page covers 717). Markdown here holds the headline, the P0 slice (once pasted), and the 35 unexplained as their own worklist. Do not dump 717 names into this file.
 
-| Tier | Rule (this audit) | Action when a later repair pass is signed |
-|------|-------------------|-------------------------------------------|
-| **P0** | `ABS(party) ≥ ₹1,00,000` **or** baseline overlap `≥ ₹50,000` | Owner review first. Baseline overlap: capture live `compute_sale_settlement` DDL before touching the column. Do not zero all baselines. |
-| **P1** | Named class: party-trusts-paid_amount, duplicate receipt, CN double-count, `legacy_paid_baseline` overlap, receipts-exceed, manual-adj / advance / refund / orphan | Classify correctly. Do not repair party-trusts-paid_amount without Tausif sign-off. |
-| **P2** | Remaining non-settled / micro drift / extra-term alignment | No write unless the shop disputes. |
+Tiers (this pass — matches Step 5 SQL; baseline-overlap-only is no longer a P0 shortcut):
 
-### Queue from this pass
+| Tier | Rule | What a later signed repair would do |
+|------|------|-------------------------------------|
+| **P0** | `ABS(party_signed) ≥ ₹1,00,000` **or** `ABS(gap) ≥ ₹50,000` | Owner review first. For `party_trusts_paid_amount`: architecture decision (A vs B below) before any write. |
+| **P1** | Named pattern **and** (`ABS(party_signed) ≥ ₹5,000` **or** `ABS(gap) ≥ ₹5,000`) | Pattern-specific write in `proposed_write` (named vouchers / sales). |
+| **P2** | Remaining named, or unexplained with `ABS(gap) > ₹1` | No write unless the shop disputes. Unexplained stay unexplained. |
 
-Not ranked (RPC 401). Paste Step 5 here:
+`proposed_write` is specific, same grain as Siya Kapoor / Parishma / Farhaan Fab this month:
+
+| `named_pattern` | Write that would fix it (still not authorised) |
+|-----------------|------------------------------------------------|
+| `party_trusts_paid_amount` | **(A)** correct `sales.paid_amount` to match receipts+tender+advances, **or (B)** stop crediting `paid_amount` in the party function. Both left as options — architecture decision not made. Do not write either from this queue. |
+| `duplicate_receipt` | Soft-delete the **named voucher(s)** on the row after dry-run + 5-row hand-check (Parishma class — do not auto-delete). |
+| `legacy_paid_baseline` | Named **sale(s)** on the row (Asma Shareef / INV/26-27/2288 shape). Capture live `compute_sale_settlement` DDL first. Do not zero all baselines. |
+| `cn_double_count` | Named **sale(s)**. Repair only via `adjust_invoice_balance` (Shumama R2). No bare `createReceiptVoucher`. |
+| `manual_adjustment_overlay` | Named **adjustment row(s)**. Do not reverse a shop-entered patch without dry-run. |
+| `advance_over_application` | Named **advance_number(s)**. Do not auto-refund (Anusha class — human judgement). |
+| `unrecorded_refund` | Named **payment voucher(s)**. Confirm real refund vs CN memo (Farhaan Fab) before any write. |
+| `orphan_receipt` | Named **deleted sale + voucher**. Recycle-bin investigation — no hard delete. |
+| `off_cause_unclear` | **No write.** Fresh look. Do not force-fit into `party_trusts_paid_amount`. |
+
+### Step 5b — P0 count and rupee exposure (paste the one-row result)
+
+This is the number that decides how urgently the `paid_amount` architecture conversation needs to happen. Run **Step 5b**. Empty RLS is not zero P0.
+
+| Metric | Value |
+|--------|-------|
+| `n_p0` | *paste — P0 customer count* |
+| `abs_gap_p0` | *paste — P0 drift rupees (primary exposure)* |
+| `abs_party_p0` | *paste — sum of \|party_signed\| on P0* |
+| `n_p0_party_trusts_paid_amount` | *paste* |
+| `abs_gap_p0_party_trusts_paid_amount` | *paste — how much of P0 is the named paid_amount pattern* |
+| `n_p0_unexplained` | *paste — P0 that still need a fresh look* |
+| `n_p1` / `n_p2` | *paste* |
+| `n_classified` / `n_genuinely_unexplained` | expect **682** / **35** |
 
 ```
-(paste)
+(paste Step 5b one-row result)
 ```
 
-### Last-known queue (22 Aug — stale)
+### P0 names (paste Step 5 filtered `queue_tier = 'P0'`, or the top of the Step 5 sort — P0 is first)
+
+| Customer | Phone | Party | Gap | Pattern | Proposed write (queue only) |
+|----------|-------|-------|-----|---------|-----------------------------|
+| *paste from Step 5* | | | | | |
+
+### The 35 genuinely unexplained (Step 5-unexplained)
+
+**Do not fold these into any existing pattern by force-fit.** They are not a residual bucket for `party_trusts_paid_amount`. `force_fit_forbidden = true` on every row. If a later pass finds a real pattern, add a **new named class** — do not stretch 1e/2c to absorb them.
+
+```
+(paste Step 5-unexplained — expect 35 names)
+```
+
+### Last-known queue (22 Aug — stale; superseded by Step 5)
 
 | Tier | Customer | Last-known party | Issue | Repair status as of 22 Aug |
 |------|----------|------------------|-------|----------------------------|
@@ -467,9 +508,9 @@ Not ranked (RPC 401). Paste Step 5 here:
 | P1 | Saba Ali | ₹90,843 Dr | CN / pending SR | Breakdown pending |
 | P1 | Siya Kapoor | ₹62,250 Dr | CN + advance | Breakdown pending |
 | P2 | NASIM VAPI, ASMA AKIL MEMON, Saniya Mahaldar, Fariba Qureshi, Sana Nasir | Cr / advance-heavy | Advance pool | §1D / §1E |
-| — | Asma Shareef (INV/26-27/2288) | — | `legacy_paid_baseline` ∩ receipt | **Named check this audit;** last July window 59 sales / ₹3.32L. Not in the Aug 22 P0 list because it was filed as a paid-amount / invoice-UI bug, not a party-RPC mismatch |
+| — | Asma Shareef (INV/26-27/2288) | — | `legacy_paid_baseline` ∩ receipt | Named check this audit; last July window 59 sales / ₹3.32L |
 
-R5 (11 paid-drift invoices) and Sharmin R3 are **done** as of 22 Aug; do not re-queue as if untouched.
+R5 (11 paid-drift invoices) and Sharmin R3 are **done** as of 22 Aug; do not re-queue as if untouched. A name reappearing on Step 5 with `party_trusts_paid_amount` is a **different** class than the Aug 22 CN/return work.
 
 ---
 
@@ -485,6 +526,7 @@ Before treating any Step 1 flag as a real customer error:
 6. Do not `SUM(receipts + tender)` on a dual-write sale. Residual is `LEAST(net, GREATEST(receipts, tender)) − receipts`. Dual-write rows stay a FLAG until a later pass.
 7. Gap equals `SUM(paid_amount)` → **Party trusts `paid_amount` over receipts**, not “off, cause unclear”, and not generic `paid_amount_drift`. Do not fold `paid_amount` into `recomputed_7`.
 8. `legacy_paid_baseline` overlap still requires `baseline > 0 AND receipts > 0` on the same sale. A zero-receipt row whose gap equals `paid_amount` is the new named class, not the Asma Shareef overlap shape.
+9. The **35** `off_cause_unclear` customers are a separate worklist. Do not stretch 1e/2c to absorb them.
 
 ---
 
@@ -505,7 +547,9 @@ In the SQL editor, in order:
 11. Step 2 + 2b — invariant/CN/baseline list (does not include the 234)  
 12. Step 3a–3e — invariant join + named baseline check  
 13. Step 4a / 4b — top 25 Dr / Cr  
-14. Step 5 — queue  
+14. **Step 5** — 717-row queue (name, phone, pattern, proposed_write, P0/P1/P2)  
+15. **Step 5b** — P0 count + P0 rupee exposure  
+16. **Step 5-unexplained** — the 35 (do not force-fit)  
 
 Paste the result sets into the slots above. Still no writes.
 
@@ -523,12 +567,14 @@ Paste the result sets into the slots above. Still no writes.
 | 2-paid | same | **234 names**, `primary_class = party_trusts_paid_amount` |
 | 2-17 | same | Leftover **17** + other named-pattern flags |
 | 2-466 / 2-466-list | same | 466 full / inflation / partial + names |
-| 2c | same | Rupee split of ₹1,15,59,763 (named vs other named vs unexplained) |
+| 2c | same | Rupee split — **647 / ₹1,10,91,413** party-trusts; **682** classified; **35** unexplained |
 | 2 / 2b | same | Invariant/CN/baseline list + digest counts (not the 234) |
 | 3a–3d | same | `v_accounting_invariants` joins |
 | 3e / 3e-sum | same | Named `legacy_paid_baseline` check |
 | 4a / 4b | same | Top-25 line-by-line |
-| 5 | same | P0/P1/P2 queue (SELECT only) |
+| 5 | same | 717-row P0/P1/P2 queue with `proposed_write` (SELECT only) |
+| 5b | same | **P0 count + P0 rupee exposure** (one row) |
+| 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
 
 ## Appendix B — What was not done
 
@@ -543,3 +589,4 @@ Paste the result sets into the slots above. Still no writes.
 - No summing of tender columns onto receipts (dual-write would double-count)
 - No decision on which side of a dual-write sale is “the” payment
 - No repair of party-trusts-paid_amount (Tausif sign-off, separate pass)
+- No force-fit of the 35 unexplained into an existing named pattern
