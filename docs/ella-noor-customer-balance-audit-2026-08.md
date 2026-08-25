@@ -1,13 +1,9 @@
 # ELLA NOOR — Customer balance audit (2026-08)
 
-**Status:** measurement + classification + **repair queue (SELECT only)**. **No repairs. No voucher writes. No `paid_amount` / `legacy_paid_baseline` updates. No party-RPC patch.**  
-**Date of this pass:** 2026-08-25  
-**Named class:** Party trusts `paid_amount` over receipts — **647** of 717 (**₹1,10,91,413**, 96% of drift). **682** classified (95%); **35** genuinely unexplained. **P0 = 33**, all `party_trusts_paid_amount` (Step 5b).  
-**Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67` (confirmed live via `get_org_public_info`)  
-**Runner SQL:** `scripts/ella-noor-customer-balance-audit-2026-08.sql`  
-**Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance`  
-**Independent recompute:** seven signed components below, threshold **> ₹1**  
-**Batching:** every detail result set `LIMIT 1000` (PostgREST / SQL-editor row cap). Headline aggregates are single-row.
+**Status:** **SUPERSEDED (evening 2026-08-25).** Today's **717 / 647 / ₹1,10,91,413** classification is **not** to be treated as a live-data finding until Step 6 is pasted. SELECT-only. **No writes. No `paid_amount` architecture recommendation (A or B).**  
+**Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67`  
+**Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance` (live page)  
+**Run next:** `scripts/ella-noor-step6-memo-hole.sql` (6a Sana, 6b CN shape) then `scripts/ella-noor-step6-org.sql` (6d headline, 6e remaining)
 
 Related (do not duplicate, do not treat as this pass):
 
@@ -19,9 +15,51 @@ Related (do not duplicate, do not treat as this pass):
 
 ---
 
-## Verdict
+## Correction — Sana Nasir (recompute hole, not live party)
+
+Manual check of the largest P0 line (Sana Nasir, ₹11,00,900 gap) found **the live page is correct and the independent recompute is wrong.**
+
+She deposited ₹11,20,900 in advances; ₹11,00,900 is `used_amount`. 93 of 94 receipt vouchers are `advance_adjustment` totalling exactly ₹11,00,900. One real cash/UPI voucher: ₹13,550. **used + cash = ₹11,14,450 = total invoiced.** Remaining unused advance = ₹20,000 = the −₹20,000 Cr on the live page. **She owes nothing.**
+
+Today's seven-component sum excluded `advance_adjustment` via `_is_settlement_memo_receipt` and only subtracted `unused_advances` (remaining pool). Consumed `used_amount` sat in a hole between those two. The live party function already subtracts `advances_applied` (`used_amount`) **and** unused **and** excludes memos from cash — so the page was right.
+
+Including `advance_adjustment` in receipts does **not** double-count with `unused_advances`, because unused is leftover, not consumption. Recompute with those vouchers included = −₹20,000, matching the live page. Equivalent when vouchers match used: also subtract `used_amount` and keep the memo exclusion (party-parity column `recomputed_7_plus_used_amount`).
+
+`pending_sale_returns` **is** the same remaining-balance shape (via `_sale_return_remaining_credit_for_balance`). CN **consumption** is `sale_return_adjust`, not pending_sr. Including `credit_note_adjustment` on top of SRA is the Farhaan Fab −₹2,800 double-count. **Do not copy the advance fix onto CN** until STEP 6b says `looks_like_advance_hole` (expect `sra_matches_cn_memos` instead).
+
+**paid_amount option A vs B is on hold.** A large share of the 647 "party trusts `paid_amount`" rows may be this hole (Sana's 1e join would fire: gap = used_amount). No architecture recommendation until 6d is pasted.
+
+| Formula | Sana Nasir signed balance |
+|---------|---------------------------|
+| Live party | **−₹20,000** (correct) |
+| Today's excl-memo 7-sum | ₹10,80,900 (wrong — hole = used_amount) |
+| Incl `advance_adjustment` in receipts | **−₹20,000** |
+| Excl-memo plus subtract `used_amount` | **−₹20,000** |
+
+Paste slots (SQL editor):
+
+| Section | File | Expect |
+|---------|------|--------|
+| **6a** | `scripts/ella-noor-step6-memo-hole.sql` | Sana: `party_signed = −20000`, `recomputed_7_incl_advance_memo` matches, `used_plus_cash_equals_invoiced` |
+| **6b** | same | Top 25 CN-memo customers: `sra_matches_cn_memos` vs `looks_like_advance_hole` |
+| **6d** (includes 6c) | `scripts/ella-noor-step6-org.sql` | `n_closed_by_incl_advance_memo`; `n_zero_memo_formulas_differ = 0`; `n_p0_after_incl_advance` |
+| **6e** | same | Remaining names after correction, biggest `gap_incl_advance` first |
+
+```
+(paste Step 6d one-row headline)
+```
+
+```
+(paste Step 6e remaining rows — this is the corrected P0/P1 list)
+```
+
+---
+
+## Verdict (morning 2026-08-25 — **do not act on these numbers**)
 
 This pass **did not repair anything** and **did not write**. No change to `_get_customer_party_balances_rows`, `paid_amount`, or `legacy_paid_baseline`.
+
+The morning headline below assumed the seven-component recompute was the independent truth. **Sana Nasir disproves that.** Keep the numbers as a before-snapshot of the *memo-blind* formula only.
 
 **Tender-column hypothesis: disproved for ELLA NOOR.** Step 1c came back with `paid_at_sale_tender = 0` on every customer, `n_dual_write_sales = 0`, and `abs_drift_with_tender_rupees` identical to the receipts-only figure (**₹1,15,59,763**). This org’s `cash_amount` / `card_amount` / `upi_amount` are empty.
 
@@ -66,7 +104,7 @@ Signed sum, matching `reconcile_customer_balance` / the verification recipe. `sa
 | 1 | `opening_balance` | + | `customers.opening_balance` |
 | 2 | `total_invoiced` | + | `sales.net_amount` (excl cancelled / hold) |
 | 3 | `sale_return_adjust_on_invoices` | − | `sales.sale_return_adjust`, gated on `items_gross` (party CASE) |
-| 4 | `receipt_payments` | − | cash + settlement discount on vouchers; **exclude** memos via `_is_settlement_memo_receipt`. **First run omitted POS/invoice tender columns** — see §1-tender |
+| 4 | `receipt_payments` | − | cash + settlement discount on vouchers. **Morning pass excluded memos** via `_is_settlement_memo_receipt`. **Step 6:** that exclusion plus remaining-only `unused_advances` drops consumed `used_amount` into a hole (Sana Nasir). Keep excl-memo columns; corrected column includes `advance_adjustment`. Do **not** include `credit_note_adjustment` until 6b confirms (SRA already holds CN apply). |
 | 4b | `paid_at_sale_tender` (diagnostic) | − | per-sale residual after `compute_sale_settlement`: `LEAST(net, GREATEST(receipts, cash+card+upi)) − receipts`. **Not** a raw sum of tender onto receipts |
 | 5 | `balance_adjustment` | + | `customer_balance_adjustments.outstanding_difference` |
 | 6 | `pending_sale_returns` | − | `_sale_return_remaining_credit_for_balance` (not `credit_status = 'pending'` only) |
@@ -453,7 +491,7 @@ Tiers (this pass — matches Step 5 SQL; baseline-overlap-only is no longer a P0
 
 | `named_pattern` | Write that would fix it (still not authorised) |
 |-----------------|------------------------------------------------|
-| `party_trusts_paid_amount` | **(A)** correct `sales.paid_amount` to match receipts+tender+advances, **or (B)** stop crediting `paid_amount` in the party function. Both left as options — architecture decision not made. Do not write either from this queue. |
+| `party_trusts_paid_amount` | **On hold.** Morning pass left (A) correct `paid_amount` vs (B) stop crediting it in party. Sana Nasir shows the 1e join can fire on the recompute hole. No A/B until Step 6d. |
 | `duplicate_receipt` | Soft-delete the **named voucher(s)** on the row after dry-run + 5-row hand-check (Parishma class — do not auto-delete). |
 | `legacy_paid_baseline` | Named **sale(s)** on the row (Asma Shareef / INV/26-27/2288 shape). Capture live `compute_sale_settlement` DDL first. Do not zero all baselines. |
 | `cn_double_count` | Named **sale(s)**. Repair only via `adjust_invoice_balance` (Shumama R2). No bare `createReceiptVoucher`. |
@@ -481,9 +519,9 @@ This is the number that decides how urgently the `paid_amount` architecture conv
 (paste Step 5b one-row result)
 ```
 
-### P0 names — Tausif review list (Step 5-P0)
+### P0 names — Tausif review list (Step 5-P0) — **superseded pending Step 6**
 
-All **33** are `party_trusts_paid_amount`. Sorted `ABS(gap) DESC`. Architecture decision still open: **(A)** correct `paid_amount` to receipts+tender+advances, or **(B)** stop the party function crediting `paid_amount`. SELECT-only — no writes.
+The 33-name list from `scripts/ella-noor-step5-p0-names.sql` was ranked on the **memo-blind** gap. Sana Nasir (largest line) is a recompute artifact, not a live debt. **Do not use that list for a `paid_amount` architecture decision.** After 6d/6e, the corrected P0 is `queue_tier_after_correction = P0` on remaining mismatches only.
 
 **Runner:** paste `scripts/ella-noor-step5-p0-names.sql` as the **only** statement in the SQL editor (one result set, 33 rows). Same query lives as **Step 5-P0** in the big audit file. `legacy_paid_baseline_nonzero` is a flag on `valid_sales` (any sale with `legacy_paid_baseline > 0`), not a second voucher join tree.
 
@@ -544,14 +582,18 @@ Before treating any Step 1 flag as a real customer error:
 
 ## 7. How to finish the four deliverables
 
-In the SQL editor, in order:
+In the SQL editor, in order. **Step 6 first — it supersedes 1–5 headlines:**
 
+0. **Step 6a** — Sana Nasir proof (`scripts/ella-noor-step6-memo-hole.sql`)  
+0b. **Step 6b** — CN remaining vs SRA vs cn_memos (same file)  
+0c. **Step 6d** — org headline (`scripts/ella-noor-step6-org.sql`)  
+0d. **Step 6e** — remaining names after incl-advance (same file)  
 1. Step 0 + 0b — vocabulary proof  
 2. Step 1b — org headlines  
 3. Step 1 — mismatch table with tender columns (page if 1000)  
 4. Step 1c — tender close count (**done: 0 of 717**)  
 5. Step 1d — dual-write FLAG list (**done: 0 sales**)  
-6. Step 1e — `paid_amount` / `credit_applied` on the 251 (**done at count level: 234 / 17**)  
+6. Step 1e — `paid_amount` / `credit_applied` on the 251 (**done at count level: 234 / 17** — may be the memo hole)  
 7. **Step 2-paid** — 234 names  
 8. **Step 2-17** — leftover 17 + other named-pattern flags  
 9. **Step 2-466** + **2-466-list** — 466 full / inflation / partial  
@@ -559,9 +601,9 @@ In the SQL editor, in order:
 11. Step 2 + 2b — invariant/CN/baseline list (does not include the 234)  
 12. Step 3a–3e — invariant join + named baseline check  
 13. Step 4a / 4b — top 25 Dr / Cr  
-14. **Step 5** — 717-row queue (name, phone, pattern, proposed_write, P0/P1/P2)  
-15. **Step 5b** — P0 count (**done: 33 / 33 party_trusts_paid_amount**)  
-16. **Step 5-P0** — paste `scripts/ella-noor-step5-p0-names.sql` alone (the 33 names)  
+14. **Step 5** — 717-row queue (name, phone, pattern, proposed_write, P0/P1/P2) — memo-blind  
+15. **Step 5b** — P0 count (**done: 33 / 33 party_trusts_paid_amount**) — memo-blind  
+16. **Step 5-P0** — 33 names — memo-blind, superseded by 6e  
 17. **Step 5-unexplained** — the 35 (do not force-fit)  
 
 Paste the result sets into the slots above. Still no writes.
@@ -589,6 +631,10 @@ Paste the result sets into the slots above. Still no writes.
 | 5-P0 | `scripts/ella-noor-step5-p0-names.sql` (also section in the big file) | **33 P0 names** for Tausif (gap DESC + `legacy_paid_baseline` flag) |
 | 5b | same | P0 count — **33**, all `party_trusts_paid_amount` |
 | 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
+| **6a** | `scripts/ella-noor-step6-memo-hole.sql` | Sana Nasir proof — live page vs excl-memo vs incl-advance |
+| **6b** | same | CN remaining vs SRA vs cn_memos (do not assume the advance hole) |
+| **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline: how many of 717 close; zero-memo identity; corrected P0 count |
+| **6e** | same | Remaining mismatches after incl-advance (corrected review list) |
 
 ## Appendix B — What was not done
 
@@ -597,10 +643,12 @@ Paste the result sets into the slots above. Still no writes.
 - No baseline zeroing
 - No change to `_get_customer_party_balances_rows`
 - No write to `paid_amount` / `legacy_paid_baseline`
+- **No `paid_amount` architecture recommendation (A or B) — on hold until Step 6d**
 - No folding `paid_amount` into the seven-component recompute
 - No assumption that anon empty = zero drift
 - No reuse of receivables-audit Section 3’s new-vocab-only receipt filter
 - No summing of tender columns onto receipts (dual-write would double-count)
 - No decision on which side of a dual-write sale is “the” payment
-- No repair of party-trusts-paid_amount (Tausif sign-off, separate pass)
+- No repair of party-trusts-paid_amount (may be a recompute artifact)
 - No force-fit of the 35 unexplained into an existing named pattern
+- No including `credit_note_adjustment` in receipts until 6b confirms (Farhaan Fab)
