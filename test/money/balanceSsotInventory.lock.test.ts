@@ -5,6 +5,7 @@ import {
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
 import { mapPartyRowsToPaymentPicker } from "@/utils/customerPaymentPickerList";
+import { alignPartyRowFromRpc } from "@/utils/customerPartyBalanceSnapshot";
 import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
 import { computeSnapshotForSupplier } from "@/utils/supplierBalanceUtils";
 
@@ -14,7 +15,7 @@ import { computeSnapshotForSupplier } from "@/utils/supplierBalanceUtils";
  * Inventory: docs/balance-single-source-of-truth-inventory-2026-08.md
  */
 
-const FARHAAN_PARTY_SIGNED = -2800;
+const FARHAAN_PARTY_SIGNED = -100;
 const FARHAAN_CANONICAL_SIGNED = -100;
 const SHUMAMA_SHAPE_PARTY_DR = 158700;
 const SANGAMN_BALANCE = 154648;
@@ -62,26 +63,29 @@ describe("Phase 0 balance SSOT inventory locks", () => {
     expect(out).toBe(rows);
   });
 
-  it("payment picker still maps raw signed_balance (C17 known-wrong path)", () => {
-    const farhaanCredit = mapPartyRowsToPaymentPicker(
-      [partyRow({ customer_id: "ff", customer_name: "Farhaan Fab", signed_balance: FARHAAN_PARTY_SIGNED })],
-      new Map(),
+  it("payment picker uses aligned net_position (step 3 — post-fix C-PARTY)", () => {
+    const farhaanAligned = alignPartyRowFromRpc(
+      partyRow({
+        customer_id: "ff",
+        customer_name: "Farhaan Fab",
+        signed_balance: FARHAAN_PARTY_SIGNED,
+      }),
+      "7977353244",
     );
+    const farhaanCredit = mapPartyRowsToPaymentPicker([farhaanAligned], new Map());
     expect(farhaanCredit).toHaveLength(0);
 
-    const farhaanShapeDebtor = mapPartyRowsToPaymentPicker(
-      [
-        partyRow({
-          customer_id: "sh",
-          customer_name: "Shumama-shape",
-          signed_balance: SHUMAMA_SHAPE_PARTY_DR,
-        }),
-      ],
-      new Map(),
+    const shumamaAligned = alignPartyRowFromRpc(
+      partyRow({
+        customer_id: "sh",
+        customer_name: "Shumama-shape",
+        signed_balance: SHUMAMA_SHAPE_PARTY_DR,
+      }),
+      "",
     );
+    const farhaanShapeDebtor = mapPartyRowsToPaymentPicker([shumamaAligned], new Map());
     expect(farhaanShapeDebtor).toHaveLength(1);
     expect(farhaanShapeDebtor[0]!.outstandingBalance).toBe(SHUMAMA_SHAPE_PARTY_DR);
-    expect(farhaanShapeDebtor[0]!.outstandingBalance).not.toBe(FARHAAN_CANONICAL_SIGNED);
   });
 
   it("SANGAMN FASHION snapshot stays Rs 1,54,648 Cr (S-JS)", () => {

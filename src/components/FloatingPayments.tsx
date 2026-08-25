@@ -31,6 +31,7 @@ import {
   paymentPickerAmountBadgeClass,
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
+import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
@@ -266,6 +267,11 @@ function CustomerPaymentForm({
     [customersWithBalance, referenceId],
   );
 
+  const { balance: customerBalanceFromHook } = useCustomerBalance(
+    referenceId || null,
+    organizationId,
+  );
+
   // Fallback: snapshot RPC when picker list has not loaded this customer yet.
   const { data: customerBalanceFallback } = useQuery({
     queryKey: ["customer-financial-snapshot", organizationId, referenceId, "pos-picker"],
@@ -277,13 +283,24 @@ function CustomerPaymentForm({
       );
       return snap.outstandingDr;
     },
-    enabled: !!organizationId && !!referenceId && dialogOpen && pickerOutstanding === undefined,
+    enabled:
+      !!organizationId &&
+      !!referenceId &&
+      dialogOpen &&
+      pickerOutstanding === undefined &&
+      customerBalanceFromHook == null,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 60 * 1000,
     retry: 2,
   });
 
-  const customerBalance = pickerOutstanding ?? customerBalanceFallback;
+  const customerBalance = useMemo(() => {
+    if (!referenceId) return undefined;
+    if (customerBalanceFromHook != null && !Number.isNaN(Number(customerBalanceFromHook))) {
+      return Number(customerBalanceFromHook);
+    }
+    return pickerOutstanding ?? customerBalanceFallback;
+  }, [referenceId, customerBalanceFromHook, pickerOutstanding, customerBalanceFallback]);
 
   const { data: openingBalanceRemaining = 0 } = useQuery({
     queryKey: ["customer-opening-balance-remaining", referenceId, organizationId],

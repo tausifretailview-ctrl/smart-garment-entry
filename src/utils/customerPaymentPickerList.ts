@@ -3,9 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import {
-  fetchAllCustomerPartyBalances,
-  type CustomerPartyBalanceRpcRow,
-} from "@/utils/fetchAllRows";
+  fetchCustomerPartyBalancesAligned,
+  type CustomerPartyBalanceAlignedRow,
+} from "@/utils/customerPartyBalanceSnapshot";
 import {
   fetchCustomerFinancialSnapshotMap,
   fetchCustomersWithFinancialActivity,
@@ -33,13 +33,13 @@ function labelForCustomer(
   return `Customer ${customerId.slice(0, 8)}`;
 }
 
-/** Map set-based party RPC rows to payment picker options (pure — testable). */
+/** Map aligned party rows to payment picker options (pure — testable). */
 export function mapPartyRowsToPaymentPicker(
-  partyRows: CustomerPartyBalanceRpcRow[],
+  partyRows: CustomerPartyBalanceAlignedRow[],
   customerById: Map<string, { customer_name?: string; phone?: string | null }>,
 ): CustomerPaymentPickerRow[] {
   return partyRows
-    .filter((r) => r.signed_balance >= MIN_PAYMENT_PICKER_BALANCE)
+    .filter((r) => r.net_position >= MIN_PAYMENT_PICKER_BALANCE)
     .map((r) => {
       const c = customerById.get(r.customer_id);
       return {
@@ -49,20 +49,20 @@ export function mapPartyRowsToPaymentPicker(
           r.customer_id,
         ),
         phone: c?.phone ?? null,
-        outstandingBalance: Math.round(r.signed_balance),
+        outstandingBalance: Math.round(r.net_position),
       };
     })
     .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
 }
 
-/** Fast path — same set-based RPC as Customer Balances page. */
+/** Fast path — aligned party RPC (same facet derivation as Customer Balances page). */
 async function buildPickerListFromPartyBalances(
   organizationId: string,
-  client: SupabaseClient = supabase,
+  _client: SupabaseClient = supabase,
   queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
   const [partyRows, allCustomers] = await Promise.all([
-    fetchAllCustomerPartyBalances(organizationId),
+    fetchCustomerPartyBalancesAligned(organizationId),
     fetchOrgLedgerCustomersReference(organizationId, queryClient),
   ]);
   const customerById = new Map(allCustomers.map((c) => [c.id, c]));
@@ -92,7 +92,7 @@ async function buildPickerListFromSnapshot(
 
 /**
  * Customers with receivable balance for the Customer Payment (RCP) picker.
- * Primary: `get_customer_party_balances` (set-based, same as Customer Balances page).
+ * Primary: aligned `get_customer_party_balances` (same path as Customer Balances page).
  * Fallback: reconcile_customer_balances, then scoped snapshot batch.
  */
 export async function fetchCustomersWithBalanceForPaymentPicker(
