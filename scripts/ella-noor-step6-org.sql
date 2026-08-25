@@ -8,6 +8,10 @@
 -- -----------------------------------------------------------------------------
 -- STEP 6d — Org headline (supersedes 717 / 647 / ₹1,10,91,413). Also 6c identity:
 --   n_zero_memo_formulas_differ must be 0.
+-- Derived fill (not a paste of this query):
+--   docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv
+--   n_closed_by_incl_advance_memo = 581 (717-136); n_p0_after_incl_advance = 1.
+--   n_zero_memo_formulas_differ is still unknown until this SELECT is pasted.
 -- -----------------------------------------------------------------------------
 
 WITH params AS (
