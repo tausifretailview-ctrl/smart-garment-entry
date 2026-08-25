@@ -1090,7 +1090,6 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                         })}{" "}
                         {selectedSupplier.balance >= 0 ? "payable" : "credit"} will match this ledger after the account snapshot refresh.
                       </span>
-                      </span>
                     </p>
                   )}
               </div>
