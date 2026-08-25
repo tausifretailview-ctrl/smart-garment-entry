@@ -8,6 +8,7 @@ import {
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
   invalidatePosDashboardQueries,
+  patchPosDashboardSalePayment,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
@@ -112,7 +113,6 @@ import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import {
   consumePendingPosSalesRefresh,
-  notifyPosSalesChanged,
   POS_SALES_REFRESH_EVENT,
   posSaleDateToLocalYmd,
   type PosSalesChangedDetail,
@@ -120,6 +120,9 @@ import {
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -554,6 +557,7 @@ const POSDashboard = () => {
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const recordingPaymentRef = useRef(false);
   const [advanceBalance, setAdvanceBalance] = useState(0);
   
   // Receipt state
@@ -2065,9 +2069,12 @@ const POSDashboard = () => {
 
   const handleRecordPayment = async () => {
     if (!selectedSaleForPayment || !paidAmount) return;
+    if (recordingPaymentRef.current || isRecordingPayment) return;
+    recordingPaymentRef.current = true;
 
     const amount = parseFloat(paidAmount);
     if (isNaN(amount) || amount <= 0) {
+      recordingPaymentRef.current = false;
       toast({
         title: "Invalid Amount",
         description: "Please enter a valid payment amount",
@@ -2078,6 +2085,10 @@ const POSDashboard = () => {
 
     const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
+    const prevOutstanding = Math.max(
+      0,
+      Number(selectedSaleForPayment.net_amount || 0) - currentPaid - currentCNAdjust,
+    );
 
     try {
       await assertCustomerPaymentWithinOutstandingCap(supabase, {
@@ -2086,6 +2097,7 @@ const POSDashboard = () => {
         proposedSettlement: amount,
       });
     } catch (overpayErr) {
+      recordingPaymentRef.current = false;
       toast({
         title: "Amount too high",
         description: overpayErr instanceof Error ? overpayErr.message : "Payment exceeds outstanding",
@@ -2097,31 +2109,23 @@ const POSDashboard = () => {
     setIsRecordingPayment(true);
 
     const voucherDateYmd = format(paymentDate, "yyyy-MM-dd");
-
-    const { data: acctSettingsGl } = await supabase
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", currentOrganization!.id)
-      .maybeSingle();
-    const postLedger = isAccountingEngineEnabled(
-      acctSettingsGl as { accounting_engine_enabled?: boolean } | null
-    );
+    const postLedger = isAccountingEngineEnabled(settings);
+    const orgId = currentOrganization!.id;
+    const saleId = selectedSaleForPayment.id;
 
     let insertedVoucherId: string | null = null;
     const isAdvanceApply = paymentMode === "advance";
 
     try {
-      let voucherData: string = "";
-      let rec: { outstanding: number };
+      let voucherData = "";
+      let recomputedPaid = currentPaid;
+      let recomputedStatus = String(selectedSaleForPayment.payment_status || "pending");
 
       if (isAdvanceApply) {
         if (!selectedSaleForPayment.customer_id) {
           throw new Error("This sale has no customer — cannot apply advance");
         }
-        const pending = Math.max(
-          0,
-          Number(selectedSaleForPayment.net_amount || 0) - currentPaid - currentCNAdjust,
-        );
+        const pending = prevOutstanding;
         const requested = Math.min(amount, advanceBalance, pending);
         if (requested <= 0.01) {
           throw new Error("No unused advance or pending amount to apply");
@@ -2129,8 +2133,8 @@ const POSDashboard = () => {
         const { consumed, vouchers } = await applyExistingAdvanceToSale({
           client: supabase,
           customerId: selectedSaleForPayment.customer_id,
-          organizationId: currentOrganization!.id,
-          saleId: selectedSaleForPayment.id,
+          organizationId: orgId,
+          saleId,
           saleNumber: selectedSaleForPayment.sale_number,
           requestedAmount: requested,
           voucherDate: voucherDateYmd,
@@ -2145,16 +2149,27 @@ const POSDashboard = () => {
             .maybeSingle();
           voucherData = String(vrow?.voucher_number || "");
         }
-        rec = await syncSalePaymentFromVouchers(
-          selectedSaleForPayment.id,
-          currentOrganization!.id,
-          voucherDateYmd,
-          supabase,
-          { existingSale: selectedSaleForPayment },
+        // applyExistingAdvanceToSale already persisted paid_amount / payment_status.
+        recomputedPaid = currentPaid + consumed;
+        const payable = Math.max(
+          0,
+          Number(selectedSaleForPayment.net_amount || 0) - Number(selectedSaleForPayment.sale_return_adjust || 0),
         );
+        recomputedStatus =
+          recomputedPaid >= payable - 0.5
+            ? "completed"
+            : recomputedPaid > 0
+              ? "partial"
+              : "pending";
+        const { error: metaErr } = await supabase
+          .from("sales")
+          .update({ payment_date: voucherDateYmd })
+          .eq("id", saleId)
+          .eq("organization_id", orgId);
+        if (metaErr) throw metaErr;
         invalidateCustomerFinancialSnapshot(
           queryClient,
-          currentOrganization!.id,
+          orgId,
           selectedSaleForPayment.customer_id,
         );
         if (consumed + 0.01 < requested) {
@@ -2164,57 +2179,65 @@ const POSDashboard = () => {
           });
         }
       } else {
-        const { data: generatedNumber, error: voucherError } = await supabase.rpc(
-          "generate_voucher_number",
-          { p_type: "receipt", p_date: voucherDateYmd },
-        );
+        const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
+        const created = await createReceiptVoucher(supabase, {
+          organizationId: orgId,
+          referenceId: saleId,
+          amount,
+          paymentMethod: paymentMode,
+          description: receiptDescription,
+          voucherDate: voucherDateYmd,
+          createdBy: user?.id ?? null,
+        });
+        insertedVoucherId = created.id;
+        voucherData = created.voucher_number;
 
-        if (voucherError) throw voucherError;
-        voucherData = generatedNumber as string;
+        const journalPromise = postLedger
+          ? recordCustomerReceiptJournalEntry(
+              created.id,
+              orgId,
+              amount,
+              0,
+              paymentMode,
+              voucherDateYmd,
+              receiptDescription,
+              supabase,
+            )
+          : Promise.resolve();
+        const [recomputed] = await Promise.all([
+          applyRecomputedSalePaymentState(saleId, orgId, supabase),
+          journalPromise,
+        ]);
+        if (!recomputed.skipped) {
+          recomputedPaid = recomputed.paidAmount;
+          recomputedStatus = recomputed.paymentStatus;
+        } else {
+          recomputedPaid = currentPaid + amount;
+        }
 
-        const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`;
-
-        const { data: vrow, error: voucherEntryError } = await supabase
-          .from("voucher_entries")
-          .insert({
-            organization_id: currentOrganization?.id,
-            voucher_number: voucherData,
-            voucher_type: "receipt",
-            voucher_date: voucherDateYmd,
-            reference_type: "sale",
-            reference_id: selectedSaleForPayment.id,
-            total_amount: amount,
-            description: receiptDescription,
+        const { error: metaErr } = await supabase
+          .from("sales")
+          .update({
+            payment_date: voucherDateYmd,
             payment_method: paymentMode,
           })
-          .select("id")
-          .single();
-
-        if (voucherEntryError) throw voucherEntryError;
-        if (!vrow?.id) throw new Error("Receipt voucher insert failed");
-        insertedVoucherId = vrow.id as string;
-
-        rec = await syncSalePaymentFromVouchers(
-          selectedSaleForPayment.id,
-          currentOrganization!.id,
-          voucherDateYmd,
-          supabase,
-          { existingSale: selectedSaleForPayment },
-        );
-
-        if (postLedger) {
-          await recordCustomerReceiptJournalEntry(
-            insertedVoucherId,
-            currentOrganization!.id,
-            amount,
-            0,
-            paymentMode,
-            format(paymentDate, "yyyy-MM-dd"),
-            receiptDescription,
-            supabase,
-          );
-        }
+          .eq("id", saleId)
+          .eq("organization_id", orgId);
+        if (metaErr) throw metaErr;
       }
+
+      const latestSra = Number(selectedSaleForPayment.sale_return_adjust || 0);
+      const latestNet = Number(selectedSaleForPayment.net_amount || 0);
+      const currentBalance = Math.max(0, Math.round(latestNet - recomputedPaid - latestSra));
+
+      patchPosDashboardSalePayment(queryClient, orgId, saleId, {
+        paid_amount: recomputedPaid,
+        payment_status: recomputedStatus,
+        payment_method: isAdvanceApply ? undefined : paymentMode,
+        prevPaymentStatus: selectedSaleForPayment.payment_status,
+        netAmount: latestNet,
+        outstandingCleared: Math.max(0, prevOutstanding - currentBalance),
+      });
 
       toast({
         title: "Payment Recorded",
@@ -2231,8 +2254,8 @@ const POSDashboard = () => {
         invoiceDate: selectedSaleForPayment.sale_date,
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust),
-        currentBalance: Math.round(rec.outstanding),
+        previousBalance: Math.round(prevOutstanding),
+        currentBalance,
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
@@ -2240,8 +2263,9 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      refreshPosDashboard();
-      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
+      // Patch already shows Paid. Background refetch of *active* queries only —
+      // do not also fire notifyPosSalesChanged (that listener invalidates again).
+      invalidatePosDashboardQueries(queryClient, orgId, { refetchType: "active" });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       if (insertedVoucherId && currentOrganization?.id) {
@@ -2269,6 +2293,7 @@ const POSDashboard = () => {
         variant: "destructive",
       });
     } finally {
+      recordingPaymentRef.current = false;
       setIsRecordingPayment(false);
     }
   };

@@ -3,6 +3,7 @@ import {
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   buildPosDashboardPaymentMethodOrFilter,
   buildPosDashboardSummaryScopeFilters,
+  patchPosDashboardSalePayment,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardUnpaidCounts,
   resolvePosDashboardVoucherLookbackFrom,
@@ -128,5 +129,100 @@ describe("POS dashboard voucher lookback", () => {
     expect(resolvePosDashboardVoucherLookbackFrom("2026-01-01", "2026-08-05")).toBe(
       "2025-01-01",
     );
+  });
+});
+
+describe("patchPosDashboardSalePayment", () => {
+  it("marks cached list and reconcile rows Paid without waiting on refetch", () => {
+    const pageKey = ["pos-dashboard-sales", "org-1", "", "daily"];
+    const reconcileKey = [...pageKey, "reconcile", "sale-1"];
+    const summaryKey = ["pos-dashboard-sales", "org-1", "summary", "", "daily"];
+    const store = new Map<string, unknown>();
+    const pendingSale = {
+      id: "sale-1",
+      net_amount: 1000,
+      paid_amount: 0,
+      payment_status: "pending",
+      payment_method: "pay_later",
+      sale_return_adjust: 0,
+      gross_amount: 1000,
+      discount_amount: 0,
+      cash_amount: 0,
+      card_amount: 0,
+      upi_amount: 0,
+    };
+    const summary: PosDashboardSummaryStats = {
+      totalBills: 1,
+      totalQty: 1,
+      totalAmount: 1000,
+      totalDiscount: 0,
+      netSale: 1000,
+      completedCount: 0,
+      completedAmount: 0,
+      pendingCount: 1,
+      pendingAmount: 1000,
+      holdCount: 0,
+      holdAmount: 0,
+      refundCount: 0,
+      refundAmount: 0,
+      creditNoteCount: 0,
+      creditNoteAmount: 0,
+      totalCash: 0,
+      totalCard: 0,
+      totalUpi: 0,
+      totalBalance: 1000,
+      totalSaleReturnAdjust: 0,
+      totalRoundOff: 0,
+      cashBillCount: 0,
+      cardBillCount: 0,
+      upiBillCount: 0,
+    };
+    store.set(JSON.stringify(pageKey), {
+      sales: [{ ...pendingSale }],
+      sourceRows: [{ ...pendingSale }],
+      creditNoteUsage: {},
+      totalCount: 1,
+    });
+    store.set(JSON.stringify(reconcileKey), [{ ...pendingSale }]);
+    store.set(JSON.stringify(summaryKey), { ...summary });
+
+    const queryClient = {
+      getQueryCache: () => ({
+        findAll: () => [
+          { queryKey: pageKey, state: { data: store.get(JSON.stringify(pageKey)) } },
+          { queryKey: reconcileKey, state: { data: store.get(JSON.stringify(reconcileKey)) } },
+          { queryKey: summaryKey, state: { data: store.get(JSON.stringify(summaryKey)) } },
+        ],
+      }),
+      setQueryData: (key: unknown[], data: unknown) => {
+        store.set(JSON.stringify(key), data);
+      },
+    };
+
+    patchPosDashboardSalePayment(queryClient as never, "org-1", "sale-1", {
+      paid_amount: 1000,
+      payment_status: "completed",
+      payment_method: "cash",
+      prevPaymentStatus: "pending",
+      netAmount: 1000,
+      outstandingCleared: 1000,
+    });
+
+    const page = store.get(JSON.stringify(pageKey)) as {
+      sales: Array<{ payment_status: string; pos_outstanding: number }>;
+      sourceRows: Array<{ payment_status: string }>;
+    };
+    const reconciled = store.get(JSON.stringify(reconcileKey)) as Array<{
+      payment_status: string;
+    }>;
+    const tiles = store.get(JSON.stringify(summaryKey)) as PosDashboardSummaryStats;
+
+    expect(page.sales[0].payment_status).toBe("completed");
+    expect(page.sales[0].pos_outstanding).toBe(0);
+    expect(page.sourceRows[0].payment_status).toBe("completed");
+    expect(reconciled[0].payment_status).toBe("completed");
+    expect(tiles.completedCount).toBe(1);
+    expect(tiles.pendingCount).toBe(0);
+    expect(tiles.totalBalance).toBe(0);
   });
 });
