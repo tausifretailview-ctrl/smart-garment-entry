@@ -60,11 +60,11 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | **C-TRUE** | `get_customer_true_outstanding` | SQL | Wrapper `fetchCustomerTrueOutstandingMap` has **zero UI callers**. Dead for display. |
 | **C-RECON-LEDGER** | `src/utils/customerLedgerReconciliation.ts` from rendered ledger transactions | JS independent | **−Rs 100 locked** in `balanceSsotEquality.lock.test.ts` (same Farhaan fixture). |
 | **C-STMT** | `get_customer_ledger_statement` plus client merge of sales / returns / vouchers / advances / adjustments (`CustomerLedgerPage.tsx`) | SQL+JS independent | Own running balance. |
-| **C-AUDIT** | `computeCustomerOutstanding` in `src/utils/customerAuditMath.ts` | JS (delegates to core with a drift warning) | Should match C-JS when `ledgerAlignedApplicationReceipts: true`. Audit UIs can still disagree if they pass a date-sliced bundle. |
+| **C-AUDIT** | `computeCustomerOutstanding` in `src/utils/customerAuditMath.ts` | JS (delegates to core with a drift warning) | **−Rs 100 locked** with `ledgerAlignedApplicationReceipts: true`. |
 | **C-OB-SALES** | `opening_balance + totalSales - totalPaid` | JS naive | **Known wrong** for any CN / advance / SRA customer. |
 | **C-OB** | `customers.opening_balance` only | Master field | Not current AR. |
 
-`src/utils/customerBalanceVerificationGate.ts` already compares C-SNAP vs C-PARTY vs C-JS offline. It is not wired as a cross-screen equality test in `npm run test:money` for named parties.
+`src/utils/customerBalanceVerificationGate.ts` compares C-SNAP vs C-PARTY vs C-JS. Named-party equality for Farhaan / Sana / Aafra / Sangamn lives in `test/money/balanceSsotEquality.lock.test.ts`.
 
 ### Supplier
 
