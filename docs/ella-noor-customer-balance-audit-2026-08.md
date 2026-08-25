@@ -31,7 +31,7 @@ This pass **did not repair anything** and **did not write**. No change to `_get_
 
 **Step 2c (headline, live):** **682** of 717 customers classified (95%). **647** of those (**₹1,10,91,413**, 96% of ₹1,15,59,763) are **Party trusts `paid_amount` over receipts**. **35** other named patterns. **35** genuinely unexplained — their own worklist; do not force-fit.
 
-**Step 5b (live):** **`n_p0 = 33`**, **`n_p0_party_trusts_paid_amount = 33`**. Every P0 row is the named `paid_amount` pattern. Names: **Step 5-P0** (this Cloud Agent cannot read tenant rows — `42501` / RLS).
+**Step 5b (live):** **`n_p0 = 33`**, **`n_p0_party_trusts_paid_amount = 33`**. Every P0 row is the named `paid_amount` pattern. The 33 names: paste **`scripts/ella-noor-step5-p0-names.sql`** as the only SQL-editor statement. This checkout has the anon key only (`42501` / RLS empty is not an empty P0 list).
 
 Do **not** fold `paid_amount` into the seven-component recompute. Repair needs Tausif’s sign-off, same as every other repair this month.
 
@@ -485,9 +485,9 @@ This is the number that decides how urgently the `paid_amount` architecture conv
 
 All **33** are `party_trusts_paid_amount`. Sorted `ABS(gap) DESC`. Architecture decision still open: **(A)** correct `paid_amount` to receipts+tender+advances, or **(B)** stop the party function crediting `paid_amount`. SELECT-only — no writes.
 
-SQL: **Step 5-P0**. `legacy_paid_baseline_nonzero` is a flag on `valid_sales` (any sale with `legacy_paid_baseline > 0`), not a second voucher join tree.
+**Runner:** paste `scripts/ella-noor-step5-p0-names.sql` as the **only** statement in the SQL editor (one result set, 33 rows). Same query lives as **Step 5-P0** in the big audit file. `legacy_paid_baseline_nonzero` is a flag on `valid_sales` (any sale with `legacy_paid_baseline > 0`), not a second voucher join tree.
 
-This Cloud Agent cannot fill the 33 names (`_get_customer_party_balances_rows` and `customers` both `42501` / RLS). Empty RLS is not an empty P0 list. Run Step 5-P0 in the SQL editor and paste below (or download CSV).
+This Cloud Agent cannot fill the 33 names. Confirmed 2026-08-25: `_get_customer_party_balances_rows(p_organization_id)` → HTTP 401 `42501`; `customers` → HTTP 401 `42501`; `sales` → HTTP 200 `[]` (RLS empty, not zero sales). Empty/401 is not an empty P0 list. Paste the CSV below after the SQL editor run.
 
 | # | Customer | Phone | `party_signed` | `recomputed_7_both_eras` | `gap_recompute_minus_party` | `receipt_payments_both_eras` | `sum_paid_amount` | `legacy_paid_baseline_nonzero` |
 |---|----------|-------|----------------|--------------------------|-----------------------------|------------------------------|-------------------|--------------------------------|
@@ -561,7 +561,7 @@ In the SQL editor, in order:
 13. Step 4a / 4b — top 25 Dr / Cr  
 14. **Step 5** — 717-row queue (name, phone, pattern, proposed_write, P0/P1/P2)  
 15. **Step 5b** — P0 count (**done: 33 / 33 party_trusts_paid_amount**)  
-16. **Step 5-P0** — the 33 names for Tausif (this is the review list)  
+16. **Step 5-P0** — paste `scripts/ella-noor-step5-p0-names.sql` alone (the 33 names)  
 17. **Step 5-unexplained** — the 35 (do not force-fit)  
 
 Paste the result sets into the slots above. Still no writes.
@@ -586,7 +586,7 @@ Paste the result sets into the slots above. Still no writes.
 | 3e / 3e-sum | same | Named `legacy_paid_baseline` check |
 | 4a / 4b | same | Top-25 line-by-line |
 | 5 | same | 717-row P0/P1/P2 queue with `proposed_write` (SELECT only) |
-| 5-P0 | same | **33 P0 names** for Tausif (gap DESC + `legacy_paid_baseline` flag) |
+| 5-P0 | `scripts/ella-noor-step5-p0-names.sql` (also section in the big file) | **33 P0 names** for Tausif (gap DESC + `legacy_paid_baseline` flag) |
 | 5b | same | P0 count — **33**, all `party_trusts_paid_amount` |
 | 5-unexplained | same | The **35** genuinely unexplained (force-fit forbidden) |
 

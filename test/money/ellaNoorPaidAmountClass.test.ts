@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -162,5 +164,21 @@ describe("ELLA NOOR Step 5 queue tiers", () => {
     expect(namedPatternOf("full", "duplicate_receipt")).toBe("party_trusts_paid_amount");
     expect(namedPatternOf("none", "legacy_paid_baseline")).toBe("legacy_paid_baseline");
     expect(namedPatternOf("none", "off_cause_unclear")).toBe("off_cause_unclear");
+  });
+});
+
+describe("ELLA NOOR Step 5-P0 standalone SQL", () => {
+  const sql = readFileSync(
+    resolve(__dirname, "../../scripts/ella-noor-step5-p0-names.sql"),
+    "utf8",
+  );
+
+  it("is SELECT-only P0 names sorted by abs gap, with the baseline flag", () => {
+    expect(sql).toMatch(/queue_tier = 'P0'/);
+    expect(sql).toMatch(/ORDER BY r\.abs_gap DESC/);
+    expect(sql).toMatch(/paid_amount_sum AS sum_paid_amount/);
+    expect(sql).toMatch(/legacy_paid_baseline_nonzero/);
+    expect(sql).toMatch(/receipt_payments_both_eras/);
+    expect(sql).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/im);
   });
 });

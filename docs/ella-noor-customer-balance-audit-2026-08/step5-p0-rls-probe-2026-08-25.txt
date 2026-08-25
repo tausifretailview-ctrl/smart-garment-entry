@@ -1,5 +1,8 @@
-2026-08-25 Step 5-P0 name list: anon REST cannot read tenant rows.
-POST /rest/v1/rpc/_get_customer_party_balances_rows -> HTTP 401 code 42501
-GET  /rest/v1/customers?select=customer_name,phone -> HTTP 401 code 42501
-Empty/401 is not an empty P0 list. Run scripts/ella-noor-customer-balance-audit-2026-08.sql section STEP 5-P0 in the SQL editor.
+2026-08-25T07:11Z Step 5-P0 name list: anon REST cannot read tenant rows.
+Org control (works): POST /rest/v1/rpc/get_org_public_info slug=ella-noor -> HTTP 200 id=3fdca631-1e0c-4417-9704-421f5129ff67 name=ELLA NOOR
+POST /rest/v1/rpc/_get_customer_party_balances_rows body p_org_id -> HTTP 404 PGRST202 (hint: p_organization_id)
+POST /rest/v1/rpc/_get_customer_party_balances_rows body p_organization_id -> HTTP 401 code 42501 permission denied for function
+GET  /rest/v1/customers?select=customer_name,phone -> HTTP 401 code 42501 permission denied for table customers
+GET  /rest/v1/sales?select=id,customer_id,paid_amount,legacy_paid_baseline -> HTTP 200 []
+Empty/401 is not an empty P0 list. Run scripts/ella-noor-step5-p0-names.sql in the SQL editor (single statement).
 Confirmed from Step 5b (user): n_p0=33, n_p0_party_trusts_paid_amount=33.
