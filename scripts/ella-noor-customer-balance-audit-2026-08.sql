@@ -61,6 +61,11 @@
 --   Partial (466 with some receipts): gap ≈ GREATEST(0, paid − receipts)
 --     or per-sale SUM(GREATEST(0, paid_amount − receipts_on_sale)).
 --
+-- ADDITION 6 — Step 5 is the named-pattern repair QUEUE (SELECT only).
+--   Same classified CTE as Step 2c. Every mismatch row gets a name, phone,
+--   proposed_write, and P0/P1/P2 tier. The 35 unexplained stay a separate
+--   worklist (STEP 5-unexplained) — do not force-fit. No writes.
+--
 -- Drift threshold: ABS(party − recomputed_7) > 1  (rupees).
 -- =============================================================================
 
@@ -3116,28 +3121,262 @@ ORDER BY t.out_signed_balance ASC, t.out_customer_name, src.source;
 
 
 -- -----------------------------------------------------------------------------
--- STEP 5 — P0 / P1 / P2 repair QUEUE (SELECT only — do not execute repairs)
--- P0: |party| ≥ ₹1,00,000 OR baseline overlap ≥ ₹50,000 OR |drift| ≥ ₹50,000
--- P1: named class (duplicate receipt / CN double / baseline / receipts exceed)
---     with |party| ≥ ₹5,000 or overlap ≥ ₹5,000
--- P2: remaining named-class or |drift| > ₹1
+-- STEP 5 — P0 / P1 / P2 repair QUEUE for all 717 mismatches (SELECT only)
+-- Same classified CTE as STEP 2c. Names + phone + proposed_write per row.
+-- Tiers (this pass):
+--   P0: |party_signed| ≥ ₹1,00,000 OR |gap| ≥ ₹50,000
+--   P1: named pattern AND (|party_signed| ≥ ₹5,000 OR |gap| ≥ ₹5,000)
+--   P2: remaining named, or unexplained with |gap| > ₹1
+-- proposed_write is the exact later write, not a generic "repair the balance".
+-- Do not execute any write from this result.
+-- LIMIT 1000 (717 fits one page).
 -- -----------------------------------------------------------------------------
 WITH params AS (
-  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id
+  SELECT
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id,
+    1.0::numeric AS drift_threshold
+),
+cust AS (
+  SELECT c.id, c.customer_name, c.phone, COALESCE(c.opening_balance, 0)::numeric AS opening_balance
+  FROM public.customers c
+  CROSS JOIN params p
+  WHERE c.organization_id = p.org_id AND c.deleted_at IS NULL
+),
+party AS (
+  SELECT r.out_customer_id, r.out_signed_balance
+  FROM params p
+  CROSS JOIN LATERAL public._get_customer_party_balances_rows(p.org_id) r
+),
+valid_sales AS (
+  SELECT s.*
+  FROM public.sales s
+  CROSS JOIN params p
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
+    AND s.customer_id IS NOT NULL
+),
+items_gross AS (
+  SELECT si.sale_id, SUM(COALESCE(si.quantity, 0) * COALESCE(si.mrp, 0))::numeric AS gross
+  FROM public.sale_items si
+  INNER JOIN valid_sales s2 ON s2.id = si.sale_id
+  WHERE si.deleted_at IS NULL AND COALESCE(s2.sale_return_adjust, 0) > 0
+  GROUP BY si.sale_id
+),
+total_invoiced AS (
+  SELECT s.customer_id, COALESCE(SUM(s.net_amount), 0)::numeric AS amt
+  FROM valid_sales s GROUP BY s.customer_id
+),
+sale_return_adjust AS (
+  SELECT s.customer_id, COALESCE(SUM(
+    CASE
+      WHEN COALESCE(ig.gross, 0) > 0
+           AND COALESCE(s.sale_return_adjust, 0) > 0
+           AND s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1
+      THEN 0 ELSE COALESCE(s.sale_return_adjust, 0) END
+  ), 0)::numeric AS amt
+  FROM valid_sales s
+  LEFT JOIN items_gross ig ON ig.sale_id = s.id
+  GROUP BY s.customer_id
+),
+balance_adjustment AS (
+  SELECT cba.customer_id, COALESCE(SUM(cba.outstanding_difference), 0)::numeric AS amt
+  FROM public.customer_balance_adjustments cba
+  CROSS JOIN params p
+  WHERE cba.organization_id = p.org_id
+  GROUP BY cba.customer_id
+),
+sale_receipts_per_sale AS (
+  SELECT
+    s.id AS sale_id,
+    s.customer_id,
+    GREATEST(0::numeric, COALESCE(s.net_amount, 0)) AS payable_cap,
+    (
+      GREATEST(0::numeric, COALESCE(s.cash_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.card_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.upi_amount, 0))
+    ) AS tender,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS receipts_both_eras
+  FROM valid_sales s
+  LEFT JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  GROUP BY s.id, s.customer_id, s.net_amount, s.cash_amount, s.card_amount, s.upi_amount
+),
+sale_receipts_both AS (
+  SELECT r.customer_id, SUM(r.receipts_both_eras) AS amt_both_eras
+  FROM sale_receipts_per_sale r
+  GROUP BY r.customer_id
+),
+customer_receipts_both AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.reference_type IN ('customer', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS amt_both_eras
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.sales s2
+      WHERE s2.id = ve.reference_id AND s2.organization_id = p.org_id
+    )
+  GROUP BY ve.reference_id
+),
+pending_sale_returns AS (
+  SELECT x.customer_id, COALESCE(SUM(x.row_credit), 0)::numeric AS amt
+  FROM (
+    SELECT sr.customer_id,
+      public._sale_return_remaining_credit_for_balance(
+        sr.net_amount, sr.credit_available_balance, COALESCE(ls.sale_return_adjust, 0)
+      ) AS row_credit
+    FROM public.sale_returns sr
+    CROSS JOIN params p
+    LEFT JOIN public.sales ls
+      ON ls.id = sr.linked_sale_id AND ls.organization_id = p.org_id AND ls.deleted_at IS NULL
+    WHERE sr.organization_id = p.org_id
+      AND sr.deleted_at IS NULL
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('refunded')
+      AND COALESCE(lower(sr.refund_type::text), '') <> 'cash_refund'
+  ) x
+  WHERE x.row_credit > 0.005
+  GROUP BY x.customer_id
+),
+unused_advances AS (
+  SELECT ca.customer_id,
+    GREATEST(0::numeric,
+      COALESCE(SUM(ca.amount), 0) - COALESCE(SUM(ca.used_amount), 0)
+      - COALESCE((
+          SELECT SUM(ar.refund_amount)
+          FROM public.advance_refunds ar
+          JOIN public.customer_advances ca2 ON ca2.id = ar.advance_id
+          WHERE ca2.customer_id = ca.customer_id AND ca2.organization_id = ca.organization_id
+        ), 0)
+    )::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id, ca.organization_id
+),
+advance_used AS (
+  SELECT ca.customer_id, COALESCE(SUM(ca.used_amount), 0)::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id
+),
+refunds AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0))), 0)::numeric AS amt
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+    AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  GROUP BY ve.reference_id
+),
+orphan_receipts AS (
+  SELECT
+    s.customer_id,
+    ROUND(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))), 2) AS amt
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NOT NULL
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  GROUP BY s.customer_id
+),
+scored AS (
+  SELECT
+    c.id AS customer_id,
+    c.customer_name,
+    c.phone,
+    ROUND((
+      c.opening_balance + COALESCE(ti.amt, 0) - COALESCE(sra.amt, 0)
+      - (COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0))
+      + COALESCE(ba.amt, 0) - COALESCE(psr.amt, 0) - COALESCE(ua.amt, 0)
+    )::numeric, 2) AS recomputed_7_both_eras,
+    COALESCE(pb.out_signed_balance, 0)::numeric AS party_signed,
+    COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0) AS receipt_payments_both_eras,
+    COALESCE(ti.amt, 0) AS total_invoiced,
+    COALESCE(ba.amt, 0) AS balance_adjustment
+  FROM cust c
+  LEFT JOIN party pb ON pb.out_customer_id = c.id
+  LEFT JOIN total_invoiced ti ON ti.customer_id = c.id
+  LEFT JOIN sale_return_adjust sra ON sra.customer_id = c.id
+  LEFT JOIN balance_adjustment ba ON ba.customer_id = c.id
+  LEFT JOIN sale_receipts_both srb ON srb.customer_id = c.id
+  LEFT JOIN customer_receipts_both crb ON crb.customer_id = c.id
+  LEFT JOIN pending_sale_returns psr ON psr.customer_id = c.id
+  LEFT JOIN unused_advances ua ON ua.customer_id = c.id
+),
+mismatch AS (
+  SELECT
+    s.customer_id,
+    s.customer_name,
+    s.phone,
+    s.recomputed_7_both_eras,
+    s.party_signed,
+    ROUND(s.recomputed_7_both_eras - s.party_signed, 2) AS gap_recompute_minus_party,
+    ROUND(ABS(s.recomputed_7_both_eras - s.party_signed), 2) AS abs_gap,
+    s.receipt_payments_both_eras,
+    s.balance_adjustment,
+    CASE
+      WHEN s.receipt_payments_both_eras = 0 AND s.total_invoiced > 0.009 THEN 'zero_receipt_invoiced'
+      WHEN s.receipt_payments_both_eras > 0.009 THEN 'some_receipts'
+      ELSE 'other_mismatch'
+    END AS cohort
+  FROM scored s
+  CROSS JOIN params p
+  WHERE ABS(s.party_signed - s.recomputed_7_both_eras) > p.drift_threshold
+),
+paid_by_cust AS (
+  SELECT
+    vs.customer_id,
+    SUM(COALESCE(vs.paid_amount, 0))::numeric AS paid_amount_sum,
+    SUM(GREATEST(
+      0::numeric,
+      COALESCE(vs.paid_amount, 0) - COALESCE(sr.receipts_both_eras, 0)
+    ))::numeric AS paid_inflation_per_sale
+  FROM valid_sales vs
+  LEFT JOIN sale_receipts_per_sale sr ON sr.sale_id = vs.id
+  GROUP BY vs.customer_id
 ),
 inv_dup_receipt AS (
-  SELECT s.customer_id, COUNT(*) AS n
+  SELECT s.customer_id, COUNT(*) AS n_hits
   FROM public.v_accounting_invariants i
   CROSS JOIN params p
-  JOIN public.voucher_entries ve ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
-  JOIN public.sales s ON s.id = ve.reference_id AND s.organization_id = i.organization_id
-  WHERE i.organization_id = p.org_id AND i.check_name = 'rapid_duplicate_receipt'
+  JOIN public.voucher_entries ve
+    ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+  JOIN public.sales s
+    ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+  WHERE i.organization_id = p.org_id
+    AND i.check_name = 'rapid_duplicate_receipt'
+    AND s.customer_id IS NOT NULL
   GROUP BY s.customer_id
 ),
 legacy_baseline AS (
-  SELECT s.customer_id,
-         COUNT(*) AS n_sales,
-         ROUND(SUM(LEAST(COALESCE(s.legacy_paid_baseline, 0), r.receipt_total)), 2) AS overlap
+  SELECT s.customer_id, COUNT(*) AS n_sales
   FROM public.sales s
   CROSS JOIN params p
   JOIN LATERAL (
@@ -3159,41 +3398,1645 @@ legacy_baseline AS (
     AND r.receipt_total > 0.009
   GROUP BY s.customer_id
 ),
+cn_double AS (
+  SELECT s.customer_id, COUNT(DISTINCT s.id) AS n_sales
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN LATERAL (
+    SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+    FROM public.voucher_entries ve
+    WHERE ve.organization_id = s.organization_id
+      AND ve.deleted_at IS NULL
+      AND ve.reference_id = s.id
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+  ) cn ON TRUE
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.sale_return_adjust, 0) > 0.5
+    AND cn.cn_amt > 0.5
+    AND EXISTS (
+      SELECT 1
+      FROM public.sale_returns sr
+      WHERE sr.customer_id = s.customer_id
+        AND sr.organization_id = p.org_id
+        AND sr.deleted_at IS NULL
+        AND public._sale_return_remaining_credit_for_balance(
+              sr.net_amount, sr.credit_available_balance, COALESCE(s.sale_return_adjust, 0)
+            ) > 0.5
+    )
+  GROUP BY s.customer_id
+),
+classified AS (
+  SELECT
+    m.*,
+    CASE
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_amount_sum, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'full'
+      WHEN ABS(m.gap_recompute_minus_party
+               - GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras))
+           <= (SELECT drift_threshold FROM params)
+        OR ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_inflation_per_sale, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'inflation'
+      WHEN GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) > (SELECT drift_threshold FROM params)
+       AND GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) < m.abs_gap - (SELECT drift_threshold FROM params)
+      THEN 'partial'
+      ELSE 'none'
+    END AS paid_trust_kind,
+    CASE
+      WHEN COALESCE(idr.n_hits, 0) > 0 THEN 'duplicate_receipt'
+      WHEN COALESCE(cn.n_sales, 0) > 0 THEN 'cn_double_count'
+      WHEN COALESCE(lb.n_sales, 0) > 0 THEN 'legacy_paid_baseline'
+      WHEN ABS(m.gap_recompute_minus_party - m.balance_adjustment)
+           <= (SELECT drift_threshold FROM params)
+       AND ABS(m.balance_adjustment) > (SELECT drift_threshold FROM params)
+      THEN 'manual_adjustment_overlay'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(au.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(au.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'advance_over_application'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(rf.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(rf.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'unrecorded_refund'
+      WHEN COALESCE(orp.amt, 0) > (SELECT drift_threshold FROM params) THEN 'orphan_receipt'
+      ELSE 'off_cause_unclear'
+    END AS other_named_class,
+    COALESCE(pbc.paid_amount_sum, 0) AS paid_amount_sum,
+    COALESCE(pbc.paid_inflation_per_sale, 0) AS paid_inflation_per_sale
+  FROM mismatch m
+  LEFT JOIN paid_by_cust pbc ON pbc.customer_id = m.customer_id
+  LEFT JOIN inv_dup_receipt idr ON idr.customer_id = m.customer_id
+  LEFT JOIN cn_double cn ON cn.customer_id = m.customer_id
+  LEFT JOIN legacy_baseline lb ON lb.customer_id = m.customer_id
+  LEFT JOIN advance_used au ON au.customer_id = m.customer_id
+  LEFT JOIN refunds rf ON rf.customer_id = m.customer_id
+  LEFT JOIN orphan_receipts orp ON orp.customer_id = m.customer_id
+)
+,
+dup_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(i.entity_ref, ve.voucher_number)::text
+        || ' ₹' || ROUND(ABS(COALESCE(i.detail, ve.total_amount, 0))::numeric, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY ABS(COALESCE(i.detail, 0)) DESC, i.entity_ref
+      ) AS rn
+    FROM public.v_accounting_invariants i
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+    JOIN public.sales s
+      ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+    WHERE i.organization_id = p.org_id
+      AND i.check_name = 'rapid_duplicate_receipt'
+      AND s.customer_id IS NOT NULL
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+baseline_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' baseline=' || ROUND(COALESCE(s.legacy_paid_baseline, 0), 2)::text
+        || ' receipts=' || ROUND(r.receipt_total, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY LEAST(COALESCE(s.legacy_paid_baseline, 0), r.receipt_total) DESC
+      ) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(
+        GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+      ), 0) AS receipt_total
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.reference_id = s.id
+        AND ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ) r ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.is_cancelled, false) = false
+      AND COALESCE(s.legacy_paid_baseline, 0) > 0.009
+      AND r.receipt_total > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+cn_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' SRA=' || ROUND(COALESCE(s.sale_return_adjust, 0), 2)::text
+        || ' CN=' || ROUND(cn.cn_amt, 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(s.sale_return_adjust, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.deleted_at IS NULL
+        AND ve.reference_id = s.id
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    ) cn ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.sale_return_adjust, 0) > 0.5
+      AND cn.cn_amt > 0.5
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+adj_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      cba.customer_id,
+      COALESCE(cba.adjustment_date::text, '')
+        || ' ₹' || ROUND(cba.outstanding_difference, 2)::text
+        || ' ' || left(COALESCE(cba.reason, ''), 40) AS label,
+      row_number() OVER (
+        PARTITION BY cba.customer_id
+        ORDER BY ABS(cba.outstanding_difference) DESC
+      ) AS rn
+    FROM public.customer_balance_adjustments cba
+    CROSS JOIN params p
+    WHERE cba.organization_id = p.org_id
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+advance_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ca.customer_id,
+      ca.advance_number
+        || ' used=' || ROUND(COALESCE(ca.used_amount, 0), 2)::text
+        || '/' || ROUND(COALESCE(ca.amount, 0), 2)::text AS label,
+      row_number() OVER (PARTITION BY ca.customer_id ORDER BY COALESCE(ca.used_amount, 0) DESC) AS rn
+    FROM public.customer_advances ca
+    CROSS JOIN params p
+    WHERE ca.organization_id = p.org_id
+      AND COALESCE(ca.used_amount, 0) > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+refund_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ve.reference_id AS customer_id,
+      COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0)), 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY ve.reference_id
+        ORDER BY COALESCE(ve.total_amount, 0) DESC
+      ) AS rn
+    FROM public.voucher_entries ve
+    CROSS JOIN params p
+    WHERE ve.organization_id = p.org_id
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+      AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+orphan_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(s.sale_number, s.id::text)
+        || ' (deleted) '
+        || COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)), 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(ve.total_amount, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NOT NULL
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+      AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+queued AS (
+  SELECT
+    cl.*,
+    CASE
+      WHEN cl.paid_trust_kind IN ('full', 'inflation', 'partial') THEN 'party_trusts_paid_amount'
+      ELSE cl.other_named_class
+    END AS named_pattern
+  FROM classified cl
+),
+ranked AS (
+  SELECT
+    q.*,
+    CASE
+      WHEN ABS(q.party_signed) >= 100000 OR q.abs_gap >= 50000 THEN 'P0'
+      WHEN q.named_pattern <> 'off_cause_unclear'
+       AND (ABS(q.party_signed) >= 5000 OR q.abs_gap >= 5000) THEN 'P1'
+      ELSE 'P2'
+    END AS queue_tier
+  FROM queued q
+),
+with_write AS (
+  SELECT
+    r.customer_id,
+    r.customer_name,
+    r.phone,
+    r.party_signed,
+    r.recomputed_7_both_eras,
+    r.gap_recompute_minus_party,
+    r.abs_gap,
+    r.cohort,
+    r.paid_trust_kind,
+    r.named_pattern,
+    r.queue_tier,
+    r.paid_amount_sum,
+    r.receipt_payments_both_eras,
+    CASE r.named_pattern
+      WHEN 'party_trusts_paid_amount' THEN
+        'QUEUE ONLY — two options pending Tausif architecture sign-off: '
+        || '(A) correct sales.paid_amount to match receipts+tender+advances '
+        || '(paid_amount_sum=' || ROUND(r.paid_amount_sum, 2)::text
+        || ', receipts=' || ROUND(r.receipt_payments_both_eras, 2)::text
+        || ', gap=' || ROUND(r.gap_recompute_minus_party, 2)::text
+        || ', kind=' || r.paid_trust_kind
+        || '); (B) stop crediting paid_amount in the party function '
+        || '(live GREATEST(paid_amount, tender) shape even when tender=0). '
+        || 'Do not write paid_amount and do not patch the party RPC from this queue.'
+      WHEN 'duplicate_receipt' THEN
+        'Soft-delete the duplicate receipt voucher(s) after dry-run + 5-row hand-check '
+        || '(Parishma class — do not auto-delete): '
+        || COALESCE(dl.labels, '(see v_accounting_invariants.rapid_duplicate_receipt)')
+      WHEN 'legacy_paid_baseline' THEN
+        'Named baseline∩receipts on sale(s) (Asma Shareef / INV/26-27/2288 shape). '
+        || 'Capture live compute_sale_settlement DDL before any baseline write. '
+        || 'Do not zero all baselines. Sales: '
+        || COALESCE(bl.labels, '(see Step 3e)')
+      WHEN 'cn_double_count' THEN
+        'CN double-count: SRA + credit_note_adjustment voucher + remaining CAB. '
+        || 'Repair only via adjust_invoice_balance (Shumama R2). No bare createReceiptVoucher. Sales: '
+        || COALESCE(cnl.labels, '(see Step 2 cn_double)')
+      WHEN 'manual_adjustment_overlay' THEN
+        'Gap equals SUM(customer_balance_adjustments.outstanding_difference). '
+        || 'Do not reverse a shop-entered patch without dry-run. Adjustments: '
+        || COALESCE(al.labels, '(no label)')
+      WHEN 'advance_over_application' THEN
+        'Gap equals SUM(customer_advances.used_amount). '
+        || 'Do not auto-refund (Anusha / Parishma class — human judgement). Advances: '
+        || COALESCE(avl.labels, '(no label)')
+      WHEN 'unrecorded_refund' THEN
+        'Party subtracts customer payment voucher(s) the seven-component omits. '
+        || 'Investigate before any write (Farhaan Fab class: confirm the voucher is a real refund, not a CN memo). Vouchers: '
+        || COALESCE(rfl.labels, '(no label)')
+      WHEN 'orphan_receipt' THEN
+        'Receipts sitting on soft-deleted sales. Recycle-bin / deleted_at investigation — no hard delete. '
+        || COALESCE(ol.labels, '(no label)')
+      ELSE
+        'GENUINELY UNEXPLAINED — fresh look required. Do not force-fit into party_trusts_paid_amount or any other named pattern. No write from this queue.'
+    END AS proposed_write
+  FROM ranked r
+  LEFT JOIN dup_labels dl ON dl.customer_id = r.customer_id
+  LEFT JOIN baseline_labels bl ON bl.customer_id = r.customer_id
+  LEFT JOIN cn_labels cnl ON cnl.customer_id = r.customer_id
+  LEFT JOIN adj_labels al ON al.customer_id = r.customer_id
+  LEFT JOIN advance_labels avl ON avl.customer_id = r.customer_id
+  LEFT JOIN refund_labels rfl ON rfl.customer_id = r.customer_id
+  LEFT JOIN orphan_labels ol ON ol.customer_id = r.customer_id
+)
+
+SELECT
+  w.queue_tier,
+  w.named_pattern,
+  w.customer_name,
+  w.phone,
+  w.customer_id,
+  w.party_signed,
+  w.recomputed_7_both_eras,
+  w.gap_recompute_minus_party,
+  w.abs_gap,
+  w.cohort,
+  w.paid_trust_kind,
+  w.paid_amount_sum,
+  w.receipt_payments_both_eras,
+  w.proposed_write
+FROM with_write w
+ORDER BY
+  CASE w.queue_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+  CASE WHEN w.named_pattern = 'off_cause_unclear' THEN 1 ELSE 0 END,
+  w.abs_gap DESC,
+  w.customer_name
+LIMIT 1000 OFFSET 0;
+
+
+-- -----------------------------------------------------------------------------
+-- STEP 5b — Queue headline (one row). P0 count + P0 rupee exposure.
+-- abs_gap_p0 is the drift rupees on P0 rows (the urgency number for the
+-- paid_amount architecture conversation). abs_party_p0 is |party_signed| sum.
+-- -----------------------------------------------------------------------------
+WITH params AS (
+  SELECT
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id,
+    1.0::numeric AS drift_threshold
+),
+cust AS (
+  SELECT c.id, c.customer_name, c.phone, COALESCE(c.opening_balance, 0)::numeric AS opening_balance
+  FROM public.customers c
+  CROSS JOIN params p
+  WHERE c.organization_id = p.org_id AND c.deleted_at IS NULL
+),
 party AS (
-  SELECT r.out_customer_id, r.out_customer_name, r.out_signed_balance, r.out_direction
+  SELECT r.out_customer_id, r.out_signed_balance
   FROM params p
   CROSS JOIN LATERAL public._get_customer_party_balances_rows(p.org_id) r
+),
+valid_sales AS (
+  SELECT s.*
+  FROM public.sales s
+  CROSS JOIN params p
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
+    AND s.customer_id IS NOT NULL
+),
+items_gross AS (
+  SELECT si.sale_id, SUM(COALESCE(si.quantity, 0) * COALESCE(si.mrp, 0))::numeric AS gross
+  FROM public.sale_items si
+  INNER JOIN valid_sales s2 ON s2.id = si.sale_id
+  WHERE si.deleted_at IS NULL AND COALESCE(s2.sale_return_adjust, 0) > 0
+  GROUP BY si.sale_id
+),
+total_invoiced AS (
+  SELECT s.customer_id, COALESCE(SUM(s.net_amount), 0)::numeric AS amt
+  FROM valid_sales s GROUP BY s.customer_id
+),
+sale_return_adjust AS (
+  SELECT s.customer_id, COALESCE(SUM(
+    CASE
+      WHEN COALESCE(ig.gross, 0) > 0
+           AND COALESCE(s.sale_return_adjust, 0) > 0
+           AND s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1
+      THEN 0 ELSE COALESCE(s.sale_return_adjust, 0) END
+  ), 0)::numeric AS amt
+  FROM valid_sales s
+  LEFT JOIN items_gross ig ON ig.sale_id = s.id
+  GROUP BY s.customer_id
+),
+balance_adjustment AS (
+  SELECT cba.customer_id, COALESCE(SUM(cba.outstanding_difference), 0)::numeric AS amt
+  FROM public.customer_balance_adjustments cba
+  CROSS JOIN params p
+  WHERE cba.organization_id = p.org_id
+  GROUP BY cba.customer_id
+),
+sale_receipts_per_sale AS (
+  SELECT
+    s.id AS sale_id,
+    s.customer_id,
+    GREATEST(0::numeric, COALESCE(s.net_amount, 0)) AS payable_cap,
+    (
+      GREATEST(0::numeric, COALESCE(s.cash_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.card_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.upi_amount, 0))
+    ) AS tender,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS receipts_both_eras
+  FROM valid_sales s
+  LEFT JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  GROUP BY s.id, s.customer_id, s.net_amount, s.cash_amount, s.card_amount, s.upi_amount
+),
+sale_receipts_both AS (
+  SELECT r.customer_id, SUM(r.receipts_both_eras) AS amt_both_eras
+  FROM sale_receipts_per_sale r
+  GROUP BY r.customer_id
+),
+customer_receipts_both AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.reference_type IN ('customer', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS amt_both_eras
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.sales s2
+      WHERE s2.id = ve.reference_id AND s2.organization_id = p.org_id
+    )
+  GROUP BY ve.reference_id
+),
+pending_sale_returns AS (
+  SELECT x.customer_id, COALESCE(SUM(x.row_credit), 0)::numeric AS amt
+  FROM (
+    SELECT sr.customer_id,
+      public._sale_return_remaining_credit_for_balance(
+        sr.net_amount, sr.credit_available_balance, COALESCE(ls.sale_return_adjust, 0)
+      ) AS row_credit
+    FROM public.sale_returns sr
+    CROSS JOIN params p
+    LEFT JOIN public.sales ls
+      ON ls.id = sr.linked_sale_id AND ls.organization_id = p.org_id AND ls.deleted_at IS NULL
+    WHERE sr.organization_id = p.org_id
+      AND sr.deleted_at IS NULL
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('refunded')
+      AND COALESCE(lower(sr.refund_type::text), '') <> 'cash_refund'
+  ) x
+  WHERE x.row_credit > 0.005
+  GROUP BY x.customer_id
+),
+unused_advances AS (
+  SELECT ca.customer_id,
+    GREATEST(0::numeric,
+      COALESCE(SUM(ca.amount), 0) - COALESCE(SUM(ca.used_amount), 0)
+      - COALESCE((
+          SELECT SUM(ar.refund_amount)
+          FROM public.advance_refunds ar
+          JOIN public.customer_advances ca2 ON ca2.id = ar.advance_id
+          WHERE ca2.customer_id = ca.customer_id AND ca2.organization_id = ca.organization_id
+        ), 0)
+    )::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id, ca.organization_id
+),
+advance_used AS (
+  SELECT ca.customer_id, COALESCE(SUM(ca.used_amount), 0)::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id
+),
+refunds AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0))), 0)::numeric AS amt
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+    AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  GROUP BY ve.reference_id
+),
+orphan_receipts AS (
+  SELECT
+    s.customer_id,
+    ROUND(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))), 2) AS amt
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NOT NULL
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  GROUP BY s.customer_id
+),
+scored AS (
+  SELECT
+    c.id AS customer_id,
+    c.customer_name,
+    c.phone,
+    ROUND((
+      c.opening_balance + COALESCE(ti.amt, 0) - COALESCE(sra.amt, 0)
+      - (COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0))
+      + COALESCE(ba.amt, 0) - COALESCE(psr.amt, 0) - COALESCE(ua.amt, 0)
+    )::numeric, 2) AS recomputed_7_both_eras,
+    COALESCE(pb.out_signed_balance, 0)::numeric AS party_signed,
+    COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0) AS receipt_payments_both_eras,
+    COALESCE(ti.amt, 0) AS total_invoiced,
+    COALESCE(ba.amt, 0) AS balance_adjustment
+  FROM cust c
+  LEFT JOIN party pb ON pb.out_customer_id = c.id
+  LEFT JOIN total_invoiced ti ON ti.customer_id = c.id
+  LEFT JOIN sale_return_adjust sra ON sra.customer_id = c.id
+  LEFT JOIN balance_adjustment ba ON ba.customer_id = c.id
+  LEFT JOIN sale_receipts_both srb ON srb.customer_id = c.id
+  LEFT JOIN customer_receipts_both crb ON crb.customer_id = c.id
+  LEFT JOIN pending_sale_returns psr ON psr.customer_id = c.id
+  LEFT JOIN unused_advances ua ON ua.customer_id = c.id
+),
+mismatch AS (
+  SELECT
+    s.customer_id,
+    s.customer_name,
+    s.phone,
+    s.recomputed_7_both_eras,
+    s.party_signed,
+    ROUND(s.recomputed_7_both_eras - s.party_signed, 2) AS gap_recompute_minus_party,
+    ROUND(ABS(s.recomputed_7_both_eras - s.party_signed), 2) AS abs_gap,
+    s.receipt_payments_both_eras,
+    s.balance_adjustment,
+    CASE
+      WHEN s.receipt_payments_both_eras = 0 AND s.total_invoiced > 0.009 THEN 'zero_receipt_invoiced'
+      WHEN s.receipt_payments_both_eras > 0.009 THEN 'some_receipts'
+      ELSE 'other_mismatch'
+    END AS cohort
+  FROM scored s
+  CROSS JOIN params p
+  WHERE ABS(s.party_signed - s.recomputed_7_both_eras) > p.drift_threshold
+),
+paid_by_cust AS (
+  SELECT
+    vs.customer_id,
+    SUM(COALESCE(vs.paid_amount, 0))::numeric AS paid_amount_sum,
+    SUM(GREATEST(
+      0::numeric,
+      COALESCE(vs.paid_amount, 0) - COALESCE(sr.receipts_both_eras, 0)
+    ))::numeric AS paid_inflation_per_sale
+  FROM valid_sales vs
+  LEFT JOIN sale_receipts_per_sale sr ON sr.sale_id = vs.id
+  GROUP BY vs.customer_id
+),
+inv_dup_receipt AS (
+  SELECT s.customer_id, COUNT(*) AS n_hits
+  FROM public.v_accounting_invariants i
+  CROSS JOIN params p
+  JOIN public.voucher_entries ve
+    ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+  JOIN public.sales s
+    ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+  WHERE i.organization_id = p.org_id
+    AND i.check_name = 'rapid_duplicate_receipt'
+    AND s.customer_id IS NOT NULL
+  GROUP BY s.customer_id
+),
+legacy_baseline AS (
+  SELECT s.customer_id, COUNT(*) AS n_sales
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN LATERAL (
+    SELECT COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ), 0) AS receipt_total
+    FROM public.voucher_entries ve
+    WHERE ve.organization_id = s.organization_id
+      AND ve.reference_id = s.id
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+      AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  ) r ON TRUE
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND COALESCE(s.legacy_paid_baseline, 0) > 0.009
+    AND r.receipt_total > 0.009
+  GROUP BY s.customer_id
+),
+cn_double AS (
+  SELECT s.customer_id, COUNT(DISTINCT s.id) AS n_sales
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN LATERAL (
+    SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+    FROM public.voucher_entries ve
+    WHERE ve.organization_id = s.organization_id
+      AND ve.deleted_at IS NULL
+      AND ve.reference_id = s.id
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+  ) cn ON TRUE
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.sale_return_adjust, 0) > 0.5
+    AND cn.cn_amt > 0.5
+    AND EXISTS (
+      SELECT 1
+      FROM public.sale_returns sr
+      WHERE sr.customer_id = s.customer_id
+        AND sr.organization_id = p.org_id
+        AND sr.deleted_at IS NULL
+        AND public._sale_return_remaining_credit_for_balance(
+              sr.net_amount, sr.credit_available_balance, COALESCE(s.sale_return_adjust, 0)
+            ) > 0.5
+    )
+  GROUP BY s.customer_id
+),
+classified AS (
+  SELECT
+    m.*,
+    CASE
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_amount_sum, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'full'
+      WHEN ABS(m.gap_recompute_minus_party
+               - GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras))
+           <= (SELECT drift_threshold FROM params)
+        OR ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_inflation_per_sale, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'inflation'
+      WHEN GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) > (SELECT drift_threshold FROM params)
+       AND GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) < m.abs_gap - (SELECT drift_threshold FROM params)
+      THEN 'partial'
+      ELSE 'none'
+    END AS paid_trust_kind,
+    CASE
+      WHEN COALESCE(idr.n_hits, 0) > 0 THEN 'duplicate_receipt'
+      WHEN COALESCE(cn.n_sales, 0) > 0 THEN 'cn_double_count'
+      WHEN COALESCE(lb.n_sales, 0) > 0 THEN 'legacy_paid_baseline'
+      WHEN ABS(m.gap_recompute_minus_party - m.balance_adjustment)
+           <= (SELECT drift_threshold FROM params)
+       AND ABS(m.balance_adjustment) > (SELECT drift_threshold FROM params)
+      THEN 'manual_adjustment_overlay'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(au.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(au.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'advance_over_application'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(rf.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(rf.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'unrecorded_refund'
+      WHEN COALESCE(orp.amt, 0) > (SELECT drift_threshold FROM params) THEN 'orphan_receipt'
+      ELSE 'off_cause_unclear'
+    END AS other_named_class,
+    COALESCE(pbc.paid_amount_sum, 0) AS paid_amount_sum,
+    COALESCE(pbc.paid_inflation_per_sale, 0) AS paid_inflation_per_sale
+  FROM mismatch m
+  LEFT JOIN paid_by_cust pbc ON pbc.customer_id = m.customer_id
+  LEFT JOIN inv_dup_receipt idr ON idr.customer_id = m.customer_id
+  LEFT JOIN cn_double cn ON cn.customer_id = m.customer_id
+  LEFT JOIN legacy_baseline lb ON lb.customer_id = m.customer_id
+  LEFT JOIN advance_used au ON au.customer_id = m.customer_id
+  LEFT JOIN refunds rf ON rf.customer_id = m.customer_id
+  LEFT JOIN orphan_receipts orp ON orp.customer_id = m.customer_id
 )
+,
+dup_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(i.entity_ref, ve.voucher_number)::text
+        || ' ₹' || ROUND(ABS(COALESCE(i.detail, ve.total_amount, 0))::numeric, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY ABS(COALESCE(i.detail, 0)) DESC, i.entity_ref
+      ) AS rn
+    FROM public.v_accounting_invariants i
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+    JOIN public.sales s
+      ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+    WHERE i.organization_id = p.org_id
+      AND i.check_name = 'rapid_duplicate_receipt'
+      AND s.customer_id IS NOT NULL
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+baseline_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' baseline=' || ROUND(COALESCE(s.legacy_paid_baseline, 0), 2)::text
+        || ' receipts=' || ROUND(r.receipt_total, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY LEAST(COALESCE(s.legacy_paid_baseline, 0), r.receipt_total) DESC
+      ) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(
+        GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+      ), 0) AS receipt_total
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.reference_id = s.id
+        AND ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ) r ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.is_cancelled, false) = false
+      AND COALESCE(s.legacy_paid_baseline, 0) > 0.009
+      AND r.receipt_total > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+cn_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' SRA=' || ROUND(COALESCE(s.sale_return_adjust, 0), 2)::text
+        || ' CN=' || ROUND(cn.cn_amt, 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(s.sale_return_adjust, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.deleted_at IS NULL
+        AND ve.reference_id = s.id
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    ) cn ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.sale_return_adjust, 0) > 0.5
+      AND cn.cn_amt > 0.5
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+adj_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      cba.customer_id,
+      COALESCE(cba.adjustment_date::text, '')
+        || ' ₹' || ROUND(cba.outstanding_difference, 2)::text
+        || ' ' || left(COALESCE(cba.reason, ''), 40) AS label,
+      row_number() OVER (
+        PARTITION BY cba.customer_id
+        ORDER BY ABS(cba.outstanding_difference) DESC
+      ) AS rn
+    FROM public.customer_balance_adjustments cba
+    CROSS JOIN params p
+    WHERE cba.organization_id = p.org_id
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+advance_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ca.customer_id,
+      ca.advance_number
+        || ' used=' || ROUND(COALESCE(ca.used_amount, 0), 2)::text
+        || '/' || ROUND(COALESCE(ca.amount, 0), 2)::text AS label,
+      row_number() OVER (PARTITION BY ca.customer_id ORDER BY COALESCE(ca.used_amount, 0) DESC) AS rn
+    FROM public.customer_advances ca
+    CROSS JOIN params p
+    WHERE ca.organization_id = p.org_id
+      AND COALESCE(ca.used_amount, 0) > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+refund_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ve.reference_id AS customer_id,
+      COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0)), 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY ve.reference_id
+        ORDER BY COALESCE(ve.total_amount, 0) DESC
+      ) AS rn
+    FROM public.voucher_entries ve
+    CROSS JOIN params p
+    WHERE ve.organization_id = p.org_id
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+      AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+orphan_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(s.sale_number, s.id::text)
+        || ' (deleted) '
+        || COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)), 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(ve.total_amount, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NOT NULL
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+      AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+queued AS (
+  SELECT
+    cl.*,
+    CASE
+      WHEN cl.paid_trust_kind IN ('full', 'inflation', 'partial') THEN 'party_trusts_paid_amount'
+      ELSE cl.other_named_class
+    END AS named_pattern
+  FROM classified cl
+),
+ranked AS (
+  SELECT
+    q.*,
+    CASE
+      WHEN ABS(q.party_signed) >= 100000 OR q.abs_gap >= 50000 THEN 'P0'
+      WHEN q.named_pattern <> 'off_cause_unclear'
+       AND (ABS(q.party_signed) >= 5000 OR q.abs_gap >= 5000) THEN 'P1'
+      ELSE 'P2'
+    END AS queue_tier
+  FROM queued q
+),
+with_write AS (
+  SELECT
+    r.customer_id,
+    r.customer_name,
+    r.phone,
+    r.party_signed,
+    r.recomputed_7_both_eras,
+    r.gap_recompute_minus_party,
+    r.abs_gap,
+    r.cohort,
+    r.paid_trust_kind,
+    r.named_pattern,
+    r.queue_tier,
+    r.paid_amount_sum,
+    r.receipt_payments_both_eras,
+    CASE r.named_pattern
+      WHEN 'party_trusts_paid_amount' THEN
+        'QUEUE ONLY — two options pending Tausif architecture sign-off: '
+        || '(A) correct sales.paid_amount to match receipts+tender+advances '
+        || '(paid_amount_sum=' || ROUND(r.paid_amount_sum, 2)::text
+        || ', receipts=' || ROUND(r.receipt_payments_both_eras, 2)::text
+        || ', gap=' || ROUND(r.gap_recompute_minus_party, 2)::text
+        || ', kind=' || r.paid_trust_kind
+        || '); (B) stop crediting paid_amount in the party function '
+        || '(live GREATEST(paid_amount, tender) shape even when tender=0). '
+        || 'Do not write paid_amount and do not patch the party RPC from this queue.'
+      WHEN 'duplicate_receipt' THEN
+        'Soft-delete the duplicate receipt voucher(s) after dry-run + 5-row hand-check '
+        || '(Parishma class — do not auto-delete): '
+        || COALESCE(dl.labels, '(see v_accounting_invariants.rapid_duplicate_receipt)')
+      WHEN 'legacy_paid_baseline' THEN
+        'Named baseline∩receipts on sale(s) (Asma Shareef / INV/26-27/2288 shape). '
+        || 'Capture live compute_sale_settlement DDL before any baseline write. '
+        || 'Do not zero all baselines. Sales: '
+        || COALESCE(bl.labels, '(see Step 3e)')
+      WHEN 'cn_double_count' THEN
+        'CN double-count: SRA + credit_note_adjustment voucher + remaining CAB. '
+        || 'Repair only via adjust_invoice_balance (Shumama R2). No bare createReceiptVoucher. Sales: '
+        || COALESCE(cnl.labels, '(see Step 2 cn_double)')
+      WHEN 'manual_adjustment_overlay' THEN
+        'Gap equals SUM(customer_balance_adjustments.outstanding_difference). '
+        || 'Do not reverse a shop-entered patch without dry-run. Adjustments: '
+        || COALESCE(al.labels, '(no label)')
+      WHEN 'advance_over_application' THEN
+        'Gap equals SUM(customer_advances.used_amount). '
+        || 'Do not auto-refund (Anusha / Parishma class — human judgement). Advances: '
+        || COALESCE(avl.labels, '(no label)')
+      WHEN 'unrecorded_refund' THEN
+        'Party subtracts customer payment voucher(s) the seven-component omits. '
+        || 'Investigate before any write (Farhaan Fab class: confirm the voucher is a real refund, not a CN memo). Vouchers: '
+        || COALESCE(rfl.labels, '(no label)')
+      WHEN 'orphan_receipt' THEN
+        'Receipts sitting on soft-deleted sales. Recycle-bin / deleted_at investigation — no hard delete. '
+        || COALESCE(ol.labels, '(no label)')
+      ELSE
+        'GENUINELY UNEXPLAINED — fresh look required. Do not force-fit into party_trusts_paid_amount or any other named pattern. No write from this queue.'
+    END AS proposed_write
+  FROM ranked r
+  LEFT JOIN dup_labels dl ON dl.customer_id = r.customer_id
+  LEFT JOIN baseline_labels bl ON bl.customer_id = r.customer_id
+  LEFT JOIN cn_labels cnl ON cnl.customer_id = r.customer_id
+  LEFT JOIN adj_labels al ON al.customer_id = r.customer_id
+  LEFT JOIN advance_labels avl ON avl.customer_id = r.customer_id
+  LEFT JOIN refund_labels rfl ON rfl.customer_id = r.customer_id
+  LEFT JOIN orphan_labels ol ON ol.customer_id = r.customer_id
+)
+
 SELECT
-  pb.out_customer_name,
-  pb.out_signed_balance,
-  pb.out_direction,
-  COALESCE(idr.n, 0) AS duplicate_receipt_hits,
-  COALESCE(lb.n_sales, 0) AS baseline_overlap_sales,
-  COALESCE(lb.overlap, 0) AS baseline_overlap_rupees,
-  CASE
-    WHEN ABS(pb.out_signed_balance) >= 100000
-      OR COALESCE(lb.overlap, 0) >= 50000
-    THEN 'P0'
-    WHEN COALESCE(idr.n, 0) > 0
-      OR COALESCE(lb.n_sales, 0) > 0
-    THEN 'P1'
-    ELSE 'P2'
-  END AS queue_tier,
-  'QUEUE ONLY — no voucher write, no paid_amount update, no baseline zeroing'::text AS action
-FROM party pb
-LEFT JOIN inv_dup_receipt idr ON idr.customer_id = pb.out_customer_id
-LEFT JOIN legacy_baseline lb ON lb.customer_id = pb.out_customer_id
-WHERE ABS(pb.out_signed_balance) > 0.5
-   OR COALESCE(idr.n, 0) > 0
-   OR COALESCE(lb.n_sales, 0) > 0
+  COUNT(*) AS n_queue,
+  COUNT(*) FILTER (WHERE named_pattern <> 'off_cause_unclear') AS n_classified,
+  COUNT(*) FILTER (WHERE named_pattern = 'off_cause_unclear') AS n_genuinely_unexplained,
+  COUNT(*) FILTER (WHERE queue_tier = 'P0') AS n_p0,
+  COUNT(*) FILTER (WHERE queue_tier = 'P1') AS n_p1,
+  COUNT(*) FILTER (WHERE queue_tier = 'P2') AS n_p2,
+  COUNT(*) FILTER (WHERE queue_tier = 'P0' AND named_pattern = 'party_trusts_paid_amount')
+    AS n_p0_party_trusts_paid_amount,
+  COUNT(*) FILTER (WHERE queue_tier = 'P0' AND named_pattern = 'off_cause_unclear')
+    AS n_p0_unexplained,
+  ROUND(SUM(abs_gap), 2) AS abs_gap_all,
+  ROUND(SUM(abs_gap) FILTER (WHERE queue_tier = 'P0'), 2) AS abs_gap_p0,
+  ROUND(SUM(ABS(party_signed)) FILTER (WHERE queue_tier = 'P0'), 2) AS abs_party_p0,
+  ROUND(SUM(abs_gap) FILTER (
+    WHERE queue_tier = 'P0' AND named_pattern = 'party_trusts_paid_amount'
+  ), 2) AS abs_gap_p0_party_trusts_paid_amount,
+  ROUND(SUM(abs_gap) FILTER (WHERE queue_tier = 'P1'), 2) AS abs_gap_p1,
+  ROUND(SUM(abs_gap) FILTER (WHERE queue_tier = 'P2'), 2) AS abs_gap_p2,
+  ROUND(SUM(abs_gap) FILTER (WHERE named_pattern = 'party_trusts_paid_amount'), 2)
+    AS abs_gap_party_trusts_paid_amount,
+  ROUND(SUM(abs_gap) FILTER (WHERE named_pattern = 'off_cause_unclear'), 2)
+    AS abs_gap_unexplained
+FROM with_write;
+
+
+-- -----------------------------------------------------------------------------
+-- STEP 5-unexplained — the 35 genuinely-unexplained customers.
+-- Separate worklist. Do NOT fold these into party_trusts_paid_amount or any
+-- other named pattern by force-fit. Fresh look required. SELECT-only.
+-- -----------------------------------------------------------------------------
+WITH params AS (
+  SELECT
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id,
+    1.0::numeric AS drift_threshold
+),
+cust AS (
+  SELECT c.id, c.customer_name, c.phone, COALESCE(c.opening_balance, 0)::numeric AS opening_balance
+  FROM public.customers c
+  CROSS JOIN params p
+  WHERE c.organization_id = p.org_id AND c.deleted_at IS NULL
+),
+party AS (
+  SELECT r.out_customer_id, r.out_signed_balance
+  FROM params p
+  CROSS JOIN LATERAL public._get_customer_party_balances_rows(p.org_id) r
+),
+valid_sales AS (
+  SELECT s.*
+  FROM public.sales s
+  CROSS JOIN params p
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
+    AND s.customer_id IS NOT NULL
+),
+items_gross AS (
+  SELECT si.sale_id, SUM(COALESCE(si.quantity, 0) * COALESCE(si.mrp, 0))::numeric AS gross
+  FROM public.sale_items si
+  INNER JOIN valid_sales s2 ON s2.id = si.sale_id
+  WHERE si.deleted_at IS NULL AND COALESCE(s2.sale_return_adjust, 0) > 0
+  GROUP BY si.sale_id
+),
+total_invoiced AS (
+  SELECT s.customer_id, COALESCE(SUM(s.net_amount), 0)::numeric AS amt
+  FROM valid_sales s GROUP BY s.customer_id
+),
+sale_return_adjust AS (
+  SELECT s.customer_id, COALESCE(SUM(
+    CASE
+      WHEN COALESCE(ig.gross, 0) > 0
+           AND COALESCE(s.sale_return_adjust, 0) > 0
+           AND s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1
+      THEN 0 ELSE COALESCE(s.sale_return_adjust, 0) END
+  ), 0)::numeric AS amt
+  FROM valid_sales s
+  LEFT JOIN items_gross ig ON ig.sale_id = s.id
+  GROUP BY s.customer_id
+),
+balance_adjustment AS (
+  SELECT cba.customer_id, COALESCE(SUM(cba.outstanding_difference), 0)::numeric AS amt
+  FROM public.customer_balance_adjustments cba
+  CROSS JOIN params p
+  WHERE cba.organization_id = p.org_id
+  GROUP BY cba.customer_id
+),
+sale_receipts_per_sale AS (
+  SELECT
+    s.id AS sale_id,
+    s.customer_id,
+    GREATEST(0::numeric, COALESCE(s.net_amount, 0)) AS payable_cap,
+    (
+      GREATEST(0::numeric, COALESCE(s.cash_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.card_amount, 0))
+      + GREATEST(0::numeric, COALESCE(s.upi_amount, 0))
+    ) AS tender,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS receipts_both_eras
+  FROM valid_sales s
+  LEFT JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  GROUP BY s.id, s.customer_id, s.net_amount, s.cash_amount, s.card_amount, s.upi_amount
+),
+sale_receipts_both AS (
+  SELECT r.customer_id, SUM(r.receipts_both_eras) AS amt_both_eras
+  FROM sale_receipts_per_sale r
+  GROUP BY r.customer_id
+),
+customer_receipts_both AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ) FILTER (
+      WHERE ve.reference_type IN ('customer', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ), 0)::numeric AS amt_both_eras
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_id IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM public.sales s2
+      WHERE s2.id = ve.reference_id AND s2.organization_id = p.org_id
+    )
+  GROUP BY ve.reference_id
+),
+pending_sale_returns AS (
+  SELECT x.customer_id, COALESCE(SUM(x.row_credit), 0)::numeric AS amt
+  FROM (
+    SELECT sr.customer_id,
+      public._sale_return_remaining_credit_for_balance(
+        sr.net_amount, sr.credit_available_balance, COALESCE(ls.sale_return_adjust, 0)
+      ) AS row_credit
+    FROM public.sale_returns sr
+    CROSS JOIN params p
+    LEFT JOIN public.sales ls
+      ON ls.id = sr.linked_sale_id AND ls.organization_id = p.org_id AND ls.deleted_at IS NULL
+    WHERE sr.organization_id = p.org_id
+      AND sr.deleted_at IS NULL
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('refunded')
+      AND COALESCE(lower(sr.refund_type::text), '') <> 'cash_refund'
+  ) x
+  WHERE x.row_credit > 0.005
+  GROUP BY x.customer_id
+),
+unused_advances AS (
+  SELECT ca.customer_id,
+    GREATEST(0::numeric,
+      COALESCE(SUM(ca.amount), 0) - COALESCE(SUM(ca.used_amount), 0)
+      - COALESCE((
+          SELECT SUM(ar.refund_amount)
+          FROM public.advance_refunds ar
+          JOIN public.customer_advances ca2 ON ca2.id = ar.advance_id
+          WHERE ca2.customer_id = ca.customer_id AND ca2.organization_id = ca.organization_id
+        ), 0)
+    )::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id, ca.organization_id
+),
+advance_used AS (
+  SELECT ca.customer_id, COALESCE(SUM(ca.used_amount), 0)::numeric AS amt
+  FROM public.customer_advances ca
+  CROSS JOIN params p
+  WHERE ca.organization_id = p.org_id
+  GROUP BY ca.customer_id
+),
+refunds AS (
+  SELECT
+    ve.reference_id AS customer_id,
+    COALESCE(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0))), 0)::numeric AS amt
+  FROM public.voucher_entries ve
+  CROSS JOIN params p
+  WHERE ve.organization_id = p.org_id
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+    AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  GROUP BY ve.reference_id
+),
+orphan_receipts AS (
+  SELECT
+    s.customer_id,
+    ROUND(SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))), 2) AS amt
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN public.voucher_entries ve
+    ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NOT NULL
+    AND ve.deleted_at IS NULL
+    AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+    AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  GROUP BY s.customer_id
+),
+scored AS (
+  SELECT
+    c.id AS customer_id,
+    c.customer_name,
+    c.phone,
+    ROUND((
+      c.opening_balance + COALESCE(ti.amt, 0) - COALESCE(sra.amt, 0)
+      - (COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0))
+      + COALESCE(ba.amt, 0) - COALESCE(psr.amt, 0) - COALESCE(ua.amt, 0)
+    )::numeric, 2) AS recomputed_7_both_eras,
+    COALESCE(pb.out_signed_balance, 0)::numeric AS party_signed,
+    COALESCE(srb.amt_both_eras, 0) + COALESCE(crb.amt_both_eras, 0) AS receipt_payments_both_eras,
+    COALESCE(ti.amt, 0) AS total_invoiced,
+    COALESCE(ba.amt, 0) AS balance_adjustment
+  FROM cust c
+  LEFT JOIN party pb ON pb.out_customer_id = c.id
+  LEFT JOIN total_invoiced ti ON ti.customer_id = c.id
+  LEFT JOIN sale_return_adjust sra ON sra.customer_id = c.id
+  LEFT JOIN balance_adjustment ba ON ba.customer_id = c.id
+  LEFT JOIN sale_receipts_both srb ON srb.customer_id = c.id
+  LEFT JOIN customer_receipts_both crb ON crb.customer_id = c.id
+  LEFT JOIN pending_sale_returns psr ON psr.customer_id = c.id
+  LEFT JOIN unused_advances ua ON ua.customer_id = c.id
+),
+mismatch AS (
+  SELECT
+    s.customer_id,
+    s.customer_name,
+    s.phone,
+    s.recomputed_7_both_eras,
+    s.party_signed,
+    ROUND(s.recomputed_7_both_eras - s.party_signed, 2) AS gap_recompute_minus_party,
+    ROUND(ABS(s.recomputed_7_both_eras - s.party_signed), 2) AS abs_gap,
+    s.receipt_payments_both_eras,
+    s.balance_adjustment,
+    CASE
+      WHEN s.receipt_payments_both_eras = 0 AND s.total_invoiced > 0.009 THEN 'zero_receipt_invoiced'
+      WHEN s.receipt_payments_both_eras > 0.009 THEN 'some_receipts'
+      ELSE 'other_mismatch'
+    END AS cohort
+  FROM scored s
+  CROSS JOIN params p
+  WHERE ABS(s.party_signed - s.recomputed_7_both_eras) > p.drift_threshold
+),
+paid_by_cust AS (
+  SELECT
+    vs.customer_id,
+    SUM(COALESCE(vs.paid_amount, 0))::numeric AS paid_amount_sum,
+    SUM(GREATEST(
+      0::numeric,
+      COALESCE(vs.paid_amount, 0) - COALESCE(sr.receipts_both_eras, 0)
+    ))::numeric AS paid_inflation_per_sale
+  FROM valid_sales vs
+  LEFT JOIN sale_receipts_per_sale sr ON sr.sale_id = vs.id
+  GROUP BY vs.customer_id
+),
+inv_dup_receipt AS (
+  SELECT s.customer_id, COUNT(*) AS n_hits
+  FROM public.v_accounting_invariants i
+  CROSS JOIN params p
+  JOIN public.voucher_entries ve
+    ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+  JOIN public.sales s
+    ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+  WHERE i.organization_id = p.org_id
+    AND i.check_name = 'rapid_duplicate_receipt'
+    AND s.customer_id IS NOT NULL
+  GROUP BY s.customer_id
+),
+legacy_baseline AS (
+  SELECT s.customer_id, COUNT(*) AS n_sales
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN LATERAL (
+    SELECT COALESCE(SUM(
+      GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+    ), 0) AS receipt_total
+    FROM public.voucher_entries ve
+    WHERE ve.organization_id = s.organization_id
+      AND ve.reference_id = s.id
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+      AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  ) r ON TRUE
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.is_cancelled, false) = false
+    AND COALESCE(s.legacy_paid_baseline, 0) > 0.009
+    AND r.receipt_total > 0.009
+  GROUP BY s.customer_id
+),
+cn_double AS (
+  SELECT s.customer_id, COUNT(DISTINCT s.id) AS n_sales
+  FROM public.sales s
+  CROSS JOIN params p
+  JOIN LATERAL (
+    SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+    FROM public.voucher_entries ve
+    WHERE ve.organization_id = s.organization_id
+      AND ve.deleted_at IS NULL
+      AND ve.reference_id = s.id
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+  ) cn ON TRUE
+  WHERE s.organization_id = p.org_id
+    AND s.deleted_at IS NULL
+    AND COALESCE(s.sale_return_adjust, 0) > 0.5
+    AND cn.cn_amt > 0.5
+    AND EXISTS (
+      SELECT 1
+      FROM public.sale_returns sr
+      WHERE sr.customer_id = s.customer_id
+        AND sr.organization_id = p.org_id
+        AND sr.deleted_at IS NULL
+        AND public._sale_return_remaining_credit_for_balance(
+              sr.net_amount, sr.credit_available_balance, COALESCE(s.sale_return_adjust, 0)
+            ) > 0.5
+    )
+  GROUP BY s.customer_id
+),
+classified AS (
+  SELECT
+    m.*,
+    CASE
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_amount_sum, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'full'
+      WHEN ABS(m.gap_recompute_minus_party
+               - GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras))
+           <= (SELECT drift_threshold FROM params)
+        OR ABS(m.gap_recompute_minus_party - COALESCE(pbc.paid_inflation_per_sale, 0))
+           <= (SELECT drift_threshold FROM params)
+      THEN 'inflation'
+      WHEN GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) > (SELECT drift_threshold FROM params)
+       AND GREATEST(
+             GREATEST(0::numeric, COALESCE(pbc.paid_amount_sum, 0) - m.receipt_payments_both_eras),
+             COALESCE(pbc.paid_inflation_per_sale, 0)
+           ) < m.abs_gap - (SELECT drift_threshold FROM params)
+      THEN 'partial'
+      ELSE 'none'
+    END AS paid_trust_kind,
+    CASE
+      WHEN COALESCE(idr.n_hits, 0) > 0 THEN 'duplicate_receipt'
+      WHEN COALESCE(cn.n_sales, 0) > 0 THEN 'cn_double_count'
+      WHEN COALESCE(lb.n_sales, 0) > 0 THEN 'legacy_paid_baseline'
+      WHEN ABS(m.gap_recompute_minus_party - m.balance_adjustment)
+           <= (SELECT drift_threshold FROM params)
+       AND ABS(m.balance_adjustment) > (SELECT drift_threshold FROM params)
+      THEN 'manual_adjustment_overlay'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(au.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(au.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'advance_over_application'
+      WHEN ABS(m.gap_recompute_minus_party - COALESCE(rf.amt, 0))
+           <= (SELECT drift_threshold FROM params)
+       AND COALESCE(rf.amt, 0) > (SELECT drift_threshold FROM params)
+      THEN 'unrecorded_refund'
+      WHEN COALESCE(orp.amt, 0) > (SELECT drift_threshold FROM params) THEN 'orphan_receipt'
+      ELSE 'off_cause_unclear'
+    END AS other_named_class,
+    COALESCE(pbc.paid_amount_sum, 0) AS paid_amount_sum,
+    COALESCE(pbc.paid_inflation_per_sale, 0) AS paid_inflation_per_sale
+  FROM mismatch m
+  LEFT JOIN paid_by_cust pbc ON pbc.customer_id = m.customer_id
+  LEFT JOIN inv_dup_receipt idr ON idr.customer_id = m.customer_id
+  LEFT JOIN cn_double cn ON cn.customer_id = m.customer_id
+  LEFT JOIN legacy_baseline lb ON lb.customer_id = m.customer_id
+  LEFT JOIN advance_used au ON au.customer_id = m.customer_id
+  LEFT JOIN refunds rf ON rf.customer_id = m.customer_id
+  LEFT JOIN orphan_receipts orp ON orp.customer_id = m.customer_id
+)
+,
+dup_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(i.entity_ref, ve.voucher_number)::text
+        || ' ₹' || ROUND(ABS(COALESCE(i.detail, ve.total_amount, 0))::numeric, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY ABS(COALESCE(i.detail, 0)) DESC, i.entity_ref
+      ) AS rn
+    FROM public.v_accounting_invariants i
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.id = i.entity_id AND ve.organization_id = i.organization_id
+    JOIN public.sales s
+      ON s.id = ve.reference_id AND s.organization_id = i.organization_id
+    WHERE i.organization_id = p.org_id
+      AND i.check_name = 'rapid_duplicate_receipt'
+      AND s.customer_id IS NOT NULL
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+baseline_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' baseline=' || ROUND(COALESCE(s.legacy_paid_baseline, 0), 2)::text
+        || ' receipts=' || ROUND(r.receipt_total, 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY s.customer_id
+        ORDER BY LEAST(COALESCE(s.legacy_paid_baseline, 0), r.receipt_total) DESC
+      ) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(
+        GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))
+      ), 0) AS receipt_total
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.reference_id = s.id
+        AND ve.deleted_at IS NULL
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+        AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+    ) r ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.is_cancelled, false) = false
+      AND COALESCE(s.legacy_paid_baseline, 0) > 0.009
+      AND r.receipt_total > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+cn_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      s.sale_number
+        || ' SRA=' || ROUND(COALESCE(s.sale_return_adjust, 0), 2)::text
+        || ' CN=' || ROUND(cn.cn_amt, 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(s.sale_return_adjust, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN LATERAL (
+      SELECT COALESCE(SUM(ve.total_amount), 0) AS cn_amt
+      FROM public.voucher_entries ve
+      WHERE ve.organization_id = s.organization_id
+        AND ve.deleted_at IS NULL
+        AND ve.reference_id = s.id
+        AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+        AND lower(COALESCE(ve.payment_method, '')) = 'credit_note_adjustment'
+        AND ve.reference_type IN ('sale', 'CustomerReceipt')
+    ) cn ON TRUE
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NULL
+      AND COALESCE(s.sale_return_adjust, 0) > 0.5
+      AND cn.cn_amt > 0.5
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+adj_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      cba.customer_id,
+      COALESCE(cba.adjustment_date::text, '')
+        || ' ₹' || ROUND(cba.outstanding_difference, 2)::text
+        || ' ' || left(COALESCE(cba.reason, ''), 40) AS label,
+      row_number() OVER (
+        PARTITION BY cba.customer_id
+        ORDER BY ABS(cba.outstanding_difference) DESC
+      ) AS rn
+    FROM public.customer_balance_adjustments cba
+    CROSS JOIN params p
+    WHERE cba.organization_id = p.org_id
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+advance_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ca.customer_id,
+      ca.advance_number
+        || ' used=' || ROUND(COALESCE(ca.used_amount, 0), 2)::text
+        || '/' || ROUND(COALESCE(ca.amount, 0), 2)::text AS label,
+      row_number() OVER (PARTITION BY ca.customer_id ORDER BY COALESCE(ca.used_amount, 0) DESC) AS rn
+    FROM public.customer_advances ca
+    CROSS JOIN params p
+    WHERE ca.organization_id = p.org_id
+      AND COALESCE(ca.used_amount, 0) > 0.009
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+refund_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      ve.reference_id AS customer_id,
+      COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0)), 2)::text AS label,
+      row_number() OVER (
+        PARTITION BY ve.reference_id
+        ORDER BY COALESCE(ve.total_amount, 0) DESC
+      ) AS rn
+    FROM public.voucher_entries ve
+    CROSS JOIN params p
+    WHERE ve.organization_id = p.org_id
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'payment'
+      AND lower(COALESCE(ve.reference_type, '')) = 'customer'
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+orphan_labels AS (
+  SELECT customer_id, string_agg(label, '; ' ORDER BY label) AS labels
+  FROM (
+    SELECT
+      s.customer_id,
+      COALESCE(s.sale_number, s.id::text)
+        || ' (deleted) '
+        || COALESCE(ve.voucher_number, ve.id::text)
+        || ' ₹' || ROUND(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)), 2)::text AS label,
+      row_number() OVER (PARTITION BY s.customer_id ORDER BY COALESCE(ve.total_amount, 0) DESC) AS rn
+    FROM public.sales s
+    CROSS JOIN params p
+    JOIN public.voucher_entries ve
+      ON ve.reference_id = s.id AND ve.organization_id = s.organization_id
+    WHERE s.organization_id = p.org_id
+      AND s.deleted_at IS NOT NULL
+      AND ve.deleted_at IS NULL
+      AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
+      AND ve.reference_type IN ('sale', 'CustomerReceipt')
+      AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+  ) x
+  WHERE rn <= 15
+  GROUP BY customer_id
+),
+queued AS (
+  SELECT
+    cl.*,
+    CASE
+      WHEN cl.paid_trust_kind IN ('full', 'inflation', 'partial') THEN 'party_trusts_paid_amount'
+      ELSE cl.other_named_class
+    END AS named_pattern
+  FROM classified cl
+),
+ranked AS (
+  SELECT
+    q.*,
+    CASE
+      WHEN ABS(q.party_signed) >= 100000 OR q.abs_gap >= 50000 THEN 'P0'
+      WHEN q.named_pattern <> 'off_cause_unclear'
+       AND (ABS(q.party_signed) >= 5000 OR q.abs_gap >= 5000) THEN 'P1'
+      ELSE 'P2'
+    END AS queue_tier
+  FROM queued q
+),
+with_write AS (
+  SELECT
+    r.customer_id,
+    r.customer_name,
+    r.phone,
+    r.party_signed,
+    r.recomputed_7_both_eras,
+    r.gap_recompute_minus_party,
+    r.abs_gap,
+    r.cohort,
+    r.paid_trust_kind,
+    r.named_pattern,
+    r.queue_tier,
+    r.paid_amount_sum,
+    r.receipt_payments_both_eras,
+    CASE r.named_pattern
+      WHEN 'party_trusts_paid_amount' THEN
+        'QUEUE ONLY — two options pending Tausif architecture sign-off: '
+        || '(A) correct sales.paid_amount to match receipts+tender+advances '
+        || '(paid_amount_sum=' || ROUND(r.paid_amount_sum, 2)::text
+        || ', receipts=' || ROUND(r.receipt_payments_both_eras, 2)::text
+        || ', gap=' || ROUND(r.gap_recompute_minus_party, 2)::text
+        || ', kind=' || r.paid_trust_kind
+        || '); (B) stop crediting paid_amount in the party function '
+        || '(live GREATEST(paid_amount, tender) shape even when tender=0). '
+        || 'Do not write paid_amount and do not patch the party RPC from this queue.'
+      WHEN 'duplicate_receipt' THEN
+        'Soft-delete the duplicate receipt voucher(s) after dry-run + 5-row hand-check '
+        || '(Parishma class — do not auto-delete): '
+        || COALESCE(dl.labels, '(see v_accounting_invariants.rapid_duplicate_receipt)')
+      WHEN 'legacy_paid_baseline' THEN
+        'Named baseline∩receipts on sale(s) (Asma Shareef / INV/26-27/2288 shape). '
+        || 'Capture live compute_sale_settlement DDL before any baseline write. '
+        || 'Do not zero all baselines. Sales: '
+        || COALESCE(bl.labels, '(see Step 3e)')
+      WHEN 'cn_double_count' THEN
+        'CN double-count: SRA + credit_note_adjustment voucher + remaining CAB. '
+        || 'Repair only via adjust_invoice_balance (Shumama R2). No bare createReceiptVoucher. Sales: '
+        || COALESCE(cnl.labels, '(see Step 2 cn_double)')
+      WHEN 'manual_adjustment_overlay' THEN
+        'Gap equals SUM(customer_balance_adjustments.outstanding_difference). '
+        || 'Do not reverse a shop-entered patch without dry-run. Adjustments: '
+        || COALESCE(al.labels, '(no label)')
+      WHEN 'advance_over_application' THEN
+        'Gap equals SUM(customer_advances.used_amount). '
+        || 'Do not auto-refund (Anusha / Parishma class — human judgement). Advances: '
+        || COALESCE(avl.labels, '(no label)')
+      WHEN 'unrecorded_refund' THEN
+        'Party subtracts customer payment voucher(s) the seven-component omits. '
+        || 'Investigate before any write (Farhaan Fab class: confirm the voucher is a real refund, not a CN memo). Vouchers: '
+        || COALESCE(rfl.labels, '(no label)')
+      WHEN 'orphan_receipt' THEN
+        'Receipts sitting on soft-deleted sales. Recycle-bin / deleted_at investigation — no hard delete. '
+        || COALESCE(ol.labels, '(no label)')
+      ELSE
+        'GENUINELY UNEXPLAINED — fresh look required. Do not force-fit into party_trusts_paid_amount or any other named pattern. No write from this queue.'
+    END AS proposed_write
+  FROM ranked r
+  LEFT JOIN dup_labels dl ON dl.customer_id = r.customer_id
+  LEFT JOIN baseline_labels bl ON bl.customer_id = r.customer_id
+  LEFT JOIN cn_labels cnl ON cnl.customer_id = r.customer_id
+  LEFT JOIN adj_labels al ON al.customer_id = r.customer_id
+  LEFT JOIN advance_labels avl ON avl.customer_id = r.customer_id
+  LEFT JOIN refund_labels rfl ON rfl.customer_id = r.customer_id
+  LEFT JOIN orphan_labels ol ON ol.customer_id = r.customer_id
+)
+
+SELECT
+  w.queue_tier,
+  w.named_pattern,
+  w.customer_name,
+  w.phone,
+  w.customer_id,
+  w.party_signed,
+  w.recomputed_7_both_eras,
+  w.gap_recompute_minus_party,
+  w.abs_gap,
+  w.cohort,
+  w.paid_amount_sum,
+  w.receipt_payments_both_eras,
+  true AS force_fit_forbidden,
+  w.proposed_write
+FROM with_write w
+WHERE w.named_pattern = 'off_cause_unclear'
 ORDER BY
-  CASE
-    WHEN ABS(pb.out_signed_balance) >= 100000 OR COALESCE(lb.overlap, 0) >= 50000 THEN 0
-    WHEN COALESCE(idr.n, 0) > 0 OR COALESCE(lb.n_sales, 0) > 0 THEN 1
-    ELSE 2
-  END,
-  ABS(pb.out_signed_balance) DESC
+  CASE w.queue_tier WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 ELSE 2 END,
+  w.abs_gap DESC,
+  w.customer_name
 LIMIT 1000 OFFSET 0;
+
 
 -- END. No writes follow.

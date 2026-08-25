@@ -59,6 +59,35 @@ export function cohortOf(receiptPayments: number, totalInvoiced: number): "zero_
   return "other_mismatch";
 }
 
+export type NamedPattern =
+  | "party_trusts_paid_amount"
+  | "duplicate_receipt"
+  | "cn_double_count"
+  | "legacy_paid_baseline"
+  | "manual_adjustment_overlay"
+  | "advance_over_application"
+  | "unrecorded_refund"
+  | "orphan_receipt"
+  | "off_cause_unclear";
+
+export type QueueTier = "P0" | "P1" | "P2";
+
+/** Step 5 tiers: P0 |party|≥1e5 or |gap|≥5e4; P1 named and (|party|≥5e3 or |gap|≥5e3); else P2. */
+export function queueTier(absPartySigned: number, absGap: number, namedPattern: NamedPattern): QueueTier {
+  if (absPartySigned >= 100_000 || absGap >= 50_000) return "P0";
+  const named = namedPattern !== "off_cause_unclear";
+  if (named && (absPartySigned >= 5_000 || absGap >= 5_000)) return "P1";
+  return "P2";
+}
+
+export function namedPatternOf(
+  kind: PaidTrustKind,
+  otherNamedClass: Exclude<NamedPattern, "party_trusts_paid_amount">,
+): NamedPattern {
+  if (kind === "full" || kind === "inflation" || kind === "partial") return "party_trusts_paid_amount";
+  return otherNamedClass;
+}
+
 describe("ELLA NOOR party-trusts-paid_amount classification", () => {
   it("tags a zero-receipt customer when the gap equals SUM(paid_amount) (the 234)", () => {
     const gap = 12_500;
@@ -102,5 +131,36 @@ describe("ELLA NOOR party-trusts-paid_amount classification", () => {
   it("uses the rupee threshold of 1, same as Step 1e", () => {
     expect(gapEqualsPaidAmount(100.4, 100.0)).toBe(true);
     expect(gapEqualsPaidAmount(102, 100)).toBe(false);
+  });
+});
+
+describe("ELLA NOOR Step 5 queue tiers", () => {
+  it("P0 when |party| ≥ 1,00,000 even if the gap is smaller", () => {
+    expect(queueTier(473_730, 20_000, "party_trusts_paid_amount")).toBe("P0");
+  });
+
+  it("P0 when |gap| ≥ 50,000 even if |party| is under 1L", () => {
+    expect(queueTier(12_000, 50_000, "party_trusts_paid_amount")).toBe("P0");
+    expect(queueTier(0, 50_000, "off_cause_unclear")).toBe("P0");
+  });
+
+  it("P1 for a named pattern at the ₹5,000 floor", () => {
+    expect(queueTier(5_000, 100, "party_trusts_paid_amount")).toBe("P1");
+    expect(queueTier(100, 5_000, "duplicate_receipt")).toBe("P1");
+  });
+
+  it("P2 for a named pattern under ₹5,000 and a small unexplained gap", () => {
+    expect(queueTier(2_000, 2_000, "party_trusts_paid_amount")).toBe("P2");
+    expect(queueTier(8_000, 8_000, "off_cause_unclear")).toBe("P2");
+  });
+
+  it("does not promote unexplained customers to P1 just because the gap is ₹5,000+", () => {
+    expect(queueTier(9_000, 9_000, "off_cause_unclear")).toBe("P2");
+  });
+
+  it("maps paid_trust_kind onto party_trusts_paid_amount before other named classes", () => {
+    expect(namedPatternOf("full", "duplicate_receipt")).toBe("party_trusts_paid_amount");
+    expect(namedPatternOf("none", "legacy_paid_baseline")).toBe("legacy_paid_baseline");
+    expect(namedPatternOf("none", "off_cause_unclear")).toBe("off_cause_unclear");
   });
 });
