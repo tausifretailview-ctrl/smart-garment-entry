@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSnapshotForSupplier } from "@/utils/supplierBalanceUtils";
+import { computeSnapshotForSupplier, supplierAccountAdjustmentTotal } from "@/utils/supplierBalanceUtils";
 
 const SUPPLIER = "supplier-sangamn";
 const OTHER = "supplier-other";
@@ -197,5 +197,76 @@ describe("computeSnapshotForSupplier", () => {
     expect(snap.totalCreditNotesNet).toBe(0);
     expect(snap.unreflectedReturns).toBe(0);
     expect(snap.balance).toBe(5000);
+  });
+
+  it("SARASWATI: CN-on-bill is not cash; outstanding returns stay in account adjust", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-cash",
+          supplier_id: SUPPLIER,
+          net_amount: 706246.85,
+          paid_amount: 706246.85,
+          software_bill_no: "2808",
+          supplier_invoice_no: "2808",
+        },
+        {
+          id: "bill-4507",
+          supplier_id: SUPPLIER,
+          net_amount: 170563.15,
+          paid_amount: 17363.85,
+          software_bill_no: "4507",
+          supplier_invoice_no: "4507",
+        },
+      ],
+      [
+        { reference_id: "bill-cash", total_amount: 706246.85, description: "Payment for Bill: 2808" },
+      ],
+      [{ id: "cn-bill-4507", reference_id: SUPPLIER, total_amount: 17363.85 }],
+      [
+        {
+          supplier_id: SUPPLIER,
+          net_amount: 19105.8,
+          credit_note_id: null,
+          credit_status: "adjusted_outstanding",
+          linked_bill_id: null,
+          credit_available_balance: null,
+        },
+        {
+          supplier_id: SUPPLIER,
+          net_amount: 10389.75,
+          credit_note_id: null,
+          credit_status: "adjusted_outstanding",
+          linked_bill_id: null,
+          credit_available_balance: null,
+        },
+        {
+          supplier_id: SUPPLIER,
+          net_amount: 57930.6,
+          credit_note_id: null,
+          credit_status: "adjusted_outstanding",
+          linked_bill_id: null,
+          credit_available_balance: null,
+        },
+        {
+          supplier_id: SUPPLIER,
+          net_amount: 17363.85,
+          credit_note_id: "cn-bill-4507",
+          credit_status: "adjusted",
+          linked_bill_id: "bill-4507",
+          credit_available_balance: 0,
+        },
+      ],
+      0,
+    );
+
+    expect(snap.totalPurchases).toBe(876810);
+    expect(snap.totalPaid).toBe(706246.85);
+    expect(snap.unreflectedReturns).toBe(87426.15);
+    expect(snap.totalCreditNotesNet).toBe(0);
+    expect(supplierAccountAdjustmentTotal(snap)).toBe(87426.15);
+    expect(snap.balance).toBe(83137);
   });
 });
