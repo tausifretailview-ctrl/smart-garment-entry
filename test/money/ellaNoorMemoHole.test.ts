@@ -102,6 +102,75 @@ export function recomputed7InclAllMemo(
   });
 }
 
+export type RemainingClass =
+  | "cn_leftover_incl_all_matches_party"
+  | "cn_partial_leftover"
+  | "gap_equals_twice_used_minus_adv"
+  | "used_amount_without_adv_voucher"
+  | "gap_equals_paid_amount"
+  | "unexplained";
+
+export type RemainingRow = {
+  partySigned: number;
+  recInclAll: number;
+  recPlusUsed: number;
+  gapInclAdvance: number;
+  cnMemos: number;
+  usedAmount: number;
+  advanceMemos: number;
+  paidAmountSum: number;
+};
+
+/**
+ * Mutually exclusive class for a Step 6e remaining row.
+ * Order is load-bearing: CN leftover (incl-all = party) first, then any other
+ * CN, then twice-(used-adv), then plus-used closes, then gap=paid.
+ */
+export function classifyRemainingRow(r: RemainingRow): RemainingClass {
+  const usedMinusAdv = r.usedAmount - r.advanceMemos;
+  if (
+    Math.abs(r.gapInclAdvance - r.cnMemos) <= DRIFT_THRESHOLD
+    && r.cnMemos > DRIFT_THRESHOLD
+    && Math.abs(r.recInclAll - r.partySigned) <= DRIFT_THRESHOLD
+  ) {
+    return "cn_leftover_incl_all_matches_party";
+  }
+  if (r.cnMemos > DRIFT_THRESHOLD) return "cn_partial_leftover";
+  if (
+    Math.abs(r.gapInclAdvance - 2 * usedMinusAdv) <= DRIFT_THRESHOLD
+    && Math.abs(usedMinusAdv) > DRIFT_THRESHOLD
+  ) {
+    return "gap_equals_twice_used_minus_adv";
+  }
+  if (Math.abs(r.recPlusUsed - r.partySigned) <= DRIFT_THRESHOLD) {
+    return "used_amount_without_adv_voucher";
+  }
+  if (
+    Math.abs(r.gapInclAdvance - r.paidAmountSum) <= DRIFT_THRESHOLD
+    && r.paidAmountSum > DRIFT_THRESHOLD
+  ) {
+    return "gap_equals_paid_amount";
+  }
+  return "unexplained";
+}
+
+export const STEP7_OFFLINE_HEADLINE = {
+  nRemaining: 136,
+  absRemaining: 905_800,
+  nCnLeftover: 74,
+  absCnLeftover: 517_700,
+  nTwiceUsed: 33,
+  absTwiceUsed: 231_350,
+  nCnPartial: 9,
+  absCnPartial: 85_300,
+  nUsedWithoutVoucher: 6,
+  absUsedWithoutVoucher: 28_800,
+  nGapEqualsPaid: 3,
+  absGapEqualsPaid: 9_650,
+  nUnexplained: 11,
+  absUnexplained: 33_000,
+} as const;
+
 export function formulasIdenticalWhenNoMemos(
   p: RecomputeParts,
   advanceMemoReceipts: number,
@@ -255,6 +324,10 @@ describe("STEP 6 SQL is SELECT-only and keeps the excl-memo columns", () => {
     resolve(__dirname, "../../scripts/ella-noor-step6-org.sql"),
     "utf8",
   );
+  const step7 = readFileSync(
+    resolve(__dirname, "../../scripts/ella-noor-step7-remaining.sql"),
+    "utf8",
+  );
 
   it("does not write, and exposes both excl-memo and incl-advance recomputes", () => {
     expect(memoHole).toMatch(/recomputed_7_excl_memo/);
@@ -268,6 +341,10 @@ describe("STEP 6 SQL is SELECT-only and keeps the excl-memo columns", () => {
     expect(org).toMatch(/n_closed_by_incl_advance_memo/);
     expect(org).toMatch(/n_p0_after_incl_advance/);
     expect(org).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/im);
+    expect(step7).toMatch(/named_remaining_class/);
+    expect(step7).toMatch(/n_cn_leftover_gap_equals_sra_gated_away/);
+    expect(step7).toMatch(/Do not include credit_note_adjustment/);
+    expect(step7).not.toMatch(/^\s*(INSERT|UPDATE|DELETE)\b/im);
   });
 });
 
@@ -342,5 +419,99 @@ describe("Step 6d derived headline stays consistent with live 6e", () => {
     expect(numField(byField.abs_drift_incl_advance_memo.value)).toBe(absIncl);
     expect(numField(byField.abs_drift_excl_memo.value)).toBe(11_559_763);
     expect(numField(byField.implied_abs_rupees_closed.value)).toBe(11_559_763 - 905800);
+  });
+});
+
+function remainingFromCsv(r: Record<string, string>): RemainingRow {
+  return {
+    partySigned: numField(r.party_signed),
+    recInclAll: numField(r.recomputed_7_incl_all_memo),
+    recPlusUsed: numField(r.recomputed_7_plus_used_amount),
+    gapInclAdvance: numField(r.gap_incl_advance_minus_party),
+    cnMemos: numField(r.cn_memos),
+    usedAmount: numField(r.used_amount),
+    advanceMemos: numField(r.advance_memos),
+    paidAmountSum: numField(r.sum_paid_amount),
+  };
+}
+
+describe("Step 7 — 136 remaining classified from live 6e", () => {
+  const remaining = parseCsv(
+    readFileSync(
+      resolve(__dirname, "../../docs/ella-noor-customer-balance-audit-2026-08/step6e-remaining-2026-08-25.csv"),
+      "utf8",
+    ),
+    ";",
+  );
+  const classified = parseCsv(
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../docs/ella-noor-customer-balance-audit-2026-08/step7-remaining-classified-2026-08-25.csv",
+      ),
+      "utf8",
+    ),
+    ";",
+  );
+  const headline = parseCsv(
+    readFileSync(
+      resolve(
+        __dirname,
+        "../../docs/ella-noor-customer-balance-audit-2026-08/step7-remaining-headline-2026-08-25.csv",
+      ),
+      "utf8",
+    ),
+    ",",
+  );
+  const byField = Object.fromEntries(headline.map((r) => [r.field, r]));
+
+  it("classifies every 6e row, counts match the committed headline, and does not force-fit the 11", () => {
+    expect(remaining.length).toBe(STEP7_OFFLINE_HEADLINE.nRemaining);
+    expect(classified.length).toBe(STEP7_OFFLINE_HEADLINE.nRemaining);
+    const counts: Record<string, number> = {};
+    const abs: Record<string, number> = {};
+    remaining.forEach((r, i) => {
+      const cls = classifyRemainingRow(remainingFromCsv(r));
+      expect(classified[i].named_remaining_class).toBe(cls);
+      expect(classified[i].customer_name).toBe(r.customer_name);
+      counts[cls] = (counts[cls] || 0) + 1;
+      abs[cls] = (abs[cls] || 0) + Math.abs(numField(r.gap_incl_advance_minus_party));
+    });
+    expect(counts.cn_leftover_incl_all_matches_party).toBe(STEP7_OFFLINE_HEADLINE.nCnLeftover);
+    expect(abs.cn_leftover_incl_all_matches_party).toBe(STEP7_OFFLINE_HEADLINE.absCnLeftover);
+    expect(counts.gap_equals_twice_used_minus_adv).toBe(STEP7_OFFLINE_HEADLINE.nTwiceUsed);
+    expect(abs.gap_equals_twice_used_minus_adv).toBe(STEP7_OFFLINE_HEADLINE.absTwiceUsed);
+    expect(counts.cn_partial_leftover).toBe(STEP7_OFFLINE_HEADLINE.nCnPartial);
+    expect(abs.cn_partial_leftover).toBe(STEP7_OFFLINE_HEADLINE.absCnPartial);
+    expect(counts.used_amount_without_adv_voucher).toBe(STEP7_OFFLINE_HEADLINE.nUsedWithoutVoucher);
+    expect(abs.used_amount_without_adv_voucher).toBe(STEP7_OFFLINE_HEADLINE.absUsedWithoutVoucher);
+    expect(counts.gap_equals_paid_amount).toBe(STEP7_OFFLINE_HEADLINE.nGapEqualsPaid);
+    expect(abs.gap_equals_paid_amount).toBe(STEP7_OFFLINE_HEADLINE.absGapEqualsPaid);
+    expect(counts.unexplained).toBe(STEP7_OFFLINE_HEADLINE.nUnexplained);
+    expect(abs.unexplained).toBe(STEP7_OFFLINE_HEADLINE.absUnexplained);
+    expect(numField(byField.n_unexplained.value)).toBe(11);
+    expect(numField(byField.n_classified.value)).toBe(125);
+  });
+
+  it("places Shumama and Farhaan in CN leftover, and does not treat that as permission to include CN memos", () => {
+    const shumama = remaining.find((r) => r.customer_name === "SHUMAMA BAIRELI");
+    const farhaan = remaining.find((r) => r.customer_name === "Farhaan Fab");
+    expect(shumama).toBeTruthy();
+    expect(farhaan).toBeTruthy();
+    expect(classifyRemainingRow(remainingFromCsv(shumama!))).toBe("cn_leftover_incl_all_matches_party");
+    expect(classifyRemainingRow(remainingFromCsv(farhaan!))).toBe("cn_leftover_incl_all_matches_party");
+    expect(numField(farhaan!.recomputed_7_incl_all_memo)).toBe(numField(farhaan!.party_signed));
+    expect(numField(farhaan!.recomputed_7_incl_advance_memo)).toBe(-100);
+    expect(numField(farhaan!.party_signed)).toBe(-2800);
+  });
+
+  it("names the twice-used and used-without-voucher worked examples", () => {
+    const khushi = remaining.find((r) => r.customer_name === "KHUSHI GOPIKRISHNA VASIYA");
+    const pitodia = remaining.find((r) => r.customer_name === "Fatima Pitodia");
+    const sibgah = remaining.find((r) => r.customer_name === "SIBGAH GEELANI");
+    expect(classifyRemainingRow(remainingFromCsv(khushi!))).toBe("gap_equals_twice_used_minus_adv");
+    expect(numField(khushi!.gap_incl_advance_minus_party)).toBe(2 * numField(khushi!.used_amount));
+    expect(classifyRemainingRow(remainingFromCsv(pitodia!))).toBe("used_amount_without_adv_voucher");
+    expect(classifyRemainingRow(remainingFromCsv(sibgah!))).toBe("cn_partial_leftover");
   });
 });

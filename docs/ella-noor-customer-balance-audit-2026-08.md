@@ -1,10 +1,11 @@
 # ELLA NOOR — Customer balance audit (2026-08)
 
-**Status:** **Step 6 live (evening 2026-08-25).** Morning **717 / 647 / ₹1,10,91,413** was a recompute hole. After including `advance_adjustment` in receipts: **136 remaining mismatches**, **P0 = 1** (SHUMAMA BAIRELI, leftover = CN memos / SRA). Derived 6d: **581 / 717 closed** (81%). Sana Nasir **closed**. **No writes. No `paid_amount` A/B recommendation.**  
+**Status:** **Step 7 (remaining 136 classified from live 6e).** 125 / 136 named (₹8,72,800 / ₹9,05,800). P0 still **SHUMAMA BAIRELI** only. Class 1 (74) is a numeric identity — Farhaan Fab is in it; **do not put `credit_note_adjustment` in receipts.** **No writes. No `paid_amount` A/B recommendation.**  
 **Org:** ELLA NOOR / `ella-noor` / `3fdca631-1e0c-4417-9704-421f5129ff67`  
 **Canonical party balance:** `_get_customer_party_balances_rows.out_signed_balance` (live page)  
 **Live CSVs:** `docs/ella-noor-customer-balance-audit-2026-08/step6b-cn-shape-2026-08-25.csv`, `step6e-remaining-2026-08-25.csv`  
-**6d headline:** derived (not a SQL-editor paste) — `docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv`
+**6d headline:** derived (not a SQL-editor paste) — `docs/ella-noor-customer-balance-audit-2026-08/step6d-org-headline-derived-2026-08-25.csv`  
+**7 remaining:** `step7-remaining-headline-2026-08-25.csv`, `step7-remaining-classified-2026-08-25.csv`
 
 Related (do not duplicate, do not treat as this pass):
 
@@ -100,6 +101,41 @@ Abs remaining dropped ₹1,06,53,963 (₹1,15,59,763 − ₹9,05,800). That diff
 **paid_amount A vs B stays off the table.** 581 of the morning 717 close when advance memos enter receipts. The leftover 136 is a CN/SRA / other worklist (`gap ≈ cn_memos` on 74/136; `excl_gap_was_paid_amount` still true on 8/136; `excl_gap_was_advance_memos` on 0/136). Do not fold `paid_amount` into the seven-component recompute. Do not include `credit_note_adjustment` in receipts.
 
 A real 6d paste would still be useful for `n_zero_memo_formulas_differ` (the split-predicate identity). Until then, do not claim the zero-memo formulas match org-wide.
+
+### Step 7 — classify the 136 remaining (offline from live 6e)
+
+CSV: `docs/ella-noor-customer-balance-audit-2026-08/step7-remaining-headline-2026-08-25.csv`, `step7-remaining-classified-2026-08-25.csv`.  
+SQL (SRA-gating split + components): `scripts/ella-noor-step7-remaining.sql` — paste 7a / 7b / 7c one at a time.
+
+This is **not** a new SQL-editor run. Classes use only 6e columns. **125 / 136** named; **₹8,72,800 / ₹9,05,800** (96.4%). The **11** unexplained stay unexplained.
+
+| `named_remaining_class` | n | Abs leftover | What it is |
+|-------------------------|---|--------------|------------|
+| `cn_leftover_incl_all_matches_party` | **74** | **₹5,17,700** | `gap_incl = cn_memos` **and** `incl-all-memo = party`. Numeric identity, **three** possible mechanisms (7a splits). Farhaan Fab is in this class. |
+| `gap_equals_twice_used_minus_adv` | **33** | **₹2,31,350** | `gap = 2 × (used_amount − advance_memos)`. When there are no advance vouchers, `gap = 2 × used`. Mechanism needs 7b `advance_deposited` / `unused`. |
+| `cn_partial_leftover` | **9** | **₹85,300** | Has CN memos but leftover is not exactly CN. SIBGAH GEELANI ₹33,000 (6b pending SR ₹18,700). |
+| `used_amount_without_adv_voucher` | **6** | **₹28,800** | `plus_used` matches party; no matching `advance_adjustment` vouchers. Fatima Pitodia ₹11,400. |
+| `gap_equals_paid_amount` | **3** | **₹9,650** | Small P2 rows. **Not** the morning 647. No A/B. |
+| `unexplained` | **11** | **₹33,000** | Do not force-fit. |
+
+**Do not put `credit_note_adjustment` into receipts.** Class 1 matching `incl-all-memo` to party is the Farhaan Fab −₹2,800 double-count on at least one row. Shumama leftover = CN = SRA ₹61,900 (6b); 7-sum may have gated that SRA off — paste 7a for `n_cn_leftover_gap_equals_sra_gated_away`. AMNA DARVESH is class 1 with 6b SRA = 0 (`n_cn_leftover_cn_without_sra`).
+
+Worked examples (full 136 in the classified CSV; do not dump names here):
+
+| Class | Customer | Phone | `party_signed` | leftover |
+|-------|----------|-------|----------------|----------|
+| CN leftover (P0) | SHUMAMA BAIRELI | 8859110000 | ₹96,800 | ₹61,900 = CN = SRA |
+| CN leftover (double-count) | Farhaan Fab | 7977353244 | −₹2,800 | ₹2,700 = CN; excl-memo −₹100 |
+| CN leftover (no SRA) | AMNA DARVESH | 7977118066 | −₹13,500 | ₹13,500 = CN; 6b SRA = 0 |
+| Twice used | KHUSHI GOPIKRISHNA VASIYA | 9969241750 | −₹14,700 | ₹14,700 = 2 × used; adv vouchers 0 |
+| Twice used | ABIDA TABASSUM | 9051546932 | −₹14,900 | ₹14,900 = 2 × (used − adv) |
+| CN partial | SIBGAH GEELANI | 6005498295 | −₹44,150 | ₹33,000 (CN ₹14,000 + rest) |
+| Used, no voucher | Fatima Pitodia | 9867866299 | −₹11,400 | ₹11,400 = used_amount |
+| Paid flag | FIZA MEMON | 9867727866 | −₹3,250 | ₹3,250 = `paid_amount` |
+
+The **11** unexplained (do not force-fit): Taslima Yumkhaibam ₹11,100, AYESHA SIDDIQUE ₹4,600, Samiya Umar Motiwala ₹4,000, AFIFA KHALID ₹3,500, Zara Motiwala ₹2,950, Minaz Amjad ₹2,350, AMJAD ₹2,000, Sariq Anish Nathani ₹1,600, Sualeha Sara ₹400, UZMA SHEIKH ₹400, KIRAN SAJID ₹100.
+
+Next paste: **7a** (one row — especially the three class-1 SRA splits) then **7c** (worked-example components). 7b is the 136-row CSV if the live set still matches. No writes.
 
 ---
 
@@ -636,6 +672,7 @@ In the SQL editor, in order. **Step 6 first — it supersedes 1–5 headlines:**
 0b. **Step 6b** — CN remaining vs SRA vs cn_memos (same file)  
 0c. **Step 6d** — org headline (`scripts/ella-noor-step6-org.sql`) — **derived 2026-08-25** (581 closed / 136 remaining / P0=1). Paste a real 6d row only to fill `n_zero_memo_formulas_differ`.  
 0d. **Step 6e** — remaining names after incl-advance (same file) — **live 136 / P0=1**  
+0e. **Step 7a/7c** — remaining classes (`scripts/ella-noor-step7-remaining.sql`) — **offline 125/136 named**; paste 7a for class-1 SRA split  
 1. Step 0 + 0b — vocabulary proof  
 2. Step 1b — org headlines  
 3. Step 1 — mismatch table with tender columns (page if 1000)  
@@ -683,6 +720,7 @@ Paste the result sets into the slots above. Still no writes.
 | **6b** | same | CN remaining vs SRA vs cn_memos — **live 0/25 hole, 20/25 SRA=CN** |
 | **6d** (6c inside) | `scripts/ella-noor-step6-org.sql` | Org headline — **derived** 581 closed / 136 remaining / P0=1 (`step6d-org-headline-derived-2026-08-25.csv`). `n_zero_memo_formulas_differ` unknown. |
 | **6e** | same | Remaining after incl-advance — **live 136 rows, P0=1 Shumama** (`step6e-remaining-2026-08-25.csv`) |
+| **7a / 7b / 7c** | `scripts/ella-noor-step7-remaining.sql` | Remaining classes — **offline 74 / 33 / 9 / 6 / 3 / 11**. Paste 7a for SRA-gating split of the 74. Classified CSV: `step7-remaining-classified-2026-08-25.csv`. |
 
 ## Appendix B — What was not done
 
@@ -691,7 +729,7 @@ Paste the result sets into the slots above. Still no writes.
 - No baseline zeroing
 - No change to `_get_customer_party_balances_rows`
 - No write to `paid_amount` / `legacy_paid_baseline`
-- **No `paid_amount` architecture recommendation (A or B)** — derived 6d closed 581/717 via advance memos; leftover is CN/SRA, not that decision
+- **No `paid_amount` architecture recommendation (A or B)** — derived 6d closed 581/717 via advance memos; leftover 136 is CN/SRA / twice-used / 11 unexplained, not that decision
 - No folding `paid_amount` into the seven-component recompute
 - No assumption that anon empty = zero drift
 - No reuse of receivables-audit Section 3’s new-vocab-only receipt filter
@@ -699,7 +737,9 @@ Paste the result sets into the slots above. Still no writes.
 - No decision on which side of a dual-write sale is “the” payment
 - No repair of party-trusts-paid_amount (may be a recompute artifact)
 - No force-fit of the 35 unexplained into an existing named pattern
-- No including `credit_note_adjustment` in receipts until 6b confirms (Farhaan Fab)
+- No force-fit of the **11** remaining unexplained (Step 7)
+- **No including `credit_note_adjustment` in receipts** — 6b + Farhaan Fab (Farhaan is in the 74 whose incl-all matches party)
+- No claiming a mechanism for `gap_equals_twice_used_minus_adv` until 7b/7c shows deposited / unused / opening / invoiced
 - **No re-run of the 717-row audit against canonical JS enrich** (open question below)
 
 ---
