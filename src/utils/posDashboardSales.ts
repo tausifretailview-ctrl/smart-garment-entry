@@ -1290,9 +1290,32 @@ async function correctPosDashboardModeTotalsIfNeeded(
   }
 }
 
+export function posDashboardModeTotalsNeedCorrection(stats: PosDashboardSummaryStats): boolean {
+  const modeSum = stats.totalCash + stats.totalCard + stats.totalUpi;
+  return modeSum > stats.netSale + 1;
+}
+
+/**
+ * Recompute cash/card/UPI totals when mix over-tender inflated RPC mode sums.
+ * Call in a background query — can scan the full filtered range.
+ */
+export async function correctPosDashboardSummaryModeTotals(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  rpcStats: PosDashboardSummaryStats,
+): Promise<PosDashboardSummaryStats> {
+  return correctPosDashboardModeTotalsIfNeeded(client, filters, rpcStats);
+}
+
+export type FetchPosDashboardSummaryOptions = {
+  /** When false, return RPC stats immediately (mode correction in background). Default true. */
+  correctModeTotals?: boolean;
+};
+
 export async function fetchPosDashboardSummary(
   client: SupabaseClient,
   filters: PosDashboardFilters,
+  options?: FetchPosDashboardSummaryOptions,
 ): Promise<PosDashboardSummaryStats> {
   if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
 
@@ -1303,6 +1326,9 @@ export async function fetchPosDashboardSummary(
   if (!isPosDashboardStatsRpcUnavailable()) {
     try {
       const rpcStats = await fetchPosDashboardSummaryViaRpc(client, summaryFilters);
+      if (options?.correctModeTotals === false) {
+        return reconcilePosDashboardUnpaidCounts(rpcStats);
+      }
       const corrected = await correctPosDashboardModeTotalsIfNeeded(
         client,
         summaryFilters,

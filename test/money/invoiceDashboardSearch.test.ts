@@ -122,7 +122,7 @@ describe("fetchInvoiceDashboardStats resilience", () => {
     ).resolves.toEqual(EMPTY_INVOICE_DASHBOARD_STATS);
   });
 
-  it("overrides RPC pendingAmount with receipt-reconciled sum", async () => {
+  it("overrides RPC pendingAmount with receipt-reconciled sum when reconcilePending enabled", async () => {
     const emptyPage = { data: [], error: null };
     const client = {
       rpc: vi.fn().mockResolvedValue({
@@ -153,12 +153,33 @@ describe("fetchInvoiceDashboardStats resilience", () => {
     };
 
     await expect(
-      fetchInvoiceDashboardStats(client as any, filters as any),
+      fetchInvoiceDashboardStats(client as any, filters as any, { reconcilePending: true }),
     ).resolves.toMatchObject({
       totalInvoices: 2,
       totalAmount: 5000,
       pendingAmount: 0,
     });
     expect(client.from).toHaveBeenCalled();
+  });
+
+  it("returns RPC stats immediately without reconciled pending scan by default", async () => {
+    const client = {
+      rpc: vi.fn().mockResolvedValue({
+        data: {
+          totalInvoices: 2,
+          pendingAmount: 130,
+        },
+        error: null,
+      }),
+      from: vi.fn(),
+    };
+
+    await expect(
+      fetchInvoiceDashboardStats(client as any, filters as any),
+    ).resolves.toMatchObject({
+      totalInvoices: 2,
+      pendingAmount: 130,
+    });
+    expect(client.from).not.toHaveBeenCalled();
   });
 });

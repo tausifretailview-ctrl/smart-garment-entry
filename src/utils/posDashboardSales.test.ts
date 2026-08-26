@@ -4,6 +4,7 @@ import {
   buildPosDashboardPaymentMethodOrFilter,
   buildPosDashboardSummaryScopeFilters,
   patchPosDashboardSalePayment,
+  posDashboardModeTotalsNeedCorrection,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardUnpaidCounts,
   resolvePosDashboardVoucherLookbackFrom,
@@ -109,6 +110,37 @@ describe("POS dashboard mix / unpaid filters", () => {
       upiBillCount: 1,
     });
     expect(reconciled.pendingCount).toBe(1);
+  });
+
+  it("detects when RPC mode totals need background correction", () => {
+    expect(
+      posDashboardModeTotalsNeedCorrection({
+        totalBills: 1,
+        totalQty: 1,
+        totalAmount: 1000,
+        totalDiscount: 0,
+        netSale: 1000,
+        completedCount: 1,
+        completedAmount: 1000,
+        pendingCount: 0,
+        pendingAmount: 0,
+        holdCount: 0,
+        holdAmount: 0,
+        refundCount: 0,
+        refundAmount: 0,
+        creditNoteCount: 0,
+        creditNoteAmount: 0,
+        totalCash: 800,
+        totalCard: 500,
+        totalUpi: 0,
+        totalBalance: 0,
+        totalSaleReturnAdjust: 0,
+        totalRoundOff: 0,
+        cashBillCount: 1,
+        cardBillCount: 1,
+        upiBillCount: 0,
+      }),
+    ).toBe(true);
   });
 });
 

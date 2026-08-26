@@ -7,6 +7,8 @@ import {
   fetchPosDashboardExportRows,
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
+  correctPosDashboardSummaryModeTotals,
+  posDashboardModeTotalsNeedCorrection,
   invalidatePosDashboardQueries,
   patchPosDashboardSalePayment,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
@@ -23,7 +25,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
-import { useToast } from "@/hooks/use-toast";
+import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -924,10 +926,29 @@ const POSDashboard = () => {
           upiBillCount: 0,
         } satisfies PosDashboardSummaryStats;
       }
-      return fetchPosDashboardSummary(supabase, posDashboardFilters);
+      return fetchPosDashboardSummary(supabase, posDashboardFilters, {
+        correctModeTotals: false,
+      });
     },
     enabled: posQueryEnabled,
     retry: 2,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const summaryNeedsModeCorrection =
+    posSummaryStats != null && posDashboardModeTotalsNeedCorrection(posSummaryStats);
+
+  const { data: modeCorrectedSummary } = useQuery({
+    queryKey: [...posDashboardSummaryQueryKey, "mode-correct"],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !posSummaryStats) return null;
+      return correctPosDashboardSummaryModeTotals(
+        supabase,
+        posDashboardFilters,
+        posSummaryStats,
+      );
+    },
+    enabled: posQueryEnabled && summaryNeedsModeCorrection,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -960,6 +981,11 @@ const POSDashboard = () => {
 
   useEffect(() => {
     if (!salesQueryError) return;
+    if (isStatementTimeout(salesQueryError)) {
+      const { title, message } = statementTimeoutMessage();
+      toast({ title, description: message, variant: "destructive" });
+      return;
+    }
     const message =
       salesQueryError instanceof Error
         ? salesQueryError.message
@@ -2326,8 +2352,11 @@ const POSDashboard = () => {
     !summaryQueryError &&
     posDashboardSummaryLooksValid(posSummaryStats, totalCount);
 
-  const summaryStats = statsLookValid
-    ? posSummaryStats
+  const resolvedSummaryStats =
+    modeCorrectedSummary ?? (statsLookValid ? posSummaryStats : null);
+
+  const summaryStats = resolvedSummaryStats
+    ? resolvedSummaryStats
     : {
         ...emptySummaryStats,
         totalBills: summaryQueryLoading ? 0 : totalCount,
