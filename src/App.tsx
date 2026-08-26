@@ -6,10 +6,9 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryCache, MutationCache, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, MutationCache, keepPreviousData } from "@tanstack/react-query";
 import {
   isStatementTimeout,
-  statementTimeoutMessage,
   statementTimeoutMutationMessage,
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
@@ -367,19 +366,10 @@ const App = () => {
   }, []);
 
   const [queryClient] = useState(() => {
-    // Coalesce per kind — a read burst shouldn't swallow a write's own
-    // toast, and vice versa. Reads and writes need different copy: a
-    // failed save must tell the user nothing was saved so they don't
-    // duplicate the entry.
-    const lastReadToastAt = { current: 0 as number };
+    // Write timeouts only — read timeouts are handled per-screen (inline empty
+    // state, cached data, or silent fallback). A global read toast fired on
+    // every background query timeout and blocked Platform Admin / dashboards.
     const lastWriteToastAt = { current: 0 as number };
-    const notifyReadTimeout = () => {
-      const now = Date.now();
-      if (now - lastReadToastAt.current < 1500) return;
-      lastReadToastAt.current = now;
-      const { title, message } = statementTimeoutMessage();
-      showToast({ variant: "destructive", title, description: message });
-    };
     const notifyWriteTimeout = () => {
       const now = Date.now();
       if (now - lastWriteToastAt.current < 1500) return;
@@ -388,11 +378,6 @@ const App = () => {
       showToast({ variant: "destructive", title, description: message });
     };
     return new QueryClient({
-    queryCache: new QueryCache({
-      onError: (error) => {
-        if (isStatementTimeout(error)) notifyReadTimeout();
-      },
-    }),
     mutationCache: new MutationCache({
       onError: (error) => {
         if (isStatementTimeout(error)) notifyWriteTimeout();
