@@ -37,7 +37,7 @@ import {
   posVariantEffectiveSalePrice,
   resolvePosQuickPriceCartOverride,
 } from "@/utils/posQuickPriceCode";
-import { posFastBillingUsesDropdownPick } from "@/utils/posFastBillingMode";
+import { posFastBillingUsesDropdownPick, expandFastBillingCompoundSearchTerm } from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -2386,6 +2386,7 @@ export default function POSSales() {
 
       let allData: any[] = [];
       let tokens: string[] = [];
+      let quickPriceCode: { letters: string; price: number } | null = null;
 
       const fetchVariantsForToken = async (token: string): Promise<Set<string>> => {
         const escToken = token.replace(/[%_,]/g, '');
@@ -2514,30 +2515,35 @@ export default function POSSales() {
           }
         }
       } else {
-        const quick =
+        quickPriceCode =
           posRuntimeSettingsRef.current?.pos_quick_price_code === true
             ? parsePosQuickPriceCode(term)
             : null;
-        if (quick) {
+        if (quickPriceCode) {
           const hits = await fetchPosQuickPriceCodeMatches(
             currentOrganization.id,
-            quick.letters,
-            quick.price,
+            quickPriceCode.letters,
+            quickPriceCode.price,
             variantSelect,
           );
           if (requestSeq !== productSearchSeqRef.current) return;
           allData = hits.map((h) => h.variant);
-          tokens = [quick.letters, String(quick.price)];
+          tokens = [quickPriceCode.letters, String(quickPriceCode.price)];
         } else {
+        const fastBillingSearch =
+          posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+        const textSearchTerm = fastBillingSearch
+          ? expandFastBillingCompoundSearchTerm(term)
+          : term;
         // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
-        const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, term);
+        const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, textSearchTerm);
         if (requestSeq !== productSearchSeqRef.current) return;
 
         let ids = saleOrderHits.map((r) => r.id).filter(Boolean).slice(0, 50);
 
         if (ids.length === 0) {
           // Fallback: legacy multi-token AND search
-          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+          tokens = textSearchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
 
           if (tokens.length === 0) {
             allData = [];
@@ -2554,7 +2560,7 @@ export default function POSSales() {
             ids = Array.from(intersection).slice(0, 50);
           }
         } else {
-          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+          tokens = textSearchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
         }
 
         if (ids.length === 0) {
@@ -2626,12 +2632,12 @@ export default function POSSales() {
         });
 
       const fastBillingDropdown = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
-      if (fastBillingDropdown && quick) {
+      if (fastBillingDropdown && quickPriceCode) {
         for (const row of formatted) {
           row.quickPriceOverride = resolvePosQuickPriceCartOverride(
             row.product,
             row.variant,
-            quick.price,
+            quickPriceCode.price,
           );
         }
       }
