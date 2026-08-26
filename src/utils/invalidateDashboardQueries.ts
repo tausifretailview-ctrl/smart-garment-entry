@@ -147,6 +147,7 @@ export function invalidateAfterSaleSave(
 export function invalidateAfterCustomerPaymentMutation(
   queryClient: QueryClient,
   organizationId?: string,
+  customerId?: string | null,
 ) {
   invalidateInvoiceDashboardQueries(queryClient);
   invalidatePosDashboardQueries(queryClient, organizationId);
@@ -154,6 +155,11 @@ export function invalidateAfterCustomerPaymentMutation(
   invalidateSalesQueriesNow(queryClient, organizationId);
   if (organizationId) {
     invalidateMoneyViewFreshness(queryClient, organizationId);
+    if (customerId) {
+      void queryClient.invalidateQueries({
+        queryKey: ["customer-transactions", organizationId, customerId],
+      });
+    }
   }
   queryClient.invalidateQueries({ queryKey: ["customer-account-state-view"] });
   queryClient.invalidateQueries({ queryKey: ["customer-account-audit"] });
