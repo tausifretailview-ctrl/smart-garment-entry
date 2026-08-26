@@ -28,6 +28,7 @@ import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath,
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
 import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
 import { cn } from "@/lib/utils";
 
