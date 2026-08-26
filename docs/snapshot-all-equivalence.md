@@ -34,12 +34,17 @@ batch FOREACH path). Tolerances: 0.01 on money fields.
 ```powershell
 # Requires a signed-in access token for an org you belong to (do not use prod
 # service role in CI). Never invent sample tenants on production.
+# IMPORTANT: SUPABASE_ACCESS_TOKEN must be the Supabase Auth session access_token
+# (user JWT after EzzyERP login), NOT the Supabase account Personal Access Token
+# from supabase.com/dashboard/account/tokens (Management API only — RPCs will 401).
 # Apply migration 20261117120000_get_customer_financial_snapshot_all.sql first.
 $env:VITE_SUPABASE_URL="…"
 $env:VITE_SUPABASE_PUBLISHABLE_KEY="…"
-$env:SUPABASE_ACCESS_TOKEN="…"   # user JWT
-$env:ORG_ID="…"                  # large org preferred
-$env:ORG_ID_2="…"                # optional second org
+$env:SUPABASE_ACCESS_TOKEN="…"   # user session JWT
+$env:ORG_ID="…"                  # ELLA NOOR: 3fdca631-1e0c-4417-9704-421f5129ff67
+$env:ORG_ID_2="…"                # org with pre-29-May CustomerReceipt vocabulary
+$env:ORG_ID_3="…"                # org with legacy_paid_baseline history
+# Or: $env:ORG_IDS="uuid1,uuid2,uuid3"
 node scripts/prove-snapshot-all-equivalence.mjs
 ```
 
