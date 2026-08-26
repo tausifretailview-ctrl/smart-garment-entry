@@ -68,6 +68,11 @@ export function shouldPosEnterUseExactBarcodeLookup(term: string): boolean {
   return isPosAlphanumericBarcodeTerm(t);
 }
 
+/** Pure digits — barcode/price path only; never auto-add first name hit. */
+export function isPosPureNumericSearchTerm(term: string): boolean {
+  return /^\d+$/.test(term.trim());
+}
+
 export type PosBarcodeCartLookupOptions = {
   /** When true (default), skip ILIKE `%term%` variant and purchase-item fallbacks. */
   exactOnly?: boolean;

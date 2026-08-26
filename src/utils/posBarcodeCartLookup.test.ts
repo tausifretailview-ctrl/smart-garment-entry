@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isCompleteNumericBarcodeForPosCart,
+  isPosPureNumericSearchTerm,
   isPosServiceShortNumericBarcode,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
@@ -31,6 +32,13 @@ describe("posBarcodeCartLookup", () => {
   it("allows single-digit quick service codes 1–9", () => {
     expect(isCompleteNumericBarcodeForPosCart("5")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("0")).toBe(false);
+  });
+
+  it("detects pure numeric search terms", () => {
+    expect(isPosPureNumericSearchTerm("8901234567890")).toBe(true);
+    expect(isPosPureNumericSearchTerm("501")).toBe(true);
+    expect(isPosPureNumericSearchTerm("Bootcut")).toBe(false);
+    expect(isPosPureNumericSearchTerm("BHG215")).toBe(false);
   });
 });
 

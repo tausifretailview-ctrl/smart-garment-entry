@@ -27,6 +27,7 @@ import {
 } from "@/utils/saleScanPricePreference";
 import {
   isCompleteNumericBarcodeForPosCart,
+  isPosPureNumericSearchTerm,
   POS_BARCODE_CART_LOOKUP_EXACT,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
@@ -379,6 +380,40 @@ async function fetchPosExactBarcodeMatches(
     if (mapped) out.push(mapped);
   }
   return out;
+}
+
+/** Same barcode resolution chain as POS add-to-cart (exact master → scan RPC). */
+async function resolvePosBarcodeLookupMatches(
+  orgId: string,
+  trimmedTerm: string,
+): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+  const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
+  let exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  for (const candidate of scanCandidates) {
+    exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
+    if (exactBarcodeMatches.length > 0) break;
+  }
+  if (exactBarcodeMatches.length === 0) {
+    const scan = await lookupVariantRowsByScan(
+      orgId,
+      trimmedTerm,
+      POS_VARIANT_LOOKUP_SELECT,
+      supabase,
+      { exactOnly: true },
+    );
+    for (const row of scan.rows) {
+      const mapped = mapPosVariantLookupRow(
+        row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+      );
+      if (mapped) exactBarcodeMatches.push(mapped);
+    }
+  }
+  const seen = new Set<string>();
+  return exactBarcodeMatches.filter((m) => {
+    if (seen.has(m.variant.id)) return false;
+    seen.add(m.variant.id);
+    return true;
+  });
 }
 
 async function fetchPosVariantByBarcodeOnce(
@@ -2304,6 +2339,14 @@ export default function POSSales() {
         return;
       }
 
+      // Numeric / SKU barcode — exact add (all orgs, fast billing on or off).
+      if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+        setOpenProductSearch(false);
+        void searchAndAddProduct(rawValue);
+        resetScannerDetection();
+        return;
+      }
+
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
 
@@ -2329,6 +2372,10 @@ export default function POSSales() {
           description: "Fast billing: matching products show brand and price — tap a row to add.",
         });
       }
+      return;
+    }
+    if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+      void searchAndAddProduct(rawValue);
       return;
     }
     void searchAndAddProduct(rawValue);
@@ -2492,15 +2539,15 @@ export default function POSSales() {
       if (isNumeric) {
         tokens = [term];
         if (isCompleteNumericBarcodeForPosCart(term)) {
-          const scan = await lookupVariantRowsByScan(
+          const barcodeMatches = await resolvePosBarcodeLookupMatches(
             currentOrganization.id,
             term,
-            variantSelect,
-            supabase,
-            { exactOnly: true },
           );
           if (requestSeq !== productSearchSeqRef.current) return;
-          allData = (scan.rows || []) as any[];
+          allData = barcodeMatches.map(({ product, variant }) => ({
+            ...variant,
+            products: product,
+          }));
         } else {
           const matchedIds = await fetchVariantsForToken(term);
           if (requestSeq !== productSearchSeqRef.current) return;
@@ -2810,27 +2857,7 @@ export default function POSSales() {
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
       // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
-      const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
-      let exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
-      for (const candidate of scanCandidates) {
-        exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
-        if (exactBarcodeMatches.length > 0) break;
-      }
-      if (exactBarcodeMatches.length === 0) {
-        const scan = await lookupVariantRowsByScan(
-          orgId,
-          trimmedTerm,
-          POS_VARIANT_LOOKUP_SELECT,
-          supabase,
-          { exactOnly: true },
-        );
-        for (const row of scan.rows) {
-          const mapped = mapPosVariantLookupRow(
-            row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-          );
-          if (mapped) exactBarcodeMatches.push(mapped);
-        }
-      }
+      let exactBarcodeMatches = await resolvePosBarcodeLookupMatches(orgId, trimmedTerm);
       if (exactBarcodeMatches.length > 1) {
         const seen = new Set<string>();
         exactBarcodeMatches = exactBarcodeMatches.filter((m) => {
@@ -2940,7 +2967,9 @@ export default function POSSales() {
       }
 
       // Try product name search via DB if not IMEI mode (standard orgs — fast billing uses dropdown).
+      // Never treat pure numeric input as a name — that path is barcode-only.
       if (
+        !isPosPureNumericSearchTerm(trimmedTerm) &&
         !(mobileERP.enabled && mobileERP.imei_scan_enforcement) &&
         !posRuntimeSettingsRef.current?.pos_quick_price_code
       ) {
