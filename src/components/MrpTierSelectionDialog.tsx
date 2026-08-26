@@ -123,7 +123,7 @@ export function MrpTierSelectionDialog({
 /** Map product/variant match rows into dialog choices. */
 export function toMrpTierSelectionChoices(
   matches: Array<{
-    product: { product_name?: string | null };
+    product: { product_name?: string | null; default_sale_price?: number | string | null };
     variant: {
       id: string;
       size?: string | null;
@@ -139,7 +139,7 @@ export function toMrpTierSelectionChoices(
     productName: m.product.product_name?.trim() || "Product",
     size: m.variant.size,
     color: m.variant.color,
-    mrp: posVariantDisplayMrp(m.variant),
+    mrp: posVariantDisplayMrp(m.variant, m.product),
     salePrice: parseFloat(String(m.variant.sale_price ?? 0)) || 0,
     stockQty: Math.round(Number(m.variant.stock_qty ?? 0)),
   }));

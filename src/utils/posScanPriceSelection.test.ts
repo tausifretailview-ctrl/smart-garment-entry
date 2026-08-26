@@ -83,6 +83,15 @@ describe("posBarcodeMatchesNeedMrpPicker", () => {
     ).toBe(true);
   });
 
+  it("detects Jockey-style tiers from product default_sale_price when variant MRP unset", () => {
+    expect(
+      posBarcodeMatchesNeedMrpPicker([
+        { variant: { mrp: 0, sale_price: 0 }, product: { default_sale_price: 549 } },
+        { variant: { mrp: 0, sale_price: 0 }, product: { default_sale_price: 569 } },
+      ]),
+    ).toBe(true);
+  });
+
   it("false for single match", () => {
     expect(posBarcodeMatchesNeedMrpPicker([{ variant: { mrp: 204.5 } }])).toBe(false);
   });
@@ -91,5 +100,11 @@ describe("posBarcodeMatchesNeedMrpPicker", () => {
 describe("posVariantDisplayMrp", () => {
   it("falls back to sale_price when mrp is zero", () => {
     expect(posVariantDisplayMrp({ mrp: 0, sale_price: 164.5 })).toBe(164.5);
+  });
+
+  it("falls back to product default_sale_price when variant prices unset", () => {
+    expect(
+      posVariantDisplayMrp({ mrp: 0, sale_price: 0 }, { default_sale_price: 549 }),
+    ).toBe(549);
   });
 });

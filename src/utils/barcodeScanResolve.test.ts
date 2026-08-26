@@ -26,6 +26,27 @@ describe("expandBarcodeScanCandidates", () => {
   it("does not split odd-length numeric codes", () => {
     expect(expandBarcodeScanCandidates("123456789")).toEqual(["123456789"]);
   });
+
+  it("adds digits-only form for spaced retail EAN labels (Jockey)", () => {
+    expect(expandBarcodeScanCandidates("8 901326 444238")).toEqual([
+      "8 901326 444238",
+      "8901326444238",
+    ]);
+  });
+
+  it("adds EAN-13 leading-zero form for 12-digit UPC", () => {
+    expect(expandBarcodeScanCandidates("901326444238")).toEqual([
+      "901326444238",
+      "0901326444238",
+    ]);
+  });
+
+  it("adds 12-digit UPC when scanning 13-digit EAN with leading zero", () => {
+    expect(expandBarcodeScanCandidates("0901326444238")).toEqual([
+      "0901326444238",
+      "901326444238",
+    ]);
+  });
 });
 
 describe("isDoubledNumericBarcode", () => {

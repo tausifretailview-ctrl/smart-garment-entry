@@ -388,11 +388,18 @@ async function resolvePosBarcodeLookupMatches(
   trimmedTerm: string,
 ): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
   const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
-  let exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  const exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  const seen = new Set<string>();
+
   for (const candidate of scanCandidates) {
-    exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
-    if (exactBarcodeMatches.length > 0) break;
+    const hits = await fetchPosExactBarcodeMatches(orgId, candidate);
+    for (const mapped of hits) {
+      if (seen.has(m.variant.id)) continue;
+      seen.add(m.variant.id);
+      exactBarcodeMatches.push(mapped);
+    }
   }
+
   if (exactBarcodeMatches.length === 0) {
     const scan = await lookupVariantRowsByScan(
       orgId,
@@ -405,15 +412,14 @@ async function resolvePosBarcodeLookupMatches(
       const mapped = mapPosVariantLookupRow(
         row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
       );
-      if (mapped) exactBarcodeMatches.push(mapped);
+      if (mapped && !seen.has(mapped.variant.id)) {
+        seen.add(mapped.variant.id);
+        exactBarcodeMatches.push(mapped);
+      }
     }
   }
-  const seen = new Set<string>();
-  return exactBarcodeMatches.filter((m) => {
-    if (seen.has(m.variant.id)) return false;
-    seen.add(m.variant.id);
-    return true;
-  });
+
+  return exactBarcodeMatches;
 }
 
 async function fetchPosVariantByBarcodeOnce(
@@ -2887,7 +2893,7 @@ export default function POSSales() {
             picker.productPickerChoices.map((m) => {
               const p = m.product;
               const v = m.variant;
-              const tier = posVariantDisplayMrp(v);
+              const tier = posVariantDisplayMrp(v, p);
               return {
                 product: p,
                 variant: v,
