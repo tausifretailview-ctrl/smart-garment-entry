@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
+import { fetchCustomersWithBalanceForPaymentPicker, searchCustomersForPaymentPicker } from "@/utils/customerPaymentPickerList";
 import {
   paymentPickerAmountBadgeClass,
   paymentPickerRefClass,
@@ -199,7 +199,7 @@ function CustomerPaymentForm({
   const [showSaved, setShowSaved] = useState(false);
 
   // Shared with Accounts Customer Payment tab — RPC reconcile path, cached across screens.
-  const { data: customersWithBalance } = useQuery({
+  const { data: customersWithBalance, isLoading: customersWithBalanceLoading } = useQuery({
     queryKey: ["customers-with-balance", organizationId, "payment-picker-v2"],
     queryFn: () => fetchCustomersWithBalanceForPaymentPicker(organizationId, supabase, queryClient),
     enabled: !!organizationId && dialogOpen,
@@ -207,6 +207,22 @@ function CustomerPaymentForm({
     staleTime: 2 * 60 * 1000,
     retry: 2,
   });
+
+  const trimmedCustomerSearch = customerSearchTerm.trim();
+  const { data: searchedCustomers, isFetching: searchedCustomersLoading } = useQuery({
+    queryKey: ["customer-payment-picker-search", organizationId, trimmedCustomerSearch],
+    queryFn: () => searchCustomersForPaymentPicker(organizationId, trimmedCustomerSearch, supabase),
+    enabled: !!organizationId && dialogOpen && trimmedCustomerSearch.length >= 2,
+    staleTime: 30_000,
+  });
+
+  const customerPickerOptions = useMemo(() => {
+    const base = customersWithBalance ?? [];
+    if (trimmedCustomerSearch.length < 2) return base;
+    const merged = new Map(base.map((c) => [c.id, c]));
+    for (const c of searchedCustomers ?? []) merged.set(c.id, c);
+    return Array.from(merged.values());
+  }, [customersWithBalance, searchedCustomers, trimmedCustomerSearch]);
 
   // Customer invoices — pending uses same reconcile as Accounts Customer Payment (includes SRA/CN).
   const { data: customerInvoices } = useQuery({
@@ -653,7 +669,7 @@ function CustomerPaymentForm({
           placeholder="Select customer..."
           searchTerm={customerSearchTerm}
           onSearchTermChange={setCustomerSearchTerm}
-          options={(customersWithBalance ?? []).map((c) => ({
+          options={customerPickerOptions.map((c) => ({
             id: c.id,
             customer_name: c.customer_name,
             phone: c.phone,
@@ -664,6 +680,18 @@ function CustomerPaymentForm({
             setSelectedInvoiceIds([]);
             setAmount("");
           }}
+          isLoading={
+            customersWithBalanceLoading ||
+            (trimmedCustomerSearch.length >= 2 && searchedCustomersLoading)
+          }
+          emptyMessage={
+            trimmedCustomerSearch.length >= 2 &&
+            !customersWithBalanceLoading &&
+            !searchedCustomersLoading &&
+            customerPickerOptions.length === 0
+              ? "No customer with outstanding balance matches your search"
+              : undefined
+          }
           showOutstanding
           triggerClassName="h-9 text-xs"
           popoverWidth="w-[350px]"

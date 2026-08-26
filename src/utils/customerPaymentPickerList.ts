@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import {
-  fetchCustomerPartyBalancesAligned,
+  fetchCustomerPartyBalancesPayload,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
 import {
@@ -61,12 +61,59 @@ async function buildPickerListFromPartyBalances(
   _client: SupabaseClient = supabase,
   queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
-  const [partyRows, allCustomers] = await Promise.all([
-    fetchCustomerPartyBalancesAligned(organizationId),
+  const [payload, allCustomers] = await Promise.all([
+    fetchCustomerPartyBalancesPayload(organizationId),
     fetchOrgLedgerCustomersReference(organizationId, queryClient),
   ]);
+  if (!payload.partyBalancesComplete) {
+    throw new Error("customer party balances incomplete (statement timeout)");
+  }
   const customerById = new Map(allCustomers.map((c) => [c.id, c]));
-  return mapPartyRowsToPaymentPicker(partyRows, customerById);
+  return mapPartyRowsToPaymentPicker(payload.rows, customerById);
+}
+
+/**
+ * Name/phone search for the Customer Payment picker when the full org list is slow
+ * or degraded (large orgs). Loads balances only for matched customers.
+ */
+export async function searchCustomersForPaymentPicker(
+  organizationId: string,
+  searchTerm: string,
+  client: SupabaseClient = supabase,
+): Promise<CustomerPaymentPickerRow[]> {
+  const term = searchTerm.trim();
+  if (!organizationId || term.length < 2) return [];
+
+  const escaped = term.replace(/[%_,]/g, "");
+  const { data, error } = await client
+    .from("customers")
+    .select("id, customer_name, phone, gst_number, address")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .or(
+      `customer_name.ilike.%${escaped}%,phone.ilike.%${escaped}%,gst_number.ilike.%${escaped}%,address.ilike.%${escaped}%`,
+    )
+    .order("customer_name")
+    .limit(30);
+
+  if (error) throw error;
+  if (!data?.length) return [];
+
+  const snapMap = await fetchCustomerFinancialSnapshotMap(
+    organizationId,
+    data.map((c) => c.id),
+    client,
+  );
+
+  return data
+    .map((c) => ({
+      id: c.id,
+      customer_name: labelForCustomer(c, c.id),
+      phone: c.phone ?? null,
+      outstandingBalance: Math.round(snapMap.get(c.id)?.outstandingDr ?? 0),
+    }))
+    .filter((c) => c.outstandingBalance >= MIN_PAYMENT_PICKER_BALANCE)
+    .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
 }
 
 /** Last-resort batch snapshot when party + reconcile both fail. */
