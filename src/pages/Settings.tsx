@@ -2824,9 +2824,9 @@ export default function Settings() {
                     </Label>
                     <p className="text-xs text-muted-foreground">
                       Type a short code in the POS scan box: first letter(s) of the product name
-                      plus the rupee price, with no barcode — e.g. "J300" for Jeans at ₹300.
-                      Matches sale price or MRP. If more than one product matches, POS asks which
-                      one. Off by default.
+                      or brand, plus the rupee price — e.g. "J900" for Jeans at ₹900 (name or brand
+                      starting with J). Matches variant sale price, MRP, or product default selling
+                      price. If more than one product matches, POS asks which one. Off by default.
                     </p>
                   </div>
                   <Switch

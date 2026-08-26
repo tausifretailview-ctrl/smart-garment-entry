@@ -34,6 +34,7 @@ import {
 import {
   fetchPosQuickPriceCodeMatches,
   parsePosQuickPriceCode,
+  resolvePosQuickPriceCartOverride,
 } from "@/utils/posQuickPriceCode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
@@ -281,7 +282,7 @@ function resolveServiceVariantDefaultMrp(variant: {
 
 /** Columns required by POS add-to-cart (barcode scan + price-selection dialog). */
 const POS_VARIANT_LOOKUP_SELECT =
-  'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom, requires_imei)';
+  'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, default_sale_price, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom, requires_imei)';
 
 interface PosVariantRow {
   id: string;
@@ -2686,12 +2687,27 @@ export default function POSSales() {
           const choices = Array.from(distinctProducts.values());
           if (choices.length === 1) {
             setSearchInput("");
-            await addItemToCart(choices[0].product, choices[0].variant, undefined, 'barcode');
+            const override = resolvePosQuickPriceCartOverride(
+              choices[0].product,
+              choices[0].variant,
+              quickCode.price,
+            );
+            await addItemToCart(choices[0].product, choices[0].variant, override, "barcode");
             recordPosBarcodeScanSuccess(trimmedTerm);
             return;
           }
           // Ambiguous — more than one product starts with these letters at this price.
-          setProductSearchResults(choices.map((c) => ({ product: c.product, variant: c.variant })));
+          setProductSearchResults(
+            choices.map((c) => ({
+              product: c.product,
+              variant: c.variant,
+              quickPriceOverride: resolvePosQuickPriceCartOverride(
+                c.product,
+                c.variant,
+                quickCode.price,
+              ),
+            })),
+          );
           setOpenProductSearch(true);
           setSearchInput(trimmedTerm);
           toast.message("Multiple products match this code", {
@@ -6352,7 +6368,17 @@ export default function POSSales() {
                             if (selected?.product && selected?.variant) {
                               clearPosBarcodeSubmitTimers();
                               if (rawValue) markSubmitted(rawValue);
-                              addItemToCart(selected.product, selected.variant);
+                              const quickOverride =
+                                selected.quickPriceOverride ??
+                                (posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                                parsePosQuickPriceCode(rawValue)
+                                  ? resolvePosQuickPriceCartOverride(
+                                      selected.product,
+                                      selected.variant,
+                                      parsePosQuickPriceCode(rawValue)!.price,
+                                    )
+                                  : undefined);
+                              addItemToCart(selected.product, selected.variant, quickOverride);
                               setOpenProductSearch(false);
                               setSearchInput("");
                               setTimeout(() => barcodeInputRef.current?.focus(), 50);
@@ -6425,7 +6451,17 @@ export default function POSSales() {
                                   item.displayBarcode !== item.variant.barcode
                                     ? { ...item.variant, barcode: item.displayBarcode }
                                     : item.variant;
-                                void addItemToCart(product, variantForCart);
+                                const quickOverride =
+                                  item.quickPriceOverride ??
+                                  (posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                                  parsePosQuickPriceCode(searchInput)
+                                    ? resolvePosQuickPriceCartOverride(
+                                        product,
+                                        variantForCart,
+                                        parsePosQuickPriceCode(searchInput)!.price,
+                                      )
+                                    : undefined);
+                                void addItemToCart(product, variantForCart, quickOverride);
                               }}
                               className={`cursor-pointer group text-slate-900 dark:text-slate-100 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground ${
                                 index === selectedProductIndex
