@@ -3,6 +3,7 @@ import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { useFieldSalesAccess } from "@/hooks/useFieldSalesAccess";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
@@ -818,6 +819,8 @@ const DesktopDashboard = () => {
               variant="outline"
               size="sm"
               onClick={() => navigate("/net-profit-analysis")}
+              onPointerEnter={() => prefetchTabPage("net-profit-analysis")}
+              onTouchStart={() => prefetchTabPage("net-profit-analysis", { intent: true })}
               title="Open Net Profit Analysis report"
               className="h-9 shrink-0 border-emerald-200 bg-emerald-50 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
             >
@@ -830,6 +833,8 @@ const DesktopDashboard = () => {
               variant="outline"
               size="sm"
               onClick={() => navigate("/supplier-party-balances")}
+              onPointerEnter={() => prefetchTabPage("supplier-party-balances")}
+              onTouchStart={() => prefetchTabPage("supplier-party-balances", { intent: true })}
               title="Open Supplier Balance"
               className="h-9 shrink-0 border-amber-200 bg-amber-50 text-sm font-medium text-amber-800 hover:bg-amber-100"
             >
@@ -851,6 +856,7 @@ const DesktopDashboard = () => {
               value={salesData?.total || 0}
               icon={DollarSign}
               accentColor="bg-blue-500"
+              prefetchPath="sales-invoice-dashboard"
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
               isCurrency
@@ -862,6 +868,7 @@ const DesktopDashboard = () => {
               value={salesData?.count || 0}
               icon={FileText}
               accentColor="bg-orange-500"
+              prefetchPath="sales-invoice-dashboard"
               onClick={() => navigate("/sales-invoice-dashboard")}
               tooltip="Number of sales invoices generated. Click to view all invoices."
               placeholder={showPlaceholders}
@@ -872,6 +879,7 @@ const DesktopDashboard = () => {
               value={salesData?.soldQty || 0}
               icon={ShoppingCart}
               accentColor="bg-green-500"
+              prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items sold. Click to view Stock Report."
               placeholder={showPlaceholders}
@@ -882,6 +890,7 @@ const DesktopDashboard = () => {
               value={saleReturnData?.total || 0}
               icon={RotateCcw}
               accentColor="bg-amber-500"
+              prefetchPath="sale-returns"
               onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return amount. Click to view Sale Returns."
               isCurrency
@@ -893,6 +902,7 @@ const DesktopDashboard = () => {
               value={saleReturnData?.returnQty || 0}
               icon={RotateCcw}
               accentColor="bg-slate-500"
+              prefetchPath="sale-returns"
               onClick={() => navigate("/sale-returns")}
               tooltip="Total sale return quantity. Click to view Sale Returns."
               placeholder={showPlaceholders}
@@ -903,6 +913,7 @@ const DesktopDashboard = () => {
               value={customersCount || 0}
               icon={Users}
               accentColor="bg-pink-500"
+              prefetchPath="customers"
               onClick={() => navigate("/customers")}
               tooltip="Total registered customers. Click to manage customers."
               placeholder={showPlaceholders}
@@ -917,6 +928,7 @@ const DesktopDashboard = () => {
               value={purchaseData?.total || 0}
               icon={ShoppingCart}
               accentColor="bg-emerald-500"
+              prefetchPath="purchase-bills"
               onClick={() => navigate("/purchase-bills")}
               tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
               isCurrency
@@ -928,6 +940,7 @@ const DesktopDashboard = () => {
               value={purchaseData?.count || 0}
               icon={FileText}
               accentColor="bg-teal-500"
+              prefetchPath="purchase-bills"
               onClick={() => navigate("/purchase-bills")}
               tooltip="Number of purchase bills recorded. Click to view all bills."
               placeholder={showPlaceholders}
@@ -938,6 +951,7 @@ const DesktopDashboard = () => {
               value={purchaseData?.purchaseQty || 0}
               icon={Package}
               accentColor="bg-orange-500"
+              prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
               tooltip="Total quantity of items purchased. Click to view Stock Report."
               placeholder={showPlaceholders}
@@ -948,6 +962,7 @@ const DesktopDashboard = () => {
               value={purchaseReturnData?.total || 0}
               icon={RotateCcw}
               accentColor="bg-amber-500"
+              prefetchPath="purchase-return-dashboard"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return amount. Click to view Purchase Returns."
               isCurrency
@@ -959,6 +974,7 @@ const DesktopDashboard = () => {
               value={purchaseReturnData?.returnQty || 0}
               icon={RotateCcw}
               accentColor="bg-slate-500"
+              prefetchPath="purchase-return-dashboard"
               onClick={() => navigate("/purchase-return-dashboard")}
               tooltip="Total purchase return quantity. Click to view Purchase Returns."
               placeholder={showPlaceholders}
@@ -969,6 +985,7 @@ const DesktopDashboard = () => {
               value={suppliersCount || 0}
               icon={Store}
               accentColor="bg-violet-500"
+              prefetchPath="suppliers"
               onClick={() => navigate("/suppliers")}
               tooltip="Total registered suppliers. Click to manage suppliers."
               placeholder={showPlaceholders}
@@ -988,6 +1005,7 @@ const DesktopDashboard = () => {
               value={productsCount || 0}
               icon={Package}
               accentColor="bg-indigo-500"
+              prefetchPath="products"
               onClick={() => navigate("/products")}
               tooltip="Total unique products in inventory. Click to view Product Dashboard."
               placeholder={showPlaceholders}
@@ -998,6 +1016,7 @@ const DesktopDashboard = () => {
               value={stockData || 0}
               icon={Package}
               accentColor="bg-cyan-500"
+              prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
               tooltip="Total items in stock across all variants. Click to view Stock Report."
               placeholder={showPlaceholders}
@@ -1008,6 +1027,7 @@ const DesktopDashboard = () => {
               value={stockValue || 0}
               icon={DollarSign}
               accentColor="bg-purple-500"
+              prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
               tooltip="Total value of current inventory at purchase price. Click to view details."
               isCurrency
@@ -1020,6 +1040,7 @@ const DesktopDashboard = () => {
                 value={profitData || 0}
                 icon={TrendingUp}
                 accentColor="bg-green-600"
+                prefetchPath="daily-cashier-report"
                 onClick={() => navigate("/daily-cashier-report")}
                 tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
                 isCurrency
@@ -1032,6 +1053,7 @@ const DesktopDashboard = () => {
               value={receivablesData?.total || 0}
               icon={AlertCircle}
               accentColor="bg-red-500"
+              prefetchPath="customer-party-balances"
               onClick={() => navigate("/customer-party-balances")}
               tooltip="Outstanding on pending/partial invoices (from dashboard stats). For full customer net balance including OB, advance, and CN, open Customer Balances."
               isCurrency
@@ -1043,6 +1065,7 @@ const DesktopDashboard = () => {
               value={cashCollection || 0}
               icon={DollarSign}
               accentColor="bg-blue-600"
+              prefetchPath="daily-cashier-report"
               onClick={() => navigate("/daily-cashier-report")}
               tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency

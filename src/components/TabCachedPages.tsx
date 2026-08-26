@@ -12,6 +12,7 @@ import {
   MASTER_TAB_PREFETCH_PATHS,
   INVENTORY_TAB_PREFETCH_PATHS,
   SALES_TAB_PREFETCH_PATHS,
+  ACCOUNTS_TAB_PREFETCH_PATHS,
   resetTabPageChunk,
   refreshStaleInFlightTabChunk,
   resolveTabCachePath,
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import {
@@ -300,16 +302,17 @@ function getTabLoadTimeoutMs(path: string): number {
 
 function TabLoadShellView({ path }: { path: string }) {
   const shell = resolveTabLoadShell(path);
+  const message = tabLoadMessage(path, shell);
   if (shell === "entry") {
-    return <AppBootSplash message="Loading bill screen…" />;
+    return <AppBootSplash message={message} />;
   }
   if (shell === "dashboard") {
     if (isElectronShell()) {
-      return <AppBootSplash message="Loading dashboard…" />;
+      return <AppBootSplash message={message} />;
     }
     return <DashboardSkeleton />;
   }
-  return <AppBootSplash message="Loading page…" />;
+  return <AppBootSplash message={message} />;
 }
 
 function TabPageWithPerf({
@@ -445,7 +448,7 @@ function TabPageFallback({
       <TabLoadShellView path={path} />
       {showSoftHint && (
         <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-xs text-muted-foreground">
-          Still loading… slow network
+          {tabLoadMessage(path, resolveTabLoadShell(path)).replace(/^Opening /, "Still opening ").replace(/…$/, " — slow network")}
         </p>
       )}
     </div>
@@ -787,6 +790,17 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     );
     if (!shouldWarmSales) return;
     for (const path of SALES_TAB_PREFETCH_PATHS) {
+      prefetchTabPage(path, { intent: true });
+    }
+  }, [uniquePaths, activePath]);
+
+  // Accounts / payments / ledger — intent-warm siblings (Payments header ↔ Accounts tab).
+  useEffect(() => {
+    const shouldWarmAccounts = ACCOUNTS_TAB_PREFETCH_PATHS.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmAccounts) return;
+    for (const path of ACCOUNTS_TAB_PREFETCH_PATHS) {
       prefetchTabPage(path, { intent: true });
     }
   }, [uniquePaths, activePath]);
