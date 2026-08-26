@@ -10,7 +10,6 @@ import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
-import { posBarcodeMatchesNeedMrpPicker } from "@/utils/posScanPriceSelection";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearch";
@@ -119,6 +118,7 @@ import { useCustomerBrandDiscounts } from "@/hooks/useCustomerBrandDiscounts";
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
@@ -597,6 +597,10 @@ export default function SalesInvoice() {
   const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<any>(null);
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: Array<{ product: any; variant: any }>;
+  } | null>(null);
   const [showQuickServiceDialog, setShowQuickServiceDialog] = useState(false);
   const [quickServiceCode, setQuickServiceCode] = useState("");
   const [quickServiceProductForAdd, setQuickServiceProductForAdd] = useState<{
@@ -1894,35 +1898,36 @@ export default function SalesInvoice() {
 
       const rows = (dbVariants || []).filter((row: any) => row?.products);
       if (rows.length > 1) {
-        // Branded/universal barcodes (e.g. Jockey) can carry the same code at more
-        // than one MRP tier. Force the picker even when only one tier is currently
-        // in stock — matches the POS scan picker (posBarcodeMatchesNeedMrpPicker).
-        const needMrpPicker = posBarcodeMatchesNeedMrpPicker(
-          rows.map((r: any) => ({ variant: r })),
+        const picker = resolveBarcodeScanPicker(
+          rows.map((r: any) => ({ product: r.products, variant: r })),
+          (m) => Number(m.variant.stock_qty) > 0,
         );
-        const withStock = rows.filter((r: any) => Number(r.stock_qty) > 0);
-        const choices = needMrpPicker ? rows : withStock.length > 0 ? withStock : rows;
-        if (needMrpPicker || choices.length > 1) {
-          // Renderer already shows variant.mrp per row (struck-through vs sale_price),
-          // so each MRP tier is visibly distinguishable without extra fields.
+        if (picker.showMrpDialog) {
+          setMrpTierPicker({
+            barcode: searchTerm.trim(),
+            choices: picker.mrpDialogChoices,
+          });
+          setSearchInput("");
+          setOpenProductSearch(false);
+          return;
+        }
+        if (picker.showProductPicker) {
           setProductSearchResults(
-            choices.map((r: any) => ({
-              product: r.products,
-              variant: r,
+            picker.productPickerChoices.map((m) => ({
+              product: m.product,
+              variant: m.variant,
             })),
           );
           setOpenProductSearch(true);
           setSearchInput(searchTerm.trim());
           toast({
-            title: needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
-            description: needMrpPicker
-              ? "Pick the MRP that matches the label."
-              : "Pick the correct product / MRP from the list.",
+            title: "Multiple products share this barcode",
+            description: "Pick the correct product from the list.",
           });
           return;
         }
-        foundVariant = choices[0];
-        foundProduct = (choices[0] as any).products;
+        foundVariant = picker.autoPick?.variant;
+        foundProduct = picker.autoPick?.product;
       } else if (rows.length === 1) {
         foundVariant = rows[0];
         foundProduct = (rows[0] as any).products;
@@ -5563,6 +5568,30 @@ Thank you for choosing us!`;
           organizationId={currentOrganization.id}
         />
       )}
+
+      {/* MRP tier selection (shared EAN / Jockey-style relabel) */}
+      <MrpTierSelectionDialog
+        open={mrpTierPicker != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMrpTierPicker(null);
+            setTimeout(() => barcodeInputRef.current?.focus(), 50);
+          }
+        }}
+        barcode={mrpTierPicker?.barcode ?? ""}
+        choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+        onSelect={(choiceId) => {
+          const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+          setMrpTierPicker(null);
+          if (!pick) {
+            setTimeout(() => barcodeInputRef.current?.focus(), 50);
+            return;
+          }
+          addProductToInvoice(pick.product, pick.variant);
+          setSearchInput("");
+          setTimeout(() => barcodeInputRef.current?.focus(), 50);
+        }}
+      />
 
       {/* Price Selection Dialog */}
       {pendingPriceSelection && (
