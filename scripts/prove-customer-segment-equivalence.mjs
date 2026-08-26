@@ -4,7 +4,8 @@
  *
  * Env (URL/key load from .env if present):
  *   VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
- *   SUPABASE_ACCESS_TOKEN (user JWT), ORG_ID
+ *   SUPABASE_ACCESS_TOKEN (signed-in user JWT — session access_token, NOT Supabase
+ *     account PAT from dashboard/account/tokens), ORG_ID
  *
  * PowerShell:
  *   $env:SUPABASE_ACCESS_TOKEN="…"; $env:ORG_ID="…"; node scripts/prove-customer-segment-equivalence.mjs
