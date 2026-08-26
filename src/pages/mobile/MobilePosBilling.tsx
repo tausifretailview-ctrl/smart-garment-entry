@@ -23,6 +23,7 @@ import {
 } from "@/utils/gstRegisterUtils";
 import type { PosGrossBasis } from "@/lib/posBilling";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
@@ -216,24 +217,36 @@ export default function MobilePosBilling() {
     async (barcode: string) => {
       const code = barcode.trim();
       if (!code || !currentOrganization?.id) return;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .eq("products.status", "active")
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .eq("barcode", code)
-        .order("stock_qty", { ascending: false })
-        .limit(50);
-      if (error) {
-        toast.error("Scan failed", { description: error.message });
-        return;
+      const orgId = currentOrganization.id;
+      const rows: Array<SearchHit["variant"] & { products: SearchHit["product"] }> = [];
+      const seenVariantIds = new Set<string>();
+
+      for (const candidate of expandBarcodeScanCandidates(code)) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(VARIANT_SEARCH_SELECT)
+          .eq("organization_id", orgId)
+          .eq("products.organization_id", orgId)
+          .eq("products.status", "active")
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .eq("barcode", candidate)
+          .order("stock_qty", { ascending: false })
+          .limit(50);
+        if (error) {
+          toast.error("Scan failed", { description: error.message });
+          return;
+        }
+        for (const row of (data || []) as unknown as Array<
+          SearchHit["variant"] & { products: SearchHit["product"] }
+        >) {
+          if (!row.products || seenVariantIds.has(row.id)) continue;
+          seenVariantIds.add(row.id);
+          rows.push(row);
+        }
       }
-      const rows = ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
-        .filter((row) => row.products);
+
       if (rows.length === 0) {
         toast.error("Not found", { description: `No product for barcode ${code}` });
         return;

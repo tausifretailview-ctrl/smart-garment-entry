@@ -1,13 +1,19 @@
 /** ₹ tolerance for master vs last-purchase price drift on POS scan. */
 export const POS_PRICE_DRIFT_TOLERANCE = 0.01;
 
-export function posVariantDisplayMrp(variant: {
-  mrp?: number | string | null;
-  sale_price?: number | string | null;
-}): number {
-  const sale = parseFloat(String(variant.sale_price ?? 0)) || 0;
+export function posVariantDisplayMrp(
+  variant: {
+    mrp?: number | string | null;
+    sale_price?: number | string | null;
+  },
+  product?: { default_sale_price?: number | string | null } | null,
+): number {
   const rawMrp = parseFloat(String(variant.mrp ?? 0)) || 0;
-  return rawMrp > 0 ? rawMrp : sale;
+  if (rawMrp > 0) return rawMrp;
+  const sale = parseFloat(String(variant.sale_price ?? 0)) || 0;
+  if (sale > 0) return sale;
+  const defaultSale = parseFloat(String(product?.default_sale_price ?? 0)) || 0;
+  return defaultSale > 0 ? defaultSale : 0;
 }
 
 /** Rounded paise key for comparing MRP tiers on duplicate barcodes. */
@@ -20,10 +26,15 @@ export function posMrpTierKey(mrp: number): number {
  * even if only one tier is in stock (KS Footwear / shared EAN relabel pattern).
  */
 export function posBarcodeMatchesNeedMrpPicker(
-  matches: Array<{ variant: { mrp?: number | string | null; sale_price?: number | string | null } }>,
+  matches: Array<{
+    variant: { mrp?: number | string | null; sale_price?: number | string | null };
+    product?: { default_sale_price?: number | string | null } | null;
+  }>,
 ): boolean {
   if (matches.length <= 1) return false;
-  const tiers = new Set(matches.map((m) => posMrpTierKey(posVariantDisplayMrp(m.variant))));
+  const tiers = new Set(
+    matches.map((m) => posMrpTierKey(posVariantDisplayMrp(m.variant, m.product))),
+  );
   return tiers.size > 1;
 }
 

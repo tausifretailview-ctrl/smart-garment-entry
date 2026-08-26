@@ -23,6 +23,22 @@ describe("resolveBarcodeScanPicker", () => {
     expect(result.showProductPicker).toBe(false);
   });
 
+  it("opens MRP dialog when tiers differ via product default_sale_price", () => {
+    const matches = [
+      {
+        product: { id: "p1", default_sale_price: 549 },
+        variant: { id: "v1", mrp: 0, sale_price: 0, stock_qty: 2 },
+      },
+      {
+        product: { id: "p2", default_sale_price: 569 },
+        variant: { id: "v2", mrp: 0, sale_price: 0, stock_qty: 1 },
+      },
+    ];
+    const result = resolveBarcodeScanPicker(matches, inStock);
+    expect(result.showMrpDialog).toBe(true);
+    expect(result.mrpDialogChoices).toHaveLength(2);
+  });
+
   it("uses product picker when duplicates share the same MRP tier", () => {
     const matches = [
       { product: { id: "p1" }, variant: { id: "v1", mrp: 204.5, stock_qty: 2 } },
