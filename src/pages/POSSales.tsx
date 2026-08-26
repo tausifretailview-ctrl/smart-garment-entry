@@ -37,7 +37,11 @@ import {
   posVariantEffectiveSalePrice,
   resolvePosQuickPriceCartOverride,
 } from "@/utils/posQuickPriceCode";
-import { posFastBillingUsesDropdownPick, expandFastBillingCompoundSearchTerm } from "@/utils/posFastBillingMode";
+import {
+  posFastBillingUsesDropdownPick,
+  expandFastBillingCompoundSearchTerm,
+  posFastBillingMetaLabel,
+} from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -6510,6 +6514,9 @@ export default function POSSales() {
                           const fastBillingRow =
                             posRuntimeSettings?.pos_quick_price_code === true &&
                             posFastBillingUsesDropdownPick(searchInput, true);
+                          const fastBillingMeta = fastBillingRow
+                            ? posFastBillingMetaLabel(product)
+                            : "";
                           return (
                             <CommandItem
                               key={`${product.id}-${item.variant.id}-${index}`}
@@ -6544,9 +6551,9 @@ export default function POSSales() {
                                 <span className="font-medium text-slate-900 dark:text-white group-data-[selected=true]:text-white">{product.product_name}</span>
                                 {fastBillingRow ? (
                                   <div className="flex flex-wrap items-center gap-2 text-sm">
-                                    {product.brand && (
+                                    {fastBillingMeta && (
                                       <span className="font-semibold text-blue-700 dark:text-blue-300 group-data-[selected=true]:text-white">
-                                        {product.brand}
+                                        {fastBillingMeta}
                                       </span>
                                     )}
                                     <span className="font-bold tabular-nums text-primary group-data-[selected=true]:text-white">

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
+import { posFastBillingMetaLabel } from "@/utils/posFastBillingMode";
 
 interface MobilePOSHeaderProps {
   invoiceNumber: string;
@@ -197,8 +198,10 @@ export const MobilePOSHeader = ({
                       {fastBillingEnabled ? product.product_name : displayParts.join(' · ')}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      {fastBillingEnabled && product.brand ? (
-                        <span className="font-semibold text-foreground">{product.brand} · </span>
+                      {fastBillingEnabled && posFastBillingMetaLabel(product) ? (
+                        <span className="font-semibold text-foreground">
+                          {posFastBillingMetaLabel(product)} ·{" "}
+                        </span>
                       ) : null}
                       Size: {variant.size}{variant.barcode ? ` · ${variant.barcode}` : ''}
                     </p>

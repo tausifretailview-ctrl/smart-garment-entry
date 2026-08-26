@@ -8,6 +8,7 @@ import { CameraScanner } from "./CameraScanner";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import { getUOMLabel } from "@/constants/uom";
+import { posFastBillingMetaLabel } from "@/utils/posFastBillingMode";
 
 interface TabletPOSLayoutProps {
   items: any[];
@@ -254,13 +255,15 @@ export function TabletPOSLayout({
                     >
                       <div>
                         <span className="font-medium">{product.product_name}</span>
-                        {fastBillingEnabled && product.brand ? (
-                          <span className="text-blue-700 dark:text-blue-300 font-semibold ml-2">{product.brand}</span>
-                        ) : (
+                        {fastBillingEnabled && posFastBillingMetaLabel(product) ? (
+                          <span className="text-blue-700 dark:text-blue-300 font-semibold ml-2">
+                            {posFastBillingMetaLabel(product)}
+                          </span>
+                        ) : !fastBillingEnabled ? (
                           <span className="text-muted-foreground ml-2">
                             {variant.size}{variant.color ? ` · ${variant.color}` : ""}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div className="text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                         <span className="font-semibold text-amber-600">

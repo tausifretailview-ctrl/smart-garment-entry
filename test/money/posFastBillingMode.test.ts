@@ -3,6 +3,7 @@ import {
   expandFastBillingCompoundSearchTerm,
   isPosFastBillingEnabled,
   isPosFastBillingQuickCodeTerm,
+  posFastBillingMetaLabel,
   posFastBillingUsesDropdownPick,
 } from "@/utils/posFastBillingMode";
 
@@ -30,5 +31,17 @@ describe("posFastBillingMode", () => {
     expect(expandFastBillingCompoundSearchTerm("Jeans")).toBe("Jeans");
     expect(expandFastBillingCompoundSearchTerm("J900")).toBe("J900");
     expect(expandFastBillingCompoundSearchTerm("tb jeans")).toBe("tb jeans");
+  });
+
+  it("formats brand and category for fast billing dropdown rows", () => {
+    expect(
+      posFastBillingMetaLabel({ product_name: "BOOTCUT", brand: "TB", category: "Jeans" }),
+    ).toBe("TB · Jeans");
+    expect(
+      posFastBillingMetaLabel({ product_name: "BOOTCUT JEANS", brand: "TB", category: "Jeans" }),
+    ).toBe("TB");
+    expect(posFastBillingMetaLabel({ product_name: "SHIRT", brand: "", category: "Formal" })).toBe(
+      "Formal",
+    );
   });
 });
