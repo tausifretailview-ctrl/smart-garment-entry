@@ -122,6 +122,12 @@ export function notifyPosSalesChanged(detail?: PosSalesChangedDetail) {
   );
 }
 
+/** Cross-tab hint after receipt/advance/CN (localStorage). Other PCs use Realtime. */
+export function notifyMoneyViewChanged(detail?: PosSalesChangedDetail) {
+  if (typeof window === "undefined") return;
+  writeMoneyFreshnessMarker(detail ?? {});
+}
+
 export function requestPosBarcodeFocus() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(POS_FOCUS_BARCODE_EVENT));

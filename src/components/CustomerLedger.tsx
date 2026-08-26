@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
@@ -329,6 +331,12 @@ export function CustomerLedger({
   skipUrlSync = false,
   embeddedA4Layout = false,
 }: CustomerLedgerProps) {
+  const moneyViewVisibilityKeys = useMemo(
+    () => getMoneyViewVisibilityQueryKeys(organizationId),
+    [organizationId],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
+
   const embeddedSingleCustomer = embedMode && Boolean(preSelectedCustomerId);
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");

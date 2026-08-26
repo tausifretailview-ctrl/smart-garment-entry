@@ -37,7 +37,7 @@ import {
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import {
   allocateSettleSources,
@@ -561,7 +561,7 @@ export function SettleCustomerAccountDialog({
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
       queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId, customerId);
 
       onSuccess?.();
     } catch (err: unknown) {
