@@ -13,6 +13,7 @@ import { partyBalanceDirection } from "@/utils/customerPartyBalanceDisplay";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { getCustomerAccountState } from "@/utils/customerBalanceCore";
 import { supabase } from "@/integrations/supabase/client";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 
 /** Party list row with headline numbers aligned to snapshot facet semantics. */
 export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
@@ -117,6 +118,10 @@ export function partyBalanceOrgWindowFromRpcRow(
 /**
  * One party-RPC row (window totals). Avoids get_organization_receivables_summary
  * which diverges from Customer Balances on CN-heavy orgs.
+ *
+ * On large orgs the full party list RPC can hit statement timeout even when
+ * PostgREST limits to one row — Postgres still computes every customer. Falls
+ * back to org receivables summary, then zero, without surfacing a global toast.
  */
 export async function fetchCustomerPartyBalanceOrgWindow(
   organizationId: string,
@@ -129,9 +134,29 @@ export async function fetchCustomerPartyBalanceOrgWindow(
     })
     .range(0, 0);
 
-  if (error) throw error;
-  const row = ((data ?? []) as CustomerPartyBalanceRpcRow[])[0];
-  return partyBalanceOrgWindowFromRpcRow(row);
+  if (!error) {
+    const row = ((data ?? []) as CustomerPartyBalanceRpcRow[])[0];
+    return partyBalanceOrgWindowFromRpcRow(row);
+  }
+
+  if (!isStatementTimeout(error)) throw error;
+
+  const { data: summaryData, error: summaryError } = await supabase.rpc(
+    "get_organization_receivables_summary",
+    { p_organization_id: organizationId },
+  );
+  if (!summaryError) {
+    const row = (Array.isArray(summaryData) ? summaryData[0] : summaryData) as
+      | { net_receivable?: number | string | null }
+      | null
+      | undefined;
+    return { netReceivable: Math.round(Number(row?.net_receivable) || 0) };
+  }
+
+  if (isStatementTimeout(summaryError)) {
+    return { netReceivable: 0 };
+  }
+  throw summaryError;
 }
 
 /** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
