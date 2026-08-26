@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths } from "date-fns";
 import { CalendarIcon, Search, ArrowLeft, Printer, FileSpreadsheet, Filter, X, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
@@ -28,6 +28,11 @@ import { multiTokenMatch } from "@/utils/multiTokenSearch";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { parsePersistedDate, restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import {
+  isReportDateRangeTooWide,
+  reportDateRangeTooWideMessage,
+} from "@/utils/reportDateRangeGuard";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import type { SearchableSelectOption } from "@/components/ui/searchable-select";
 import { parseItemWiseUserFilter } from "@/utils/itemWiseSalesUserFilter";
@@ -454,13 +459,24 @@ export default function ItemWiseSalesReport() {
         const fyEnd = month >= 3 ? new Date(year + 1, 2, 31) : new Date(year, 2, 31);
         return { from: fyStart, to: fyEnd };
       case "all":
-        return { from: new Date(2000, 0, 1), to: endOfDay(new Date()) };
+        // Rolling 12 months — unbounded "all time" scanned every sale row and timed out on large orgs.
+        return { from: startOfDay(subMonths(new Date(), 12)), to: endOfDay(new Date()) };
       case "custom":
         return { from: startOfDay(customDateRange.from), to: endOfDay(customDateRange.to) };
       default:
         return { from: startOfDay(today), to: endOfDay(today) };
     }
   }, [periodType, selectedDate, customDateRange]);
+
+  const dateRangeTooWide = useMemo(
+    () => isReportDateRangeTooWide(dateRange.from, dateRange.to),
+    [dateRange.from, dateRange.to],
+  );
+
+  useEffect(() => {
+    if (!dateRangeTooWide) return;
+    toast.warning(reportDateRangeTooWideMessage());
+  }, [dateRangeTooWide]);
 
   // Fetch sale items with product details
   const { data: saleItems = [], isLoading, isFetching, isError } = useQuery({
@@ -560,7 +576,7 @@ export default function ItemWiseSalesReport() {
         stock_qty: item.variant_id ? (variantStockMap[item.variant_id] || 0) : 0,
       }));
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !dateRangeTooWide,
     ...REPORT_CACHE,
   });
 
@@ -819,7 +835,7 @@ export default function ItemWiseSalesReport() {
       if (error) throw error;
       return data as any;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && !dateRangeTooWide,
     ...REPORT_CACHE,
   });
 

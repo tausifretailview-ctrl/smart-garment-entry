@@ -494,9 +494,19 @@ export async function fetchInvoiceDashboardReconciledPendingAmount(
 }
 
 /** Server-side summary tiles; falls back to client scan when RPC is unavailable. Never throws. */
+export type FetchInvoiceDashboardStatsOptions = {
+  /**
+   * When true, blocks on a full-range receipt reconcile to replace pendingAmount.
+   * Default false — run {@link fetchInvoiceDashboardReconciledPendingAmount} in a
+   * background query so KPI tiles paint immediately from the RPC.
+   */
+  reconcilePending?: boolean;
+};
+
 export async function fetchInvoiceDashboardStats(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
+  options?: FetchInvoiceDashboardStatsOptions,
 ): Promise<InvoiceDashboardStats> {
   if (!filters.organizationId) {
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
@@ -521,6 +531,9 @@ export async function fetchInvoiceDashboardStats(
     }
 
     const stats = parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
+    if (options?.reconcilePending !== true) {
+      return stats;
+    }
     try {
       const pendingAmount = await fetchInvoiceDashboardReconciledPendingAmount(client, filters);
       return { ...stats, pendingAmount };
