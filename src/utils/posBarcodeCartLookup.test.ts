@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isCompleteNumericBarcodeForPosCart,
+  isPosPureNumericSearchTerm,
   isPosServiceShortNumericBarcode,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
@@ -32,6 +33,13 @@ describe("posBarcodeCartLookup", () => {
     expect(isCompleteNumericBarcodeForPosCart("5")).toBe(true);
     expect(isCompleteNumericBarcodeForPosCart("0")).toBe(false);
   });
+
+  it("detects pure numeric search terms", () => {
+    expect(isPosPureNumericSearchTerm("8901234567890")).toBe(true);
+    expect(isPosPureNumericSearchTerm("501")).toBe(true);
+    expect(isPosPureNumericSearchTerm("Bootcut")).toBe(false);
+    expect(isPosPureNumericSearchTerm("BHG215")).toBe(false);
+  });
 });
 
 describe("shouldPosEnterUseExactBarcodeLookup", () => {
@@ -42,7 +50,13 @@ describe("shouldPosEnterUseExactBarcodeLookup", () => {
 
   it("text search Enter may use dropdown pick", () => {
     expect(shouldPosEnterUseExactBarcodeLookup("SHIRT")).toBe(false);
-    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("BOOT")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("Bootcut")).toBe(false);
+  });
+
+  it("alphanumeric barcode Enter uses exact lookup, not dropdown partial pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(true);
+    expect(shouldPosEnterUseExactBarcodeLookup("TB001")).toBe(true);
   });
 
   it("quick service codes use dropdown path", () => {

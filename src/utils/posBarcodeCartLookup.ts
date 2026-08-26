@@ -45,14 +45,32 @@ export function stockReportOldBarcodeKeyMatches(search: string, barcodeKey: stri
   return b.includes(s);
 }
 
+/** True when the scan box value is an alphanumeric SKU / barcode (not a plain name search). */
+export function isPosAlphanumericBarcodeTerm(term: string): boolean {
+  const t = term.trim();
+  if (!t || /\s/.test(t)) return false;
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(t)) return false;
+  if (t.length < 3) return false;
+  // Require a digit so plain words (Bootcut, Shirt) still use dropdown pick.
+  return /\d/.test(t);
+}
+
 export function shouldPosEnterUseExactBarcodeLookup(term: string): boolean {
   const t = term.trim();
-  if (!/^\d+$/.test(t)) return false;
+  if (!t) return false;
   // Single-digit 1–9: quick-service dialog / dropdown, not exact-only.
   if (/^[1-9]$/.test(t)) return false;
-  // 2–7 digit service codes (10, 18, 501) and 8+ EANs: exact barcode, never first ILIKE hit.
-  if (isCompleteNumericBarcodeForPosCart(t)) return true;
-  return t.length >= 4;
+  // Pure numeric: exact barcode lookup (never first ILIKE dropdown hit).
+  if (/^\d+$/.test(t)) {
+    if (isCompleteNumericBarcodeForPosCart(t)) return true;
+    return t.length >= 4;
+  }
+  return isPosAlphanumericBarcodeTerm(t);
+}
+
+/** Pure digits — barcode/price path only; never auto-add first name hit. */
+export function isPosPureNumericSearchTerm(term: string): boolean {
+  return /^\d+$/.test(term.trim());
 }
 
 export type PosBarcodeCartLookupOptions = {

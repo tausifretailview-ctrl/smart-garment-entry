@@ -1,4 +1,5 @@
 import { parsePosQuickPriceCode } from "@/utils/posQuickPriceCode";
+import { isPosAlphanumericBarcodeTerm } from "@/utils/posBarcodeCartLookup";
 
 /** Settings → Sale → POS quick price-code search (Trendzo fast billing). */
 export function isPosFastBillingEnabled(
@@ -65,5 +66,6 @@ export function posFastBillingUsesDropdownPick(term: string, fastBillingEnabled:
   if (!trimmed) return false;
   if (/^\d+$/.test(trimmed)) return false;
   if (isPosFastBillingQuickCodeTerm(trimmed)) return false;
+  if (isPosAlphanumericBarcodeTerm(trimmed)) return false;
   return true;
 }
