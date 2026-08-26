@@ -46,7 +46,7 @@ import {
   paymentExceedsOutstandingCap,
 } from "@/utils/invoiceOverpaymentGuard";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { useReactToPrint } from "react-to-print";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
@@ -592,7 +592,7 @@ function CustomerPaymentForm({
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId, referenceId);
 
       const totalPaid = parseFloat(amount);
       if (data.isOpeningBalancePayment) {

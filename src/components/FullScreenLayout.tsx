@@ -28,7 +28,7 @@ import { entryPageLayoutMainClass, isEntryFullscreenPath, isFillHeightShellPath,
 import { initUIScale } from "@/components/UIScaleSelector";
 import { readSidebarLockedOpen } from "@/lib/sidebarPreference";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
-import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
 import { cn } from "@/lib/utils";
 
 interface FullScreenLayoutProps {
@@ -144,6 +144,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             </IdleMount>
 
             <WhatsAppMessageNotifier />
+            <OrgMoneyRealtimeInvalidation />
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingChatButton />

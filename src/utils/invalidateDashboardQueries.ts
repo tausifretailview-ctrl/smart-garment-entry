@@ -9,6 +9,7 @@ import {
   type PosDashboardSaleSeed,
 } from "@/utils/posDashboardSales";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
+import { invalidateMoneyViewFreshness } from "@/utils/moneyViewFreshnessInvalidation";
 
 /** Sales invoice list + unified dashboard table pages. */
 export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
@@ -151,6 +152,9 @@ export function invalidateAfterCustomerPaymentMutation(
   invalidatePosDashboardQueries(queryClient, organizationId);
   notifyPosSalesChanged({ organizationId });
   invalidateSalesQueriesNow(queryClient, organizationId);
+  if (organizationId) {
+    invalidateMoneyViewFreshness(queryClient, organizationId);
+  }
   queryClient.invalidateQueries({ queryKey: ["customer-account-state-view"] });
   queryClient.invalidateQueries({ queryKey: ["customer-account-audit"] });
 }

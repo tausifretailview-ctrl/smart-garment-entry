@@ -22,7 +22,7 @@ import {
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { cn } from "@/lib/utils";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   ensureCreditNoteHeadroom,
   formatCnApplyError,
@@ -366,7 +366,7 @@ export function AdjustCustomerCreditNoteDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns-summary"] });
-      invalidateCustomerFinancialSnapshot(queryClient, currentOrganization!.id, customerId);
+      invalidateMoneyViewsAfterMutation(queryClient, currentOrganization!.id, customerId);
       return true;
     } catch (err: unknown) {
       console.error(err);

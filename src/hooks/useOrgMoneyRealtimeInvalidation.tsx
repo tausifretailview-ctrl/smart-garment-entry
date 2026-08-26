@@ -16,6 +16,7 @@ const MONEY_REALTIME_TABLES = [
   "voucher_entries",
   "sale_returns",
   "customer_advances",
+  "credit_notes",
 ] as const;
 
 export function useOrgMoneyRealtimeInvalidation() {

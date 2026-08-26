@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   MONEY_VIEW_FRESHNESS_LS_KEY,
+  notifyMoneyViewChanged,
   parseMoneyFreshnessMarker,
 } from "@/utils/posSalesRefresh";
 
@@ -23,5 +24,22 @@ describe("posSalesRefresh localStorage bridge", () => {
 
   it("exports stable localStorage key", () => {
     expect(MONEY_VIEW_FRESHNESS_LS_KEY).toBe("money_view_freshness_v1");
+  });
+
+  it("notifyMoneyViewChanged writes freshness marker without POS session event", () => {
+    const setItem = vi.fn();
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal("localStorage", { setItem } as Storage);
+    vi.stubGlobal("window", { dispatchEvent } as Window & typeof globalThis);
+
+    notifyMoneyViewChanged({ organizationId: "org-99" });
+
+    expect(setItem).toHaveBeenCalledWith(
+      MONEY_VIEW_FRESHNESS_LS_KEY,
+      expect.stringContaining('"organizationId":"org-99"'),
+    );
+    expect(dispatchEvent).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
   });
 });
