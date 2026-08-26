@@ -34,8 +34,10 @@ import {
 import {
   fetchPosQuickPriceCodeMatches,
   parsePosQuickPriceCode,
+  posVariantEffectiveSalePrice,
   resolvePosQuickPriceCartOverride,
 } from "@/utils/posQuickPriceCode";
+import { posFastBillingUsesDropdownPick } from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -2287,6 +2289,17 @@ export default function POSSales() {
       clearPosBarcodeSubmitTimers();
       markSubmitted(rawValue);
 
+      const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+      if (posFastBillingUsesDropdownPick(rawValue, fastBilling)) {
+        setOpenProductSearch(true);
+        if (productSearchResults.length === 0) {
+          toast.message("Pick a product from the list", {
+            description: "Fast billing: type name (e.g. Jeans), then click or press Enter on the row.",
+          });
+        }
+        return;
+      }
+
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
 
@@ -2296,7 +2309,26 @@ export default function POSSales() {
       // Reset scanner detection for next input
       resetScannerDetection();
     }
-  }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct]);
+  }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct, productSearchResults.length]);
+
+  const handlePosBarcodeSubmit = useCallback(() => {
+    const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
+    if (!rawValue) return;
+    clearPosBarcodeSubmitTimers();
+    markSubmitted(rawValue);
+    const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+    if (posFastBillingUsesDropdownPick(rawValue, fastBilling)) {
+      setOpenProductSearch(true);
+      setSearchInput(rawValue);
+      if (productSearchResults.length === 0) {
+        toast.message("Pick a product from the list", {
+          description: "Fast billing: matching products show brand and price — tap a row to add.",
+        });
+      }
+      return;
+    }
+    void searchAndAddProduct(rawValue);
+  }, [clearPosBarcodeSubmitTimers, markSubmitted, searchInput, productSearchResults.length]);
 
   // Optimized input change handler — manual typing never auto-adds; press Enter (or scan gun Enter suffix).
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2586,11 +2618,23 @@ export default function POSSales() {
             product: p,
             variant: item,
             matchedOn: matches,
+            displaySalePrice: posVariantEffectiveSalePrice(item, p),
             displayBarcode:
               isNumeric && isCompleteNumericBarcodeForPosCart(term) ? term : item.barcode,
             searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
           };
         });
+
+      const fastBillingDropdown = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+      if (fastBillingDropdown && quick) {
+        for (const row of formatted) {
+          row.quickPriceOverride = resolvePosQuickPriceCartOverride(
+            row.product,
+            row.variant,
+            quick.price,
+          );
+        }
+      }
 
       setProductSearchResults(formatted);
     };
@@ -2662,6 +2706,20 @@ export default function POSSales() {
     posSearchAndAddInFlight.add(trimmedTerm);
 
     try {
+      const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+
+      // Fast billing name search (e.g. "Jeans") — dropdown pick only, no silent first-hit add.
+      if (posFastBillingUsesDropdownPick(trimmedTerm, fastBilling)) {
+        setOpenProductSearch(true);
+        setSearchInput(trimmedTerm);
+        if (productSearchResults.length === 0) {
+          toast.message("Pick a product from the list", {
+            description: "Matching products show brand and price — click the row to add.",
+          });
+        }
+        return;
+      }
+
       // Fast-counter price-shorthand: "J300" -> name starting with J at ₹300
       // (sale_price or MRP). Org opt-in (Settings → Sale → POS quick price-code).
       const quickCode = posRuntimeSettingsRef.current?.pos_quick_price_code
@@ -2871,8 +2929,11 @@ export default function POSSales() {
         }
       }
 
-      // Try product name search via DB if not IMEI mode
-      if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+      // Try product name search via DB if not IMEI mode (standard orgs — fast billing uses dropdown).
+      if (
+        !(mobileERP.enabled && mobileERP.imei_scan_enforcement) &&
+        !posRuntimeSettingsRef.current?.pos_quick_price_code
+      ) {
         const { data: nameResults, error: nameError } = await supabase
           .from('product_variants')
           .select(POS_VARIANT_LOOKUP_SELECT)
@@ -3296,6 +3357,15 @@ export default function POSSales() {
     setSearchInput("");
     focusBarcodeScanInput();
   };
+
+  const handlePosProductPick = useCallback(
+    (product: PosProductRow, variant: PosVariantRow, quickOverride?: { sale_price: number; mrp: number }) => {
+      void addItemToCart(product, variant, quickOverride);
+    },
+    // addItemToCart is stable enough for pick handler; eslint may warn on exhaustive deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   // Handle price selection from dialog
   const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
@@ -5809,15 +5879,7 @@ export default function POSSales() {
             setSearchInput(value);
             if (value.length > 0) setOpenProductSearch(true);
           }}
-          onBarcodeSubmit={() => {
-            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
-            if (rawValue) {
-              clearPosBarcodeSubmitTimers();
-              markSubmitted(rawValue);
-              searchAndAddProduct(rawValue);
-              setSearchInput("");
-            }
-          }}
+          onBarcodeSubmit={handlePosBarcodeSubmit}
           barcodeInputRef={barcodeInputRef}
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
@@ -5839,7 +5901,8 @@ export default function POSSales() {
           roundOff={roundOff}
           setRoundOff={setRoundOff}
           filteredProducts={filteredProducts}
-          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          onProductSelect={handlePosProductPick}
+          fastBillingEnabled={posRuntimeSettings?.pos_quick_price_code === true}
           openProductSearch={openProductSearch}
           selectedProductType={selectedProductType}
           onProductTypeChange={setSelectedProductType}
@@ -5950,15 +6013,7 @@ export default function POSSales() {
               setOpenProductSearch(true);
             }
           }}
-          onBarcodeSubmit={() => {
-            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
-            if (rawValue) {
-              clearPosBarcodeSubmitTimers();
-              markSubmitted(rawValue);
-              searchAndAddProduct(rawValue);
-              setSearchInput("");
-            }
-          }}
+          onBarcodeSubmit={handlePosBarcodeSubmit}
           barcodeInputRef={barcodeInputRef}
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
@@ -5977,9 +6032,10 @@ export default function POSSales() {
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           onAdvanceBooking={() => setShowAdvanceBooking(true)}
           filteredProducts={filteredProducts}
-          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          onProductSelect={handlePosProductPick}
           openProductSearch={openProductSearch}
           enableMrp={enableMrp}
+          fastBillingEnabled={posRuntimeSettings?.pos_quick_price_code === true}
         />
 
         {/* Dialogs needed for mobile too */}
@@ -6434,12 +6490,20 @@ export default function POSSales() {
                           {filteredProducts.length > 20 && ` — showing top 20`}
                         </span>
                         <span className="text-[10px] opacity-70">
-                          Tip: Use multiple words to narrow down (e.g. "top black 1350")
+                          {posRuntimeSettings?.pos_quick_price_code === true &&
+                          posFastBillingUsesDropdownPick(searchInput, true)
+                            ? 'Fast billing: pick brand + price, or type J900 for instant add'
+                            : 'Tip: Use multiple words to narrow down (e.g. "top black 1350")'}
                         </span>
                       </div>
                       <CommandGroup heading="Products">
                         {filteredProducts.slice(0, 20).map((item: any, index: number) => {
                           const product = item.product;
+                          const rowSalePrice =
+                            item.displaySalePrice ?? (Number(item.variant.sale_price) || 0);
+                          const fastBillingRow =
+                            posRuntimeSettings?.pos_quick_price_code === true &&
+                            posFastBillingUsesDropdownPick(searchInput, true);
                           return (
                             <CommandItem
                               key={`${product.id}-${item.variant.id}-${index}`}
@@ -6472,6 +6536,30 @@ export default function POSSales() {
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
                                 <span className="font-medium text-slate-900 dark:text-white group-data-[selected=true]:text-white">{product.product_name}</span>
+                                {fastBillingRow ? (
+                                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                                    {product.brand && (
+                                      <span className="font-semibold text-blue-700 dark:text-blue-300 group-data-[selected=true]:text-white">
+                                        {product.brand}
+                                      </span>
+                                    )}
+                                    <span className="font-bold tabular-nums text-primary group-data-[selected=true]:text-white">
+                                      ₹{rowSalePrice}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground group-data-[selected=true]:text-white/80">
+                                      Size {item.variant.size}
+                                    </span>
+                                    {(() => {
+                                      const stockDisp = displaySaleStockQty(product.product_type, item.variant.stock_qty);
+                                      return (
+                                        <span className={(stockDisp > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive") + " text-[11px] group-data-[selected=true]:text-white"}>
+                                          Stock: {stockDisp}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <>
                                 {item.matchedOn && item.matchedOn.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mb-0.5">
                                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground group-data-[selected=true]:text-white/80 mr-1 flex items-center">
@@ -6516,8 +6604,8 @@ export default function POSSales() {
                                   {formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode) && (
                                     <span className="font-mono text-xs">{formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode)}</span>
                                   )}
-                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
-                                  {enableMrp && item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
+                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{rowSalePrice}</span>
+                                  {enableMrp && item.variant.mrp && item.variant.mrp > rowSalePrice && (
                                     <span className="text-[10px] line-through text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/70">
                                       MRP ₹{item.variant.mrp}
                                     </span>
@@ -6546,6 +6634,8 @@ export default function POSSales() {
                                       <span> +{item.variant.batch_stock.length - 3} more</span>
                                     )}
                                   </span>
+                                )}
+                                  </>
                                 )}
                               </div>
                             </CommandItem>
