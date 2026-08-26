@@ -19,6 +19,18 @@ export function invalidateMoneyViewFreshness(
     queryKey: ["pos-dashboard-sales", organizationId],
   });
   void queryClient.invalidateQueries({
+    queryKey: ["sales-invoice-dashboard"],
+  });
+  void queryClient.invalidateQueries({
+    queryKey: ["invoice-dashboard-unified"],
+  });
+  void queryClient.invalidateQueries({
+    queryKey: ["payment-invoices"],
+  });
+  void queryClient.invalidateQueries({
+    queryKey: ["payment-invoices-stats"],
+  });
+  void queryClient.invalidateQueries({
     queryKey: [ORGANIZATION_RECEIVABLES_QUERY_KEY],
   });
   void queryClient.invalidateQueries({
@@ -59,6 +71,9 @@ export function getMoneyViewVisibilityQueryKeys(organizationId: string): string[
     ["customers-with-balance", organizationId],
     ["customer-ledger"],
     ["pos-dashboard-sales", organizationId],
+    ["sales-invoice-dashboard"],
+    ["invoice-dashboard-unified"],
+    ["payment-invoices"],
     [ORGANIZATION_RECEIVABLES_QUERY_KEY],
   ];
 }

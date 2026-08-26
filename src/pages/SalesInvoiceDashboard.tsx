@@ -154,6 +154,7 @@ import {
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
+import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -2912,7 +2913,11 @@ export default function SalesInvoiceDashboard() {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      invalidateSalesQueriesNow(queryClient, orgId);
+      invalidateAfterCustomerPaymentMutation(
+        queryClient,
+        orgId,
+        selectedInvoiceForPayment.customer_id,
+      );
       await refetchInvoiceDashboardQueries(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {

@@ -69,8 +69,8 @@ import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapsh
 import {
   fetchCustomerFinancialSnapshot,
   formatSnapshotInr,
-  invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
+import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import {
   accountsHistoryFooterClass,
@@ -599,9 +599,11 @@ export default function PaymentsDashboard() {
       });
 
       if (currentOrganization?.id) {
-        invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, selectedInvoice.customer_id);
-        queryClient.invalidateQueries({ queryKey: ["payment-invoices"] });
-        queryClient.invalidateQueries({ queryKey: ["payment-invoices-stats"] });
+        invalidateAfterCustomerPaymentMutation(
+          queryClient,
+          currentOrganization.id,
+          selectedInvoice.customer_id,
+        );
         queryClient.invalidateQueries({ queryKey: ["accounts-dashboard-metrics", currentOrganization.id] });
       }
       refetch();

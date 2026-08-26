@@ -82,7 +82,7 @@ import {
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
 import { applyExistingAdvanceToSale } from "@/utils/posApplyAdvance";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -2135,11 +2135,6 @@ const POSDashboard = () => {
           .eq("id", saleId)
           .eq("organization_id", orgId);
         if (metaErr) throw metaErr;
-        invalidateCustomerFinancialSnapshot(
-          queryClient,
-          orgId,
-          selectedSaleForPayment.customer_id,
-        );
         if (consumed + 0.01 < requested) {
           toast({
             title: "Advance shortfall",
@@ -2231,8 +2226,12 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      // Patch already shows Paid. Background refetch of *active* queries only —
-      // do not also fire notifyPosSalesChanged (that listener invalidates again).
+      // Patch already shows Paid in this tab; broadcast to other tabs / PCs.
+      invalidateMoneyViewsAfterMutation(
+        queryClient,
+        orgId,
+        selectedSaleForPayment.customer_id,
+      );
       invalidatePosDashboardQueries(queryClient, orgId, { refetchType: "active" });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {

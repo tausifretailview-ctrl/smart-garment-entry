@@ -56,6 +56,15 @@ describe("moneyViewFreshnessInvalidation", () => {
       queryKey: ["customers-with-balance", orgId],
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["sales-invoice-dashboard"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["invoice-dashboard-unified"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["payment-invoices"],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["customer-ledger"],
     });
   });
@@ -84,6 +93,8 @@ describe("moneyViewFreshnessInvalidation", () => {
     expect(keys).toContainEqual(["customers-with-balance", orgId]);
     expect(keys).toContainEqual(["customer-ledger"]);
     expect(keys).toContainEqual(["pos-dashboard-sales", orgId]);
+    expect(keys).toContainEqual(["sales-invoice-dashboard"]);
+    expect(keys).toContainEqual(["invoice-dashboard-unified"]);
     expect(keys).toContainEqual([ORGANIZATION_RECEIVABLES_QUERY_KEY]);
   });
 });
