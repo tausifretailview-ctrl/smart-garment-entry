@@ -1,10 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   alignPartyRowFromRpc,
   alignPartyRowWithSnapshot,
+  fetchCustomerPartyBalancesPayload,
   partyBalanceOrgWindowFromRpcRow,
   partyBalanceRowFacets,
 } from "@/utils/customerPartyBalanceSnapshot";
+
+vi.mock("@/utils/fetchAllRows", () => ({
+  fetchAllCustomers: vi.fn(),
+  fetchAllCustomerPartyBalances: vi.fn(),
+  fetchCustomerPhoneMap: vi.fn(),
+}));
+
+import {
+  fetchAllCustomers,
+  fetchAllCustomerPartyBalances,
+  fetchCustomerPhoneMap,
+} from "@/utils/fetchAllRows";
 import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
 import type { CustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 
@@ -112,6 +125,59 @@ describe("alignPartyRowWithSnapshot", () => {
     );
     expect(aligned.gross_outstanding).toBe(0);
     expect(aligned.direction).toBe("Cr");
+  });
+});
+
+describe("fetchCustomerPartyBalancesPayload", () => {
+  it("returns searchable customer rows when party RPC times out", async () => {
+    vi.mocked(fetchCustomerPhoneMap).mockResolvedValue(new Map([["c1", "9999999999"]]));
+    vi.mocked(fetchAllCustomers).mockResolvedValue([
+      {
+        id: "c1",
+        customer_name: "NIXC FOOTWEAR",
+        phone: "9999999999",
+        email: null,
+        gst_number: null,
+        address: null,
+        opening_balance: 500,
+        points_balance: null,
+        discount_percent: null,
+      },
+    ]);
+    vi.mocked(fetchAllCustomerPartyBalances).mockRejectedValue({
+      code: "57014",
+      message: "canceling statement due to statement timeout",
+    });
+
+    const payload = await fetchCustomerPartyBalancesPayload("org-ks");
+    expect(payload.partyBalancesComplete).toBe(false);
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].customer_name).toBe("NIXC FOOTWEAR");
+    expect(payload.rows[0].net_position).toBe(500);
+    expect(payload.rows[0].phone).toBe("9999999999");
+  });
+
+  it("returns full party rows when RPC succeeds", async () => {
+    vi.mocked(fetchCustomerPhoneMap).mockResolvedValue(new Map([["c1", "8888888888"]]));
+    vi.mocked(fetchAllCustomers).mockResolvedValue([]);
+    vi.mocked(fetchAllCustomerPartyBalances).mockResolvedValue([
+      {
+        customer_id: "c1",
+        customer_name: "NIXC FOOTWEAR",
+        signed_balance: 4_800,
+        advance_available: 0,
+        direction: "Dr",
+        net_position: 4_800,
+        total_dr: 0,
+        total_cr: 0,
+        net_receivable: 4_800,
+      },
+    ]);
+
+    const payload = await fetchCustomerPartyBalancesPayload("org-ks");
+    expect(payload.partyBalancesComplete).toBe(true);
+    expect(payload.rows).toHaveLength(1);
+    expect(payload.rows[0].net_position).toBe(4_800);
   });
 });
 

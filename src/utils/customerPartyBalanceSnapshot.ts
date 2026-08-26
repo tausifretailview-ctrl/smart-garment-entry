@@ -2,6 +2,7 @@ import type { CustomerAccountFacets } from "@/utils/customerAccountFacets";
 import { facetsFromPartySignedBalance } from "@/utils/customerAccountFacets";
 import {
   fetchAllCustomerPartyBalances,
+  fetchAllCustomers,
   fetchCustomerPhoneMap,
   type CustomerPartyBalanceRpcRow,
 } from "@/utils/fetchAllRows";
@@ -84,22 +85,74 @@ export function alignPartyRowWithSnapshot(
   };
 }
 
+export type CustomerPartyBalancesPayload = {
+  rows: CustomerPartyBalanceAlignedRow[];
+  /** False when party RPC timed out — rows are searchable directory + opening balance. */
+  partyBalancesComplete: boolean;
+};
+
+function alignedRowsFromPartyRpc(
+  partyRows: CustomerPartyBalanceRpcRow[],
+  phoneMap: Map<string, string>,
+): CustomerPartyBalanceAlignedRow[] {
+  return partyRows.map((row) => alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""));
+}
+
+function alignedRowsFromCustomerDirectory(
+  customers: Awaited<ReturnType<typeof fetchAllCustomers>>,
+  phoneMap: Map<string, string>,
+): CustomerPartyBalanceAlignedRow[] {
+  return customers.map((customer) => {
+    const opening = Math.round(Number(customer.opening_balance) || 0);
+    return alignPartyRowFromRpc(
+      {
+        customer_id: customer.id,
+        customer_name: customer.customer_name,
+        signed_balance: opening,
+        advance_available: 0,
+        direction: partyBalanceDirection({ signed_balance: opening }),
+        net_position: opening,
+        total_dr: 0,
+        total_cr: 0,
+        net_receivable: 0,
+      },
+      customer.phone ?? phoneMap.get(customer.id) ?? "",
+    );
+  });
+}
+
+export async function fetchCustomerPartyBalancesPayload(
+  organizationId: string,
+): Promise<CustomerPartyBalancesPayload> {
+  const [phoneMap, customers] = await Promise.all([
+    fetchCustomerPhoneMap(organizationId),
+    fetchAllCustomers(organizationId),
+  ]);
+
+  try {
+    const partyRows = await fetchAllCustomerPartyBalances(organizationId);
+    return {
+      rows: alignedRowsFromPartyRpc(partyRows, phoneMap),
+      partyBalancesComplete: true,
+    };
+  } catch (error) {
+    if (!isStatementTimeout(error)) throw error;
+    return {
+      rows: alignedRowsFromCustomerDirectory(customers, phoneMap),
+      partyBalancesComplete: false,
+    };
+  }
+}
+
 /**
- * Customer Balances list — one set-based party RPC + phone map.
- * Facets match get_customer_financial_snapshot after migration 20260822183000
- * (gross = signed + advance; net = signed). Avoids snapshot_all timeout on large orgs.
+ * Customer Balances list — one set-based party RPC + customer directory.
+ * On large orgs, falls back to searchable customer rows (opening balance) if party RPC times out.
  */
 export async function fetchCustomerPartyBalancesAligned(
   organizationId: string,
 ): Promise<CustomerPartyBalanceAlignedRow[]> {
-  const [partyRows, phoneMap] = await Promise.all([
-    fetchAllCustomerPartyBalances(organizationId),
-    fetchCustomerPhoneMap(organizationId),
-  ]);
-
-  return partyRows.map((row) =>
-    alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""),
-  );
+  const payload = await fetchCustomerPartyBalancesPayload(organizationId);
+  return payload.rows;
 }
 
 export const CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY = "customer-party-balance-org-window";
