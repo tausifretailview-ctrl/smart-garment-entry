@@ -95,6 +95,8 @@ import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
+import { MrpTierSelectionDialog } from "@/components/MrpTierSelectionDialog";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -788,6 +790,10 @@ const PurchaseEntry = () => {
   const [showProductDialog, setShowProductDialog] = useState(false);
   /** Prefill for Add New Product when search-bar scan finds no master match. */
   const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: ProductVariant[];
+  } | null>(null);
   const barcodeScanResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Shape heuristic — barcode/IMEI-like (digit required). Not sufficient alone for auto-open. */
@@ -2991,17 +2997,39 @@ const PurchaseEntry = () => {
   // AbortController ref to cancel in-flight search requests
   const searchAbortControllerRef = useRef<AbortController | null>(null);
 
+  const mapPurchaseVariantRow = useCallback((data: Record<string, unknown>, barcode: string): ProductVariant => {
+    const p = data.products as Record<string, unknown> | null | undefined;
+    return {
+      id: String(data.id ?? ""),
+      product_id: String(p?.id ?? data.product_id ?? ""),
+      size: String(data.size ?? ""),
+      pur_price: Number(data.pur_price) || 0,
+      sale_price: Number(data.sale_price) || 0,
+      mrp: Number(data.mrp) || 0,
+      barcode: String(data.barcode ?? barcode),
+      barcode_source: String(data.barcode_source ?? "generated"),
+      product_name: String(p?.product_name ?? ""),
+      brand: String(p?.brand ?? ""),
+      category: String(p?.category ?? ""),
+      color: String(data.color ?? p?.color ?? ""),
+      style: String(p?.style ?? ""),
+      gst_per: Number(p?.purchase_gst_percent ?? p?.gst_per) || 0,
+      hsn_code: String(p?.hsn_code ?? ""),
+      uom: String(p?.uom ?? "NOS"),
+      requires_imei: p?.requires_imei === true,
+    };
+  }, []);
+
   /**
    * Exact barcode lookup for purchase search-bar scans.
    * Key for "already on this bill": prefer sku_id (variant id); fall back to exact barcode
    * so shared-EAN accessory lines still match.
    */
-  const fetchExactBarcodeVariant = useCallback(
-    async (rawBarcode: string): Promise<ProductVariant | null> => {
-      if (!currentOrganization?.id) return null;
+  const fetchExactBarcodeVariants = useCallback(
+    async (rawBarcode: string): Promise<ProductVariant[]> => {
+      if (!currentOrganization?.id) return [];
       const barcode = normalizeProductSearchTerm(rawBarcode);
-      // Reject empty / whitespace-only — `.eq("barcode", "")` yields PostgREST 400s.
-      if (!barcode || barcode.length < 1) return null;
+      if (!barcode || barcode.length < 1) return [];
 
       const orgId = currentOrganization.id;
       const { data, error } = await supabase
@@ -3040,32 +3068,21 @@ const PurchaseEntry = () => {
         .eq("barcode", barcode)
         .is("deleted_at", null)
         .eq("active", true)
-        .limit(1)
-        .maybeSingle();
+        .order("mrp", { ascending: false })
+        .limit(50);
 
-      if (error || !data) return null;
-      const p = data.products as any;
-      return {
-        id: data.id,
-        product_id: p?.id || data.product_id || "",
-        size: data.size || "",
-        pur_price: data.pur_price || 0,
-        sale_price: data.sale_price || 0,
-        mrp: data.mrp || 0,
-        barcode: data.barcode || barcode,
-        barcode_source: data.barcode_source || "generated",
-        product_name: p?.product_name || "",
-        brand: p?.brand || "",
-        category: p?.category || "",
-        color: data.color || p?.color || "",
-        style: p?.style || "",
-        gst_per: p?.purchase_gst_percent || p?.gst_per || 0,
-        hsn_code: p?.hsn_code || "",
-        uom: p?.uom || "NOS",
-        requires_imei: p?.requires_imei === true,
-      };
+      if (error || !data?.length) return [];
+      return data.map((row) => mapPurchaseVariantRow(row as Record<string, unknown>, barcode));
     },
-    [currentOrganization?.id],
+    [currentOrganization?.id, mapPurchaseVariantRow],
+  );
+
+  const fetchExactBarcodeVariant = useCallback(
+    async (rawBarcode: string): Promise<ProductVariant | null> => {
+      const variants = await fetchExactBarcodeVariants(rawBarcode);
+      return variants[0] ?? null;
+    },
+    [fetchExactBarcodeVariants],
   );
 
   const addOrIncrementScannedVariant = useCallback(
@@ -3192,13 +3209,46 @@ const PurchaseEntry = () => {
       setSearchResults([]);
       setShowSearch(false);
 
-      const variant = await fetchExactBarcodeVariant(barcode);
-      if (variant) {
-        setSearchQuery("");
-        resetSearchInputScanTiming();
-        await addOrIncrementScannedVariant(variant);
-        focusSearchBar();
-        return;
+      const variants = await fetchExactBarcodeVariants(barcode);
+      if (variants.length > 0) {
+        if (variants.length === 1) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          await addOrIncrementScannedVariant(variants[0]);
+          focusSearchBar();
+          return;
+        }
+
+        const picker = resolveBarcodeScanPicker(
+          variants.map((variant) => ({
+            product: { product_name: variant.product_name },
+            variant,
+          })),
+          () => true,
+        );
+
+        if (picker.showMrpDialog) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          setMrpTierPicker({ barcode, choices: picker.mrpDialogChoices.map((m) => m.variant) });
+          return;
+        }
+
+        if (picker.showProductPicker) {
+          setSearchQuery(barcode);
+          setSearchResults(picker.productPickerChoices.map((m) => m.variant));
+          setShowSearch(true);
+          resetSearchInputScanTiming();
+          return;
+        }
+
+        if (picker.autoPick) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          await addOrIncrementScannedVariant(picker.autoPick.variant);
+          focusSearchBar();
+          return;
+        }
       }
 
       // Not in master — auto-open only for a confirmed hardware scan (or camera).
@@ -3215,7 +3265,7 @@ const PurchaseEntry = () => {
     },
     [
       currentOrganization?.id,
-      fetchExactBarcodeVariant,
+      fetchExactBarcodeVariants,
       addOrIncrementScannedVariant,
       openAddProductDialog,
       focusSearchBar,
@@ -6962,6 +7012,45 @@ const PurchaseEntry = () => {
 
   const isMobile = useIsMobile();
 
+  const handlePurchaseMrpTierSelection = useCallback(
+    async (choiceId: string) => {
+      const pick = mrpTierPicker?.choices.find((c) => c.id === choiceId);
+      setMrpTierPicker(null);
+      if (!pick) {
+        focusSearchBar();
+        return;
+      }
+      await addOrIncrementScannedVariant(pick);
+      focusSearchBar();
+    },
+    [mrpTierPicker, addOrIncrementScannedVariant, focusSearchBar],
+  );
+
+  const purchaseMrpTierDialog = (
+    <MrpTierSelectionDialog
+      open={mrpTierPicker != null}
+      onOpenChange={(open) => {
+        if (!open) {
+          setMrpTierPicker(null);
+          focusSearchBar();
+        }
+      }}
+      barcode={mrpTierPicker?.barcode ?? ""}
+      choices={(mrpTierPicker?.choices ?? []).map((v) => ({
+        id: v.id,
+        productName: v.product_name,
+        size: v.size,
+        color: v.color,
+        mrp: v.mrp ?? 0,
+        salePrice: v.sale_price,
+        stockQty: 0,
+      }))}
+      onSelect={(choiceId) => {
+        void handlePurchaseMrpTierSelection(choiceId);
+      }}
+    />
+  );
+
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.product_id);
     const totalQty = filledItems.reduce((s, i) => s + (i.qty || 0), 0);
@@ -7247,6 +7336,7 @@ const PurchaseEntry = () => {
           onUseExistingProduct={handleUseExistingProductFromDialog}
         />
         <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
+        {purchaseMrpTierDialog}
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
         <DuplicatePurchaseBillDialog
           open={!!duplicateWarning}
@@ -8663,6 +8753,7 @@ const PurchaseEntry = () => {
           onConfirm={handlePriceUpdateConfirm}
           onSkip={handlePriceUpdateSkip}
         />
+        {purchaseMrpTierDialog}
 
         {/* Add Supplier Dialog */}
         <AddSupplierDialog

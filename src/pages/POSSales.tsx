@@ -16,10 +16,10 @@ import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
 import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
 import {
-  posBarcodeMatchesNeedMrpPicker,
   posVariantDisplayMrp,
   shouldPromptPosPriceSelection,
 } from "@/utils/posScanPriceSelection";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   pickLastPurchaseScanPrice,
   resolveSaleScanPriceSource,
@@ -204,6 +204,8 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
@@ -886,6 +888,10 @@ export default function POSSales() {
   // Price selection dialog state
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: Array<{ product: PosProductRow; variant: PosVariantRow }>;
+  } | null>(null);
   
   // Stock issue dialog state (insufficient / out-of-stock on add or payment)
   const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
@@ -2754,22 +2760,20 @@ export default function POSSales() {
         | null = null;
 
       if (exactBarcodeMatches.length > 1) {
-        const inStock = exactBarcodeMatches.filter(
-          (m) =>
-            Number(m.variant.stock_qty || 0) > 0 ||
-            !isStockTrackedPosProduct(m.product) ||
-            productRequiresImei(m.product, mobileERP),
+        const picker = resolveBarcodeScanPicker(exactBarcodeMatches, (m) =>
+          Number(m.variant.stock_qty || 0) > 0 ||
+          !isStockTrackedPosProduct(m.product) ||
+          productRequiresImei(m.product, mobileERP),
         );
-        const needMrpPicker = posBarcodeMatchesNeedMrpPicker(exactBarcodeMatches);
-        const showPicker = needMrpPicker || inStock.length > 1;
-        const pickerChoices = needMrpPicker
-          ? exactBarcodeMatches
-          : inStock.length > 0
-            ? inStock
-            : exactBarcodeMatches;
-        if (showPicker) {
+        if (picker.showMrpDialog) {
+          setMrpTierPicker({ barcode: trimmedTerm, choices: picker.mrpDialogChoices });
+          setSearchInput("");
+          setOpenProductSearch(false);
+          return;
+        }
+        if (picker.showProductPicker) {
           setProductSearchResults(
-            pickerChoices.map((m) => {
+            picker.productPickerChoices.map((m) => {
               const p = m.product;
               const v = m.variant;
               const tier = posVariantDisplayMrp(v);
@@ -2783,17 +2787,12 @@ export default function POSSales() {
           );
           setOpenProductSearch(true);
           setSearchInput(trimmedTerm);
-          toast.message(
-            needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
-            {
-              description: needMrpPicker
-                ? "Pick the MRP that matches the label (e.g. ₹204.5 vs ₹164.5)."
-                : "Pick the correct product / MRP from the list.",
-            },
-          );
+          toast.message("Multiple products share this barcode", {
+            description: "Pick the correct product from the list.",
+          });
           return;
         }
-        barcodeMatch = inStock[0] ?? exactBarcodeMatches[0] ?? null;
+        barcodeMatch = picker.autoPick;
       } else if (exactBarcodeMatches.length === 1) {
         barcodeMatch = exactBarcodeMatches[0];
       } else {
@@ -8279,6 +8278,31 @@ export default function POSSales() {
             </div>
           </DialogContent>
         </Dialog>
+
+        <MrpTierSelectionDialog
+          open={mrpTierPicker != null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMrpTierPicker(null);
+              focusBarcodeScanInput();
+            }
+          }}
+          barcode={mrpTierPicker?.barcode ?? ""}
+          choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+          onSelect={(choiceId) => {
+            const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+            const scannedBarcode = mrpTierPicker?.barcode ?? "";
+            setMrpTierPicker(null);
+            if (!pick) {
+              focusBarcodeScanInput();
+              return;
+            }
+            void addItemToCart(pick.product, pick.variant, undefined, "barcode").then(() => {
+              if (scannedBarcode) recordPosBarcodeScanSuccess(scannedBarcode);
+              focusBarcodeScanInput();
+            });
+          }}
+        />
 
         {/* Price Selection Dialog */}
         {pendingPriceSelection && (
