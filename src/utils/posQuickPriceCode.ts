@@ -29,17 +29,69 @@ export function posProductNameMatchesQuickLetters(
   return Boolean(name && prefix && name.startsWith(prefix));
 }
 
-/** Typed rupees match current sale price or MRP only — not last-purchase history. */
+/** Product name OR brand prefix (Trendzo: brand "J" + name "JEANS"). */
+export function posQuickCodeProductMatches(
+  product: { product_name?: string | null; brand?: string | null } | null | undefined,
+  letters: string,
+): boolean {
+  if (!product) return false;
+  return (
+    posProductNameMatchesQuickLetters(product.product_name, letters) ||
+    posProductNameMatchesQuickLetters(product.brand, letters)
+  );
+}
+
+/** Variant sale price, falling back to product master default when SKU price is unset. */
+export function posVariantEffectiveSalePrice(
+  variant: { sale_price?: unknown },
+  product?: { default_sale_price?: unknown } | null,
+): number {
+  const variantSale = posQuickPriceRupees(variant.sale_price);
+  if (variantSale > 0) return variantSale;
+  return posQuickPriceRupees(product?.default_sale_price);
+}
+
+export function posVariantEffectiveMrp(
+  variant: { sale_price?: unknown; mrp?: unknown },
+  product?: { default_sale_price?: unknown } | null,
+): number {
+  const mrp = posQuickPriceRupees(variant.mrp);
+  if (mrp > 0) return mrp;
+  return posVariantEffectiveSalePrice(variant, product);
+}
+
+/** Typed rupees match effective sale price or MRP — not last-purchase history. */
 export function posVariantMatchesQuickPrice(
   variant: {
     sale_price?: unknown;
     mrp?: unknown;
   },
   price: number,
+  product?: { default_sale_price?: unknown; product_name?: string | null; brand?: string | null } | null,
 ): boolean {
   const want = posQuickPriceRupees(price);
   if (want <= 0) return false;
-  return posQuickPriceRupees(variant.sale_price) === want || posQuickPriceRupees(variant.mrp) === want;
+  const effectiveSale = posVariantEffectiveSalePrice(variant, product);
+  const effectiveMrp = posVariantEffectiveMrp(variant, product);
+  return effectiveSale === want || effectiveMrp === want;
+}
+
+/** When the SKU row has no sale_price, bill from product default / typed code. */
+export function resolvePosQuickPriceCartOverride(
+  product: { default_sale_price?: unknown },
+  variant: { sale_price?: unknown; mrp?: unknown },
+  typedPrice: number,
+): { sale_price: number; mrp: number } | undefined {
+  const want = posQuickPriceRupees(typedPrice);
+  if (want <= 0) return undefined;
+  if (!posVariantMatchesQuickPrice(variant, want, product)) return undefined;
+
+  const variantSale = posQuickPriceRupees(variant.sale_price);
+  const billSale = variantSale > 0 ? variantSale : want;
+  const billMrp = posVariantEffectiveMrp(variant, product) || billSale;
+  if (variantSale === billSale && variantSale === want) return undefined;
+  if (variantSale === want) return undefined;
+  return { sale_price: billSale, mrp: Math.max(billMrp, billSale) };
 }
 
 /**
@@ -64,15 +116,15 @@ export const POS_QUICK_PRICE_VARIANT_LIMIT = 1000;
 
 export function filterPosQuickPriceCodeRows<
   T extends {
-    products?: { product_name?: string | null } | null;
+    products?: { product_name?: string | null; brand?: string | null; default_sale_price?: unknown } | null;
     sale_price?: unknown;
     mrp?: unknown;
   },
 >(rows: T[] | null | undefined, letters: string, price: number): T[] {
   return (rows || []).filter((row) => {
     return (
-      posProductNameMatchesQuickLetters(row.products?.product_name, letters) &&
-      posVariantMatchesQuickPrice(row, price)
+      posQuickCodeProductMatches(row.products, letters) &&
+      posVariantMatchesQuickPrice(row, price, row.products)
     );
   });
 }
@@ -86,21 +138,23 @@ export async function fetchPosQuickPriceCodeMatches(
   const want = posQuickPriceRupees(price);
   if (want <= 0) return [];
   const prefix = `${letters}%`;
-  const priceOr = posQuickPricePostgrestOr(want);
 
-  // Product ids first so one size-grid cannot fill a variant cap and hide Jacket.
+  // Product ids first — match name OR brand prefix (e.g. brand "J", name "JEANS").
   const { data: products, error: productError } = await supabase
     .from("products")
     .select("id")
     .eq("organization_id", orgId)
     .eq("status", "active")
     .is("deleted_at", null)
-    .ilike("product_name", prefix)
+    .or(`product_name.ilike.${prefix},brand.ilike.${prefix}`)
     .limit(POS_QUICK_PRICE_NAME_PRODUCT_LIMIT);
   if (productError) throw productError;
   if (!products?.length) return [];
 
   const productIds = products.map((p: { id: string }) => p.id);
+  // Load all variants for matched products — filter by effective price in JS so
+  // product default_sale_price (Product Dashboard "Selling Price") counts even when
+  // SKU sale_price was never copied onto variants (Trendzo-style entry).
   const { data: variants, error: variantError } = await supabase
     .from("product_variants")
     .select(variantSelect)
@@ -110,14 +164,17 @@ export async function fetchPosQuickPriceCodeMatches(
     .is("products.deleted_at", null)
     .eq("products.organization_id", orgId)
     .eq("products.status", "active")
-    .or(priceOr)
     .order("stock_qty", { ascending: false })
     .limit(POS_QUICK_PRICE_VARIANT_LIMIT);
   if (variantError) throw variantError;
 
   const matched = filterPosQuickPriceCodeRows(
     (variants || []) as Array<{
-      products?: { product_name?: string | null } | null;
+      products?: {
+        product_name?: string | null;
+        brand?: string | null;
+        default_sale_price?: unknown;
+      } | null;
       sale_price?: unknown;
       mrp?: unknown;
     }>,

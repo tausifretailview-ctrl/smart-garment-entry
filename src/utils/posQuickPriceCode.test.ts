@@ -5,10 +5,13 @@ import {
   POS_QUICK_PRICE_NAME_PRODUCT_LIMIT,
   POS_QUICK_PRICE_VARIANT_LIMIT,
   posProductNameMatchesQuickLetters,
+  posQuickCodeProductMatches,
   posQuickPricePostgrestOr,
   posQuickPriceRupees,
   posQuickPriceRupeeWindow,
+  posVariantEffectiveSalePrice,
   posVariantMatchesQuickPrice,
+  resolvePosQuickPriceCartOverride,
 } from "./posQuickPriceCode";
 
 describe("parsePosQuickPriceCode", () => {
@@ -16,6 +19,10 @@ describe("parsePosQuickPriceCode", () => {
     expect(parsePosQuickPriceCode("J300")).toEqual({ letters: "j", price: 300 });
     expect(parsePosQuickPriceCode("j300")).toEqual({ letters: "j", price: 300 });
     expect(parsePosQuickPriceCode("S200")).toEqual({ letters: "s", price: 200 });
+  });
+
+  it("parses three-digit prices (J900 -> Jeans at 900)", () => {
+    expect(parsePosQuickPriceCode("J900")).toEqual({ letters: "j", price: 900 });
   });
 
   it("allows a space between letters and price", () => {
@@ -42,8 +49,26 @@ describe("quick price row match", () => {
     expect(posProductNameMatchesQuickLetters("Shirt", "j")).toBe(false);
   });
 
+  it("matches brand prefix when product name does not start with the letter", () => {
+    expect(
+      posQuickCodeProductMatches({ product_name: "DENIM PANTS", brand: "JEANS" }, "j"),
+    ).toBe(true);
+    expect(posQuickCodeProductMatches({ product_name: "JEANS", brand: "J" }, "j")).toBe(true);
+  });
+
+  it("uses product default_sale_price when variant sale_price is unset (Trendzo dashboard)", () => {
+    expect(
+      posVariantMatchesQuickPrice(
+        { sale_price: 0, mrp: 0 },
+        900,
+        { default_sale_price: 900, product_name: "JEANS" },
+      ),
+    ).toBe(true);
+    expect(posVariantEffectiveSalePrice({ sale_price: 0 }, { default_sale_price: 900 })).toBe(900);
+  });
+
   it("treats 300.00 sale_price as ₹300", () => {
-    expect(posQuickPriceRupees(300.00)).toBe(300);
+    expect(posQuickPriceRupees(300.0)).toBe(300);
     expect(posVariantMatchesQuickPrice({ sale_price: 300.0, mrp: 0 }, 300)).toBe(true);
   });
 
@@ -102,5 +127,32 @@ describe("quick price row match", () => {
     ];
     const hits = filterPosQuickPriceCodeRows(rows, "j", 300);
     expect(hits.map((r) => r.products?.product_name)).toEqual(["JEANS", "JACKET"]);
+  });
+
+  it("Trendzo-style J900: JEANS at default_sale_price 900 with zero variant sale_price", () => {
+    const rows = [
+      {
+        products: { product_name: "JEANS", brand: "JEANS", default_sale_price: 900 },
+        sale_price: 0,
+        mrp: 0,
+        stock_qty: 186,
+      },
+      {
+        products: { product_name: "T SHIRT H/S", brand: "TRENDZO", default_sale_price: 300 },
+        sale_price: 300,
+        mrp: 300,
+        stock_qty: 50,
+      },
+    ];
+    const hits = filterPosQuickPriceCodeRows(rows, "j", 900);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]!.products?.product_name).toBe("JEANS");
+    expect(
+      resolvePosQuickPriceCartOverride(
+        rows[0]!.products as { default_sale_price: number },
+        rows[0]!,
+        900,
+      ),
+    ).toEqual({ sale_price: 900, mrp: 900 });
   });
 });
