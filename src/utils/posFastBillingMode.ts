@@ -36,7 +36,27 @@ export function expandFastBillingCompoundSearchTerm(term: string): string {
 }
 
 /**
- * Fast billing text search (e.g. "Jeans") — show dropdown with brand + price;
+ * Brand + category line for fast-billing POS dropdown (e.g. "TB · Jeans").
+ * Omits category when it is already part of the product name.
+ */
+export function posFastBillingMetaLabel(
+  product: { product_name?: string | null; brand?: string | null; category?: string | null } | null | undefined,
+): string {
+  if (!product) return "";
+  const parts: string[] = [];
+  const brand = String(product.brand ?? "").trim();
+  const category = String(product.category ?? "").trim();
+  const nameLower = String(product.product_name ?? "").trim().toLowerCase();
+
+  if (brand) parts.push(brand);
+  if (category && !nameLower.includes(category.toLowerCase())) {
+    parts.push(category);
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * Fast billing text search (e.g. "Jeans") — show dropdown with brand + category + price;
  * do not auto-add the first DB hit on Enter. J900 and barcodes use other paths.
  */
 export function posFastBillingUsesDropdownPick(term: string, fastBillingEnabled: boolean): boolean {
