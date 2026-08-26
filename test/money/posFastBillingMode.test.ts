@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  expandFastBillingCompoundSearchTerm,
   isPosFastBillingEnabled,
   isPosFastBillingQuickCodeTerm,
   posFastBillingUsesDropdownPick,
@@ -22,5 +23,12 @@ describe("posFastBillingMode", () => {
     expect(posFastBillingUsesDropdownPick("J900", true)).toBe(false);
     expect(posFastBillingUsesDropdownPick("1234567890123", true)).toBe(false);
     expect(posFastBillingUsesDropdownPick("Jeans", false)).toBe(false);
+  });
+
+  it("splits brand+name compound typing for dropdown search", () => {
+    expect(expandFastBillingCompoundSearchTerm("TBJEANS")).toBe("tb jeans");
+    expect(expandFastBillingCompoundSearchTerm("Jeans")).toBe("Jeans");
+    expect(expandFastBillingCompoundSearchTerm("J900")).toBe("J900");
+    expect(expandFastBillingCompoundSearchTerm("tb jeans")).toBe("tb jeans");
   });
 });
