@@ -213,7 +213,6 @@ import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
-import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
@@ -394,8 +393,8 @@ async function resolvePosBarcodeLookupMatches(
   for (const candidate of scanCandidates) {
     const hits = await fetchPosExactBarcodeMatches(orgId, candidate);
     for (const mapped of hits) {
-      if (seen.has(m.variant.id)) continue;
-      seen.add(m.variant.id);
+      if (seen.has(mapped.variant.id)) continue;
+      seen.add(mapped.variant.id);
       exactBarcodeMatches.push(mapped);
     }
   }
