@@ -2542,15 +2542,17 @@ export function CustomerLedger({
   // Filter customers based on search, payment status, and date range
   const filteredCustomers = useMemo(() => {
     if (!customersForList) return [];
-    
+    const searchLower = searchQuery.trim().toLowerCase();
+
     return customersForList.filter((customer) => {
-      // Search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = (
-        customer.customer_name.toLowerCase().includes(searchLower) ||
-        customer.phone?.toLowerCase().includes(searchLower) ||
-        customer.email?.toLowerCase().includes(searchLower)
-      );
+      // Search filter — name, phone, email, GST, address
+      const matchesSearch =
+        !searchLower ||
+        (customer.customer_name ?? "").toLowerCase().includes(searchLower) ||
+        (customer.phone ?? "").toLowerCase().includes(searchLower) ||
+        (customer.email ?? "").toLowerCase().includes(searchLower) ||
+        (customer.gst_number ?? "").toLowerCase().includes(searchLower) ||
+        (customer.address ?? "").toLowerCase().includes(searchLower);
 
       // Payment status filter — use Outstanding / Advance / Net facets (not invoice-only balance)
       const facets = facetsFromInvoiceOutstanding(
@@ -6299,7 +6301,7 @@ Please clear your dues at the earliest. Thank you!`;
             <div className="relative flex-[2] min-w-[140px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Search by name, phone, or email..."
+                placeholder="Search by name, phone, email, GST, or address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-sm border-slate-200"

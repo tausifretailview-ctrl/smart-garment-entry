@@ -4,6 +4,7 @@ import {
   fetchAllCustomers,
   type CustomerPartyBalanceRpcRow,
 } from "@/utils/fetchAllRows";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 import {
   alignPartyRowFromRpc,
   enrichPartyRowsWithCanonicalBalance,
@@ -118,10 +119,16 @@ export async function enrichLedgerListRowsWithCanonicalBalance(
 export async function buildCustomerLedgerListFromPartyBalances(
   organizationId: string,
 ): Promise<CustomerLedgerListRow[]> {
-  const [customers, partyRows] = await Promise.all([
-    fetchAllCustomers(organizationId),
-    fetchAllCustomerPartyBalances(organizationId),
-  ]);
+  const customers = await fetchAllCustomers(organizationId);
+
+  let partyRows: CustomerPartyBalanceRpcRow[] = [];
+  try {
+    partyRows = await fetchAllCustomerPartyBalances(organizationId);
+  } catch (error) {
+    // Large orgs (e.g. KS Footwear): party RPC can timeout while the customer
+    // directory is fine. Still return a searchable list (opening balance only).
+    if (!isStatementTimeout(error)) throw error;
+  }
 
   const partyByCustomer = new Map<string, CustomerPartyBalanceRpcRow>(
     partyRows.map((row) => [row.customer_id, row]),
