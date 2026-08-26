@@ -6,9 +6,10 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, MutationCache, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient, QueryCache, MutationCache, keepPreviousData } from "@tanstack/react-query";
 import {
   isStatementTimeout,
+  statementTimeoutMessage,
   statementTimeoutMutationMessage,
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
@@ -366,10 +367,10 @@ const App = () => {
   }, []);
 
   const [queryClient] = useState(() => {
-    // Write timeouts only — read timeouts are handled per-screen (inline empty
-    // state, cached data, or silent fallback). A global read toast fired on
-    // every background query timeout and blocked Platform Admin / dashboards.
+    // Write timeouts: global mutation toast. Read timeouts: only when a query
+    // fails on first load with no cached rows (avoids spam on background refetch).
     const lastWriteToastAt = { current: 0 as number };
+    const lastReadTimeoutToastAt = { current: 0 as number };
     const notifyWriteTimeout = () => {
       const now = Date.now();
       if (now - lastWriteToastAt.current < 1500) return;
@@ -377,7 +378,24 @@ const App = () => {
       const { title, message } = statementTimeoutMutationMessage();
       showToast({ variant: "destructive", title, description: message });
     };
+    const notifyReadTimeout = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const now = Date.now();
+      if (now - lastReadTimeoutToastAt.current < 3000) return;
+      lastReadTimeoutToastAt.current = now;
+      const { title, message } = statementTimeoutMessage();
+      showToast({ variant: "destructive", title, description: message });
+    };
     return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        if (!isStatementTimeout(error)) return;
+        if (query.state.data !== undefined && query.state.data !== null) return;
+        const head = String(query.queryKey[0] ?? "").toLowerCase();
+        if (head.includes("platform-admin")) return;
+        notifyReadTimeout();
+      },
+    }),
     mutationCache: new MutationCache({
       onError: (error) => {
         if (isStatementTimeout(error)) notifyWriteTimeout();

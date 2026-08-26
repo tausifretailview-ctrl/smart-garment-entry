@@ -8,6 +8,7 @@ import {
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+  ACCOUNTS_TAB_PREFETCH_PATHS,
 } from "./chunkLoadRetry";
 
 describe("isChunkLoadError", () => {
@@ -124,6 +125,9 @@ describe("idle / wake entry-chunk prefetch lists", () => {
         "settings",
         "user-rights",
         "accounts",
+        "accounts-payments",
+        "customer-account-statement",
+        "customer-party-balances",
         "barcode-printing",
         "third-party-entry",
         "third-party-balances",
@@ -131,6 +135,16 @@ describe("idle / wake entry-chunk prefetch lists", () => {
     );
     // Must not be in the slim parallel critical set (contention).
     expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("settings");
+  });
+
+  it("lists accounts/payments/ledger paths for mutual tab warm", () => {
+    expect(ACCOUNTS_TAB_PREFETCH_PATHS).toEqual(
+      expect.arrayContaining([
+        "accounts",
+        "accounts-payments",
+        "customer-account-statement",
+      ]),
+    );
   });
 
   it("re-warms critical bill-entry chunks after tab becomes visible", () => {

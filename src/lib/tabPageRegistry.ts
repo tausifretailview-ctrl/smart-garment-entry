@@ -15,6 +15,7 @@ import {
   MASTER_TAB_PREFETCH_PATHS,
   INVENTORY_TAB_PREFETCH_PATHS,
   SALES_TAB_PREFETCH_PATHS,
+  ACCOUNTS_TAB_PREFETCH_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 
@@ -27,6 +28,7 @@ export {
   MASTER_TAB_PREFETCH_PATHS,
   INVENTORY_TAB_PREFETCH_PATHS,
   SALES_TAB_PREFETCH_PATHS,
+  ACCOUNTS_TAB_PREFETCH_PATHS,
 };
 
 export type TabPageLayout = "layout" | "fullscreen" | "pos" | "pos-dc";

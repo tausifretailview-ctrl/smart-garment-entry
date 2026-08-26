@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -74,6 +75,7 @@ const DashboardMetricCardBase = ({
   icon: Icon,
   accentColor,
   onClick,
+  prefetchPath,
   tooltip,
   isCurrency = false,
   placeholder = false,
@@ -84,6 +86,8 @@ const DashboardMetricCardBase = ({
   icon: any;
   accentColor: string;
   onClick?: () => void;
+  /** Tab-cache path — warm JS chunk on hover/touch before navigate. */
+  prefetchPath?: string;
   tooltip?: string;
   isCurrency?: boolean;
   placeholder?: boolean;
@@ -92,10 +96,26 @@ const DashboardMetricCardBase = ({
   const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
   const refreshing = loading && !placeholder;
 
+  const warmPrefetch = useCallback(() => {
+    if (!prefetchPath || placeholder) return;
+    prefetchTabPage(prefetchPath);
+  }, [prefetchPath, placeholder]);
+
+  const warmPrefetchIntent = useCallback(() => {
+    if (!prefetchPath || placeholder) return;
+    prefetchTabPage(prefetchPath, { intent: true });
+  }, [prefetchPath, placeholder]);
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="group dashboard-metric-card" onClick={placeholder ? undefined : onClick}>
+        <div
+          className="group dashboard-metric-card"
+          onClick={placeholder ? undefined : onClick}
+          onPointerEnter={warmPrefetch}
+          onFocus={warmPrefetch}
+          onTouchStart={warmPrefetchIntent}
+        >
           <Card
             className={cn(
               "dashboard-metric-card-inner relative overflow-hidden rounded-xl border shadow-sm transition-colors duration-150",
