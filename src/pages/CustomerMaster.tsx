@@ -71,7 +71,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
-import { CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG, findExistingCustomerByNameOrPhone } from "@/utils/customerUtils";
+import { assertNoCustomerDuplicate, findExistingCustomerByNameOrPhone } from "@/utils/customerUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
@@ -524,11 +524,11 @@ const CustomerMaster = () => {
       if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
       const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
 
-      const duplicate = await findExistingCustomerByNameOrPhone(currentOrganization.id, {
+      const duplicateCheck = await findExistingCustomerByNameOrPhone(currentOrganization.id, {
         customer_name: data.customer_name,
         phone: data.phone,
       });
-      if (duplicate) throw new Error(CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG);
+      assertNoCustomerDuplicate(duplicateCheck);
       
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
@@ -564,12 +564,12 @@ const CustomerMaster = () => {
       if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
       const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
 
-      const duplicate = await findExistingCustomerByNameOrPhone(
+      const duplicateCheck = await findExistingCustomerByNameOrPhone(
         currentOrganization.id,
         { customer_name: data.customer_name, phone: data.phone },
         { excludeId: id },
       );
-      if (duplicate) throw new Error(CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG);
+      assertNoCustomerDuplicate(duplicateCheck);
       
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
