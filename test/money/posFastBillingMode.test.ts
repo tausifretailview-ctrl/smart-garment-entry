@@ -23,6 +23,8 @@ describe("posFastBillingMode", () => {
     expect(posFastBillingUsesDropdownPick("Jeans", true)).toBe(true);
     expect(posFastBillingUsesDropdownPick("J900", true)).toBe(false);
     expect(posFastBillingUsesDropdownPick("1234567890123", true)).toBe(false);
+    expect(posFastBillingUsesDropdownPick("BHG215", true)).toBe(false);
+    expect(posFastBillingUsesDropdownPick("Bootcut", true)).toBe(true);
     expect(posFastBillingUsesDropdownPick("Jeans", false)).toBe(false);
   });
 

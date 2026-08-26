@@ -42,7 +42,13 @@ describe("shouldPosEnterUseExactBarcodeLookup", () => {
 
   it("text search Enter may use dropdown pick", () => {
     expect(shouldPosEnterUseExactBarcodeLookup("SHIRT")).toBe(false);
-    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("BOOT")).toBe(false);
+    expect(shouldPosEnterUseExactBarcodeLookup("Bootcut")).toBe(false);
+  });
+
+  it("alphanumeric barcode Enter uses exact lookup, not dropdown partial pick", () => {
+    expect(shouldPosEnterUseExactBarcodeLookup("BHG215")).toBe(true);
+    expect(shouldPosEnterUseExactBarcodeLookup("TB001")).toBe(true);
   });
 
   it("quick service codes use dropdown path", () => {

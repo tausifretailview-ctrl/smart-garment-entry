@@ -6395,18 +6395,31 @@ export default function POSSales() {
                       onKeyDown={(e) => {
                         const rawValue =
                           (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
-                        if (
-                          (e.key === "Enter" || e.key === "Go" || (e as any).keyCode === 13) &&
-                          posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
-                          parsePosQuickPriceCode(rawValue)
-                        ) {
-                          e.preventDefault();
-                          clearPosBarcodeSubmitTimers();
-                          markSubmitted(rawValue);
-                          setOpenProductSearch(false);
-                          void searchAndAddProduct(rawValue);
-                          resetScannerDetection();
-                          return;
+                        const isEnter =
+                          e.key === "Enter" || e.key === "Go" || (e as any).keyCode === 13;
+                        if (isEnter && rawValue) {
+                          if (
+                            posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                            parsePosQuickPriceCode(rawValue)
+                          ) {
+                            e.preventDefault();
+                            clearPosBarcodeSubmitTimers();
+                            markSubmitted(rawValue);
+                            setOpenProductSearch(false);
+                            void searchAndAddProduct(rawValue);
+                            resetScannerDetection();
+                            return;
+                          }
+                          // Barcode / SKU typed in search — exact add for all orgs (not dropdown first hit).
+                          if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+                            e.preventDefault();
+                            clearPosBarcodeSubmitTimers();
+                            markSubmitted(rawValue);
+                            setOpenProductSearch(false);
+                            void searchAndAddProduct(rawValue);
+                            resetScannerDetection();
+                            return;
+                          }
                         }
                         if (openProductSearch && filteredProducts.length > 0) {
                           if (e.key === 'ArrowDown') {
@@ -6419,32 +6432,38 @@ export default function POSSales() {
                             setSelectedProductIndex((prev) => Math.max(prev - 1, 0));
                             return;
                           }
-                          if (e.key === 'Enter' || e.key === 'Go' || (e as any).keyCode === 13) {
+                          if (isEnter) {
                             e.preventDefault();
-                            // Numeric barcodes: exact lookup only — dropdown uses partial ILIKE.
-                            if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
-                              clearPosBarcodeSubmitTimers();
-                              markSubmitted(rawValue);
-                              setOpenProductSearch(false);
-                              void searchAndAddProduct(rawValue);
-                              resetScannerDetection();
-                              return;
-                            }
                             const selected = filteredProducts[selectedProductIndex] || filteredProducts[0];
                             if (selected?.product && selected?.variant) {
                               clearPosBarcodeSubmitTimers();
-                              if (rawValue) markSubmitted(rawValue);
+                              markSubmitted(rawValue);
+                              const variantForCart =
+                                selected.displayBarcode &&
+                                selected.displayBarcode !== selected.variant.barcode
+                                  ? { ...selected.variant, barcode: selected.displayBarcode }
+                                  : selected.variant;
+                              const barcodeExact =
+                                rawValue &&
+                                variantForCart.barcode &&
+                                variantForCart.barcode.trim().toLowerCase() ===
+                                  rawValue.trim().toLowerCase();
                               const quickOverride =
                                 selected.quickPriceOverride ??
                                 (posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
                                 parsePosQuickPriceCode(rawValue)
                                   ? resolvePosQuickPriceCartOverride(
                                       selected.product,
-                                      selected.variant,
+                                      variantForCart,
                                       parsePosQuickPriceCode(rawValue)!.price,
                                     )
                                   : undefined);
-                              addItemToCart(selected.product, selected.variant, quickOverride);
+                              void addItemToCart(
+                                selected.product,
+                                variantForCart,
+                                quickOverride,
+                                barcodeExact ? "barcode" : "manual",
+                              );
                               setOpenProductSearch(false);
                               setSearchInput("");
                               setTimeout(() => barcodeInputRef.current?.focus(), 50);
