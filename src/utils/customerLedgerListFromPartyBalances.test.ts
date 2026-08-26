@@ -1,14 +1,52 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { facetsFromInvoiceOutstanding } from "./customerAccountFacets";
 import { alignPartyRowFromRpc, PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "./customerPartyBalanceSnapshot";
 import {
   applyAlignedPartyToLedgerListRow,
+  buildCustomerLedgerListFromPartyBalances,
   customersForLedgerExport,
   enrichLedgerListRowsWithCanonicalBalance,
   ledgerListRowToAlignedParty,
   partyLedgerListMoneyFields,
   type CustomerLedgerListRow,
 } from "./customerLedgerListFromPartyBalances";
+
+vi.mock("@/utils/fetchAllRows", () => ({
+  fetchAllCustomers: vi.fn(),
+  fetchAllCustomerPartyBalances: vi.fn(),
+}));
+
+import {
+  fetchAllCustomers,
+  fetchAllCustomerPartyBalances,
+} from "@/utils/fetchAllRows";
+
+describe("buildCustomerLedgerListFromPartyBalances", () => {
+  it("returns searchable customer rows when party RPC times out", async () => {
+    vi.mocked(fetchAllCustomers).mockResolvedValue([
+      {
+        id: "c1",
+        customer_name: "NIXC FOOTWEAR",
+        phone: "9999999999",
+        email: null,
+        gst_number: null,
+        address: null,
+        opening_balance: 500,
+        points_balance: null,
+        discount_percent: null,
+      },
+    ]);
+    vi.mocked(fetchAllCustomerPartyBalances).mockRejectedValue({
+      code: "57014",
+      message: "canceling statement due to statement timeout",
+    });
+
+    const rows = await buildCustomerLedgerListFromPartyBalances("org-ks");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].customer_name).toBe("NIXC FOOTWEAR");
+    expect(rows[0].balance).toBe(500);
+  });
+});
 
 describe("partyLedgerListMoneyFields", () => {
   it("does not copy org window total_dr/total_cr onto the row", () => {
