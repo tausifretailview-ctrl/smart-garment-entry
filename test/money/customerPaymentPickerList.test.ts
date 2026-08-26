@@ -1,9 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   mapPartyRowsToPaymentPicker,
   MIN_PAYMENT_PICKER_BALANCE,
+  searchCustomersForPaymentPicker,
 } from "@/utils/customerPaymentPickerList";
 import type { CustomerPartyBalanceAlignedRow } from "@/utils/customerPartyBalanceSnapshot";
+
+vi.mock("@/utils/customerPartyBalanceSnapshot", () => ({
+  fetchCustomerPartyBalancesPayload: vi.fn(),
+}));
+
+vi.mock("@/utils/customerFinancialSnapshot", () => ({
+  fetchCustomerFinancialSnapshotMap: vi.fn(),
+}));
+
+import { fetchCustomerPartyBalancesPayload } from "@/utils/customerPartyBalanceSnapshot";
+import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 
 describe("mapPartyRowsToPaymentPicker", () => {
   const base: CustomerPartyBalanceAlignedRow = {
@@ -88,5 +100,47 @@ describe("mapPartyRowsToPaymentPicker", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.outstandingBalance).toBe(4800);
     expect(rows[0]!.outstandingBalance).not.toBe(14_800);
+  });
+});
+
+describe("searchCustomersForPaymentPicker", () => {
+  it("returns debtors matched by name with snapshot balance", async () => {
+    const mockFrom = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          is: vi.fn().mockReturnValue({
+            or: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "c-next",
+                      customer_name: "NEXT STEP",
+                      phone: "9999999999",
+                      gst_number: null,
+                      address: null,
+                    },
+                  ],
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    });
+
+    vi.mocked(fetchCustomerFinancialSnapshotMap).mockResolvedValue(
+      new Map([["c-next", { outstandingDr: 12_500 } as any]]),
+    );
+
+    const rows = await searchCustomersForPaymentPicker(
+      "org-ks",
+      "NEXT STEP",
+      { from: mockFrom } as any,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.customer_name).toBe("NEXT STEP");
+    expect(rows[0]!.outstandingBalance).toBe(12_500);
   });
 });
