@@ -50,11 +50,13 @@ interface TabletPOSLayoutProps {
   roundOff: number;
   setRoundOff: (v: number) => void;
   filteredProducts?: any[];
-  onProductSelect?: (product: any, variant: any) => void;
+  onProductSelect?: (product: any, variant: any, quickPriceOverride?: { sale_price: number; mrp: number }) => void;
   openProductSearch?: boolean;
   selectedProductType?: string;
   onProductTypeChange?: (v: string) => void;
   hasMoreCustomers?: boolean;
+  /** POS quick price-code search — show brand + effective price in dropdown. */
+  fastBillingEnabled?: boolean;
   // Shortcut handlers (optional — wired from POSSales keyboard handler)
   onCashierReport?: () => void;
   onEstimatePrint?: () => void;
@@ -78,6 +80,7 @@ export function TabletPOSLayout({
   selectedProductType, onProductTypeChange, hasMoreCustomers,
   onCashierReport, onEstimatePrint, onStockReport, onAddNewCustomer,
   enableMrp = true,
+  fastBillingEnabled = false,
 }: TabletPOSLayoutProps) {
   const [showCamera, setShowCamera] = useState(false);
   const [scanReady, setScanReady] = useState(true);
@@ -234,27 +237,40 @@ export function TabletPOSLayout({
             {/* Product search results dropdown */}
             {openProductSearch && searchInput.length >= 2 && filteredProducts && filteredProducts.length > 0 && (
               <div className="bg-popover border border-border rounded-lg shadow-xl max-h-48 overflow-y-auto">
-                {filteredProducts.slice(0, 20).map((product: any) =>
-                  product.product_variants?.map((variant: any) => (
+                {filteredProducts.slice(0, 20).map((item: any, index: number) => {
+                  const product = item.product ?? item;
+                  const variant = item.variant ?? item.product_variants?.[0];
+                  if (!product || !variant) return null;
+                  const rowSalePrice = item.displaySalePrice ?? (Number(variant.sale_price) || 0);
+                  return (
                     <button
-                      key={variant.id}
+                      key={`${product.id}-${variant.id}-${index}`}
                       className="w-full text-left px-4 py-3 hover:bg-accent/10 text-[13px] border-b border-border/50 last:border-0 flex justify-between items-center active:bg-accent/20"
-                      onTouchStart={(e) => { e.preventDefault(); onProductSelect?.(product, variant); }}
-                      onClick={() => onProductSelect?.(product, variant)}
+                      onTouchStart={(e) => {
+                        e.preventDefault();
+                        onProductSelect?.(product, variant, item.quickPriceOverride);
+                      }}
+                      onClick={() => onProductSelect?.(product, variant, item.quickPriceOverride)}
                     >
                       <div>
                         <span className="font-medium">{product.product_name}</span>
-                        <span className="text-muted-foreground ml-2">{variant.size}{variant.color ? ` · ${variant.color}` : ""}</span>
+                        {fastBillingEnabled && product.brand ? (
+                          <span className="text-blue-700 dark:text-blue-300 font-semibold ml-2">{product.brand}</span>
+                        ) : (
+                          <span className="text-muted-foreground ml-2">
+                            {variant.size}{variant.color ? ` · ${variant.color}` : ""}
+                          </span>
+                        )}
                       </div>
                       <div className="text-right" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                         <span className="font-semibold text-amber-600">
-                          ₹{fmtINR(enableMrp ? (variant.mrp || 0) : (variant.sale_price || 0))}
+                          ₹{fmtINR(rowSalePrice)}
                         </span>
                         <span className="text-muted-foreground text-[11px] ml-2">Stk:{variant.stock_qty || 0}</span>
                       </div>
                     </button>
-                  ))
-                )}
+                  );
+                })}
               </div>
             )}
           </div>

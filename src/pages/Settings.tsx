@@ -2823,10 +2823,11 @@ export default function Settings() {
                       POS quick price-code search (no-barcode shops)
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Type a short code in the POS scan box: first letter(s) of the product name
-                      or brand, plus the rupee price — e.g. "J900" for Jeans at ₹900 (name or brand
-                      starting with J). Matches variant sale price, MRP, or product default selling
-                      price. If more than one product matches, POS asks which one. Off by default.
+                      When enabled, POS supports two fast-billing methods: type a price code like
+                      "J900" to add Jeans at ₹900 instantly (first letter(s) of product name or
+                      brand + price), or type a name like "Jeans" and pick from the dropdown
+                      (brand + price shown). Matches variant sale price, MRP, or product default
+                      selling price. Other organisations leave this off — normal POS search unchanged.
                     </p>
                   </div>
                   <Switch
