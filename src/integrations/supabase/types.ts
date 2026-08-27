@@ -4649,6 +4649,7 @@ export type Database = {
           gst_per: number
           hsn_code: string | null
           id: string
+          is_dc: boolean
           line_total: number
           product_id: string
           pur_price: number
@@ -4666,6 +4667,7 @@ export type Database = {
           gst_per: number
           hsn_code?: string | null
           id?: string
+          is_dc?: boolean
           line_total: number
           product_id: string
           pur_price: number
@@ -4683,6 +4685,7 @@ export type Database = {
           gst_per?: number
           hsn_code?: string | null
           id?: string
+          is_dc?: boolean
           line_total?: number
           product_id?: string
           pur_price?: number
@@ -4721,6 +4724,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          is_dc: boolean
           journal_error: string | null
           journal_status: string
           linked_bill_id: string | null
@@ -4747,6 +4751,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc?: boolean
           journal_error?: string | null
           journal_status?: string
           linked_bill_id?: string | null
@@ -4773,6 +4778,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc?: boolean
           journal_error?: string | null
           journal_status?: string
           linked_bill_id?: string | null
