@@ -94,7 +94,6 @@ import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
-import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { MrpTierSelectionDialog } from "@/components/MrpTierSelectionDialog";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
@@ -227,16 +226,6 @@ async function insertPurchaseItemsRows(
     return (retryData || []) as InsertedPurchaseItemRow[];
   }
   throw error;
-}
-
-interface PriceChange {
-  sku_id: string;
-  product_name: string;
-  size: string;
-  barcode: string;
-  field: "pur_price" | "sale_price" | "mrp";
-  old_value: number;
-  new_value: number;
 }
 
 interface ProductVariant {
@@ -904,14 +893,8 @@ const PurchaseEntry = () => {
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   
   
-  // Price update confirmation state
-  const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
-  const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
-  const [pendingPrintAfterPriceUpdate, setPendingPrintAfterPriceUpdate] = useState(false);
-  
   // State for selective barcode printing
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
-  const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
   
   // Pagination for large bills
   const [visibleItemCount, setVisibleItemCount] = useState(100);
@@ -1150,7 +1133,6 @@ const PurchaseEntry = () => {
     setSelectedProduct(null);
     setShowPrintDialog(false);
     setBarcodeWarnings(new Map());
-    setDetectedPriceChanges([]);
     setSelectedForPrint(new Set());
     setIsDcPurchase(false);
     setIsBillLocked(false);
@@ -4712,197 +4694,6 @@ const PurchaseEntry = () => {
     }
   }, [settings, autoFocusSearch]);
 
-  // Function to detect price changes between line items and product_variants
-  const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {
-    const changes: PriceChange[] = [];
-    
-    // Get unique sku_ids
-    const skuIds = [...new Set(items.filter(i => i.sku_id).map(i => i.sku_id))];
-    if (skuIds.length === 0) return [];
-
-    const variantMap = new Map<string, { id: string; pur_price: number | null; sale_price: number | null; mrp: number | null }>();
-    const PRICE_DETECT_CHUNK = 200;
-    for (let si = 0; si < skuIds.length; si += PRICE_DETECT_CHUNK) {
-      const chunk = skuIds.slice(si, si + PRICE_DETECT_CHUNK);
-      const { data: variants, error } = await supabase
-        .from("product_variants")
-        .select("id, pur_price, sale_price, mrp")
-        .in("id", chunk);
-      if (error) return [];
-      (variants || []).forEach((v) => variantMap.set(v.id, v));
-    }
-    
-    // Helper function to compare prices with tolerance for floating-point precision
-    const arePricesEqual = (p1: number | null | undefined, p2: number | null | undefined): boolean => {
-      const v1 = Number(p1) || 0;
-      const v2 = Number(p2) || 0;
-      return Math.abs(v1 - v2) < 0.001; // Tolerance of 0.001 (less than 1 paisa)
-    };
-    
-    // Compare prices for each unique item (by sku_id)
-    const processedSkus = new Set<string>();
-    
-    for (const item of items) {
-      if (!item.sku_id || processedSkus.has(item.sku_id)) continue;
-      processedSkus.add(item.sku_id);
-      
-      const variant = variantMap.get(item.sku_id);
-      if (!variant) continue;
-      
-      // Check pur_price - use tolerance-based comparison
-      if (variant.pur_price !== null && !arePricesEqual(variant.pur_price, item.pur_price)) {
-        changes.push({
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          size: item.size,
-          barcode: item.barcode,
-          field: "pur_price",
-          old_value: variant.pur_price || 0,
-          new_value: item.pur_price,
-        });
-      }
-      
-      // Check sale_price - use tolerance-based comparison
-      if (variant.sale_price !== null && !arePricesEqual(variant.sale_price, item.sale_price)) {
-        changes.push({
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          size: item.size,
-          barcode: item.barcode,
-          field: "sale_price",
-          old_value: variant.sale_price || 0,
-          new_value: item.sale_price,
-        });
-      }
-      
-      // Check MRP only if MRP setting is enabled - use tolerance-based comparison
-      if (showMrp) {
-        const itemMrp = Number(item.mrp) || 0;
-        const variantMrp = Number(variant.mrp) || 0;
-        if (variantMrp > 0 && itemMrp > 0 && !arePricesEqual(variantMrp, itemMrp)) {
-          changes.push({
-            sku_id: item.sku_id,
-            product_name: item.product_name,
-            size: item.size,
-            barcode: item.barcode,
-            field: "mrp",
-            old_value: variantMrp,
-            new_value: itemMrp,
-          });
-        }
-      }
-    }
-    
-    return changes;
-  };
-
-  // Function to update product_variants with selected price changes
-  const handlePriceUpdateConfirm = async (selectedChanges: PriceChange[]) => {
-    if (selectedChanges.length === 0) {
-      setShowPriceUpdateDialog(false);
-      return;
-    }
-    
-    try {
-      // Group changes by sku_id - also sync last_purchase_* fields
-      const updatesBySkuId = new Map<string, Partial<{ 
-        pur_price: number; 
-        sale_price: number; 
-        mrp: number;
-        last_purchase_pur_price: number;
-        last_purchase_sale_price: number;
-        last_purchase_mrp: number;
-        last_purchase_date: string;
-      }>>();
-      
-      for (const change of selectedChanges) {
-        const existing = updatesBySkuId.get(change.sku_id) || {};
-        existing[change.field] = change.new_value;
-        
-        // Also sync the corresponding last_purchase field to prevent dialog from appearing again
-        if (change.field === 'pur_price') {
-          existing.last_purchase_pur_price = change.new_value;
-        } else if (change.field === 'sale_price') {
-          existing.last_purchase_sale_price = change.new_value;
-        } else if (change.field === 'mrp') {
-          existing.last_purchase_mrp = change.new_value;
-        }
-        
-        // Update the last purchase date to now
-        existing.last_purchase_date = new Date().toISOString();
-        
-        updatesBySkuId.set(change.sku_id, existing);
-      }
-      
-      // Update each variant with organization scoping and row-count verification
-      const failedUpdates: string[] = [];
-      let successCount = 0;
-      
-      for (const [skuId, updates] of updatesBySkuId) {
-        console.log('[PriceUpdate] Updating variant', skuId, 'with', updates);
-        const { data, error } = await supabase
-          .from("product_variants")
-          .update(updates)
-          .eq("id", skuId)
-          .eq("organization_id", currentOrganization.id)
-          .select("id");
-        
-        if (error) {
-          console.error('[PriceUpdate] Error updating variant', skuId, error);
-          failedUpdates.push(skuId);
-        } else if (!data || data.length === 0) {
-          console.warn('[PriceUpdate] No rows updated for variant', skuId);
-          failedUpdates.push(skuId);
-        } else {
-          successCount++;
-        }
-      }
-      
-      if (failedUpdates.length > 0 && successCount > 0) {
-        toast({
-          title: "Partial Update",
-          description: `Updated ${successCount} variant(s), but ${failedUpdates.length} failed to update. Check console for details.`,
-          variant: "destructive",
-        });
-      } else if (failedUpdates.length > 0) {
-        toast({
-          title: "Update Failed",
-          description: `Failed to update ${failedUpdates.length} variant(s) in Product Master. Please try again.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Prices Updated",
-          description: `Updated ${successCount} product variant(s) in Product Master`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update prices",
-        variant: "destructive",
-      });
-    } finally {
-      setShowPriceUpdateDialog(false);
-      setDetectedPriceChanges([]);
-      // Show print dialog if it was deferred
-      if (pendingPrintAfterPriceUpdate) {
-        setPendingPrintAfterPriceUpdate(false);
-        setShowPrintDialog(true);
-      }
-    }
-  };
-
-  const handlePriceUpdateSkip = () => {
-    setShowPriceUpdateDialog(false);
-    setDetectedPriceChanges([]);
-    // Show print dialog if it was deferred
-    if (pendingPrintAfterPriceUpdate) {
-      setPendingPrintAfterPriceUpdate(false);
-      setShowPrintDialog(true);
-    }
-  };
-
   const handleUnlockBill = async () => {
     if (!editingBillId || !currentOrganization?.id) return;
     const { error } = await supabase
@@ -5755,9 +5546,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        // Bill lines are persisted — sync last_purchase_* from this bill for any
-        // price-touched SKUs. Live sync may have already updated master sale_price,
-        // which causes detectPriceChanges to skip and leave Last Purchase stale (POS dialog).
+        // Bill lines are persisted — tier-aware price sync (no confirmation dialog).
         try {
           const priceTouchedItems = workingLineItems.filter((item) => {
             if (!item.sku_id) return false;
@@ -5789,21 +5578,8 @@ const PurchaseEntry = () => {
           console.warn("[PurchaseEntry] last_purchase sync after edit failed:", syncErr);
         }
 
-        // Check for price changes and show dialog if any
-        const priceChanges = await detectPriceChanges(workingLineItems);
-        if (priceChanges.length > 0) {
-          setDetectedPriceChanges(priceChanges);
-          setPendingSaveItems([...workingLineItems]);
-          setShowPriceUpdateDialog(true);
-          // Defer print dialog until price update is handled
-          if (enableBarcodePrompt) {
-            setPendingPrintAfterPriceUpdate(true);
-          }
-        } else {
-          // No price changes — show print dialog immediately
-          if (enableBarcodePrompt) {
-            setShowPrintDialog(true);
-          }
+        if (enableBarcodePrompt) {
+          setShowPrintDialog(true);
         }
 
         const savedSupplierInv = billData.supplier_invoice_no.trim();
@@ -6192,15 +5968,6 @@ const PurchaseEntry = () => {
           console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
         }
 
-        // Check for price changes and show dialog if any
-        const priceChanges = await detectPriceChanges(lineItems);
-        const hasPriceChanges = priceChanges.length > 0;
-        if (hasPriceChanges) {
-          setDetectedPriceChanges(priceChanges);
-          setPendingSaveItems([...lineItems]);
-          setShowPriceUpdateDialog(true);
-        }
-
         // Batch-fetch product details instead of N individual queries
         const uniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
         const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
@@ -6220,12 +5987,7 @@ const PurchaseEntry = () => {
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
-          if (hasPriceChanges) {
-            // Defer print dialog until price update is handled
-            setPendingPrintAfterPriceUpdate(true);
-          } else {
-            setShowPrintDialog(true);
-          }
+          setShowPrintDialog(true);
         }
 
         await finalizeSuccessfulPurchaseSave({
@@ -7503,7 +7265,6 @@ const PurchaseEntry = () => {
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
         />
-        <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
         {purchaseMrpTierDialog}
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
         <DuplicatePurchaseBillDialog
@@ -8922,14 +8683,6 @@ const PurchaseEntry = () => {
           onUseExistingProduct={handleUseExistingProductFromDialog}
         />
 
-        {/* Price Update Confirmation Dialog */}
-        <PriceUpdateConfirmDialog
-          open={showPriceUpdateDialog}
-          onOpenChange={setShowPriceUpdateDialog}
-          priceChanges={detectedPriceChanges}
-          onConfirm={handlePriceUpdateConfirm}
-          onSkip={handlePriceUpdateSkip}
-        />
         {purchaseMrpTierDialog}
 
         {/* Add Supplier Dialog */}
