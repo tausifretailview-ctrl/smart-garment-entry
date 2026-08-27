@@ -233,13 +233,34 @@ function consumeUnreflectedPurchaseReturnAmount(
 }
 
 /**
- * Cash already on the bill (`paid_amount`) plus structurally bill-linked payment
- * vouchers (`reference_id = bill.id`). Supplier-id vouchers are only added for
- * the slice not already explained by bill residual (at-purchase / FloatingPayments
- * also write `paid_amount` and a supplier-referenced voucher with no bill id).
+ * Supplier-level payment voucher that duplicates cash already on a bill's
+ * `paid_amount` (FloatingPayments / legacy at-purchase paths write both).
  *
- * Do not use description substring matching — generic text like "Payment at purchase"
- * is a ledger display label and often the voucher text as well.
+ * Uses structural markers from write paths — bill numbers in description,
+ * or the canonical at-purchase label — not amount netting against residual.
+ */
+function supplierLevelVoucherDuplicatesBillCash(
+  v: VoucherPaymentRow,
+  supplierBills: BillRow[],
+): boolean {
+  const desc = (v.description ?? "").trim();
+  if (!desc) return false;
+  if (desc === "Payment at purchase") return true;
+  if (/^Payment for Bills:/i.test(desc)) return true;
+  for (const b of supplierBills) {
+    const refs = [b.software_bill_no, b.supplier_invoice_no].filter(Boolean) as string[];
+    for (const ref of refs) {
+      if (desc.includes(ref) && /Payment for Bill/i.test(desc)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Cash already on the bill (`paid_amount`) plus structurally bill-linked payment
+ * vouchers (`reference_id = bill.id`). Supplier-id vouchers count only when they
+ * are genuine on-account payments — not duplicates of bill `paid_amount` from
+ * at-purchase / FloatingPayments (see supplierLevelVoucherDuplicatesBillCash).
  */
 function computeSupplierTotalPaid(
   supplierId: string,
@@ -249,7 +270,7 @@ function computeSupplierTotalPaid(
 ): number {
   const supplierBillIds = new Set(supplierBills.map((b) => b.id));
   const perBillVoucherMap = new Map<string, number>();
-  let supplierLevelPayments = 0;
+  let onAccountSupplierPayments = 0;
 
   for (const v of voucherPayments || []) {
     if (!v?.reference_id) continue;
@@ -258,20 +279,20 @@ function computeSupplierTotalPaid(
       if (supplierBillIds.has(v.reference_id)) {
         perBillVoucherMap.set(v.reference_id, (perBillVoucherMap.get(v.reference_id) || 0) + credit);
       } else if (v.reference_id === supplierId) {
-        supplierLevelPayments += credit;
+        if (!supplierLevelVoucherDuplicatesBillCash(v, supplierBills)) {
+          onAccountSupplierPayments += credit;
+        }
       }
     } catch (rowErr) {
       console.warn("[supplierBalance] skip voucher payment row", rowErr);
     }
   }
 
-  supplierLevelPayments = roundMoney(supplierLevelPayments);
+  onAccountSupplierPayments = roundMoney(onAccountSupplierPayments);
 
   let billSettled = 0;
-  let billLinkedTotal = 0;
   for (const b of supplierBills) {
     const voucherPaid = perBillVoucherMap.get(b.id) || 0;
-    billLinkedTotal += voucherPaid;
     const returnAdjust = returnAdjustByBillId.get(b.id) || 0;
     // Bill-linked vouchers are cash/bank. `paid_amount` may also include CN-on-bill;
     // never take max(voucher, paid_amount) — that is what inflated SARASWATI Paid.
@@ -279,11 +300,8 @@ function computeSupplierTotalPaid(
     else billSettled += Math.max(0, (Number(b.paid_amount) || 0) - returnAdjust);
   }
   billSettled = roundMoney(billSettled);
-  billLinkedTotal = roundMoney(billLinkedTotal);
 
-  const residualOnBills = roundMoney(Math.max(0, billSettled - billLinkedTotal));
-  const extraOnAccount = roundMoney(Math.max(0, supplierLevelPayments - residualOnBills));
-  return roundMoney(billSettled + extraOnAccount);
+  return roundMoney(billSettled + onAccountSupplierPayments);
 }
 
 async function fetchPurchaseBillsForBalance(client: SupabaseClient, organizationId: string): Promise<BillRow[]> {
