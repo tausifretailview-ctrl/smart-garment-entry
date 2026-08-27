@@ -57,13 +57,19 @@ export function saleTermsFromSettings(saleSettings?: { terms_list?: string[] | n
     .join("\n");
 }
 
-/** Prefer Settings → Sale terms; append quotation-specific notes if present. */
+/** Quotation terms: merge Sale terms only when org opts in (default off). */
 export function mergeQuotationTerms(
   quotationTerms?: string | null,
-  saleSettings?: { terms_list?: string[] | null } | null,
+  saleSettings?: {
+    terms_list?: string[] | null;
+    merge_sale_terms_on_quotation?: boolean | null;
+  } | null,
 ): string {
-  const fromSale = saleTermsFromSettings(saleSettings);
   const fromQuote = String(quotationTerms || "").trim();
+  if (saleSettings?.merge_sale_terms_on_quotation !== true) {
+    return fromQuote;
+  }
+  const fromSale = saleTermsFromSettings(saleSettings);
   if (fromSale && fromQuote && fromSale !== fromQuote) {
     return `${fromSale}\n${fromQuote}`;
   }

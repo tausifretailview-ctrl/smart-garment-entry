@@ -225,6 +225,8 @@ interface SaleSettings {
   pos_invoice_template?: InvoiceTemplateId;
   /** Quotation print layout: existing retail design vs IT-company (no MRP). */
   quotation_print_template?: 'retail' | 'it-company';
+  /** When true, quotation print prepends Settings → Sale terms before quotation terms. */
+  merge_sale_terms_on_quotation?: boolean;
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -3304,6 +3306,30 @@ export default function Settings() {
                     <p className="text-xs text-muted-foreground">
                       Also selectable on Print Quotation preview. Existing retail design stays available.
                     </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="merge_sale_terms_on_quotation" className="text-sm font-medium">
+                        Merge Sale terms into quotations
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Off (default): print only this quotation&apos;s terms. On: prepend Settings → Sale terms.
+                      </p>
+                    </div>
+                    <Switch
+                      id="merge_sale_terms_on_quotation"
+                      checked={settings.sale_settings?.merge_sale_terms_on_quotation === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            merge_sale_terms_on_quotation: checked,
+                          },
+                        })
+                      }
+                    />
                   </div>
 
                   {/* Thermal style — shown only when either format is thermal */}
