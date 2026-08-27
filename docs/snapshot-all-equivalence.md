@@ -40,11 +40,14 @@ Use `scripts/prove-snapshot-all-equivalence-timed.sql` — **one block at a time
 **Do not run** `prove-snapshot-all-equivalence-step4.sql` — cloud raises `42501` via
 `assert_org_member` inside `get_customer_true_outstanding` even under postgres.
 
-Use **`scripts/prove-snapshot-all-equivalence-step4-sql-editor-safe.sql`** instead:
+Use **`scripts/prove-snapshot-all-equivalence-step4-sql-editor-safe-drift-only.sql`**
+(~113 drift customers). Full safe file on all 2,377 rows → Lovable **Server Error**.
 
-1. `SET statement_timeout = '300s';`
-2. Run the whole safe file (uses `reconcile_customer_balance` SUM + advance/CN helpers).
-3. Expect **one row**: `diff_rows`, `active_customers`, etc. Takes several minutes.
+Optional smoke first: **`prove-snapshot-all-equivalence-step4-smoke.sql`** (SHUMAMA only).
+
+1. `SET statement_timeout = '300s';` (included in drift-only file)
+2. Run the **drift-only** file whole.
+3. Expect **one summary row** in ~1–3 minutes.
 
 **Important:** Step 4 can show `diff_rows = 0` while Step 3 shows 113 drifts if
 `snapshot_all` matches reconcile path but party RPC uses the newer 20261126 body.
