@@ -151,7 +151,10 @@ Exit 0 = every field for every financial-activity customer matches. Non-zero =
 
 Party RPC is canonical for UI; snapshot_all must be rewritten to match `_get_customer_party_balances_rows` body before cutover.
 
-**Next engineering step:** new migration aligning `snapshot_all` CTEs to `20261126` party body (not a client-side workaround).
+**Next engineering step:** migration
+`20261127120000_fix_snapshot_all_settlement_memo_parity.sql` ports `_is_settlement_memo_receipt`
++ `_sale_return_remaining_credit_for_balance` from `20261126120000` into `snapshot_all`.
+Apply on Lovable, then re-run smoke → Step 3 party parity → Step 4 drift-only.
 
 ### ELLA NOOR authenticated chunk benchmark (2026-08-27)
 
