@@ -478,30 +478,6 @@ export const ProductEntryDialog = ({
   const [previousValuesError, setPreviousValuesError] = useState<string | null>(null);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [showVariants, setShowVariants] = useState(false);
-  const buildUseExistingProductPayload = useCallback(
-    (barcode: string, variantRows: ProductVariant[] = variants): UseExistingProductPayload => {
-      const trimmed = barcode.trim();
-      const row =
-        variantRows.find((v) => String(v.barcode || "").trim() === trimmed) ??
-        variantRows[0];
-      const mrpValue =
-        row?.mrp != null && Number(row.mrp) > 0
-          ? Number(row.mrp)
-          : formData.default_mrp;
-      return {
-        barcode: trimmed,
-        pur_price: Number(row?.pur_price ?? formData.default_pur_price) || 0,
-        sale_price: Number(row?.sale_price ?? formData.default_sale_price) || 0,
-        ...(mrpValue != null && Number(mrpValue) > 0 ? { mrp: Number(mrpValue) } : {}),
-      };
-    },
-    [
-      variants,
-      formData.default_pur_price,
-      formData.default_sale_price,
-      formData.default_mrp,
-    ],
-  );
   /** Live duplicate check against product master (debounced). */
   const [barcodeConflict, setBarcodeConflict] = useState<{
     barcode: string;
@@ -694,6 +670,31 @@ export const ProductEntryDialog = ({
   });
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState("");
+
+  const buildUseExistingProductPayload = useCallback(
+    (barcode: string, variantRows: ProductVariant[] = variants): UseExistingProductPayload => {
+      const trimmed = barcode.trim();
+      const row =
+        variantRows.find((v) => String(v.barcode || "").trim() === trimmed) ??
+        variantRows[0];
+      const mrpValue =
+        row?.mrp != null && Number(row.mrp) > 0
+          ? Number(row.mrp)
+          : formData.default_mrp;
+      return {
+        barcode: trimmed,
+        pur_price: Number(row?.pur_price ?? formData.default_pur_price) || 0,
+        sale_price: Number(row?.sale_price ?? formData.default_sale_price) || 0,
+        ...(mrpValue != null && Number(mrpValue) > 0 ? { mrp: Number(mrpValue) } : {}),
+      };
+    },
+    [
+      variants,
+      formData.default_pur_price,
+      formData.default_sale_price,
+      formData.default_mrp,
+    ],
+  );
 
   // Resolve a size group by id. The "none" sentinel represents a product with no
   // sizes (sweet shops, supermarkets, etc.) — stored as a single "None" variant.
