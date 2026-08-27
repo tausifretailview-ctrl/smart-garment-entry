@@ -136,6 +136,7 @@ import {
   type PurchaseLinePriceSnapshot,
   type UseExistingProductPayload,
 } from "@/utils/purchaseUseExistingProduct";
+import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
