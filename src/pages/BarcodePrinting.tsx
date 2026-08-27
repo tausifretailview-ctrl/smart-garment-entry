@@ -91,13 +91,17 @@ import {
   syncBaselineLabelConfig,
 } from "@/utils/precisionDesignBaseline";
 import {
+  barcodePrintSelectionNavKey,
+  clearBarcodePrintSelection,
   clearBarcodePurchaseItems,
   consumeBarcodePurchaseItems,
   hasPendingBarcodePurchaseItems,
   peekBarcodePurchaseItems,
+  persistBarcodePrintSelection,
   persistBarcodePurchaseBillContext,
   queueBarcodePurchaseItems,
   readBarcodePurchaseBillContext,
+  readBarcodePrintSelection,
   resolvePurchaseBillIdForBarcodeReturn,
 } from "@/utils/barcodePurchaseBillContext";
 import {
@@ -3090,44 +3094,60 @@ export default function BarcodePrinting() {
     let cancelled = false;
 
     const load = async () => {
-      if (!pending?.items?.length && currentOrganization?.id) {
-        const billIdForFetch =
-          purchaseBillIdParam ||
-          st?.billId ||
-          readBarcodePurchaseBillContext(currentOrganization.id)?.billId ||
-          null;
-        if (billIdForFetch) {
-          const navKey = `db|${billIdForFetch}`;
-          if (appliedPurchaseNavKeyRef.current !== navKey) {
-            try {
-              const fetched = await fetchBarcodePrintItemsForBill(
-                currentOrganization.id,
-                billIdForFetch,
-              );
-              if (fetched.items.length > 0) {
-                pending = {
-                  navKey,
-                  billId: billIdForFetch,
-                  items: fetched.items,
-                };
-              } else if (!pending?.items?.length) {
-                toast.error("No items found on this purchase bill");
-                return;
-              }
-            } catch (err) {
-              console.error("[BarcodePrinting] purchase bill fallback fetch failed", err);
-              if (!pending?.items?.length) {
-                toast.error("Failed to load purchase bill items");
-                return;
-              }
+      const billIdForFetch =
+        purchaseBillIdParam ||
+        st?.billId ||
+        (currentOrganization?.id
+          ? readBarcodePurchaseBillContext(currentOrganization.id)?.billId
+          : null) ||
+        null;
+
+      if (!pending?.items?.length && billIdForFetch) {
+        const persistedItems = readBarcodePrintSelection(billIdForFetch);
+        if (persistedItems?.length) {
+          pending = {
+            navKey: barcodePrintSelectionNavKey(billIdForFetch, persistedItems),
+            billId: billIdForFetch,
+            items: persistedItems,
+          };
+        }
+      }
+
+      if (!pending?.items?.length && currentOrganization?.id && billIdForFetch) {
+        const navKey = `db|${billIdForFetch}`;
+        if (appliedPurchaseNavKeyRef.current !== navKey) {
+          try {
+            const fetched = await fetchBarcodePrintItemsForBill(
+              currentOrganization.id,
+              billIdForFetch,
+            );
+            if (fetched.items.length > 0) {
+              pending = {
+                navKey,
+                billId: billIdForFetch,
+                items: fetched.items,
+              };
+            } else if (!pending?.items?.length) {
+              toast.error("No items found on this purchase bill");
+              return;
+            }
+          } catch (err) {
+            console.error("[BarcodePrinting] purchase bill fallback fetch failed", err);
+            if (!pending?.items?.length) {
+              toast.error("Failed to load purchase bill items");
+              return;
             }
           }
         }
       }
 
       if (!pending?.items?.length || !pending.navKey) return;
-      if (appliedPurchaseNavKeyRef.current === pending.navKey) return;
-      appliedPurchaseNavKeyRef.current = pending.navKey;
+      const effectiveNavKey =
+        pending.billId && pending.items.length
+          ? barcodePrintSelectionNavKey(pending.billId, pending.items)
+          : pending.navKey;
+      if (appliedPurchaseNavKeyRef.current === effectiveNavKey) return;
+      appliedPurchaseNavKeyRef.current = effectiveNavKey;
       clearBarcodePurchaseItems();
       let hasPurchasePrices = false;
       let hasStyle = false;
@@ -3278,6 +3298,9 @@ export default function BarcodePrinting() {
 
       const billId = pending.billId;
       const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
+      if (billId && pending.items.length) {
+        persistBarcodePrintSelection(billId, pending.items);
+      }
       if (currentOrganization?.id && billId) {
         persistBarcodePurchaseBillContext(currentOrganization.id, {
           billId,
@@ -3692,6 +3715,9 @@ export default function BarcodePrinting() {
         return;
       }
 
+      clearBarcodePrintSelection(billData.id);
+      appliedPurchaseNavKeyRef.current = null;
+
       const { data: itemsData, error: itemsError } = await supabase
         .from("purchase_items")
         .select(`
@@ -3835,6 +3861,10 @@ export default function BarcodePrinting() {
     setLabelItems([]);
     localStorage.removeItem("barcode_label_items");
     clearBarcodePurchaseItems();
+    if (sourcePurchaseBillId) {
+      clearBarcodePrintSelection(sourcePurchaseBillId);
+    }
+    appliedPurchaseNavKeyRef.current = null;
     setSearchQuery("");
     toast.success("Cleared all labels");
   };

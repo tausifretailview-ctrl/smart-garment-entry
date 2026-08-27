@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 const STORAGE_KEY = "barcode_source_purchase_bill";
 /** Pending Print-Barcode payload — survives tab-cache + router state clears. */
 const PENDING_ITEMS_KEY = "barcode_pending_purchase_items";
+/** Explicit print subset from Purchase Entry (survives URL ?purchaseBillId= replace). */
+const PRINT_SELECTION_KEY = "barcode_print_selection_by_bill";
 
 export type BarcodePurchaseBillContext = {
   organizationId: string;
@@ -118,6 +120,62 @@ export function consumeBarcodePurchaseItems(navKey?: string | null): BarcodePend
 
 export function clearBarcodePurchaseItems(): void {
   safeRemove(PENDING_ITEMS_KEY);
+}
+
+type BarcodePrintSelectionRecord = {
+  billId: string;
+  items: unknown[];
+  ts: number;
+};
+
+/** Stable nav key for a purchase→barcode payload (immune to location.key changes after URL replace). */
+export function barcodePrintSelectionNavKey(billId: string, items: unknown[]): string {
+  const count = items.length;
+  const firstSku = (items[0] as { sku_id?: string })?.sku_id ?? "";
+  return `selection|${billId}|${count}|${firstSku}`;
+}
+
+/** Remember the exact lines sent from Purchase Entry (may be a checkbox subset). */
+export function persistBarcodePrintSelection(billId: string, items: unknown[]): void {
+  if (!billId || !items?.length) return;
+  const payload: BarcodePrintSelectionRecord = {
+    billId,
+    items,
+    ts: Date.now(),
+  };
+  safeSet(PRINT_SELECTION_KEY, JSON.stringify(payload));
+}
+
+export function readBarcodePrintSelection(billId: string): unknown[] | null {
+  if (!billId) return null;
+  const raw = safeGet(PRINT_SELECTION_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as BarcodePrintSelectionRecord;
+    if (parsed.billId !== billId || !parsed.items?.length) return null;
+    if (Date.now() - parsed.ts > 30 * 60_000) {
+      safeRemove(PRINT_SELECTION_KEY);
+      return null;
+    }
+    return parsed.items;
+  } catch {
+    return null;
+  }
+}
+
+export function clearBarcodePrintSelection(billId?: string): void {
+  if (!billId) {
+    safeRemove(PRINT_SELECTION_KEY);
+    return;
+  }
+  const raw = safeGet(PRINT_SELECTION_KEY);
+  if (!raw) return;
+  try {
+    const parsed = JSON.parse(raw) as BarcodePrintSelectionRecord;
+    if (parsed.billId === billId) safeRemove(PRINT_SELECTION_KEY);
+  } catch {
+    safeRemove(PRINT_SELECTION_KEY);
+  }
 }
 
 /** True when Print Barcode is in-flight (history state or session queue). */
