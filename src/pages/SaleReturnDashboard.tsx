@@ -33,6 +33,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useReactToPrint } from "react-to-print";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
+import {
+  getPosDocumentPrintPageStyle,
+  resolvePosThermalPaper,
+  resolveSaleReturnPrintFormatFromSettings,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
+import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCreditNoteDialog";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
@@ -307,7 +314,8 @@ export default function SaleReturnDashboard() {
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
-  const [billFormat, setBillFormat] = useState<string>('a4');
+  const [billFormat, setBillFormat] = useState<PosBillFormat>('a4');
+  const [returnThermalPaper, setReturnThermalPaper] = useState<'58mm' | '80mm'>('80mm');
   const printRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -339,11 +347,19 @@ export default function SaleReturnDashboard() {
 
   const isThermal = billFormat === 'thermal';
 
+  const returnPrintPageStyle = useMemo(
+    () =>
+      getPosDocumentPrintPageStyle(
+        billFormat,
+        returnThermalPaper,
+        getThermalReceiptPageStyleFragment(returnThermalPaper),
+      ),
+    [billFormat, returnThermalPaper],
+  );
+
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    pageStyle: isThermal
-      ? '@page { size: 80mm auto; margin: 2mm; }'
-      : '@page { size: A4 portrait; margin: 5mm; }',
+    pageStyle: returnPrintPageStyle,
   });
 
   const handlePrintTable = useReactToPrint({
@@ -735,7 +751,7 @@ export default function SaleReturnDashboard() {
   const fetchBusinessDetails = async () => {
     const { data, error } = await supabase
       .from("settings")
-      .select("business_name, address, mobile_number, gst_number, sale_settings")
+      .select("business_name, address, mobile_number, gst_number, sale_settings, bill_barcode_settings")
       .eq("organization_id", currentOrganization?.id)
       .single();
 
@@ -745,13 +761,10 @@ export default function SaleReturnDashboard() {
     }
 
     setBusinessDetails(data);
-    const saleSettings = data?.sale_settings as any;
-    // Use Invoice setting (sales_bill_format) for credit note print format.
-    // If POS is configured as thermal, also use thermal.
-    const fmt = saleSettings?.sales_bill_format || saleSettings?.pos_bill_format;
-    if (fmt) {
-      setBillFormat(fmt);
-    }
+    const saleSettings = data?.sale_settings as Record<string, unknown> | undefined;
+    setBillFormat(resolveSaleReturnPrintFormatFromSettings(saleSettings));
+    const barcodeSettings = data?.bill_barcode_settings as { direct_print_pos_paper?: string } | null;
+    setReturnThermalPaper(resolvePosThermalPaper(barcodeSettings?.direct_print_pos_paper));
   };
 
   // Cache for loaded items
@@ -932,12 +945,14 @@ export default function SaleReturnDashboard() {
                 ref={printRef}
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
+                thermalPaper={returnThermalPaper}
               />
             ) : (
               <SaleReturnPrint
                 ref={printRef}
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
+                format={billFormat}
               />
             )
           )}

@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   getRealTastA4PrintPageStyle,
   resolvePosBillFormat,
+  resolvePosBillFormatFromSaleSettings,
   resolvePosInvoiceTemplate,
   resolveSaleBillFormat,
   resolveSaleInvoiceTemplate,
+  resolveSaleReturnPrintFormatFromSettings,
   toInvoiceWrapperFormat,
 } from '@/utils/invoicePrintFormat';
 
@@ -67,6 +69,38 @@ describe('resolvePosBillFormat', () => {
 
   it('falls back to A4 when POS thermal is selected with preprinted template', () => {
     expect(resolvePosBillFormat('retail-erp-preprinted', 'thermal', 'a4')).toBe('a4');
+  });
+});
+
+describe('resolvePosBillFormatFromSaleSettings', () => {
+  it('treats a5-vertical POS setting as A5 laser (not thermal)', () => {
+    expect(
+      resolvePosBillFormatFromSaleSettings({
+        pos_bill_format: 'a5-vertical',
+        pos_invoice_template: 'tax-invoice',
+      }),
+    ).toBe('a5');
+  });
+
+  it('uses thermal when POS bill format is thermal', () => {
+    expect(
+      resolvePosBillFormatFromSaleSettings({
+        pos_bill_format: 'thermal',
+        pos_invoice_template: 'tax-invoice',
+      }),
+    ).toBe('thermal');
+  });
+});
+
+describe('resolveSaleReturnPrintFormatFromSettings', () => {
+  it('prefers sales_bill_format over pos_bill_format', () => {
+    expect(
+      resolveSaleReturnPrintFormatFromSettings({
+        sales_bill_format: 'a4',
+        pos_bill_format: 'thermal',
+        invoice_template: 'tax-invoice',
+      }),
+    ).toBe('a4');
   });
 });
 

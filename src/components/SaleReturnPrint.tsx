@@ -37,6 +37,36 @@ interface BusinessDetails {
 interface SaleReturnPrintProps {
   saleReturn: SaleReturn;
   businessDetails: BusinessDetails;
+  format?: 'a4' | 'a5' | 'a5-horizontal';
+}
+
+function laserPageDimensions(format: 'a4' | 'a5' | 'a5-horizontal') {
+  switch (format) {
+    case 'a5-horizontal':
+      return {
+        width: '210mm',
+        minHeight: '148mm',
+        printWidth: '200mm',
+        printMinHeight: '138mm',
+        pageSize: 'A5 landscape',
+      };
+    case 'a5':
+      return {
+        width: '148mm',
+        minHeight: '210mm',
+        printWidth: '138mm',
+        printMinHeight: '200mm',
+        pageSize: 'A5 portrait',
+      };
+    default:
+      return {
+        width: '210mm',
+        minHeight: '297mm',
+        printWidth: '200mm',
+        printMinHeight: '287mm',
+        pageSize: 'A4 portrait',
+      };
+  }
 }
 
 // Number to words helper
@@ -86,16 +116,17 @@ function amountInWords(amount: number): string {
 }
 
 export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
-  ({ saleReturn, businessDetails }, ref) => {
+  ({ saleReturn, businessDetails, format = 'a4' }, ref) => {
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+    const page = laserPageDimensions(format);
 
     return (
       <div 
         ref={ref} 
         className="credit-note-print print-document"
         style={{
-          width: '210mm',
-          minHeight: '297mm',
+          width: page.width,
+          minHeight: page.minHeight,
           padding: '10mm',
           fontFamily: 'Arial, sans-serif',
           fontSize: '10pt',
@@ -108,12 +139,12 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
           {`
             @media print {
               @page {
-                size: A4 portrait;
+                size: ${page.pageSize};
                 margin: 5mm;
               }
               .credit-note-print {
-                width: 200mm !important;
-                min-height: 287mm !important;
+                width: ${page.printWidth} !important;
+                min-height: ${page.printMinHeight} !important;
               }
               .credit-note-print * {
                 color: black !important;

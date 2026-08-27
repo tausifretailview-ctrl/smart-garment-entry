@@ -345,3 +345,116 @@ export function toInvoiceWrapperFormat(posBillFormat: PosBillFormat | string): s
       return 'a4';
   }
 }
+
+export type SaleSettingsBillFormatSlice = SaleSettingsTemplateSlice & {
+  pos_bill_format?: string | null;
+  sales_bill_format?: string | null;
+  invoice_paper_format?: string | null;
+};
+
+/** Resolve effective POS paper from cached settings (matches POSSales / POSDashboard). */
+export function resolvePosBillFormatFromSaleSettings(
+  saleSettings?: SaleSettingsBillFormatSlice | null,
+): PosBillFormat {
+  const template = resolvePosInvoiceTemplate(saleSettings);
+  const raw =
+    saleSettings?.pos_bill_format || saleSettings?.sales_bill_format || 'thermal';
+  return resolvePosBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
+}
+
+/** Resolve sale-return / credit-note print format from settings (Sale Return dashboard). */
+export function resolveSaleReturnPrintFormatFromSettings(
+  saleSettings?: SaleSettingsBillFormatSlice | null,
+): PosBillFormat {
+  const template = resolveSaleInvoiceTemplate(saleSettings);
+  const raw =
+    saleSettings?.sales_bill_format || saleSettings?.pos_bill_format || 'a4';
+  return resolveSaleBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
+}
+
+/**
+ * @page CSS for POS credit notes and sale-return prints — mirrors POS invoice paper routing.
+ * Import `getThermalReceiptPageStyleFragment` at call site when bundling is preferred; inlined via dynamic import path below.
+ */
+export function getPosDocumentPrintPageStyle(
+  posBillFormat: PosBillFormat,
+  posThermalPaper: PosThermalPaper,
+  thermalStyleFragment: string,
+): string {
+  const visibilityCss = `
+    @media print {
+      html, body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      .credit-note-print-source,
+      .credit-note-print-source *,
+      .credit-note-print,
+      .credit-note-print *,
+      .sale-return-thermal,
+      .sale-return-thermal * {
+        visibility: visible !important;
+        opacity: 1 !important;
+        display: block !important;
+        clip: auto !important;
+        clip-path: none !important;
+        transform: none !important;
+        overflow: visible !important;
+      }
+    }
+  `;
+
+  if (posBillFormat === 'thermal') {
+    const thermalPage = posThermalPageCss(posThermalPaper);
+    return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${thermalStyleFragment}
+      @media print {
+        html, body {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .credit-note-print,
+        .thermal-print-80mm,
+        .thermal-receipt-container,
+        .sale-return-thermal {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 auto !important;
+          padding: 0 !important;
+        }
+      }
+      ${visibilityCss}
+    `;
+  }
+
+  let size = 'A5 portrait';
+  let margin = '5mm';
+  switch (posBillFormat) {
+    case 'a5-horizontal':
+      size = 'A5 landscape';
+      break;
+    case 'a4':
+      size = 'A4 portrait';
+      margin = '10mm';
+      break;
+    default:
+      break;
+  }
+
+  return `
+    @page {
+      size: ${size};
+      margin: ${margin};
+    }
+    ${visibilityCss}
+  `;
+}

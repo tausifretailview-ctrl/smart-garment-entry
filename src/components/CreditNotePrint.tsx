@@ -1,5 +1,6 @@
 import React from "react";
 import { format as formatDate } from "date-fns";
+import { posThermalPageCss, type PosThermalPaper } from "@/utils/invoicePrintFormat";
 
 interface CreditNotePrintProps {
   creditNote: {
@@ -19,6 +20,7 @@ interface CreditNotePrintProps {
     gst_number?: string;
   } | null;
   format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
+  thermalPaper?: PosThermalPaper;
 }
 
 const numberToWords = (num: number): string => {
@@ -75,20 +77,23 @@ export function formatCreditNoteAmount(amount: number | null | undefined): strin
 }
 
 export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintProps>(
-  ({ creditNote, settings, format = 'a5' }, ref) => {
+  ({ creditNote, settings, format = 'a5', thermalPaper = '80mm' }, ref) => {
     const creditAmount = Number(creditNote.credit_amount ?? 0);
     const isThermal = format === 'thermal';
+    const thermalPage = isThermal ? posThermalPageCss(thermalPaper) : null;
     const pageSize = format === 'a4'
       ? 'A4 portrait'
       : format === 'a5-horizontal'
       ? 'A5 landscape'
-      : format === 'thermal'
-      ? '80mm auto'
+      : isThermal && thermalPage
+      ? thermalPage.pageSize
       : 'A5 portrait';
 
-    const containerWidth = isThermal ? '72mm' : (format === 'a4' ? '210mm' : '148mm');
+    const containerWidth = isThermal && thermalPage
+      ? thermalPage.sourceWidth
+      : (format === 'a4' ? '210mm' : '148mm');
     const containerMinHeight = isThermal ? 'auto' : (format === 'a4' ? '297mm' : '210mm');
-    const containerPadding = isThermal ? '4mm' : '8mm';
+    const containerPadding = isThermal ? '2mm' : '8mm';
 
     return (
       <div 
@@ -112,7 +117,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
                 margin: ${isThermal ? '2mm' : '5mm'};
               }
               .credit-note-print {
-                width: ${isThermal ? '76mm' : (format === 'a4' ? '200mm' : '138mm')} !important;
+                width: ${isThermal && thermalPage ? thermalPage.sourceWidth : (format === 'a4' ? '200mm' : '138mm')} !important;
                 min-height: ${isThermal ? 'auto' : (format === 'a4' ? '287mm' : '200mm')} !important;
                 padding: ${isThermal ? '2mm' : '5mm'} !important;
               }

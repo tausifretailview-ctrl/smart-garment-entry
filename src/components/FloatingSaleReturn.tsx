@@ -29,6 +29,13 @@ import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
+import {
+  getPosDocumentPrintPageStyle,
+  resolvePosBillFormatFromSaleSettings,
+  resolvePosDirectPrintPaper,
+  resolvePosThermalPaper,
+} from "@/utils/invoicePrintFormat";
+import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import { validateStockCeiling } from "@/utils/stockCeilingValidation";
 import {
@@ -112,14 +119,27 @@ export const FloatingSaleReturn = ({
   const printRef = useRef<HTMLDivElement>(null);
   const [returnToPrint, setReturnToPrint] = useState<Record<string, unknown> | null>(null);
 
-  const posBillFormat = useMemo((): "a4" | "a5" | "a5-horizontal" | "thermal" => {
-    const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings;
-    const fmt = (saleSettings?.pos_bill_format || saleSettings?.sales_bill_format) as string | undefined;
-    if (fmt === "a4" || fmt === "a5" || fmt === "a5-horizontal" || fmt === "thermal") return fmt;
-    return "thermal";
-  }, [settingsData]);
+  const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings;
+  const posBillFormat = useMemo(
+    () => resolvePosBillFormatFromSaleSettings(saleSettings as Parameters<typeof resolvePosBillFormatFromSaleSettings>[0]),
+    [saleSettings],
+  );
+  const posThermalPaper = resolvePosThermalPaper(
+    (settingsData as { bill_barcode_settings?: { direct_print_pos_paper?: string } } | null)
+      ?.bill_barcode_settings?.direct_print_pos_paper,
+  );
 
   const isThermalPrint = posBillFormat === "thermal";
+
+  const returnPrintPageStyle = useMemo(
+    () =>
+      getPosDocumentPrintPageStyle(
+        posBillFormat,
+        posThermalPaper,
+        getThermalReceiptPageStyleFragment(posThermalPaper),
+      ),
+    [posBillFormat, posThermalPaper],
+  );
 
   const businessDetails = useMemo(
     () => ({
@@ -137,20 +157,17 @@ export const FloatingSaleReturn = ({
 
   const handleBrowserPrint = useReactToPrint({
     contentRef: printRef,
-    pageStyle: isThermalPrint
-      ? "@page { size: 80mm auto; margin: 2mm; }"
-      : "@page { size: A4 portrait; margin: 5mm; }",
+    pageStyle: returnPrintPageStyle,
   });
 
   const triggerReturnPrint = useCallback(
     (printPayload: Record<string, unknown>) => {
       setReturnToPrint(printPayload);
-      const paperSize =
-        posBillFormat === "thermal"
-          ? "80mm"
-          : posBillFormat === "a5" || posBillFormat === "a5-horizontal"
-            ? "A5"
-            : "A4";
+      const paperSize = resolvePosDirectPrintPaper(
+        posBillFormat,
+        (settingsData as { bill_barcode_settings?: { direct_print_pos_paper?: string } } | null)
+          ?.bill_barcode_settings?.direct_print_pos_paper,
+      );
 
       setTimeout(() => {
         waitForPrintReady(printRef, () => {
@@ -169,6 +186,7 @@ export const FloatingSaleReturn = ({
     },
     [
       posBillFormat,
+      settingsData,
       isDirectPrintEnabled,
       isAutoPrintEnabled,
       directPrint,
@@ -1875,12 +1893,14 @@ export const FloatingSaleReturn = ({
             ref={printRef}
             saleReturn={returnToPrint as unknown as React.ComponentProps<typeof SaleReturnThermalPrint>["saleReturn"]}
             businessDetails={businessDetails}
+            thermalPaper={posThermalPaper}
           />
         ) : (
           <SaleReturnPrint
             ref={printRef}
             saleReturn={returnToPrint as unknown as React.ComponentProps<typeof SaleReturnPrint>["saleReturn"]}
             businessDetails={businessDetails}
+            format={posBillFormat}
           />
         )
       )}
