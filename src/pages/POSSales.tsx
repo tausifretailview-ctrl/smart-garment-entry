@@ -4901,6 +4901,76 @@ export default function POSSales() {
     `;
   };
 
+  const getCreditNotePageStyle = (): string => {
+    const format = posBillFormat;
+    let size = 'A5 portrait';
+    let margin = '5mm';
+
+    const creditNoteVisibilityCss = `
+      @media print {
+        body .credit-note-print-source,
+        body .credit-note-print-source *,
+        body .credit-note-print,
+        body .credit-note-print * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+
+    switch (format) {
+      case 'a5-horizontal':
+        size = 'A5 landscape';
+        break;
+      case 'a4':
+        size = 'A4 portrait';
+        margin = '10mm';
+        break;
+      case 'thermal': {
+        const thermalPage = posThermalPageCss(posThermalPaper);
+        return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
+      @media print {
+        html, body {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .credit-note-print {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+      }
+      ${creditNoteVisibilityCss}
+    `;
+      }
+      default:
+        break;
+    }
+
+    return `
+      @page {
+        size: ${size};
+        margin: ${margin};
+      }
+      ${creditNoteVisibilityCss}
+    `;
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
@@ -4930,6 +5000,34 @@ export default function POSSales() {
       }, 100);
     },
   });
+
+  const handlePrintCreditNote = useReactToPrint({
+    contentRef: creditNotePrintRef,
+    documentTitle: creditNoteData?.credit_note_number || "Credit Note",
+    pageStyle: getCreditNotePageStyle(),
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(creditNotePrintRef, resolve, { maxWait: 8000 });
+      }),
+    onPrintError: (_location, error) => {
+      console.error("[POSSales] credit note print failed", error);
+      toast.error("Print failed", {
+        description: "Could not open the print dialog. Try again or check your printer settings.",
+      });
+    },
+  });
+
+  const triggerCreditNotePrint = useCallback(() => {
+    if (!creditNoteData) {
+      toast.error("Nothing to print", { description: "Credit note is not loaded yet." });
+      return;
+    }
+    if (!creditNotePrintRef.current) {
+      toast.error("Print failed", { description: "Credit note layout is not ready. Try again." });
+      return;
+    }
+    waitForPrintReady(creditNotePrintRef, () => handlePrintCreditNote(), { maxWait: 8000 });
+  }, [creditNoteData, handlePrintCreditNote]);
 
   // Keep ref in sync for estimate print (handlePrint defined after estimate handler)
   handlePrintRef.current = handlePrint;
@@ -8412,21 +8510,7 @@ export default function POSSales() {
                 </div>
               )}
               <Button 
-                onClick={() => {
-                  if (creditNotePrintRef.current) {
-                    const printWindow = window.open('', '_blank');
-                    if (printWindow) {
-                      const printPadding = posBillFormat === 'thermal' ? '0' : '20px';
-                      printWindow.document.write('<html><head><title>Credit Note</title>');
-                      printWindow.document.write(`<style>body{margin:0;padding:${printPadding};font-family:Arial,sans-serif;}</style>`);
-                      printWindow.document.write('</head><body>');
-                      printWindow.document.write(creditNotePrintRef.current.innerHTML);
-                      printWindow.document.write('</body></html>');
-                      printWindow.document.close();
-                      printWindow.print();
-                    }
-                  }
-                }}
+                onClick={triggerCreditNotePrint}
                 className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700"
               >
                 <Printer className="h-4 w-4" />
@@ -8517,7 +8601,10 @@ export default function POSSales() {
 
         {/* Hidden Credit Note for Printing */}
         {creditNoteData && (
-          <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+          <div
+            className="credit-note-print-source"
+            style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}
+          >
             <CreditNotePrint 
               ref={creditNotePrintRef}
               creditNote={creditNoteData}
