@@ -1,4 +1,6 @@
 import { forwardRef } from "react";
+import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import { posThermalPageCss } from "@/utils/invoicePrintFormat";
 
 interface SaleReturnItem {
   product_name: string;
@@ -36,6 +38,7 @@ interface BusinessDetails {
 interface SaleReturnThermalPrintProps {
   saleReturn: SaleReturn;
   businessDetails: BusinessDetails;
+  thermalPaper?: PosThermalPaper;
 }
 
 function numberToWords(num: number): string {
@@ -60,7 +63,7 @@ const clip = (text: string, max: number): string =>
   text.length > max ? `${text.slice(0, max - 2)}..` : text;
 
 export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnThermalPrintProps>(
-  ({ saleReturn, businessDetails }, ref) => {
+  ({ saleReturn, businessDetails, thermalPaper = '80mm' }, ref) => {
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     const isRefund = saleReturn.refund_type === 'cash_refund';
     const returnDate = new Date(saleReturn.return_date).toLocaleDateString('en-IN', {
@@ -68,11 +71,13 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
       month: '2-digit',
       year: '2-digit',
     });
+    const thermalPage = posThermalPageCss(thermalPaper);
+    const contentWidth = thermalPaper === '58mm' ? '52mm' : '72mm';
 
     const base: React.CSSProperties = {
-      width: '72mm',
-      maxWidth: '72mm',
-      padding: '2mm 2mm 2mm 4mm',
+      width: contentWidth,
+      maxWidth: contentWidth,
+      padding: thermalPaper === '58mm' ? '2mm 1mm 2mm 2mm' : '2mm 2mm 2mm 4mm',
       backgroundColor: 'white',
       fontFamily: "'Courier New', Courier, monospace",
       fontSize: '13px',
@@ -116,9 +121,21 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
     const colAmt: React.CSSProperties = { width: '22%', textAlign: 'right' };
 
     return (
-      <div ref={ref} className="thermal-print-80mm thermal-receipt-container sale-return-thermal" style={base}>
+      <div
+        ref={ref}
+        className={`thermal-print-80mm thermal-receipt-container sale-return-thermal${thermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+        style={base}
+        data-print-format="thermal"
+        data-thermal-paper={thermalPaper}
+      >
         <style>
           {`
+            @media print {
+              @page {
+                size: ${thermalPage.pageSize};
+                margin: 0;
+              }
+            }
             .sale-return-thermal .sr-thermal-col-head,
             .sale-return-thermal .sr-thermal-col-head span {
               color: #000 !important;

@@ -8610,7 +8610,8 @@ export default function POSSales() {
               ref={creditNotePrintRef}
               creditNote={creditNoteData}
               settings={settingsData as any}
-              format={posBillFormat || 'thermal'}
+              format={posBillFormat}
+              thermalPaper={posThermalPaper}
             />
           </div>
         )}
