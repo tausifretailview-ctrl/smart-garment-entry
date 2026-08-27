@@ -31,6 +31,16 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = ["", "pos-sales"] as const;
 export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = ["", "pos-sales"] as const;
 
 /**
+ * Outlet POS routes — warm purchase-entry while the cashier is on POS (SEMME:
+ * POS → Purchase Entry is a common hop; purchase-entry stays off the parallel
+ * post-login list to avoid starving cold dashboard opens).
+ */
+export const POS_CONTEXT_PURCHASE_PREFETCH_PATHS = ["pos-sales", "pos-delivery-challan"] as const;
+
+/** Tab to warm from POS context (single hop, not full inventory list). */
+export const POS_CONTEXT_WARM_TAB_PATH = "purchase-entry" as const;
+
+/**
  * Former Electron critical paths — first wave of idle prefetch after login.
  * Kept sequential so they never race the visible tab.
  */
