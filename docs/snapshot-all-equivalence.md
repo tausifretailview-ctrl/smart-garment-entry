@@ -31,7 +31,31 @@ Use `scripts/prove-snapshot-all-equivalence-timed.sql` — **one block at a time
 | 2 | `EXPLAIN (ANALYZE)` on `snapshot_all` only | yes |
 | 3 | `snapshot_all` vs `get_customer_party_balances` | yes — expect `diff_rows = 0` |
 | 3b | CN pool vs `_customer_cn_available_total` | yes (slower) |
-| 4 | vs `get_customer_financial_snapshot` per row | **no** — `42501 Authentication required` |
+| 4 | vs `get_customer_financial_snapshot` per row | **postgres SQL editor** (`scripts/prove-snapshot-all-equivalence-step4.sql`) or **Node/JWT** — see below |
+
+**Step 4 — two ways to run**
+
+### A) Lovable SQL editor (postgres, no JWT)
+
+1. `SET statement_timeout = '300s';`
+2. Open `scripts/prove-snapshot-all-equivalence-step4.sql` — run **the whole file** (not the commented block in `timed.sql`).
+3. Expect **one row**: `diff_rows`, `active_customers`, etc.
+
+Takes ~minutes (2,377 × per-customer snapshot + one snapshot_all). If you get `42501 Authentication required`, postgres role cannot call `get_customer_true_outstanding` on cloud — use option B.
+
+**Important:** Step 4 can show `diff_rows = 0` while Step 3 shows 113 drifts. That means `snapshot_all` matches the **batch/per-customer snapshot path** but both diverge from **party RPC** (UI canonical). Cutover gate is Step 3 (party parity), not Step 4 alone.
+
+### B) Node script (authenticated JWT)
+
+```powershell
+# Fresh session JWT: DevTools → Application → localStorage → supabase auth token
+# NOT the Supabase dashboard Personal Access Token.
+$env:SUPABASE_ACCESS_TOKEN="<access_token from EzzyERP login>"
+$env:ORG_ID="3fdca631-1e0c-4417-9704-421f5129ff67"
+node scripts/prove-snapshot-all-equivalence.mjs
+```
+
+Compares `get_customer_financial_snapshot_batch` (chunk 10) vs `snapshot_all`. Exit 0 = match. On ELLA NOOR, `snapshot_all` often **times out at ~8s** on the authenticated client — if it fails, use option A in Lovable instead.
 
 **Common mistake:** running Step 2 together with old Step 3 (or the whole file).
 The error stack mentions `get_customer_financial_snapshot` / `assert_org_member` —
