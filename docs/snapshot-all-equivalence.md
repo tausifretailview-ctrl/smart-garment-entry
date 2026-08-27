@@ -21,13 +21,25 @@ Precondition: before switching whole-org callers off
 
 ### Option A — Supabase SQL editor (preferred when no user JWT)
 
-Paste `scripts/prove-snapshot-all-equivalence.sql` (SECTION A). Set `org_id` to a
-**large** org, run, then repeat for a second org. Expect `diff_rows = 0` both
-times. If `diff_rows > 0`, uncomment SECTION B and export the mismatch CSV.
+Use `scripts/prove-snapshot-all-equivalence-timed.sql` — **one block at a time**:
 
-Compares `get_customer_financial_snapshot_all` to
-`get_customer_financial_snapshot` per active customer (same numbers as the
-batch FOREACH path). Tolerances: 0.01 on money fields.
+| Step | What | SQL editor? |
+|------|------|-------------|
+| DIAG | `auth.uid()` / role | yes |
+| 0 | `SET statement_timeout = '120s'` | yes |
+| 1 | `snapshot_all` row count + `elapsed_ms` NOTICE | yes |
+| 2 | `EXPLAIN (ANALYZE)` on `snapshot_all` only | yes |
+| 3 | `snapshot_all` vs `get_customer_party_balances` | yes — expect `diff_rows = 0` |
+| 3b | CN pool vs `_customer_cn_available_total` | yes (slower) |
+| 4 | vs `get_customer_financial_snapshot` per row | **no** — `42501 Authentication required` |
+
+**Common mistake:** running Step 2 together with old Step 3 (or the whole file).
+The error stack mentions `get_customer_financial_snapshot` / `assert_org_member` —
+that is Step 4, not Step 2. Highlight **only** the `EXPLAIN` block for Step 2.
+
+Legacy `scripts/prove-snapshot-all-equivalence.sql` SECTION A still calls per-customer
+snapshot and fails in the editor the same way — use Step 3/3b here instead, or Node
+(Option B) for batch-path equivalence.
 
 ### Option B — Node script (authenticated user JWT)
 

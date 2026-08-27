@@ -1,8 +1,12 @@
 -- =============================================================================
 -- Phase 1b — prove get_customer_financial_snapshot_all ≡ per-customer snapshot
 -- =============================================================================
--- Run in Supabase SQL editor (postgres / service role). auth.uid() is NULL there,
--- so the org membership guard is skipped — same as other admin proofs.
+-- Run in Supabase SQL editor (postgres / service role) ONLY with an org-member JWT
+-- session, OR use scripts/prove-snapshot-all-equivalence-timed.sql Step 3 (party parity).
+--
+-- WARNING: SECTION A below calls get_customer_financial_snapshot per row. In the
+-- SQL editor (auth.uid() NULL) that fails with 42501 Authentication required via
+-- assert_org_member inside get_customer_true_outstanding. Step 1 snapshot_all still works.
 --
 -- HOW TO RUN:
 --   1. Set org_id in params (use a LARGE org first, then a smaller different one).
