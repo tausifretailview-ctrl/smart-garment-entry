@@ -21,13 +21,25 @@ Precondition: before switching whole-org callers off
 
 ### Option A — Supabase SQL editor (preferred when no user JWT)
 
-Paste `scripts/prove-snapshot-all-equivalence.sql` (SECTION A). Set `org_id` to a
-**large** org, run, then repeat for a second org. Expect `diff_rows = 0` both
-times. If `diff_rows > 0`, uncomment SECTION B and export the mismatch CSV.
+Use `scripts/prove-snapshot-all-equivalence-timed.sql` — **one block at a time**:
 
-Compares `get_customer_financial_snapshot_all` to
-`get_customer_financial_snapshot` per active customer (same numbers as the
-batch FOREACH path). Tolerances: 0.01 on money fields.
+| Step | What | SQL editor? |
+|------|------|-------------|
+| DIAG | `auth.uid()` / role | yes |
+| 0 | `SET statement_timeout = '120s'` | yes |
+| 1 | `snapshot_all` row count + `elapsed_ms` NOTICE | yes |
+| 2 | `EXPLAIN (ANALYZE)` on `snapshot_all` only | yes |
+| 3 | `snapshot_all` vs `get_customer_party_balances` | yes — expect `diff_rows = 0` |
+| 3b | CN pool vs `_customer_cn_available_total` | yes (slower) |
+| 4 | vs `get_customer_financial_snapshot` per row | **no** — `42501 Authentication required` |
+
+**Common mistake:** running Step 2 together with old Step 3 (or the whole file).
+The error stack mentions `get_customer_financial_snapshot` / `assert_org_member` —
+that is Step 4, not Step 2. Highlight **only** the `EXPLAIN` block for Step 2.
+
+Legacy `scripts/prove-snapshot-all-equivalence.sql` SECTION A still calls per-customer
+snapshot and fails in the editor the same way — use Step 3/3b here instead, or Node
+(Option B) for batch-path equivalence.
 
 ### Option B — Node script (authenticated user JWT)
 
@@ -79,6 +91,22 @@ Exit 0 = every field for every financial-activity customer matches. Non-zero =
 | Date | Org | Active customers | Diffs | Batch ms | All ms | Notes |
 |------|-----|------------------|-------|----------|--------|-------|
 | 2026-08-17 | — | — | — | — | — | Exit 2 — no `SUPABASE_ACCESS_TOKEN` / `ORG_ID` |
+| 2026-08-27 | ELLA NOOR `3fdca631…` | 1115 | — (incomplete) | 213683 (chunk 10) | **8134 → timeout** | Authenticated JWT. `snapshot_all` hits **8s statement_timeout** every run (~8147ms). Batch chunk 50 also times out on first call. **SQL editor proof pending** — run `scripts/prove-snapshot-all-equivalence-timed.sql` in Lovable. |
+
+### ELLA NOOR authenticated chunk benchmark (2026-08-27)
+
+| Chunk size | RPC calls | Total ms | Max chunk ms | Under 8s? |
+|------------|-----------|----------|--------------|-----------|
+| 10 (today) | 112 | 213,683 | 2,536 | yes |
+| 15 | 75 | 203,546 | 3,578 | yes |
+| 20 | 56 | 202,230 | 4,724 | yes |
+| 25 | 45 | 200,394 | 6,227 | yes |
+| 30 | 38 | 196,827 | 6,803 | yes |
+| 50 | — | 8,353 (fail) | — | **no** |
+
+**Recommendation until SQL editor confirms `snapshot_all` correctness:** do **not** cut over whole-org callers to a single client `snapshot_all` call for large orgs. Prefer **batch chunk size 20–25** (max ~4.7–6.2s, ~45–56 RPCs vs 112 today) or paginate customer IDs client-side once equivalence is proven. Chunk **≥50** exceeds authenticated timeout on ELLA NOOR.
+
+Cloud Agent cannot run Lovable SQL editor directly (no `SUPABASE_SERVICE_ROLE_KEY` / `DATABASE_URL`). Use `scripts/prove-snapshot-all-equivalence-timed.sql` for postgres-role timing + EXPLAIN + diff_rows.
 
 ### After proof passes
 
