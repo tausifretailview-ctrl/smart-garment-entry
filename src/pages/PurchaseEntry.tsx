@@ -6286,6 +6286,24 @@ const PurchaseEntry = () => {
     ],
   );
 
+  const resolvePurchaseItemsToPrint = useCallback(
+    (sourceItems: LineItem[]) =>
+      selectedForPrint.size > 0
+        ? sourceItems.filter((item) => selectedForPrint.has(item.temp_id))
+        : sourceItems,
+    [selectedForPrint],
+  );
+
+  const markPurchaseItemsBarcodePrinted = async (billId: string, items: LineItem[]) => {
+    const skuIds = items.map((item) => item.sku_id).filter(Boolean);
+    if (skuIds.length === 0) return;
+    await supabase
+      .from("purchase_items")
+      .update({ barcode_printed: true })
+      .eq("bill_id", billId)
+      .in("sku_id", skuIds);
+  };
+
   const handlePrintBarcodes = async () => {
     const gate = purchaseBarcodePrintGate;
     if (!gate.allowed) {
@@ -6301,11 +6319,7 @@ const PurchaseEntry = () => {
     const sourceItems =
       gate.itemSource === "just-saved-items" ? savedPurchaseItems : lineItems;
 
-    // Get items to print - either selected items or all items if none selected
-    const itemsToPrint =
-      gate.itemSource === "current-edit-lines" && selectedForPrint.size > 0
-        ? sourceItems.filter((item) => selectedForPrint.has(item.temp_id))
-        : sourceItems;
+    const itemsToPrint = resolvePurchaseItemsToPrint(sourceItems);
 
     if (itemsToPrint.length === 0) {
       toast({
@@ -8566,7 +8580,17 @@ const PurchaseEntry = () => {
                         supplierCode = supplierData?.supplier_code || "";
                       }
 
-                      const barcodeItems = savedPurchaseItems.map(item => ({
+                      const itemsToPrint = resolvePurchaseItemsToPrint(savedPurchaseItems);
+                      if (itemsToPrint.length === 0) {
+                        toast({
+                          title: "No Items Selected",
+                          description: "Please select items to print barcodes",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      const barcodeItems = itemsToPrint.map(item => ({
                         sku_id: item.sku_id,
                         product_name: item.product_name || "",
                         brand: item.brand || "",
@@ -8584,14 +8608,11 @@ const PurchaseEntry = () => {
                         supplier_code: supplierCode,
                       }));
 
-                      // Mark all items as printed
                       if (savedBillId) {
-                        await supabase
-                          .from("purchase_items")
-                          .update({ barcode_printed: true })
-                          .eq("bill_id", savedBillId);
+                        await markPurchaseItemsBarcodePrinted(savedBillId, itemsToPrint);
                       }
 
+                      setSelectedForPrint(new Set());
                       setShowPrintDialog(false);
                       navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
                         state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
@@ -8608,7 +8629,9 @@ const PurchaseEntry = () => {
                   className="w-full gap-2"
                 >
                   <Printer className="h-4 w-4" />
-                  Print All Labels ({savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})
+                  {selectedForPrint.size > 0
+                    ? `Print Selected (${selectedForPrint.size})`
+                    : `Print All Labels (${savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})`}
                 </Button>
 
                 {/* Print New Labels Only Button - only show if there are newly added items */}
