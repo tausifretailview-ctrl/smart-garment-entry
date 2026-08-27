@@ -3,28 +3,39 @@ import {
   QUOTATION_PRINT_TEMPLATE_KEY,
   mergeQuotationTerms,
   persistQuotationPrintTemplate,
+  quotationPrintTemplateStorageKey,
   resolveQuotationPrintTemplate,
 } from "./quotationPrintTemplate";
 
+const ORG_A = "org-aaa";
+const ORG_B = "org-bbb";
+
 describe("quotationPrintTemplate", () => {
   beforeEach(() => {
-    localStorage.removeItem(QUOTATION_PRINT_TEMPLATE_KEY);
+    localStorage.clear();
   });
 
   it("defaults to existing retail layout", () => {
     expect(resolveQuotationPrintTemplate({})).toBe("retail");
   });
 
-  it("uses sale settings when localStorage is empty", () => {
-    expect(resolveQuotationPrintTemplate({ quotation_print_template: "it-company" })).toBe(
-      "it-company",
-    );
+  it("prefers sale settings over localStorage once settings are loaded", () => {
+    persistQuotationPrintTemplate("it-company", ORG_A);
+    expect(
+      resolveQuotationPrintTemplate({ quotation_print_template: "retail" }, ORG_A),
+    ).toBe("retail");
   });
 
-  it("prefers the last preview choice stored locally", () => {
-    persistQuotationPrintTemplate("it-company");
-    expect(resolveQuotationPrintTemplate({ quotation_print_template: "retail" })).toBe(
-      "it-company",
+  it("uses org-scoped localStorage only before settings are available", () => {
+    persistQuotationPrintTemplate("it-company", ORG_A);
+    persistQuotationPrintTemplate("retail", ORG_B);
+    expect(resolveQuotationPrintTemplate(undefined, ORG_A)).toBe("it-company");
+    expect(resolveQuotationPrintTemplate(undefined, ORG_B)).toBe("retail");
+  });
+
+  it("scopes storage keys per organization", () => {
+    expect(quotationPrintTemplateStorageKey(ORG_A)).toBe(
+      `${QUOTATION_PRINT_TEMPLATE_KEY}_${ORG_A}`,
     );
   });
 
