@@ -128,9 +128,8 @@ import {
   syncLastPurchaseFromBillLines,
   syncVariantPriceFromPurchase,
 } from "@/utils/syncVariantPriceFromPurchase";
+import { resolveVariantForIncomingPriceTier } from "@/utils/purchaseVariantPriceTierFork";
 import {
-  buildUseExistingProductConfirmMessage,
-  purchaseLinePricesDiffer,
   purchaseLinePricesFromUseExisting,
   type PurchaseLinePriceSnapshot,
   type UseExistingProductPayload,
@@ -920,12 +919,6 @@ const PurchaseEntry = () => {
   // Barcode duplicate warning state
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const [showBarcodeConflictDialog, setShowBarcodeConflictDialog] = useState(false);
-  const [useExistingProductConfirm, setUseExistingProductConfirm] = useState<{
-    variant: ProductVariant;
-    payload: UseExistingProductPayload;
-    storedPrices: PurchaseLinePriceSnapshot;
-    linePrices: PurchaseLinePriceSnapshot;
-  } | null>(null);
   const pendingBarcodeSaveRef = useRef(false);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeCheckGenRef = useRef(0);
@@ -3102,6 +3095,54 @@ const PurchaseEntry = () => {
     [fetchExactBarcodeVariants],
   );
 
+  const fetchPurchaseVariantById = useCallback(
+    async (variantId: string): Promise<ProductVariant | null> => {
+      if (!currentOrganization?.id || !variantId) return null;
+      const orgId = currentOrganization.id;
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(
+          `
+          id,
+          size,
+          pur_price,
+          sale_price,
+          mrp,
+          barcode,
+          barcode_source,
+          active,
+          color,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            category,
+            style,
+            color,
+            hsn_code,
+            gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
+            default_pur_price,
+            default_sale_price,
+            uom,
+            requires_imei
+          )
+        `,
+        )
+        .eq("organization_id", orgId)
+        .eq("id", variantId)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .maybeSingle();
+      if (error || !data) return null;
+      const bc = String((data as { barcode?: string }).barcode ?? "");
+      return mapPurchaseVariantRow(data as Record<string, unknown>, bc);
+    },
+    [currentOrganization?.id, mapPurchaseVariantRow],
+  );
+
   const addOrIncrementScannedVariant = useCallback(
     async (
       variant: ProductVariant,
@@ -3304,16 +3345,9 @@ const PurchaseEntry = () => {
   );
 
   const applyUseExistingProductToBill = useCallback(
-    async (variant: ProductVariant, payload: UseExistingProductPayload) => {
-      const storedPrices: PurchaseLinePriceSnapshot = {
-        pur_price: Number(variant.pur_price) || 0,
-        sale_price: Number(variant.sale_price) || 0,
-        mrp: Number(variant.mrp) || 0,
-      };
-      const linePrices = purchaseLinePricesFromUseExisting(payload, storedPrices);
+    async (variant: ProductVariant, linePrices: PurchaseLinePriceSnapshot) => {
       await addOrIncrementScannedVariant(variant, {
         linePriceOverride: linePrices,
-        linkExistingSku: true,
       });
       focusSearchBar();
     },
@@ -3323,8 +3357,9 @@ const PurchaseEntry = () => {
   const handleUseExistingProductFromDialog = useCallback(
     async (payload: UseExistingProductPayload) => {
       closeProductDialog(false);
+      const orgId = currentOrganization?.id;
       const barcode = payload.barcode.trim();
-      if (!barcode) return;
+      if (!barcode || !orgId) return;
 
       const variant = await fetchExactBarcodeVariant(barcode);
       if (!variant) {
@@ -3343,22 +3378,56 @@ const PurchaseEntry = () => {
       };
       const linePrices = purchaseLinePricesFromUseExisting(payload, storedPrices);
 
-      if (purchaseLinePricesDiffer(linePrices, storedPrices)) {
-        setUseExistingProductConfirm({
-          variant,
-          payload,
-          storedPrices,
-          linePrices,
+      if (linePrices.pur_price <= 0 || linePrices.sale_price <= 0) {
+        toast({
+          title: "Invalid prices",
+          description: "Purchase and sale price must be greater than zero.",
+          variant: "destructive",
         });
         return;
       }
 
-      await applyUseExistingProductToBill(variant, payload);
+      const resolved = await resolveVariantForIncomingPriceTier({
+        organizationId: orgId,
+        variantId: variant.id,
+        barcode,
+        incomingPurPrice: linePrices.pur_price,
+        incomingSalePrice: linePrices.sale_price,
+        incomingMrp: linePrices.mrp,
+        purchaseDate: format(billDate, "yyyy-MM-dd"),
+      });
+
+      if (!resolved) {
+        toast({
+          title: "Could not add product",
+          description: "Unable to resolve price tier for this barcode.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let billVariant = variant;
+      if (resolved.variantId !== variant.id) {
+        const loaded = await fetchPurchaseVariantById(resolved.variantId);
+        billVariant = loaded ?? {
+          ...variant,
+          id: resolved.variantId,
+          product_id: resolved.productId,
+          pur_price: linePrices.pur_price,
+          sale_price: linePrices.sale_price,
+          mrp: linePrices.mrp ?? variant.mrp,
+        };
+      }
+
+      await applyUseExistingProductToBill(billVariant, linePrices);
     },
     [
       closeProductDialog,
+      currentOrganization?.id,
       fetchExactBarcodeVariant,
+      fetchPurchaseVariantById,
       applyUseExistingProductToBill,
+      billDate,
       toast,
     ],
   );
@@ -8771,46 +8840,6 @@ const PurchaseEntry = () => {
               }}
             >
               Save Anyway
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Use existing product — confirm when typed price differs from master */}
-      <AlertDialog
-        open={useExistingProductConfirm != null}
-        onOpenChange={(open) => {
-          if (!open) setUseExistingProductConfirm(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Use existing product?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {useExistingProductConfirm
-                ? buildUseExistingProductConfirmMessage(
-                    useExistingProductConfirm.storedPrices,
-                    useExistingProductConfirm.linePrices,
-                  )
-                : ""}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-amber-600 hover:bg-amber-700"
-              onClick={() => {
-                const pending = useExistingProductConfirm;
-                setUseExistingProductConfirm(null);
-                if (pending) {
-                  void applyUseExistingProductToBill(pending.variant, pending.payload);
-                }
-              }}
-            >
-              Add to bill
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
