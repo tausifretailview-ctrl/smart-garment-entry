@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
-cursor/balance-ssot-supplier-fa12
-import { computeSnapshotForSupplier, supplierAccountAdjustmentTotal, summarizeSupplierOrgWindowFromSnapshots } from "@/utils/supplierBalanceUtils";
-=======
 import {
   computeSnapshotForSupplier,
   supplierAccountAdjustmentTotal,
   supplierLedgerReconFromTransactions,
+  summarizeSupplierOrgWindowFromSnapshots,
 } from "@/utils/supplierBalanceUtils";
-main
 
 const SUPPLIER = "supplier-sangamn";
 const OTHER = "supplier-other";
@@ -133,6 +130,64 @@ describe("computeSnapshotForSupplier", () => {
     );
     expect(snap.totalPaid).toBe(4000);
     expect(snap.balance).toBe(6000);
+  });
+
+  it("credits genuine on-account payment alongside cash-at-entry bills with no voucher", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-cash",
+          supplier_id: SUPPLIER,
+          net_amount: 50000,
+          paid_amount: 20000,
+          software_bill_no: "PB-100",
+          supplier_invoice_no: "INV-100",
+        },
+      ],
+      [
+        {
+          reference_id: SUPPLIER,
+          total_amount: 5000,
+          description: "NEFT on-account payment",
+        },
+      ],
+      [],
+      [],
+      0,
+    );
+    expect(snap.totalPaid).toBe(25000);
+    expect(snap.balance).toBe(25000);
+  });
+
+  it("skips FloatingPayments duplicate supplier voucher when bill paid_amount already updated", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-1",
+          supplier_id: SUPPLIER,
+          net_amount: 10000,
+          paid_amount: 5000,
+          software_bill_no: "B1",
+          supplier_invoice_no: "B1",
+        },
+      ],
+      [
+        {
+          reference_id: SUPPLIER,
+          total_amount: 5000,
+          description: "Payment for Bills: B1",
+        },
+      ],
+      [],
+      [],
+      0,
+    );
+    expect(snap.totalPaid).toBe(5000);
+    expect(snap.balance).toBe(5000);
   });
 
   it("does not double bill-linked vouchers that already sit in paid_amount", () => {
