@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { endOfDay, startOfDay, subMonths } from "date-fns";
 import {
   isReportDateRangeTooWide,
   reportDateRangeSpanDays,
+  splitReportDateRangeIntoChunks,
   MAX_REPORT_DATE_RANGE_DAYS,
 } from "./reportDateRangeGuard";
 
@@ -23,5 +25,24 @@ describe("reportDateRangeGuard", () => {
     const to = new Date("2026-08-26T00:00:00");
     const from = new Date("2025-08-27T00:00:00");
     expect(isReportDateRangeTooWide(from, to)).toBe(false);
+  });
+
+  it("allows rolling 12 months with startOfDay/endOfDay (All Time preset)", () => {
+    const to = endOfDay(new Date("2026-08-27T12:00:00"));
+    const from = startOfDay(subMonths(new Date("2026-08-27T12:00:00"), 12));
+    expect(reportDateRangeSpanDays(from, to)).toBe(366);
+    expect(isReportDateRangeTooWide(from, to)).toBe(false);
+  });
+
+  it("splits wide ranges into ≤maxDays chunks", () => {
+    const from = new Date("2024-01-01T00:00:00");
+    const to = new Date("2026-01-01T00:00:00");
+    const chunks = splitReportDateRangeIntoChunks(from, to);
+    expect(chunks.length).toBeGreaterThan(1);
+    for (const chunk of chunks) {
+      expect(reportDateRangeSpanDays(chunk.from, chunk.to)).toBeLessThanOrEqual(MAX_REPORT_DATE_RANGE_DAYS);
+    }
+    expect(chunks[0].from.getTime()).toBe(from.getTime());
+    expect(chunks[chunks.length - 1].to.getTime()).toBe(to.getTime());
   });
 });

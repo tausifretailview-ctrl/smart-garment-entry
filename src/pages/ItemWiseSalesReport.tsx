@@ -31,6 +31,7 @@ import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersB
 import {
   isReportDateRangeTooWide,
   reportDateRangeTooWideMessage,
+  splitReportDateRangeIntoChunks,
 } from "@/utils/reportDateRangeGuard";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -475,7 +476,9 @@ export default function ItemWiseSalesReport() {
 
   useEffect(() => {
     if (!dateRangeTooWide) return;
-    toast.warning(reportDateRangeTooWideMessage());
+    toast.warning(reportDateRangeTooWideMessage(), {
+      description: "Loading the range in smaller chunks — this may take a moment.",
+    });
   }, [dateRangeTooWide]);
 
   // Fetch sale items with product details
@@ -484,43 +487,52 @@ export default function ItemWiseSalesReport() {
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
 
-      // Paginated fetch of sales to bypass 1000-row limit
+      const dateChunks = splitReportDateRangeIntoChunks(dateRange.from, dateRange.to);
       const allSales: any[] = [];
-      let offset = 0;
-      const pageSize = 1000;
-      let hasMore = true;
+      const seenSaleIds = new Set<string>();
 
-      while (hasMore) {
-        let salesQuery = supabase
-          .from("sales")
-          .select("id, customer_name, salesman, created_by")
-          .eq("organization_id", currentOrganization.id)
-          .is("deleted_at", null)
-          .gte("sale_date", dateRange.from.toISOString())
-          .lte("sale_date", dateRange.to.toISOString())
-          .order("sale_date", { ascending: false })
-          .order("id")
-          .range(offset, offset + pageSize - 1);
+      for (const chunk of dateChunks) {
+        let offset = 0;
+        const pageSize = 1000;
+        let hasMore = true;
 
-        if (selectedCustomer !== "all") {
-          salesQuery = salesQuery.eq("customer_name", selectedCustomer);
-        }
-        const { createdById, salesmanName } = parseItemWiseUserFilter(selectedUser);
-        if (createdById) {
-          salesQuery = salesQuery.eq("created_by", createdById);
-        } else if (salesmanName) {
-          salesQuery = salesQuery.eq("salesman", salesmanName);
-        }
+        while (hasMore) {
+          let salesQuery = supabase
+            .from("sales")
+            .select("id, customer_name, salesman, created_by")
+            .eq("organization_id", currentOrganization.id)
+            .is("deleted_at", null)
+            .gte("sale_date", chunk.from.toISOString())
+            .lte("sale_date", chunk.to.toISOString())
+            .order("sale_date", { ascending: false })
+            .order("id")
+            .range(offset, offset + pageSize - 1);
 
-        const { data: salesData, error: salesError } = await salesQuery;
-        if (salesError) throw salesError;
+          if (selectedCustomer !== "all") {
+            salesQuery = salesQuery.eq("customer_name", selectedCustomer);
+          }
+          const { createdById, salesmanName } = parseItemWiseUserFilter(selectedUser);
+          if (createdById) {
+            salesQuery = salesQuery.eq("created_by", createdById);
+          } else if (salesmanName) {
+            salesQuery = salesQuery.eq("salesman", salesmanName);
+          }
 
-        if (salesData && salesData.length > 0) {
-          allSales.push(...salesData);
-          offset += pageSize;
-          if (salesData.length < pageSize) hasMore = false;
-        } else {
-          hasMore = false;
+          const { data: salesData, error: salesError } = await salesQuery;
+          if (salesError) throw salesError;
+
+          if (salesData && salesData.length > 0) {
+            for (const row of salesData) {
+              if (!seenSaleIds.has(row.id)) {
+                seenSaleIds.add(row.id);
+                allSales.push(row);
+              }
+            }
+            offset += pageSize;
+            if (salesData.length < pageSize) hasMore = false;
+          } else {
+            hasMore = false;
+          }
         }
       }
 
@@ -576,7 +588,7 @@ export default function ItemWiseSalesReport() {
         stock_qty: item.variant_id ? (variantStockMap[item.variant_id] || 0) : 0,
       }));
     },
-    enabled: !!currentOrganization?.id && !dateRangeTooWide,
+    enabled: !!currentOrganization?.id,
     ...REPORT_CACHE,
   });
 
@@ -666,6 +678,13 @@ export default function ItemWiseSalesReport() {
     setBrandPage(1);
     setSaleDetailsPage(1);
   }, [selectedBrand, selectedCategory, selectedDepartment, selectedColor]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setCustomerPage(1);
+    setBrandPage(1);
+    setSaleDetailsPage(1);
+  }, [periodType, dateRange.from, dateRange.to]);
 
   // Filter data based on search and dropdown filters
   const filteredData = useMemo(() => {
@@ -820,12 +839,12 @@ export default function ItemWiseSalesReport() {
       .sort((a, b) => b.total_amount - a.total_amount);
   }, [saleItems, selectedBrand, selectedCategory, selectedDepartment, selectedColor, searchQuery]);
 
-  // Summary via RPC (single JSON instead of client-side aggregation)
+  // Summary via RPC (single JSON instead of client-side aggregation; skipped when range is chunked)
   const { data: rpcSummary } = useQuery({
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const params: any = {
+      const params: Record<string, string> = {
         p_organization_id: currentOrganization.id,
         p_start_date: dateRange.from.toISOString(),
         p_end_date: dateRange.to.toISOString(),
@@ -833,7 +852,7 @@ export default function ItemWiseSalesReport() {
       if (selectedCustomer !== "all") params.p_customer_name = selectedCustomer;
       const { data, error } = await supabase.rpc("get_item_sales_summary", params);
       if (error) throw error;
-      return data as any;
+      return data as { total_qty?: number; total_amount?: number; unique_products?: number; avg_price?: number };
     },
     enabled: !!currentOrganization?.id && !dateRangeTooWide,
     ...REPORT_CACHE,
@@ -928,10 +947,11 @@ export default function ItemWiseSalesReport() {
   const hasClientFilters = selectedBrand !== "all" || selectedCategory !== "all" || selectedDepartment !== "all" || selectedColor !== "all" || searchQuery.trim() !== "";
 
   const summary = useMemo(() => {
-    if (hasClientFilters) {
-      const totalQty = filteredData.reduce((sum, item) => sum + item.total_qty, 0);
-      const totalAmount = filteredData.reduce((sum, item) => sum + item.total_amount, 0);
-      const uniqueProducts = filteredData.length;
+    const clientSource = hasClientFilters ? filteredData : aggregatedData;
+    if (hasClientFilters || dateRangeTooWide) {
+      const totalQty = clientSource.reduce((sum, item) => sum + item.total_qty, 0);
+      const totalAmount = clientSource.reduce((sum, item) => sum + item.total_amount, 0);
+      const uniqueProducts = clientSource.length;
       const avgPrice = totalQty > 0 ? totalAmount / totalQty : 0;
       return { totalQty, totalAmount, uniqueProducts, avgPrice };
     }
@@ -941,7 +961,7 @@ export default function ItemWiseSalesReport() {
       uniqueProducts: rpcSummary?.unique_products ?? 0,
       avgPrice: rpcSummary?.avg_price ?? 0,
     };
-  }, [rpcSummary, filteredData, hasClientFilters]);
+  }, [rpcSummary, filteredData, aggregatedData, hasClientFilters, dateRangeTooWide]);
 
   // Export to Excel
   const exportToExcel = async () => {
@@ -1405,79 +1425,77 @@ export default function ItemWiseSalesReport() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(() => {
-                      const totalPages = Math.ceil(customerWiseData.length / ITEMS_PER_PAGE);
-                      const pageData = customerWiseData.slice((customerPage - 1) * ITEMS_PER_PAGE, customerPage * ITEMS_PER_PAGE);
-                      return (
-                        <>
-                          {pageData.map((row, index) => {
-                            const globalIdx = (customerPage - 1) * ITEMS_PER_PAGE + index;
-                            return (
-                              <React.Fragment key={row.customer_name}>
-                                <TableRow
-                                  className={cn(SALES_BODY_ROW, "cursor-pointer", globalIdx % 2 === 0 ? "" : "bg-muted/20")}
-                                  onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
-                                >
-                                  <TableCell className="font-mono text-sm text-muted-foreground">{globalIdx + 1}</TableCell>
-                                  <TableCell className="text-sm font-semibold text-primary">
-                                    <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
-                                    {row.customer_name}
-                                  </TableCell>
-                                  <TableCell className="text-center text-sm font-semibold">{row.item_count}</TableCell>
-                                  <TableCell className={SALES_QTY_CELL}>{row.total_qty.toLocaleString("en-IN")}</TableCell>
-                                  <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
-                                  <TableCell className="text-right text-sm font-semibold tabular-nums text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
-                                </TableRow>
-                                {expandedCustomer === row.customer_name && (
-                                  <TableRow>
-                                    <TableCell colSpan={6} className="p-0">
-                                      <div className="bg-muted/20 border-y">
-                                        <Table>
-                                          <TableHeader>
-                                            <TableRow className={SALES_VASY_HEAD_ROW}>
-                                              <TableHead className={cn("w-14 pl-10", SALES_VASY_TH)}>#</TableHead>
-                                              <TableHead className={cn("pl-10", SALES_VASY_TH)}>Product Name</TableHead>
-                                              <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty</TableHead>
-                                              <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Amount (₹)</TableHead>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Loading sales data...
+                        </TableCell>
+                      </TableRow>
+                    ) : isError ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-destructive">
+                          Failed to load data. Try a smaller date range.
+                        </TableCell>
+                      </TableRow>
+                    ) : customerWiseData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          No sales data found for the selected period
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      customerWiseData
+                        .slice((customerPage - 1) * ITEMS_PER_PAGE, customerPage * ITEMS_PER_PAGE)
+                        .map((row, index) => {
+                          const globalIdx = (customerPage - 1) * ITEMS_PER_PAGE + index;
+                          return (
+                            <React.Fragment key={row.customer_name}>
+                              <TableRow
+                                className={cn(SALES_BODY_ROW, "cursor-pointer", globalIdx % 2 === 0 ? "" : "bg-muted/20")}
+                                onClick={() => setExpandedCustomer(expandedCustomer === row.customer_name ? null : row.customer_name)}
+                              >
+                                <TableCell className="font-mono text-sm text-muted-foreground">{globalIdx + 1}</TableCell>
+                                <TableCell className="text-sm font-semibold text-primary">
+                                  <span className="mr-1 text-xs">{expandedCustomer === row.customer_name ? "▼" : "▶"}</span>
+                                  {row.customer_name}
+                                </TableCell>
+                                <TableCell className="text-center text-sm font-semibold">{row.item_count}</TableCell>
+                                <TableCell className={SALES_QTY_CELL}>{row.total_qty.toLocaleString("en-IN")}</TableCell>
+                                <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(row.total_amount).toLocaleString("en-IN")}</TableCell>
+                                <TableCell className="text-right text-sm font-semibold tabular-nums text-muted-foreground">₹{row.total_qty > 0 ? Math.round(row.total_amount / row.total_qty).toLocaleString("en-IN") : 0}</TableCell>
+                              </TableRow>
+                              {expandedCustomer === row.customer_name && (
+                                <TableRow>
+                                  <TableCell colSpan={6} className="p-0">
+                                    <div className="bg-muted/20 border-y">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow className={SALES_VASY_HEAD_ROW}>
+                                            <TableHead className={cn("w-14 pl-10", SALES_VASY_TH)}>#</TableHead>
+                                            <TableHead className={cn("pl-10", SALES_VASY_TH)}>Product Name</TableHead>
+                                            <TableHead className={cn("w-[90px] text-right", SALES_VASY_TH)}>Qty</TableHead>
+                                            <TableHead className={cn("w-[120px] text-right", SALES_VASY_TH)}>Amount (₹)</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {row.productList.map((p, pi) => (
+                                            <TableRow key={pi} className="hover:bg-muted/30">
+                                              <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
+                                              <TableCell className="pl-10 text-sm font-bold text-foreground">{p.product_name}</TableCell>
+                                              <TableCell className={SALES_QTY_CELL}>{p.qty}</TableCell>
+                                              <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
                                             </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                            {row.productList.map((p, pi) => (
-                                              <TableRow key={pi} className="hover:bg-muted/30">
-                                                <TableCell className="pl-10 font-mono text-xs text-muted-foreground">{pi + 1}</TableCell>
-                                                <TableCell className="pl-10 text-sm font-bold text-foreground">{p.product_name}</TableCell>
-                                                <TableCell className={SALES_QTY_CELL}>{p.qty}</TableCell>
-                                                <TableCell className={SALES_AMOUNT_CELL}>₹{Math.round(p.amount).toLocaleString("en-IN")}</TableCell>
-                                              </TableRow>
-                                            ))}
-                                          </TableBody>
-                                        </Table>
-                                      </div>
-                                    </TableCell>
-                                  </TableRow>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-                          {totalPages > 1 && (
-                            <TableRow>
-                              <TableCell colSpan={6}>
-                                <div className="flex items-center justify-between py-2">
-                                  <p className="text-sm text-muted-foreground">
-                                    Showing {(customerPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(customerPage * ITEMS_PER_PAGE, customerWiseData.length)} of {customerWiseData.length}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.max(1, p - 1))} disabled={customerPage === 1}>Previous</Button>
-                                    <span className="text-sm text-muted-foreground">Page {customerPage} of {totalPages}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setCustomerPage(p => Math.min(totalPages, p + 1))} disabled={customerPage === totalPages}>Next</Button>
-                                  </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </>
-                      );
-                    })()}
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
+                    )}
                   </TableBody>
                   {customerWiseData.length > 0 && (
                     <TableFooter className={SALES_VASY_FOOTER}>
@@ -1492,6 +1510,23 @@ export default function ItemWiseSalesReport() {
                   )}
                 </Table>
               </div>
+              {customerWiseData.length > ITEMS_PER_PAGE && (() => {
+                const totalPages = Math.ceil(customerWiseData.length / ITEMS_PER_PAGE);
+                const pageStart = (customerPage - 1) * ITEMS_PER_PAGE + 1;
+                const pageEnd = Math.min(customerPage * ITEMS_PER_PAGE, customerWiseData.length);
+                return (
+                  <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-white px-3 py-2 print:hidden">
+                    <p className="text-sm tabular-nums text-slate-600">
+                      Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of {customerWiseData.length.toLocaleString("en-IN")} customers
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" className="h-9 text-sm" onClick={() => setCustomerPage(p => Math.max(1, p - 1))} disabled={customerPage === 1}>Previous</Button>
+                      <span className="text-sm text-muted-foreground">Page {customerPage} of {totalPages}</span>
+                      <Button variant="outline" size="sm" className="h-9 text-sm" onClick={() => setCustomerPage(p => Math.min(totalPages, p + 1))} disabled={customerPage === totalPages}>Next</Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
