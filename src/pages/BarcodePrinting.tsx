@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 
-import { useLocation } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -94,11 +94,17 @@ import {
   clearBarcodePurchaseItems,
   consumeBarcodePurchaseItems,
   hasPendingBarcodePurchaseItems,
+  peekBarcodePurchaseItems,
   persistBarcodePurchaseBillContext,
   queueBarcodePurchaseItems,
   readBarcodePurchaseBillContext,
   resolvePurchaseBillIdForBarcodeReturn,
 } from "@/utils/barcodePurchaseBillContext";
+import {
+  BARCODE_PRINT_PURCHASE_BILL_QUERY,
+  barcodePrintingPathWithBill,
+  fetchBarcodePrintItemsForBill,
+} from "@/utils/barcodePurchaseBillItems";
 import {
   DndContext,
   closestCenter,
@@ -1264,6 +1270,8 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
 
 export default function BarcodePrinting() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const purchaseBillIdParam = searchParams.get(BARCODE_PRINT_PURCHASE_BILL_QUERY);
   const routeRequestedTab = useMemo<"standard" | "precision" | null>(() => {
     const tab = (location.state as any)?.openTab;
     if (tab === "standard" || tab === "precision") return tab;
@@ -1284,6 +1292,10 @@ export default function BarcodePrinting() {
   const [labelItems, setLabelItems] = useState<LabelItem[]>(() => {
     try {
       if (hasPendingBarcodePurchaseItems()) return [];
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get(BARCODE_PRINT_PURCHASE_BILL_QUERY)) return [];
+      }
       const saved = localStorage.getItem('barcode_label_items');
       if (saved) return JSON.parse(saved);
     } catch {}
@@ -2101,12 +2113,19 @@ export default function BarcodePrinting() {
   // on the wrong tab from a prior visit.
   const purchaseNavKey = useMemo(() => {
     const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
-    if (!st?.purchaseItems?.length) return null;
-    const billId = st.billId ?? "";
-    const count = st.purchaseItems.length;
-    const firstSku = (st.purchaseItems[0] as { sku_id?: string })?.sku_id ?? "";
-    return `${location.key}|${billId}|${count}|${firstSku}`;
-  }, [location.key, location.state]);
+    if (st?.purchaseItems?.length) {
+      const billId = st.billId ?? "";
+      const count = st.purchaseItems.length;
+      const firstSku = (st.purchaseItems[0] as { sku_id?: string })?.sku_id ?? "";
+      return `${location.key}|${billId}|${count}|${firstSku}`;
+    }
+    if (purchaseBillIdParam) {
+      return `query|${purchaseBillIdParam}|${location.key}`;
+    }
+    const queued = peekBarcodePurchaseItems();
+    if (queued?.navKey) return queued.navKey;
+    return null;
+  }, [location.key, location.state, purchaseBillIdParam]);
 
   // Landing print mode + default preset configured in Settings → Barcode.
   // Kept in refs so a cached (tab-restored) page can re-apply them on a fresh
@@ -3064,17 +3083,52 @@ export default function BarcodePrinting() {
     const fromState = st?.purchaseItems?.length
       ? { navKey: purchaseNavKey, billId: st.billId, items: st.purchaseItems as unknown[] }
       : null;
-    const pending = fromState?.navKey
+    let pending = fromState?.navKey
       ? fromState
-      : consumeBarcodePurchaseItems();
-    if (!pending?.items?.length || !pending.navKey) return;
-    if (appliedPurchaseNavKeyRef.current === pending.navKey) return;
-    appliedPurchaseNavKeyRef.current = pending.navKey;
-    clearBarcodePurchaseItems();
+      : consumeBarcodePurchaseItems(purchaseNavKey ?? undefined);
 
     let cancelled = false;
 
     const load = async () => {
+      if (!pending?.items?.length && currentOrganization?.id) {
+        const billIdForFetch =
+          purchaseBillIdParam ||
+          st?.billId ||
+          readBarcodePurchaseBillContext(currentOrganization.id)?.billId ||
+          null;
+        if (billIdForFetch) {
+          const navKey = `db|${billIdForFetch}`;
+          if (appliedPurchaseNavKeyRef.current !== navKey) {
+            try {
+              const fetched = await fetchBarcodePrintItemsForBill(
+                currentOrganization.id,
+                billIdForFetch,
+              );
+              if (fetched.items.length > 0) {
+                pending = {
+                  navKey,
+                  billId: billIdForFetch,
+                  items: fetched.items,
+                };
+              } else if (!pending?.items?.length) {
+                toast.error("No items found on this purchase bill");
+                return;
+              }
+            } catch (err) {
+              console.error("[BarcodePrinting] purchase bill fallback fetch failed", err);
+              if (!pending?.items?.length) {
+                toast.error("Failed to load purchase bill items");
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      if (!pending?.items?.length || !pending.navKey) return;
+      if (appliedPurchaseNavKeyRef.current === pending.navKey) return;
+      appliedPurchaseNavKeyRef.current = pending.navKey;
+      clearBarcodePurchaseItems();
       let hasPurchasePrices = false;
       let hasStyle = false;
       let hasSupplierCode = false;
@@ -3236,12 +3290,20 @@ export default function BarcodePrinting() {
         setFromPurchaseBill(true);
       }
 
-      // Drop purchaseItems from router state so later setting loads cannot re-merge.
-      if (st?.purchaseItems?.length) {
-        orgNavigate("/barcode-printing", {
-          replace: true,
-          state: billId ? { billId } : {},
-        });
+      // Drop purchaseItems from router state; keep purchaseBillId in the URL for reload survival.
+      if (st?.purchaseItems?.length || billId) {
+        const preserveState = routeRequestedTab ? { openTab: routeRequestedTab } : undefined;
+        if (billId) {
+          orgNavigate(barcodePrintingPathWithBill(billId), {
+            replace: true,
+            state: preserveState,
+          });
+        } else {
+          orgNavigate("/barcode-printing", {
+            replace: true,
+            state: preserveState ?? {},
+          });
+        }
       }
     };
 
@@ -3253,12 +3315,14 @@ export default function BarcodePrinting() {
     isLoadingSettings,
     location.state,
     purchaseNavKey,
+    purchaseBillIdParam,
     currentOrganization?.id,
     purchaseCodeAlphabet,
     purchaseCodeIncludeGst,
     purchaseCodeExtraPercentEnabled,
     purchaseCodeExtraPercent,
     orgNavigate,
+    routeRequestedTab,
   ]);
 
   // Re-sort items when size sort order changes
@@ -6094,7 +6158,7 @@ export default function BarcodePrinting() {
       const navState = location.state as { billId?: string } | null;
       const billNumber = labelItems.find((item) => item.bill_number?.trim())?.bill_number;
       const billId = await resolvePurchaseBillIdForBarcodeReturn(currentOrganization.id, {
-        billId: sourcePurchaseBillId ?? navState?.billId ?? null,
+        billId: sourcePurchaseBillId ?? purchaseBillIdParam ?? navState?.billId ?? null,
         billNumber,
       });
       if (!billId) {
@@ -6109,7 +6173,7 @@ export default function BarcodePrinting() {
     } finally {
       setIsNavigatingToPurchaseBill(false);
     }
-  }, [currentOrganization?.id, labelItems, location.state, orgNavigate, sourcePurchaseBillId]);
+  }, [currentOrganization?.id, labelItems, location.state, orgNavigate, purchaseBillIdParam, sourcePurchaseBillId]);
 
   const totalLabelQty = labelItems.reduce((sum, item) => sum + item.qty, 0);
   const quantityModeLabel =

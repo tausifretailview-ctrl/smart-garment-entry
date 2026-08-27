@@ -137,6 +137,7 @@ import {
   purchaseSaveFailedStockHint,
 } from "@/utils/purchaseBarcodePrintGuard";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
+import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -6352,7 +6353,7 @@ const PurchaseEntry = () => {
       setShowPrintDialog(false);
 
       // Navigate to barcode printing page with items
-      navigate("/barcode-printing", { 
+      navigate(barcodePrintingPathWithBill(gate.billId), { 
         state: { purchaseItems: barcodeItems, billId: gate.billId } 
       });
     } catch (error) {
@@ -8592,7 +8593,7 @@ const PurchaseEntry = () => {
                       }
 
                       setShowPrintDialog(false);
-                      navigate("/barcode-printing", { 
+                      navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
                         state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                       });
                     } catch (error) {
@@ -8674,7 +8675,7 @@ const PurchaseEntry = () => {
                         }
 
                         setShowPrintDialog(false);
-                        navigate("/barcode-printing", { 
+                        navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
                           state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                         });
                       } catch (error) {
