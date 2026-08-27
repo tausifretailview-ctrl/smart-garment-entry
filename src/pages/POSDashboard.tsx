@@ -22,6 +22,7 @@ import {
 import { rankPosDashboardSearchResults } from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
