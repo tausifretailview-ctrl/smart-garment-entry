@@ -7039,6 +7039,8 @@ const PurchaseEntry = () => {
       choices={(mrpTierPicker?.choices ?? []).map((v) => ({
         id: v.id,
         productName: v.product_name,
+        brand: v.brand,
+        style: v.style,
         size: v.size,
         color: v.color,
         mrp: v.mrp ?? 0,
