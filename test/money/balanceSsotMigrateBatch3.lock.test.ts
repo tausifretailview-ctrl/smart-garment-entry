@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
-import { customersForLedgerExport } from "@/utils/customerLedgerListFromPartyBalances";
+import {
+  customersForLedgerExport,
+  partyLedgerListMoneyFields,
+} from "@/utils/customerLedgerListFromPartyBalances";
+import { alignPartyRowFromRpc } from "@/utils/customerPartyBalanceSnapshot";
 import type { CustomerLedgerListRow } from "@/utils/customerLedgerListFromPartyBalances";
 
 /**
@@ -28,6 +32,34 @@ function listRow(
     ...partial,
   };
 }
+
+describe("Step 3 batch 3 — ledger list lifetime totals (C06)", () => {
+  it("partyLedgerListMoneyFields uses enriched lifetime totals, not org window columns", () => {
+    const aligned = {
+      ...alignPartyRowFromRpc(
+        {
+          customer_id: "aa",
+          customer_name: "Aa Production",
+          signed_balance: 8000,
+          advance_available: 500,
+          direction: "Dr",
+          net_position: 7500,
+          total_dr: 3_226_922,
+          total_cr: 1_822_504,
+          net_receivable: 1_404_418,
+        },
+        "",
+      ),
+      lifetime_total_sales: 95_000,
+      lifetime_total_paid: 87_000,
+    };
+    const money = partyLedgerListMoneyFields(aligned, "");
+    expect(money.totalSales).toBe(95_000);
+    expect(money.totalPaid).toBe(87_000);
+    expect(money.balance).toBe(8500);
+    expect(money.unusedAdvanceTotal).toBe(500);
+  });
+});
 
 describe("Step 3 batch 3 — ledger export source (C06/C07)", () => {
   it("export uses enriched slice when filter narrows within enrich cap", () => {

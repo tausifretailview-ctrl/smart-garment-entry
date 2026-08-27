@@ -69,6 +69,50 @@ describe("partyLedgerListMoneyFields", () => {
     expect(money.balance).toBe(8000);
     expect(money.unusedAdvanceTotal).toBe(0);
   });
+
+  it("uses canonical lifetime totals when enriched on the aligned row", () => {
+    const money = partyLedgerListMoneyFields(
+      alignPartyRowFromRpc(
+        {
+          customer_id: "sh",
+          customer_name: "Shumama Baireli",
+          signed_balance: 158_700,
+          advance_available: 0,
+          direction: "Dr",
+          net_position: 158_700,
+          total_dr: 0,
+          total_cr: 0,
+          net_receivable: 0,
+        },
+        "",
+      ),
+      "",
+    );
+    expect(money.totalSales).toBe(0);
+    const enriched = {
+      ...alignPartyRowFromRpc(
+        {
+          customer_id: "sh",
+          customer_name: "Shumama Baireli",
+          signed_balance: 158_700,
+          advance_available: 0,
+          direction: "Dr",
+          net_position: 158_700,
+          total_dr: 0,
+          total_cr: 0,
+          net_receivable: 0,
+        },
+        "",
+      ),
+      lifetime_total_sales: 420_000,
+      lifetime_total_paid: 261_300,
+    };
+    const withLifetime = partyLedgerListMoneyFields(enriched, "");
+    expect(withLifetime.totalSales).toBe(420_000);
+    expect(withLifetime.totalPaid).toBe(261_300);
+    expect(withLifetime.totalCashPaid).toBe(261_300);
+    expect(withLifetime.balance).toBe(158_700);
+  });
 });
 
 function listRow(partial: Partial<CustomerLedgerListRow> & Pick<CustomerLedgerListRow, "id" | "customer_name" | "balance">): CustomerLedgerListRow {

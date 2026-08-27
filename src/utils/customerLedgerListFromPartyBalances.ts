@@ -10,6 +10,7 @@ import {
   enrichPartyRowsWithCanonicalBalance,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
+import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
 
 export type CustomerLedgerListRow = {
   id: string;
@@ -31,21 +32,26 @@ export type CustomerLedgerListRow = {
   discount_percent?: number | null;
 };
 
-/** Per-row money from party RPC. Never copy window total_dr/total_cr (org totals). */
+/** Per-row money from party RPC / canonical enricher. Never copy window total_dr/total_cr. */
 export function partyLedgerListMoneyFields(
-  party: CustomerPartyBalanceRpcRow,
+  party: CustomerPartyBalanceRpcRow | CustomerPartyBalanceAlignedRow,
   phone: string,
 ): Pick<
   CustomerLedgerListRow,
   "totalSales" | "totalPaid" | "balance" | "unusedAdvanceTotal" | "totalCashPaid"
 > {
-  const aligned = alignPartyRowFromRpc(party, phone);
+  const aligned: CustomerPartyBalanceAlignedRow =
+    "gross_outstanding" in party
+      ? party
+      : alignPartyRowFromRpc(party, phone);
+  const totalSales = Math.round(Number(aligned.lifetime_total_sales) || 0);
+  const totalPaid = Math.round(Number(aligned.lifetime_total_paid) || 0);
   return {
-    totalSales: 0,
-    totalPaid: 0,
+    totalSales,
+    totalPaid,
     balance: aligned.gross_outstanding,
     unusedAdvanceTotal: aligned.advance_available,
-    totalCashPaid: 0,
+    totalCashPaid: totalPaid,
   };
 }
 

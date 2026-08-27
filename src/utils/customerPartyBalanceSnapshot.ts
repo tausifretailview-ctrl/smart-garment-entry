@@ -26,6 +26,10 @@ export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
   /** Unused advance pool. */
   advance_available: number;
   cn_available: number;
+  /** Lifetime gross invoiced — from getCustomerAccountState when enriched. */
+  lifetime_total_sales?: number;
+  /** Lifetime settled receipts — from getCustomerAccountState when enriched. */
+  lifetime_total_paid?: number;
 };
 
 export function partyBalanceRowFacets(
@@ -253,17 +257,24 @@ export async function enrichPartyRowsWithCanonicalBalance(
           options: { ledgerAlignedApplicationReceipts: true },
         });
         const signedNet = Math.round(state.netPosition);
+        const lifetime = {
+          lifetime_total_sales: Math.round(state.totalInvoicedGross),
+          lifetime_total_paid: Math.round(state.totalRealPayments),
+        };
         if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
-          return row;
+          return { ...row, ...lifetime };
         }
-        return alignPartyRowFromRpc(
-          {
-            ...row,
-            signed_balance: signedNet,
-            advance_available: state.unusedAdvancePool,
-          },
-          row.phone ?? "",
-        );
+        return {
+          ...alignPartyRowFromRpc(
+            {
+              ...row,
+              signed_balance: signedNet,
+              advance_available: state.unusedAdvancePool,
+            },
+            row.phone ?? "",
+          ),
+          ...lifetime,
+        };
       } catch {
         return row;
       }
