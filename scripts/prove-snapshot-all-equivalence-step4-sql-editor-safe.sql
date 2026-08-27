@@ -1,15 +1,18 @@
 -- =============================================================================
--- STEP 4 — snapshot_all vs get_customer_financial_snapshot (per-customer)
+-- STEP 4 (SQL editor safe) — snapshot_all vs canonical snapshot components
 -- =============================================================================
--- *** BLOCKED on Lovable cloud SQL editor ***
--- get_customer_financial_snapshot → get_customer_true_outstanding → assert_org_member
--- → ERROR 42501: Authentication required (even under postgres role).
+-- Cloud blocks get_customer_financial_snapshot in the SQL editor:
+--   get_customer_true_outstanding → assert_org_member → 42501 Authentication required
 --
--- USE INSTEAD: scripts/prove-snapshot-all-equivalence-step4-sql-editor-safe.sql
--- (reconcile SUM + _customer_advance_available + _customer_cn_available_total)
+-- This script is equivalent to Step 4 (same fields as get_customer_financial_snapshot)
+-- but calls the underlying helpers directly (same pattern as verify-customer-party-
+-- balances-parity.sql):
+--   outstanding_dr  = SUM(reconcile_customer_balance)
+--   advance_available = _customer_advance_available
+--   CN              = _customer_cn_available_total
 --
--- OR Node/JWT: node scripts/prove-snapshot-all-equivalence.mjs
---   (batch ≡ per-customer snapshot; snapshot_all RPC times out at ~8s on ELLA NOOR)
+-- Run ONE block. SET statement_timeout first. Slow on ELLA NOOR (~minutes).
+-- ELLA NOOR: 3fdca631-1e0c-4417-9704-421f5129ff67
 -- =============================================================================
 
 SET statement_timeout = '300s';
@@ -24,15 +27,28 @@ all_snap AS (
 canonical AS (
   SELECT
     a.customer_id,
-    s.outstanding_dr,
-    s.advance_available,
-    s.cn_available_total,
-    s.cn_pending_count
+    canon.outstanding_dr,
+    adv.advance_available,
+    cn.cn_available_total,
+    cn.cn_pending_count
   FROM all_snap a
-  CROSS JOIN LATERAL public.get_customer_financial_snapshot(
+  CROSS JOIN LATERAL (
+    SELECT COALESCE(SUM(r.amount), 0)::numeric AS outstanding_dr
+    FROM public.reconcile_customer_balance(
+      a.customer_id,
+      (SELECT org_id FROM params)
+    ) r
+  ) canon
+  CROSS JOIN LATERAL (
+    SELECT public._customer_advance_available(
+      a.customer_id,
+      (SELECT org_id FROM params)
+    )::numeric AS advance_available
+  ) adv
+  CROSS JOIN LATERAL public._customer_cn_available_total(
     a.customer_id,
     (SELECT org_id FROM params)
-  ) AS s
+  ) cn
 ),
 compared AS (
   SELECT

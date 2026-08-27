@@ -37,25 +37,31 @@ Use `scripts/prove-snapshot-all-equivalence-timed.sql` — **one block at a time
 
 ### A) Lovable SQL editor (postgres, no JWT)
 
+**Do not run** `prove-snapshot-all-equivalence-step4.sql` — cloud raises `42501` via
+`assert_org_member` inside `get_customer_true_outstanding` even under postgres.
+
+Use **`scripts/prove-snapshot-all-equivalence-step4-sql-editor-safe.sql`** instead:
+
 1. `SET statement_timeout = '300s';`
-2. Open `scripts/prove-snapshot-all-equivalence-step4.sql` — run **the whole file** (not the commented block in `timed.sql`).
-3. Expect **one row**: `diff_rows`, `active_customers`, etc.
+2. Run the whole safe file (uses `reconcile_customer_balance` SUM + advance/CN helpers).
+3. Expect **one row**: `diff_rows`, `active_customers`, etc. Takes several minutes.
 
-Takes ~minutes (2,377 × per-customer snapshot + one snapshot_all). If you get `42501 Authentication required`, postgres role cannot call `get_customer_true_outstanding` on cloud — use option B.
-
-**Important:** Step 4 can show `diff_rows = 0` while Step 3 shows 113 drifts. That means `snapshot_all` matches the **batch/per-customer snapshot path** but both diverge from **party RPC** (UI canonical). Cutover gate is Step 3 (party parity), not Step 4 alone.
+**Important:** Step 4 can show `diff_rows = 0` while Step 3 shows 113 drifts if
+`snapshot_all` matches reconcile path but party RPC uses the newer 20261126 body.
+On ELLA NOOR, per-customer snapshot (JWT) **matches party** (SHUMAMA ₹1,58,700) while
+`snapshot_all` shows ₹96,800 — expect **Step 4 safe script to show outstanding drifts**
+matching Step 3 pattern (bug in `snapshot_all` inlined body, not in reconcile RPC).
 
 ### B) Node script (authenticated JWT)
 
 ```powershell
-# Fresh session JWT: DevTools → Application → localStorage → supabase auth token
-# NOT the Supabase dashboard Personal Access Token.
 $env:SUPABASE_ACCESS_TOKEN="<access_token from EzzyERP login>"
 $env:ORG_ID="3fdca631-1e0c-4417-9704-421f5129ff67"
 node scripts/prove-snapshot-all-equivalence.mjs
 ```
 
-Compares `get_customer_financial_snapshot_batch` (chunk 10) vs `snapshot_all`. Exit 0 = match. On ELLA NOOR, `snapshot_all` often **times out at ~8s** on the authenticated client — if it fails, use option A in Lovable instead.
+Batch path (112 RPCs, ~219s) completes; **`snapshot_all` times out at ~8s** on ELLA NOOR.
+Spot-check with JWT: SHUMAMA per-customer snapshot = party = ₹1,58,700; `snapshot_all` = ₹96,800.
 
 **Common mistake:** running Step 2 together with old Step 3 (or the whole file).
 The error stack mentions `get_customer_financial_snapshot` / `assert_org_member` —
