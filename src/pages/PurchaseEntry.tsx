@@ -125,6 +125,7 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import {
+  resolvePurchaseLineItemsForPriceTiers,
   syncLastPurchaseFromBillLines,
   syncVariantPriceFromPurchase,
 } from "@/utils/syncVariantPriceFromPurchase";
@@ -973,6 +974,19 @@ const PurchaseEntry = () => {
           variantId: item.sku_id || undefined,
           mrp: Number(item.mrp) || undefined,
           purchaseDate: format(billDate, "yyyy-MM-dd"),
+        }).then((result) => {
+          if (!result?.forked || result.variantId === item.sku_id) return;
+          setLineItems((prev) =>
+            prev.map((row) =>
+              row.temp_id === tempId
+                ? {
+                    ...row,
+                    sku_id: result.variantId,
+                    product_id: result.productId,
+                  }
+                : row,
+            ),
+          );
         });
       }, 600);
     },
@@ -5235,6 +5249,25 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // Universal EAN: fork sibling SKU when bill line sale price tier differs from matched variant.
+    let billLinesForSave = lineItems;
+    const tierResolveOrgId = currentOrganization?.id;
+    if (tierResolveOrgId) {
+      billLinesForSave = await resolvePurchaseLineItemsForPriceTiers(
+        tierResolveOrgId,
+        lineItems,
+        format(billDate, "yyyy-MM-dd"),
+      );
+      const tierRepoined = billLinesForSave.some(
+        (row, index) =>
+          row.sku_id !== lineItems[index]?.sku_id ||
+          row.product_id !== lineItems[index]?.product_id,
+      );
+      if (tierRepoined) {
+        setLineItems(billLinesForSave);
+      }
+    }
+
     // Force-save draft before attempting bill save (safety net against data loss)
     try {
       await saveDraft({
@@ -5309,7 +5342,7 @@ const PurchaseEntry = () => {
           originalLineItems.map(item => [item.temp_id, item])
         );
         const currentItemsMap = new Map(
-          lineItems.map(item => [item.temp_id, item])
+          billLinesForSave.map(item => [item.temp_id, item])
         );
 
         // 1. Find items to DELETE (in original but not in current)
@@ -5319,7 +5352,7 @@ const PurchaseEntry = () => {
 
         // Client floor + identity freeze (DB trigger is the backstop for stock)
         {
-          const itemsToUpdatePreview = lineItems.filter((item) => originalItemsMap.has(item.temp_id));
+          const itemsToUpdatePreview = billLinesForSave.filter((item) => originalItemsMap.has(item.temp_id));
           const deletedOriginals = originalLineItems.filter((item) => !currentItemsMap.has(item.temp_id));
           const skuIds = [
             ...new Set(
@@ -5431,7 +5464,7 @@ const PurchaseEntry = () => {
         }
 
         // 2. UPDATE existing lines that changed — skip unchanged rows to avoid stock/total trigger churn
-        const itemsToUpdate = lineItems.filter(item => originalItemsMap.has(item.temp_id));
+        const itemsToUpdate = billLinesForSave.filter(item => originalItemsMap.has(item.temp_id));
         const changedItems = itemsToUpdate.filter(item => {
           const orig = originalItemsMap.get(item.temp_id);
           return !orig || hasItemChanged(orig, item);
@@ -5472,7 +5505,7 @@ const PurchaseEntry = () => {
 
         // 3. Find items to INSERT (new items not in original / not already inserted this save)
         const alreadyInsertedTempIds = editSaveInsertedTempIdsRef.current;
-        const newItemEntries = lineItems
+        const newItemEntries = billLinesForSave
           .map((item, index) => ({ item, lineNumber: index + 1 }))
           .filter(
             ({ item }) =>
@@ -5500,7 +5533,7 @@ const PurchaseEntry = () => {
           line_number: lineNumber,
         }));
 
-        let workingLineItems = lineItems;
+        let workingLineItems = billLinesForSave;
         let insertedNewItems: LineItem[] = [];
         if (itemsToInsert.length > 0) {
           // Insert in chunks of 100 to avoid statement timeout on large bills
@@ -5525,7 +5558,7 @@ const PurchaseEntry = () => {
             if (dbId) tempIdToDbId.set(newItemEntries[i].item.temp_id, dbId);
           }
           if (tempIdToDbId.size > 0) {
-            workingLineItems = lineItems.map((item) => {
+            workingLineItems = billLinesForSave.map((item) => {
               const dbId = tempIdToDbId.get(item.temp_id);
               return dbId ? { ...item, temp_id: dbId } : item;
             });
@@ -5669,7 +5702,15 @@ const PurchaseEntry = () => {
             await syncLastPurchaseFromBillLines({
               organizationId: orgId,
               purchaseDate: format(billDate, "yyyy-MM-dd"),
-              items: priceTouchedItems,
+              items: priceTouchedItems.map((item) => ({
+                sku_id: item.sku_id,
+                product_id: item.product_id,
+                barcode: item.barcode,
+                pur_price: item.pur_price,
+                sale_price: item.sale_price,
+                mrp: item.mrp,
+                purchaseItemId: item.temp_id,
+              })),
             });
           }
         } catch (syncErr) {
@@ -5830,7 +5871,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        const saveLines = activeLines.filter((item) => Number(item.qty) > 0);
+        const saveLines = billLinesForSave.filter((item) => Number(item.qty) > 0);
         const rpcItems = saveLines.map((item) => ({
           product_id: item.product_id,
           sku_id: item.sku_id,
@@ -6063,7 +6104,15 @@ const PurchaseEntry = () => {
             await syncLastPurchaseFromBillLines({
               organizationId: currentOrganization.id,
               purchaseDate: format(billDate, "yyyy-MM-dd"),
-              items: lineItems,
+              items: billLinesForSave.map((item) => ({
+                sku_id: item.sku_id,
+                product_id: item.product_id,
+                barcode: item.barcode,
+                pur_price: item.pur_price,
+                sale_price: item.sale_price,
+                mrp: item.mrp,
+                purchaseItemId: item.temp_id.startsWith("import_") ? null : item.temp_id,
+              })),
             });
           }
         } catch (syncErr) {
@@ -7058,6 +7107,7 @@ const PurchaseEntry = () => {
   const purchaseMrpTierDialog = (
     <MrpTierSelectionDialog
       open={mrpTierPicker != null}
+      enableMrp={showMrp}
       onOpenChange={(open) => {
         if (!open) {
           setMrpTierPicker(null);

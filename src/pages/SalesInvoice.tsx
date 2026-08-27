@@ -5572,6 +5572,7 @@ Thank you for choosing us!`;
       {/* MRP tier selection (shared EAN / Jockey-style relabel) */}
       <MrpTierSelectionDialog
         open={mrpTierPicker != null}
+        enableMrp={(settingsData as { purchase_settings?: { show_mrp?: boolean } } | null)?.purchase_settings?.show_mrp === true}
         onOpenChange={(open) => {
           if (!open) {
             setMrpTierPicker(null);

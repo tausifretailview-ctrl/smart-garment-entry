@@ -29,6 +29,8 @@ interface MrpTierSelectionDialogProps {
   barcode: string;
   choices: MrpTierSelectionChoice[];
   onSelect: (choiceId: string) => void;
+  /** When org MRP feature is off, label the picker by sale price (549 vs 569). */
+  enableMrp?: boolean;
 }
 
 function formatCurrency(value: number) {
@@ -46,8 +48,10 @@ export function MrpTierSelectionDialog({
   barcode,
   choices,
   onSelect,
+  enableMrp = true,
 }: MrpTierSelectionDialogProps) {
   const sortedChoices = [...choices].sort((a, b) => b.mrp - a.mrp || a.productName.localeCompare(b.productName));
+  const priceLabel = enableMrp ? "MRP" : "Sale price";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -55,11 +59,11 @@ export function MrpTierSelectionDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <IndianRupee className="h-5 w-5 text-primary" />
-            Select MRP
+            {enableMrp ? "Select MRP" : "Select sale price"}
           </DialogTitle>
           <DialogDescription>
             Barcode <span className="font-mono font-medium text-foreground">{barcode}</span> exists at more than one
-            MRP. Pick the label price on the item you are selling.
+            {enableMrp ? " MRP" : " sale price"}. Pick the price printed on the item you are selling.
           </DialogDescription>
         </DialogHeader>
 
@@ -107,8 +111,8 @@ export function MrpTierSelectionDialog({
                       <div className="text-lg font-bold text-primary tabular-nums">
                         {formatCurrency(displayMrp)}
                       </div>
-                      <div className="text-xs text-muted-foreground">MRP</div>
-                      {choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
+                      <div className="text-xs text-muted-foreground">{priceLabel}</div>
+                      {enableMrp && choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
                         <div className="text-xs font-medium text-foreground tabular-nums mt-0.5">
                           Sale {formatCurrency(choice.salePrice)}
                         </div>
@@ -125,7 +129,7 @@ export function MrpTierSelectionDialog({
                     }}
                   >
                     <Check className="h-4 w-4" />
-                    Use MRP {formatCurrency(displayMrp)}
+                    Use {priceLabel} {formatCurrency(displayMrp)}
                   </Button>
                 </CardContent>
               </Card>
