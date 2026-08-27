@@ -1,5 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
-import { resolveVariantForIncomingPriceTier } from "@/utils/purchaseVariantPriceTierFork";
+import {
+  resolveVariantForIncomingPriceTier,
+  resolveVariantsForIncomingPriceTiers,
+} from "@/utils/purchaseVariantPriceTierFork";
 
 interface SyncVariantPriceParams {
   barcode: string;
@@ -139,29 +142,66 @@ export async function syncLastPurchaseFromBillLines(opts: {
     unique.push(item);
   }
 
-  const CHUNK = 10;
-  for (let i = 0; i < unique.length; i += CHUNK) {
-    const chunk = unique.slice(i, i + CHUNK);
+  const resolveParams = unique.map((item) => ({
+    organizationId,
+    variantId: item.sku_id || undefined,
+    barcode: item.barcode || undefined,
+    incomingPurPrice: Number(item.pur_price) || 0,
+    incomingSalePrice: Number(item.sale_price) || 0,
+    incomingMrp: item.mrp != null ? Number(item.mrp) : undefined,
+    purchaseDate,
+  }));
+
+  const resolvedTiers = await resolveVariantsForIncomingPriceTiers(resolveParams);
+  const lastPurchaseDate = parsePurchaseDate(purchaseDate);
+
+  const UPDATE_CHUNK = 20;
+  for (let i = 0; i < unique.length; i += UPDATE_CHUNK) {
+    const chunk = unique.slice(i, i + UPDATE_CHUNK);
     await Promise.all(
-      chunk.map(async (item) => {
-        const result = await syncVariantPriceFromPurchase({
-          barcode: item.barcode || "",
-          purPrice: Number(item.pur_price) || 0,
-          salePrice: Number(item.sale_price) || 0,
-          organizationId,
-          variantId: item.sku_id || undefined,
-          mrp: item.mrp != null ? Number(item.mrp) : undefined,
-          purchaseDate,
-        });
+      chunk.map(async (item, chunkIndex) => {
+        const resolved = resolvedTiers[i + chunkIndex];
+        if (!resolved) return;
+
+        const purPrice = Number(item.pur_price) || 0;
+        const salePrice = Number(item.sale_price) || 0;
+        const updates: Record<string, number | string> = {
+          pur_price: purPrice,
+          sale_price: salePrice,
+          last_purchase_pur_price: purPrice,
+          last_purchase_sale_price: salePrice,
+          last_purchase_date: lastPurchaseDate,
+        };
+        const mrpVal = item.mrp != null ? Number(item.mrp) : NaN;
+        if (Number.isFinite(mrpVal) && mrpVal > 0) {
+          updates.mrp = mrpVal;
+          updates.last_purchase_mrp = mrpVal;
+        }
+
+        const { error } = await supabase
+          .from("product_variants")
+          .update(updates as never)
+          .eq("organization_id", organizationId)
+          .eq("id", resolved.variantId)
+          .is("deleted_at", null);
+
+        if (error) {
+          console.warn(
+            "[syncVariantPrice] Failed to sync price for barcode:",
+            item.barcode || item.sku_id,
+            error.message,
+          );
+          return;
+        }
 
         if (
-          result?.forked &&
+          resolved.forked &&
           item.purchaseItemId &&
-          result.variantId !== item.sku_id
+          resolved.variantId !== item.sku_id
         ) {
-          const itemUpdates: Record<string, string> = { sku_id: result.variantId };
-          if (item.product_id && result.productId !== item.product_id) {
-            itemUpdates.product_id = result.productId;
+          const itemUpdates: Record<string, string> = { sku_id: resolved.variantId };
+          if (item.product_id && resolved.productId !== item.product_id) {
+            itemUpdates.product_id = resolved.productId;
           }
           const { error: repointErr } = await supabase
             .from("purchase_items")
@@ -198,34 +238,45 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
   items: T[],
   purchaseDate?: string | null,
 ): Promise<T[]> {
-  const resolved: T[] = [];
-  for (const item of items) {
-    if (item.linkExistingSku) {
-      resolved.push(item);
-      continue;
-    }
-    if (!item.sku_id || item.sale_price <= 0 || item.pur_price <= 0) {
-      resolved.push(item);
-      continue;
-    }
-    const forked = await resolveVariantForIncomingPriceTier({
-      organizationId,
-      variantId: item.sku_id,
-      barcode: item.barcode,
-      incomingPurPrice: item.pur_price,
-      incomingSalePrice: item.sale_price,
-      incomingMrp: item.mrp,
-      purchaseDate,
-    });
-    if (!forked || forked.variantId === item.sku_id) {
-      resolved.push(item);
-      continue;
-    }
-    resolved.push({
-      ...item,
-      sku_id: forked.variantId,
-      product_id: forked.productId,
+  const tierParams: Array<{
+    index: number;
+    params: Parameters<typeof resolveVariantsForIncomingPriceTiers>[0][number];
+  }> = [];
+
+  for (let index = 0; index < items.length; index++) {
+    const item = items[index];
+    if (item.linkExistingSku) continue;
+    if (!item.sku_id || item.sale_price <= 0 || item.pur_price <= 0) continue;
+    tierParams.push({
+      index,
+      params: {
+        organizationId,
+        variantId: item.sku_id,
+        barcode: item.barcode,
+        incomingPurPrice: item.pur_price,
+        incomingSalePrice: item.sale_price,
+        incomingMrp: item.mrp,
+        purchaseDate,
+      },
     });
   }
+
+  if (tierParams.length === 0) return items;
+
+  const tierResults = await resolveVariantsForIncomingPriceTiers(
+    tierParams.map((row) => row.params),
+  );
+
+  const resolved = [...items];
+  tierParams.forEach((row, resultIndex) => {
+    const forked = tierResults[resultIndex];
+    if (!forked || forked.variantId === items[row.index].sku_id) return;
+    resolved[row.index] = {
+      ...items[row.index],
+      sku_id: forked.variantId,
+      product_id: forked.productId,
+    };
+  });
+
   return resolved;
 }
