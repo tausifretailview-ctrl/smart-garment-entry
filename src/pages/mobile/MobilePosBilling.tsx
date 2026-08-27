@@ -767,6 +767,7 @@ export default function MobilePosBilling() {
 
       <MrpTierSelectionDialog
         open={mrpTierPicker != null}
+        enableMrp={enableMrp}
         onOpenChange={(open) => {
           if (!open) setMrpTierPicker(null);
         }}

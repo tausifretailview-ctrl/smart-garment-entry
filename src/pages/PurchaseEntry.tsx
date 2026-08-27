@@ -7057,6 +7057,7 @@ const PurchaseEntry = () => {
   const purchaseMrpTierDialog = (
     <MrpTierSelectionDialog
       open={mrpTierPicker != null}
+      enableMrp={showMrp}
       onOpenChange={(open) => {
         if (!open) {
           setMrpTierPicker(null);

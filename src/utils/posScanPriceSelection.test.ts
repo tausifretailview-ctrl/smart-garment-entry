@@ -83,6 +83,15 @@ describe("posBarcodeMatchesNeedMrpPicker", () => {
     ).toBe(true);
   });
 
+  it("detects Jockey-style tiers from variant sale_price when MRP disabled (549 vs 569)", () => {
+    expect(
+      posBarcodeMatchesNeedMrpPicker([
+        { variant: { mrp: 0, sale_price: 549 } },
+        { variant: { mrp: 0, sale_price: 569 } },
+      ]),
+    ).toBe(true);
+  });
+
   it("detects Jockey-style tiers from product default_sale_price when variant MRP unset", () => {
     expect(
       posBarcodeMatchesNeedMrpPicker([

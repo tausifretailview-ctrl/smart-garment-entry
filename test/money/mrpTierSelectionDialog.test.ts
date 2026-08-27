@@ -52,4 +52,20 @@ describe("toMrpTierSelectionChoices", () => {
       salePrice: 569,
     });
   });
+
+  it("maps sale-only tiers for Jockey-style shared EANs (549 vs 569)", () => {
+    const choices = toMrpTierSelectionChoices([
+      {
+        product: { product_name: "BOXER BRIEF", brand: "JOCKEY", style: "8008" },
+        variant: { id: "v1", size: "L", mrp: 0, sale_price: 549, stock_qty: 14 },
+      },
+      {
+        product: { product_name: "BOXER BRIEF", brand: "JOCKEY", style: "8008" },
+        variant: { id: "v2", size: "L", mrp: 0, sale_price: 569, stock_qty: 0 },
+      },
+    ]);
+
+    expect(choices.map((c) => c.mrp)).toEqual([549, 569]);
+    expect(choices.map((c) => c.salePrice)).toEqual([549, 569]);
+  });
 });

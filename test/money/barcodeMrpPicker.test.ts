@@ -23,6 +23,23 @@ describe("resolveBarcodeScanPicker", () => {
     expect(result.showProductPicker).toBe(false);
   });
 
+  it("opens price dialog when tiers differ by sale_price only (MRP feature off)", () => {
+    const matches = [
+      {
+        product: { id: "p1", product_name: "BOXER BRIEF" },
+        variant: { id: "v1", mrp: 0, sale_price: 549, stock_qty: 14 },
+      },
+      {
+        product: { id: "p2", product_name: "BOXER BRIEF" },
+        variant: { id: "v2", mrp: 0, sale_price: 569, stock_qty: 0 },
+      },
+    ];
+    const result = resolveBarcodeScanPicker(matches, inStock);
+    expect(result.needMrpPicker).toBe(true);
+    expect(result.showMrpDialog).toBe(true);
+    expect(result.mrpDialogChoices).toHaveLength(2);
+  });
+
   it("opens MRP dialog when tiers differ via product default_sale_price", () => {
     const matches = [
       {

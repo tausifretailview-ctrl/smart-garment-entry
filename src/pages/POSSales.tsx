@@ -8557,6 +8557,7 @@ export default function POSSales() {
 
         <MrpTierSelectionDialog
           open={mrpTierPicker != null}
+          enableMrp={posRuntimeSettings?.enable_mrp === true}
           onOpenChange={(open) => {
             if (!open) {
               setMrpTierPicker(null);
