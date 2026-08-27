@@ -14,6 +14,8 @@ import { posVariantDisplayMrp } from "@/utils/posScanPriceSelection";
 export type MrpTierSelectionChoice = {
   id: string;
   productName: string;
+  brand?: string | null;
+  style?: string | null;
   size?: string | null;
   color?: string | null;
   mrp: number;
@@ -65,6 +67,7 @@ export function MrpTierSelectionDialog({
           {sortedChoices.map((choice) => {
             const displayMrp = choice.mrp > 0 ? choice.mrp : choice.salePrice;
             const sizeLabel = [choice.size, choice.color].filter(Boolean).join(" · ");
+            const metaBadges = [choice.brand?.trim(), choice.style?.trim()].filter(Boolean) as string[];
 
             return (
               <Card
@@ -79,10 +82,19 @@ export function MrpTierSelectionDialog({
                         <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <span className="font-medium truncate">{choice.productName}</span>
                       </div>
-                      {sizeLabel ? (
-                        <Badge variant="outline" className="text-xs">
-                          {sizeLabel}
-                        </Badge>
+                      {metaBadges.length > 0 || sizeLabel ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {metaBadges.map((label) => (
+                            <Badge key={label} variant="secondary" className="text-xs">
+                              {label}
+                            </Badge>
+                          ))}
+                          {sizeLabel ? (
+                            <Badge variant="outline" className="text-xs">
+                              {sizeLabel}
+                            </Badge>
+                          ) : null}
+                        </div>
                       ) : null}
                       <p className="text-xs text-muted-foreground tabular-nums">
                         Stock: {choice.stockQty.toLocaleString("en-IN")}
@@ -96,6 +108,11 @@ export function MrpTierSelectionDialog({
                         {formatCurrency(displayMrp)}
                       </div>
                       <div className="text-xs text-muted-foreground">MRP</div>
+                      {choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
+                        <div className="text-xs font-medium text-foreground tabular-nums mt-0.5">
+                          Sale {formatCurrency(choice.salePrice)}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <Button
@@ -123,7 +140,12 @@ export function MrpTierSelectionDialog({
 /** Map product/variant match rows into dialog choices. */
 export function toMrpTierSelectionChoices(
   matches: Array<{
-    product: { product_name?: string | null; default_sale_price?: number | string | null };
+    product: {
+      product_name?: string | null;
+      brand?: string | null;
+      style?: string | null;
+      default_sale_price?: number | string | null;
+    };
     variant: {
       id: string;
       size?: string | null;
@@ -137,6 +159,8 @@ export function toMrpTierSelectionChoices(
   return matches.map((m) => ({
     id: m.variant.id,
     productName: m.product.product_name?.trim() || "Product",
+    brand: m.product.brand,
+    style: m.product.style,
     size: m.variant.size,
     color: m.variant.color,
     mrp: posVariantDisplayMrp(m.variant, m.product),
