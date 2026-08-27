@@ -28,12 +28,18 @@ describe("quotationPrintTemplate", () => {
     );
   });
 
-  it("merges Settings → Sale terms with quotation terms", () => {
-    const text = mergeQuotationTerms("Project-specific: 50% advance.", {
+  it("merges Sale terms only when org opts in", () => {
+    const saleSettings = {
       terms_list: ["Payment within 7 days.", "GST extra as applicable."],
+    };
+    expect(mergeQuotationTerms("Project-specific: 50% advance.", saleSettings)).toBe(
+      "Project-specific: 50% advance.",
+    );
+    const merged = mergeQuotationTerms("Project-specific: 50% advance.", {
+      ...saleSettings,
+      merge_sale_terms_on_quotation: true,
     });
-    expect(text).toContain("1. Payment within 7 days.");
-    expect(text).toContain("2. GST extra as applicable.");
-    expect(text).toContain("Project-specific: 50% advance.");
+    expect(merged).toContain("1. Payment within 7 days.");
+    expect(merged).toContain("Project-specific: 50% advance.");
   });
 });
