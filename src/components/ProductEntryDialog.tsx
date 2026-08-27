@@ -67,6 +67,7 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
 import {
   clearProductEntryUnsavedDraft,
   productEntryDraftIsMeaningful,
@@ -2036,7 +2037,7 @@ export const ProductEntryDialog = ({
       ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
       : [...variants];
 
-    // Accessories: N UI unit rows → one SKU per color with summed purchase_qty + shared EAN.
+    // Accessories: N UI unit rows → one SKU per color+MRP tier with summed purchase_qty + shared EAN.
     if (
       mobileERPMode?.locked_size_qty &&
       formData.requires_imei === false &&
@@ -2044,7 +2045,7 @@ export const ProductEntryDialog = ({
     ) {
       const collapsed = new Map<string, ProductVariant>();
       for (const v of variantsToCreate) {
-        const key = v.color || "";
+        const key = accessoryVariantCollapseKey(v.color, v.mrp, v.sale_price);
         const existing = collapsed.get(key);
         if (!existing) {
           collapsed.set(key, {
