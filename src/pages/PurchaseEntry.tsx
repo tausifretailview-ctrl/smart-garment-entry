@@ -129,7 +129,13 @@ import {
   syncLastPurchaseFromBillLines,
   syncVariantPriceFromPurchase,
 } from "@/utils/syncVariantPriceFromPurchase";
-import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
+import {
+  buildUseExistingProductConfirmMessage,
+  purchaseLinePricesDiffer,
+  purchaseLinePricesFromUseExisting,
+  type PurchaseLinePriceSnapshot,
+  type UseExistingProductPayload,
+} from "@/utils/purchaseUseExistingProduct";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
@@ -279,6 +285,8 @@ interface LineItem {
   uom?: string;
   /** From products.requires_imei — default true when missing. */
   requires_imei?: boolean;
+  /** User chose "Use existing product" — keep sku_id even when line price tier differs. */
+  linkExistingSku?: boolean;
 }
 
 function normalizeItemCompareString(val: string | null | undefined): string | null {
@@ -928,6 +936,12 @@ const PurchaseEntry = () => {
   // Barcode duplicate warning state
   const [barcodeWarnings, setBarcodeWarnings] = useState<Map<string, string>>(new Map());
   const [showBarcodeConflictDialog, setShowBarcodeConflictDialog] = useState(false);
+  const [useExistingProductConfirm, setUseExistingProductConfirm] = useState<{
+    variant: ProductVariant;
+    payload: UseExistingProductPayload;
+    storedPrices: PurchaseLinePriceSnapshot;
+    linePrices: PurchaseLinePriceSnapshot;
+  } | null>(null);
   const pendingBarcodeSaveRef = useRef(false);
   const barcodeCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const barcodeCheckGenRef = useRef(0);
@@ -959,6 +973,7 @@ const PurchaseEntry = () => {
       syncDebounceRef.current[tempId] = setTimeout(() => {
         const item = lineItemsRef.current.find((i) => i.temp_id === tempId);
         if (!item?.barcode && !item?.sku_id) return;
+        if (item.linkExistingSku) return;
 
         const purPrice = Number(item.pur_price) || 0;
         const salePrice = Number(item.sale_price) || 0;
@@ -3105,7 +3120,19 @@ const PurchaseEntry = () => {
   );
 
   const addOrIncrementScannedVariant = useCallback(
-    async (variant: ProductVariant) => {
+    async (
+      variant: ProductVariant,
+      options?: {
+        linePriceOverride?: PurchaseLinePriceSnapshot;
+        linkExistingSku?: boolean;
+      },
+    ) => {
+      const linePrices: PurchaseLinePriceSnapshot = options?.linePriceOverride ?? {
+        pur_price: variant.pur_price || 0,
+        sale_price: variant.sale_price || 0,
+        mrp: variant.mrp || 0,
+      };
+
       // Resolve UOM before mutating lines so a second scan never races on stale lineItems.
       let resolvedUom = variant.uom || "NOS";
       if (!variant.uom && variant.product_id) {
@@ -3157,9 +3184,9 @@ const PurchaseEntry = () => {
           product_name: variant.product_name,
           size: variant.size || "",
           qty: 1,
-          pur_price: variant.pur_price || 0,
-          sale_price: variant.sale_price || 0,
-          mrp: variant.mrp || 0,
+          pur_price: linePrices.pur_price || 0,
+          sale_price: linePrices.sale_price || 0,
+          mrp: linePrices.mrp || 0,
           gst_per: variant.gst_per || 0,
           hsn_code: variant.hsn_code || "",
           barcode: variant.barcode || "",
@@ -3170,6 +3197,7 @@ const PurchaseEntry = () => {
           style: variant.style || "",
           uom: resolvedUom,
           requires_imei: variant.requires_imei === true,
+          ...(options?.linkExistingSku ? { linkExistingSku: true } : {}),
         });
         const next = [...prev, newRow];
         setVisibleItemCount((vc) =>
@@ -3292,9 +3320,29 @@ const PurchaseEntry = () => {
     ],
   );
 
+  const applyUseExistingProductToBill = useCallback(
+    async (variant: ProductVariant, payload: UseExistingProductPayload) => {
+      const storedPrices: PurchaseLinePriceSnapshot = {
+        pur_price: Number(variant.pur_price) || 0,
+        sale_price: Number(variant.sale_price) || 0,
+        mrp: Number(variant.mrp) || 0,
+      };
+      const linePrices = purchaseLinePricesFromUseExisting(payload, storedPrices);
+      await addOrIncrementScannedVariant(variant, {
+        linePriceOverride: linePrices,
+        linkExistingSku: true,
+      });
+      focusSearchBar();
+    },
+    [addOrIncrementScannedVariant, focusSearchBar],
+  );
+
   const handleUseExistingProductFromDialog = useCallback(
-    async (barcode: string) => {
+    async (payload: UseExistingProductPayload) => {
       closeProductDialog(false);
+      const barcode = payload.barcode.trim();
+      if (!barcode) return;
+
       const variant = await fetchExactBarcodeVariant(barcode);
       if (!variant) {
         toast({
@@ -3304,10 +3352,32 @@ const PurchaseEntry = () => {
         });
         return;
       }
-      await addOrIncrementScannedVariant(variant);
-      focusSearchBar();
+
+      const storedPrices: PurchaseLinePriceSnapshot = {
+        pur_price: Number(variant.pur_price) || 0,
+        sale_price: Number(variant.sale_price) || 0,
+        mrp: Number(variant.mrp) || 0,
+      };
+      const linePrices = purchaseLinePricesFromUseExisting(payload, storedPrices);
+
+      if (purchaseLinePricesDiffer(linePrices, storedPrices)) {
+        setUseExistingProductConfirm({
+          variant,
+          payload,
+          storedPrices,
+          linePrices,
+        });
+        return;
+      }
+
+      await applyUseExistingProductToBill(variant, payload);
     },
-    [closeProductDialog, fetchExactBarcodeVariant, addOrIncrementScannedVariant, toast, focusSearchBar],
+    [
+      closeProductDialog,
+      fetchExactBarcodeVariant,
+      applyUseExistingProductToBill,
+      toast,
+    ],
   );
 
   const searchProducts = async (query: string) => {
@@ -5710,6 +5780,7 @@ const PurchaseEntry = () => {
                 sale_price: item.sale_price,
                 mrp: item.mrp,
                 purchaseItemId: item.temp_id,
+                linkExistingSku: item.linkExistingSku,
               })),
             });
           }
@@ -6112,6 +6183,7 @@ const PurchaseEntry = () => {
                 sale_price: item.sale_price,
                 mrp: item.mrp,
                 purchaseItemId: item.temp_id.startsWith("import_") ? null : item.temp_id,
+                linkExistingSku: item.linkExistingSku,
               })),
             });
           }
@@ -8945,6 +9017,46 @@ const PurchaseEntry = () => {
               }}
             >
               Save Anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Use existing product — confirm when typed price differs from master */}
+      <AlertDialog
+        open={useExistingProductConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setUseExistingProductConfirm(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Use existing product?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {useExistingProductConfirm
+                ? buildUseExistingProductConfirmMessage(
+                    useExistingProductConfirm.storedPrices,
+                    useExistingProductConfirm.linePrices,
+                  )
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => {
+                const pending = useExistingProductConfirm;
+                setUseExistingProductConfirm(null);
+                if (pending) {
+                  void applyUseExistingProductToBill(pending.variant, pending.payload);
+                }
+              }}
+            >
+              Add to bill
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

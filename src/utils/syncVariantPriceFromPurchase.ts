@@ -109,6 +109,8 @@ export type SyncLastPurchaseBillItem = {
   mrp?: number | null;
   /** purchase_items.id — when set, repoint sku_id after tier fork. */
   purchaseItemId?: string | null;
+  /** Skip master sync / tier fork — bill line keeps typed price on linked sku. */
+  linkExistingSku?: boolean;
 };
 
 /**
@@ -127,6 +129,7 @@ export async function syncLastPurchaseFromBillLines(opts: {
   const unique: SyncLastPurchaseBillItem[] = [];
   const seen = new Set<string>();
   for (const item of items) {
+    if (item.linkExistingSku) continue;
     const key = item.purchaseItemId || item.sku_id || item.barcode || "";
     if (!key || seen.has(key)) continue;
     seen.add(key);
@@ -189,6 +192,7 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
   pur_price: number;
   sale_price: number;
   mrp?: number;
+  linkExistingSku?: boolean;
 }>(
   organizationId: string,
   items: T[],
@@ -196,6 +200,10 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
 ): Promise<T[]> {
   const resolved: T[] = [];
   for (const item of items) {
+    if (item.linkExistingSku) {
+      resolved.push(item);
+      continue;
+    }
     if (!item.sku_id || item.sale_price <= 0 || item.pur_price <= 0) {
       resolved.push(item);
       continue;
