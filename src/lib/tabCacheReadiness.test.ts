@@ -13,6 +13,7 @@ import {
   isPaintedTabSibling,
   paneLooksPaintedFromFlags,
   resolveTabPageFallbackKind,
+  shouldRemountStuckCacheableEntry,
   shouldSilentTabSuspenseFallback,
   tabCacheWorkspaceLooksPainted,
   usesLongLoadBudget,
@@ -86,6 +87,11 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(src).not.toMatch(/effectiveTabPaneReady = tabPaneReady \|\| tabPaneWasReady \|\| paneMounted/);
   });
 
+  it("TabCachedPages always intent-prefetches on tab activation", () => {
+    const src = readFileSync(join(here, "../components/TabCachedPages.tsx"), "utf8");
+    expect(src).toMatch(/prefetchTabPage\(resolvedActivePath, \{ intent: true \}\)/);
+  });
+
   it("TabCachedPages soft-retry runs even during silent cold-nav", () => {
     const src = readFileSync(join(here, "../components/TabCachedPages.tsx"), "utf8");
     expect(src).not.toMatch(/if \(!softFired && !silent\)/);
@@ -97,10 +103,45 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(src).toMatch(/usesLongLoadBudget/);
     expect(src).toMatch(/from ["']@\/lib\/tabCacheReadiness["']/);
     expect(src).toMatch(/hasPaintedWorkspaceContent/);
+    expect(src).toMatch(/shouldRemountStuckCacheableEntry/);
+    expect(src).toMatch(/CACHEABLE_ENTRY_STUCK_RESCUE_MS/);
+    expect(src).toMatch(/POS_CONTEXT_WARM_TAB_PATH/);
     const rescueSkip = src.includes("if (usesLongLoadBudget) return;");
     const watchdogSkip = src.includes("if (usesLongLoadBudget || forceOutletFallback) return;");
     expect(rescueSkip).toBe(true);
     expect(watchdogSkip).toBe(true);
+  });
+});
+
+describe("shouldRemountStuckCacheableEntry", () => {
+  it("targets cacheable entry on tab-cache when content is not ready", () => {
+    expect(
+      shouldRemountStuckCacheableEntry({
+        isCacheableEntryActive: true,
+        contentReady: false,
+        renderViaTabCache: true,
+        forceOutletFallback: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not remount after content is ready or on Outlet fallback", () => {
+    expect(
+      shouldRemountStuckCacheableEntry({
+        isCacheableEntryActive: true,
+        contentReady: true,
+        renderViaTabCache: true,
+        forceOutletFallback: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldRemountStuckCacheableEntry({
+        isCacheableEntryActive: true,
+        contentReady: false,
+        renderViaTabCache: false,
+        forceOutletFallback: false,
+      }),
+    ).toBe(false);
   });
 });
 

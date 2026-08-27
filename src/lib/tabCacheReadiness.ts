@@ -16,6 +16,24 @@ export function usesLongLoadBudget(
 }
 
 /**
+ * Cacheable entry (purchase-entry) from an outlet route (POS) has no painted
+ * tab-cache sibling and is exempt from the 1.2s blank-frame / 4s Outlet rescue.
+ * A load shell counts as painted, so those timers never fire even when Suspense
+ * is stuck. Remount the tab-cache chunk instead of handing off to Outlet.
+ */
+export function shouldRemountStuckCacheableEntry(opts: {
+  isCacheableEntryActive: boolean;
+  contentReady: boolean;
+  renderViaTabCache: boolean;
+  forceOutletFallback: boolean;
+}): boolean {
+  if (!opts.isCacheableEntryActive) return false;
+  if (!opts.renderViaTabCache || opts.forceOutletFallback) return false;
+  if (opts.contentReady) return false;
+  return true;
+}
+
+/**
  * A sibling may silence the active Suspense shell / keep tab-cache as render owner
  * only when it is mounted AND its lazy page has committed (onReady).
  * `chunkLoaded` is ignored — prefetch is not paint.
