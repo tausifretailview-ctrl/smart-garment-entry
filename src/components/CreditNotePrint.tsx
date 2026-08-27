@@ -6,7 +6,7 @@ interface CreditNotePrintProps {
     credit_note_number: string;
     customer_name: string;
     customer_phone?: string | null;
-    credit_amount: number;
+    credit_amount: number | null | undefined;
     issue_date: string;
     expiry_date?: string | null;
     notes?: string | null;
@@ -70,8 +70,13 @@ const amountInWords = (amount: number): string => {
   return result;
 };
 
+export function formatCreditNoteAmount(amount: number | null | undefined): string {
+  return Number(amount ?? 0).toFixed(2);
+}
+
 export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintProps>(
   ({ creditNote, settings, format = 'a5' }, ref) => {
+    const creditAmount = Number(creditNote.credit_amount ?? 0);
     const isThermal = format === 'thermal';
     const pageSize = format === 'a4'
       ? 'A4 portrait'
@@ -198,7 +203,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
         }}>
           <div style={{ fontSize: '9pt', marginBottom: '6px' }}>Credit Amount</div>
           <div style={{ fontSize: '18pt', fontWeight: 'bold' }}>
-            ₹{creditNote.credit_amount.toFixed(2)}
+            ₹{formatCreditNoteAmount(creditNote.credit_amount)}
           </div>
           <div style={{ 
             fontSize: '8pt', 
@@ -207,7 +212,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
             borderTop: '1px solid #ccc',
             paddingTop: '8px'
           }}>
-            {amountInWords(creditNote.credit_amount)}
+            {amountInWords(creditAmount)}
           </div>
         </div>
 
