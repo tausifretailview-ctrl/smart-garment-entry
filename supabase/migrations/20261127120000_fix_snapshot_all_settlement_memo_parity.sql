@@ -5,6 +5,8 @@
 --
 -- Closes CN-memo double-count (e.g. SHUMAMA BAIRELI ₹61,900 drift vs party/reconcile).
 
+DROP FUNCTION IF EXISTS public.get_customer_financial_snapshot_all(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_customer_financial_snapshot_all(
   p_organization_id uuid
 )
@@ -13,7 +15,9 @@ RETURNS TABLE (
   outstanding_dr numeric,
   advance_available numeric,
   cn_available_total numeric,
-  cn_pending_count integer
+  cn_pending_count integer,
+  gross_outstanding_dr numeric,
+  net_position numeric
 )
 LANGUAGE plpgsql
 STABLE
@@ -351,10 +355,12 @@ BEGIN
   )
   SELECT
     b.cust_id,
-    b.bal_signed,
-    b.unused_advance_pool,
-    COALESCE(ct.cn_available_total, 0)::numeric,
-    COALESCE(ct.cn_pending_count, 0)::integer
+    ROUND(b.bal_signed::numeric, 2) AS outstanding_dr,
+    ROUND(b.unused_advance_pool::numeric, 2) AS advance_available,
+    COALESCE(ct.cn_available_total, 0)::numeric AS cn_available_total,
+    COALESCE(ct.cn_pending_count, 0)::integer AS cn_pending_count,
+    ROUND((b.bal_signed + GREATEST(b.unused_advance_pool, 0::numeric))::numeric, 2) AS gross_outstanding_dr,
+    ROUND(b.bal_signed::numeric, 2) AS net_position
   FROM balances b
   LEFT JOIN cn_totals ct ON ct.customer_id = b.cust_id
   ORDER BY b.cust_id;
