@@ -329,6 +329,53 @@ export async function recordSalaryVoucherJournalEntry(
 }
 
 /**
+ * Third-party pay/receive (voucher_entries.id): DR/CR party master + cash/bank.
+ * `partyAccountId` is stored on voucher.reference_id; journal reference_id is the voucher row id.
+ */
+export async function recordThirdPartyVoucherJournalEntry(
+  voucherEntryId: string,
+  organizationId: string,
+  direction: "paid_out" | "received",
+  partyAccountId: string,
+  cashBankAccountId: string,
+  amount: number,
+  entryDate: string,
+  description: string,
+  client: any = supabase,
+) {
+  if (!voucherEntryId) throw new Error("voucherEntryId is required");
+  if (!organizationId) throw new Error("organizationId is required");
+  if (!partyAccountId) throw new Error("partyAccountId is required");
+  if (!cashBankAccountId) throw new Error("cashBankAccountId is required");
+
+  const net = round2(amount);
+  if (net <= 0) return null;
+
+  const lines: PostJournalLineInput[] =
+    direction === "paid_out"
+      ? [
+          { accountId: partyAccountId, debitAmount: net, creditAmount: 0 },
+          { accountId: cashBankAccountId, debitAmount: 0, creditAmount: net },
+        ]
+      : [
+          { accountId: cashBankAccountId, debitAmount: net, creditAmount: 0 },
+          { accountId: partyAccountId, debitAmount: 0, creditAmount: net },
+        ];
+
+  const desc = description.trim() || `Third-party voucher ${voucherEntryId.slice(0, 8)}`;
+  const result = await postJournalEntry({
+    organizationId,
+    date: entryDate,
+    referenceType: "ThirdPartyVoucher",
+    referenceId: voucherEntryId,
+    description: desc,
+    lines,
+    client,
+  });
+  return result.journalEntryId;
+}
+
+/**
  * Customer receipt (voucher_entries.id): DR Cash/Bank + DR settlement discount (6050) as needed, CR AR.
  * Call only when payment_method is not `advance_adjustment`.
  */
@@ -677,6 +724,60 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
 
   if (vt === "payment" && rt === "employee") {
     await recordSalaryVoucherJournalEntry(voucherId, orgId, amt, pm || "cash", vDate, desc, client);
+    return;
+  }
+
+  if (vt === "payment" && rt === "third_party") {
+    const { data: coaRows, error: coaErr } = await client
+      .from("chart_of_accounts")
+      .select("id, account_code, account_name, account_type")
+      .eq("organization_id", orgId)
+      .in("account_code", ["1000", "1010"]);
+    if (coaErr) throw coaErr;
+    const accounts = (coaRows || []) as Array<{ id: string; account_code: string; account_name: string; account_type: string }>;
+    const partyAccountId = String(v.reference_id || "");
+    if (!partyAccountId) {
+      throw new Error("Third-party voucher missing party reference_id");
+    }
+    const paymentAccount = resolveCashOrBankLedgerAccount(accounts as any, pm || "cash");
+    await recordThirdPartyVoucherJournalEntry(
+      voucherId,
+      orgId,
+      "paid_out",
+      partyAccountId,
+      paymentAccount.id,
+      amt,
+      vDate,
+      desc,
+      client,
+    );
+    return;
+  }
+
+  if (vt === "receipt" && rt === "third_party") {
+    const { data: coaRows, error: coaErr } = await client
+      .from("chart_of_accounts")
+      .select("id, account_code, account_name, account_type")
+      .eq("organization_id", orgId)
+      .in("account_code", ["1000", "1010"]);
+    if (coaErr) throw coaErr;
+    const accounts = (coaRows || []) as Array<{ id: string; account_code: string; account_name: string; account_type: string }>;
+    const partyAccountId = String(v.reference_id || "");
+    if (!partyAccountId) {
+      throw new Error("Third-party voucher missing party reference_id");
+    }
+    const paymentAccount = resolveCashOrBankLedgerAccount(accounts as any, pm || "cash");
+    await recordThirdPartyVoucherJournalEntry(
+      voucherId,
+      orgId,
+      "received",
+      partyAccountId,
+      paymentAccount.id,
+      amt,
+      vDate,
+      desc,
+      client,
+    );
     return;
   }
 

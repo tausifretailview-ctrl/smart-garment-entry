@@ -26,6 +26,7 @@ import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -244,6 +245,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     const supplierPayments = emptyBreakdown();
     const expenses = emptyBreakdown();
     const employeeSalary = emptyBreakdown();
+    const thirdPartyPayments = emptyBreakdown();
     const saleReturnRefunds = emptyBreakdown();
     const advanceRefunds = emptyBreakdown();
 
@@ -320,6 +322,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       } else if (v.voucher_type === 'payment') {
         if (v.reference_type === 'supplier') addToBreakdown(supplierPayments, rawAmt);
         else if (v.reference_type === 'employee') addToBreakdown(employeeSalary, rawAmt);
+        else if (classifyDailyTallyPaymentOutflow(v) === 'third_party') addToBreakdown(thirdPartyPayments, rawAmt);
         else if (v.reference_type === 'customer') addToBreakdown(saleReturnRefunds, rawAmt);
       } else if (v.voucher_type === 'expense' || v.category === 'expense') {
         addToBreakdown(expenses, rawAmt);
@@ -356,7 +359,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       advanceRefunds.total += amt;
     });
 
-    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, saleReturnRefunds, advanceRefunds };
+    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, thirdPartyPayments, saleReturnRefunds, advanceRefunds };
   }, [salesData, vouchersData, advancesData, refundsData, advanceRefundsData]);
 
   // ─── Totals ────────────────────────────────────────────────────────
@@ -370,7 +373,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
 
   const totalOut = useMemo(() => {
     const b = emptyBreakdown();
-    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.saleReturnRefunds, aggregated.advanceRefunds].forEach(s => {
+    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.thirdPartyPayments, aggregated.saleReturnRefunds, aggregated.advanceRefunds].forEach(s => {
       b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.credit += s.credit; b.total += s.total;
     });
     return b;
@@ -527,6 +530,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
                 <CompactRow label="Supplier Payment" amount={aggregated.supplierPayments.total} color="text-rose-600" />
                 <CompactRow label="Shop Expense" amount={aggregated.expenses.total} color="text-rose-600" />
                 <CompactRow label="Employee Salary" amount={aggregated.employeeSalary.total} color="text-rose-600" />
+                <CompactRow label="Third-party Payment" amount={aggregated.thirdPartyPayments.total} color="text-rose-600" />
                 <CompactRow label="Sale Return Refund" amount={aggregated.saleReturnRefunds.total} color="text-rose-600" />
               </div>
             </div>
