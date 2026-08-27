@@ -16,6 +16,7 @@ export type JournalReferenceType =
   | "SaleReturn"
   | "PurchaseReturn"
   | "ManualJournal"
+  | "ThirdPartyVoucher"
   | "Contra"
   | "RoundOff";
 

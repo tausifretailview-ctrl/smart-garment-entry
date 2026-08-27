@@ -40,6 +40,7 @@ const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("
 
 import { useReactToPrint } from "react-to-print";
 import DailyTallyReport from "@/components/DailyTallyReport";
+import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";
 import {
   ResponsiveContainer,
@@ -288,6 +289,7 @@ const DailyTally = () => {
     const supplierPayments = emptyBreakdown();
     const expenses = emptyBreakdown();
     const employeeSalary = emptyBreakdown();
+    const thirdPartyPayments = emptyBreakdown();
     const saleReturnRefunds = emptyBreakdown();
 
     const isHoldLikeSale = (s: any) => {
@@ -353,6 +355,8 @@ const DailyTally = () => {
         addToMode(supplierPayments, rawAmt);
       } else if (v.voucher_type === "payment" && v.reference_type === "employee") {
         addToMode(employeeSalary, rawAmt);
+      } else if (classifyDailyTallyPaymentOutflow(v) === "third_party") {
+        addToMode(thirdPartyPayments, rawAmt);
       } else if (v.voucher_type === "expense") {
         addToMode(expenses, rawAmt);
       }
@@ -378,7 +382,7 @@ const DailyTally = () => {
       }
     });
 
-    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, saleReturnRefunds };
+    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, thirdPartyPayments, saleReturnRefunds };
   }, [salesData, vouchersData, advancesData, refundsData]);
 
   // ─── Totals ────────────────────────────────────────────────────────
@@ -392,7 +396,7 @@ const DailyTally = () => {
 
   const totalOut = useMemo(() => {
     const b = emptyBreakdown();
-    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.saleReturnRefunds].forEach(s => {
+    [aggregated.supplierPayments, aggregated.expenses, aggregated.employeeSalary, aggregated.thirdPartyPayments, aggregated.saleReturnRefunds].forEach(s => {
       b.cash += s.cash; b.upi += s.upi; b.card += s.card; b.bank += s.bank; b.credit += s.credit; b.total += s.total;
     });
     return b;
@@ -481,6 +485,7 @@ const DailyTally = () => {
       ["Supplier Payment", aggregated.supplierPayments.cash, aggregated.supplierPayments.upi, aggregated.supplierPayments.card, aggregated.supplierPayments.bank, aggregated.supplierPayments.credit, aggregated.supplierPayments.total],
       ["Shop Expense", aggregated.expenses.cash, aggregated.expenses.upi, aggregated.expenses.card, aggregated.expenses.bank, aggregated.expenses.credit, aggregated.expenses.total],
       ["Employee Salary", aggregated.employeeSalary.cash, aggregated.employeeSalary.upi, aggregated.employeeSalary.card, aggregated.employeeSalary.bank, aggregated.employeeSalary.credit, aggregated.employeeSalary.total],
+      ["Third-party Payment", aggregated.thirdPartyPayments.cash, aggregated.thirdPartyPayments.upi, aggregated.thirdPartyPayments.card, aggregated.thirdPartyPayments.bank, aggregated.thirdPartyPayments.credit, aggregated.thirdPartyPayments.total],
       ["Sale Return Refund", aggregated.saleReturnRefunds.cash, aggregated.saleReturnRefunds.upi, aggregated.saleReturnRefunds.card, aggregated.saleReturnRefunds.bank, aggregated.saleReturnRefunds.credit, aggregated.saleReturnRefunds.total],
       ["Total Outward", totalOut.cash, totalOut.upi, totalOut.card, totalOut.bank, totalOut.credit, totalOut.total],
       [],
@@ -807,6 +812,7 @@ const DailyTally = () => {
                   <MoneyRow label="Supplier Payment" data={aggregated.supplierPayments} type="out" />
                   <MoneyRow label="Shop Expense" data={aggregated.expenses} type="out" />
                   <MoneyRow label="Employee Salary" data={aggregated.employeeSalary} type="out" />
+                  <MoneyRow label="Third-party Payment" data={aggregated.thirdPartyPayments} type="out" />
                   <MoneyRow label="Sale Return Refund" data={aggregated.saleReturnRefunds} type="out" />
                 </TableBody>
                 <TableFooter>

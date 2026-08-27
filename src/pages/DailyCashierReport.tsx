@@ -275,7 +275,37 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading || customerRefundsLoading || feesLoading || expensesLoading;
+  // Third-party cash/bank outflows (payment vouchers — separate from shop expenses)
+  const { data: thirdPartyOutflowData, isLoading: thirdPartyOutflowLoading } = useQuery({
+    queryKey: ["cashier-report-third-party", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const startDateStr = format(startDate, "yyyy-MM-dd");
+      const endDateStr = format(endDate, "yyyy-MM-dd");
+      try {
+        const { data, error } = await supabase
+          .from("voucher_entries")
+          .select("id, total_amount, payment_method, description")
+          .eq("organization_id", currentOrganization.id)
+          .eq("voucher_type", "payment")
+          .eq("reference_type", "third_party")
+          .gte("voucher_date", startDateStr)
+          .lte("voucher_date", endDateStr)
+          .is("deleted_at", null);
+        if (error) {
+          console.error("Third-party outflow query error:", error);
+          return [];
+        }
+        return data || [];
+      } catch (e) {
+        console.error("Third-party outflow query failed:", e);
+        return [];
+      }
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || customerRefundsLoading || feesLoading || expensesLoading || thirdPartyOutflowLoading;
 
   const { data: settings } = useSettings();
 
@@ -564,6 +594,23 @@ const DailyCashierReport = () => {
     }
     const expenseTotal = expenseCash + expenseUpi + expenseCard + expenseOther;
 
+    let thirdPartyOutflowCash = 0;
+    let thirdPartyOutflowUpi = 0;
+    let thirdPartyOutflowCard = 0;
+    let thirdPartyOutflowOther = 0;
+    if (thirdPartyOutflowData) {
+      thirdPartyOutflowData.forEach((row: any) => {
+        const amt = Number(row.total_amount) || 0;
+        const method = (row.payment_method || "cash").toLowerCase();
+        if (method === "cash") thirdPartyOutflowCash += amt;
+        else if (method === "upi") thirdPartyOutflowUpi += amt;
+        else if (method === "card") thirdPartyOutflowCard += amt;
+        else thirdPartyOutflowOther += amt;
+      });
+    }
+    const thirdPartyOutflowTotal =
+      thirdPartyOutflowCash + thirdPartyOutflowUpi + thirdPartyOutflowCard + thirdPartyOutflowOther;
+
     // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
     const netReceivable = totalSale;
 
@@ -650,6 +697,12 @@ const DailyCashierReport = () => {
       expenseTotal,
       expenseByCategory,
       expenseCount: expenseData?.length || 0,
+      thirdPartyOutflowCash,
+      thirdPartyOutflowUpi,
+      thirdPartyOutflowCard,
+      thirdPartyOutflowOther,
+      thirdPartyOutflowTotal,
+      thirdPartyOutflowCount: thirdPartyOutflowData?.length || 0,
     };
   };
 
@@ -1002,6 +1055,7 @@ const DailyCashierReport = () => {
           ["cashier-report-cash-refunds"],
           ["cashier-report-customer-refunds"],
           ["cashier-report-expenses"],
+          ["cashier-report-third-party"],
         ]}
       />
       {/* Header */}
@@ -1370,6 +1424,20 @@ const DailyCashierReport = () => {
                       </TableRow>
                     </>
                   )}
+                  {/* Third-party outflows (pay/receive — paid out only) */}
+                  {totals.thirdPartyOutflowTotal > 0 && (
+                    <>
+                      <TableRow className="bg-orange-50 dark:bg-orange-950">
+                        <TableCell colSpan={2} className="font-semibold text-destructive">
+                          Third-party Payments — {totals.thirdPartyOutflowCount} entries
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="bg-orange-100 dark:bg-orange-900">
+                        <TableCell className="font-bold text-destructive">Total Third-party Outflows</TableCell>
+                        <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.thirdPartyOutflowTotal)}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                   {/* Expense Outflows Section */}
                   {totals.expenseTotal > 0 && (
                     <>
@@ -1396,9 +1464,9 @@ const DailyCashierReport = () => {
                     </>
                   )}
                   <TableRow className="bg-primary/10">
-                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Expenses)</TableCell>
+                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Outflows)</TableCell>
                     <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal)}
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -1523,6 +1591,12 @@ const DailyCashierReport = () => {
                     </div>
                   )}
                 </div>
+                {totals.thirdPartyOutflowTotal > 0 && (
+                  <div className="flex justify-between py-2 border-b text-destructive">
+                    <span className="text-muted-foreground">Third-party Payments ({totals.thirdPartyOutflowCount})</span>
+                    <span className="font-semibold">- {formatCurrency(totals.thirdPartyOutflowTotal)}</span>
+                  </div>
+                )}
                 {totals.expenseTotal > 0 && (
                   <div className="flex justify-between py-2 border-b text-destructive">
                     <span className="text-muted-foreground">≡ƒÆ╕ Total Expenses ({totals.expenseCount})</span>
@@ -1531,7 +1605,7 @@ const DailyCashierReport = () => {
                 )}
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">
