@@ -201,8 +201,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
-  /** A5 Retail ERP: fixed 10 SN lines; Terms + QR stay pinned in the page footer. */
-  const A5_RETAIL_SN_ROWS = 10;
+  /** A5 Retail ERP tax invoice: 8 SN lines — full page with footer (Terms + QR + balances). */
+  const A5_RETAIL_SN_ROWS = 8;
   /** Real Tast A4: enough empty SN lines so the bordered sheet fills 297mm (old print). */
   const REAL_TAST_SN_ROWS = 16;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
@@ -499,8 +499,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsHeading = isA4 ? "13px" : "12px";
   const fsTotals = isA4 ? "14px" : "13px";
   const fsGrand = isA4 ? "16px" : "15px";
-  const fsFooterMeta = isA4 ? "14px" : "10px";
-  const fsFooterBalance = isA4 ? "15px" : "10px";
+  const fsFooterMeta = isA4 ? "14px" : "11px";
+  const fsFooterBalance = isA4 ? "15px" : "12px";
   const fsNoteLabel = isA4 ? "13px" : "12px";
   const fsNoteBody = isA4 ? "14px" : "13px";
   const fsSrAdjust = isA4 ? "15px" : "14px";
@@ -510,9 +510,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsInvoiceNo = isA4 ? "15px" : "13px";
   const fsDiscMedium = isA4 ? "11px" : "10px";
 
-  // A5 + 10 SN rows + footer QR: keep row height compact so footer never clips.
-  const ROW_H = isA4 ? "26px" : isA5Retail ? "20px" : "22px";
-  const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "28px" : "30px";
+  // A5: 8 SN rows + larger QR/balance band — row height uses remaining flex space.
+  const ROW_H = isA4 ? "26px" : isA5Retail ? "22px" : "22px";
+  const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "30px" : "30px";
 
   // Real Tast: no size or barcode; HSN optional via show_hsn_code setting.
   // Zaika: no size, barcode, qty, or rate (restaurant-style).
@@ -607,11 +607,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const stampSizeMap: Record<string, string> = { small: "60px", medium: "90px", large: "120px" };
   const stampDim = stampSizeMap[stampSize] || "90px";
-  // A5: QR fits sign column inside page border without shifting Terms.
-  const qrBoxMm = isA4 ? 28 : 20;
-  const qrPadMm = isA4 ? 2 : 0.5;
+  // A5: larger payment QR; sign column width tracks QR box.
+  const qrBoxMm = isA4 ? 28 : 26;
+  const qrPadMm = isA4 ? 2 : 1;
   const showPaymentQr = Boolean(qrCodeUrl && !isRealTast);
-  const signColWidth = isA5Retail ? (showPaymentQr ? "36%" : "34%") : "40%";
+  const signColWidth = isA5Retail ? (showPaymentQr ? "42%" : "34%") : "40%";
   // taxType gate is independent of hasGSTData — product rates must not resurrect a summary under no_gst.
   // Retail ERP Tax Invoice: GST Amount in totals column; CGST/SGST (or IGST) summary in Note.
   const showGstBreakdown =
@@ -647,8 +647,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
   const fsTermsBody = isA4 ? (isRealTast ? "13px" : "12px") : "10px";
-  // A5 SN: readable digits that still fit 10 rows + footer (Terms + QR).
-  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "10px" : "16px";
+  // A5 SN: readable row numbers with 8-line grid.
+  const fsSrNo = isRealTast ? fsBody : isA5Retail ? "11px" : "16px";
   const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
   /** Header type scaled to column width so labels fit fixed % cols (esp. WhatsApp PDF). */
   const headerFontForCol = (key: string): string => {
@@ -1420,6 +1420,48 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Balance rows — hidden on Real Tast and Zaika */}
                   {!isRealTast && !isZaika && (
+                  isA5Retail ? (
+                    <div style={{ borderBottom: B, fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
+                      <div style={{ display: "flex", borderBottom: B }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            borderRight: B,
+                            padding: "4px 6px",
+                            textAlign: "center",
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          <strong>Received:</strong> ₹{fmt(receivedToday)}
+                        </div>
+                        <div style={{ flex: 1, padding: "4px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                          <strong>Balance:</strong>{" "}
+                          <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>
+                            ₹{fmt(currentBalance)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex" }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            borderRight: B,
+                            padding: "4px 6px",
+                            textAlign: "center",
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
+                        </div>
+                        <div style={{ flex: 1, padding: "4px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                          <strong>Total Due:</strong>{" "}
+                          <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>
+                            ₹{fmt(totalDue)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
@@ -1435,6 +1477,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>₹{fmt(totalDue)}</span>
                     </div>
                   </div>
+                  )
                   )}
 
                   {/* Terms + QR — always pinned in A5 footer (last page); QR must not shift columns */}
@@ -1679,8 +1722,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             margin-bottom: ${isA5Retail && !isPreprinted ? "0.5mm" : "0"} !important;
           }
           .retail-erp-qr-box {
-            max-width: ${isA5Retail ? "20mm" : "28mm"} !important;
-            max-height: ${isA5Retail ? "20mm" : "28mm"} !important;
+            max-width: ${isA5Retail ? "26mm" : "28mm"} !important;
+            max-height: ${isA5Retail ? "26mm" : "28mm"} !important;
           }
           .retail-erp-terms-qr {
             flex-shrink: 0 !important;
