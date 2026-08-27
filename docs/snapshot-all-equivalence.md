@@ -110,8 +110,19 @@ Exit 0 = every field for every financial-activity customer matches. Non-zero =
   `docs/customer-segment-equivalence.md` — agent run would exit 2:
   `SUPABASE_ACCESS_TOKEN` and `ORG_ID` are not in the environment (URL/anon key
   are in `.env`). Production must not be seeded; do not invent a tenant.
-- **Phase 1c (caller swap):** **NOT DONE.** Prompt forbids switching callers on
-  an unproven function. After exit 0 on ≥2 orgs (one large), wire
+## Cutover gates (current)
+
+| Gate | Status |
+|------|--------|
+| ELLA NOOR correctness (smoke + Step 3/3b/4) | **PASS** — drift **113 → 0** after `20261127120000` (merged **#441**) |
+| Second org Step 3 (party parity only) | **Pending** — run `scripts/step3-party-snapshot-parity.sql` on KS FOOTWEAR or VELVET |
+| Fresh `snapshot_all` timing (post-fix) | **Pending** — run `scripts/measure-snapshot-all-post-fix.sql` in Lovable (postgres) |
+| Wire callers to `snapshot_all` | **Blocked** until second org + perf number both report back |
+| Chunk 20–25 interim | Parked until above gates clear |
+
+**Do not assume the pre-fix ~22s / 8s-timeout figures still apply** — the CN-memo fix changed query logic; re-measure before choosing chunk vs single-RPC cutover.
+
+- **Phase 1c (caller swap):** **NOT DONE.** After ≥2 orgs Step 3 `diff_rows = 0` **and** acceptable perf, wire
   `fetchOrganizationSnapshotAll` into:
   - `MobileOwnerBalanceReports.tsx`
   - `SalesmanOutstanding.tsx`
@@ -125,7 +136,10 @@ Exit 0 = every field for every financial-activity customer matches. Non-zero =
 |------|-----|------------------|-------|----------|--------|-------|
 | 2026-08-17 | — | — | — | — | — | Exit 2 — no `SUPABASE_ACCESS_TOKEN` / `ORG_ID` |
 | 2026-08-27 | ELLA NOOR `3fdca631…` | 1115 | — (incomplete) | 213683 (chunk 10) | **8134 → timeout** | Authenticated JWT. `snapshot_all` hits **8s statement_timeout** every run (~8147ms). Batch chunk 50 also times out on first call. |
-| 2026-08-27 | ELLA NOOR `3fdca631…` | **2377** | **113 outstanding** | — | **22047** (postgres) | Lovable SQL editor. DIAG: postgres, no JWT. Step 3 party vs `snapshot_all`: **113** `outstanding_mismatches`, max delta **₹61,900**, advance **0** drift. Step 3b CN: **0** drift. **STOP — do not cut over.** |
+| 2026-08-27 | ELLA NOOR `3fdca631…` | **2377** | **113 outstanding** | — | **22047** (postgres, pre-fix) | Before `20261127120000`. Step 3 party vs `snapshot_all`: 113 mismatches, max **₹61,900**. |
+| 2026-08-27 | ELLA NOOR `3fdca631…` | **2377** | **0** | — | *(re-measure)* | **After #441 merged.** Smoke SHUMAMA drift **0**. Step 3b CN **0**. Step 4 drift-only targets **0**. |
+| — | KS FOOTWEAR `4bc73037…` | — | — | — | — | **Pending** Step 3 only (POS-shaped second org). |
+| — | VELVET `dafc3d0c…` | — | — | — | — | Alternate second org (POS). |
 
 ### Step 3-detail drift analysis (ELLA NOOR, top cases)
 
