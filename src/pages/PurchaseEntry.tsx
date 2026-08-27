@@ -97,6 +97,10 @@ import QuickEditPopover from "@/components/QuickEditPopover";
 import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
 import { MrpTierSelectionDialog } from "@/components/MrpTierSelectionDialog";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import {
+  barcodeTierLookupKey,
+  makePurchaseImportProductKey,
+} from "@/utils/purchaseImportBarcodeTier";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -6558,15 +6562,9 @@ const PurchaseEntry = () => {
 
     reportImportProgress(0, validRows.length, "Starting Excel import...");
 
-    // Helper: stable product key for deduplication
+    // Helper: stable product key for deduplication (includes MRP/sale tier for shared EANs).
     const makeProductKey = (row: Record<string, any>) =>
-      [
-        row.product_name?.toString().trim() || '',
-        row.brand?.toString().trim() || '',
-        row.category?.toString().trim() || '',
-        row.color?.toString().trim() || '',
-        row.style?.toString().trim() || '',
-      ].join('|').toLowerCase();
+      makePurchaseImportProductKey(row, parseLocalizedNumber);
 
     const buildImportLineItem = (
       row: Record<string, any>,
@@ -6616,7 +6614,7 @@ const PurchaseEntry = () => {
     while (true) {
       const { data: page, error: pageErr } = await supabase
         .from('products')
-        .select('id, product_name, brand, category, color, style')
+        .select('id, product_name, brand, category, color, style, default_sale_price')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .range(productOffset, productOffset + PRODUCT_PAGE - 1);
@@ -6627,8 +6625,10 @@ const PurchaseEntry = () => {
       if (!page?.length) break;
       page.forEach((p) => {
         productMap.set(
-          [p.product_name || '', p.brand || '', p.category || '', p.color || '', p.style || '']
-            .join('|').toLowerCase(),
+          makePurchaseImportProductKey(
+            { ...p, sale_price: p.default_sale_price, mrp: null },
+            parseLocalizedNumber,
+          ),
           p.id,
         );
       });
@@ -6669,19 +6669,23 @@ const PurchaseEntry = () => {
       }
     }
 
-    // Pre-fetch existing variants for Excel barcodes (reuse on re-import / partial runs)
-    const existingVariantByBarcode = new Map<string, string>();
+    // Pre-fetch existing variants for Excel barcodes (reuse only at the same MRP/sale tier).
+    const existingVariantByBarcodeTier = new Map<string, string>();
     const excelBarcodes = barcodePool.filter(Boolean);
     for (let b = 0; b < excelBarcodes.length; b += 500) {
       const chunk = [...new Set(excelBarcodes.slice(b, b + 500))];
       const { data: existingVariants } = await supabase
         .from('product_variants')
-        .select('id, barcode')
+        .select('id, barcode, mrp, sale_price')
         .eq('organization_id', currentOrganization.id)
         .in('barcode', chunk)
         .is('deleted_at', null);
       (existingVariants || []).forEach((v) => {
-        if (v.barcode) existingVariantByBarcode.set(v.barcode, v.id);
+        if (!v.barcode) return;
+        existingVariantByBarcodeTier.set(
+          barcodeTierLookupKey(v.barcode, v.mrp, v.sale_price),
+          v.id,
+        );
       });
     }
 
@@ -6762,25 +6766,31 @@ const PurchaseEntry = () => {
         continue;
       }
       const barcode = barcodePool[i] || `IMP${Date.now()}${i}`;
-      const existingSku = existingVariantByBarcode.get(barcode);
+      const rowMrp = parseLocalizedNumber(row.mrp);
+      const rowSale = parseLocalizedNumber(row.sale_price);
+      const existingSku = existingVariantByBarcodeTier.get(
+        barcodeTierLookupKey(barcode, rowMrp, rowSale),
+      );
       if (existingSku) {
         insertedVariantMap.set(i, existingSku);
         successCount++;
         continue;
       }
+      const variantData: Record<string, unknown> = {
+        organization_id: currentOrganization.id,
+        product_id: productId,
+        size: row.size?.toString().trim() || '',
+        color: row.color?.toString().trim() || null,
+        barcode,
+        pur_price: parseLocalizedNumber(row.pur_price),
+        sale_price: rowSale,
+        stock_qty: 0,
+        active: true,
+      };
+      if (rowMrp > 0) variantData.mrp = rowMrp;
       variantRowsToInsert.push({
         rowIndex: i,
-        variantData: {
-          organization_id: currentOrganization.id,
-          product_id: productId,
-          size: row.size?.toString().trim() || '',
-          color: row.color?.toString().trim() || null,
-          barcode,
-          pur_price: parseLocalizedNumber(row.pur_price),
-          sale_price: parseLocalizedNumber(row.sale_price),
-          stock_qty: 0,
-          active: true,
-        },
+        variantData,
         row,
       });
     }
@@ -6815,14 +6825,22 @@ const PurchaseEntry = () => {
 
       const barcode = variantData.barcode?.toString();
       if (barcode) {
-        const { data: existing } = await supabase
+        const tierKey = barcodeTierLookupKey(
+          barcode,
+          Number(variantData.mrp) || 0,
+          Number(variantData.sale_price) || 0,
+        );
+        const { data: existingRows } = await supabase
           .from('product_variants')
-          .select('id')
+          .select('id, mrp, sale_price')
           .eq('organization_id', currentOrganization.id)
           .eq('barcode', barcode)
-          .is('deleted_at', null)
-          .maybeSingle();
-        if (existing) return existing.id;
+          .is('deleted_at', null);
+        const matched = (existingRows || []).find(
+          (row) =>
+            barcodeTierLookupKey(barcode, row.mrp, row.sale_price) === tierKey,
+        );
+        if (matched) return matched.id;
       }
       console.error('Variant insert error:', singleErr);
       return null;
@@ -6841,20 +6859,30 @@ const PurchaseEntry = () => {
         const { data: inserted, error: batchErr } = await supabase
           .from('product_variants')
           .insert(batchSlice.map((v) => v.variantData) as any)
-          .select('id, barcode');
+          .select('id, barcode, mrp, sale_price');
 
         if (!batchErr && inserted && inserted.length === batchSlice.length) {
           // CRITICAL: map by barcode, NOT by array index. Postgres RETURNING does not
           // guarantee row order matches insert order, and an index-based map silently
           // assigns Excel rows to the wrong variant ids (causing barcode↔product drift).
-          const insertedByBarcode = new Map<string, string>();
-          (inserted as Array<{ id: string; barcode: string | null }>).forEach((v) => {
-            if (v.barcode) insertedByBarcode.set(v.barcode, v.id);
+          const insertedByBarcodeTier = new Map<string, string>();
+          (inserted as Array<{ id: string; barcode: string | null; mrp?: number | null; sale_price?: number | null }>).forEach((v) => {
+            if (!v.barcode) return;
+            insertedByBarcodeTier.set(
+              barcodeTierLookupKey(v.barcode, v.mrp, v.sale_price),
+              v.id,
+            );
           });
           let mappedInBatch = 0;
           for (const item of batchSlice) {
             const bc = item.variantData.barcode?.toString() || '';
-            const id = insertedByBarcode.get(bc);
+            const id = insertedByBarcodeTier.get(
+              barcodeTierLookupKey(
+                bc,
+                Number(item.variantData.mrp) || 0,
+                Number(item.variantData.sale_price) || 0,
+              ),
+            );
             if (id) {
               insertedVariantMap.set(item.rowIndex, id);
               mappedInBatch++;
