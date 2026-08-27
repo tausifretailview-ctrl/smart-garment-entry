@@ -1,13 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-08-25",
-fix/supplier-ledger-reconciliation-double-count
-  "count": 726,
-  "fileCount": 742,
-=======
-  "count": 725,
-  "fileCount": 741,
-  main
+  "generatedAt": "2026-08-27",
+  "count": 730,
+  "fileCount": 747,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -651,13 +646,15 @@ fix/supplier-ledger-reconciliation-double-count
     "20260823160000",
     "20260823170000",
     "20260823180000",
-    "20260824103000",
     "20260824120000",
     "20260825140000",
     "20260826001500",
     "20260826120000",
+    "20260826120100",
     "20260827120000",
     "20260827140000",
+    "20260827150000",
+    "20260827203000",
     "20260909120000",
     "20260909120100",
     "20260909120200",
@@ -735,7 +732,8 @@ fix/supplier-ledger-reconciliation-double-count
     "20261123122000",
     "20261124120000",
     "20261125120000",
-    "20261126120000"
+    "20261126120000",
+    "20261127120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1394,13 +1392,16 @@ fix/supplier-ledger-reconciliation-double-count
     "20260823160000_fix_party_balances_v2_partial_cn.sql",
     "20260823170000_party_balances_swap_v2_live.sql",
     "20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql",
-    "20260824103000_barcode_start_digit_width.sql",
     "20260824120000_sale_payment_status_normalize_and_drift_report.sql",
     "20260825140000_whatsapp_wappconnect_per_org_config.sql",
     "20260826001500_sales_payment_method_credit_note.sql",
+    "20260826120000_money_realtime_publication.sql",
     "20260826120000_whatsapp_logs_provider.sql",
+    "20260826120100_money_realtime_credit_notes.sql",
     "20260827120000_whatsapp_send_provider_rpc.sql",
     "20260827140000_get_sale_items_gross_batch.sql",
+    "20260827150000_third_party_voucher_journal.sql",
+    "20260827203000_gurukrupa_barcode_sequence_repair.sql",
     "20260909120000_get_customer_party_balances.sql",
     "20260909120100_fix_get_customer_party_balances_ambiguity.sql",
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
@@ -1480,7 +1481,8 @@ fix/supplier-ledger-reconciliation-double-count
     "20261123122000_customer_ledger_atomic_triggers.sql",
     "20261124120000_submit_public_storefront_enquiry_rpc.sql",
     "20261125120000_storefront_slug_hyphen_alias.sql",
-    "20261126120000_fix_party_balances_settlement_memo_helper.sql"
+    "20261126120000_fix_party_balances_settlement_memo_helper.sql",
+    "20261127120000_fix_snapshot_all_settlement_memo_parity.sql"
   ],
   "duplicateVersions": [
     {
@@ -1579,6 +1581,13 @@ fix/supplier-ledger-reconciliation-double-count
       "files": [
         "20260823140100_party_balances_swap_to_v2.sql",
         "20260823140100_preview_fix_missing_mrp_for_org.sql"
+      ]
+    },
+    {
+      "version": "20260826120000",
+      "files": [
+        "20260826120000_money_realtime_publication.sql",
+        "20260826120000_whatsapp_logs_provider.sql"
       ]
     },
     {
