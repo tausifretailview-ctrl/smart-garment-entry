@@ -4,6 +4,11 @@
 --   _sale_return_remaining_credit_for_balance on pending_sale_returns
 --
 -- Closes CN-memo double-count (e.g. SHUMAMA BAIRELI ₹61,900 drift vs party/reconcile).
+--
+-- LOVABLE: Run this ENTIRE file in ONE execution (DROP + CREATE + GRANT together).
+-- If you already ran DROP alone and smoke fails with "function does not exist",
+-- run from CREATE OR REPLACE below through GRANT (skip the DROP line).
+-- Verify first: scripts/verify-snapshot-all-function-exists.sql → snapshot_all_exists = true
 
 DROP FUNCTION IF EXISTS public.get_customer_financial_snapshot_all(uuid);
 

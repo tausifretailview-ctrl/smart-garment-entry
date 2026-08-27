@@ -1,6 +1,7 @@
 -- =============================================================================
 -- STEP 4 smoke — one customer (SHUMAMA BAIRELI, ELLA NOOR)
--- Run first to confirm reconcile path works in SQL editor (~seconds).
+-- Prerequisite: get_customer_financial_snapshot_all must exist (run migration first).
+-- Quick check: scripts/verify-snapshot-all-function-exists.sql
 -- =============================================================================
 
 SET statement_timeout = '120s';
