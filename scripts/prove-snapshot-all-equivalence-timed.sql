@@ -95,6 +95,35 @@ FROM compared;
 
 
 -- ---------------------------------------------------------------------------
+-- STEP 3-detail — top party vs snapshot_all drifts (run if Step 3 diff_rows > 0)
+-- ---------------------------------------------------------------------------
+WITH params AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id
+),
+all_snap AS (
+  SELECT *
+  FROM public.get_customer_financial_snapshot_all((SELECT org_id FROM params))
+),
+party AS (
+  SELECT customer_id, customer_name, signed_balance, advance_available
+  FROM public.get_customer_party_balances((SELECT org_id FROM params))
+)
+SELECT
+  p.customer_name,
+  p.signed_balance AS party_signed,
+  a.outstanding_dr AS snapshot_signed,
+  ROUND(p.signed_balance - a.outstanding_dr, 2) AS signed_drift,
+  p.advance_available AS party_advance,
+  a.advance_available AS snapshot_advance
+FROM all_snap a
+INNER JOIN party p ON p.customer_id = a.customer_id
+WHERE ABS(p.signed_balance - a.outstanding_dr) > 0.01
+   OR ABS(COALESCE(p.advance_available, 0) - COALESCE(a.advance_available, 0)) > 0.01
+ORDER BY ABS(p.signed_balance - a.outstanding_dr) DESC
+LIMIT 50;
+
+
+-- ---------------------------------------------------------------------------
 -- STEP 3b — CN pool parity (SQL editor safe; _customer_cn_available_total)
 -- Run after Step 3 if you need CN fields checked. Slower (per active customer).
 -- Expect diff_rows = 0.
