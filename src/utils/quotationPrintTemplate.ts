@@ -14,24 +14,36 @@ export function isQuotationPrintTemplateId(value: string | null | undefined): va
   return value === "retail" || value === "it-company";
 }
 
-export function resolveQuotationPrintTemplate(saleSettings?: {
-  quotation_print_template?: string | null;
-} | null): QuotationPrintTemplateId {
+export function quotationPrintTemplateStorageKey(orgId?: string | null): string {
+  return orgId ? `${QUOTATION_PRINT_TEMPLATE_KEY}_${orgId}` : QUOTATION_PRINT_TEMPLATE_KEY;
+}
+
+/** Per-org DB setting is authoritative; localStorage is pre-settings-load fallback only. */
+export function resolveQuotationPrintTemplate(
+  saleSettings?: {
+    quotation_print_template?: string | null;
+  } | null,
+  orgId?: string | null,
+): QuotationPrintTemplateId {
+  const fromSettings = saleSettings?.quotation_print_template;
+  if (isQuotationPrintTemplateId(fromSettings)) return fromSettings;
+
   let stored: string | null = null;
   try {
-    stored = localStorage.getItem(QUOTATION_PRINT_TEMPLATE_KEY);
+    stored = localStorage.getItem(quotationPrintTemplateStorageKey(orgId));
   } catch {
     stored = null;
   }
   if (isQuotationPrintTemplateId(stored)) return stored;
-  const fromSettings = saleSettings?.quotation_print_template;
-  if (isQuotationPrintTemplateId(fromSettings)) return fromSettings;
   return "retail";
 }
 
-export function persistQuotationPrintTemplate(id: QuotationPrintTemplateId): void {
+export function persistQuotationPrintTemplate(
+  id: QuotationPrintTemplateId,
+  orgId?: string | null,
+): void {
   try {
-    localStorage.setItem(QUOTATION_PRINT_TEMPLATE_KEY, id);
+    localStorage.setItem(quotationPrintTemplateStorageKey(orgId), id);
   } catch {
     /* ignore quota / private mode */
   }

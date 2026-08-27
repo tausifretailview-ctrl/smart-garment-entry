@@ -673,6 +673,7 @@ export default function QuotationDashboard() {
         <PrintQuotationDialog 
           quotation={quotationToPrint}
           settings={settings}
+          organizationId={currentOrganization?.id}
           onClose={() => setQuotationToPrint(null)}
         />
       )}
@@ -753,13 +754,23 @@ async function downloadQuotationPDF(
 }
 
 // Print Dialog Component
-function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any; settings: any; onClose: () => void }) {
+function PrintQuotationDialog({
+  quotation,
+  settings,
+  organizationId,
+  onClose,
+}: {
+  quotation: any;
+  settings: any;
+  organizationId?: string;
+  onClose: () => void;
+}) {
   const printRef = useRef<HTMLDivElement>(null);
   const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
     settings?.sale_settings?.bill_format || 'a4'
   );
   const [printTemplate, setPrintTemplate] = useState<QuotationPrintTemplateId>(() =>
-    resolveQuotationPrintTemplate(settings?.sale_settings),
+    resolveQuotationPrintTemplate(settings?.sale_settings, organizationId),
   );
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -823,7 +834,7 @@ function PrintQuotationDialog({ quotation, settings, onClose }: { quotation: any
 
   const onTemplateChange = (value: QuotationPrintTemplateId) => {
     setPrintTemplate(value);
-    persistQuotationPrintTemplate(value);
+    persistQuotationPrintTemplate(value, organizationId);
   };
   
   const getPageStyle = () => {

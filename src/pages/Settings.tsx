@@ -3280,7 +3280,10 @@ export default function Settings() {
                     <Select
                       value={settings.sale_settings?.quotation_print_template || "retail"}
                       onValueChange={(value) => {
-                        persistQuotationPrintTemplate(value as "retail" | "it-company");
+                        persistQuotationPrintTemplate(
+                          value as "retail" | "it-company",
+                          currentOrganization?.id,
+                        );
                         setSettings({
                           ...settings,
                           sale_settings: {
