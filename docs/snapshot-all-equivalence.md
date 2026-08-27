@@ -91,7 +91,8 @@ Exit 0 = every field for every financial-activity customer matches. Non-zero =
 | Date | Org | Active customers | Diffs | Batch ms | All ms | Notes |
 |------|-----|------------------|-------|----------|--------|-------|
 | 2026-08-17 | — | — | — | — | — | Exit 2 — no `SUPABASE_ACCESS_TOKEN` / `ORG_ID` |
-| 2026-08-27 | ELLA NOOR `3fdca631…` | 1115 | — (incomplete) | 213683 (chunk 10) | **8134 → timeout** | Authenticated JWT. `snapshot_all` hits **8s statement_timeout** every run (~8147ms). Batch chunk 50 also times out on first call. **SQL editor proof pending** — run `scripts/prove-snapshot-all-equivalence-timed.sql` in Lovable. |
+| 2026-08-27 | ELLA NOOR `3fdca631…` | 1115 | — (incomplete) | 213683 (chunk 10) | **8134 → timeout** | Authenticated JWT. `snapshot_all` hits **8s statement_timeout** every run (~8147ms). Batch chunk 50 also times out on first call. |
+| 2026-08-27 | ELLA NOOR `3fdca631…` | **2377** | **113 outstanding** | — | **22047** (postgres) | Lovable SQL editor. DIAG: postgres, no JWT. Step 3 party vs `snapshot_all`: **113** `outstanding_mismatches`, max delta **₹61,900**, advance **0** drift. Step 3b CN: **0** drift. **STOP — do not cut over.** |
 
 ### ELLA NOOR authenticated chunk benchmark (2026-08-27)
 
