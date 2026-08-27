@@ -24,34 +24,72 @@ export type CustomerDuplicateRow = {
   phone: string | null;
 };
 
+/** Genuine duplicate — phone already taken (includes same name + same phone). */
 export const CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG =
   "This name or number is already available. Use a different name or number.";
+
+export type CustomerDuplicateCheckResult =
+  | { kind: "clear" }
+  | { kind: "duplicate"; row: CustomerDuplicateRow }
+  | { kind: "name_needs_phone"; row: CustomerDuplicateRow; nameDisplay: string };
 
 export function normalizeCustomerNameKey(name?: string | null): string {
   return (name || "").trim().toUpperCase();
 }
 
+export function customerNameNeedsPhoneMessage(name: string): string {
+  const display = (name || "").trim() || name;
+  return `A customer named '${display}' already exists. Enter a mobile number to add this one as a separate customer.`;
+}
+
 /**
- * Pick a name/phone duplicate from already-loaded rows (unit-tested).
- * Name match is exact after trim + uppercase. Phone uses normalized last-10 digits.
+ * Pick a duplicate outcome from already-loaded rows (unit-tested).
+ * Phone match always blocks. Name match alone asks for a phone; name + new phone allows creation.
  */
-export function matchDuplicateCustomer(
+export function checkDuplicateCustomer(
   rows: CustomerDuplicateRow[],
-  input: { nameKey: string; normalizedPhone: string | null },
-): CustomerDuplicateRow | null {
+  input: { nameKey: string; normalizedPhone: string | null; nameDisplay?: string },
+): CustomerDuplicateCheckResult {
   if (input.normalizedPhone) {
     const byPhone = rows.find(
       (c) => normalizePhoneNumber(c.phone) === input.normalizedPhone,
     );
-    if (byPhone) return byPhone;
+    if (byPhone) return { kind: "duplicate", row: byPhone };
+    return { kind: "clear" };
   }
+
   if (input.nameKey) {
     const byName = rows.find(
       (c) => normalizeCustomerNameKey(c.customer_name) === input.nameKey,
     );
-    if (byName) return byName;
+    if (byName) {
+      return {
+        kind: "name_needs_phone",
+        row: byName,
+        nameDisplay: (input.nameDisplay || "").trim() || input.nameKey,
+      };
+    }
   }
-  return null;
+
+  return { kind: "clear" };
+}
+
+/** @deprecated Prefer checkDuplicateCustomer — returns a row only for genuine phone duplicates. */
+export function matchDuplicateCustomer(
+  rows: CustomerDuplicateRow[],
+  input: { nameKey: string; normalizedPhone: string | null },
+): CustomerDuplicateRow | null {
+  const result = checkDuplicateCustomer(rows, input);
+  return result.kind === "duplicate" ? result.row : null;
+}
+
+export function assertNoCustomerDuplicate(check: CustomerDuplicateCheckResult): void {
+  if (check.kind === "duplicate") {
+    throw new Error(CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG);
+  }
+  if (check.kind === "name_needs_phone") {
+    throw new Error(customerNameNeedsPhoneMessage(check.nameDisplay));
+  }
 }
 
 async function loadPhoneDuplicateCandidates(
@@ -105,31 +143,37 @@ async function loadNameDuplicateCandidates(
   return (data || []) as CustomerDuplicateRow[];
 }
 
-/** Org-scoped active customer with the same name or normalized phone. */
+/** Org-scoped duplicate check for create/update flows. */
 export async function findExistingCustomerByNameOrPhone(
   organizationId: string,
   params: { customer_name?: string; phone?: string | null },
   options?: { excludeId?: string },
-): Promise<CustomerDuplicateRow | null> {
+): Promise<CustomerDuplicateCheckResult> {
   const nameKey = normalizeCustomerNameKey(params.customer_name);
   const normalizedPhone = params.phone ? normalizePhoneNumber(params.phone) || null : null;
-  if (!nameKey && !normalizedPhone) return null;
+  const nameDisplay = (params.customer_name ?? "").trim();
+  if (!nameKey && !normalizedPhone) return { kind: "clear" };
 
-  const [phoneRows, nameRows] = await Promise.all([
-    normalizedPhone
-      ? loadPhoneDuplicateCandidates(organizationId, normalizedPhone, options?.excludeId)
-      : Promise.resolve([] as CustomerDuplicateRow[]),
-    nameKey
-      ? loadNameDuplicateCandidates(organizationId, nameKey, options?.excludeId)
-      : Promise.resolve([] as CustomerDuplicateRow[]),
-  ]);
+  if (normalizedPhone) {
+    const phoneRows = await loadPhoneDuplicateCandidates(
+      organizationId,
+      normalizedPhone,
+      options?.excludeId,
+    );
+    return checkDuplicateCustomer(phoneRows, { nameKey, normalizedPhone, nameDisplay });
+  }
 
-  return matchDuplicateCustomer([...phoneRows, ...nameRows], { nameKey, normalizedPhone });
+  if (nameKey) {
+    const nameRows = await loadNameDuplicateCandidates(organizationId, nameKey, options?.excludeId);
+    return checkDuplicateCustomer(nameRows, { nameKey, normalizedPhone: null, nameDisplay });
+  }
+
+  return { kind: "clear" };
 }
 
 /**
- * Inserts a new customer. Throws if the same name or phone already exists
- * in the organization — never silently reuses / "merges" the old row.
+ * Inserts a new customer. Throws if the phone already exists, or if the name
+ * exists without a disambiguating new phone — never silently reuses the old row.
  */
 export async function createOrGetCustomer(params: CreateCustomerParams): Promise<CreateCustomerResult> {
   const normalizedPhone = params.phone ? normalizePhoneNumber(params.phone) : null;
@@ -139,13 +183,11 @@ export async function createOrGetCustomer(params: CreateCustomerParams): Promise
     throw new Error("Either customer name or phone number is required");
   }
 
-  const existing = await findExistingCustomerByNameOrPhone(params.organization_id, {
+  const duplicateCheck = await findExistingCustomerByNameOrPhone(params.organization_id, {
     customer_name: params.customer_name,
     phone: params.phone,
   });
-  if (existing) {
-    throw new Error(CUSTOMER_NAME_OR_NUMBER_EXISTS_MSG);
-  }
+  assertNoCustomerDuplicate(duplicateCheck);
 
   const customerData: any = {
     customer_name: (params.customer_name?.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
