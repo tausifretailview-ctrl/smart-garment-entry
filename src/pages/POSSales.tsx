@@ -314,6 +314,7 @@ interface PosProductRow {
   product_name: string;
   product_type?: string;
   requires_imei?: boolean | null;
+  default_sale_price?: unknown;
   [key: string]: unknown;
 }
 
