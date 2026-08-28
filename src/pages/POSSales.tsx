@@ -2685,6 +2685,7 @@ export default function POSSales() {
             displayBarcode:
               isNumeric && isCompleteNumericBarcodeForPosCart(term) ? term : item.barcode,
             searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
+            quickPriceOverride: undefined as { sale_price: number; mrp: number } | undefined,
           };
         });
 
