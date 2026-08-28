@@ -14,6 +14,10 @@ import { CalendarIcon, Plus, Printer, X, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import {
+  buildSupplierPaymentVoucherRows,
+  supplierPaymentVoucherDescription,
+} from "@/utils/supplierPaymentVoucherRows";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -911,21 +915,36 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
       if (paymentMethod === 'cheque' && chequeNumber) paymentDetails = ` | Cheque No: ${chequeNumber}`;
       else if ((paymentMethod === 'upi' || paymentMethod === 'bank_transfer') && transactionId) paymentDetails = ` | Transaction ID: ${transactionId}`;
 
-      const isOBPayment = selectedBillIds.length === 0;
-      const billNumbers = processedBills.map(p => p.bill.software_bill_no || p.bill.supplier_invoice_no || p.bill.id.slice(0, 8)).join(', ');
-      const finalDesc = description || (isOBPayment ? `Opening Balance Payment to ${supplierName}${paymentDetails}` : `Payment for Bills: ${billNumbers}${paymentDetails}`);
-
-      await supabase.from("voucher_entries").insert({
-        organization_id: organizationId,
-        voucher_number: voucherNumber,
-        voucher_type: "payment",
-        voucher_date: format(voucherDate, "yyyy-MM-dd"),
-        reference_type: "supplier",
-        reference_id: referenceId,
-        description: finalDesc,
-        total_amount: paymentAmount,
-        created_by: user?.id ?? null,
+      // One voucher per bill, linked by reference_id = bill.id, plus a supplier-id row
+      // for any true remainder. Previously this wrote a single supplier-id voucher while
+      // also bumping each bill's paid_amount, so the reader had to guess from the
+      // description whether the two were the same cash — and a custom note made it guess
+      // wrong, double-counting the payment. See supplierPaymentVoucherRows.ts.
+      const voucherRows = buildSupplierPaymentVoucherRows({
+        supplierId: referenceId,
+        paymentAmount,
+        allocations: processedBills.map((p) => ({ bill: p.bill, amountApplied: p.amountApplied })),
       });
+
+      for (const row of voucherRows) {
+        const { error: voucherError } = await supabase.from("voucher_entries").insert({
+          organization_id: organizationId,
+          voucher_number: `${voucherNumber}${row.voucherNumberSuffix}`,
+          voucher_type: "payment",
+          voucher_date: format(voucherDate, "yyyy-MM-dd"),
+          reference_type: "supplier",
+          reference_id: row.referenceId,
+          description: supplierPaymentVoucherDescription({
+            row,
+            userDescription: description,
+            supplierName,
+            paymentDetails,
+          }),
+          total_amount: row.amount,
+          created_by: user?.id ?? null,
+        });
+        if (voucherError) throw voucherError;
+      }
     },
     onSuccess: () => {
       toast.success("Supplier payment recorded");

@@ -219,6 +219,94 @@ describe("computeSnapshotForSupplier", () => {
     expect(snap.balance).toBe(7000);
   });
 
+  /**
+   * SANGAMN-style reconciliation for the custom-description case.
+   *
+   * A ₹5,000 payment is made against bill B1 through FloatingPayments with the user's own
+   * note ("June payment"), so `bill.paid_amount` is bumped to 5000 AND a voucher is
+   * written. Before the structural fix the voucher was written against the SUPPLIER id;
+   * because the note does not match /Payment for Bill/i it was treated as a separate
+   * on-account payment and added on top of the bill cash — ₹10,000 paid on a ₹10,000
+   * bill, showing the supplier as fully settled when only half was paid.
+   *
+   * After the fix the voucher carries `reference_id = bill.id`, so it is counted once
+   * regardless of what the note says.
+   */
+  it("custom-note bill payment is counted once — not doubled (structural link)", () => {
+    const structural = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-1",
+          supplier_id: SUPPLIER,
+          net_amount: 10000,
+          paid_amount: 5000,
+          software_bill_no: "B1",
+          supplier_invoice_no: "B1",
+        },
+      ],
+      // reference_id = bill id, description is a plain user note
+      [{ reference_id: "bill-1", total_amount: 5000, description: "June payment" }],
+      [],
+      [],
+      0,
+    );
+    expect(structural.totalPaid).toBe(5000);
+    expect(structural.balance).toBe(5000);
+
+    // The shape the OLD writer produced for the very same payment: supplier-id voucher
+    // plus the same cash already in paid_amount. This is the double count being fixed.
+    const legacyShape = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-1",
+          supplier_id: SUPPLIER,
+          net_amount: 10000,
+          paid_amount: 5000,
+          software_bill_no: "B1",
+          supplier_invoice_no: "B1",
+        },
+      ],
+      [{ reference_id: SUPPLIER, total_amount: 5000, description: "June payment" }],
+      [],
+      [],
+      0,
+    );
+    expect(legacyShape.totalPaid).toBe(10000);
+    expect(structural.totalPaid).toBeLessThan(legacyShape.totalPaid);
+  });
+
+  it("custom-note payment is not lost either — partial application still credits both parts", () => {
+    // ₹9,000 paid: ₹5,000 applied to B1, ₹4,000 genuine advance. The new writer emits a
+    // bill-linked row and an on-account row, so neither part disappears.
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [
+        {
+          id: "bill-1",
+          supplier_id: SUPPLIER,
+          net_amount: 10000,
+          paid_amount: 5000,
+          software_bill_no: "B1",
+          supplier_invoice_no: "B1",
+        },
+      ],
+      [
+        { reference_id: "bill-1", total_amount: 5000, description: "June payment" },
+        { reference_id: SUPPLIER, total_amount: 4000, description: "June payment" },
+      ],
+      [],
+      [],
+      0,
+    );
+    expect(snap.totalPaid).toBe(9000);
+    expect(snap.balance).toBe(1000);
+  });
+
   it("ignores another supplier's bills, vouchers, and returns", () => {
     const snap = computeSnapshotForSupplier(
       SUPPLIER,

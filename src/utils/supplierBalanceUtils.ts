@@ -233,11 +233,22 @@ function consumeUnreflectedPurchaseReturnAmount(
 }
 
 /**
- * Supplier-level payment voucher that duplicates cash already on a bill's
- * `paid_amount` (FloatingPayments / legacy at-purchase paths write both).
+ * LEGACY ROWS ONLY. Supplier-level payment voucher that duplicates cash already on a
+ * bill's `paid_amount`.
  *
- * Uses structural markers from write paths — bill numbers in description,
- * or the canonical at-purchase label — not amount netting against residual.
+ * Every current write path links a bill payment structurally with
+ * `reference_id = bill.id` (SupplierPaymentTab, PurchaseBillDashboard, and — since the
+ * `supplierPaymentVoucherRows` change — FloatingPayments), so such rows never reach this
+ * function: `computeSupplierTotalPaid` routes them by reference_id before it is called.
+ *
+ * This remains only for vouchers written BEFORE that change, where FloatingPayments
+ * bumped `bill.paid_amount` and wrote a single voucher against the SUPPLIER id. For those
+ * historical rows the description is the only surviving signal, and it is a poor one: the
+ * note was user-editable, so a custom description ("June payment") makes a real duplicate
+ * look like an on-account payment and it gets double counted, while a genuine on-account
+ * payment whose note happens to match — or whose bill was later deleted — is dropped.
+ *
+ * Do not extend this with more patterns. New write paths must set `reference_id`.
  */
 function supplierLevelVoucherDuplicatesBillCash(
   v: VoucherPaymentRow,
