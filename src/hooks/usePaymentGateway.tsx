@@ -247,37 +247,38 @@ export function usePaymentGateway() {
       if (gateway === 'upi_link') {
         // Generate local web payment link
         paymentUrl = generateWebPaymentLink(params);
-      } else if (gateway === 'razorpay') {
-        // Call edge function to create Razorpay payment link
+      } else {
+        // Razorpay / PhonePe: the edge function holds the organization's own keys.
         const { data, error } = await supabase.functions.invoke('create-payment-link', {
           body: {
-            gateway: 'razorpay',
+            gateway,
             amount: params.amount,
             customerName: params.customerName,
             customerPhone: params.customerPhone,
             invoiceNumber: params.invoiceNumber,
             organizationId: currentOrganization.id,
+            // Where the customer's browser lands after paying.
+            returnUrl: `${window.location.origin}/payment-status`,
           },
         });
 
-        if (error) throw error;
-        paymentUrl = data.paymentUrl;
-        gatewayLinkId = data.gatewayLinkId;
-      } else if (gateway === 'phonepe') {
-        // Call edge function to create PhonePe payment link
-        const { data, error } = await supabase.functions.invoke('create-payment-link', {
-          body: {
-            gateway: 'phonepe',
-            amount: params.amount,
-            customerName: params.customerName,
-            customerPhone: params.customerPhone,
-            invoiceNumber: params.invoiceNumber,
-            organizationId: currentOrganization.id,
-          },
-        });
+        if (error) {
+          // invoke() reports every failure as "non-2xx"; read the real reason.
+          let detail = error.message;
+          if (error instanceof FunctionsHttpError) {
+            try {
+              const body = await error.context.json();
+              detail = body?.error || body?.details || detail;
+            } catch {
+              /* keep the generic message */
+            }
+          }
+          throw new Error(detail);
+        }
+        if (data?.error) throw new Error(data.error);
 
-        if (error) throw error;
         paymentUrl = data.paymentUrl;
+
         gatewayLinkId = data.gatewayLinkId;
       }
 
