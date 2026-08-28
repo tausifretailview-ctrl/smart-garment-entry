@@ -7,6 +7,7 @@ import {
   isWappConnectSendProvider,
 } from "@/constants/whatsappSendProvider";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
+import { resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 
 export interface TemplateParam {
   index: number;
@@ -516,7 +517,7 @@ export const useWhatsAppAPI = () => {
             sale_id: sale.id,
             org_slug: currentOrganization.slug,
             sale_number: sale.sale_number,
-            customer_name: sale.customer_name,
+            customer_name: resolveWhatsAppCustomerName(sale.customer_name),
             customer_phone: logEntry.phone_number,
             sale_date: sale.sale_date,
             net_amount: sale.net_amount,
@@ -552,7 +553,7 @@ export const useWhatsAppAPI = () => {
             quotation_id: quotation.id,
             org_slug: currentOrganization.slug,
             quotation_number: quotation.quotation_number,
-            customer_name: quotation.customer_name,
+            customer_name: resolveWhatsAppCustomerName(quotation.customer_name),
             customer_phone: logEntry.phone_number,
             quotation_date: quotation.quotation_date,
             net_amount: quotation.net_amount,
@@ -585,7 +586,7 @@ export const useWhatsAppAPI = () => {
             order_id: order.id,
             org_slug: currentOrganization.slug,
             order_number: order.order_number,
-            customer_name: order.customer_name,
+            customer_name: resolveWhatsAppCustomerName(order.customer_name),
             customer_phone: logEntry.phone_number,
             order_date: order.order_date,
             net_amount: order.net_amount,

@@ -52,6 +52,7 @@ import {
   resolveGoodsQtyDialogDefaultPrice,
 } from "@/utils/posGoodsAskQtyDialog";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
+import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
@@ -4470,7 +4471,7 @@ export default function POSSales() {
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
         method: method,
-        customerName: customerName,
+        customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
         customerAddress: customers.find(c => c.id === customerId)?.address || "",
@@ -4758,7 +4759,7 @@ export default function POSSales() {
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: isRefund ? 0 : finalAmount,
         method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
-        customerName: customerName,
+        customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
         customerAddress: customers.find(c => c.id === customerId)?.address || "",
@@ -5847,7 +5848,7 @@ export default function POSSales() {
         sale_id: saleId,
         org_slug: orgSlug,
         sale_number: saleNumber,
-        customer_name: custName,
+        customer_name: resolveWhatsAppCustomerName(custName),
         customer_phone: phone,
         sale_date: saleDate,
         net_amount: netAmount,

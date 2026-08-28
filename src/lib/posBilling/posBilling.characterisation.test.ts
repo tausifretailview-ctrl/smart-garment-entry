@@ -9,6 +9,10 @@ import { computePosBillTotals } from "./billTotals";
 import {
   buildPosSalePersistPayload,
   resolvePersistedSaleGrossAmount,
+  resolvePosCustomerName,
+  resolveWhatsAppCustomerName,
+  POS_WALKIN_CUSTOMER_NAME,
+  WHATSAPP_CUSTOMER_NAME_FALLBACK,
 } from "./buildSaleData";
 import {
   addLine,
@@ -632,5 +636,41 @@ describe("resolvePersistedSaleGrossAmount / buildPosSalePersistPayload", () => {
     expect(totals.totalGst).toBe(50);
     expect(payload.grossAmount).toBe(1050);
     expect(payload.netAmount).toBe(1050);
+  });
+});
+
+describe("POS customer name fallbacks", () => {
+  it("resolvePosCustomerName uses Walk-in Customer for blank input", () => {
+    expect(resolvePosCustomerName("")).toBe(POS_WALKIN_CUSTOMER_NAME);
+    expect(resolvePosCustomerName("   ")).toBe(POS_WALKIN_CUSTOMER_NAME);
+    expect(resolvePosCustomerName(null)).toBe(POS_WALKIN_CUSTOMER_NAME);
+    expect(resolvePosCustomerName(" Rahul ")).toBe("Rahul");
+  });
+
+  it("resolveWhatsAppCustomerName never returns empty", () => {
+    expect(resolveWhatsAppCustomerName("")).toBe(WHATSAPP_CUSTOMER_NAME_FALLBACK);
+    expect(resolveWhatsAppCustomerName("   ")).toBe(WHATSAPP_CUSTOMER_NAME_FALLBACK);
+    expect(resolveWhatsAppCustomerName("Trendzo")).toBe("Trendzo");
+  });
+
+  it("buildPosSalePersistPayload applies walk-in fallback before save", () => {
+    const payload = buildPosSalePersistPayload({
+      customerName: "",
+      items: [line({ mrp: 100, unitCost: 100, quantity: 1 })],
+      totals: computePosBillTotals({
+        items: [line({ mrp: 100, unitCost: 100, quantity: 1 })],
+        taxType: "inclusive",
+        flatDiscountValue: 0,
+        flatDiscountMode: "percent",
+        saleReturnAdjust: 0,
+        creditApplied: 0,
+        roundOff: 0,
+      }),
+      saleReturnAdjust: 0,
+      roundOff: 0,
+      creditApplied: 0,
+      taxType: "inclusive",
+    });
+    expect(payload.customerName).toBe(POS_WALKIN_CUSTOMER_NAME);
   });
 });
