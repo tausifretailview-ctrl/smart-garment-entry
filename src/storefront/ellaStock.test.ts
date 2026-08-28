@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { classifyEllaStock } from "./ellaStock";
+import { buildUpiPayLink } from "@/lib/upiPayLink";
+import { classifyEllaStock, isEllaProductPurchasable, ellaMaxPurchaseQty } from "./ellaStock";
+import {
+  addToEllaCart,
+  ellaCartCount,
+  ellaCartTotal,
+  updateEllaCartQty,
+} from "./ellaCart";
 import {
   availableFromPublicProduct,
   ellaProductWhatsAppText,
@@ -32,6 +39,7 @@ describe("isEllaNoorSlug", () => {
   it("matches only the ella-noor org slug", () => {
     expect(isEllaNoorSlug("ella-noor")).toBe(true);
     expect(isEllaNoorSlug("Ella-Noor")).toBe(true);
+    expect(isEllaNoorSlug("ellanoor")).toBe(true);
     expect(isEllaNoorSlug("demo")).toBe(false);
     expect(isEllaNoorSlug("")).toBe(false);
   });
@@ -45,22 +53,23 @@ describe("classifyEllaStock", () => {
     expect(classifyEllaStock({ available: 4 }).state).toBe("in");
   });
 
-  it("never labels zero as out of stock — made to order with lead time", () => {
-    const view = classifyEllaStock({ available: 0, madeToOrder: true, leadTimeWeeks: 6 });
-    expect(view.state).toBe("mto");
-    expect(view.label).toBe("Made to order · 6 weeks");
-    expect(view.label.toLowerCase()).not.toContain("out of stock");
-    expect(classifyEllaStock({ available: 0, madeToOrder: false }).label.toLowerCase()).not.toContain(
-      "out of stock",
-    );
+  it("labels zero stock as out — enquiry flow", () => {
+    const view = classifyEllaStock({ available: 0 });
+    expect(view.state).toBe("out");
+    expect(view.label).toBe("Out of stock · Enquire");
+    expect(isEllaProductPurchasable(view)).toBe(false);
   });
 
   it("shows In stock · N when quantity is known and above the low threshold", () => {
-    expect(classifyEllaStock({ available: 7, availableKnown: true }).label).toBe("In stock · 7");
+    const view = classifyEllaStock({ available: 7, availableKnown: true });
+    expect(view.label).toBe("In stock · 7");
+    expect(isEllaProductPurchasable(view)).toBe(true);
   });
 
   it("omits a guessed number when ERP hid the on-hand qty", () => {
-    expect(classifyEllaStock({ available: 6, availableKnown: false }).label).toBe("In stock");
+    const view = classifyEllaStock({ available: 6, availableKnown: false });
+    expect(view.label).toBe("In stock");
+    expect(ellaMaxPurchaseQty(view, false)).toBe(1);
   });
 });
 
@@ -72,15 +81,17 @@ describe("toEllaStorefrontProduct", () => {
     expect(mapped.priceLabel).toMatch(/1,85,000/);
     expect(mapped.stock.state).toBe("low");
     expect(mapped.stock.label).toBe("Only 2 left");
+    expect(isEllaProductPurchasable(mapped.stock)).toBe(true);
   });
 
-  it("treats ERP out_of_stock as made-to-order", () => {
+  it("treats ERP out_of_stock as enquiry-only", () => {
     const mapped = toEllaStorefrontProduct(sample({ stock_status: "out_of_stock", stock_left: null }));
     expect(availableFromPublicProduct(sample({ stock_status: "out_of_stock" }))).toEqual({
       available: 0,
       availableKnown: true,
     });
-    expect(mapped.stock.state).toBe("mto");
+    expect(mapped.stock.state).toBe("out");
+    expect(isEllaProductPurchasable(mapped.stock)).toBe(false);
   });
 
   it("classifies festive vs ready from category text", () => {
@@ -112,5 +123,27 @@ describe("filter + WhatsApp", () => {
     expect(text).toContain("Zardozi lehenga");
     expect(text).toContain("EN-204");
     expect(text).toMatch(/1,85,000/);
+  });
+});
+
+describe("ellaCart", () => {
+  it("adds lines and computes total", () => {
+    const product = toEllaStorefrontProduct(sample());
+    const cart = addToEllaCart([], product, 1);
+    expect(ellaCartCount(cart)).toBe(1);
+    expect(ellaCartTotal(cart)).toBe(185000);
+    const merged = addToEllaCart(cart, product, 2);
+    expect(ellaCartCount(merged)).toBe(3);
+    expect(updateEllaCartQty(merged, product.productId, 0)).toHaveLength(0);
+  });
+});
+
+describe("buildUpiPayLink", () => {
+  it("builds a standard UPI deep link", () => {
+    const link = buildUpiPayLink({ upiId: "shop@upi", payeeName: "Ella Noor", amount: 1500.5 });
+    expect(link).toContain("upi://pay?");
+    expect(link).toContain("pa=shop%40upi");
+    expect(link).toContain("am=1500.50");
+    expect(link).toContain("cu=INR");
   });
 });

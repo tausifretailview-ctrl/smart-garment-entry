@@ -63,8 +63,8 @@ export function EllaEnquirySheet({
               <dd>
                 {product.leadTimeWeeks != null
                   ? `${product.leadTimeWeeks} weeks`
-                  : product.stock.state === "mto"
-                    ? "4–6 weeks"
+                  : product.stock.state === "out"
+                    ? "Enquire for availability"
                     : "Ready"}
               </dd>
             </div>

@@ -2,9 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { toEllaStorefrontProduct, type EllaStorefrontProduct } from "./ellaProduct";
+import { isEllaProductPurchasable } from "./ellaStock";
 import { EllaEnquirySheet } from "./EllaEnquirySheet";
 import { EllaEnquiryForm } from "./EllaEnquiryForm";
 import { EllaStorefrontHome } from "./EllaStorefrontHome";
+import { EllaProductSheet } from "./EllaProductSheet";
+import { EllaCartSheet } from "./EllaCartSheet";
+import { ellaCartCount, type EllaCartLine } from "./ellaCart";
 import { useLockBodyScroll } from "./ellaLockBody";
 import "./ella-storefront.css";
 
@@ -28,6 +32,8 @@ export function EllaStorefront({
 
   const [selected, setSelected] = useState<EllaStorefrontProduct | null>(() => findById(initialProductId));
   const [generalOpen, setGeneralOpen] = useState(false);
+  const [cart, setCart] = useState<EllaCartLine[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
     if (initialProductId) setSelected(findById(initialProductId));
@@ -35,6 +41,7 @@ export function EllaStorefront({
 
   const openProduct = (product: EllaStorefrontProduct) => {
     setGeneralOpen(false);
+    setCartOpen(false);
     setSelected(product);
     window.history.pushState({ ellaSheet: product.productId }, "", storefrontProductPath(orgSlug, product.productId));
   };
@@ -42,6 +49,14 @@ export function EllaStorefront({
   const closeSheet = useCallback(() => {
     setSelected(null);
     setGeneralOpen(false);
+    setCartOpen(false);
+    window.history.replaceState({}, "", storefrontHomePath(orgSlug));
+  }, [orgSlug]);
+
+  const openCart = useCallback(() => {
+    setSelected(null);
+    setGeneralOpen(false);
+    setCartOpen(true);
     window.history.replaceState({}, "", storefrontHomePath(orgSlug));
   }, [orgSlug]);
 
@@ -50,27 +65,46 @@ export function EllaStorefront({
       const parsed = parseStorefrontPath(window.location.pathname);
       const next = findById(parsed?.productId || null);
       setSelected(next);
-      if (!next) setGeneralOpen(false);
+      if (!next) {
+        setGeneralOpen(false);
+        setCartOpen(false);
+      }
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [findById]);
 
+  const cartCount = ellaCartCount(cart);
+  const shopName = shop.display_name || shop.name;
+
   return (
     <div className="ella-store">
       <EllaStorefrontHome
-        shopName={shop.display_name || shop.name}
+        shopName={shopName}
         orgSlug={orgSlug}
         whatsapp={shop.whatsapp_number}
         products={ellaProducts}
+        cartCount={cartCount}
         onOpenProduct={openProduct}
         onOpenGeneralEnquire={() => {
           setSelected(null);
+          setCartOpen(false);
           setGeneralOpen(true);
         }}
+        onOpenCart={openCart}
       />
 
-      {selected ? (
+      {selected && isEllaProductPurchasable(selected.stock) ? (
+        <EllaProductSheet
+          product={selected}
+          cart={cart}
+          onAddToCart={setCart}
+          onOpenCart={openCart}
+          onClose={closeSheet}
+        />
+      ) : null}
+
+      {selected && !isEllaProductPurchasable(selected.stock) ? (
         <EllaEnquirySheet
           slug={orgSlug}
           shopWhatsApp={shop.whatsapp_number}
@@ -79,7 +113,21 @@ export function EllaStorefront({
         />
       ) : null}
 
-      {generalOpen && !selected ? <GeneralEnquireSheet slug={orgSlug} onClose={closeSheet} /> : null}
+      {generalOpen && !selected && !cartOpen ? (
+        <GeneralEnquireSheet slug={orgSlug} onClose={closeSheet} />
+      ) : null}
+
+      {cartOpen ? (
+        <EllaCartSheet
+          slug={orgSlug}
+          shopName={shopName}
+          upiId={shop.upi_id}
+          upiBusinessName={shop.upi_business_name || shopName}
+          cart={cart}
+          onCartChange={setCart}
+          onClose={() => setCartOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
