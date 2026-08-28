@@ -149,11 +149,12 @@ export default function DiscountSchemeDashboard() {
       .maybeSingle();
     if (fetchError) throw fetchError;
 
-    if (existing?.id) {
+    const existingRow = existing as { id?: string } | null;
+    if (existingRow?.id) {
       const { error } = await supabase
         .from("settings" as any)
         .update({ sale_settings: nextSaleSettings })
-        .eq("id", existing.id);
+        .eq("id", existingRow.id);
       if (error) throw error;
     } else {
       const { error } = await supabase
