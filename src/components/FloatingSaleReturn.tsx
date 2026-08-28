@@ -10,6 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw, UserPlus } from "lucide-react";
 import { QuickAddCustomerDialog } from "@/components/mobile/QuickAddCustomerDialog";
+import {
+  filterSaleReturnProducts,
+  groupSaleReturnVariantsByProduct,
+} from "@/utils/saleReturnProductSearch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -68,6 +72,8 @@ interface Product {
   product_name: string;
   brand: string | null;
   hsn_code: string | null;
+  category: string | null;
+  style: string | null;
 }
 
 interface Variant {
@@ -473,7 +479,7 @@ export const FloatingSaleReturn = ({
         const batch = productIdArray.slice(i, i + 500);
         const { data } = await supabase
           .from("products")
-          .select("id, product_name, brand, hsn_code")
+          .select("id, product_name, brand, hsn_code, category, style")
           .in("id", batch)
           .eq("status", "active")
           .is("deleted_at", null);
@@ -713,6 +719,8 @@ export const FloatingSaleReturn = ({
               product_name: soldMatch.product.product_name,
               brand: soldMatch.product.brand,
               hsn_code: soldMatch.product.hsn_code,
+              category: soldMatch.product.category,
+              style: null,
             };
             variant = {
               id: soldMatch.variant.id,
@@ -1306,17 +1314,15 @@ export const FloatingSaleReturn = ({
     }
   };
 
-  const filteredProducts = products.filter(product => {
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    const matchingVariants = variants.filter(v => v.product_id === product.id);
-    const barcodeMatch = matchingVariants.some(v => v.barcode?.toLowerCase().includes(search));
-    return (
-      product.product_name.toLowerCase().includes(search) ||
-      product.brand?.toLowerCase().includes(search) ||
-      barcodeMatch
-    );
-  });
+  const variantsByProduct = useMemo(
+    () => groupSaleReturnVariantsByProduct(variants),
+    [variants],
+  );
+
+  const filteredProducts = useMemo(
+    () => filterSaleReturnProducts(products, variantsByProduct, searchTerm),
+    [products, variantsByProduct, searchTerm],
+  );
 
   return (
     <>
@@ -1655,7 +1661,7 @@ export const FloatingSaleReturn = ({
                   <CommandEmpty>{loading ? "Loading..." : "No sold products found"}</CommandEmpty>
                   <CommandGroup>
                     {filteredProducts.slice(0, 50).map(product => {
-                      const productVariants = variants.filter(v => v.product_id === product.id);
+                      const productVariants = variantsByProduct.get(product.id) ?? [];
                       return productVariants.map(variant => (
                         <CommandItem
                           key={variant.id}
