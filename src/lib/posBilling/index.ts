@@ -5,3 +5,4 @@ export * from "./cartMutators";
 export * from "./cartStockStatus";
 export * from "./editRestore";
 export * from "./buildSaleData";
+export * from "./categoryTierPricing";

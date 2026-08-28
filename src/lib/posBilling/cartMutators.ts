@@ -421,6 +421,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     barcode: variant.barcode || "",
     productName: description,
     baseProductName: product.product_name || description.split("-")[0] || description,
+    category: product.category?.trim() || null,
     size: variant.size || "",
     color: displayColor,
     quantity: 1,

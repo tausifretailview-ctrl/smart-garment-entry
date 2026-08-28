@@ -9,6 +9,10 @@ export interface PosCartItem {
   productName: string;
   /** DB products.product_name only (no brand/category/style join). */
   baseProductName?: string;
+  /** Product category — used for quantity-tier bundle pricing when enabled. */
+  category?: string | null;
+  /** Set when category tier pricing repriced this line (wins over MRP-mode discount). */
+  categoryTierApplied?: boolean;
   size: string;
   color: string;
   quantity: number;

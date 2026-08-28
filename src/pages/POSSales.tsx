@@ -45,6 +45,8 @@ import {
 } from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
+import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
+import { isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
 import {
   applyPosGarmentGstToItem,
@@ -707,12 +709,24 @@ export default function POSSales() {
     },
   );
 
+  const categoryTierPricingEnabled = isCategoryTierPricingEnabled(
+    (settingsData as any)?.sale_settings,
+  );
+  const { data: categoryTierRules = [] } = useCategoryTierPricingRules(
+    currentOrganization?.id,
+    categoryTierPricingEnabled,
+  );
+
   const billing = usePosBilling({
     grossBasis,
     garmentGstSettings,
     calculateRedemptionValue,
     initialTaxType: defaultPosTaxTypeEarly,
     initialItems: _savedCart?.items?.length ? (_savedCart.items as CartItem[]) : [],
+    categoryTierPricing: {
+      enabled: categoryTierPricingEnabled,
+      rules: categoryTierRules,
+    },
   });
 
   const {

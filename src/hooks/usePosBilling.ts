@@ -37,6 +37,8 @@ import {
   updateMrp as updateMrpPure,
   updatePrice as updatePricePure,
   updateQty as updateQtyPure,
+  applyCategoryTierPricingToCart,
+  type CategoryTierRule,
 } from "@/lib/posBilling";
 
 export type UsePosBillingParams = {
@@ -53,6 +55,11 @@ export type UsePosBillingParams = {
   initialTaxType?: GstTaxType | string;
   /** Optional cart hydrate (e.g. session snapshot). Read once on mount. */
   initialItems?: PosCartItem[];
+  /** Category quantity-tier bundle pricing — org opt-in from Settings → Sale. */
+  categoryTierPricing?: {
+    enabled: boolean;
+    rules: CategoryTierRule[];
+  };
 };
 
 export type UsePosBillingResult = {
@@ -156,22 +163,46 @@ export type UsePosBillingResult = {
  * No toast / DOM / navigation / settings context. Side effects stay in the caller.
  */
 export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult {
-  const { grossBasis, garmentGstSettings, calculateRedemptionValue } = params;
+  const { grossBasis, garmentGstSettings, calculateRedemptionValue, categoryTierPricing } = params;
 
-  const [items, setItemsState] = useState<PosCartItem[]>(() =>
-    Array.isArray(params.initialItems) ? params.initialItems : [],
+  const tierFinalize = useCallback(
+    (raw: PosCartItem[]) => {
+      if (!categoryTierPricing?.enabled || !categoryTierPricing.rules?.length) return raw;
+      return applyCategoryTierPricingToCart(raw, categoryTierPricing.rules, garmentGstSettings);
+    },
+    [categoryTierPricing?.enabled, categoryTierPricing?.rules, garmentGstSettings],
   );
+
+  const [items, setItemsState] = useState<PosCartItem[]>(() => {
+    const initial = Array.isArray(params.initialItems) ? params.initialItems : [];
+    return tierFinalize(initial);
+  });
   const itemsRef = useRef<PosCartItem[]>(items);
   itemsRef.current = items;
 
   /** Keep itemsRef in sync inside the updater (same tick as setState) — matches prior POSSales. */
-  const setItems = useCallback((updater: SetStateAction<PosCartItem[]>) => {
+  const setItems = useCallback(
+    (updater: SetStateAction<PosCartItem[]>) => {
+      setItemsState((prev) => {
+        const next =
+          typeof updater === "function"
+            ? (updater as (p: PosCartItem[]) => PosCartItem[])(prev)
+            : updater;
+        const finalized = tierFinalize(next);
+        itemsRef.current = finalized;
+        return finalized;
+      });
+    },
+    [tierFinalize],
+  );
+
+  useEffect(() => {
     setItemsState((prev) => {
-      const next = typeof updater === "function" ? (updater as (p: PosCartItem[]) => PosCartItem[])(prev) : updater;
-      itemsRef.current = next;
-      return next;
+      const finalized = tierFinalize(prev);
+      itemsRef.current = finalized;
+      return finalized;
     });
-  }, []);
+  }, [tierFinalize]);
 
   const [flatDiscountValue, setFlatDiscountValueRaw] = useState(0);
   const [flatDiscountMode, setFlatDiscountMode] = useState<PosFlatDiscountMode>("percent");
@@ -256,13 +287,14 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
 
   const applyMutator = useCallback(
     (result: CartMutatorResult) => {
-      itemsRef.current = result.items;
-      setItemsState(result.items);
+      const finalized = tierFinalize(result.items);
+      itemsRef.current = finalized;
+      setItemsState(finalized);
       if (result.error) setLastError(result.error);
       else setLastError(null);
-      return result;
+      return { ...result, items: finalized };
     },
-    [],
+    [tierFinalize],
   );
 
   const addLine = useCallback(
