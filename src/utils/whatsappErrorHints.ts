@@ -258,3 +258,5 @@ function extractDeliveryErrorFromWebhookBody(body: Record<string, unknown>): str
     }
   }
   return "";
+}
+
