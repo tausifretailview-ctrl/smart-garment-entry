@@ -159,11 +159,8 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       .filter(Boolean);
     const terms = termsList.length > 0 ? termsList : KIDS_DEFAULT_TERMS;
 
-    const partyLabel = (() => {
-      const name = (customerName || 'CASH').toUpperCase();
-      const phone = customerPhone?.trim();
-      return phone ? `${name}<${phone}>` : name;
-    })();
+    const partyName = (customerName || 'CASH').toUpperCase();
+    const customerMob = customerPhone?.trim() || '';
 
     const modeLabel = (() => {
       const mode = (paymentMethod || 'CASH').toUpperCase().replace(/_/g, ' ');
@@ -296,7 +293,8 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
               </span>
             </div>
           )}
-          <div>Party.: {partyLabel}</div>
+          <div>Party.: {partyName}</div>
+          {customerMob && <div>Mob.: {customerMob}</div>}
           {salesman && <div>Salesmen: {salesman.toUpperCase()}</div>}
         </div>
 
