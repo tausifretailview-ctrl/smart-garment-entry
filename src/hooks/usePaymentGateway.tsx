@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 
@@ -14,9 +15,27 @@ export interface PaymentGatewaySettings {
   upi_business_name?: string;
   razorpay_key_id?: string;
   razorpay_enabled: boolean;
+  razorpay_environment?: 'test' | 'live';
   phonepe_merchant_id?: string;
   phonepe_enabled: boolean;
+  phonepe_environment?: 'sandbox' | 'production';
 }
+
+/** Presence flags only — secret values are never sent to the browser. */
+export interface PaymentSecretStatus {
+  has_razorpay_key_secret: boolean;
+  has_razorpay_webhook_secret: boolean;
+  has_phonepe_salt_key: boolean;
+}
+
+export interface SaveSecretsInput {
+  /** undefined = leave unchanged, '' = clear the stored value. */
+  razorpayKeySecret?: string;
+  razorpayWebhookSecret?: string;
+  phonepeSaltKey?: string;
+  phonepeSaltIndex?: string;
+}
+
 
 export interface PaymentLink {
   id: string;
