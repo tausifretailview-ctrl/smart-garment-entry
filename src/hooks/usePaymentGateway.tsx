@@ -129,23 +129,68 @@ export function usePaymentGateway() {
     },
   });
 
+  // Which credentials exist (booleans only — the values stay server-side).
+  const { data: secretStatus } = useQuery({
+    queryKey: ['payment-gateway-secret-status', currentOrganization?.id],
+    queryFn: async (): Promise<PaymentSecretStatus> => {
+      const { data, error } = await supabase.rpc('get_payment_gateway_secret_status', {
+        p_org_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row as PaymentSecretStatus) ?? {
+        has_razorpay_key_secret: false,
+        has_razorpay_webhook_secret: false,
+        has_phonepe_salt_key: false,
+      };
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const saveSecretsMutation = useMutation({
+    mutationFn: async (input: SaveSecretsInput) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase.rpc('save_payment_gateway_secrets', {
+        p_org_id: currentOrganization.id,
+        p_razorpay_key_secret: input.razorpayKeySecret ?? null,
+        p_razorpay_webhook_secret: input.razorpayWebhookSecret ?? null,
+        p_phonepe_salt_key: input.phonepeSaltKey ?? null,
+        p_phonepe_salt_index: input.phonepeSaltIndex ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-gateway-secret-status'] });
+      toast.success("Payment credentials saved securely");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to save credentials");
+    },
+  });
+
   // Get active gateway info
   const activeGateway = gatewaySettings?.active_gateway || 'upi_link';
-  
+
   const isGatewayConfigured = (): boolean => {
     if (!gatewaySettings) return false;
-    
+
     switch (gatewaySettings.active_gateway) {
       case 'upi_link':
         return !!gatewaySettings.upi_id;
       case 'razorpay':
-        return !!gatewaySettings.razorpay_key_id && gatewaySettings.razorpay_enabled;
+        // Without the shop's own key secret, no link can be created.
+        return !!gatewaySettings.razorpay_key_id
+          && gatewaySettings.razorpay_enabled
+          && !!secretStatus?.has_razorpay_key_secret;
       case 'phonepe':
-        return !!gatewaySettings.phonepe_merchant_id && gatewaySettings.phonepe_enabled;
+        return !!gatewaySettings.phonepe_merchant_id
+          && gatewaySettings.phonepe_enabled
+          && !!secretStatus?.has_phonepe_salt_key;
       default:
         return false;
     }
   };
+
 
   // Generate UPI link locally (for upi_link gateway)
   const generateLocalUPILink = (params: CreatePaymentLinkParams): string | null => {
