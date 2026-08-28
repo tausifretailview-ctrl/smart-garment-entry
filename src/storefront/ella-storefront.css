@@ -2,29 +2,30 @@
 
 html.ella-root,
 body.ella-root {
-  background: #12100e;
+  background: #ffffff;
   overflow-x: hidden;
 }
 
 .ella-store {
   --ella-ink: #12100e;
-  --ella-ink-raised: #171410;
-  --ella-panel: #241f19;
-  --ella-paper: #f4f1ea;
-  --ella-paper-muted: rgba(244, 241, 234, 0.55);
-  --ella-paper-faint: rgba(244, 241, 234, 0.4);
+  --ella-ink-raised: #ffffff;
+  --ella-panel: #f5f3ef;
+  --ella-paper: #12100e;
+  --ella-paper-muted: rgba(18, 16, 14, 0.58);
+  --ella-paper-faint: rgba(18, 16, 14, 0.42);
   --ella-gold: #c9a227;
-  --ella-gold-line: rgba(201, 162, 39, 0.28);
-  --ella-hairline: rgba(244, 241, 234, 0.12);
+  --ella-gold-line: rgba(201, 162, 39, 0.35);
+  --ella-hairline: rgba(18, 16, 14, 0.12);
   --ella-radius: 0px;
-  background: var(--ella-ink);
+  --ella-max: 560px;
+  background: #ffffff;
   color: var(--ella-paper);
   font-family: Barlow, system-ui, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.55;
-  max-width: 560px;
   margin: 0 auto;
+  max-width: var(--ella-max);
   min-height: 100dvh;
   overflow-x: clip;
   text-wrap: pretty;
@@ -86,11 +87,11 @@ body.ella-root {
 }
 
 .ella-hero-ph {
-  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
 }
 
 .ella-hero-veil {
-  background: linear-gradient(180deg, rgba(18, 16, 14, 0.15) 20%, rgba(18, 16, 14, 0.92) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 10%, rgba(255, 255, 255, 0.88) 100%);
   inset: 0;
   position: absolute;
 }
@@ -115,6 +116,7 @@ body.ella-root {
 }
 
 .ella-wordmark {
+  color: var(--ella-ink);
   font-size: 42px;
   letter-spacing: 0.16em;
 }
@@ -127,6 +129,7 @@ body.ella-root {
 }
 
 .ella-collection-title {
+  color: var(--ella-ink);
   font-size: 20px;
   letter-spacing: 0.14em;
 }
@@ -168,7 +171,7 @@ body.ella-root {
 }
 
 .ella-sticky-head {
-  background: rgba(23, 20, 16, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--ella-gold-line);
   padding: 12px 20px 14px;
@@ -184,6 +187,7 @@ body.ella-root {
 }
 
 .ella-sticky-wordmark {
+  color: var(--ella-ink);
   flex: 0 1 auto;
   font-size: 15px;
   letter-spacing: 0.14em;
@@ -208,7 +212,7 @@ body.ella-root {
 }
 
 .ella-search {
-  background: transparent;
+  background: #ffffff;
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper);
   flex: 1;
@@ -235,7 +239,7 @@ body.ella-root {
 }
 
 .ella-chip {
-  background: transparent;
+  background: #ffffff;
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper-muted);
   flex: 0 0 auto;
@@ -266,6 +270,7 @@ body.ella-root {
 }
 
 .ella-section h2 {
+  color: var(--ella-ink);
   font-size: 20px;
 }
 
@@ -288,7 +293,7 @@ body.ella-root {
 }
 
 .ella-card {
-  background: var(--ella-ink);
+  background: #ffffff;
   color: inherit;
   display: flex;
   flex-direction: column;
@@ -298,7 +303,7 @@ body.ella-root {
 
 .ella-card-img {
   aspect-ratio: 3 / 4;
-  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
   overflow: hidden;
   position: relative;
 }
@@ -321,6 +326,7 @@ body.ella-root {
 }
 
 .ella-card-name {
+  color: var(--ella-ink);
   font-size: 17px;
   letter-spacing: 0.1em;
 }
@@ -356,18 +362,20 @@ body.ella-root {
   color: var(--ella-ink);
 }
 
-.ella-badge-mto {
-  background: rgba(18, 16, 14, 0.55);
-  border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold);
+.ella-badge-out {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
 }
 
 .ella-badge-in {
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper-muted);
 }
 
 .ella-note {
+  background: var(--ella-panel);
   border-top: 1px solid var(--ella-gold-line);
   color: var(--ella-paper-muted);
   font-size: 13px;
@@ -379,6 +387,7 @@ body.ella-root {
 }
 
 .ella-footer {
+  background: #ffffff;
   border-top: 1px solid var(--ella-gold-line);
   color: var(--ella-paper-faint);
   display: flex;
@@ -392,13 +401,13 @@ body.ella-root {
 
 .ella-action-bar {
   backdrop-filter: blur(6px);
-  background: linear-gradient(180deg, rgba(18, 16, 14, 0) 0%, rgba(18, 16, 14, 0.94) 38%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 38%);
   bottom: 0;
   display: flex;
   gap: 8px;
   left: 0;
   margin: 0 auto;
-  max-width: 560px;
+  max-width: var(--ella-max);
   padding: 16px 20px 18px;
   position: fixed;
   right: 0;
@@ -431,7 +440,7 @@ body.ella-root {
 .ella-store a.ella-btn-outline,
 .ella-store button.ella-btn-outline,
 .ella-btn-outline {
-  background: transparent;
+  background: #ffffff;
   border: 1px solid var(--ella-gold-line);
   color: var(--ella-gold);
 }
@@ -441,15 +450,20 @@ body.ella-root {
   width: 52px;
 }
 
+.ella-cart-btn {
+  flex: 0 1 auto;
+  min-width: 120px;
+}
+
 .ella-scrim {
-  background: rgba(18, 16, 14, 0.72);
+  background: rgba(18, 16, 14, 0.45);
   inset: 0;
   position: fixed;
   z-index: 40;
 }
 
 .ella-sheet {
-  background: var(--ella-ink-raised);
+  background: #ffffff;
   border-top: 1px solid var(--ella-gold);
   bottom: 0;
   display: flex;
@@ -457,12 +471,16 @@ body.ella-root {
   left: 0;
   margin: 0 auto;
   max-height: 82%;
-  max-width: 560px;
+  max-width: var(--ella-max);
   overscroll-behavior: contain;
   position: fixed;
   right: 0;
   width: 100%;
   z-index: 50;
+}
+
+.ella-sheet-tall {
+  max-height: 90%;
 }
 
 .ella-sheet-scroll {
@@ -479,6 +497,7 @@ body.ella-root {
 }
 
 .ella-sheet-name {
+  color: var(--ella-ink);
   font-size: 22px;
   margin-top: 6px;
 }
@@ -489,6 +508,19 @@ body.ella-root {
   height: 44px;
   line-height: 1;
   width: 44px;
+}
+
+.ella-sheet-img {
+  aspect-ratio: 4 / 5;
+  background: var(--ella-panel);
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.ella-sheet-img img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .ella-price-row {
@@ -520,7 +552,118 @@ body.ella-root {
 }
 
 .ella-spec-row dd {
+  color: var(--ella-ink);
   text-align: right;
+}
+
+.ella-qty-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 18px;
+}
+
+.ella-qty-controls {
+  align-items: center;
+  display: inline-flex;
+  gap: 12px;
+}
+
+.ella-qty-controls-inline {
+  margin-top: 8px;
+}
+
+.ella-qty-btn {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-size: 18px;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.ella-qty-btn:disabled {
+  opacity: 0.35;
+}
+
+.ella-qty-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: center;
+}
+
+.ella-cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.ella-cart-line {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.ella-cart-thumb {
+  flex: none;
+  height: 88px;
+  object-fit: cover;
+  width: 66px;
+}
+
+.ella-cart-thumb-ph {
+  background: var(--ella-panel);
+}
+
+.ella-cart-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ella-cart-name {
+  font-size: 16px;
+}
+
+.ella-cart-total {
+  align-items: baseline;
+  border-top: 1px solid var(--ella-gold-line);
+  display: flex;
+  font-size: 14px;
+  justify-content: space-between;
+  letter-spacing: 0.12em;
+  margin-top: 18px;
+  padding-top: 16px;
+  text-transform: uppercase;
+}
+
+.ella-upi-block {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.ella-upi-qr {
+  display: block;
+  height: auto;
+  max-width: 220px;
+}
+
+.ella-upi-id {
+  color: var(--ella-paper-muted);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  word-break: break-all;
 }
 
 .ella-form {
@@ -541,7 +684,7 @@ body.ella-root {
 
 .ella-form input,
 .ella-form textarea {
-  background: transparent;
+  background: #ffffff;
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper);
   font: inherit;
@@ -569,15 +712,21 @@ body.ella-root {
 
 .ella-success {
   border: 1px solid var(--ella-gold);
-  color: var(--ella-paper);
+  color: var(--ella-ink);
   font-size: 14px;
   margin-top: 20px;
   padding: 16px;
 }
 
 .ella-error {
-  color: #e8b4b4;
+  color: #b42318;
   font-size: 12px;
+}
+
+.ella-empty-inline {
+  color: var(--ella-paper-muted);
+  margin-top: 20px;
+  text-align: center;
 }
 
 .ella-skel-grid {
@@ -588,13 +737,13 @@ body.ella-root {
 }
 
 .ella-skel-card {
-  background: var(--ella-ink);
+  background: #ffffff;
   padding-bottom: 16px;
 }
 
 .ella-skel-img {
   aspect-ratio: 3 / 4;
-  background: linear-gradient(150deg, var(--ella-panel), var(--ella-ink));
+  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
 }
 
 .ella-skel-line {
@@ -625,6 +774,78 @@ body.ella-root {
   text-align: center;
 }
 
+@media (min-width: 640px) {
+  .ella-store {
+    --ella-max: 720px;
+  }
+
+  .ella-grid,
+  .ella-skel-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .ella-sticky-head,
+  .ella-section,
+  .ella-note,
+  .ella-footer {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .ella-hero-center,
+  .ella-hero-foot {
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .ella-store {
+    --ella-max: 1200px;
+  }
+
+  .ella-hero {
+    height: 480px;
+  }
+
+  .ella-wordmark {
+    font-size: 52px;
+  }
+
+  .ella-grid,
+  .ella-skel-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .ella-sticky-head,
+  .ella-section,
+  .ella-note,
+  .ella-footer {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .ella-hero-center,
+  .ella-hero-foot {
+    padding-left: 40px;
+    padding-right: 40px;
+  }
+
+  .ella-sheet {
+    border: 1px solid var(--ella-gold-line);
+    border-top: 1px solid var(--ella-gold);
+    bottom: auto;
+    max-height: min(90vh, 820px);
+    max-width: 520px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .ella-sheet-tall {
+    max-height: min(92vh, 860px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ella-chip,
   .ella-sheet {
@@ -636,6 +857,12 @@ body.ella-root {
   .ella-sheet {
     animation: ella-sheet-in 220ms ease-out;
   }
+
+  @media (min-width: 1024px) {
+    .ella-sheet {
+      animation: ella-sheet-in-desktop 220ms ease-out;
+    }
+  }
 }
 
 @keyframes ella-sheet-in {
@@ -644,5 +871,16 @@ body.ella-root {
   }
   to {
     transform: translateY(0);
+  }
+}
+
+@keyframes ella-sheet-in-desktop {
+  from {
+    opacity: 0.92;
+    transform: translateY(calc(-50% + 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%);
   }
 }

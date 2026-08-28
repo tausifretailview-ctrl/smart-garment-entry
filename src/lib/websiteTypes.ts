@@ -50,6 +50,9 @@ export type PublicStorefrontShop = {
   instagram_url?: string | null;
   facebook_url?: string | null;
   theme_accent_color?: string | null;
+  /** From org bill_barcode_settings — used for storefront UPI checkout. */
+  upi_id?: string | null;
+  upi_business_name?: string | null;
 };
 
 export type PublicStorefrontVariant = {

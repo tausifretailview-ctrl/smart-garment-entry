@@ -17,6 +17,7 @@ export type EllaStorefrontProduct = {
   fabric: string;
   leadTimeWeeks: number | null;
   available: number;
+  availableKnown: boolean;
   madeToOrder: boolean;
   lowStockThreshold: number;
   stock: EllaStockView;
@@ -62,12 +63,10 @@ export function availableFromPublicProduct(product: PublicStorefrontProduct): {
 
 export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaStorefrontProduct {
   const { available, availableKnown } = availableFromPublicProduct(product);
-  const madeToOrder = true;
   const leadTimeWeeks = available <= 0 ? ellaCopy.defaultLeadWeeks : null;
   const stock = classifyEllaStock({
     available,
     availableKnown,
-    madeToOrder,
     leadTimeWeeks,
     lowStockThreshold: ellaCopy.lowStockThreshold,
   });
@@ -89,7 +88,8 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     fabric,
     leadTimeWeeks,
     available,
-    madeToOrder,
+    availableKnown,
+    madeToOrder: stock.state === "out",
     lowStockThreshold: ellaCopy.lowStockThreshold,
     stock,
   };
