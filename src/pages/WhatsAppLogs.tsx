@@ -573,6 +573,11 @@ const WhatsAppLogs = () => {
                     <pre className="mt-1 p-3 bg-muted rounded-lg text-xs overflow-auto max-h-[200px]">
                       {JSON.stringify(selectedLog.provider_response, null, 2)}
                     </pre>
+                    {(selectedLog.provider_response as Record<string, unknown>)?.delivery_callback && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        See <code className="bg-muted px-1 rounded">delivery_callback</code> above for the Meta/BSP delivery failure details (when status is Failed after queued).
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
