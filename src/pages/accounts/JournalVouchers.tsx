@@ -37,6 +37,7 @@ type RefTypeFilter =
   | "SaleReturn"
   | "PurchaseReturn"
   | "ManualJournal"
+  | "ThirdPartyVoucher"
   | "Contra"
   | "RoundOff";
 
@@ -57,6 +58,7 @@ const REF_TYPE_VALUES: RefTypeFilter[] = [
   "SaleReturn",
   "PurchaseReturn",
   "ManualJournal",
+  "ThirdPartyVoucher",
   "Contra",
   "RoundOff",
 ];
@@ -353,6 +355,7 @@ export default function JournalVouchers() {
                     <SelectItem value="SaleReturn">Sale return</SelectItem>
                     <SelectItem value="PurchaseReturn">Purchase return</SelectItem>
                     <SelectItem value="ManualJournal">Manual journal</SelectItem>
+                    <SelectItem value="ThirdPartyVoucher">Third-party voucher</SelectItem>
                     <SelectItem value="Contra">Contra</SelectItem>
                     <SelectItem value="RoundOff">Round off</SelectItem>
                   </SelectContent>

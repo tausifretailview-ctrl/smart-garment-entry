@@ -89,6 +89,20 @@ export function accountFacetStatus(
   return "settled";
 }
 
+/** Debtor net (Dr) from post-fix party RPC row — max(0, signed net receivable). */
+export function partyDebtorNetFromRpcRow(
+  row: Pick<{ signed_balance?: number | null }, "signed_balance">,
+): number {
+  return Math.max(0, roundRupee(Number(row.signed_balance) || 0));
+}
+
+/** Signed net receivable from party RPC row (Cr when negative). */
+export function partyNetPositionFromRpcRow(
+  row: Pick<{ signed_balance?: number | null }, "signed_balance">,
+): number {
+  return roundRupee(Number(row.signed_balance) || 0);
+}
+
 export function formatNetFacetLabel(netPosition: number): string {
   const abs = Math.abs(roundRupee(netPosition)).toLocaleString("en-IN", {
     minimumFractionDigits: 2,

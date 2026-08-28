@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -3006,6 +3006,13 @@ export type Database = {
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
           },
+          {
+            foreignKeyName: "journal_entries_reversed_journal_id_fkey"
+            columns: ["reversed_journal_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
         ]
       }
       journal_lines: {
@@ -4642,6 +4649,7 @@ export type Database = {
           gst_per: number
           hsn_code: string | null
           id: string
+          is_dc: boolean
           line_total: number
           product_id: string
           pur_price: number
@@ -4659,6 +4667,7 @@ export type Database = {
           gst_per: number
           hsn_code?: string | null
           id?: string
+          is_dc?: boolean
           line_total: number
           product_id: string
           pur_price: number
@@ -4676,6 +4685,7 @@ export type Database = {
           gst_per?: number
           hsn_code?: string | null
           id?: string
+          is_dc?: boolean
           line_total?: number
           product_id?: string
           pur_price?: number
@@ -4714,6 +4724,7 @@ export type Database = {
           gross_amount: number
           gst_amount: number
           id: string
+          is_dc: boolean
           journal_error: string | null
           journal_status: string
           linked_bill_id: string | null
@@ -4740,6 +4751,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc?: boolean
           journal_error?: string | null
           journal_status?: string
           linked_bill_id?: string | null
@@ -4766,6 +4778,7 @@ export type Database = {
           gross_amount?: number
           gst_amount?: number
           id?: string
+          is_dc?: boolean
           journal_error?: string | null
           journal_status?: string
           linked_bill_id?: string | null
@@ -9684,16 +9697,6 @@ export type Database = {
         }[]
       }
       get_public_storefront: { Args: { p_slug: string }; Returns: Json }
-      submit_public_storefront_enquiry: {
-        Args: {
-          p_customer_name: string
-          p_customer_phone: string
-          p_message?: string | null
-          p_product_id?: string | null
-          p_slug: string
-        }
-        Returns: Json
-      }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
@@ -9975,6 +9978,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      insert_customer_ledger_entry: {
+        Args: {
+          p_credit: number
+          p_customer_id: string
+          p_debit: number
+          p_organization_id: string
+          p_particulars: string
+          p_transaction_date: string
+          p_voucher_no: string
+          p_voucher_type: string
+        }
+        Returns: undefined
+      }
       invoice_reconcile_outstanding: {
         Args: {
           p_adv: number
@@ -10076,6 +10092,10 @@ export type Database = {
             }
             Returns: Json
           }
+      post_journal_reversal_for_voucher_ref: {
+        Args: { p_org: string; p_voucher_id: string }
+        Returns: undefined
+      }
       preview_fix_missing_mrp_cross_org_for_org: {
         Args: { p_org_id: string }
         Returns: {
@@ -10173,6 +10193,14 @@ export type Database = {
           details: Json
           fixed_count: number
         }[]
+      }
+      resolve_ledger_customer_id: {
+        Args: {
+          p_org: string
+          p_reference_id: string
+          p_reference_type: string
+        }
+        Returns: string
       }
       restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
       restore_purchase_return: {
@@ -10305,6 +10333,16 @@ export type Database = {
       soft_delete_voucher: {
         Args: { p_user_id: string; p_voucher_id: string }
         Returns: undefined
+      }
+      submit_public_storefront_enquiry: {
+        Args: {
+          p_customer_name: string
+          p_customer_phone: string
+          p_message?: string
+          p_product_id?: string
+          p_slug: string
+        }
+        Returns: Json
       }
       update_purchase_line_numbers: {
         Args: { p_bill_id: string; p_ids: string[]; p_line_numbers: number[] }

@@ -35,6 +35,7 @@ import {
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
 import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
+import { isKsFootwearSlug } from "@/utils/saleScanPricePreference";
 import {
   paperPatchesForInvoiceTemplate,
   resolvePosInvoiceTemplate,
@@ -42,6 +43,7 @@ import {
   resolveSaleInvoiceTemplate,
   type InvoiceTemplateId,
 } from "@/utils/invoicePrintFormat";
+import { persistQuotationPrintTemplate } from "@/utils/quotationPrintTemplate";
 import {
   hasExplicitPosDefaultTaxType,
   resolvePosDefaultTaxType,
@@ -221,6 +223,10 @@ interface SaleSettings {
   invoice_template?: InvoiceTemplateId;
   /** POS-only invoice layout; falls back to `invoice_template` when unset. */
   pos_invoice_template?: InvoiceTemplateId;
+  /** Quotation print layout: existing retail design vs IT-company (no MRP). */
+  quotation_print_template?: 'retail' | 'it-company';
+  /** When true, quotation print prepends Settings → Sale terms before quotation terms. */
+  merge_sale_terms_on_quotation?: boolean;
   invoice_color_scheme?: string;
   declaration_text?: string;
   terms_list?: string[];
@@ -2266,8 +2272,8 @@ export default function Settings() {
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Enabled: every POS add (barcode, search, or product pick) uses MRP as the selling
-                          rate with no line discount. Disabled: uses Sale Price and shows MRP vs Sale Price
-                          discount on POS.
+                          rate with no line discount. Last-purchase sale price is not applied (KS Footwear
+                          included). Disabled: uses Sale Price and shows MRP vs Sale Price discount on POS.
                         </p>
                       </div>
                       <Switch
@@ -2722,12 +2728,43 @@ export default function Settings() {
                   <Switch
                     id="ask_price_on_scan"
                     checked={(settings.sale_settings as any)?.ask_price_on_scan ?? true}
+                    disabled={
+                      ((settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                        isKsFootwearSlug(currentOrganization?.slug)) === true
+                    }
                     onCheckedChange={(checked) =>
                       setSettings({
                         ...settings,
                         sale_settings: {
                           ...settings.sale_settings,
                           ask_price_on_scan: checked,
+                        } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto_use_last_purchase_price" className="text-sm font-medium">
+                      Automatically use last purchase price
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Skip the Select Price dialog and bill at last purchase sale price and MRP. On for KS Footwear by default.
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto_use_last_purchase_price"
+                    checked={
+                      (settings.sale_settings as any)?.auto_use_last_purchase_price ??
+                      isKsFootwearSlug(currentOrganization?.slug)
+                    }
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          auto_use_last_purchase_price: checked,
                         } as any,
                       })
                     }
@@ -2788,10 +2825,11 @@ export default function Settings() {
                       POS quick price-code search (no-barcode shops)
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Type a short code like "S200" in the POS scan box to add a product by its first
-                      letters + sale price, without a barcode — e.g. "S" for Shirt at ₹200. If the code
-                      matches more than one product, POS asks which one instead of guessing. Off by default;
-                      enable only for shops billing by name + price rather than barcode/size.
+                      When enabled, POS supports two fast-billing methods: type a price code like
+                      "J900" to add Jeans at ₹900 instantly (first letter(s) of product name or
+                      brand + price), or type a name like "Jeans" and pick from the dropdown
+                      (brand + price shown). Matches variant sale price, MRP, or product default
+                      selling price. Other organisations leave this off — normal POS search unchanged.
                     </p>
                   </div>
                   <Switch
@@ -3235,6 +3273,63 @@ export default function Settings() {
                         Grouped by A4 / A5 / Thermal. Can differ from Sale — switch Live Preview to POS to see it.
                       </p>
                     </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="quotation_print_template" className="text-sm font-medium">
+                      Quotation Print Layout
+                    </Label>
+                    <Select
+                      value={settings.sale_settings?.quotation_print_template || "retail"}
+                      onValueChange={(value) => {
+                        persistQuotationPrintTemplate(
+                          value as "retail" | "it-company",
+                          currentOrganization?.id,
+                        );
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            quotation_print_template: value as "retail" | "it-company",
+                          },
+                        });
+                      }}
+                    >
+                      <SelectTrigger id="quotation_print_template">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="retail">Existing (Retail) — keeps MRP / size</SelectItem>
+                        <SelectItem value="it-company">IT Company — no MRP, Sale terms</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Also selectable on Print Quotation preview. Existing retail design stays available.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="merge_sale_terms_on_quotation" className="text-sm font-medium">
+                        Merge Sale terms into quotations
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Off (default): print only this quotation&apos;s terms. On: prepend Settings → Sale terms.
+                      </p>
+                    </div>
+                    <Switch
+                      id="merge_sale_terms_on_quotation"
+                      checked={settings.sale_settings?.merge_sale_terms_on_quotation === true}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            merge_sale_terms_on_quotation: checked,
+                          },
+                        })
+                      }
+                    />
                   </div>
 
                   {/* Thermal style — shown only when either format is thermal */}

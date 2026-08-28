@@ -6,7 +6,7 @@ import {
   recordCustomerAdvanceReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
 
 interface CustomerAdvance {
@@ -126,7 +126,7 @@ export function useCustomerAdvances(organizationId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, variables.customerId);
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId!, variables.customerId);
       toast.success("Advance booking recorded successfully");
     },
     onError: (error: Error) => {
@@ -183,7 +183,7 @@ export function useCustomerAdvances(organizationId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, variables.customerId);
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId!, variables.customerId);
     },
     onError: (error: Error) => {
       toast.error(`Failed to apply advance: ${error.message}`);

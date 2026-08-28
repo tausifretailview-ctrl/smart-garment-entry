@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-08-24",
-  "count": 722,
-  "fileCount": 738,
+  "generatedAt": "2026-08-27",
+  "count": 730,
+  "fileCount": 747,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -648,9 +648,13 @@
     "20260823180000",
     "20260824120000",
     "20260825140000",
+    "20260826001500",
     "20260826120000",
+    "20260826120100",
     "20260827120000",
     "20260827140000",
+    "20260827150000",
+    "20260827203000",
     "20260909120000",
     "20260909120100",
     "20260909120200",
@@ -714,6 +718,7 @@
     "20261028140000",
     "20261029120000",
     "20261030120000",
+    "20261102120000",
     "20261109120000",
     "20261110120000",
     "20261111120000",
@@ -725,7 +730,10 @@
     "20261123120000",
     "20261123121000",
     "20261123122000",
-    "20261124120000"
+    "20261124120000",
+    "20261125120000",
+    "20261126120000",
+    "20261127120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1386,9 +1394,14 @@
     "20260823180000_fix_cn_receipt_double_count_v2_reconcile.sql",
     "20260824120000_sale_payment_status_normalize_and_drift_report.sql",
     "20260825140000_whatsapp_wappconnect_per_org_config.sql",
+    "20260826001500_sales_payment_method_credit_note.sql",
+    "20260826120000_money_realtime_publication.sql",
     "20260826120000_whatsapp_logs_provider.sql",
+    "20260826120100_money_realtime_credit_notes.sql",
     "20260827120000_whatsapp_send_provider_rpc.sql",
     "20260827140000_get_sale_items_gross_batch.sql",
+    "20260827150000_third_party_voucher_journal.sql",
+    "20260827203000_gurukrupa_barcode_sequence_repair.sql",
     "20260909120000_get_customer_party_balances.sql",
     "20260909120100_fix_get_customer_party_balances_ambiguity.sql",
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
@@ -1454,6 +1467,7 @@
     "20261029120000_settlement_recompute_guard_on_receipt_sync.sql",
     "20261030120000_get_customer_segment_index.sql",
     "20261030120000_public_storefront_phase1.sql",
+    "20261102120000_supplier_party_balances_paid_matches_ledger.sql",
     "20261109120000_voucher_number_race_safe.sql",
     "20261110120000_advance_number_race_safe.sql",
     "20261111120000_search_invoice_sale_ids_trgm_union.sql",
@@ -1465,7 +1479,10 @@
     "20261123120000_unschedule_purge_old_audit_logs.sql",
     "20261123121000_journal_reversal_on_voucher_delete.sql",
     "20261123122000_customer_ledger_atomic_triggers.sql",
-    "20261124120000_submit_public_storefront_enquiry_rpc.sql"
+    "20261124120000_submit_public_storefront_enquiry_rpc.sql",
+    "20261125120000_storefront_slug_hyphen_alias.sql",
+    "20261126120000_fix_party_balances_settlement_memo_helper.sql",
+    "20261127120000_fix_snapshot_all_settlement_memo_parity.sql"
   ],
   "duplicateVersions": [
     {
@@ -1567,6 +1584,13 @@
       ]
     },
     {
+      "version": "20260826120000",
+      "files": [
+        "20260826120000_money_realtime_publication.sql",
+        "20260826120000_whatsapp_logs_provider.sql"
+      ]
+    },
+    {
       "version": "20260910120000",
       "files": [
         "20260910120000_fix_party_balances_cn_receipt_double_count.sql",
@@ -1593,6 +1617,10 @@
     {
       "version": "20260628120000",
       "reason": "Reconcile gross invoiced CN receipts (ledger KPI)"
+    },
+    {
+      "version": "20261126120000",
+      "reason": "Party RPC CN memos via _is_settlement_memo_receipt + remaining sale-return credit"
     }
   ]
 }

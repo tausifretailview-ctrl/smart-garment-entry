@@ -16,16 +16,33 @@ import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
 import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
 import {
-  posBarcodeMatchesNeedMrpPicker,
   posVariantDisplayMrp,
   shouldPromptPosPriceSelection,
 } from "@/utils/posScanPriceSelection";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import {
+  pickLastPurchaseScanPrice,
+  resolveSaleScanPriceSource,
+  shouldApplyLastPurchaseScanOverride,
+} from "@/utils/saleScanPricePreference";
 import {
   isCompleteNumericBarcodeForPosCart,
+  isPosPureNumericSearchTerm,
   POS_BARCODE_CART_LOOKUP_EXACT,
   POS_NUMERIC_BARCODE_MIN_LENGTH,
   shouldPosEnterUseExactBarcodeLookup,
 } from "@/utils/posBarcodeCartLookup";
+import {
+  fetchPosQuickPriceCodeMatches,
+  parsePosQuickPriceCode,
+  posVariantEffectiveSalePrice,
+  resolvePosQuickPriceCartOverride,
+} from "@/utils/posQuickPriceCode";
+import {
+  posFastBillingUsesDropdownPick,
+  expandFastBillingCompoundSearchTerm,
+  posFastBillingMetaLabel,
+} from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
@@ -52,7 +69,17 @@ import { useCustomerSearch, useCustomerBalances } from "@/hooks/useCustomerSearc
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
+import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import {
+  applyExistingAdvanceToSale,
+  capPosAdvanceApplyAmount,
+  posAdvanceApplyBlockReason,
+  posAdvanceApplyBlockToast,
+  posTenderDueAfterAdvance,
+} from "@/utils/posApplyAdvance";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
@@ -185,6 +212,7 @@ import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
+import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
@@ -260,7 +288,7 @@ function resolveServiceVariantDefaultMrp(variant: {
 
 /** Columns required by POS add-to-cart (barcode scan + price-selection dialog). */
 const POS_VARIANT_LOOKUP_SELECT =
-  'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom, requires_imei)';
+  'id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, last_purchase_sale_price, last_purchase_mrp, last_purchase_date, updated_at, is_dc_product, products!inner(id, product_name, brand, default_sale_price, hsn_code, gst_per, sale_gst_percent, purchase_gst_percent, category, style, color, product_type, organization_id, sale_discount_type, sale_discount_value, status, deleted_at, uom, requires_imei)';
 
 interface PosVariantRow {
   id: string;
@@ -330,41 +358,6 @@ function mapPosVariantLookupRow(
   return { product: row.products, variant: row };
 }
 
-/**
- * Fast-counter shorthand for no-barcode shops: "S200" -> letters "s", price 200.
- * Requires at least 2 digits so it can't collide with the 1-9 quick-service codes
- * or a short numeric barcode fragment (both purely numeric, never letters+digits).
- */
-function parsePosQuickPriceCode(term: string): { letters: string; price: number } | null {
-  const m = term.trim().match(/^([A-Za-z]{1,6})(\d{2,6})$/);
-  if (!m) return null;
-  const price = Number(m[2]);
-  if (!Number.isFinite(price) || price <= 0) return null;
-  return { letters: m[1].toLowerCase(), price };
-}
-
-async function fetchPosQuickPriceCodeMatches(
-  orgId: string,
-  letters: string,
-  price: number,
-): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
-  const { data, error } = await posVariantBaseQuery(orgId)
-    .ilike("products.product_name", `${letters}%`)
-    .eq("sale_price", price)
-    .order("stock_qty", { ascending: false })
-    .limit(20);
-  if (error) throw error;
-
-  const out: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
-  for (const row of data || []) {
-    const mapped = mapPosVariantLookupRow(
-      row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-    );
-    if (mapped) out.push(mapped);
-  }
-  return out;
-}
-
 async function fetchPosExactBarcodeMatches(
   orgId: string,
   barcode: string,
@@ -386,6 +379,46 @@ async function fetchPosExactBarcodeMatches(
     if (mapped) out.push(mapped);
   }
   return out;
+}
+
+/** Same barcode resolution chain as POS add-to-cart (exact master → scan RPC). */
+async function resolvePosBarcodeLookupMatches(
+  orgId: string,
+  trimmedTerm: string,
+): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+  const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
+  const exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
+  const seen = new Set<string>();
+
+  for (const candidate of scanCandidates) {
+    const hits = await fetchPosExactBarcodeMatches(orgId, candidate);
+    for (const mapped of hits) {
+      if (seen.has(mapped.variant.id)) continue;
+      seen.add(mapped.variant.id);
+      exactBarcodeMatches.push(mapped);
+    }
+  }
+
+  if (exactBarcodeMatches.length === 0) {
+    const scan = await lookupVariantRowsByScan(
+      orgId,
+      trimmedTerm,
+      POS_VARIANT_LOOKUP_SELECT,
+      supabase,
+      { exactOnly: true },
+    );
+    for (const row of scan.rows) {
+      const mapped = mapPosVariantLookupRow(
+        row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
+      );
+      if (mapped && !seen.has(mapped.variant.id)) {
+        seen.add(mapped.variant.id);
+        exactBarcodeMatches.push(mapped);
+      }
+    }
+  }
+
+  return exactBarcodeMatches;
 }
 
 async function fetchPosVariantByBarcodeOnce(
@@ -568,6 +601,7 @@ const PERF_PATH = "pos-sales";
 export default function POSSales() {
   useNavPerfPage(PERF_PATH);
   useEntryViewportSync();
+  const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { hasSpecialPermission } = useUserPermissions();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
@@ -583,6 +617,9 @@ export default function POSSales() {
   const { settings: waSettings, sendMessageAsync } = useWhatsAppAPI();
   const [isHeldSale, setIsHeldSale] = useState(false);
   const [availableCreditBalance, setAvailableCreditBalance] = useState(0);
+  const [availableAdvanceBalance, setAvailableAdvanceBalance] = useState(0);
+  const [advanceApplied, setAdvanceApplied] = useState(0);
+  const [openingBalanceRemaining, setOpeningBalanceRemaining] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
@@ -898,6 +935,10 @@ export default function POSSales() {
   // Price selection dialog state
   const [showPriceSelectionDialog, setShowPriceSelectionDialog] = useState(false);
   const [pendingPriceSelection, setPendingPriceSelection] = useState<PendingPriceSelection | null>(null);
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: Array<{ product: PosProductRow; variant: PosVariantRow }>;
+  } | null>(null);
   
   // Stock issue dialog state (insufficient / out-of-stock on add or payment)
   const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
@@ -1165,7 +1206,7 @@ export default function POSSales() {
   const handleBarcodeInputBlur = useCallback(() => {
     if (isIOS) return;
     if (barcodeBlurRecoveryTimerRef.current) clearTimeout(barcodeBlurRecoveryTimerRef.current);
-    barcodeBlurRecoveryTimerRef.current = window.setTimeout(() => {
+    barcodeBlurRecoveryTimerRef.current = setTimeout(() => {
       barcodeBlurRecoveryTimerRef.current = null;
       if (shouldSkipBarcodeFocusRecovery(document.activeElement)) return;
       focusBarcodeScanInput();
@@ -1206,7 +1247,7 @@ export default function POSSales() {
     };
 
     if (!attachVisibilityObserver()) {
-      setupTimer = window.setTimeout(() => attachVisibilityObserver(), 200);
+      setupTimer = setTimeout(() => attachVisibilityObserver(), 200);
     }
 
     return () => {
@@ -1257,6 +1298,7 @@ export default function POSSales() {
   const loadSaleForEdit = async (saleId: string) => {
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
+    setAdvanceApplied(0);
     // Drop any unsaved-cart snapshot — we're now viewing a specific saved invoice.
     clearPosCartSnapshot(currentOrganization?.id || "default");
     try {
@@ -1727,6 +1769,9 @@ export default function POSSales() {
       setRefundAmount(0);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentInvoiceIndex(0);
       setCurrentSaleId(null);
@@ -2208,6 +2253,51 @@ export default function POSSales() {
     fetchCreditBalance();
   }, [customerId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAdvanceBalance = async () => {
+      if (!customerId || !currentOrganization?.id) {
+        setAvailableAdvanceBalance(0);
+        setAdvanceApplied(0);
+        setOpeningBalanceRemaining(0);
+        return;
+      }
+      try {
+        const [{ data: advRows }, obRemaining] = await Promise.all([
+          supabase
+            .from("customer_advances")
+            .select("amount, used_amount")
+            .eq("customer_id", customerId)
+            .eq("organization_id", currentOrganization.id),
+          fetchCustomerOpeningBalanceRemaining(
+            supabase,
+            currentOrganization.id,
+            customerId,
+            queryClient,
+          ),
+        ]);
+        if (cancelled) return;
+        const unused = (advRows || []).reduce((sum, row) => {
+          const available = (Number(row.amount) || 0) - (Number(row.used_amount) || 0);
+          return sum + Math.max(0, available);
+        }, 0);
+        setAvailableAdvanceBalance(unused);
+        setOpeningBalanceRemaining(obRemaining);
+        setAdvanceApplied(0);
+      } catch {
+        if (!cancelled) {
+          setAvailableAdvanceBalance(0);
+          setOpeningBalanceRemaining(0);
+          setAdvanceApplied(0);
+        }
+      }
+    };
+    void fetchAdvanceBalance();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, currentOrganization?.id, queryClient]);
+
   // Brand-wise takes precedence: master Disc % is bill flat only with no brand rows.
   // Wait for brand query so master 3% is never race-applied over brand 7%.
   useEffect(() => {
@@ -2243,6 +2333,25 @@ export default function POSSales() {
       clearPosBarcodeSubmitTimers();
       markSubmitted(rawValue);
 
+      const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+      if (posFastBillingUsesDropdownPick(rawValue, fastBilling)) {
+        setOpenProductSearch(true);
+        if (productSearchResults.length === 0) {
+          toast.message("Pick a product from the list", {
+            description: "Fast billing: type name (e.g. Jeans), then click or press Enter on the row.",
+          });
+        }
+        return;
+      }
+
+      // Numeric / SKU barcode — exact add (all orgs, fast billing on or off).
+      if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+        setOpenProductSearch(false);
+        void searchAndAddProduct(rawValue);
+        resetScannerDetection();
+        return;
+      }
+
       // Close dropdown immediately for scanner input
       setOpenProductSearch(false);
 
@@ -2252,7 +2361,30 @@ export default function POSSales() {
       // Reset scanner detection for next input
       resetScannerDetection();
     }
-  }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct]);
+  }, [resetScannerDetection, clearPosBarcodeSubmitTimers, markSubmitted, searchAndAddProduct, productSearchResults.length]);
+
+  const handlePosBarcodeSubmit = useCallback(() => {
+    const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
+    if (!rawValue) return;
+    clearPosBarcodeSubmitTimers();
+    markSubmitted(rawValue);
+    const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+    if (posFastBillingUsesDropdownPick(rawValue, fastBilling)) {
+      setOpenProductSearch(true);
+      setSearchInput(rawValue);
+      if (productSearchResults.length === 0) {
+        toast.message("Pick a product from the list", {
+          description: "Fast billing: matching products show brand and price — tap a row to add.",
+        });
+      }
+      return;
+    }
+    if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+      void searchAndAddProduct(rawValue);
+      return;
+    }
+    void searchAndAddProduct(rawValue);
+  }, [clearPosBarcodeSubmitTimers, markSubmitted, searchInput, productSearchResults.length]);
 
   // Optimized input change handler — manual typing never auto-adds; press Enter (or scan gun Enter suffix).
   const handleBarcodeInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2310,6 +2442,7 @@ export default function POSSales() {
 
       let allData: any[] = [];
       let tokens: string[] = [];
+      let quickPriceCode: { letters: string; price: number } | null = null;
 
       const fetchVariantsForToken = async (token: string): Promise<Set<string>> => {
         const escToken = token.replace(/[%_,]/g, '');
@@ -2411,15 +2544,15 @@ export default function POSSales() {
       if (isNumeric) {
         tokens = [term];
         if (isCompleteNumericBarcodeForPosCart(term)) {
-          const scan = await lookupVariantRowsByScan(
+          const barcodeMatches = await resolvePosBarcodeLookupMatches(
             currentOrganization.id,
             term,
-            variantSelect,
-            supabase,
-            { exactOnly: true },
           );
           if (requestSeq !== productSearchSeqRef.current) return;
-          allData = (scan.rows || []) as any[];
+          allData = barcodeMatches.map(({ product, variant }) => ({
+            ...variant,
+            products: product,
+          }));
         } else {
           const matchedIds = await fetchVariantsForToken(term);
           if (requestSeq !== productSearchSeqRef.current) return;
@@ -2438,15 +2571,35 @@ export default function POSSales() {
           }
         }
       } else {
+        quickPriceCode =
+          posRuntimeSettingsRef.current?.pos_quick_price_code === true
+            ? parsePosQuickPriceCode(term)
+            : null;
+        if (quickPriceCode) {
+          const hits = await fetchPosQuickPriceCodeMatches(
+            currentOrganization.id,
+            quickPriceCode.letters,
+            quickPriceCode.price,
+            variantSelect,
+          );
+          if (requestSeq !== productSearchSeqRef.current) return;
+          allData = hits.map((h) => h.variant);
+          tokens = [quickPriceCode.letters, String(quickPriceCode.price)];
+        } else {
+        const fastBillingSearch =
+          posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+        const textSearchTerm = fastBillingSearch
+          ? expandFastBillingCompoundSearchTerm(term)
+          : term;
         // Text / mixed search — reuse sale-order product search (name, brand, style, category, barcode)
-        const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, term);
+        const saleOrderHits = await searchSaleOrderVariants(currentOrganization.id, textSearchTerm);
         if (requestSeq !== productSearchSeqRef.current) return;
 
         let ids = saleOrderHits.map((r) => r.id).filter(Boolean).slice(0, 50);
 
         if (ids.length === 0) {
           // Fallback: legacy multi-token AND search
-          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+          tokens = textSearchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
 
           if (tokens.length === 0) {
             allData = [];
@@ -2463,7 +2616,7 @@ export default function POSSales() {
             ids = Array.from(intersection).slice(0, 50);
           }
         } else {
-          tokens = term.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
+          tokens = textSearchTerm.toLowerCase().split(/\s+/).filter((t) => t.length > 0);
         }
 
         if (ids.length === 0) {
@@ -2478,6 +2631,7 @@ export default function POSSales() {
           if (requestSeq !== productSearchSeqRef.current) return;
           if (error) throw error;
           allData = finalVariants || [];
+        }
         }
       }
 
@@ -2526,11 +2680,23 @@ export default function POSSales() {
             product: p,
             variant: item,
             matchedOn: matches,
+            displaySalePrice: posVariantEffectiveSalePrice(item, p),
             displayBarcode:
               isNumeric && isCompleteNumericBarcodeForPosCart(term) ? term : item.barcode,
             searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
           };
         });
+
+      const fastBillingDropdown = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+      if (fastBillingDropdown && quickPriceCode) {
+        for (const row of formatted) {
+          row.quickPriceOverride = resolvePosQuickPriceCartOverride(
+            row.product,
+            row.variant,
+            quickPriceCode.price,
+          );
+        }
+      }
 
       setProductSearchResults(formatted);
     };
@@ -2579,7 +2745,8 @@ export default function POSSales() {
     if (!trimmedTerm) return;
 
     // Reject incomplete numeric barcodes — prefix match used to add wrong SKU mid-type.
-    if (/^\d+$/.test(trimmedTerm) && !/^[1-9]$/.test(trimmedTerm) && !isCompleteNumericBarcodeForPosCart(trimmedTerm)) {
+    // 1–9 and 2–7 digit service codes (10, 18, 501) are complete; leading-zero EAN prefixes are not.
+    if (/^\d+$/.test(trimmedTerm) && !isCompleteNumericBarcodeForPosCart(trimmedTerm)) {
       toast.message("Barcode incomplete", {
         description: `Enter at least ${POS_NUMERIC_BARCODE_MIN_LENGTH} digits or press Enter when done.`,
       });
@@ -2601,31 +2768,66 @@ export default function POSSales() {
     posSearchAndAddInFlight.add(trimmedTerm);
 
     try {
-      // Fast-counter price-shorthand: "S200" -> product name starting with S,
-      // sale_price 200 (no barcode). Org opt-in only (Settings → Sale → POS quick
-      // price-code search). Falls through to normal search on no match.
+      const fastBilling = posRuntimeSettingsRef.current?.pos_quick_price_code === true;
+
+      // Fast billing name search (e.g. "Jeans") — dropdown pick only, no silent first-hit add.
+      if (posFastBillingUsesDropdownPick(trimmedTerm, fastBilling)) {
+        setOpenProductSearch(true);
+        setSearchInput(trimmedTerm);
+        if (productSearchResults.length === 0) {
+          toast.message("Pick a product from the list", {
+            description: "Matching products show brand and price — click the row to add.",
+          });
+        }
+        return;
+      }
+
+      // Fast-counter price-shorthand: "J300" -> name starting with J at ₹300
+      // (sale_price or MRP). Org opt-in (Settings → Sale → POS quick price-code).
       const quickCode = posRuntimeSettingsRef.current?.pos_quick_price_code
         ? parsePosQuickPriceCode(trimmedTerm)
         : null;
       if (quickCode) {
-        const codeMatches = await fetchPosQuickPriceCodeMatches(orgId, quickCode.letters, quickCode.price);
+        const codeMatches = await fetchPosQuickPriceCodeMatches(
+          orgId,
+          quickCode.letters,
+          quickCode.price,
+          POS_VARIANT_LOOKUP_SELECT,
+        );
         if (codeMatches.length > 0) {
           const distinctProducts = new Map<string, { product: PosProductRow; variant: PosVariantRow }>();
           for (const m of codeMatches) {
-            const existing = distinctProducts.get(m.product.id);
-            if (!existing || (Number(m.variant.stock_qty) || 0) > (Number(existing.variant.stock_qty) || 0)) {
-              distinctProducts.set(m.product.id, m);
+            const product = m.product as PosProductRow;
+            const variant = m.variant as PosVariantRow;
+            const existing = distinctProducts.get(product.id);
+            if (!existing || (Number(variant.stock_qty) || 0) > (Number(existing.variant.stock_qty) || 0)) {
+              distinctProducts.set(product.id, { product, variant });
             }
           }
           const choices = Array.from(distinctProducts.values());
           if (choices.length === 1) {
             setSearchInput("");
-            await addItemToCart(choices[0].product, choices[0].variant, undefined, 'barcode');
+            const override = resolvePosQuickPriceCartOverride(
+              choices[0].product,
+              choices[0].variant,
+              quickCode.price,
+            );
+            await addItemToCart(choices[0].product, choices[0].variant, override, "barcode");
             recordPosBarcodeScanSuccess(trimmedTerm);
             return;
           }
           // Ambiguous — more than one product starts with these letters at this price.
-          setProductSearchResults(choices.map((c) => ({ product: c.product, variant: c.variant })));
+          setProductSearchResults(
+            choices.map((c) => ({
+              product: c.product,
+              variant: c.variant,
+              quickPriceOverride: resolvePosQuickPriceCartOverride(
+                c.product,
+                c.variant,
+                quickCode.price,
+              ),
+            })),
+          );
           setOpenProductSearch(true);
           setSearchInput(trimmedTerm);
           toast.message("Multiple products match this code", {
@@ -2633,7 +2835,13 @@ export default function POSSales() {
           });
           return;
         }
-        // No product matches the shorthand — fall through to normal barcode/name search.
+        playErrorBeep();
+        toast.error("Product not found", {
+          description: `No product starting with "${quickCode.letters.toUpperCase()}" at ₹${quickCode.price}. Check the name's first letters and the sale price or MRP.`,
+        });
+        setSearchInput("");
+        focusBarcodeScanInput();
+        return;
       }
 
       // Quick service shortcodes (1-9): open dialog only when no real product has this barcode
@@ -2654,27 +2862,7 @@ export default function POSSales() {
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
       // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
-      const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
-      let exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
-      for (const candidate of scanCandidates) {
-        exactBarcodeMatches = await fetchPosExactBarcodeMatches(orgId, candidate);
-        if (exactBarcodeMatches.length > 0) break;
-      }
-      if (exactBarcodeMatches.length === 0) {
-        const scan = await lookupVariantRowsByScan(
-          orgId,
-          trimmedTerm,
-          POS_VARIANT_LOOKUP_SELECT,
-          supabase,
-          { exactOnly: true },
-        );
-        for (const row of scan.rows) {
-          const mapped = mapPosVariantLookupRow(
-            row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
-          );
-          if (mapped) exactBarcodeMatches.push(mapped);
-        }
-      }
+      let exactBarcodeMatches = await resolvePosBarcodeLookupMatches(orgId, trimmedTerm);
       if (exactBarcodeMatches.length > 1) {
         const seen = new Set<string>();
         exactBarcodeMatches = exactBarcodeMatches.filter((m) => {
@@ -2688,25 +2876,23 @@ export default function POSSales() {
         | null = null;
 
       if (exactBarcodeMatches.length > 1) {
-        const inStock = exactBarcodeMatches.filter(
-          (m) =>
-            Number(m.variant.stock_qty || 0) > 0 ||
-            !isStockTrackedPosProduct(m.product) ||
-            productRequiresImei(m.product, mobileERP),
+        const picker = resolveBarcodeScanPicker(exactBarcodeMatches, (m) =>
+          Number(m.variant.stock_qty || 0) > 0 ||
+          !isStockTrackedPosProduct(m.product) ||
+          productRequiresImei(m.product, mobileERP),
         );
-        const needMrpPicker = posBarcodeMatchesNeedMrpPicker(exactBarcodeMatches);
-        const showPicker = needMrpPicker || inStock.length > 1;
-        const pickerChoices = needMrpPicker
-          ? exactBarcodeMatches
-          : inStock.length > 0
-            ? inStock
-            : exactBarcodeMatches;
-        if (showPicker) {
+        if (picker.showMrpDialog) {
+          setMrpTierPicker({ barcode: trimmedTerm, choices: picker.mrpDialogChoices });
+          setSearchInput("");
+          setOpenProductSearch(false);
+          return;
+        }
+        if (picker.showProductPicker) {
           setProductSearchResults(
-            pickerChoices.map((m) => {
+            picker.productPickerChoices.map((m) => {
               const p = m.product;
               const v = m.variant;
-              const tier = posVariantDisplayMrp(v);
+              const tier = posVariantDisplayMrp(v, p);
               return {
                 product: p,
                 variant: v,
@@ -2717,17 +2903,12 @@ export default function POSSales() {
           );
           setOpenProductSearch(true);
           setSearchInput(trimmedTerm);
-          toast.message(
-            needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
-            {
-              description: needMrpPicker
-                ? "Pick the MRP that matches the label (e.g. ₹204.5 vs ₹164.5)."
-                : "Pick the correct product / MRP from the list.",
-            },
-          );
+          toast.message("Multiple products share this barcode", {
+            description: "Pick the correct product from the list.",
+          });
           return;
         }
-        barcodeMatch = inStock[0] ?? exactBarcodeMatches[0] ?? null;
+        barcodeMatch = picker.autoPick;
       } else if (exactBarcodeMatches.length === 1) {
         barcodeMatch = exactBarcodeMatches[0];
       } else {
@@ -2790,8 +2971,13 @@ export default function POSSales() {
         }
       }
 
-      // Try product name search via DB if not IMEI mode
-      if (!(mobileERP.enabled && mobileERP.imei_scan_enforcement)) {
+      // Try product name search via DB if not IMEI mode (standard orgs — fast billing uses dropdown).
+      // Never treat pure numeric input as a name — that path is barcode-only.
+      if (
+        !isPosPureNumericSearchTerm(trimmedTerm) &&
+        !(mobileERP.enabled && mobileERP.imei_scan_enforcement) &&
+        !posRuntimeSettingsRef.current?.pos_quick_price_code
+      ) {
         const { data: nameResults, error: nameError } = await supabase
           .from('product_variants')
           .select(POS_VARIANT_LOOKUP_SELECT)
@@ -3132,9 +3318,32 @@ export default function POSSales() {
       const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
       const lastPurchaseSalePrice = variant.last_purchase_sale_price ? parseFloat(variant.last_purchase_sale_price) : null;
       const lastPurchaseMrp = variant.last_purchase_mrp ? parseFloat(variant.last_purchase_mrp) : null;
+
+      const scanPriceSource = resolveSaleScanPriceSource({
+        orgSlug: currentOrganization?.slug,
+        askPriceOnScan: (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true,
+        autoUseLastPurchasePrice: (settingsData as any)?.sale_settings?.auto_use_last_purchase_price,
+      });
+      if (
+        !overridePrice &&
+        shouldApplyLastPurchaseScanOverride({
+          scanPriceSource,
+          posUsesMrpAsPrice: grossBasis === "mrp",
+        })
+      ) {
+        const picked = pickLastPurchaseScanPrice({
+          masterSalePrice,
+          masterMrp,
+          lastPurchaseSalePrice,
+          lastPurchaseMrp,
+        });
+        if (picked) {
+          overridePrice = picked;
+        }
+      }
       
       // If no override provided and last purchase prices differ, show dialog (unless disabled in settings)
-      const askPriceOnScan = (settingsData as any)?.sale_settings?.ask_price_on_scan ?? true;
+      const askPriceOnScan = scanPriceSource === "ask";
       if (
         shouldPromptPosPriceSelection({
           askPriceOnScan,
@@ -3192,6 +3401,15 @@ export default function POSSales() {
     setSearchInput("");
     focusBarcodeScanInput();
   };
+
+  const handlePosProductPick = useCallback(
+    (product: PosProductRow, variant: PosVariantRow, quickOverride?: { sale_price: number; mrp: number }) => {
+      void addItemToCart(product, variant, quickOverride);
+    },
+    // addItemToCart is stable enough for pick handler; eslint may warn on exhaustive deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   // Handle price selection from dialog
   const handlePriceSelection = (source: "master" | "last_purchase", prices: { sale_price: number; mrp: number }) => {
@@ -3346,10 +3564,17 @@ export default function POSSales() {
   );
   const exchangeRefundDue = Math.max(0, Math.round((saleReturnAdjust - exchangeSrApplied) * 100) / 100);
   /** Mix dialog bill: negative refund amount when exchange excess exists (even if net is 0). */
+  const posTenderDue = posTenderDueAfterAdvance(finalAmount, advanceApplied);
   const mixDialogBillAmount =
     finalAmount < -0.005 || exchangeRefundDue > 0.005
       ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
-      : finalAmount;
+      : posTenderDue;
+
+  useEffect(() => {
+    if (exchangeRefundDue > 0.005 && advanceApplied > 0) {
+      setAdvanceApplied(0);
+    }
+  }, [exchangeRefundDue, advanceApplied]);
 
   const clampSaleReturnAdjust = (requested: number, opts?: { silent?: boolean }) => {
     const raw = Math.max(0, Math.round((Number(requested) || 0) * 100) / 100);
@@ -3662,6 +3887,70 @@ export default function POSSales() {
     setCreditApplied(maxApplicable);
   };
 
+  const handleApplyAdvance = (amount: number) => {
+    if (amount <= 0) {
+      setAdvanceApplied(0);
+      return;
+    }
+    const block = posAdvanceApplyBlockReason({
+      customerId,
+      availableAdvanceBalance,
+      billRoom: Math.max(0, finalAmount),
+      openingBalanceRemaining,
+      exchangeRefundDue,
+    });
+    if (block) {
+      toast.error("Cannot Apply Advance", { description: posAdvanceApplyBlockToast(block) });
+      return;
+    }
+    const maxApplicable = capPosAdvanceApplyAmount({
+      requested: amount,
+      availableAdvanceBalance,
+      billRoom: Math.max(0, finalAmount),
+    });
+    if (maxApplicable <= 0) {
+      toast.error("Cannot Apply Advance", {
+        description: "No unused advance or bill amount is too low",
+      });
+      return;
+    }
+    setAdvanceApplied(maxApplicable);
+  };
+
+  const applyAdvanceAfterSave = async (result: { id: string; sale_number?: string | null }) => {
+    if (!(advanceApplied > 0.01 && customerId && result?.id && currentOrganization?.id)) return;
+    try {
+      const { consumed } = await applyExistingAdvanceToSale({
+        client: supabase,
+        customerId,
+        organizationId: currentOrganization.id,
+        saleId: result.id,
+        saleNumber: result.sale_number,
+        requestedAmount: advanceApplied,
+        voucherDate: buildPosVoucherDate(),
+        createdBy: user?.id ?? null,
+      });
+      invalidateCustomerFinancialSnapshot(queryClient, currentOrganization.id, customerId);
+      if (consumed + 0.01 < advanceApplied) {
+        toast.warning("Advance shortfall", {
+          description: `Applied ₹${Math.round(consumed).toLocaleString("en-IN")} of ₹${Math.round(advanceApplied).toLocaleString("en-IN")}. Remaining due stays on the bill.`,
+        });
+      }
+    } catch (err) {
+      toast.error("Could not apply advance", {
+        description:
+          err instanceof Error
+            ? err.message
+            : "Apply from Payments if needed.",
+      });
+    }
+  };
+
+  const withPosAdvance = <T extends { netAmount: number }>(saleData: T): T & { advanceApplied: number } => ({
+    ...saleData,
+    advanceApplied,
+  });
+
   const hasNamedPosCustomer = () =>
     !!customerName?.trim() && customerName.trim().toLowerCase() !== "walk-in customer";
 
@@ -3705,14 +3994,14 @@ export default function POSSales() {
       return;
     }
 
-    const saleData = buildSaleData({
+    const saleData = withPosAdvance(buildSaleData({
       customerId,
       customerName,
       customerPhone,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       saleDate: buildPosSaleDate(),
-    });
+    }));
 
     // Use updateSale if editing existing sale, otherwise create new
     const result = currentSaleId
@@ -3769,6 +4058,7 @@ export default function POSSales() {
       if (creditApplied > 0 && customerId && result?.id) {
         void applyCredit(customerId, result.id, creditApplied);
       }
+      await applyAdvanceAfterSave(result);
       
       // Check for DC items — offer transfer to delivery challan for cash sales
       const effectivePayment = forcePaymentMethod || paymentMethod;
@@ -3820,6 +4110,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null); // Reset edit mode
       setOriginalItemsForEdit([]); // Clear original items for edit
@@ -3964,14 +4257,14 @@ export default function POSSales() {
     }
 
     // Save the sale with the selected payment method
-    const saleData = buildSaleData({
+    const saleData = withPosAdvance(buildSaleData({
       customerId,
       customerName,
       customerPhone,
       salesman: selectedSalesman || null,
       notes: saleNotes || null,
       saleDate: buildPosSaleDate(),
-    });
+    }));
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     let result;
@@ -4012,6 +4305,8 @@ export default function POSSales() {
       setCurrentInvoiceNumber(result.sale_number);
       const wasEditing = !!currentSaleId;
       setCurrentSaleId(result.id);
+
+      await applyAdvanceAfterSave(result);
       
       // Silent operation - no toast for POS save
       
@@ -4037,7 +4332,7 @@ export default function POSSales() {
         creditApplied: creditApplied,
         creditAmount: creditApplied,
         notes: saleNotes || null,
-        paidAmount: method === 'pay_later' ? 0 : finalAmount,
+        paidAmount: method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: customerBalance || 0,
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
@@ -4079,6 +4374,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
@@ -4168,14 +4466,14 @@ export default function POSSales() {
     // Explicit refundAmount (or issueCreditNote) tells save to settle excess instead of
     // toasting "remains for a future bill".
     const saleData = {
-      ...buildSaleData({
+      ...withPosAdvance(buildSaleData({
         customerId,
         customerName,
         customerPhone,
         salesman: selectedSalesman || null,
         notes: saleNotes || null,
         saleDate: buildPosSaleDate(),
-      }),
+      })),
       netAmount: finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
     };
@@ -4362,6 +4660,9 @@ export default function POSSales() {
       setIsManualRoundOff(false);
       setCreditApplied(0);
       setAvailableCreditBalance(0);
+      setAdvanceApplied(0);
+      setAvailableAdvanceBalance(0);
+      setOpeningBalanceRemaining(0);
       setSearchInput("");
       setCurrentSaleId(null);
       setOriginalItemsForEdit([]);
@@ -4389,6 +4690,9 @@ export default function POSSales() {
       
       if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
         applyCredit(customerId, result.id, creditApplied);
+      }
+      if (!isCreditNote && !isRefund) {
+        await applyAdvanceAfterSave(result);
       }
       if (!isCreditNote && pointsToRedeem > 0 && customerId) {
         redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
@@ -4597,6 +4901,76 @@ export default function POSSales() {
     `;
   };
 
+  const getCreditNotePageStyle = (): string => {
+    const format = posBillFormat;
+    let size = 'A5 portrait';
+    let margin = '5mm';
+
+    const creditNoteVisibilityCss = `
+      @media print {
+        body .credit-note-print-source,
+        body .credit-note-print-source *,
+        body .credit-note-print,
+        body .credit-note-print * {
+          visibility: visible !important;
+          opacity: 1 !important;
+          display: block !important;
+          clip: auto !important;
+          clip-path: none !important;
+          transform: none !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+
+    switch (format) {
+      case 'a5-horizontal':
+        size = 'A5 landscape';
+        break;
+      case 'a4':
+        size = 'A4 portrait';
+        margin = '10mm';
+        break;
+      case 'thermal': {
+        const thermalPage = posThermalPageCss(posThermalPaper);
+        return `
+      @page {
+        size: ${thermalPage.pageSize};
+        margin: 0;
+      }
+      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
+      @media print {
+        html, body {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .credit-note-print {
+          width: ${thermalPage.sourceWidth} !important;
+          max-width: ${thermalPage.sourceWidth} !important;
+          margin: 0 !important;
+          padding: 0 !important;
+        }
+      }
+      ${creditNoteVisibilityCss}
+    `;
+      }
+      default:
+        break;
+    }
+
+    return `
+      @page {
+        size: ${size};
+        margin: ${margin};
+      }
+      ${creditNoteVisibilityCss}
+    `;
+  };
+
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
     documentTitle: savedInvoiceData?.invoiceNumber || "Invoice",
@@ -4626,6 +5000,34 @@ export default function POSSales() {
       }, 100);
     },
   });
+
+  const handlePrintCreditNote = useReactToPrint({
+    contentRef: creditNotePrintRef,
+    documentTitle: creditNoteData?.credit_note_number || "Credit Note",
+    pageStyle: getCreditNotePageStyle(),
+    onBeforePrint: () =>
+      new Promise<void>((resolve) => {
+        waitForPrintReady(creditNotePrintRef, resolve, { maxWait: 8000 });
+      }),
+    onPrintError: (_location, error) => {
+      console.error("[POSSales] credit note print failed", error);
+      toast.error("Print failed", {
+        description: "Could not open the print dialog. Try again or check your printer settings.",
+      });
+    },
+  });
+
+  const triggerCreditNotePrint = useCallback(() => {
+    if (!creditNoteData) {
+      toast.error("Nothing to print", { description: "Credit note is not loaded yet." });
+      return;
+    }
+    if (!creditNotePrintRef.current) {
+      toast.error("Print failed", { description: "Credit note layout is not ready. Try again." });
+      return;
+    }
+    waitForPrintReady(creditNotePrintRef, () => handlePrintCreditNote(), { maxWait: 8000 });
+  }, [creditNoteData, handlePrintCreditNote]);
 
   // Keep ref in sync for estimate print (handlePrint defined after estimate handler)
   handlePrintRef.current = handlePrint;
@@ -4706,8 +5108,8 @@ export default function POSSales() {
             }
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
             grandTotal={savedInvoiceData?.finalAmount || finalAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? savedInvoiceData.finalAmount : paymentMethod === 'cash' ? finalAmount : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? savedInvoiceData.finalAmount : paymentMethod === 'upi' ? finalAmount : 0}
+            cashPaid={savedInvoiceData?.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'cash' ? posTenderDue : 0}
+            upiPaid={savedInvoiceData?.method === 'upi' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'upi' ? posTenderDue : 0}
             paymentMethod={savedInvoiceData?.method || paymentMethod}
             cashAmount={savedInvoiceData?.cashAmount || 0}
             upiAmount={savedInvoiceData?.upiAmount || 0}
@@ -4856,23 +5258,26 @@ export default function POSSales() {
     if (custId) {
       const { data: customer } = await supabase
         .from('customers')
-        .select('opening_balance, points_balance, total_points_earned')
+        .select('points_balance, total_points_earned')
         .eq('id', custId)
         .single();
-      
-      const openingBalance = customer?.opening_balance || 0;
+
       const pointsBalance = customer?.points_balance || 0;
-      
-      const { data: salesData } = await supabase
-        .from('sales')
-        .select('net_amount, paid_amount')
-        .eq('customer_id', custId)
-        .eq('organization_id', currentOrganization?.id);
-      
-      const totalSales = salesData?.reduce((sum, s) => sum + (s.net_amount || 0), 0) || 0;
-      const totalPaid = salesData?.reduce((sum, s) => sum + (s.paid_amount || 0), 0) || 0;
-      const customerBalance = openingBalance + totalSales - totalPaid;
-      
+
+      let customerBalance = 0;
+      if (currentOrganization?.id) {
+        try {
+          const snap = await fetchCustomerFinancialSnapshot(
+            supabase,
+            currentOrganization.id,
+            custId,
+          );
+          customerBalance = Math.round(Number(snap.netPosition) || 0);
+        } catch {
+          customerBalance = 0;
+        }
+      }
+
       if (customerBalance > 0) {
         outstandingText = `\n💰 *Outstanding Balance: ₹${Number(customerBalance).toLocaleString("en-IN")}*`;
       }
@@ -5126,6 +5531,9 @@ export default function POSSales() {
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
+    setAdvanceApplied(0);
+    setAvailableAdvanceBalance(0);
+    setOpeningBalanceRemaining(0);
     setSearchInput("");
     setCurrentSaleId(null);
     setOriginalItemsForEdit([]);
@@ -5148,6 +5556,9 @@ export default function POSSales() {
     setRefundAmount(0);
     setCreditApplied(0);
     setAvailableCreditBalance(0);
+    setAdvanceApplied(0);
+    setAvailableAdvanceBalance(0);
+    setOpeningBalanceRemaining(0);
     setSearchInput("");
     setCurrentInvoiceIndex(0);
     setCurrentSaleId(null);
@@ -5467,7 +5878,7 @@ export default function POSSales() {
       }, 100);
     },
     onError: (error: any) => {
-      toast.error("Error adding customer", { description: error.message });
+      toast.error(error?.message || "Error adding customer");
     },
   });
 
@@ -5610,15 +6021,7 @@ export default function POSSales() {
             setSearchInput(value);
             if (value.length > 0) setOpenProductSearch(true);
           }}
-          onBarcodeSubmit={() => {
-            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
-            if (rawValue) {
-              clearPosBarcodeSubmitTimers();
-              markSubmitted(rawValue);
-              searchAndAddProduct(rawValue);
-              setSearchInput("");
-            }
-          }}
+          onBarcodeSubmit={handlePosBarcodeSubmit}
           barcodeInputRef={barcodeInputRef}
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
@@ -5640,7 +6043,8 @@ export default function POSSales() {
           roundOff={roundOff}
           setRoundOff={setRoundOff}
           filteredProducts={filteredProducts}
-          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          onProductSelect={handlePosProductPick}
+          fastBillingEnabled={posRuntimeSettings?.pos_quick_price_code === true}
           openProductSearch={openProductSearch}
           selectedProductType={selectedProductType}
           onProductTypeChange={setSelectedProductType}
@@ -5658,6 +6062,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -5750,15 +6155,7 @@ export default function POSSales() {
               setOpenProductSearch(true);
             }
           }}
-          onBarcodeSubmit={() => {
-            const rawValue = barcodeInputRef.current?.value?.trim() || searchInput.trim();
-            if (rawValue) {
-              clearPosBarcodeSubmitTimers();
-              markSubmitted(rawValue);
-              searchAndAddProduct(rawValue);
-              setSearchInput("");
-            }
-          }}
+          onBarcodeSubmit={handlePosBarcodeSubmit}
           barcodeInputRef={barcodeInputRef}
           isSaving={isSaving}
           onPaymentAndPrint={handlePaymentAndPrint}
@@ -5777,9 +6174,10 @@ export default function POSSales() {
           onSaleReturn={() => setShowFloatingSaleReturn(true)}
           onAdvanceBooking={() => setShowAdvanceBooking(true)}
           filteredProducts={filteredProducts}
-          onProductSelect={(product, variant) => addItemToCart(product, variant)}
+          onProductSelect={handlePosProductPick}
           openProductSearch={openProductSearch}
           enableMrp={enableMrp}
+          fastBillingEnabled={posRuntimeSettings?.pos_quick_price_code === true}
         />
 
         {/* Dialogs needed for mobile too */}
@@ -5788,6 +6186,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -6128,6 +6527,32 @@ export default function POSSales() {
                       onKeyDown={(e) => {
                         const rawValue =
                           (e.currentTarget as HTMLInputElement)?.value?.trim() || searchInput.trim();
+                        const isEnter =
+                          e.key === "Enter" || e.key === "Go" || (e as any).keyCode === 13;
+                        if (isEnter && rawValue) {
+                          if (
+                            posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                            parsePosQuickPriceCode(rawValue)
+                          ) {
+                            e.preventDefault();
+                            clearPosBarcodeSubmitTimers();
+                            markSubmitted(rawValue);
+                            setOpenProductSearch(false);
+                            void searchAndAddProduct(rawValue);
+                            resetScannerDetection();
+                            return;
+                          }
+                          // Barcode / SKU typed in search — exact add for all orgs (not dropdown first hit).
+                          if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
+                            e.preventDefault();
+                            clearPosBarcodeSubmitTimers();
+                            markSubmitted(rawValue);
+                            setOpenProductSearch(false);
+                            void searchAndAddProduct(rawValue);
+                            resetScannerDetection();
+                            return;
+                          }
+                        }
                         if (openProductSearch && filteredProducts.length > 0) {
                           if (e.key === 'ArrowDown') {
                             e.preventDefault();
@@ -6139,22 +6564,38 @@ export default function POSSales() {
                             setSelectedProductIndex((prev) => Math.max(prev - 1, 0));
                             return;
                           }
-                          if (e.key === 'Enter' || e.key === 'Go' || (e as any).keyCode === 13) {
+                          if (isEnter) {
                             e.preventDefault();
-                            // Numeric barcodes: exact lookup only — dropdown uses partial ILIKE.
-                            if (shouldPosEnterUseExactBarcodeLookup(rawValue)) {
-                              clearPosBarcodeSubmitTimers();
-                              markSubmitted(rawValue);
-                              setOpenProductSearch(false);
-                              void searchAndAddProduct(rawValue);
-                              resetScannerDetection();
-                              return;
-                            }
                             const selected = filteredProducts[selectedProductIndex] || filteredProducts[0];
                             if (selected?.product && selected?.variant) {
                               clearPosBarcodeSubmitTimers();
-                              if (rawValue) markSubmitted(rawValue);
-                              addItemToCart(selected.product, selected.variant);
+                              markSubmitted(rawValue);
+                              const variantForCart =
+                                selected.displayBarcode &&
+                                selected.displayBarcode !== selected.variant.barcode
+                                  ? { ...selected.variant, barcode: selected.displayBarcode }
+                                  : selected.variant;
+                              const barcodeExact =
+                                rawValue &&
+                                variantForCart.barcode &&
+                                variantForCart.barcode.trim().toLowerCase() ===
+                                  rawValue.trim().toLowerCase();
+                              const quickOverride =
+                                selected.quickPriceOverride ??
+                                (posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                                parsePosQuickPriceCode(rawValue)
+                                  ? resolvePosQuickPriceCartOverride(
+                                      selected.product,
+                                      variantForCart,
+                                      parsePosQuickPriceCode(rawValue)!.price,
+                                    )
+                                  : undefined);
+                              void addItemToCart(
+                                selected.product,
+                                variantForCart,
+                                quickOverride,
+                                barcodeExact ? "barcode" : "manual",
+                              );
                               setOpenProductSearch(false);
                               setSearchInput("");
                               setTimeout(() => barcodeInputRef.current?.focus(), 50);
@@ -6210,12 +6651,23 @@ export default function POSSales() {
                           {filteredProducts.length > 20 && ` — showing top 20`}
                         </span>
                         <span className="text-[10px] opacity-70">
-                          Tip: Use multiple words to narrow down (e.g. "top black 1350")
+                          {posRuntimeSettings?.pos_quick_price_code === true &&
+                          posFastBillingUsesDropdownPick(searchInput, true)
+                            ? 'Fast billing: pick brand + price, or type J900 for instant add'
+                            : 'Tip: Use multiple words to narrow down (e.g. "top black 1350")'}
                         </span>
                       </div>
                       <CommandGroup heading="Products">
                         {filteredProducts.slice(0, 20).map((item: any, index: number) => {
                           const product = item.product;
+                          const rowSalePrice =
+                            item.displaySalePrice ?? (Number(item.variant.sale_price) || 0);
+                          const fastBillingRow =
+                            posRuntimeSettings?.pos_quick_price_code === true &&
+                            posFastBillingUsesDropdownPick(searchInput, true);
+                          const fastBillingMeta = fastBillingRow
+                            ? posFastBillingMetaLabel(product)
+                            : "";
                           return (
                             <CommandItem
                               key={`${product.id}-${item.variant.id}-${index}`}
@@ -6227,7 +6679,17 @@ export default function POSSales() {
                                   item.displayBarcode !== item.variant.barcode
                                     ? { ...item.variant, barcode: item.displayBarcode }
                                     : item.variant;
-                                void addItemToCart(product, variantForCart);
+                                const quickOverride =
+                                  item.quickPriceOverride ??
+                                  (posRuntimeSettingsRef.current?.pos_quick_price_code === true &&
+                                  parsePosQuickPriceCode(searchInput)
+                                    ? resolvePosQuickPriceCartOverride(
+                                        product,
+                                        variantForCart,
+                                        parsePosQuickPriceCode(searchInput)!.price,
+                                      )
+                                    : undefined);
+                                void addItemToCart(product, variantForCart, quickOverride);
                               }}
                               className={`cursor-pointer group text-slate-900 dark:text-slate-100 transition-colors border-b border-slate-100 dark:border-slate-800 data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground ${
                                 index === selectedProductIndex
@@ -6238,6 +6700,30 @@ export default function POSSales() {
                               <Check className="mr-2 h-4 w-4 opacity-0" />
                               <div className="flex flex-col flex-1 gap-0.5">
                                 <span className="font-medium text-slate-900 dark:text-white group-data-[selected=true]:text-white">{product.product_name}</span>
+                                {fastBillingRow ? (
+                                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                                    {fastBillingMeta && (
+                                      <span className="font-semibold text-blue-700 dark:text-blue-300 group-data-[selected=true]:text-white">
+                                        {fastBillingMeta}
+                                      </span>
+                                    )}
+                                    <span className="font-bold tabular-nums text-primary group-data-[selected=true]:text-white">
+                                      ₹{rowSalePrice}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground group-data-[selected=true]:text-white/80">
+                                      Size {item.variant.size}
+                                    </span>
+                                    {(() => {
+                                      const stockDisp = displaySaleStockQty(product.product_type, item.variant.stock_qty);
+                                      return (
+                                        <span className={(stockDisp > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive") + " text-[11px] group-data-[selected=true]:text-white"}>
+                                          Stock: {stockDisp}
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                ) : (
+                                  <>
                                 {item.matchedOn && item.matchedOn.length > 0 && (
                                   <div className="flex flex-wrap gap-1 mb-0.5">
                                     <span className="text-[9px] uppercase tracking-wide text-muted-foreground group-data-[selected=true]:text-white/80 mr-1 flex items-center">
@@ -6282,8 +6768,8 @@ export default function POSSales() {
                                   {formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode) && (
                                     <span className="font-mono text-xs">{formatPosCartBarcode(item.displayBarcode ?? item.variant.barcode)}</span>
                                   )}
-                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{item.variant.sale_price}</span>
-                                  {enableMrp && item.variant.mrp && item.variant.mrp > item.variant.sale_price && (
+                                  <span className="font-semibold text-primary group-data-[selected=true]:text-white">₹{rowSalePrice}</span>
+                                  {enableMrp && item.variant.mrp && item.variant.mrp > rowSalePrice && (
                                     <span className="text-[10px] line-through text-slate-500 dark:text-slate-400 group-data-[selected=true]:text-white/70">
                                       MRP ₹{item.variant.mrp}
                                     </span>
@@ -6312,6 +6798,8 @@ export default function POSSales() {
                                       <span> +{item.variant.batch_stock.length - 3} more</span>
                                     )}
                                   </span>
+                                )}
+                                  </>
                                 )}
                               </div>
                             </CommandItem>
@@ -6727,6 +7215,35 @@ export default function POSSales() {
                   Apply ₹{Math.min(availableCreditBalance, amountBeforeCredit) > 0
                     ? Math.min(availableCreditBalance, Math.round(amountBeforeCredit)).toLocaleString('en-IN')
                     : availableCreditBalance.toLocaleString('en-IN')} Now
+                </button>
+              </div>
+            )}
+
+            {customerId && availableAdvanceBalance > 0 && advanceApplied === 0 && items.length > 0 && (
+              <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-orange-50 dark:bg-orange-950/40 border border-orange-300 dark:border-orange-700 rounded-lg text-sm">
+                <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300">
+                  <IndianRupee className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong>₹{availableAdvanceBalance.toLocaleString('en-IN')}</strong> advance available for {customerName}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxApplicable = capPosAdvanceApplyAmount({
+                      requested: availableAdvanceBalance,
+                      availableAdvanceBalance,
+                      billRoom: Math.max(0, finalAmount),
+                    });
+                    if (maxApplicable > 0) handleApplyAdvance(maxApplicable);
+                  }}
+                  className="ml-3 shrink-0 px-3 py-1 bg-orange-600 text-white text-xs font-semibold rounded hover:bg-orange-700 transition-colors"
+                >
+                  Apply ₹{capPosAdvanceApplyAmount({
+                    requested: availableAdvanceBalance,
+                    availableAdvanceBalance,
+                    billRoom: Math.max(0, finalAmount),
+                  }).toLocaleString('en-IN')} Now
                 </button>
               </div>
             )}
@@ -7521,6 +8038,39 @@ export default function POSSales() {
                 </div>
               )}
 
+              {(availableAdvanceBalance > 0 || advanceApplied > 0) && (
+                <div className="text-center">
+                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Adv ₹{availableAdvanceBalance.toFixed(0)}</div>
+                  <Input
+                    type="number"
+                    className="w-24 h-10 bg-orange-100 text-orange-800 text-center text-lg font-semibold border-0 rounded-md"
+                    value={advanceApplied || ""}
+                    placeholder="0"
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value) || 0;
+                      handleApplyAdvance(value);
+                    }}
+                    max={capPosAdvanceApplyAmount({
+                      requested: availableAdvanceBalance,
+                      availableAdvanceBalance,
+                      billRoom: Math.max(0, finalAmount),
+                    })}
+                    step="0.01"
+                    disabled={
+                      !customerId ||
+                      availableAdvanceBalance <= 0 ||
+                      exchangeRefundDue > 0.005 ||
+                      openingBalanceRemaining > 0.01
+                    }
+                  />
+                  {advanceApplied > 0 && (
+                    <div className="text-[10px] text-green-400 font-semibold mt-0.5 text-center">
+                      ✓ Applied
+                    </div>
+                  )}
+                </div>
+              )}
+
               {customerId && (
                 <div className="text-center shrink-0 min-w-[160px]">
                   <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Customer Balance</div>
@@ -7577,6 +8127,11 @@ export default function POSSales() {
               {enableMrp && effectiveDiscountPercent > 0 && (
                 <div className="text-xs font-extrabold text-lime-200 mt-0.5">
                   ↓ {effectiveDiscountPercent.toFixed(1)}% off
+                </div>
+              )}
+              {advanceApplied > 0.01 && posTenderDue !== Math.round(finalAmount) && (
+                <div className="text-[10px] text-orange-200 font-semibold mt-0.5 text-center">
+                  Due ₹{Math.round(posTenderDue).toLocaleString('en-IN')}
                 </div>
               )}
             </div>
@@ -7900,7 +8455,7 @@ export default function POSSales() {
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
-                cashPaid={savedInvoiceData.method === 'cash' ? savedInvoiceData.finalAmount : 0}
+                cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}
                 cashAmount={savedInvoiceData.cashAmount || 0}
@@ -7929,6 +8484,7 @@ export default function POSSales() {
           onOpenChange={setShowMixPaymentDialog}
           billAmount={mixDialogBillAmount}
           creditApplied={creditApplied}
+          advanceApplied={advanceApplied}
           exchangeBreakdown={
             exchangeRefundDue > 0.01
               ? { returnTotal: saleReturnAdjust, applied: exchangeSrApplied, refundDue: exchangeRefundDue }
@@ -7954,21 +8510,7 @@ export default function POSSales() {
                 </div>
               )}
               <Button 
-                onClick={() => {
-                  if (creditNotePrintRef.current) {
-                    const printWindow = window.open('', '_blank');
-                    if (printWindow) {
-                      const printPadding = posBillFormat === 'thermal' ? '0' : '20px';
-                      printWindow.document.write('<html><head><title>Credit Note</title>');
-                      printWindow.document.write(`<style>body{margin:0;padding:${printPadding};font-family:Arial,sans-serif;}</style>`);
-                      printWindow.document.write('</head><body>');
-                      printWindow.document.write(creditNotePrintRef.current.innerHTML);
-                      printWindow.document.write('</body></html>');
-                      printWindow.document.close();
-                      printWindow.print();
-                    }
-                  }
-                }}
+                onClick={triggerCreditNotePrint}
                 className="w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700"
               >
                 <Printer className="h-4 w-4" />
@@ -8013,6 +8555,32 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
 
+        <MrpTierSelectionDialog
+          open={mrpTierPicker != null}
+          enableMrp={posRuntimeSettings?.enable_mrp === true}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMrpTierPicker(null);
+              focusBarcodeScanInput();
+            }
+          }}
+          barcode={mrpTierPicker?.barcode ?? ""}
+          choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+          onSelect={(choiceId) => {
+            const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+            const scannedBarcode = mrpTierPicker?.barcode ?? "";
+            setMrpTierPicker(null);
+            if (!pick) {
+              focusBarcodeScanInput();
+              return;
+            }
+            void addItemToCart(pick.product, pick.variant, undefined, "barcode").then(() => {
+              if (scannedBarcode) recordPosBarcodeScanSuccess(scannedBarcode);
+              focusBarcodeScanInput();
+            });
+          }}
+        />
+
         {/* Price Selection Dialog */}
         {pendingPriceSelection && (
           <PriceSelectionDialog
@@ -8034,12 +8602,16 @@ export default function POSSales() {
 
         {/* Hidden Credit Note for Printing */}
         {creditNoteData && (
-          <div style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
+          <div
+            className="credit-note-print-source"
+            style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}
+          >
             <CreditNotePrint 
               ref={creditNotePrintRef}
               creditNote={creditNoteData}
               settings={settingsData as any}
-              format={posBillFormat || 'thermal'}
+              format={posBillFormat}
+              thermalPaper={posThermalPaper}
             />
           </div>
         )}

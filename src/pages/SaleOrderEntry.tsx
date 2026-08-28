@@ -59,6 +59,7 @@ import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
 
 import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
+import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 import {
@@ -712,6 +713,23 @@ export default function SaleOrderEntry() {
           mrp: masterMrp,                        // MRP = actual product MRP (unchanged)
         };
       }
+
+      if (!overridePrice) {
+        const scanPriceSource = resolveSaleScanPriceSource({
+          orgSlug: currentOrganization?.slug,
+          askPriceOnScan: (settings?.sale_settings as any)?.ask_price_on_scan ?? true,
+          autoUseLastPurchasePrice: (settings?.sale_settings as any)?.auto_use_last_purchase_price,
+        });
+        if (scanPriceSource === "last_purchase") {
+          overridePrice =
+            pickLastPurchaseScanPrice({
+              masterSalePrice,
+              masterMrp,
+              lastPurchaseSalePrice,
+              lastPurchaseMrp,
+            }) ?? undefined;
+        }
+      }
       
       // Use override price or master price
       const salePrice = overridePrice?.sale_price ?? masterSalePrice;
@@ -864,11 +882,7 @@ export default function SaleOrderEntry() {
       customerForm.reset();
       setOpenCustomerDialog(false);
       
-      if (result.isExisting) {
-        toast({ title: "Customer Found", description: `${result.customer.customer_name} already exists and has been selected` });
-      } else {
-        toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
-      }
+      toast({ title: "Customer Created", description: `${result.customer.customer_name} has been added` });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }

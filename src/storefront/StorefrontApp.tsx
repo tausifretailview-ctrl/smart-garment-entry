@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { parseStorefrontPath, storefrontHomePath } from "@/lib/storefrontPath";
+import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
 import type { PublicStorefrontPayload, PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { applyStorefrontThemeVars, isEllaNoorSlug } from "./storefrontTheme";
 import { loadPublicStorefront } from "./storefrontClient";
@@ -71,8 +71,18 @@ export function StorefrontApp() {
     };
   }, [ella, parsed?.orgSlug]);
 
-  const shopName = payload?.shop?.display_name || payload?.shop?.name || parsed?.orgSlug || "Store";
+  const canonicalSlug = payload?.shop?.slug || parsed?.orgSlug || "";
+  const shopName = payload?.shop?.display_name || payload?.shop?.name || canonicalSlug || "Store";
   const accent = payload?.shop?.theme_accent_color || "#E2A33B";
+
+  useEffect(() => {
+    if (!parsed || !payload?.published || !payload.shop?.slug) return;
+    if (payload.shop.slug === parsed.orgSlug) return;
+    const next = parsed.productId
+      ? storefrontProductPath(payload.shop.slug, parsed.productId)
+      : storefrontHomePath(payload.shop.slug);
+    window.history.replaceState(null, "", next);
+  }, [parsed, payload]);
 
   useEffect(() => {
     document.title = payload?.published ? `${shopName} — Store` : "Store";
@@ -112,7 +122,7 @@ export function StorefrontApp() {
     return (
       <EllaStorefront
         shop={payload.shop!}
-        orgSlug={parsed.orgSlug}
+        orgSlug={canonicalSlug}
         products={products}
         initialProductId={parsed.productId}
       />
@@ -125,7 +135,7 @@ export function StorefrontApp() {
         ella={false}
         title="Product not found"
         body="This item is no longer listed."
-        actionHref={storefrontHomePath(parsed.orgSlug)}
+        actionHref={storefrontHomePath(canonicalSlug)}
         actionLabel="Back to store"
       />
     );
@@ -135,7 +145,7 @@ export function StorefrontApp() {
     return (
       <StorefrontProduct
         shop={payload.shop!}
-        orgSlug={parsed.orgSlug}
+        orgSlug={canonicalSlug}
         product={selected}
       />
     );
@@ -144,7 +154,7 @@ export function StorefrontApp() {
   return (
     <StorefrontHome
       shop={payload.shop!}
-      orgSlug={parsed.orgSlug}
+      orgSlug={canonicalSlug}
       products={products}
     />
   );

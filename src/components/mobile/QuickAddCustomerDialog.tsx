@@ -78,11 +78,7 @@ export const QuickAddCustomerDialog = ({
         opening_balance: 0,
       });
 
-      if (result.isExisting) {
-        toast.success(`Customer "${result.customer.customer_name}" already exists and was selected`);
-      } else {
-        toast.success("Customer added successfully");
-      }
+      toast.success("Customer added successfully");
       
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });

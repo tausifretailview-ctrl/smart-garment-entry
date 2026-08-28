@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
@@ -8,7 +10,12 @@ import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/l
 import { supabase } from "@/integrations/supabase/client";
 import { useSchoolFeatures } from "@/hooks/useSchoolFeatures";
 import { useOrgLedgerReferenceFetcher } from "@/hooks/useOrgLedgerReferenceData";
-import { buildCustomerLedgerListFromPartyBalances } from "@/utils/customerLedgerListFromPartyBalances";
+import {
+  buildCustomerLedgerListFromPartyBalances,
+  enrichLedgerListRowsWithCanonicalBalance,
+  customersForLedgerExport,
+} from "@/utils/customerLedgerListFromPartyBalances";
+import { PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "@/utils/customerPartyBalanceSnapshot";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -324,6 +331,12 @@ export function CustomerLedger({
   skipUrlSync = false,
   embeddedA4Layout = false,
 }: CustomerLedgerProps) {
+  const moneyViewVisibilityKeys = useMemo(
+    () => getMoneyViewVisibilityQueryKeys(organizationId),
+    [organizationId],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
+
   const embeddedSingleCustomer = embedMode && Boolean(preSelectedCustomerId);
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
@@ -2529,15 +2542,17 @@ export function CustomerLedger({
   // Filter customers based on search, payment status, and date range
   const filteredCustomers = useMemo(() => {
     if (!customersForList) return [];
-    
+    const searchLower = searchQuery.trim().toLowerCase();
+
     return customersForList.filter((customer) => {
-      // Search filter
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = (
-        customer.customer_name.toLowerCase().includes(searchLower) ||
-        customer.phone?.toLowerCase().includes(searchLower) ||
-        customer.email?.toLowerCase().includes(searchLower)
-      );
+      // Search filter — name, phone, email, GST, address
+      const matchesSearch =
+        !searchLower ||
+        (customer.customer_name ?? "").toLowerCase().includes(searchLower) ||
+        (customer.phone ?? "").toLowerCase().includes(searchLower) ||
+        (customer.email ?? "").toLowerCase().includes(searchLower) ||
+        (customer.gst_number ?? "").toLowerCase().includes(searchLower) ||
+        (customer.address ?? "").toLowerCase().includes(searchLower);
 
       // Payment status filter — use Outstanding / Advance / Net facets (not invoice-only balance)
       const facets = facetsFromInvoiceOutstanding(
@@ -2564,11 +2579,66 @@ export function CustomerLedger({
     setCustomerPage(0);
   }, [searchQuery, paymentStatusFilter]);
 
-  // Paginated customers
+  const filteredLedgerRowKey = useMemo(
+    () => filteredCustomers.map((c) => c.id).join(","),
+    [filteredCustomers],
+  );
+
+  /** Same cap as Customer Balances — never enrich the full org list. */
+  const enrichFilteredLedgerSubset =
+    !isSchool &&
+    !embeddedSingleCustomer &&
+    filteredCustomers.length > 0 &&
+    filteredCustomers.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX;
+
+  const { data: canonicalFilteredLedgerRows } = useQuery({
+    queryKey: ["customer-ledger-canonical-filtered", organizationId, filteredLedgerRowKey],
+    enabled: Boolean(organizationId && enrichFilteredLedgerSubset),
+    staleTime: 30_000,
+    queryFn: () => enrichLedgerListRowsWithCanonicalBalance(organizationId, filteredCustomers),
+  });
+
+  const ledgerRowsForPaging = enrichFilteredLedgerSubset
+    ? (canonicalFilteredLedgerRows ?? filteredCustomers)
+    : filteredCustomers;
+
+  /** C06/C07 — exports use enriched slice when filter ≤ cap; else post-fix aligned C-PARTY. */
+  const customersForExport = useMemo(
+    () =>
+      customersForLedgerExport(
+        filteredCustomers,
+        canonicalFilteredLedgerRows,
+        enrichFilteredLedgerSubset,
+      ),
+    [filteredCustomers, canonicalFilteredLedgerRows, enrichFilteredLedgerSubset],
+  );
+
   const paginatedCustomers = useMemo(() => {
     const start = customerPage * CUSTOMERS_PER_PAGE;
-    return filteredCustomers.slice(start, start + CUSTOMERS_PER_PAGE);
-  }, [filteredCustomers, customerPage]);
+    return ledgerRowsForPaging.slice(start, start + CUSTOMERS_PER_PAGE);
+  }, [ledgerRowsForPaging, customerPage]);
+
+  const paginatedLedgerRowKey = useMemo(
+    () => paginatedCustomers.map((c) => c.id).join(","),
+    [paginatedCustomers],
+  );
+
+  const { data: canonicalPageLedgerRows } = useQuery({
+    queryKey: ["customer-ledger-canonical-page", organizationId, paginatedLedgerRowKey],
+    enabled: Boolean(
+      organizationId &&
+        !isSchool &&
+        !embeddedSingleCustomer &&
+        !enrichFilteredLedgerSubset &&
+        paginatedCustomers.length > 0,
+    ),
+    staleTime: 30_000,
+    queryFn: () => enrichLedgerListRowsWithCanonicalBalance(organizationId, paginatedCustomers),
+  });
+
+  const tableCustomers = enrichFilteredLedgerSubset
+    ? paginatedCustomers
+    : (canonicalPageLedgerRows ?? paginatedCustomers);
 
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMERS_PER_PAGE);
 
@@ -2768,7 +2838,7 @@ export function CustomerLedger({
         ),
       );
       return {
-        totalCustomers: orgReceivablesSummary.customerCount ?? list.length,
+        totalCustomers: list.length,
         totalOutstanding: totals.totalOutstandingDr,
         totalReceivable: orgReceivablesSummary.totalSales ?? 0,
         customerCreditPool: totals.totalCreditPoolCr,
@@ -2786,8 +2856,8 @@ export function CustomerLedger({
 
   // Export customer list to Excel
   const handleExportCustomerListExcel = useCallback(async () => {
-    if (!filteredCustomers.length) return;
-    const rows = filteredCustomers.map((c) => {
+    if (!customersForExport.length) return;
+    const rows = customersForExport.map((c) => {
       const f = facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0);
       const status = accountFacetStatus(f);
       return {
@@ -2810,11 +2880,11 @@ export function CustomerLedger({
     XLSX.utils.book_append_sheet(wb, ws, "Customer Ledger");
     XLSX.writeFile(wb, `Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
     toast.success("Customer ledger exported to Excel");
-  }, [filteredCustomers, salesPaidLeaked]);
+  }, [customersForExport, salesPaidLeaked]);
 
   // Export customer list to PDF
   const handleExportCustomerListPDF = useCallback(async () => {
-    if (!filteredCustomers.length) return;
+    if (!customersForExport.length) return;
     const jsPDF = await loadJsPdf();
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -2822,7 +2892,7 @@ export function CustomerLedger({
     doc.setFontSize(16);
     doc.text("Customer Ledger Report", 14, 15);
     doc.setFontSize(9);
-    doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${filteredCustomers.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
+    doc.text(`Date: ${format(new Date(), "dd/MM/yyyy")}  |  Customers: ${customersForExport.length}  |  Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, 22);
 
     const cols = ["#", "Customer Name", "Phone", "Sales", "Paid", "Outstanding", "Advance", "Net", "Status"];
     const colWidths = [8, 48, 28, 28, 28, 32, 28, 32, 24];
@@ -2841,7 +2911,7 @@ export function CustomerLedger({
     y += 6;
     doc.setTextColor(0, 0, 0);
 
-    filteredCustomers.forEach((c, idx) => {
+    customersForExport.forEach((c, idx) => {
       if (y > doc.internal.pageSize.getHeight() - 15) {
         doc.addPage();
         y = 15;
@@ -2894,7 +2964,7 @@ export function CustomerLedger({
 
     doc.save(`Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
     toast.success("Customer ledger exported to PDF");
-  }, [filteredCustomers, summary, salesPaidLeaked]);
+  }, [customersForExport, summary, salesPaidLeaked]);
 
   const transactionTotals = useMemo(() => {
     if (!transactions) return { totalDebit: 0, totalCredit: 0 };
@@ -6083,7 +6153,7 @@ Please clear your dues at the earliest. Thank you!`;
     <>
     <div className="space-y-3">
       {/* Summary Cards */}
-      <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-5"} gap-2`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-4"} gap-2`}>
         <Card
           className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-blue-500 to-blue-600"
           onClick={() => setPaymentStatusFilter("all")}
@@ -6095,14 +6165,20 @@ Please clear your dues at the earliest. Thank you!`;
                   {isSchool ? "Total Students" : "Total Customers"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {kpiCardsLoading ? (
+                  {isSchool ? (
+                    kpiCardsLoading ? (
+                      <Skeleton className="h-8 w-16 bg-white/30" />
+                    ) : (
+                      summary.totalCustomers
+                    )
+                  ) : facetCardsLoading ? (
                     <Skeleton className="h-8 w-16 bg-white/30" />
                   ) : (
                     summary.totalCustomers
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
-                  {isSchool ? "Active student accounts" : "Active customer accounts"}
+                  {isSchool ? "Active student accounts" : "All parties, including settled"}
                 </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
@@ -6132,7 +6208,7 @@ Please clear your dues at the earliest. Thank you!`;
                     <p className="text-xs text-white/65 mt-0.5 truncate">
                       {isSchool
                         ? "Fees pending collection"
-                        : "Netted per customer (advance offsets that party first)"}
+                        : "Gross — advance on the same party is not netted"}
                     </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
@@ -6144,34 +6220,45 @@ Please clear your dues at the earliest. Thank you!`;
 
         <Card
           className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600"
-          onClick={() => setPaymentStatusFilter("all")}
+          onClick={() => setPaymentStatusFilter(isSchool ? "all" : "advance")}
         >
           <CardContent className="p-3">
             <div className="flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <p className="text-xs font-medium text-white/80">
-                  {isSchool ? "Total Fees Charged" : "Total Receivable"}
+                  {isSchool ? "Total Fees Charged" : "Total Credit (Cr)"}
                 </p>
                 <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                  {kpiCardsLoading ? (
+                  {isSchool ? (
+                    kpiCardsLoading ? (
+                      <Skeleton className="h-8 w-28 bg-white/30" />
+                    ) : (
+                      <>₹{(summary.totalReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    )
+                  ) : facetCardsLoading ? (
                     <Skeleton className="h-8 w-28 bg-white/30" />
                   ) : (
-                    <>₹{(summary.totalReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
+                    <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                   )}
                 </div>
                 <p className="text-xs text-white/65 mt-0.5 truncate">
-                  {isSchool ? "Total fees value" : "Total sales value"}
+                  {isSchool
+                    ? "Total fees value"
+                    : "Unused advances + invoice credits (CN / overpay)"}
                 </p>
               </div>
               <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
-                <TrendingUp className="h-4 w-4 text-white" />
+                {isSchool ? (
+                  <TrendingUp className="h-4 w-4 text-white" />
+                ) : (
+                  <Wallet className="h-4 w-4 text-white" />
+                )}
               </div>
             </div>
           </CardContent>
         </Card>
 
         {!isSchool && (
-          <>
             <Card
               className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-violet-500 to-violet-600"
               onClick={() => setPaymentStatusFilter("all")}
@@ -6179,7 +6266,7 @@ Please clear your dues at the earliest. Thank you!`;
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-medium text-white/80">Net AR</p>
+                    <p className="text-xs font-medium text-white/80">Net Receivable</p>
                     <div className="text-2xl font-black text-white tabular-nums mt-0.5">
                       {facetCardsLoading ? (
                         <Skeleton className="h-8 w-28 bg-white/30" />
@@ -6187,7 +6274,7 @@ Please clear your dues at the earliest. Thank you!`;
                         <>₹{(summary.netReceivable ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
                       )}
                     </div>
-                    <p className="text-xs text-white/65 mt-0.5 truncate">Outstanding − advances held</p>
+                    <p className="text-xs text-white/65 mt-0.5 truncate">All parties, including settled</p>
                   </div>
                   <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
                     <Scale className="h-4 w-4 text-white" />
@@ -6195,31 +6282,6 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
               </CardContent>
             </Card>
-
-            <Card
-              className="cursor-pointer hover:shadow-lg transition-all border-0 shadow-md rounded-xl bg-gradient-to-br from-amber-500 to-amber-600"
-              onClick={() => setPaymentStatusFilter("advance")}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-white/80">Customer Credit Pool</p>
-                    <div className="text-2xl font-black text-white tabular-nums mt-0.5">
-                      {facetCardsLoading ? (
-                        <Skeleton className="h-8 w-28 bg-white/30" />
-                      ) : (
-                        <>₹{(summary.customerCreditPool ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</>
-                      )}
-                    </div>
-                    <p className="text-xs text-white/65 mt-0.5 truncate">Advances / overpayments held</p>
-                  </div>
-                  <div className="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center shrink-0">
-                    <Wallet className="h-4 w-4 text-white" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </>
         )}
       </div>
 
@@ -6239,7 +6301,7 @@ Please clear your dues at the earliest. Thank you!`;
             <div className="relative flex-[2] min-w-[140px]">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Search by name, phone, or email..."
+                placeholder="Search by name, phone, email, GST, or address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-9 text-sm border-slate-200"
@@ -6364,7 +6426,7 @@ Please clear your dues at the earliest. Thank you!`;
                   No customers found
                 </div>
               ) : (
-                paginatedCustomers.map((customer) => {
+                tableCustomers.map((customer) => {
                   const f = facetsFromInvoiceOutstanding(
                     customer.balance,
                     customer.unusedAdvanceTotal || 0,
@@ -6481,7 +6543,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </TableCell>
                     </TableRow>
                   ) : (
-                    paginatedCustomers.map((customer) => {
+                    tableCustomers.map((customer) => {
                       const f = facetsFromInvoiceOutstanding(
                         customer.balance,
                         customer.unusedAdvanceTotal || 0,

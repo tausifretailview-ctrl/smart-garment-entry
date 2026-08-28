@@ -4,8 +4,9 @@
  *
  * Env (URL/key load from .env if present):
  *   VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
- *   SUPABASE_ACCESS_TOKEN (user JWT), ORG_ID
- * Optional: ORG_ID_2 for a second org in the same run.
+ *   SUPABASE_ACCESS_TOKEN (signed-in user JWT — session access_token, NOT Supabase
+ *     account PAT from dashboard/account/tokens), ORG_ID
+ * Optional: ORG_ID_2, ORG_ID_3, … or ORG_IDS=comma-separated uuid list.
  *
  * PowerShell:
  *   $env:SUPABASE_ACCESS_TOKEN="…"; $env:ORG_ID="…"; node scripts/prove-snapshot-all-equivalence.mjs
@@ -36,13 +37,17 @@ const key =
   process.env.SUPABASE_PUBLISHABLE_KEY ||
   process.env.VITE_SUPABASE_ANON_KEY;
 const token = process.env.SUPABASE_ACCESS_TOKEN;
-const orgIds = [process.env.ORG_ID, process.env.ORG_ID_2].filter(Boolean);
+const orgIds = (
+  process.env.ORG_IDS
+    ? process.env.ORG_IDS.split(",").map((s) => s.trim()).filter(Boolean)
+    : [process.env.ORG_ID, process.env.ORG_ID_2, process.env.ORG_ID_3, process.env.ORG_ID_4].filter(Boolean)
+);
 
 if (!url || !key || !token || orgIds.length === 0) {
   console.error(
     "Missing env. Need VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_KEY (from .env),\n" +
       "plus SUPABASE_ACCESS_TOKEN (signed-in user JWT) and ORG_ID.\n" +
-      "Optional ORG_ID_2 for a second organisation in one run.",
+      "Optional ORG_ID_2 / ORG_ID_3 / ORG_ID_4 or ORG_IDS=uuid,uuid,… for multi-org runs.",
   );
   process.exit(2);
 }

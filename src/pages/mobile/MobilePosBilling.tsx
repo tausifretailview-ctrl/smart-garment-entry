@@ -22,7 +22,9 @@ import {
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
 import type { PosGrossBasis } from "@/lib/posBilling";
-import { posBarcodeMatchesNeedMrpPicker } from "@/utils/posScanPriceSelection";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
+import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -153,6 +155,10 @@ export default function MobilePosBilling() {
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uiSaving, setUiSaving] = useState(false);
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: SearchHit[];
+  } | null>(null);
   const saveLockRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -211,24 +217,36 @@ export default function MobilePosBilling() {
     async (barcode: string) => {
       const code = barcode.trim();
       if (!code || !currentOrganization?.id) return;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .eq("products.status", "active")
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .eq("barcode", code)
-        .order("stock_qty", { ascending: false })
-        .limit(50);
-      if (error) {
-        toast.error("Scan failed", { description: error.message });
-        return;
+      const orgId = currentOrganization.id;
+      const rows: Array<SearchHit["variant"] & { products: SearchHit["product"] }> = [];
+      const seenVariantIds = new Set<string>();
+
+      for (const candidate of expandBarcodeScanCandidates(code)) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select(VARIANT_SEARCH_SELECT)
+          .eq("organization_id", orgId)
+          .eq("products.organization_id", orgId)
+          .eq("products.status", "active")
+          .eq("active", true)
+          .is("deleted_at", null)
+          .is("products.deleted_at", null)
+          .eq("barcode", candidate)
+          .order("stock_qty", { ascending: false })
+          .limit(50);
+        if (error) {
+          toast.error("Scan failed", { description: error.message });
+          return;
+        }
+        for (const row of (data || []) as unknown as Array<
+          SearchHit["variant"] & { products: SearchHit["product"] }
+        >) {
+          if (!row.products || seenVariantIds.has(row.id)) continue;
+          seenVariantIds.add(row.id);
+          rows.push(row);
+        }
       }
-      const rows = ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
-        .filter((row) => row.products);
+
       if (rows.length === 0) {
         toast.error("Not found", { description: `No product for barcode ${code}` });
         return;
@@ -237,27 +255,25 @@ export default function MobilePosBilling() {
         addFromHit({ variant: rows[0], product: rows[0].products });
         return;
       }
-      // Branded/universal barcodes (e.g. Jockey) can carry the same code at more than
-      // one MRP tier. Force the picker even when only one tier is currently in stock —
-      // matches the desktop POS / Sale Billing scan picker.
-      const needMrpPicker = posBarcodeMatchesNeedMrpPicker(rows.map((r) => ({ variant: r })));
-      const withStock = rows.filter((r) => Number(r.stock_qty) > 0);
-      const choices = needMrpPicker ? rows : withStock.length > 0 ? withStock : rows;
-      if (needMrpPicker || choices.length > 1) {
-        // Reuse the existing search-hits list as the picker: seed it with this barcode.
-        setSearchInput(code);
-        setDebouncedSearch(code);
-        toast.message(
-          needMrpPicker ? "Multiple MRP tiers for this barcode" : "Multiple products share this barcode",
-          {
-            description: needMrpPicker
-              ? "Pick the MRP that matches the label."
-              : "Pick the correct product / MRP from the list.",
-          },
-        );
+      const hits = rows.map((row) => ({ variant: row, product: row.products }));
+      const picker = resolveBarcodeScanPicker(hits, (m) => Number(m.variant.stock_qty) > 0);
+      if (picker.showMrpDialog) {
+        setMrpTierPicker({ barcode: code, choices: picker.mrpDialogChoices });
+        setSearchInput("");
+        setDebouncedSearch("");
         return;
       }
-      addFromHit({ variant: choices[0], product: choices[0].products });
+      if (picker.showProductPicker) {
+        setSearchInput(code);
+        setDebouncedSearch(code);
+        toast.message("Multiple products share this barcode", {
+          description: "Pick the correct product from the list.",
+        });
+        return;
+      }
+      if (picker.autoPick) {
+        addFromHit(picker.autoPick);
+      }
     },
     [addFromHit, currentOrganization?.id],
   );
@@ -746,6 +762,21 @@ export default function MobilePosBilling() {
             totalPaid: paymentData.totalPaid,
             refundAmount: paymentData.refundAmount,
           });
+        }}
+      />
+
+      <MrpTierSelectionDialog
+        open={mrpTierPicker != null}
+        enableMrp={enableMrp}
+        onOpenChange={(open) => {
+          if (!open) setMrpTierPicker(null);
+        }}
+        barcode={mrpTierPicker?.barcode ?? ""}
+        choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+        onSelect={(choiceId) => {
+          const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+          setMrpTierPicker(null);
+          if (pick) addFromHit(pick);
         }}
       />
     </div>

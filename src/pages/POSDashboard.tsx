@@ -7,7 +7,10 @@ import {
   fetchPosDashboardExportRows,
   fetchPosDashboardPage,
   fetchPosDashboardSummary,
+  correctPosDashboardSummaryModeTotals,
+  posDashboardModeTotalsNeedCorrection,
   invalidatePosDashboardQueries,
+  patchPosDashboardSalePayment,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
@@ -19,9 +22,11 @@ import {
 import { rankPosDashboardSearchResults } from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { supabase } from "@/integrations/supabase/client";
-import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
+import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +84,8 @@ import {
   deleteJournalEntryByReference,
   recordCustomerReceiptJournalEntry,
 } from "@/utils/accounting/journalService";
-import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { applyExistingAdvanceToSale } from "@/utils/posApplyAdvance";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
@@ -111,14 +117,18 @@ import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import {
   consumePendingPosSalesRefresh,
-  notifyPosSalesChanged,
   POS_SALES_REFRESH_EVENT,
   posSaleDateToLocalYmd,
   type PosSalesChangedDetail,
 } from "@/utils/posSalesRefresh";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import {
   getEffectivePaidAmountForPosDashboard,
   getPosSaleOutstandingBalance,
@@ -283,6 +293,14 @@ const POSDashboard = () => {
   const location = useLocation();
   const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { currentOrganization, organizationRole } = useOrganization();
+  const moneyViewVisibilityKeys = useMemo(
+    () =>
+      currentOrganization?.id
+        ? getMoneyViewVisibilityQueryKeys(currentOrganization.id)
+        : [],
+    [currentOrganization?.id],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
   const refreshPosDashboard = useCallback(() => {
     invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
   }, [queryClient, currentOrganization?.id]);
@@ -553,6 +571,7 @@ const POSDashboard = () => {
   const [paymentMode, setPaymentMode] = useState("cash");
   const [paymentNarration, setPaymentNarration] = useState("");
   const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  const recordingPaymentRef = useRef(false);
   const [advanceBalance, setAdvanceBalance] = useState(0);
   
   // Receipt state
@@ -908,10 +927,29 @@ const POSDashboard = () => {
           upiBillCount: 0,
         } satisfies PosDashboardSummaryStats;
       }
-      return fetchPosDashboardSummary(supabase, posDashboardFilters);
+      return fetchPosDashboardSummary(supabase, posDashboardFilters, {
+        correctModeTotals: false,
+      });
     },
     enabled: posQueryEnabled,
     retry: 2,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  const summaryNeedsModeCorrection =
+    posSummaryStats != null && posDashboardModeTotalsNeedCorrection(posSummaryStats);
+
+  const { data: modeCorrectedSummary } = useQuery({
+    queryKey: [...posDashboardSummaryQueryKey, "mode-correct"],
+    queryFn: async () => {
+      if (!currentOrganization?.id || !posSummaryStats) return null;
+      return correctPosDashboardSummaryModeTotals(
+        supabase,
+        posDashboardFilters,
+        posSummaryStats,
+      );
+    },
+    enabled: posQueryEnabled && summaryNeedsModeCorrection,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -944,6 +982,11 @@ const POSDashboard = () => {
 
   useEffect(() => {
     if (!salesQueryError) return;
+    if (isStatementTimeout(salesQueryError)) {
+      const { title, message } = statementTimeoutMessage();
+      toast({ title, description: message, variant: "destructive" });
+      return;
+    }
     const message =
       salesQueryError instanceof Error
         ? salesQueryError.message
@@ -1888,62 +1931,19 @@ const POSDashboard = () => {
       baseUrl: window.location.origin,
     });
     
-    // Fetch customer balance if customer_id exists
+    // Fetch customer balance if customer_id exists (C-SNAP net — not opening + sales − paid)
     let customerBalance = 0;
-    if (sale.customer_id) {
-      const { data: customer } = await supabase
-        .from('customers')
-        .select('opening_balance')
-        .eq('id', sale.customer_id)
-        .single();
-      
-      const openingBalance = customer?.opening_balance || 0;
-      
-      const { data: sales } = await supabase
-        .from('sales')
-        .select('id, net_amount, paid_amount')
-        .eq('customer_id', sale.customer_id)
-        .eq('organization_id', currentOrganization?.id)
-        .is('deleted_at', null);
-      
-      const saleIds = sales?.map(s => s.id) || [];
-      
-      // Fetch voucher payments for accurate balance
-      const { data: allVouchers } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, reference_type, total_amount')
-        .eq('organization_id', currentOrganization?.id)
-        .eq('voucher_type', 'receipt')
-        .is('deleted_at', null);
-      
-      // Calculate using Math.max() logic to avoid double-counting
-      let totalSales = 0;
-      let totalPaidOnSales = 0;
-      let openingBalancePayments = 0;
-      
-      // Build invoice voucher payments map
-      const invoiceVoucherPayments = new Map<string, number>();
-      allVouchers?.forEach(v => {
-        if (!v.reference_id) return;
-        if (saleIds.includes(v.reference_id)) {
-          invoiceVoucherPayments.set(
-            v.reference_id,
-            (invoiceVoucherPayments.get(v.reference_id) || 0) + (Number(v.total_amount) || 0)
-          );
-        } else if (v.reference_type === 'customer' && v.reference_id === sale.customer_id) {
-          openingBalancePayments += Number(v.total_amount) || 0;
-        }
-      });
-      
-      sales?.forEach(s => {
-        totalSales += s.net_amount || 0;
-        const salePaidAmount = s.paid_amount || 0;
-        const voucherAmount = invoiceVoucherPayments.get(s.id) || 0;
-        totalPaidOnSales += Math.max(salePaidAmount, voucherAmount);
-      });
-      
-      const totalPaid = totalPaidOnSales + openingBalancePayments;
-      customerBalance = Math.round(openingBalance + totalSales - totalPaid);
+    if (sale.customer_id && currentOrganization?.id) {
+      try {
+        const snap = await fetchCustomerFinancialSnapshot(
+          supabase,
+          currentOrganization.id,
+          sale.customer_id,
+        );
+        customerBalance = Math.round(Number(snap.netPosition) || 0);
+      } catch {
+        customerBalance = 0;
+      }
     }
     
     // Use template for message
@@ -2064,9 +2064,12 @@ const POSDashboard = () => {
 
   const handleRecordPayment = async () => {
     if (!selectedSaleForPayment || !paidAmount) return;
+    if (recordingPaymentRef.current || isRecordingPayment) return;
+    recordingPaymentRef.current = true;
 
     const amount = parseFloat(paidAmount);
     if (isNaN(amount) || amount <= 0) {
+      recordingPaymentRef.current = false;
       toast({
         title: "Invalid Amount",
         description: "Please enter a valid payment amount",
@@ -2077,6 +2080,10 @@ const POSDashboard = () => {
 
     const currentPaid = getEffectivePaidAmountForDashboard(selectedSaleForPayment);
     const currentCNAdjust = selectedSaleForPayment.sale_return_adjust || 0;
+    const prevOutstanding = Math.max(
+      0,
+      Number(selectedSaleForPayment.net_amount || 0) - currentPaid - currentCNAdjust,
+    );
 
     try {
       await assertCustomerPaymentWithinOutstandingCap(supabase, {
@@ -2085,6 +2092,7 @@ const POSDashboard = () => {
         proposedSettlement: amount,
       });
     } catch (overpayErr) {
+      recordingPaymentRef.current = false;
       toast({
         title: "Amount too high",
         description: overpayErr instanceof Error ? overpayErr.message : "Payment exceeds outstanding",
@@ -2096,71 +2104,130 @@ const POSDashboard = () => {
     setIsRecordingPayment(true);
 
     const voucherDateYmd = format(paymentDate, "yyyy-MM-dd");
-
-    const { data: acctSettingsGl } = await supabase
-      .from("settings")
-      .select("accounting_engine_enabled")
-      .eq("organization_id", currentOrganization!.id)
-      .maybeSingle();
-    const postLedger = isAccountingEngineEnabled(
-      acctSettingsGl as { accounting_engine_enabled?: boolean } | null
-    );
+    const postLedger = isAccountingEngineEnabled(settings);
+    const orgId = currentOrganization!.id;
+    const saleId = selectedSaleForPayment.id;
 
     let insertedVoucherId: string | null = null;
+    const isAdvanceApply = paymentMode === "advance";
 
     try {
-      const { data: voucherData, error: voucherError } = await supabase.rpc(
-        'generate_voucher_number',
-        { p_type: 'receipt', p_date: voucherDateYmd }
-      );
+      let voucherData = "";
+      let recomputedPaid = currentPaid;
+      let recomputedStatus = String(selectedSaleForPayment.payment_status || "pending");
 
-      if (voucherError) throw voucherError;
-
-      const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number} - ${paymentNarration}`;
-
-      const { data: vrow, error: voucherEntryError } = await supabase
-        .from('voucher_entries')
-        .insert({
-          organization_id: currentOrganization?.id,
-          voucher_number: voucherData,
-          voucher_type: 'receipt',
-          voucher_date: voucherDateYmd,
-          reference_type: 'sale',
-          reference_id: selectedSaleForPayment.id,
-          total_amount: amount,
-          description: receiptDescription,
-          payment_method: paymentMode,
-        })
-        .select("id")
-        .single();
-
-      if (voucherEntryError) throw voucherEntryError;
-      if (!vrow?.id) throw new Error("Receipt voucher insert failed");
-      insertedVoucherId = vrow.id as string;
-
-      // Receipt-only settle (same as Sale Billing / FloatingPayments / Collect & Pay).
-      // Do NOT bump cash_amount/card_amount/upi_amount — those are billing-time tenders.
-      // Bumping them double-counted the balance in cashier cash-in (tenders + RCP).
-      const rec = await syncSalePaymentFromVouchers(
-        selectedSaleForPayment.id,
-        currentOrganization!.id,
-        voucherDateYmd,
-        supabase,
-        { existingSale: selectedSaleForPayment },
-      );
-
-      if (postLedger) {
-        await recordCustomerReceiptJournalEntry(
-          insertedVoucherId,
-          currentOrganization!.id,
-          amount,
+      if (isAdvanceApply) {
+        if (!selectedSaleForPayment.customer_id) {
+          throw new Error("This sale has no customer — cannot apply advance");
+        }
+        const pending = prevOutstanding;
+        const requested = Math.min(amount, advanceBalance, pending);
+        if (requested <= 0.01) {
+          throw new Error("No unused advance or pending amount to apply");
+        }
+        const { consumed, vouchers } = await applyExistingAdvanceToSale({
+          client: supabase,
+          customerId: selectedSaleForPayment.customer_id,
+          organizationId: orgId,
+          saleId,
+          saleNumber: selectedSaleForPayment.sale_number,
+          requestedAmount: requested,
+          voucherDate: voucherDateYmd,
+          createdBy: user?.id ?? null,
+        });
+        insertedVoucherId = vouchers[vouchers.length - 1] || null;
+        if (insertedVoucherId) {
+          const { data: vrow } = await supabase
+            .from("voucher_entries")
+            .select("voucher_number")
+            .eq("id", insertedVoucherId)
+            .maybeSingle();
+          voucherData = String(vrow?.voucher_number || "");
+        }
+        // applyExistingAdvanceToSale already persisted paid_amount / payment_status.
+        recomputedPaid = currentPaid + consumed;
+        const payable = Math.max(
           0,
-          paymentMode,
-          format(paymentDate, 'yyyy-MM-dd'),
-          receiptDescription,
-          supabase
+          Number(selectedSaleForPayment.net_amount || 0) - Number(selectedSaleForPayment.sale_return_adjust || 0),
         );
+        recomputedStatus =
+          recomputedPaid >= payable - 0.5
+            ? "completed"
+            : recomputedPaid > 0
+              ? "partial"
+              : "pending";
+        const { error: metaErr } = await supabase
+          .from("sales")
+          .update({ payment_date: voucherDateYmd })
+          .eq("id", saleId)
+          .eq("organization_id", orgId);
+        if (metaErr) throw metaErr;
+        if (consumed + 0.01 < requested) {
+          toast({
+            title: "Advance shortfall",
+            description: `Applied ₹${Math.round(consumed).toLocaleString("en-IN")} of ₹${Math.round(requested).toLocaleString("en-IN")}. Remaining due stays on the bill.`,
+          });
+        }
+      } else {
+        const receiptDescription = `Payment received for POS sale ${selectedSaleForPayment.sale_number}${paymentNarration ? " - " + paymentNarration : ""}`;
+        const created = await createReceiptVoucher(supabase, {
+          organizationId: orgId,
+          referenceId: saleId,
+          amount,
+          paymentMethod: paymentMode,
+          description: receiptDescription,
+          voucherDate: voucherDateYmd,
+          createdBy: user?.id ?? null,
+        });
+        insertedVoucherId = created.id;
+        voucherData = created.voucher_number;
+
+        const journalPromise = postLedger
+          ? recordCustomerReceiptJournalEntry(
+              created.id,
+              orgId,
+              amount,
+              0,
+              paymentMode,
+              voucherDateYmd,
+              receiptDescription,
+              supabase,
+            )
+          : Promise.resolve();
+        const [recomputed] = await Promise.all([
+          applyRecomputedSalePaymentState(saleId, orgId, supabase),
+          journalPromise,
+        ]);
+        if (!recomputed.skipped) {
+          recomputedPaid = recomputed.paidAmount;
+          recomputedStatus = recomputed.paymentStatus;
+        } else {
+          recomputedPaid = currentPaid + amount;
+        }
+
+        const { error: metaErr } = await supabase
+          .from("sales")
+          .update({
+            payment_date: voucherDateYmd,
+            payment_method: paymentMode,
+          })
+          .eq("id", saleId)
+          .eq("organization_id", orgId);
+        if (metaErr) throw metaErr;
       }
+
+      const latestSra = Number(selectedSaleForPayment.sale_return_adjust || 0);
+      const latestNet = Number(selectedSaleForPayment.net_amount || 0);
+      const currentBalance = Math.max(0, Math.round(latestNet - recomputedPaid - latestSra));
+
+      patchPosDashboardSalePayment(queryClient, orgId, saleId, {
+        paid_amount: recomputedPaid,
+        payment_status: recomputedStatus,
+        payment_method: isAdvanceApply ? undefined : paymentMode,
+        prevPaymentStatus: selectedSaleForPayment.payment_status,
+        netAmount: latestNet,
+        outstandingCleared: Math.max(0, prevOutstanding - currentBalance),
+      });
 
       toast({
         title: "Payment Recorded",
@@ -2177,8 +2244,8 @@ const POSDashboard = () => {
         invoiceDate: selectedSaleForPayment.sale_date,
         invoiceAmount: selectedSaleForPayment.net_amount,
         paidAmount: amount,
-        previousBalance: Math.round(selectedSaleForPayment.net_amount - currentPaid - currentCNAdjust),
-        currentBalance: Math.round(rec.outstanding),
+        previousBalance: Math.round(prevOutstanding),
+        currentBalance,
         paymentMethod: paymentMode,
         narration: paymentNarration,
       };
@@ -2186,14 +2253,19 @@ const POSDashboard = () => {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      refreshPosDashboard();
-      notifyPosSalesChanged({ organizationId: currentOrganization?.id });
+      // Patch already shows Paid in this tab; broadcast to other tabs / PCs.
+      invalidateMoneyViewsAfterMutation(
+        queryClient,
+        orgId,
+        selectedSaleForPayment.customer_id,
+      );
+      invalidatePosDashboardQueries(queryClient, orgId, { refetchType: "active" });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: any) {
       if (insertedVoucherId && currentOrganization?.id) {
         await deleteJournalEntryByReference(
           currentOrganization.id,
-          "CustomerReceipt",
+          isAdvanceApply ? "CustomerAdvanceApplication" : "CustomerReceipt",
           insertedVoucherId,
           supabase
         );
@@ -2215,6 +2287,7 @@ const POSDashboard = () => {
         variant: "destructive",
       });
     } finally {
+      recordingPaymentRef.current = false;
       setIsRecordingPayment(false);
     }
   };
@@ -2280,8 +2353,11 @@ const POSDashboard = () => {
     !summaryQueryError &&
     posDashboardSummaryLooksValid(posSummaryStats, totalCount);
 
-  const summaryStats = statsLookValid
-    ? posSummaryStats
+  const resolvedSummaryStats =
+    modeCorrectedSummary ?? (statsLookValid ? posSummaryStats : null);
+
+  const summaryStats = resolvedSummaryStats
+    ? resolvedSummaryStats
     : {
         ...emptySummaryStats,
         totalBills: summaryQueryLoading ? 0 : totalCount,

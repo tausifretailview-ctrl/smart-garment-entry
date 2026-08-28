@@ -22,7 +22,12 @@ import {
   type AccountGroup,
   type SeededAccount,
 } from "@/utils/accounting/seedDefaultAccounts";
-import { postJournalEntry } from "@/utils/accounting/journalService";
+import { postJournalEntry, recordThirdPartyVoucherJournalEntry } from "@/utils/accounting/journalService";
+import {
+  paymentMethodFromCashBankAccount,
+  THIRD_PARTY_VOUCHER_REFERENCE_TYPE,
+  voucherTypeForThirdPartyDirection,
+} from "@/utils/accounting/thirdPartyVoucherCash";
 import {
   allocateThirdPartyAccountCode,
   filterCashBankAccounts,
@@ -46,8 +51,8 @@ function parseAmount(s: string): number {
 
 /**
  * Manual pay/receive for parties that are NOT customers or suppliers.
- * Writes only chart_of_accounts + journal_entries/lines via postJournalEntry.
- * Never touches voucher_entries or customer/supplier balance RPCs.
+ * Dual-writes voucher_entries (cash reconciliation) + journal_entries via ThirdPartyVoucher.
+ * Never touches customer/supplier balance RPCs.
  */
 export default function ThirdPartyVoucherEntry() {
   const { currentOrganization } = useOrganization();
@@ -190,36 +195,65 @@ export default function ThirdPartyVoucherEntry() {
       if (amountNum <= 0) throw new Error("Amount must be greater than zero");
       if (!narration.trim()) throw new Error("Narration is required");
 
-      const lines =
-        direction === "paid_out"
-          ? [
-              { accountId: party.id, debitAmount: amountNum, creditAmount: 0 },
-              { accountId: cashBank.id, debitAmount: 0, creditAmount: amountNum },
-            ]
-          : [
-              { accountId: cashBank.id, debitAmount: amountNum, creditAmount: 0 },
-              { accountId: party.id, debitAmount: 0, creditAmount: amountNum },
-            ];
-
       const dirLabel = direction === "paid_out" ? "Paid" : "Received";
-      return postJournalEntry({
-        organizationId: currentOrganization.id,
-        date: entryDate,
-        referenceType: "ManualJournal",
-        referenceId: crypto.randomUUID(),
-        description: `Third-party ${dirLabel}: ${party.account_name} — ${narration.trim()}`.slice(0, 500),
-        lines,
-        client: supabase,
+      const description = `Third-party ${dirLabel}: ${party.account_name} — ${narration.trim()}`.slice(0, 500);
+      const voucherType = voucherTypeForThirdPartyDirection(direction);
+      const paymentMethod = paymentMethodFromCashBankAccount(cashBank);
+
+      const { data: voucherNumber, error: numberError } = await supabase.rpc("generate_voucher_number", {
+        p_type: voucherType,
+        p_date: entryDate,
       });
+      if (numberError) throw numberError;
+
+      const { data: inserted, error: voucherError } = await supabase
+        .from("voucher_entries")
+        .insert({
+          organization_id: currentOrganization.id,
+          voucher_number: voucherNumber,
+          voucher_type: voucherType,
+          voucher_date: entryDate,
+          reference_type: THIRD_PARTY_VOUCHER_REFERENCE_TYPE,
+          reference_id: party.id,
+          description,
+          payment_method: paymentMethod,
+          total_amount: amountNum,
+        })
+        .select("id")
+        .single();
+      if (voucherError) throw voucherError;
+      if (!inserted?.id) throw new Error("Failed to create voucher row");
+
+      try {
+        await recordThirdPartyVoucherJournalEntry(
+          inserted.id,
+          currentOrganization.id,
+          direction,
+          party.id,
+          cashBank.id,
+          amountNum,
+          entryDate,
+          description,
+          supabase,
+        );
+      } catch (journalErr) {
+        await supabase.from("voucher_entries").delete().eq("id", inserted.id);
+        throw journalErr;
+      }
+
+      return { voucherId: inserted.id as string };
     },
-    onSuccess: (result) => {
-      toast.success(
-        result.status === "already_exists" ? "Entry already posted" : "Third-party voucher posted",
-      );
+    onSuccess: () => {
+      toast.success("Third-party voucher posted");
       setAmount("");
       setNarration("");
       void queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      void queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       void queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+      void queryClient.invalidateQueries({ queryKey: ["daily-tally-vouchers"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-third-party"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-receipts"] });
       void queryClient.invalidateQueries({
         queryKey: ["third-party-ledger", currentOrganization?.id, partyAccountId || ledgerAccountId],
       });

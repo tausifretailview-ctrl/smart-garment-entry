@@ -23,6 +23,8 @@ import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHisto
 import { safeMapGet, coerceToArray } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
+  supplierAccountAdjustmentTotal,
+  supplierLedgerReconFromTransactions,
   type SupplierBalanceMapForOrg,
 } from "@/utils/supplierBalanceUtils";
 import { fetchSupplierDirectory } from "@/utils/fetchAllRows";
@@ -570,6 +572,25 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     return transactions[transactions.length - 1]?.balance ?? 0;
   }, [transactions]);
 
+  const tableRecon = useMemo(
+    () => supplierLedgerReconFromTransactions(transactions),
+    [transactions],
+  );
+
+  const cardRecon = useMemo(() => {
+    if (tableRecon) return { ...tableRecon, refundsReceived: 0 };
+    if (!selectedSupplierSnapshot) return null;
+    const snap = selectedSupplierSnapshot;
+    return {
+      openingBalance: snap.openingBalance,
+      totalPurchases: snap.totalPurchases,
+      totalPaid: snap.totalPaid,
+      accountAdjust: supplierAccountAdjustmentTotal(snap),
+      balance: snap.balance,
+      refundsReceived: snap.refundsReceived,
+    };
+  }, [tableRecon, selectedSupplierSnapshot]);
+
   const tabCounts = useMemo(() => {
     const t = transactions || [];
     return {
@@ -849,14 +870,14 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     });
     yPos += 12;
 
-    if (selectedSupplierSnapshot) {
+    if (cardRecon) {
       if (yPos > 240) {
         doc.addPage();
         yPos = 20;
       }
-      const snap = selectedSupplierSnapshot;
+      const recon = cardRecon;
       const netPurchases =
-        snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
+        recon.openingBalance + recon.totalPurchases - recon.accountAdjust;
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
       doc.text("Balance Reconciliation", margin, yPos);
@@ -864,18 +885,15 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
       doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
       const reconLines: Array<[string, number]> = [
-        ["Opening Balance", snap.openingBalance],
-        ["(+) Total Purchases", snap.totalPurchases],
-        ...(snap.totalCreditNotesNet > 0
-          ? [["(-) Credit Notes Adjusted (net)", -snap.totalCreditNotesNet] as [string, number]]
-          : []),
-        ...(snap.unreflectedReturns > 0
-          ? [["(-) Purchase Returns Adjusted", -snap.unreflectedReturns] as [string, number]]
+        ["Opening Balance", recon.openingBalance],
+        ["(+) Total Purchases", recon.totalPurchases],
+        ...(recon.accountAdjust > 0
+          ? [["(-) Credit Notes / Returns Adjusted", -recon.accountAdjust] as [string, number]]
           : []),
         ["(=) Net Purchases", netPurchases],
-        ["(-) Paid (Cash / Bank)", -snap.totalPaid],
-        ...(snap.refundsReceived > 0
-          ? [["(-) Refunds Received", -snap.refundsReceived] as [string, number]]
+        ["(-) Paid (Cash / Bank)", -recon.totalPaid],
+        ...(recon.refundsReceived > 0
+          ? [["(-) Refunds Received", -recon.refundsReceived] as [string, number]]
           : []),
       ];
       const labelX = margin + 4;
@@ -891,7 +909,7 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
         yPos += 5;
       });
       doc.setFont("helvetica", "bold");
-      const out = snap.balance;
+      const out = recon.balance;
       const finalLabel =
         out > 0 ? "Outstanding (Payable / Cr)" : out < 0 ? "Supplier Credit (Dr)" : "Settled";
       doc.text(finalLabel, labelX, yPos + 1);
@@ -1039,41 +1057,38 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
               </div>
               <div className="text-right">
                 <div className="text-sm text-muted-foreground mb-1">
-                  {selectedSupplier.balance > 0
+                  {(cardRecon?.balance ?? selectedSupplier.balance) > 0
                     ? "Outstanding Payable (Cr)"
-                    : selectedSupplier.balance < 0
+                    : (cardRecon?.balance ?? selectedSupplier.balance) < 0
                       ? "Credit / Overpayment"
                       : "Balance"}
                 </div>
                 <div className={cn(
                   "text-3xl font-bold",
-                  selectedSupplier.balance > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
+                  (cardRecon?.balance ?? selectedSupplier.balance) > 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                 )}>
-                  ₹{Math.abs(selectedSupplier.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{Math.abs(cardRecon?.balance ?? selectedSupplier.balance).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </div>
-                {selectedSupplier.balance > 0 && (
+                {(cardRecon?.balance ?? selectedSupplier.balance) > 0 && (
                   <Badge variant="destructive" className="mt-2">Payable</Badge>
                 )}
-                {selectedSupplier.balance < 0 && (
+                {(cardRecon?.balance ?? selectedSupplier.balance) < 0 && (
                   <Badge variant="default" className="mt-2 bg-green-600">Supplier Credit</Badge>
                 )}
-                {selectedSupplier.balance === 0 && (
+                {(cardRecon?.balance ?? selectedSupplier.balance) === 0 && (
                   <Badge variant="outline" className="mt-2">Settled</Badge>
                 )}
                 {ledgerClosingBalance != null &&
+                  selectedSupplier.balance != null &&
                   Math.abs(ledgerClosingBalance - selectedSupplier.balance) > 1 && (
                     <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 max-w-[260px] ml-auto text-left">
                       <span className="inline-flex items-start gap-1 font-medium">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        Ledger running total ₹
-                        {Math.abs(ledgerClosingBalance).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        {ledgerClosingBalance >= 0 ? "payable" : "credit"} vs account balance ₹
+                        Supplier list balance ₹
                         {Math.abs(selectedSupplier.balance).toLocaleString("en-IN", {
                           minimumFractionDigits: 2,
-                        })}
-                        . Check bill payments and purchase return credit notes.
+                        })}{" "}
+                        {selectedSupplier.balance >= 0 ? "payable" : "credit"} will match this ledger after the account snapshot refresh.
                       </span>
                     </p>
                   )}
@@ -1102,15 +1117,25 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Purchases</div>
                   <div className="text-2xl font-bold">
-                    ₹{selectedSupplier.totalPurchases.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(cardRecon?.totalPurchases ?? selectedSupplier.totalPurchases).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
+              {((cardRecon?.accountAdjust ?? selectedSupplier.totalCreditNotes) > 0) && (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-sm text-muted-foreground mb-1">Credit Notes / Returns</div>
+                    <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
+                      ₹{(cardRecon?.accountAdjust ?? selectedSupplier.totalCreditNotes).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardContent className="pt-6">
                   <div className="text-sm text-muted-foreground mb-1">Total Paid</div>
                   <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                    ₹{selectedSupplier.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    ₹{(cardRecon?.totalPaid ?? selectedSupplier.totalPaid).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                   </div>
                 </CardContent>
               </Card>
@@ -1290,14 +1315,12 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
               </Table>
             </div>
 
-            {/* Balance Reconciliation — uses the authoritative supplier snapshot so it always
-                ties out to the headline "Outstanding Payable", even when individual CN/return
-                rows are hidden by a tab filter or a partial schema. */}
-            {selectedSupplierSnapshot && (() => {
-              const snap = selectedSupplierSnapshot;
+            {/* Same rows as Grand Total — not the org-wide snapshot, which can diverge. */}
+            {cardRecon && (() => {
+              const recon = cardRecon;
               const netPurchases =
-                snap.openingBalance + snap.totalPurchases - snap.totalCreditNotesNet - snap.unreflectedReturns;
-              const out = snap.balance;
+                recon.openingBalance + recon.totalPurchases - recon.accountAdjust;
+              const out = recon.balance;
               return (
                 <div className="mt-4 rounded-md border bg-muted/30 p-4">
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-muted-foreground mb-3">
@@ -1307,22 +1330,16 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                   <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                     <div className="flex justify-between">
                       <span>Opening Balance</span>
-                      <span className="font-medium">₹{Math.round(snap.openingBalance).toLocaleString("en-IN")}</span>
+                      <span className="font-medium">₹{Math.round(recon.openingBalance).toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>(+) Total Purchases</span>
-                      <span className="font-medium">₹{Math.round(snap.totalPurchases).toLocaleString("en-IN")}</span>
+                      <span className="font-medium">₹{Math.round(recon.totalPurchases).toLocaleString("en-IN")}</span>
                     </div>
-                    {snap.totalCreditNotesNet > 0 && (
+                    {recon.accountAdjust > 0 && (
                       <div className="flex justify-between text-purple-700 dark:text-purple-400">
-                        <span>(−) Credit Notes Adjusted (net)</span>
-                        <span className="font-medium">₹{Math.round(snap.totalCreditNotesNet).toLocaleString("en-IN")}</span>
-                      </div>
-                    )}
-                    {snap.unreflectedReturns > 0 && (
-                      <div className="flex justify-between text-purple-700 dark:text-purple-400">
-                        <span>(−) Purchase Returns Adjusted</span>
-                        <span className="font-medium">₹{Math.round(snap.unreflectedReturns).toLocaleString("en-IN")}</span>
+                        <span>(−) Credit Notes / Returns Adjusted</span>
+                        <span className="font-medium">₹{Math.round(recon.accountAdjust).toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     <div className="flex justify-between border-t pt-1.5">
@@ -1331,12 +1348,12 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                     </div>
                     <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                       <span>(−) Paid (Cash / Bank)</span>
-                      <span className="font-medium">₹{Math.round(snap.totalPaid).toLocaleString("en-IN")}</span>
+                      <span className="font-medium">₹{Math.round(recon.totalPaid).toLocaleString("en-IN")}</span>
                     </div>
-                    {snap.refundsReceived > 0 && (
+                    {recon.refundsReceived > 0 && (
                       <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                         <span>(−) Refunds Received from Supplier</span>
-                        <span className="font-medium">₹{Math.round(snap.refundsReceived).toLocaleString("en-IN")}</span>
+                        <span className="font-medium">₹{Math.round(recon.refundsReceived).toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     <div className={cn(
@@ -1348,10 +1365,10 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
                       <span>Outstanding ({out > 0 ? 'Payable / Cr' : out < 0 ? 'Supplier Credit / Dr' : 'Settled'})</span>
                       <span>₹{Math.abs(Math.round(out)).toLocaleString("en-IN")}</span>
                     </div>
-                    {snap.unappliedCreditNotes > 0 && (
+                    {(selectedSupplierSnapshot?.unappliedCreditNotes ?? 0) > 0 && (
                       <div className="flex justify-between text-[11px] text-muted-foreground pt-1">
                         <span>Unapplied CN credit available</span>
-                        <span>₹{Math.round(snap.unappliedCreditNotes).toLocaleString("en-IN")}</span>
+                        <span>₹{Math.round(selectedSupplierSnapshot!.unappliedCreditNotes).toLocaleString("en-IN")}</span>
                       </div>
                     )}
                     {tabCounts['cn-pending'] > 0 && (

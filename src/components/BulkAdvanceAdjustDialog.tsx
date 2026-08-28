@@ -9,7 +9,8 @@ import { format } from "date-fns";
 import { Loader2, IndianRupee, CheckCircle2 } from "lucide-react";
 import { consumeAdvanceFIFO } from "@/utils/saleSettlement";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
-import { fetchCustomerFinancialSnapshot, invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
@@ -260,7 +261,7 @@ export function BulkAdvanceAdjustDialog({
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId, customerId);
 
       toast.success(
         `₹${totalAllocated.toLocaleString("en-IN")} advance adjusted across ${appliedTargets} target(s)`,

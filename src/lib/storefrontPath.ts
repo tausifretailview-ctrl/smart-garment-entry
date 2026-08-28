@@ -1,5 +1,10 @@
 /** Public storefront lives at `/:orgSlug/store` and `/:orgSlug/store/p/:productId`. */
 
+/** Hyphens ignored so /ellanoor/store matches org slug ella-noor. */
+export function publicOrgSlugKey(slug: string): string {
+  return slug.trim().toLowerCase().replace(/-/g, "");
+}
+
 export function isPublicStorefrontPath(pathname: string): boolean {
   const segments = pathname.replace(/\/+$/, "").split("/").filter(Boolean);
   return segments.length >= 2 && segments[1] === "store";

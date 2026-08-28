@@ -14,6 +14,7 @@ import {
   derivePaidAndStatus,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, credit_applied, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
@@ -404,7 +405,13 @@ async function fetchInvoiceDashboardStatsClient(
               inv.payment_status !== "hold",
           );
 
-    return computeInvoiceDashboardStats(statsRows);
+    const baseStats = computeInvoiceDashboardStats(statsRows);
+    try {
+      const pendingAmount = await fetchInvoiceDashboardReconciledPendingAmount(client, filters);
+      return { ...baseStats, pendingAmount };
+    } catch {
+      return baseStats;
+    }
   } catch (err) {
     console.warn(
       "get_invoice_dashboard_stats client fallback failed:",
@@ -428,10 +435,78 @@ function parseInvoiceDashboardStatsRow(row: Partial<InvoiceDashboardStats>): Inv
   };
 }
 
+function statsRowsForPendingSum(
+  rows: any[],
+  paymentStatusFilter: string[],
+): any[] {
+  if (paymentStatusFilter.length > 0) {
+    return filterInvoiceDashboardRowsByPaymentStatus(rows, paymentStatusFilter);
+  }
+  return rows.filter(
+    (inv) =>
+      inv.is_cancelled !== true &&
+      inv.payment_status !== "cancelled" &&
+      inv.payment_status !== "hold",
+  );
+}
+
+/**
+ * Sum outstanding using the same receipt reconcile as the dashboard table.
+ * RPC pendingAmount can diverge when voucher splits differ from row reconcile.
+ */
+export async function fetchInvoiceDashboardReconciledPendingAmount(
+  client: SupabaseClient,
+  filters: InvoiceDashboardFilters,
+): Promise<number> {
+  if (!filters.organizationId) return 0;
+
+  const searchResolution = await resolveInvoiceSearch(client, filters);
+  const PAGE_SIZE = 500;
+  let offset = 0;
+  const allRows: any[] = [];
+
+  while (true) {
+    let query: any = buildFilteredSalesQuery(
+      client,
+      filters,
+      INVOICE_DASHBOARD_LIST_SELECT,
+    ).range(offset, offset + PAGE_SIZE - 1);
+    query = applyResolvedInvoiceSearch(query, searchResolution);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data?.length) break;
+    allRows.push(...data);
+    if (data.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  if (allRows.length === 0) return 0;
+
+  const reconciled: any[] = [];
+  for (let i = 0; i < allRows.length; i += PAGE_SIZE) {
+    const batch = allRows.slice(i, i + PAGE_SIZE);
+    reconciled.push(...(await reconcileInvoiceDashboardRows(client, filters, batch)));
+  }
+
+  return sumInvoiceDashboardOutstanding(
+    statsRowsForPendingSum(reconciled, filters.paymentStatusFilter),
+  );
+}
+
 /** Server-side summary tiles; falls back to client scan when RPC is unavailable. Never throws. */
+export type FetchInvoiceDashboardStatsOptions = {
+  /**
+   * When true, blocks on a full-range receipt reconcile to replace pendingAmount.
+   * Default false — run {@link fetchInvoiceDashboardReconciledPendingAmount} in a
+   * background query so KPI tiles paint immediately from the RPC.
+   */
+  reconcilePending?: boolean;
+};
+
 export async function fetchInvoiceDashboardStats(
   client: SupabaseClient,
   filters: InvoiceDashboardFilters,
+  options?: FetchInvoiceDashboardStatsOptions,
 ): Promise<InvoiceDashboardStats> {
   if (!filters.organizationId) {
     return { ...EMPTY_INVOICE_DASHBOARD_STATS };
@@ -455,7 +530,20 @@ export async function fetchInvoiceDashboardStats(
       return fetchInvoiceDashboardStatsClient(client, filters);
     }
 
-    return parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
+    const stats = parseInvoiceDashboardStatsRow((data || {}) as Partial<InvoiceDashboardStats>);
+    if (options?.reconcilePending !== true) {
+      return stats;
+    }
+    try {
+      const pendingAmount = await fetchInvoiceDashboardReconciledPendingAmount(client, filters);
+      return { ...stats, pendingAmount };
+    } catch (pendingErr) {
+      console.warn(
+        "invoice dashboard reconciled pendingAmount failed, using RPC value:",
+        invoiceDashboardRpcErrorMessage(pendingErr),
+      );
+      return stats;
+    }
   } catch (err) {
     console.warn(
       "get_invoice_dashboard_stats RPC failed, using client fallback:",
@@ -641,7 +729,10 @@ export async function applyDisplayFifoForKhataCustomers(
     const customerId = String((row as { customer_id?: string }).customer_id ?? "");
     if (!customerId) continue;
     const signedBalance = Number((row as { signed_balance?: number }).signed_balance ?? 0);
-    ledgerNetDrByCustomer.set(customerId, roundKhataMoney(Math.max(0, signedBalance)));
+    ledgerNetDrByCustomer.set(
+      customerId,
+      roundKhataMoney(partyDebtorNetFromRpcRow({ signed_balance: signedBalance })),
+    );
   }
 
   const { data: fullSalesRaw, error: fullSalesError } = await client

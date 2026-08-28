@@ -574,33 +574,42 @@ export default function PlatformAdmin() {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  // Fetch all organization members with user emails
+  // Fetch all organization members with user emails (via platform-admin edge function)
   const { data: members = [] } = useQuery({
     queryKey: ["platform-members"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("organization_members")
-        .select("organization_id, user_id, role");
-      
-      if (error) throw error;
+      const [{ data: memberRows, error: membersError }, { data: orgRows, error: orgsError }] =
+        await Promise.all([
+          supabase.from("organization_members").select("organization_id, user_id, role"),
+          supabase.from("organizations").select("id, name"),
+        ]);
 
-      // Fetch user emails and org names
-      const membersWithDetails = await Promise.all(
-        (data as OrgMember[]).map(async (member) => {
-          const { data: userData } = await supabase.auth.admin.getUserById(member.user_id);
-          const org = organizations.find(o => o.id === member.organization_id);
-          
-          return {
-            ...member,
-            user_email: userData.user?.email || "Unknown",
-            org_name: org?.name || "Unknown"
-          };
-        })
+      if (membersError) throw membersError;
+      if (orgsError) throw orgsError;
+
+      const orgById = new Map((orgRows ?? []).map((o) => [o.id, o.name]));
+      const userIds = [
+        ...new Set(
+          (memberRows ?? [])
+            .map((m) => m.user_id)
+            .filter((id): id is string => typeof id === "string" && id.length > 0),
+        ),
+      ];
+
+      const { data: emailResult, error: emailError } = await supabase.functions.invoke(
+        "platform-admin-list-emails",
+        { body: { userIds } },
       );
+      if (emailError) throw emailError;
 
-      return membersWithDetails;
+      const emails = (emailResult?.emails ?? {}) as Record<string, string | null>;
+
+      return (memberRows as OrgMember[]).map((member) => ({
+        ...member,
+        user_email: emails[member.user_id] || "Unknown",
+        org_name: orgById.get(member.organization_id) || "Unknown",
+      }));
     },
-    enabled: organizations.length > 0,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 

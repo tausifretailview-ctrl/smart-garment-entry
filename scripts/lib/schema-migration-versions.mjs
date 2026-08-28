@@ -19,6 +19,10 @@ export const CRITICAL_SCHEMA_MIGRATIONS = [
     version: "20260628120000",
     reason: "Reconcile gross invoiced CN receipts (ledger KPI)",
   },
+  {
+    version: "20261126120000",
+    reason: "Party RPC CN memos via _is_settlement_memo_receipt + remaining sale-return credit",
+  },
 ];
 
 export function parseMigrationVersion(filename) {

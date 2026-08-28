@@ -1,12 +1,13 @@
 import React from "react";
 import { format as formatDate } from "date-fns";
+import { posThermalPageCss, type PosThermalPaper } from "@/utils/invoicePrintFormat";
 
 interface CreditNotePrintProps {
   creditNote: {
     credit_note_number: string;
     customer_name: string;
     customer_phone?: string | null;
-    credit_amount: number;
+    credit_amount: number | null | undefined;
     issue_date: string;
     expiry_date?: string | null;
     notes?: string | null;
@@ -19,6 +20,7 @@ interface CreditNotePrintProps {
     gst_number?: string;
   } | null;
   format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
+  thermalPaper?: PosThermalPaper;
 }
 
 const numberToWords = (num: number): string => {
@@ -70,20 +72,28 @@ const amountInWords = (amount: number): string => {
   return result;
 };
 
+export function formatCreditNoteAmount(amount: number | null | undefined): string {
+  return Number(amount ?? 0).toFixed(2);
+}
+
 export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintProps>(
-  ({ creditNote, settings, format = 'a5' }, ref) => {
+  ({ creditNote, settings, format = 'a5', thermalPaper = '80mm' }, ref) => {
+    const creditAmount = Number(creditNote.credit_amount ?? 0);
     const isThermal = format === 'thermal';
+    const thermalPage = isThermal ? posThermalPageCss(thermalPaper) : null;
     const pageSize = format === 'a4'
       ? 'A4 portrait'
       : format === 'a5-horizontal'
       ? 'A5 landscape'
-      : format === 'thermal'
-      ? '80mm auto'
+      : isThermal && thermalPage
+      ? thermalPage.pageSize
       : 'A5 portrait';
 
-    const containerWidth = isThermal ? '72mm' : (format === 'a4' ? '210mm' : '148mm');
+    const containerWidth = isThermal && thermalPage
+      ? thermalPage.sourceWidth
+      : (format === 'a4' ? '210mm' : '148mm');
     const containerMinHeight = isThermal ? 'auto' : (format === 'a4' ? '297mm' : '210mm');
-    const containerPadding = isThermal ? '4mm' : '8mm';
+    const containerPadding = isThermal ? '2mm' : '8mm';
 
     return (
       <div 
@@ -107,7 +117,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
                 margin: ${isThermal ? '2mm' : '5mm'};
               }
               .credit-note-print {
-                width: ${isThermal ? '76mm' : (format === 'a4' ? '200mm' : '138mm')} !important;
+                width: ${isThermal && thermalPage ? thermalPage.sourceWidth : (format === 'a4' ? '200mm' : '138mm')} !important;
                 min-height: ${isThermal ? 'auto' : (format === 'a4' ? '287mm' : '200mm')} !important;
                 padding: ${isThermal ? '2mm' : '5mm'} !important;
               }
@@ -198,7 +208,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
         }}>
           <div style={{ fontSize: '9pt', marginBottom: '6px' }}>Credit Amount</div>
           <div style={{ fontSize: '18pt', fontWeight: 'bold' }}>
-            ₹{creditNote.credit_amount.toFixed(2)}
+            ₹{formatCreditNoteAmount(creditNote.credit_amount)}
           </div>
           <div style={{ 
             fontSize: '8pt', 
@@ -207,7 +217,7 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
             borderTop: '1px solid #ccc',
             paddingTop: '8px'
           }}>
-            {amountInWords(creditNote.credit_amount)}
+            {amountInWords(creditAmount)}
           </div>
         </div>
 

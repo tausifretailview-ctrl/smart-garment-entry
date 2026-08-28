@@ -54,3 +54,4 @@ public/downloads/*.exe
 # It duplicates every test (doubling failure counts) and is an easy file to edit
 # by mistake. Never commit it.
 src/smart-garment-entry/
+supabase/.temp/

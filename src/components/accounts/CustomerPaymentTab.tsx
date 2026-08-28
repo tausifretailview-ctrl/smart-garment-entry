@@ -42,7 +42,10 @@ import {
   voucherDateInPeriod,
   isSaleExcludedFromCustomerPaymentPicker,
 } from "@/utils/paymentVoucherFilters";
-import { fetchCustomersWithBalanceForPaymentPicker } from "@/utils/customerPaymentPickerList";
+import {
+  fetchCustomersWithBalanceForPaymentPicker,
+  searchCustomersForPaymentPicker,
+} from "@/utils/customerPaymentPickerList";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
@@ -331,6 +334,26 @@ export function CustomerPaymentTab({
     refetchOnWindowFocus: false,
     retry: 2,
   });
+
+  const trimmedCustomerSearch = customerSearchTerm.trim();
+  const {
+    data: searchedCustomers,
+    isFetching: searchedCustomersLoading,
+  } = useQuery({
+    queryKey: ["customer-payment-picker-search", organizationId, trimmedCustomerSearch],
+    queryFn: () => searchCustomersForPaymentPicker(organizationId, trimmedCustomerSearch, supabase),
+    enabled: !!organizationId && tabActive && trimmedCustomerSearch.length >= 2,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const customerPickerOptions = useMemo(() => {
+    const base = customersWithBalance ?? [];
+    if (trimmedCustomerSearch.length < 2) return base;
+    const merged = new Map(base.map((c) => [c.id, c]));
+    for (const c of searchedCustomers ?? []) merged.set(c.id, c);
+    return Array.from(merged.values());
+  }, [customersWithBalance, searchedCustomers, trimmedCustomerSearch]);
 
   // Customer invoices
   const { data: customerInvoices } = useQuery({
@@ -1570,7 +1593,7 @@ export function CustomerPaymentTab({
                 }
                 searchTerm={customerSearchTerm}
                 onSearchTermChange={setCustomerSearchTerm}
-                options={(customersWithBalance ?? []).map((c) => ({
+                options={customerPickerOptions.map((c) => ({
                   id: c.id,
                   customer_name: c.customer_name,
                   phone: c.phone,
@@ -1582,14 +1605,22 @@ export function CustomerPaymentTab({
                   setAllocatedAmounts({});
                   setAmount("");
                 }}
-                isLoading={customersWithBalanceLoading}
+                isLoading={
+                  customersWithBalanceLoading ||
+                  (trimmedCustomerSearch.length >= 2 && searchedCustomersLoading)
+                }
                 loadingMessage="Loading customers with balance..."
                 emptyMessage={
                   customersWithBalanceError
                     ? "Could not load customers — close and reopen, or retry"
-                    : customersWithBalance?.length === 0
-                      ? "No customers with outstanding balance"
-                      : "No customer found"
+                    : trimmedCustomerSearch.length >= 2 &&
+                        !customersWithBalanceLoading &&
+                        !searchedCustomersLoading &&
+                        customerPickerOptions.length === 0
+                      ? "No customer with outstanding balance matches your search"
+                      : customerPickerOptions.length === 0
+                        ? "No customers with outstanding balance"
+                        : "No customer found"
                 }
                 showOutstanding
               />

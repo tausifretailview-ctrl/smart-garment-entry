@@ -71,7 +71,7 @@ export async function withAttemptTimeout<T>(
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => {
+    timer = setTimeout(() => {
       reject(new Error("Permission check timed out"));
     }, timeoutMs);
   });

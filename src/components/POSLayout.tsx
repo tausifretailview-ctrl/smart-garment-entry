@@ -22,6 +22,7 @@ import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { usePOS, POSProvider } from "@/contexts/POSContext";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { OrgMoneyRealtimeInvalidation } from "@/hooks/useOrgMoneyRealtimeInvalidation";
 // Non-critical floating widgets — code-split so POS first paint / bundle
 // doesn't include chat, WhatsApp inbox, or the realtime notifier.
 const LazyFloatingWhatsAppInbox = lazy(() =>
@@ -400,6 +401,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
       {/* All floating/background widgets deferred until browser is idle so
           POS scan/tender/save/print stay on the critical path. */}
       <IdleMount>
+        <OrgMoneyRealtimeInvalidation />
         <PwaInstallBanner />
         <Suspense fallback={null}>
           <LazyWhatsAppMessageNotifier />

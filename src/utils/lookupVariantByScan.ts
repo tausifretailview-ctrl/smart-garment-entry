@@ -58,17 +58,32 @@ export async function lookupVariantRowsByScan(
       .eq("active", true)
       .is("deleted_at", null);
 
+  const mergedExactIds = new Set<string>();
+  const mergedExactRows: Record<string, unknown>[] = [];
+  let matchedCandidate = scanCandidates[0] ?? normalizeProductSearchTerm(raw);
+
   for (const candidate of scanCandidates) {
-    const { data: exactRows, error: exactErr } = await base().eq("barcode", candidate).limit(25);
+    const { data: exactRows, error: exactErr } = await base().eq("barcode", candidate).limit(50);
     if (!exactErr && exactRows?.length) {
-      return {
-        rows: exactRows as unknown as Record<string, unknown>[],
-        matchedCandidate: candidate,
-        wasDoubledScan: isDoubledNumericBarcode(raw),
-        resolvedVia: "variant-exact",
-        scanCandidates,
-      };
+      for (const row of exactRows) {
+        const id = String((row as { id?: string }).id ?? "");
+        if (id && !mergedExactIds.has(id)) {
+          mergedExactIds.add(id);
+          mergedExactRows.push(row as unknown as Record<string, unknown>);
+          matchedCandidate = candidate;
+        }
+      }
     }
+  }
+
+  if (mergedExactRows.length) {
+    return {
+      rows: mergedExactRows,
+      matchedCandidate,
+      wasDoubledScan: isDoubledNumericBarcode(raw),
+      resolvedVia: "variant-exact",
+      scanCandidates,
+    };
   }
 
   if (!exactOnly) {

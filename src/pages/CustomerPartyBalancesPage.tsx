@@ -38,12 +38,13 @@ import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import {
-  fetchCustomerPartyBalancesAligned,
+  fetchCustomerPartyBalancesPayload,
   enrichPartyRowsWithCanonicalBalance,
   PARTY_BALANCE_CANONICAL_ENRICH_MAX,
   partyBalanceRowFacets,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
+import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { CustomerLedger } from "@/components/CustomerLedger";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
@@ -59,6 +60,8 @@ import {
   formatNetFacetLabel,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
+import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 
 export type CustomerPartyBalanceRow = CustomerPartyBalanceAlignedRow;
 
@@ -81,6 +84,11 @@ export default function CustomerPartyBalancesPage() {
   const [ledgerCustomerPhone, setLedgerCustomerPhone] = useState<string | undefined>();
 
   const orgId = currentOrganization?.id;
+  const moneyViewVisibilityKeys = useMemo(
+    () => (orgId ? getMoneyViewVisibilityQueryKeys(orgId) : []),
+    [orgId],
+  );
+  useVisibilityInvalidate(moneyViewVisibilityKeys);
 
   /** Profile fetch before embedded ledger — avoids CustomerLedger stub with opening_balance=0. */
   const {
@@ -109,15 +117,29 @@ export default function CustomerPartyBalancesPage() {
   const ledgerOpeningBalance = Number(ledgerCustomerProfile?.opening_balance ?? 0);
   const deferLedgerCustomerStub = ledgerOpeningBalance !== 0;
 
-  const { data: rows = [], isLoading, isFetching, error, refetch } = useQuery({
+  const { data: partyPayload, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["customer-party-balances", orgId],
     enabled: !!orgId,
     staleTime: 60_000,
-    queryFn: async () => fetchCustomerPartyBalancesAligned(orgId!),
+    queryFn: async () => fetchCustomerPartyBalancesPayload(orgId!),
+  });
+
+  const rows = partyPayload?.rows ?? [];
+  const partyBalancesComplete = partyPayload?.partyBalancesComplete !== false;
+
+  const { summary: orgReceivablesSummary } = useOrganizationReceivablesSummary(orgId, {
+    enabled: !!orgId && !partyBalancesComplete,
   });
 
   /** Outstanding (unnetted) / Credit pool / Net — same facets as Customer Ledger. */
   const orgTotals = useMemo(() => {
+    if (!partyBalancesComplete) {
+      return {
+        totalOutstandingDr: orgReceivablesSummary.grossReceivableDr,
+        totalCreditPoolCr: orgReceivablesSummary.customerCreditPoolCr,
+        netReceivable: orgReceivablesSummary.netReceivable,
+      };
+    }
     const facets = rows.map((r) => partyBalanceRowFacets(r));
     const t = summarizeAccountFacets(facets);
     return {
@@ -125,7 +147,7 @@ export default function CustomerPartyBalancesPage() {
       totalCreditPoolCr: t.totalCreditPoolCr,
       netReceivable: t.netReceivable,
     };
-  }, [rows]);
+  }, [rows, partyBalancesComplete, orgReceivablesSummary]);
 
   const filteredRows = useMemo(
     () =>
@@ -589,7 +611,14 @@ export default function CustomerPartyBalancesPage() {
             <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               Failed to load balances: {(error as Error).message}
             </div>
-          ) : isLoading ? (
+          ) : !partyBalancesComplete ? (
+            <div className="mx-2 mt-2 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+              Full balance totals are still loading for this organization. You can search parties by name or phone;
+              per-party amounts may show opening balance only until you tap Refresh.
+            </div>
+          ) : null}
+
+          {error ? null : isLoading ? (
             <div className="p-2">
               <ReportSkeleton />
             </div>

@@ -2,6 +2,7 @@ import type { CustomerAccountFacets } from "@/utils/customerAccountFacets";
 import { facetsFromPartySignedBalance } from "@/utils/customerAccountFacets";
 import {
   fetchAllCustomerPartyBalances,
+  fetchAllCustomers,
   fetchCustomerPhoneMap,
   type CustomerPartyBalanceRpcRow,
 } from "@/utils/fetchAllRows";
@@ -13,6 +14,7 @@ import { partyBalanceDirection } from "@/utils/customerPartyBalanceDisplay";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { getCustomerAccountState } from "@/utils/customerBalanceCore";
 import { supabase } from "@/integrations/supabase/client";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 
 /** Party list row with headline numbers aligned to snapshot facet semantics. */
 export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
@@ -24,6 +26,10 @@ export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
   /** Unused advance pool. */
   advance_available: number;
   cn_available: number;
+  /** Lifetime gross invoiced — from getCustomerAccountState when enriched. */
+  lifetime_total_sales?: number;
+  /** Lifetime settled receipts — from getCustomerAccountState when enriched. */
+  lifetime_total_paid?: number;
 };
 
 export function partyBalanceRowFacets(
@@ -83,22 +89,131 @@ export function alignPartyRowWithSnapshot(
   };
 }
 
+export type CustomerPartyBalancesPayload = {
+  rows: CustomerPartyBalanceAlignedRow[];
+  /** False when party RPC timed out — rows are searchable directory + opening balance. */
+  partyBalancesComplete: boolean;
+};
+
+function alignedRowsFromPartyRpc(
+  partyRows: CustomerPartyBalanceRpcRow[],
+  phoneMap: Map<string, string>,
+): CustomerPartyBalanceAlignedRow[] {
+  return partyRows.map((row) => alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""));
+}
+
+function alignedRowsFromCustomerDirectory(
+  customers: Awaited<ReturnType<typeof fetchAllCustomers>>,
+  phoneMap: Map<string, string>,
+): CustomerPartyBalanceAlignedRow[] {
+  return customers.map((customer) => {
+    const opening = Math.round(Number(customer.opening_balance) || 0);
+    return alignPartyRowFromRpc(
+      {
+        customer_id: customer.id,
+        customer_name: customer.customer_name,
+        signed_balance: opening,
+        advance_available: 0,
+        direction: partyBalanceDirection({ signed_balance: opening }),
+        net_position: opening,
+        total_dr: 0,
+        total_cr: 0,
+        net_receivable: 0,
+      },
+      customer.phone ?? phoneMap.get(customer.id) ?? "",
+    );
+  });
+}
+
+export async function fetchCustomerPartyBalancesPayload(
+  organizationId: string,
+): Promise<CustomerPartyBalancesPayload> {
+  const [phoneMap, customers] = await Promise.all([
+    fetchCustomerPhoneMap(organizationId),
+    fetchAllCustomers(organizationId),
+  ]);
+
+  try {
+    const partyRows = await fetchAllCustomerPartyBalances(organizationId);
+    return {
+      rows: alignedRowsFromPartyRpc(partyRows, phoneMap),
+      partyBalancesComplete: true,
+    };
+  } catch (error) {
+    if (!isStatementTimeout(error)) throw error;
+    return {
+      rows: alignedRowsFromCustomerDirectory(customers, phoneMap),
+      partyBalancesComplete: false,
+    };
+  }
+}
+
 /**
- * Customer Balances list — one set-based party RPC + phone map.
- * Facets match get_customer_financial_snapshot after migration 20260822183000
- * (gross = signed + advance; net = signed). Avoids snapshot_all timeout on large orgs.
+ * Customer Balances list — one set-based party RPC + customer directory.
+ * On large orgs, falls back to searchable customer rows (opening balance) if party RPC times out.
  */
 export async function fetchCustomerPartyBalancesAligned(
   organizationId: string,
 ): Promise<CustomerPartyBalanceAlignedRow[]> {
-  const [partyRows, phoneMap] = await Promise.all([
-    fetchAllCustomerPartyBalances(organizationId),
-    fetchCustomerPhoneMap(organizationId),
-  ]);
+  const payload = await fetchCustomerPartyBalancesPayload(organizationId);
+  return payload.rows;
+}
 
-  return partyRows.map((row) =>
-    alignPartyRowFromRpc(row, phoneMap.get(row.customer_id) ?? ""),
+export const CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY = "customer-party-balance-org-window";
+
+export type CustomerPartyBalanceOrgWindow = {
+  /** Σ signed_balance — same figure as Customer Balances Net Receivable. */
+  netReceivable: number;
+};
+
+export function partyBalanceOrgWindowFromRpcRow(
+  row: Pick<CustomerPartyBalanceRpcRow, "net_receivable"> | null | undefined,
+): CustomerPartyBalanceOrgWindow {
+  return { netReceivable: Math.round(Number(row?.net_receivable) || 0) };
+}
+
+/**
+ * One party-RPC row (window totals). Avoids get_organization_receivables_summary
+ * which diverges from Customer Balances on CN-heavy orgs.
+ *
+ * On large orgs the full party list RPC can hit statement timeout even when
+ * PostgREST limits to one row — Postgres still computes every customer. Falls
+ * back to org receivables summary, then zero, without surfacing a global toast.
+ */
+export async function fetchCustomerPartyBalanceOrgWindow(
+  organizationId: string,
+): Promise<CustomerPartyBalanceOrgWindow> {
+  if (!organizationId) return { netReceivable: 0 };
+
+  const { data, error } = await supabase
+    .rpc("get_customer_party_balances", {
+      p_organization_id: organizationId,
+    })
+    .range(0, 0);
+
+  if (!error) {
+    const row = ((data ?? []) as CustomerPartyBalanceRpcRow[])[0];
+    return partyBalanceOrgWindowFromRpcRow(row);
+  }
+
+  if (!isStatementTimeout(error)) throw error;
+
+  const { data: summaryData, error: summaryError } = await supabase.rpc(
+    "get_organization_receivables_summary",
+    { p_organization_id: organizationId },
   );
+  if (!summaryError) {
+    const row = (Array.isArray(summaryData) ? summaryData[0] : summaryData) as
+      | { net_receivable?: number | string | null }
+      | null
+      | undefined;
+    return { netReceivable: Math.round(Number(row?.net_receivable) || 0) };
+  }
+
+  if (isStatementTimeout(summaryError)) {
+    return { netReceivable: 0 };
+  }
+  throw summaryError;
 }
 
 /** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
@@ -106,7 +221,8 @@ export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
 
 /**
  * Patch party list rows with canonical JS balance when SQL signed_balance drifts.
- * Used for visible Customer Balances page slice until party RPC migration is live.
+ * Used for the visible Customer Balances page slice and the Customer Ledger list
+ * slice until party RPC CN-handling matches `_is_settlement_memo_receipt`.
  */
 export async function enrichPartyRowsWithCanonicalBalance(
   organizationId: string,
@@ -141,17 +257,24 @@ export async function enrichPartyRowsWithCanonicalBalance(
           options: { ledgerAlignedApplicationReceipts: true },
         });
         const signedNet = Math.round(state.netPosition);
+        const lifetime = {
+          lifetime_total_sales: Math.round(state.totalInvoicedGross),
+          lifetime_total_paid: Math.round(state.totalRealPayments),
+        };
         if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
-          return row;
+          return { ...row, ...lifetime };
         }
-        return alignPartyRowFromRpc(
-          {
-            ...row,
-            signed_balance: signedNet,
-            advance_available: state.unusedAdvancePool,
-          },
-          row.phone ?? "",
-        );
+        return {
+          ...alignPartyRowFromRpc(
+            {
+              ...row,
+              signed_balance: signedNet,
+              advance_available: state.unusedAdvancePool,
+            },
+            row.phone ?? "",
+          ),
+          ...lifetime,
+        };
       } catch {
         return row;
       }

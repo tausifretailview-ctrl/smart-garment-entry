@@ -118,6 +118,9 @@ const RecycleBin = lazyWithRetry(() => import("./pages/RecycleBin"));
 const ListSkeletonSpotCheck = import.meta.env.DEV
   ? lazyWithRetry(() => import("./pages/dev/ListSkeletonSpotCheck"))
   : null;
+const DialogA11ySpotCheck = import.meta.env.DEV
+  ? lazyWithRetry(() => import("./pages/dev/DialogA11ySpotCheck"))
+  : null;
 const StockAdjustment = lazyWithRetry(() => import("./pages/StockAdjustment"));
 const StockAnalysis = lazyWithRetry(() => import("./pages/StockAnalysis"));
 const StockAgeingReport = lazyWithRetry(() => import("./pages/StockAgeingReport"));
@@ -364,19 +367,10 @@ const App = () => {
   }, []);
 
   const [queryClient] = useState(() => {
-    // Coalesce per kind — a read burst shouldn't swallow a write's own
-    // toast, and vice versa. Reads and writes need different copy: a
-    // failed save must tell the user nothing was saved so they don't
-    // duplicate the entry.
-    const lastReadToastAt = { current: 0 as number };
+    // Write timeouts: global mutation toast. Read timeouts: only when a query
+    // fails on first load with no cached rows (avoids spam on background refetch).
     const lastWriteToastAt = { current: 0 as number };
-    const notifyReadTimeout = () => {
-      const now = Date.now();
-      if (now - lastReadToastAt.current < 1500) return;
-      lastReadToastAt.current = now;
-      const { title, message } = statementTimeoutMessage();
-      showToast({ variant: "destructive", title, description: message });
-    };
+    const lastReadTimeoutToastAt = { current: 0 as number };
     const notifyWriteTimeout = () => {
       const now = Date.now();
       if (now - lastWriteToastAt.current < 1500) return;
@@ -384,10 +378,22 @@ const App = () => {
       const { title, message } = statementTimeoutMutationMessage();
       showToast({ variant: "destructive", title, description: message });
     };
+    const notifyReadTimeout = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const now = Date.now();
+      if (now - lastReadTimeoutToastAt.current < 3000) return;
+      lastReadTimeoutToastAt.current = now;
+      const { title, message } = statementTimeoutMessage();
+      showToast({ variant: "destructive", title, description: message });
+    };
     return new QueryClient({
     queryCache: new QueryCache({
-      onError: (error) => {
-        if (isStatementTimeout(error)) notifyReadTimeout();
+      onError: (error, query) => {
+        if (!isStatementTimeout(error)) return;
+        if (query.state.data !== undefined && query.state.data !== null) return;
+        const head = String(query.queryKey[0] ?? "").toLowerCase();
+        if (head.includes("platform-admin")) return;
+        notifyReadTimeout();
       },
     }),
     mutationCache: new MutationCache({
@@ -458,6 +464,9 @@ const App = () => {
               <Route path="/pay" element={<PublicPaymentPage />} />
               {ListSkeletonSpotCheck ? (
                 <Route path="/__dev__/list-skeletons" element={<ListSkeletonSpotCheck />} />
+              ) : null}
+              {DialogA11ySpotCheck ? (
+                <Route path="/__dev__/dialog-a11y" element={<DialogA11ySpotCheck />} />
               ) : null}
 
               {/* MCP OAuth 2.1 consent screen (Supabase authorization server) */}

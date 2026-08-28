@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
+import { posFastBillingMetaLabel } from "@/utils/posFastBillingMode";
 
 interface MobilePOSHeaderProps {
   invoiceNumber: string;
@@ -47,8 +48,10 @@ interface MobilePOSHeaderProps {
   onProductTypeChange: (type: string) => void;
   hasMoreCustomers?: boolean;
   filteredProducts?: any[];
-  onProductSelect?: (product: any, variant: any) => void;
+  onProductSelect?: (product: any, variant: any, quickPriceOverride?: { sale_price: number; mrp: number }) => void;
   openProductSearch?: boolean;
+  /** POS quick price-code search — show brand + effective price in dropdown. */
+  fastBillingEnabled?: boolean;
 }
 
 export const MobilePOSHeader = ({
@@ -75,6 +78,7 @@ export const MobilePOSHeader = ({
   filteredProducts = [],
   onProductSelect,
   openProductSearch = false,
+  fastBillingEnabled = false,
 }: MobilePOSHeaderProps) => {
   const [showCamera, setShowCamera] = useState(false);
 
@@ -177,6 +181,7 @@ export const MobilePOSHeader = ({
           {filteredProducts.slice(0, 20).map((item: any, index: number) => {
             const product = item.product;
             const variant = item.variant;
+            const rowSalePrice = item.displaySalePrice ?? (Number(variant.sale_price) || 0);
             const displayParts = [product.product_name];
             if (product.brand) displayParts.push(product.brand);
             if (variant.color && variant.color !== '-') displayParts.push(variant.color);
@@ -184,18 +189,25 @@ export const MobilePOSHeader = ({
               <button
                 key={`${product.id}-${variant.id}-${index}`}
                 type="button"
-                onClick={() => onProductSelect?.(product, variant)}
+                onClick={() => onProductSelect?.(product, variant, item.quickPriceOverride)}
                 className="w-full text-left px-3.5 py-2.5 border-b border-border/30 last:border-0 active:bg-accent/70 transition-colors"
               >
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{displayParts.join(' · ')}</p>
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {fastBillingEnabled ? product.product_name : displayParts.join(' · ')}
+                    </p>
                     <p className="text-[11px] text-muted-foreground">
+                      {fastBillingEnabled && posFastBillingMetaLabel(product) ? (
+                        <span className="font-semibold text-foreground">
+                          {posFastBillingMetaLabel(product)} ·{" "}
+                        </span>
+                      ) : null}
                       Size: {variant.size}{variant.barcode ? ` · ${variant.barcode}` : ''}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-primary">₹{variant.sale_price}</p>
+                    <p className="text-sm font-bold text-primary tabular-nums">₹{rowSalePrice}</p>
                     {(() => {
                       const stockDisp = displaySaleStockQty(product.product_type, variant.stock_qty);
                       return (

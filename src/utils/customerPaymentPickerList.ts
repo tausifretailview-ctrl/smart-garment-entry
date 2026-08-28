@@ -3,9 +3,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import {
-  fetchAllCustomerPartyBalances,
-  type CustomerPartyBalanceRpcRow,
-} from "@/utils/fetchAllRows";
+  fetchCustomerPartyBalancesPayload,
+  type CustomerPartyBalanceAlignedRow,
+} from "@/utils/customerPartyBalanceSnapshot";
 import {
   fetchCustomerFinancialSnapshotMap,
   fetchCustomersWithFinancialActivity,
@@ -33,13 +33,13 @@ function labelForCustomer(
   return `Customer ${customerId.slice(0, 8)}`;
 }
 
-/** Map set-based party RPC rows to payment picker options (pure — testable). */
+/** Map aligned party rows to payment picker options (pure — testable). */
 export function mapPartyRowsToPaymentPicker(
-  partyRows: CustomerPartyBalanceRpcRow[],
+  partyRows: CustomerPartyBalanceAlignedRow[],
   customerById: Map<string, { customer_name?: string; phone?: string | null }>,
 ): CustomerPaymentPickerRow[] {
   return partyRows
-    .filter((r) => r.signed_balance >= MIN_PAYMENT_PICKER_BALANCE)
+    .filter((r) => r.net_position >= MIN_PAYMENT_PICKER_BALANCE)
     .map((r) => {
       const c = customerById.get(r.customer_id);
       return {
@@ -49,24 +49,71 @@ export function mapPartyRowsToPaymentPicker(
           r.customer_id,
         ),
         phone: c?.phone ?? null,
-        outstandingBalance: Math.round(r.signed_balance),
+        outstandingBalance: Math.round(r.net_position),
       };
     })
     .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
 }
 
-/** Fast path — same set-based RPC as Customer Balances page. */
+/** Fast path — aligned party RPC (same facet derivation as Customer Balances page). */
 async function buildPickerListFromPartyBalances(
   organizationId: string,
-  client: SupabaseClient = supabase,
+  _client: SupabaseClient = supabase,
   queryClient?: QueryClient,
 ): Promise<CustomerPaymentPickerRow[]> {
-  const [partyRows, allCustomers] = await Promise.all([
-    fetchAllCustomerPartyBalances(organizationId),
+  const [payload, allCustomers] = await Promise.all([
+    fetchCustomerPartyBalancesPayload(organizationId),
     fetchOrgLedgerCustomersReference(organizationId, queryClient),
   ]);
+  if (!payload.partyBalancesComplete) {
+    throw new Error("customer party balances incomplete (statement timeout)");
+  }
   const customerById = new Map(allCustomers.map((c) => [c.id, c]));
-  return mapPartyRowsToPaymentPicker(partyRows, customerById);
+  return mapPartyRowsToPaymentPicker(payload.rows, customerById);
+}
+
+/**
+ * Name/phone search for the Customer Payment picker when the full org list is slow
+ * or degraded (large orgs). Loads balances only for matched customers.
+ */
+export async function searchCustomersForPaymentPicker(
+  organizationId: string,
+  searchTerm: string,
+  client: SupabaseClient = supabase,
+): Promise<CustomerPaymentPickerRow[]> {
+  const term = searchTerm.trim();
+  if (!organizationId || term.length < 2) return [];
+
+  const escaped = term.replace(/[%_,]/g, "");
+  const { data, error } = await client
+    .from("customers")
+    .select("id, customer_name, phone, gst_number, address")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .or(
+      `customer_name.ilike.%${escaped}%,phone.ilike.%${escaped}%,gst_number.ilike.%${escaped}%,address.ilike.%${escaped}%`,
+    )
+    .order("customer_name")
+    .limit(30);
+
+  if (error) throw error;
+  if (!data?.length) return [];
+
+  const snapMap = await fetchCustomerFinancialSnapshotMap(
+    organizationId,
+    data.map((c) => c.id),
+    client,
+  );
+
+  return data
+    .map((c) => ({
+      id: c.id,
+      customer_name: labelForCustomer(c, c.id),
+      phone: c.phone ?? null,
+      outstandingBalance: Math.round(snapMap.get(c.id)?.outstandingDr ?? 0),
+    }))
+    .filter((c) => c.outstandingBalance >= MIN_PAYMENT_PICKER_BALANCE)
+    .sort((a, b) => a.customer_name.localeCompare(b.customer_name));
 }
 
 /** Last-resort batch snapshot when party + reconcile both fail. */
@@ -92,7 +139,7 @@ async function buildPickerListFromSnapshot(
 
 /**
  * Customers with receivable balance for the Customer Payment (RCP) picker.
- * Primary: `get_customer_party_balances` (set-based, same as Customer Balances page).
+ * Primary: aligned `get_customer_party_balances` (same path as Customer Balances page).
  * Fallback: reconcile_customer_balances, then scoped snapshot batch.
  */
 export async function fetchCustomersWithBalanceForPaymentPicker(

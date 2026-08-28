@@ -33,16 +33,28 @@ import {
   consumeAdvanceFIFO,
   createReceiptVoucher,
   getAvailableCN,
-  type AvailableCNReturn,
 } from "@/utils/saleSettlement";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
-import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
+import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import {
+  allocateSettleSources,
+  SETTLE_MIN_PENDING_RUPEE,
+  SETTLE_OPENING_BALANCE_ID,
+  settleAllocationTotals,
+} from "@/utils/settleCustomerAccountAllocation";
+import {
+  assertCustomerPaymentWithinOutstandingCap,
   formatPaymentExceedsOutstandingMessage,
   paymentExceedsOutstandingCap,
 } from "@/utils/invoiceOverpaymentGuard";
+import {
+  recordCustomerAdvanceApplicationJournalEntry,
+  recordCustomerReceiptJournalEntry,
+} from "@/utils/accounting/journalService";
+import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 
 export interface SettleCustomerAccountDialogProps {
   open: boolean;
@@ -142,12 +154,31 @@ export function SettleCustomerAccountDialog({
     staleTime: 5000,
   });
 
+  const { data: openingBalanceRemaining = 0 } = useQuery({
+    queryKey: ["customer-opening-balance-remaining", organizationId, customerId],
+    queryFn: () =>
+      fetchCustomerOpeningBalanceRemaining(
+        supabase,
+        organizationId,
+        customerId!,
+        queryClient,
+      ),
+    enabled: !!customerId && open && !!organizationId,
+    staleTime: 5000,
+  });
+
+  const obClaimable =
+    Number(openingBalanceRemaining || 0) >= SETTLE_MIN_PENDING_RUPEE
+      ? Number(openingBalanceRemaining)
+      : 0;
+  const obSelected = obClaimable > 0 && selectedInvoices.has(SETTLE_OPENING_BALANCE_ID);
+
   useEffect(() => {
-    if (open && pendingInvoices?.length) {
-      // Default: select only invoices that still have balance (user can add partial invoice manually)
-      setSelectedInvoices(new Set(pendingInvoices.map((i) => i.id)));
-    }
-  }, [open, pendingInvoices]);
+    if (!open) return;
+    const next = new Set((pendingInvoices || []).map((i) => i.id));
+    if (obClaimable > 0) next.add(SETTLE_OPENING_BALANCE_ID);
+    setSelectedInvoices(next);
+  }, [open, pendingInvoices, obClaimable]);
 
   const { data: advanceData } = useQuery({
     queryKey: ["settle-advance", customerId, organizationId],
@@ -183,20 +214,57 @@ export function SettleCustomerAccountDialog({
     cnAvailableTotal: snapshotCnTotal,
   } = useCustomerFinancialSnapshot(open ? customerId : null, organizationId);
 
-  const selectedTotal = useMemo(() => {
+  const selectedInvoiceRows = useMemo(() => {
     return (pendingInvoices || [])
       .filter((inv) => selectedInvoices.has(inv.id))
-      .reduce((sum, inv) => sum + inv.outstanding, 0);
+      .sort((a, b) => new Date(a.sale_date).getTime() - new Date(b.sale_date).getTime())
+      .map((inv) => ({ id: inv.id, outstanding: inv.outstanding, sale_number: inv.sale_number, sale_date: inv.sale_date, paid_amount: inv.paid_amount, sale_return_adjust: inv.sale_return_adjust, net_amount: inv.net_amount }));
   }, [pendingInvoices, selectedInvoices]);
+
+  const selectedInvoiceTotal = useMemo(
+    () => selectedInvoiceRows.reduce((sum, inv) => sum + inv.outstanding, 0),
+    [selectedInvoiceRows],
+  );
+
+  const obForPlan = obSelected ? obClaimable : 0;
+  const selectedTotal = obForPlan + selectedInvoiceTotal;
 
   const availableAdvance = snapshotAdvance || advanceData?.total || 0;
   const availableCN = snapshotCnTotal || cnData?.total || 0;
   const trueOutstanding = snapshotOutstanding;
   const discountToApply = Math.max(0, parseFloat(discountAmount) || 0);
 
-  const advanceToApply = Math.min(availableAdvance, selectedTotal);
-  const cnToApply = Math.min(availableCN, Math.max(0, selectedTotal - advanceToApply));
-  const cashNeeded = Math.max(0, selectedTotal - advanceToApply - cnToApply - discountToApply);
+  const dryAllocation = useMemo(
+    () =>
+      allocateSettleSources({
+        openingBalanceRemaining: obForPlan,
+        invoices: selectedInvoiceRows,
+        advancePool: availableAdvance,
+        cnPool: availableCN,
+        cash: 0,
+        discount: discountToApply,
+      }),
+    [obForPlan, selectedInvoiceRows, availableAdvance, availableCN, discountToApply],
+  );
+  const dryTotals = settleAllocationTotals(dryAllocation);
+  const cashNeeded = Math.max(0, Math.round((selectedTotal - dryTotals.total) * 100) / 100);
+  const cashEntered = parseFloat(cashAmount) || 0;
+
+  const liveAllocation = useMemo(
+    () =>
+      allocateSettleSources({
+        openingBalanceRemaining: obForPlan,
+        invoices: selectedInvoiceRows,
+        advancePool: availableAdvance,
+        cnPool: availableCN,
+        cash: cashEntered,
+        discount: discountToApply,
+      }),
+    [obForPlan, selectedInvoiceRows, availableAdvance, availableCN, cashEntered, discountToApply],
+  );
+  const liveTotals = settleAllocationTotals(liveAllocation);
+  const advanceToApply = liveTotals.advance;
+  const cnToApply = liveTotals.cn;
 
   useEffect(() => {
     if (!open || settled) return;
@@ -213,11 +281,14 @@ export function SettleCustomerAccountDialog({
   };
 
   const toggleSelectAll = () => {
-    if (!pendingInvoices?.length) return;
-    if (selectedInvoices.size === pendingInvoices.length) {
+    const invoiceIds = (pendingInvoices || []).map((i) => i.id);
+    const allIds = obClaimable > 0 ? [...invoiceIds, SETTLE_OPENING_BALANCE_ID] : invoiceIds;
+    if (allIds.length === 0) return;
+    const allSelected = allIds.every((id) => selectedInvoices.has(id));
+    if (allSelected) {
       setSelectedInvoices(new Set());
     } else {
-      setSelectedInvoices(new Set(pendingInvoices.map((i) => i.id)));
+      setSelectedInvoices(new Set(allIds));
     }
   };
 
@@ -289,10 +360,10 @@ export function SettleCustomerAccountDialog({
       }
     }
 
-    const cashEntered = parseFloat(cashAmount) || 0;
-    const totalApplied =
-      advanceToApply + cnToApply + discountToApply + cashEntered;
-    if (totalApplied <= 0.01) {
+    const cashTyped = parseFloat(cashAmount) || 0;
+    const requestedTotal =
+      advanceToApply + cnToApply + discountToApply + cashTyped;
+    if (requestedTotal <= 0.01) {
       toast({
         title: "Nothing to apply",
         description: "Enter cash/UPI amount, discount, or ensure advance/CN is available.",
@@ -301,8 +372,7 @@ export function SettleCustomerAccountDialog({
       return;
     }
 
-    // Hard block: do not apply more than selected invoice outstanding (no silent leftover credit).
-    if (paymentExceedsOutstandingCap(totalApplied, selectedTotal)) {
+    if (paymentExceedsOutstandingCap(requestedTotal, selectedTotal)) {
       toast({
         title: "Amount too high",
         description: formatPaymentExceedsOutstandingMessage(selectedTotal),
@@ -311,106 +381,165 @@ export function SettleCustomerAccountDialog({
       return;
     }
 
-    const isPartialSettlement = totalApplied < selectedTotal - 0.5;
+    await assertCustomerPaymentWithinOutstandingCap(supabase, {
+      organizationId,
+      saleIds: selectedInvoiceRows.map((inv) => inv.id),
+      customerId,
+      includeOpeningBalance: obSelected,
+      proposedSettlement: requestedTotal,
+      queryClient,
+    });
+
+    const plan = allocateSettleSources({
+      openingBalanceRemaining: obForPlan,
+      invoices: selectedInvoiceRows,
+      advancePool: availableAdvance,
+      cnPool: availableCN,
+      cash: cashTyped,
+      discount: discountToApply,
+    });
+    const applied = settleAllocationTotals(plan);
+    const isPartialSettlement = applied.total < selectedTotal - 0.5;
       const {
         data: { user },
       } = await supabase.auth.getUser();
       const voucherDate = format(new Date(), "yyyy-MM-dd");
 
-      const invoicesToSettle = (pendingInvoices || [])
-        .filter((inv) => selectedInvoices.has(inv.id))
-        .sort((a, b) => new Date(a.sale_date).getTime() - new Date(b.sale_date).getTime());
+      const { data: acctRow } = await supabase
+        .from("settings")
+        .select("accounting_engine_enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      const postLedger = isAccountingEngineEnabled(
+        acctRow as { accounting_engine_enabled?: boolean | null } | null,
+      );
 
-      let advanceRemaining = advanceToApply;
-      let cnRemaining = cnToApply;
-      let cashRemaining = cashEntered;
-      let discountRemaining = discountToApply;
+      const postAdvanceJournal = async (
+        vouchers: string[],
+        amount: number,
+        description: string,
+      ) => {
+        if (!postLedger || amount <= 0.01 || vouchers.length === 0) return;
+        await recordCustomerAdvanceApplicationJournalEntry(
+          vouchers[vouchers.length - 1],
+          organizationId,
+          amount,
+          voucherDate,
+          description,
+          supabase,
+        );
+      };
 
-      const cnPool = liveCnPool;
-
-      for (const inv of invoicesToSettle) {
-        const due = inv.outstanding;
-        let runningPaid = inv.paid_amount || 0;
-        let runningDiscount = 0;
-
-        if (advanceRemaining > 0.01) {
-          const advForThis = Math.min(advanceRemaining, due);
-          if (advForThis > 0.01) {
-            const { consumed } = await consumeAdvanceFIFO(supabase, {
-              customerId,
-              organizationId,
-              saleId: inv.id,
-              requestedAmount: advForThis,
-              voucherDate,
-              createdBy: user?.id ?? null,
-            });
-            advanceRemaining -= consumed;
-            runningPaid += consumed;
-          }
-        }
-
-        let saleReturnAdjust = inv.sale_return_adjust || 0;
-        if (cnRemaining > 0.01) {
-          const stillDue = Math.max(
-            0,
-            (inv.net_amount || 0) - runningPaid - saleReturnAdjust
-          );
-          const cnForThis = Math.min(cnRemaining, stillDue);
-          if (cnForThis > 0.01) {
-            const { applied: consumed } = await applyCreditNoteFifoToSale(supabase, {
-              organizationId,
-              saleId: inv.id,
-              amount: cnForThis,
-              cnPool,
-              customerNameFallback: customerName,
-              adjustedBy: user?.id ?? null,
-            });
-            cnRemaining -= consumed;
-            const { data: fresh } = await supabase
-              .from("sales")
-              .select("sale_return_adjust")
-              .eq("id", inv.id)
-              .maybeSingle();
-            saleReturnAdjust = Number(fresh?.sale_return_adjust || saleReturnAdjust);
-          }
-        }
-
-        const settledSoFar =
-          runningPaid + saleReturnAdjust + runningDiscount;
-        const stillOwed = Math.max(0, (inv.net_amount || 0) - settledSoFar);
-
-        if ((cashRemaining > 0.01 || discountRemaining > 0.01) && stillOwed > 0.01) {
-          const cashForThis = Math.min(cashRemaining, stillOwed);
-          const discForThis = Math.min(
-            discountRemaining,
-            Math.max(0, stillOwed - cashForThis)
-          );
-
-          if (cashForThis > 0.01 || discForThis > 0.01) {
-            await createReceiptVoucher(supabase, {
-              organizationId,
-              referenceId: inv.id,
-              amount: cashForThis,
-              discountAmount: discForThis > 0.01 ? discForThis : undefined,
-              discountReason: discForThis > 0.01 ? discountReason || undefined : undefined,
-              paymentMethod: paymentMode,
-              description: narration.trim() || `Payment for ${inv.sale_number}`,
-              voucherDate,
-              createdBy: user?.id ?? null,
-            });
-            cashRemaining -= cashForThis;
-            discountRemaining -= discForThis;
-            runningPaid += cashForThis;
-            runningDiscount += discForThis;
-          }
-        }
-
-        await syncSaleFromVouchers(inv.id, voucherDate);
+      if (plan.advanceToOb > 0.01) {
+        const { consumed, vouchers } = await consumeAdvanceFIFO(supabase, {
+          customerId,
+          organizationId,
+          targetOpeningBalance: true,
+          requestedAmount: plan.advanceToOb,
+          voucherDate,
+          createdBy: user?.id ?? null,
+        });
+        await postAdvanceJournal(
+          vouchers,
+          consumed,
+          "Adjusted from advance balance for Opening Balance",
+        );
       }
 
+      if (plan.cashToOb > 0.01 || plan.discountToOb > 0.01) {
+        const obDesc =
+          narration.trim() || "Opening Balance Payment";
+        const created = await createReceiptVoucher(supabase, {
+          organizationId,
+          referenceId: customerId,
+          referenceType: "customer",
+          amount: plan.cashToOb,
+          discountAmount: plan.discountToOb > 0.01 ? plan.discountToOb : undefined,
+          discountReason: plan.discountToOb > 0.01 ? discountReason || undefined : undefined,
+          paymentMethod: paymentMode,
+          description: obDesc,
+          voucherDate,
+          createdBy: user?.id ?? null,
+        });
+        if (postLedger && created.id) {
+          await recordCustomerReceiptJournalEntry(
+            created.id,
+            organizationId,
+            plan.cashToOb + plan.discountToOb,
+            plan.discountToOb,
+            paymentMode,
+            voucherDate,
+            obDesc,
+            supabase,
+          );
+        }
+      }
+
+      const cnPool = liveCnPool;
+      const saleById = new Map(selectedInvoiceRows.map((inv) => [inv.id, inv]));
+
+      for (const row of plan.invoices) {
+        const inv = saleById.get(row.id);
+        if (!inv) continue;
+        if (row.advance <= 0.01 && row.cn <= 0.01 && row.cash <= 0.01 && row.discount <= 0.01) {
+          continue;
+        }
+
+        if (row.advance > 0.01) {
+          const { consumed, vouchers } = await consumeAdvanceFIFO(supabase, {
+            customerId,
+            organizationId,
+            saleId: row.id,
+            requestedAmount: row.advance,
+            voucherDate,
+            createdBy: user?.id ?? null,
+          });
+          await postAdvanceJournal(
+            vouchers,
+            consumed,
+            `Adjusted from advance balance for ${inv.sale_number}`,
+          );
+        }
+
+        if (row.cn > 0.01) {
+          await applyCreditNoteFifoToSale(supabase, {
+            organizationId,
+            saleId: row.id,
+            amount: row.cn,
+            cnPool,
+            customerNameFallback: customerName,
+            adjustedBy: user?.id ?? null,
+          });
+        }
+
+        if (row.cash > 0.01 || row.discount > 0.01) {
+          await createReceiptVoucher(supabase, {
+            organizationId,
+            referenceId: row.id,
+            amount: row.cash,
+            discountAmount: row.discount > 0.01 ? row.discount : undefined,
+            discountReason: row.discount > 0.01 ? discountReason || undefined : undefined,
+            paymentMethod: paymentMode,
+            description: narration.trim() || `Payment for ${inv.sale_number}`,
+            voucherDate,
+            createdBy: user?.id ?? null,
+          });
+        }
+
+        await syncSaleFromVouchers(row.id, voucherDate);
+      }
+
+      const targetLabel = [
+        obSelected ? "opening balance" : null,
+        selectedInvoiceRows.length
+          ? `${selectedInvoiceRows.length} invoice(s)`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" + ");
       const summary = isPartialSettlement
-        ? `₹${Math.round(totalApplied).toLocaleString("en-IN")} applied across ${selectedInvoices.size} invoice(s) (₹${Math.round(selectedTotal - totalApplied).toLocaleString("en-IN")} still due on selection)`
-        : `₹${Math.round(totalApplied).toLocaleString("en-IN")} settled across ${selectedInvoices.size} invoice(s)`;
+        ? `₹${Math.round(applied.total).toLocaleString("en-IN")} applied to ${targetLabel} (₹${Math.round(selectedTotal - applied.total).toLocaleString("en-IN")} still due on selection)`
+        : `₹${Math.round(applied.total).toLocaleString("en-IN")} settled across ${targetLabel}`;
       setSettledSummary(summary);
       setSettled(true);
       toast({
@@ -431,7 +560,8 @@ export function SettleCustomerAccountDialog({
       queryClient.invalidateQueries({ queryKey: ["invoice-history"] });
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["sale-returns"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
+      queryClient.invalidateQueries({ queryKey: ["customer-opening-balance-remaining"] });
+      invalidateMoneyViewsAfterMutation(queryClient, organizationId, customerId);
 
       onSuccess?.();
     } catch (err: unknown) {
@@ -444,18 +574,33 @@ export function SettleCustomerAccountDialog({
   };
 
   const previewRows = useMemo(() => {
-    return (pendingInvoices || [])
-      .filter((inv) => selectedInvoices.has(inv.id))
-      .map((inv) => {
-        const advShare = Math.min(inv.outstanding, advanceToApply * (inv.outstanding / selectedTotal || 0));
-        const afterAdv = Math.max(0, inv.outstanding - advShare);
-        const cnShare = Math.min(afterAdv, cnToApply * (inv.outstanding / selectedTotal || 0));
-        const afterCn = Math.max(0, afterAdv - cnShare);
-        const discShare = Math.min(afterCn, discountToApply * (inv.outstanding / selectedTotal || 0));
-        const newBal = Math.max(0, afterCn - discShare - Math.min(afterCn - discShare, cashNeeded * (inv.outstanding / selectedTotal || 0)));
-        return { inv, newBal };
+    const invoiceById = new Map(selectedInvoiceRows.map((inv) => [inv.id, inv]));
+    const rows: Array<{ id: string; label: string; outstanding: number; newBal: number }> = [];
+    if (obSelected) {
+      const newBal = Math.max(
+        0,
+        obForPlan - liveAllocation.advanceToOb - liveAllocation.cashToOb - liveAllocation.discountToOb,
+      );
+      rows.push({
+        id: SETTLE_OPENING_BALANCE_ID,
+        label: "Opening Balance",
+        outstanding: obForPlan,
+        newBal,
       });
-  }, [pendingInvoices, selectedInvoices, selectedTotal, advanceToApply, cnToApply, discountToApply, cashNeeded]);
+    }
+    for (const row of liveAllocation.invoices) {
+      const inv = invoiceById.get(row.id);
+      if (!inv) continue;
+      const applied = row.advance + row.cn + row.cash + row.discount;
+      rows.push({
+        id: row.id,
+        label: inv.sale_number,
+        outstanding: inv.outstanding,
+        newBal: Math.max(0, inv.outstanding - applied),
+      });
+    }
+    return rows;
+  }, [obSelected, obForPlan, liveAllocation, selectedInvoiceRows]);
 
   return (
     <Dialog
@@ -472,7 +617,7 @@ export function SettleCustomerAccountDialog({
             Settle Customer Account — {customerName}
           </DialogTitle>
           <DialogDescription>
-            Apply advance, credit notes, and cash to multiple invoices in one step.
+            Apply advance, credit notes, and cash. Opening balance is settled first, then invoices by date.
           </DialogDescription>
         </DialogHeader>
 
@@ -513,7 +658,9 @@ export function SettleCustomerAccountDialog({
                   <div className="flex items-center justify-between mb-2">
                     <Label className="text-sm font-semibold">Pending invoices</Label>
                     <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleSelectAll}>
-                      {pendingInvoices?.length && selectedInvoices.size === pendingInvoices.length
+                      {(pendingInvoices?.length || 0) + (obClaimable > 0 ? 1 : 0) > 0 &&
+                      (obClaimable <= 0 || selectedInvoices.has(SETTLE_OPENING_BALANCE_ID)) &&
+                      (pendingInvoices || []).every((i) => selectedInvoices.has(i.id))
                         ? "Deselect all"
                         : "Select all"}
                     </Button>
@@ -522,11 +669,28 @@ export function SettleCustomerAccountDialog({
                     <div className="py-2" aria-busy="true">
                       <ListSkeleton items={4} showIcon={false} />
                     </div>
-                  ) : !pendingInvoices?.length ? (
-                    <p className="text-sm text-muted-foreground text-center py-6">No pending invoices.</p>
+                  ) : !pendingInvoices?.length && obClaimable <= 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">No opening balance or pending invoices.</p>
                   ) : (
                     <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
-                      {pendingInvoices.map((inv) => (
+                      {obClaimable > 0 && (
+                        <label
+                          className="flex items-center gap-3 p-2.5 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer text-sm"
+                        >
+                          <Checkbox
+                            checked={selectedInvoices.has(SETTLE_OPENING_BALANCE_ID)}
+                            onCheckedChange={() => toggleInvoice(SETTLE_OPENING_BALANCE_ID)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-amber-800 dark:text-amber-300">Opening Balance</div>
+                            <div className="text-xs text-muted-foreground">Settled first (before invoices)</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-semibold tabular-nums">{fmt(obClaimable)}</div>
+                          </div>
+                        </label>
+                      )}
+                      {pendingInvoices?.map((inv) => (
                         <label
                           key={inv.id}
                           className="flex items-center gap-3 p-2.5 hover:bg-muted/40 cursor-pointer text-sm"
@@ -635,11 +799,11 @@ export function SettleCustomerAccountDialog({
                 {selectedTotal > 0 && (
                   <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 space-y-2 text-xs">
                     <p className="font-semibold text-blue-900 uppercase tracking-wide">After settlement</p>
-                    {previewRows.map(({ inv, newBal }) => (
-                      <div key={inv.id} className="flex justify-between gap-2">
-                        <span className="font-medium">{inv.sale_number}</span>
+                    {previewRows.map(({ id, label, outstanding, newBal }) => (
+                      <div key={id} className="flex justify-between gap-2">
+                        <span className="font-medium">{label}</span>
                         <span>
-                          {fmt(inv.outstanding)} →{" "}
+                          {fmt(outstanding)} →{" "}
                           <span className={newBal <= 0.5 ? "text-emerald-700 font-semibold" : "text-amber-700"}>
                             {fmt(newBal)}
                           </span>

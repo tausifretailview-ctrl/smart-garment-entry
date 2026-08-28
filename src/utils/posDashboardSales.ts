@@ -1290,9 +1290,32 @@ async function correctPosDashboardModeTotalsIfNeeded(
   }
 }
 
+export function posDashboardModeTotalsNeedCorrection(stats: PosDashboardSummaryStats): boolean {
+  const modeSum = stats.totalCash + stats.totalCard + stats.totalUpi;
+  return modeSum > stats.netSale + 1;
+}
+
+/**
+ * Recompute cash/card/UPI totals when mix over-tender inflated RPC mode sums.
+ * Call in a background query — can scan the full filtered range.
+ */
+export async function correctPosDashboardSummaryModeTotals(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  rpcStats: PosDashboardSummaryStats,
+): Promise<PosDashboardSummaryStats> {
+  return correctPosDashboardModeTotalsIfNeeded(client, filters, rpcStats);
+}
+
+export type FetchPosDashboardSummaryOptions = {
+  /** When false, return RPC stats immediately (mode correction in background). Default true. */
+  correctModeTotals?: boolean;
+};
+
 export async function fetchPosDashboardSummary(
   client: SupabaseClient,
   filters: PosDashboardFilters,
+  options?: FetchPosDashboardSummaryOptions,
 ): Promise<PosDashboardSummaryStats> {
   if (!filters.organizationId) return { ...EMPTY_POS_SUMMARY };
 
@@ -1303,6 +1326,9 @@ export async function fetchPosDashboardSummary(
   if (!isPosDashboardStatsRpcUnavailable()) {
     try {
       const rpcStats = await fetchPosDashboardSummaryViaRpc(client, summaryFilters);
+      if (options?.correctModeTotals === false) {
+        return reconcilePosDashboardUnpaidCounts(rpcStats);
+      }
       const corrected = await correctPosDashboardModeTotalsIfNeeded(
         client,
         summaryFilters,
@@ -1421,17 +1447,113 @@ export async function fetchPosDashboardExportRows(
 
 export const POS_DASHBOARD_QUERY_KEY = "pos-dashboard-sales" as const;
 
+export type PosDashboardPaymentPatch = {
+  paid_amount: number;
+  payment_status: string;
+  payment_method?: string;
+  /** Previous status — used to shift summary Pending → Paid without waiting on refetch. */
+  prevPaymentStatus?: string;
+  netAmount?: number;
+  outstandingCleared?: number;
+};
+
+function applyPosDashboardPaymentPatchToRow(
+  sale: Record<string, unknown> | null | undefined,
+  saleId: string,
+  patch: PosDashboardPaymentPatch,
+): Record<string, unknown> | null | undefined {
+  if (!sale || sale.id !== saleId) return sale;
+  const next = {
+    ...sale,
+    paid_amount: patch.paid_amount,
+    payment_status: patch.payment_status,
+    ...(patch.payment_method ? { payment_method: patch.payment_method } : {}),
+  };
+  return {
+    ...next,
+    pos_outstanding: getPosSaleOutstandingBalance(next as PosDashboardSaleLike),
+  };
+}
+
+/**
+ * Show Paid immediately after Record Payment by patching cached page / reconcile
+ * rows (same idea as seedPosDashboardCacheWithSale).
+ */
+export function patchPosDashboardSalePayment(
+  queryClient: QueryClient,
+  organizationId: string,
+  saleId: string,
+  patch: PosDashboardPaymentPatch,
+): void {
+  if (!organizationId || !saleId) return;
+
+  const queries = queryClient.getQueryCache().findAll({
+    queryKey: [POS_DASHBOARD_QUERY_KEY, organizationId],
+  });
+
+  for (const query of queries) {
+    const key = query.queryKey as unknown[];
+    const data = query.state.data;
+    if (data == null) continue;
+
+    if (key[2] === "summary") {
+      const stats = data as PosDashboardSummaryStats;
+      const prev = String(patch.prevPaymentStatus || "");
+      const becameCompleted =
+        prev !== "completed" && patch.payment_status === "completed";
+      if (!becameCompleted) continue;
+      const net = Number(patch.netAmount || 0);
+      const cleared = Number(patch.outstandingCleared ?? net);
+      queryClient.setQueryData(key, {
+        ...stats,
+        completedCount: stats.completedCount + 1,
+        completedAmount: stats.completedAmount + net,
+        pendingCount: Math.max(0, stats.pendingCount - 1),
+        pendingAmount: Math.max(0, stats.pendingAmount - cleared),
+        totalBalance: Math.max(0, stats.totalBalance - cleared),
+      });
+      continue;
+    }
+
+    if (Array.isArray(data)) {
+      queryClient.setQueryData(
+        key,
+        data.map((row) => applyPosDashboardPaymentPatchToRow(row, saleId, patch)),
+      );
+      continue;
+    }
+
+    if (typeof data === "object" && data !== null && "sales" in data) {
+      const payload = data as PosDashboardPageResult;
+      queryClient.setQueryData(key, {
+        ...payload,
+        sales: (payload.sales || []).map((row) =>
+          applyPosDashboardPaymentPatchToRow(row, saleId, patch),
+        ),
+        ...(payload.sourceRows
+          ? {
+              sourceRows: payload.sourceRows.map((row) =>
+                applyPosDashboardPaymentPatchToRow(row, saleId, patch),
+              ),
+            }
+          : {}),
+      });
+    }
+  }
+}
+
 /** Invalidate table page and summary tiles after a POS dashboard mutation. */
 export function invalidatePosDashboardQueries(
   queryClient: QueryClient,
   organizationId?: string,
+  options?: { refetchType?: "all" | "active" | "none" },
 ) {
   queryClient.invalidateQueries({
     queryKey: organizationId
       ? [POS_DASHBOARD_QUERY_KEY, organizationId]
       : [POS_DASHBOARD_QUERY_KEY],
-    // Refetch inactive tab-cached dashboard queries when user switches back from POS.
-    refetchType: "all",
+    // Default "all" so inactive tab-cached dashboard queries refresh after POS save.
+    refetchType: options?.refetchType ?? "all",
   });
 }
 

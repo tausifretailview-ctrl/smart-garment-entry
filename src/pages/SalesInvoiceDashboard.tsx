@@ -5,7 +5,7 @@ import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { DASHBOARD_KPI_QUERY_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
-import { deleteLedgerEntries } from "@/lib/customerLedger";
+import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceApplicationJournalEntry,
@@ -143,6 +143,7 @@ import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummary
 import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
+  fetchInvoiceDashboardReconciledPendingAmount,
   fetchInvoiceDashboardExportRows,
   formatInvoiceDashboardPaymentStatusLabel,
   getInvoiceDashboardDisplayStatus,
@@ -154,6 +155,7 @@ import {
   syncVisibleInvoiceStaleFields,
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
+import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -879,9 +881,25 @@ export default function SalesInvoiceDashboard() {
           undeliveredAmount: 0,
         };
       }
-      return fetchInvoiceDashboardStats(supabase, dashboardFilters);
+      return fetchInvoiceDashboardStats(supabase, dashboardFilters, {
+        reconcilePending: false,
+      });
     },
     enabled: dashboardQueryEnabled,
+    ...DASHBOARD_KPI_QUERY_OPTIONS,
+  });
+
+  const { data: reconciledPendingAmount } = useQuery({
+    queryKey: [...dashboardQueryKey, "reconciled-pending"],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return null;
+      return fetchInvoiceDashboardReconciledPendingAmount(supabase, dashboardFilters);
+    },
+    enabled:
+      dashboardQueryEnabled &&
+      dashboardStats != null &&
+      dashboardStats.totalInvoices > 0 &&
+      dashboardFilters.paymentStatusFilter.length === 0,
     ...DASHBOARD_KPI_QUERY_OPTIONS,
   });
 
@@ -942,6 +960,11 @@ export default function SalesInvoiceDashboard() {
 
   useEffect(() => {
     if (!invoicesError) return;
+    if (isStatementTimeout(invoicesError)) {
+      const { title, message } = statementTimeoutMessage();
+      toast({ title, description: message, variant: "destructive" });
+      return;
+    }
     const message =
       invoicesError instanceof Error
         ? invoicesError.message
@@ -1434,7 +1457,12 @@ export default function SalesInvoiceDashboard() {
         undeliveredAmount: 0,
       };
 
-  const effectiveStats = baseStats;
+  const effectiveStats = useMemo(() => {
+    if (reconciledPendingAmount == null || Number.isNaN(reconciledPendingAmount)) {
+      return baseStats;
+    }
+    return { ...baseStats, pendingAmount: reconciledPendingAmount };
+  }, [baseStats, reconciledPendingAmount]);
 
   const handleExportExcel = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2912,7 +2940,11 @@ export default function SalesInvoiceDashboard() {
       setReceiptData(newReceiptData);
       setShowPaymentDialog(false);
       setShowReceiptDialog(true);
-      invalidateSalesQueriesNow(queryClient, orgId);
+      invalidateAfterCustomerPaymentMutation(
+        queryClient,
+        orgId,
+        selectedInvoiceForPayment.customer_id,
+      );
       await refetchInvoiceDashboardQueries(queryClient, orgId);
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {

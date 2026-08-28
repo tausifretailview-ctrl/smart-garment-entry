@@ -22,6 +22,7 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
+import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
@@ -69,6 +70,12 @@ interface SaleData {
   roundOff: number;
   netAmount: number;
   creditApplied?: number;
+  /**
+   * Existing advance booking to consume after save via consumeAdvanceFIFO.
+   * Reduces cashier tender only — do not subtract from persisted net_amount
+   * and do not pass into derivePaidAndStatus.advanceApplied (that slot is CN).
+   */
+  advanceApplied?: number;
   refundAmount?: number;
   salesman?: string | null;
   notes?: string | null;
@@ -561,13 +568,18 @@ export const useSaveSale = () => {
     let paidAmt = 0;
     let refundAmt = saleData.refundAmount || 0;
     let finalPaymentMethod: string = paymentMethod;
+    const tenderDue = posTenderDueAfterAdvance(
+      saleData.netAmount,
+      saleData.advanceApplied || 0,
+    );
 
     if (paymentBreakdown) {
       // Mix Payment may include cash tender above the bill (change). Persist only
       // amounts applied to the bill — storing tender (e.g. ₹8000 on a ₹4500 bill)
       // inflated POS Dashboard Cash / cash tally while Paid stayed capped at net.
+      // Tender due excludes advance (consumed after save); Mix UI uses the same figure.
       const applied = allocateMixPaymentToBill({
-        billAmount: Math.max(0, saleData.netAmount),
+        billAmount: tenderDue,
         cashAmount: paymentBreakdown.cashAmount,
         cardAmount: paymentBreakdown.cardAmount,
         upiAmount: paymentBreakdown.upiAmount,
@@ -587,7 +599,7 @@ export const useSaveSale = () => {
         (options.existingPaidAmount || 0) === 0 ||
         options.existingPaymentStatus === 'completed'
       ) {
-        paidAmt = saleData.netAmount;
+        paidAmt = tenderDue;
         if (paymentMethod === 'cash') cashAmt = paidAmt;
         else if (paymentMethod === 'card') cardAmt = paidAmt;
         else if (paymentMethod === 'upi') upiAmt = paidAmt;
@@ -598,10 +610,10 @@ export const useSaveSale = () => {
         else if (paymentMethod === 'upi') upiAmt = paidAmt;
       }
     } else {
-      paidAmt = paymentMethod === 'pay_later' ? 0 : saleData.netAmount;
-      if (paymentMethod === 'cash') cashAmt = saleData.netAmount;
-      else if (paymentMethod === 'card') cardAmt = saleData.netAmount;
-      else if (paymentMethod === 'upi') upiAmt = saleData.netAmount;
+      paidAmt = paymentMethod === 'pay_later' ? 0 : tenderDue;
+      if (paymentMethod === 'cash') cashAmt = tenderDue;
+      else if (paymentMethod === 'card') cardAmt = tenderDue;
+      else if (paymentMethod === 'upi') upiAmt = tenderDue;
     }
 
     const exchange = getExchangeAmounts(saleData, refundAmt, {
@@ -742,8 +754,13 @@ export const useSaveSale = () => {
     }
 
     // Mix payment with unpaid credit balance must have a named customer.
+    // Remainder covered by advance (consumed after save) is not Mix credit.
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(0, Math.max(0, saleData.netAmount) - paymentBreakdown.totalPaid);
+      const mixCreditAmount = Math.max(
+        0,
+        posTenderDueAfterAdvance(saleData.netAmount, saleData.advanceApplied || 0) -
+          paymentBreakdown.totalPaid,
+      );
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({
@@ -1425,7 +1442,11 @@ export const useSaveSale = () => {
     }
 
     if (paymentMethod === "multiple" && paymentBreakdown) {
-      const mixCreditAmount = Math.max(0, Math.max(0, saleData.netAmount) - paymentBreakdown.totalPaid);
+      const mixCreditAmount = Math.max(
+        0,
+        posTenderDueAfterAdvance(saleData.netAmount, saleData.advanceApplied || 0) -
+          paymentBreakdown.totalPaid,
+      );
       if (mixCreditAmount > 0.01 && !hasNamedCustomer()) {
         savingLockRef.current = false;
         toast({

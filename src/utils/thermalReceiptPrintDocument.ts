@@ -226,7 +226,7 @@ export function wrapReceiptHtmlForElectron(
   if (html.includes('id="thermal-electron-print"')) return html;
 
   const resolvedPaper = paper ?? detectThermalPaperFromHtml(html);
-  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(resolvedPaper, { forElectronRoll: true })}</style>`;
+  const styleBlock = `<style id="thermal-electron-print">${buildThermalReceiptPrintCss(resolvedPaper, { forElectronRoll: true })}${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}</style>`;
 
   if (/<html[\s>]/i.test(html)) {
     if (/<\/head>/i.test(html)) {

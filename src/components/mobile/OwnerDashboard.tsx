@@ -25,11 +25,8 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip,
   AreaChart, Area,
 } from "recharts";
-import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
-import {
-  ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY,
-  fetchOrganizationSupplierPayableSummary,
-} from "@/utils/organizationReceivables";
+import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanceOrgWindow";
+import { useSupplierOrgBalanceWindow } from "@/hooks/useSupplierOrgBalanceWindow";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 
 /* ─── helpers ─── */
@@ -132,22 +129,21 @@ export const OwnerDashboard = () => {
     retry: 1,
   });
 
-  /* ── Primary KPI: org receivables (canonical RPC, shared with Accounts) ── */
-  const { summary: receivablesSummary, isLoading: receivablesLoading } =
-    useOrganizationReceivablesSummary(orgId, {
+  /* ── Primary KPI: same Net Receivable as Customer Balances ── */
+  const { window: partyReceivablesWindow, isLoading: receivablesLoading } =
+    useCustomerPartyBalanceOrgWindow(orgId, {
       staleTime: BALANCE_STALE_MS,
       enabled: kpisEnabled,
     });
 
-  /* ── Primary KPI: org supplier payables (canonical RPC) ── */
-  const { data: supplierSummary, isLoading: supplierLoading } = useQuery({
-    queryKey: [ORGANIZATION_SUPPLIER_PAYABLE_QUERY_KEY, "summary", orgId],
-    queryFn: () =>
-      withMobileQueryTimeout(() => fetchOrganizationSupplierPayableSummary(orgId!)),
-    enabled: kpisEnabled,
-    staleTime: BALANCE_STALE_MS,
-    retry: 1,
-  });
+  /* ── Primary KPI: org supplier payables (S-JS — same as Accounts Outstanding) ── */
+  const { window: supplierOrgWindow, isLoading: supplierLoading } = useSupplierOrgBalanceWindow(
+    orgId,
+    {
+      staleTime: BALANCE_STALE_MS,
+      enabled: kpisEnabled,
+    },
+  );
 
   /* Defer secondary sections until main KPI cards are ready */
   const [deferredReady, setDeferredReady] = useState(false);
@@ -356,10 +352,9 @@ export const OwnerDashboard = () => {
   const profitMarginPct =
     totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
 
-  const customerOs = receivablesSummary.netReceivable;
-  const customersPending = receivablesSummary.customersOwing;
-  const supplierOs = Math.max(0, supplierSummary?.netOutstanding ?? 0);
-  const suppliersPending = supplierSummary?.supplierCount ?? 0;
+  const customerOs = partyReceivablesWindow.netReceivable;
+  const supplierOs = supplierOrgWindow.totalPayableCr;
+  const suppliersPending = supplierOrgWindow.payableSupplierCount;
 
   /* ── Stat cards config ── */
   const statCards: StatCardConfig[] = [
@@ -411,14 +406,14 @@ export const OwnerDashboard = () => {
     {
       label: "Customer O/S",
       value: customerOs,
-      sub: `${customersPending} customer${customersPending === 1 ? "" : "s"} pending`,
+      sub: "Net receivable (Customer Balances)",
       icon: Users,
       gradient: "bg-gradient-to-br from-rose-500/15 via-rose-500/8 to-card",
       iconBg: "bg-rose-500/20",
       iconColor: "text-rose-600",
       valueClass: "text-destructive",
       loading: receivablesLoading,
-      path: `${MOBILE_REPORTS_PATH}?report=customer-balance`,
+      path: "/customer-party-balances",
     },
     {
       label: "Supplier O/S",

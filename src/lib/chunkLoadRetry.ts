@@ -31,6 +31,16 @@ export const POST_LOGIN_PREFETCH_TAB_PATHS = ["", "pos-sales"] as const;
 export const POST_LOGIN_PREFETCH_TAB_PATHS_WEB = ["", "pos-sales"] as const;
 
 /**
+ * Outlet POS routes — warm purchase-entry while the cashier is on POS (SEMME:
+ * POS → Purchase Entry is a common hop; purchase-entry stays off the parallel
+ * post-login list to avoid starving cold dashboard opens).
+ */
+export const POS_CONTEXT_PURCHASE_PREFETCH_PATHS = ["pos-sales", "pos-delivery-challan"] as const;
+
+/** Tab to warm from POS context (single hop, not full inventory list). */
+export const POS_CONTEXT_WARM_TAB_PATH = "purchase-entry" as const;
+
+/**
  * Former Electron critical paths — first wave of idle prefetch after login.
  * Kept sequential so they never race the visible tab.
  */
@@ -82,6 +92,9 @@ export const POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS = [
   "settings",
   "user-rights",
   "accounts",
+  "accounts-payments",
+  "customer-account-statement",
+  "customer-party-balances",
   "barcode-printing",
   "third-party-entry",
   "third-party-balances",
@@ -136,6 +149,19 @@ export const SALES_TAB_PREFETCH_PATHS = [
   "sale-order-entry",
   "delivery-challan-dashboard",
   "advance-booking-dashboard",
+] as const;
+
+/** Accounts / payments / ledger — mutual warm (header + sidebar shortcuts). */
+export const ACCOUNTS_TAB_PREFETCH_PATHS = [
+  "accounts",
+  "accounts-payments",
+  "payments-dashboard",
+  "customer-account-statement",
+  "customer-party-balances",
+  "customer-ledger-report",
+  "chart-of-accounts",
+  "third-party-balances",
+  "ledger-opening-balances",
 ] as const;
 
 /** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */

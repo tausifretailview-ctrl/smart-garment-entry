@@ -66,7 +66,6 @@ import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
-import { printBarcodesDirectly } from "@/utils/barcodePrinter";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import {
   purchaseBillFields,
@@ -95,7 +94,12 @@ import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
-import { PriceUpdateConfirmDialog } from "@/components/PriceUpdateConfirmDialog";
+import { MrpTierSelectionDialog } from "@/components/MrpTierSelectionDialog";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import {
+  barcodeTierLookupKey,
+  makePurchaseImportProductKey,
+} from "@/utils/purchaseImportBarcodeTier";
 import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
@@ -120,16 +124,30 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import {
+  resolvePurchaseLineItemsForPriceTiers,
   syncLastPurchaseFromBillLines,
   syncVariantPriceFromPurchase,
 } from "@/utils/syncVariantPriceFromPurchase";
+import { resolveVariantForIncomingPriceTier } from "@/utils/purchaseVariantPriceTierFork";
+import {
+  purchaseLinePricesFromUseExisting,
+  type PurchaseLinePriceSnapshot,
+  type UseExistingProductPayload,
+} from "@/utils/purchaseUseExistingProduct";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError, extractErrorInfo } from "@/lib/errorLogger";
+import {
+  gatePurchaseBarcodePrint,
+  hasUnsavedPurchaseLinesForBarcodePrint,
+  purchaseBarcodePrintBlockedMessage,
+  purchaseSaveFailedStockHint,
+} from "@/utils/purchaseBarcodePrintGuard";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
+import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -209,16 +227,6 @@ async function insertPurchaseItemsRows(
   throw error;
 }
 
-interface PriceChange {
-  sku_id: string;
-  product_name: string;
-  size: string;
-  barcode: string;
-  field: "pur_price" | "sale_price" | "mrp";
-  old_value: number;
-  new_value: number;
-}
-
 interface ProductVariant {
   id: string;
   product_id: string;
@@ -266,6 +274,8 @@ interface LineItem {
   uom?: string;
   /** From products.requires_imei — default true when missing. */
   requires_imei?: boolean;
+  /** User chose "Use existing product" — keep sku_id even when line price tier differs. */
+  linkExistingSku?: boolean;
 }
 
 function normalizeItemCompareString(val: string | null | undefined): string | null {
@@ -783,6 +793,10 @@ const PurchaseEntry = () => {
   const [showProductDialog, setShowProductDialog] = useState(false);
   /** Prefill for Add New Product when search-bar scan finds no master match. */
   const [productDialogInitialBarcode, setProductDialogInitialBarcode] = useState("");
+  const [mrpTierPicker, setMrpTierPicker] = useState<{
+    barcode: string;
+    choices: ProductVariant[];
+  } | null>(null);
   const barcodeScanResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /** Shape heuristic — barcode/IMEI-like (digit required). Not sufficient alone for auto-open. */
@@ -878,14 +892,8 @@ const PurchaseEntry = () => {
   const [selectedInlineIndex, setSelectedInlineIndex] = useState(0);
   
   
-  // Price update confirmation state
-  const [showPriceUpdateDialog, setShowPriceUpdateDialog] = useState(false);
-  const [detectedPriceChanges, setDetectedPriceChanges] = useState<PriceChange[]>([]);
-  const [pendingPrintAfterPriceUpdate, setPendingPrintAfterPriceUpdate] = useState(false);
-  
   // State for selective barcode printing
   const [selectedForPrint, setSelectedForPrint] = useState<Set<string>>(new Set());
-  const [pendingSaveItems, setPendingSaveItems] = useState<LineItem[]>([]);
   
   // Pagination for large bills
   const [visibleItemCount, setVisibleItemCount] = useState(100);
@@ -942,6 +950,7 @@ const PurchaseEntry = () => {
       syncDebounceRef.current[tempId] = setTimeout(() => {
         const item = lineItemsRef.current.find((i) => i.temp_id === tempId);
         if (!item?.barcode && !item?.sku_id) return;
+        if (item.linkExistingSku) return;
 
         const purPrice = Number(item.pur_price) || 0;
         const salePrice = Number(item.sale_price) || 0;
@@ -957,6 +966,19 @@ const PurchaseEntry = () => {
           variantId: item.sku_id || undefined,
           mrp: Number(item.mrp) || undefined,
           purchaseDate: format(billDate, "yyyy-MM-dd"),
+        }).then((result) => {
+          if (!result?.forked || result.variantId === item.sku_id) return;
+          setLineItems((prev) =>
+            prev.map((row) =>
+              row.temp_id === tempId
+                ? {
+                    ...row,
+                    sku_id: result.variantId,
+                    product_id: result.productId,
+                  }
+                : row,
+            ),
+          );
         });
       }, 600);
     },
@@ -1104,7 +1126,6 @@ const PurchaseEntry = () => {
     setSelectedProduct(null);
     setShowPrintDialog(false);
     setBarcodeWarnings(new Map());
-    setDetectedPriceChanges([]);
     setSelectedForPrint(new Set());
     setIsDcPurchase(false);
     setIsBillLocked(false);
@@ -2986,17 +3007,39 @@ const PurchaseEntry = () => {
   // AbortController ref to cancel in-flight search requests
   const searchAbortControllerRef = useRef<AbortController | null>(null);
 
+  const mapPurchaseVariantRow = useCallback((data: Record<string, unknown>, barcode: string): ProductVariant => {
+    const p = data.products as Record<string, unknown> | null | undefined;
+    return {
+      id: String(data.id ?? ""),
+      product_id: String(p?.id ?? data.product_id ?? ""),
+      size: String(data.size ?? ""),
+      pur_price: Number(data.pur_price) || 0,
+      sale_price: Number(data.sale_price) || 0,
+      mrp: Number(data.mrp) || 0,
+      barcode: String(data.barcode ?? barcode),
+      barcode_source: String(data.barcode_source ?? "generated"),
+      product_name: String(p?.product_name ?? ""),
+      brand: String(p?.brand ?? ""),
+      category: String(p?.category ?? ""),
+      color: String(data.color ?? p?.color ?? ""),
+      style: String(p?.style ?? ""),
+      gst_per: Number(p?.purchase_gst_percent ?? p?.gst_per) || 0,
+      hsn_code: String(p?.hsn_code ?? ""),
+      uom: String(p?.uom ?? "NOS"),
+      requires_imei: p?.requires_imei === true,
+    };
+  }, []);
+
   /**
    * Exact barcode lookup for purchase search-bar scans.
    * Key for "already on this bill": prefer sku_id (variant id); fall back to exact barcode
    * so shared-EAN accessory lines still match.
    */
-  const fetchExactBarcodeVariant = useCallback(
-    async (rawBarcode: string): Promise<ProductVariant | null> => {
-      if (!currentOrganization?.id) return null;
+  const fetchExactBarcodeVariants = useCallback(
+    async (rawBarcode: string): Promise<ProductVariant[]> => {
+      if (!currentOrganization?.id) return [];
       const barcode = normalizeProductSearchTerm(rawBarcode);
-      // Reject empty / whitespace-only — `.eq("barcode", "")` yields PostgREST 400s.
-      if (!barcode || barcode.length < 1) return null;
+      if (!barcode || barcode.length < 1) return [];
 
       const orgId = currentOrganization.id;
       const { data, error } = await supabase
@@ -3035,36 +3078,85 @@ const PurchaseEntry = () => {
         .eq("barcode", barcode)
         .is("deleted_at", null)
         .eq("active", true)
-        .limit(1)
-        .maybeSingle();
+        .order("mrp", { ascending: false })
+        .limit(50);
 
-      if (error || !data) return null;
-      const p = data.products as any;
-      return {
-        id: data.id,
-        product_id: p?.id || data.product_id || "",
-        size: data.size || "",
-        pur_price: data.pur_price || 0,
-        sale_price: data.sale_price || 0,
-        mrp: data.mrp || 0,
-        barcode: data.barcode || barcode,
-        barcode_source: data.barcode_source || "generated",
-        product_name: p?.product_name || "",
-        brand: p?.brand || "",
-        category: p?.category || "",
-        color: data.color || p?.color || "",
-        style: p?.style || "",
-        gst_per: p?.purchase_gst_percent || p?.gst_per || 0,
-        hsn_code: p?.hsn_code || "",
-        uom: p?.uom || "NOS",
-        requires_imei: p?.requires_imei === true,
-      };
+      if (error || !data?.length) return [];
+      return data.map((row) => mapPurchaseVariantRow(row as Record<string, unknown>, barcode));
     },
-    [currentOrganization?.id],
+    [currentOrganization?.id, mapPurchaseVariantRow],
+  );
+
+  const fetchExactBarcodeVariant = useCallback(
+    async (rawBarcode: string): Promise<ProductVariant | null> => {
+      const variants = await fetchExactBarcodeVariants(rawBarcode);
+      return variants[0] ?? null;
+    },
+    [fetchExactBarcodeVariants],
+  );
+
+  const fetchPurchaseVariantById = useCallback(
+    async (variantId: string): Promise<ProductVariant | null> => {
+      if (!currentOrganization?.id || !variantId) return null;
+      const orgId = currentOrganization.id;
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(
+          `
+          id,
+          size,
+          pur_price,
+          sale_price,
+          mrp,
+          barcode,
+          barcode_source,
+          active,
+          color,
+          product_id,
+          products (
+            id,
+            product_name,
+            brand,
+            category,
+            style,
+            color,
+            hsn_code,
+            gst_per,
+            purchase_gst_percent,
+            sale_gst_percent,
+            default_pur_price,
+            default_sale_price,
+            uom,
+            requires_imei
+          )
+        `,
+        )
+        .eq("organization_id", orgId)
+        .eq("id", variantId)
+        .is("deleted_at", null)
+        .eq("active", true)
+        .maybeSingle();
+      if (error || !data) return null;
+      const bc = String((data as { barcode?: string }).barcode ?? "");
+      return mapPurchaseVariantRow(data as Record<string, unknown>, bc);
+    },
+    [currentOrganization?.id, mapPurchaseVariantRow],
   );
 
   const addOrIncrementScannedVariant = useCallback(
-    async (variant: ProductVariant) => {
+    async (
+      variant: ProductVariant,
+      options?: {
+        linePriceOverride?: PurchaseLinePriceSnapshot;
+        linkExistingSku?: boolean;
+      },
+    ) => {
+      const linePrices: PurchaseLinePriceSnapshot = options?.linePriceOverride ?? {
+        pur_price: variant.pur_price || 0,
+        sale_price: variant.sale_price || 0,
+        mrp: variant.mrp || 0,
+      };
+
       // Resolve UOM before mutating lines so a second scan never races on stale lineItems.
       let resolvedUom = variant.uom || "NOS";
       if (!variant.uom && variant.product_id) {
@@ -3116,9 +3208,9 @@ const PurchaseEntry = () => {
           product_name: variant.product_name,
           size: variant.size || "",
           qty: 1,
-          pur_price: variant.pur_price || 0,
-          sale_price: variant.sale_price || 0,
-          mrp: variant.mrp || 0,
+          pur_price: linePrices.pur_price || 0,
+          sale_price: linePrices.sale_price || 0,
+          mrp: linePrices.mrp || 0,
           gst_per: variant.gst_per || 0,
           hsn_code: variant.hsn_code || "",
           barcode: variant.barcode || "",
@@ -3129,6 +3221,7 @@ const PurchaseEntry = () => {
           style: variant.style || "",
           uom: resolvedUom,
           requires_imei: variant.requires_imei === true,
+          ...(options?.linkExistingSku ? { linkExistingSku: true } : {}),
         });
         const next = [...prev, newRow];
         setVisibleItemCount((vc) =>
@@ -3187,13 +3280,46 @@ const PurchaseEntry = () => {
       setSearchResults([]);
       setShowSearch(false);
 
-      const variant = await fetchExactBarcodeVariant(barcode);
-      if (variant) {
-        setSearchQuery("");
-        resetSearchInputScanTiming();
-        await addOrIncrementScannedVariant(variant);
-        focusSearchBar();
-        return;
+      const variants = await fetchExactBarcodeVariants(barcode);
+      if (variants.length > 0) {
+        if (variants.length === 1) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          await addOrIncrementScannedVariant(variants[0]);
+          focusSearchBar();
+          return;
+        }
+
+        const picker = resolveBarcodeScanPicker(
+          variants.map((variant) => ({
+            product: { product_name: variant.product_name },
+            variant,
+          })),
+          () => true,
+        );
+
+        if (picker.showMrpDialog) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          setMrpTierPicker({ barcode, choices: picker.mrpDialogChoices.map((m) => m.variant) });
+          return;
+        }
+
+        if (picker.showProductPicker) {
+          setSearchQuery(barcode);
+          setSearchResults(picker.productPickerChoices.map((m) => m.variant));
+          setShowSearch(true);
+          resetSearchInputScanTiming();
+          return;
+        }
+
+        if (picker.autoPick) {
+          setSearchQuery("");
+          resetSearchInputScanTiming();
+          await addOrIncrementScannedVariant(picker.autoPick.variant);
+          focusSearchBar();
+          return;
+        }
       }
 
       // Not in master — auto-open only for a confirmed hardware scan (or camera).
@@ -3210,7 +3336,7 @@ const PurchaseEntry = () => {
     },
     [
       currentOrganization?.id,
-      fetchExactBarcodeVariant,
+      fetchExactBarcodeVariants,
       addOrIncrementScannedVariant,
       openAddProductDialog,
       focusSearchBar,
@@ -3218,9 +3344,23 @@ const PurchaseEntry = () => {
     ],
   );
 
+  const applyUseExistingProductToBill = useCallback(
+    async (variant: ProductVariant, linePrices: PurchaseLinePriceSnapshot) => {
+      await addOrIncrementScannedVariant(variant, {
+        linePriceOverride: linePrices,
+      });
+      focusSearchBar();
+    },
+    [addOrIncrementScannedVariant, focusSearchBar],
+  );
+
   const handleUseExistingProductFromDialog = useCallback(
-    async (barcode: string) => {
+    async (payload: UseExistingProductPayload) => {
       closeProductDialog(false);
+      const orgId = currentOrganization?.id;
+      const barcode = payload.barcode.trim();
+      if (!barcode || !orgId) return;
+
       const variant = await fetchExactBarcodeVariant(barcode);
       if (!variant) {
         toast({
@@ -3230,10 +3370,66 @@ const PurchaseEntry = () => {
         });
         return;
       }
-      await addOrIncrementScannedVariant(variant);
-      focusSearchBar();
+
+      const storedPrices: PurchaseLinePriceSnapshot = {
+        pur_price: Number(variant.pur_price) || 0,
+        sale_price: Number(variant.sale_price) || 0,
+        mrp: Number(variant.mrp) || 0,
+      };
+      const linePrices = purchaseLinePricesFromUseExisting(payload, storedPrices);
+
+      if (linePrices.pur_price <= 0 || linePrices.sale_price <= 0) {
+        toast({
+          title: "Invalid prices",
+          description: "Purchase and sale price must be greater than zero.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const resolved = await resolveVariantForIncomingPriceTier({
+        organizationId: orgId,
+        variantId: variant.id,
+        barcode,
+        incomingPurPrice: linePrices.pur_price,
+        incomingSalePrice: linePrices.sale_price,
+        incomingMrp: linePrices.mrp,
+        purchaseDate: format(billDate, "yyyy-MM-dd"),
+      });
+
+      if (!resolved) {
+        toast({
+          title: "Could not add product",
+          description: "Unable to resolve price tier for this barcode.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let billVariant = variant;
+      if (resolved.variantId !== variant.id) {
+        const loaded = await fetchPurchaseVariantById(resolved.variantId);
+        billVariant = loaded ?? {
+          ...variant,
+          id: resolved.variantId,
+          product_id: resolved.productId,
+          pur_price: linePrices.pur_price,
+          sale_price: linePrices.sale_price,
+          mrp: linePrices.mrp ?? variant.mrp,
+        };
+      }
+
+      await applyUseExistingProductToBill(billVariant, linePrices);
     },
-    [closeProductDialog, fetchExactBarcodeVariant, addOrIncrementScannedVariant, toast, focusSearchBar],
+    [
+      closeProductDialog,
+      currentOrganization?.id,
+      fetchExactBarcodeVariant,
+      fetchPurchaseVariantById,
+      applyUseExistingProductToBill,
+      billDate,
+      toast,
+    ],
   );
 
   const searchProducts = async (query: string) => {
@@ -4567,197 +4763,6 @@ const PurchaseEntry = () => {
     }
   }, [settings, autoFocusSearch]);
 
-  // Function to detect price changes between line items and product_variants
-  const detectPriceChanges = async (items: LineItem[]): Promise<PriceChange[]> => {
-    const changes: PriceChange[] = [];
-    
-    // Get unique sku_ids
-    const skuIds = [...new Set(items.filter(i => i.sku_id).map(i => i.sku_id))];
-    if (skuIds.length === 0) return [];
-
-    const variantMap = new Map<string, { id: string; pur_price: number | null; sale_price: number | null; mrp: number | null }>();
-    const PRICE_DETECT_CHUNK = 200;
-    for (let si = 0; si < skuIds.length; si += PRICE_DETECT_CHUNK) {
-      const chunk = skuIds.slice(si, si + PRICE_DETECT_CHUNK);
-      const { data: variants, error } = await supabase
-        .from("product_variants")
-        .select("id, pur_price, sale_price, mrp")
-        .in("id", chunk);
-      if (error) return [];
-      (variants || []).forEach((v) => variantMap.set(v.id, v));
-    }
-    
-    // Helper function to compare prices with tolerance for floating-point precision
-    const arePricesEqual = (p1: number | null | undefined, p2: number | null | undefined): boolean => {
-      const v1 = Number(p1) || 0;
-      const v2 = Number(p2) || 0;
-      return Math.abs(v1 - v2) < 0.001; // Tolerance of 0.001 (less than 1 paisa)
-    };
-    
-    // Compare prices for each unique item (by sku_id)
-    const processedSkus = new Set<string>();
-    
-    for (const item of items) {
-      if (!item.sku_id || processedSkus.has(item.sku_id)) continue;
-      processedSkus.add(item.sku_id);
-      
-      const variant = variantMap.get(item.sku_id);
-      if (!variant) continue;
-      
-      // Check pur_price - use tolerance-based comparison
-      if (variant.pur_price !== null && !arePricesEqual(variant.pur_price, item.pur_price)) {
-        changes.push({
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          size: item.size,
-          barcode: item.barcode,
-          field: "pur_price",
-          old_value: variant.pur_price || 0,
-          new_value: item.pur_price,
-        });
-      }
-      
-      // Check sale_price - use tolerance-based comparison
-      if (variant.sale_price !== null && !arePricesEqual(variant.sale_price, item.sale_price)) {
-        changes.push({
-          sku_id: item.sku_id,
-          product_name: item.product_name,
-          size: item.size,
-          barcode: item.barcode,
-          field: "sale_price",
-          old_value: variant.sale_price || 0,
-          new_value: item.sale_price,
-        });
-      }
-      
-      // Check MRP only if MRP setting is enabled - use tolerance-based comparison
-      if (showMrp) {
-        const itemMrp = Number(item.mrp) || 0;
-        const variantMrp = Number(variant.mrp) || 0;
-        if (variantMrp > 0 && itemMrp > 0 && !arePricesEqual(variantMrp, itemMrp)) {
-          changes.push({
-            sku_id: item.sku_id,
-            product_name: item.product_name,
-            size: item.size,
-            barcode: item.barcode,
-            field: "mrp",
-            old_value: variantMrp,
-            new_value: itemMrp,
-          });
-        }
-      }
-    }
-    
-    return changes;
-  };
-
-  // Function to update product_variants with selected price changes
-  const handlePriceUpdateConfirm = async (selectedChanges: PriceChange[]) => {
-    if (selectedChanges.length === 0) {
-      setShowPriceUpdateDialog(false);
-      return;
-    }
-    
-    try {
-      // Group changes by sku_id - also sync last_purchase_* fields
-      const updatesBySkuId = new Map<string, Partial<{ 
-        pur_price: number; 
-        sale_price: number; 
-        mrp: number;
-        last_purchase_pur_price: number;
-        last_purchase_sale_price: number;
-        last_purchase_mrp: number;
-        last_purchase_date: string;
-      }>>();
-      
-      for (const change of selectedChanges) {
-        const existing = updatesBySkuId.get(change.sku_id) || {};
-        existing[change.field] = change.new_value;
-        
-        // Also sync the corresponding last_purchase field to prevent dialog from appearing again
-        if (change.field === 'pur_price') {
-          existing.last_purchase_pur_price = change.new_value;
-        } else if (change.field === 'sale_price') {
-          existing.last_purchase_sale_price = change.new_value;
-        } else if (change.field === 'mrp') {
-          existing.last_purchase_mrp = change.new_value;
-        }
-        
-        // Update the last purchase date to now
-        existing.last_purchase_date = new Date().toISOString();
-        
-        updatesBySkuId.set(change.sku_id, existing);
-      }
-      
-      // Update each variant with organization scoping and row-count verification
-      const failedUpdates: string[] = [];
-      let successCount = 0;
-      
-      for (const [skuId, updates] of updatesBySkuId) {
-        console.log('[PriceUpdate] Updating variant', skuId, 'with', updates);
-        const { data, error } = await supabase
-          .from("product_variants")
-          .update(updates)
-          .eq("id", skuId)
-          .eq("organization_id", currentOrganization.id)
-          .select("id");
-        
-        if (error) {
-          console.error('[PriceUpdate] Error updating variant', skuId, error);
-          failedUpdates.push(skuId);
-        } else if (!data || data.length === 0) {
-          console.warn('[PriceUpdate] No rows updated for variant', skuId);
-          failedUpdates.push(skuId);
-        } else {
-          successCount++;
-        }
-      }
-      
-      if (failedUpdates.length > 0 && successCount > 0) {
-        toast({
-          title: "Partial Update",
-          description: `Updated ${successCount} variant(s), but ${failedUpdates.length} failed to update. Check console for details.`,
-          variant: "destructive",
-        });
-      } else if (failedUpdates.length > 0) {
-        toast({
-          title: "Update Failed",
-          description: `Failed to update ${failedUpdates.length} variant(s) in Product Master. Please try again.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Prices Updated",
-          description: `Updated ${successCount} product variant(s) in Product Master`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update prices",
-        variant: "destructive",
-      });
-    } finally {
-      setShowPriceUpdateDialog(false);
-      setDetectedPriceChanges([]);
-      // Show print dialog if it was deferred
-      if (pendingPrintAfterPriceUpdate) {
-        setPendingPrintAfterPriceUpdate(false);
-        setShowPrintDialog(true);
-      }
-    }
-  };
-
-  const handlePriceUpdateSkip = () => {
-    setShowPriceUpdateDialog(false);
-    setDetectedPriceChanges([]);
-    // Show print dialog if it was deferred
-    if (pendingPrintAfterPriceUpdate) {
-      setPendingPrintAfterPriceUpdate(false);
-      setShowPrintDialog(true);
-    }
-  };
-
   const handleUnlockBill = async () => {
     if (!editingBillId || !currentOrganization?.id) return;
     const { error } = await supabase
@@ -5175,6 +5180,25 @@ const PurchaseEntry = () => {
       return;
     }
 
+    // Universal EAN: fork sibling SKU when bill line sale price tier differs from matched variant.
+    let billLinesForSave = lineItems;
+    const tierResolveOrgId = currentOrganization?.id;
+    if (tierResolveOrgId) {
+      billLinesForSave = await resolvePurchaseLineItemsForPriceTiers(
+        tierResolveOrgId,
+        lineItems,
+        format(billDate, "yyyy-MM-dd"),
+      );
+      const tierRepoined = billLinesForSave.some(
+        (row, index) =>
+          row.sku_id !== lineItems[index]?.sku_id ||
+          row.product_id !== lineItems[index]?.product_id,
+      );
+      if (tierRepoined) {
+        setLineItems(billLinesForSave);
+      }
+    }
+
     // Force-save draft before attempting bill save (safety net against data loss)
     try {
       await saveDraft({
@@ -5249,7 +5273,7 @@ const PurchaseEntry = () => {
           originalLineItems.map(item => [item.temp_id, item])
         );
         const currentItemsMap = new Map(
-          lineItems.map(item => [item.temp_id, item])
+          billLinesForSave.map(item => [item.temp_id, item])
         );
 
         // 1. Find items to DELETE (in original but not in current)
@@ -5259,7 +5283,7 @@ const PurchaseEntry = () => {
 
         // Client floor + identity freeze (DB trigger is the backstop for stock)
         {
-          const itemsToUpdatePreview = lineItems.filter((item) => originalItemsMap.has(item.temp_id));
+          const itemsToUpdatePreview = billLinesForSave.filter((item) => originalItemsMap.has(item.temp_id));
           const deletedOriginals = originalLineItems.filter((item) => !currentItemsMap.has(item.temp_id));
           const skuIds = [
             ...new Set(
@@ -5371,7 +5395,7 @@ const PurchaseEntry = () => {
         }
 
         // 2. UPDATE existing lines that changed — skip unchanged rows to avoid stock/total trigger churn
-        const itemsToUpdate = lineItems.filter(item => originalItemsMap.has(item.temp_id));
+        const itemsToUpdate = billLinesForSave.filter(item => originalItemsMap.has(item.temp_id));
         const changedItems = itemsToUpdate.filter(item => {
           const orig = originalItemsMap.get(item.temp_id);
           return !orig || hasItemChanged(orig, item);
@@ -5412,7 +5436,7 @@ const PurchaseEntry = () => {
 
         // 3. Find items to INSERT (new items not in original / not already inserted this save)
         const alreadyInsertedTempIds = editSaveInsertedTempIdsRef.current;
-        const newItemEntries = lineItems
+        const newItemEntries = billLinesForSave
           .map((item, index) => ({ item, lineNumber: index + 1 }))
           .filter(
             ({ item }) =>
@@ -5440,7 +5464,7 @@ const PurchaseEntry = () => {
           line_number: lineNumber,
         }));
 
-        let workingLineItems = lineItems;
+        let workingLineItems = billLinesForSave;
         let insertedNewItems: LineItem[] = [];
         if (itemsToInsert.length > 0) {
           // Insert in chunks of 100 to avoid statement timeout on large bills
@@ -5465,7 +5489,7 @@ const PurchaseEntry = () => {
             if (dbId) tempIdToDbId.set(newItemEntries[i].item.temp_id, dbId);
           }
           if (tempIdToDbId.size > 0) {
-            workingLineItems = lineItems.map((item) => {
+            workingLineItems = billLinesForSave.map((item) => {
               const dbId = tempIdToDbId.get(item.temp_id);
               return dbId ? { ...item, temp_id: dbId } : item;
             });
@@ -5591,9 +5615,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        // Bill lines are persisted — sync last_purchase_* from this bill for any
-        // price-touched SKUs. Live sync may have already updated master sale_price,
-        // which causes detectPriceChanges to skip and leave Last Purchase stale (POS dialog).
+        // Bill lines are persisted — tier-aware price sync (no confirmation dialog).
         try {
           const priceTouchedItems = workingLineItems.filter((item) => {
             if (!item.sku_id) return false;
@@ -5609,28 +5631,24 @@ const PurchaseEntry = () => {
             await syncLastPurchaseFromBillLines({
               organizationId: orgId,
               purchaseDate: format(billDate, "yyyy-MM-dd"),
-              items: priceTouchedItems,
+              items: priceTouchedItems.map((item) => ({
+                sku_id: item.sku_id,
+                product_id: item.product_id,
+                barcode: item.barcode,
+                pur_price: item.pur_price,
+                sale_price: item.sale_price,
+                mrp: item.mrp,
+                purchaseItemId: item.temp_id,
+                linkExistingSku: item.linkExistingSku,
+              })),
             });
           }
         } catch (syncErr) {
           console.warn("[PurchaseEntry] last_purchase sync after edit failed:", syncErr);
         }
 
-        // Check for price changes and show dialog if any
-        const priceChanges = await detectPriceChanges(workingLineItems);
-        if (priceChanges.length > 0) {
-          setDetectedPriceChanges(priceChanges);
-          setPendingSaveItems([...workingLineItems]);
-          setShowPriceUpdateDialog(true);
-          // Defer print dialog until price update is handled
-          if (enableBarcodePrompt) {
-            setPendingPrintAfterPriceUpdate(true);
-          }
-        } else {
-          // No price changes — show print dialog immediately
-          if (enableBarcodePrompt) {
-            setShowPrintDialog(true);
-          }
+        if (enableBarcodePrompt) {
+          setShowPrintDialog(true);
         }
 
         const savedSupplierInv = billData.supplier_invoice_no.trim();
@@ -5770,7 +5788,7 @@ const PurchaseEntry = () => {
           }
         }
 
-        const saveLines = activeLines.filter((item) => Number(item.qty) > 0);
+        const saveLines = billLinesForSave.filter((item) => Number(item.qty) > 0);
         const rpcItems = saveLines.map((item) => ({
           product_id: item.product_id,
           sku_id: item.sku_id,
@@ -6003,20 +6021,20 @@ const PurchaseEntry = () => {
             await syncLastPurchaseFromBillLines({
               organizationId: currentOrganization.id,
               purchaseDate: format(billDate, "yyyy-MM-dd"),
-              items: lineItems,
+              items: billLinesForSave.map((item) => ({
+                sku_id: item.sku_id,
+                product_id: item.product_id,
+                barcode: item.barcode,
+                pur_price: item.pur_price,
+                sale_price: item.sale_price,
+                mrp: item.mrp,
+                purchaseItemId: item.temp_id.startsWith("import_") ? null : item.temp_id,
+                linkExistingSku: item.linkExistingSku,
+              })),
             });
           }
         } catch (syncErr) {
           console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
-        }
-
-        // Check for price changes and show dialog if any
-        const priceChanges = await detectPriceChanges(lineItems);
-        const hasPriceChanges = priceChanges.length > 0;
-        if (hasPriceChanges) {
-          setDetectedPriceChanges(priceChanges);
-          setPendingSaveItems([...lineItems]);
-          setShowPriceUpdateDialog(true);
         }
 
         // Batch-fetch product details instead of N individual queries
@@ -6038,12 +6056,7 @@ const PurchaseEntry = () => {
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
         if (enableBarcodePrompt) {
-          if (hasPriceChanges) {
-            // Defer print dialog until price update is handled
-            setPendingPrintAfterPriceUpdate(true);
-          } else {
-            setShowPrintDialog(true);
-          }
+          setShowPrintDialog(true);
         }
 
         await finalizeSuccessfulPurchaseSave({
@@ -6170,11 +6183,12 @@ const PurchaseEntry = () => {
       const floorMsg = rawMsg.includes("PURCHASE_STOCK_FLOOR:")
         ? rawMsg.replace(/^.*PURCHASE_STOCK_FLOOR:\s*/i, "").replace(/^Error in purchase_item_\w+ trigger:\s*/i, "")
         : null;
+      const stockHint = floorMsg ? null : purchaseSaveFailedStockHint(lineItems);
       toast({
         title: floorMsg ? "Cannot reduce quantity" : "Bill Save Failed — Draft Preserved",
         description: floorMsg
           ? floorMsg
-          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.`,
+          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.${stockHint ? ` ${stockHint}` : ""}`,
         variant: "destructive",
         duration: 12000,
       });
@@ -6205,20 +6219,64 @@ const PurchaseEntry = () => {
     netAmount 
   };
 
+  const purchaseBarcodePrintGate = useMemo(
+    () =>
+      gatePurchaseBarcodePrint({
+        isEditMode,
+        editingBillId,
+        savedBillId,
+        currentLineCount: lineItems.length,
+        savedPurchaseItemCount: savedPurchaseItems.length,
+        hasUnsavedLines: hasUnsavedPurchaseLinesForBarcodePrint(
+          isEditMode,
+          originalLineItems,
+          lineItems,
+        ),
+      }),
+    [
+      isEditMode,
+      editingBillId,
+      savedBillId,
+      lineItems,
+      originalLineItems,
+      savedPurchaseItems.length,
+    ],
+  );
+
+  const resolvePurchaseItemsToPrint = useCallback(
+    (sourceItems: LineItem[]) =>
+      selectedForPrint.size > 0
+        ? sourceItems.filter((item) => selectedForPrint.has(item.temp_id))
+        : sourceItems,
+    [selectedForPrint],
+  );
+
+  const markPurchaseItemsBarcodePrinted = async (billId: string, items: LineItem[]) => {
+    const skuIds = items.map((item) => item.sku_id).filter(Boolean);
+    if (skuIds.length === 0) return;
+    await supabase
+      .from("purchase_items")
+      .update({ barcode_printed: true })
+      .eq("bill_id", billId)
+      .in("sku_id", skuIds);
+  };
+
   const handlePrintBarcodes = async () => {
-    if (lineItems.length === 0) {
+    const gate = purchaseBarcodePrintGate;
+    if (!gate.allowed) {
+      const blocked = purchaseBarcodePrintBlockedMessage(("reason" in gate ? gate.reason : "unsaved-draft"));
       toast({
-        title: "No Items",
-        description: "Add items to print barcodes",
+        title: blocked.title,
+        description: blocked.description,
         variant: "destructive",
       });
       return;
     }
 
-    // Get items to print - either selected items or all items if none selected
-    const itemsToPrint = selectedForPrint.size > 0
-      ? lineItems.filter(item => selectedForPrint.has(item.temp_id))
-      : lineItems;
+    const sourceItems =
+      gate.itemSource === "just-saved-items" ? savedPurchaseItems : lineItems;
+
+    const itemsToPrint = resolvePurchaseItemsToPrint(sourceItems);
 
     if (itemsToPrint.length === 0) {
       toast({
@@ -6263,10 +6321,11 @@ const PurchaseEntry = () => {
 
       // Clear selection after navigation
       setSelectedForPrint(new Set());
+      setShowPrintDialog(false);
 
       // Navigate to barcode printing page with items
-      navigate("/barcode-printing", { 
-        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+      navigate(barcodePrintingPathWithBill(gate.billId), { 
+        state: { purchaseItems: barcodeItems, billId: gate.billId } 
       });
     } catch (error) {
       console.error("Error preparing barcode data:", error);
@@ -6471,15 +6530,9 @@ const PurchaseEntry = () => {
 
     reportImportProgress(0, validRows.length, "Starting Excel import...");
 
-    // Helper: stable product key for deduplication
+    // Helper: stable product key for deduplication (includes MRP/sale tier for shared EANs).
     const makeProductKey = (row: Record<string, any>) =>
-      [
-        row.product_name?.toString().trim() || '',
-        row.brand?.toString().trim() || '',
-        row.category?.toString().trim() || '',
-        row.color?.toString().trim() || '',
-        row.style?.toString().trim() || '',
-      ].join('|').toLowerCase();
+      makePurchaseImportProductKey(row, parseLocalizedNumber);
 
     const buildImportLineItem = (
       row: Record<string, any>,
@@ -6529,7 +6582,7 @@ const PurchaseEntry = () => {
     while (true) {
       const { data: page, error: pageErr } = await supabase
         .from('products')
-        .select('id, product_name, brand, category, color, style')
+        .select('id, product_name, brand, category, color, style, default_sale_price')
         .eq('organization_id', currentOrganization.id)
         .is('deleted_at', null)
         .range(productOffset, productOffset + PRODUCT_PAGE - 1);
@@ -6540,8 +6593,10 @@ const PurchaseEntry = () => {
       if (!page?.length) break;
       page.forEach((p) => {
         productMap.set(
-          [p.product_name || '', p.brand || '', p.category || '', p.color || '', p.style || '']
-            .join('|').toLowerCase(),
+          makePurchaseImportProductKey(
+            { ...p, sale_price: p.default_sale_price, mrp: null },
+            parseLocalizedNumber,
+          ),
           p.id,
         );
       });
@@ -6582,19 +6637,23 @@ const PurchaseEntry = () => {
       }
     }
 
-    // Pre-fetch existing variants for Excel barcodes (reuse on re-import / partial runs)
-    const existingVariantByBarcode = new Map<string, string>();
+    // Pre-fetch existing variants for Excel barcodes (reuse only at the same MRP/sale tier).
+    const existingVariantByBarcodeTier = new Map<string, string>();
     const excelBarcodes = barcodePool.filter(Boolean);
     for (let b = 0; b < excelBarcodes.length; b += 500) {
       const chunk = [...new Set(excelBarcodes.slice(b, b + 500))];
       const { data: existingVariants } = await supabase
         .from('product_variants')
-        .select('id, barcode')
+        .select('id, barcode, mrp, sale_price')
         .eq('organization_id', currentOrganization.id)
         .in('barcode', chunk)
         .is('deleted_at', null);
       (existingVariants || []).forEach((v) => {
-        if (v.barcode) existingVariantByBarcode.set(v.barcode, v.id);
+        if (!v.barcode) return;
+        existingVariantByBarcodeTier.set(
+          barcodeTierLookupKey(v.barcode, v.mrp, v.sale_price),
+          v.id,
+        );
       });
     }
 
@@ -6675,25 +6734,31 @@ const PurchaseEntry = () => {
         continue;
       }
       const barcode = barcodePool[i] || `IMP${Date.now()}${i}`;
-      const existingSku = existingVariantByBarcode.get(barcode);
+      const rowMrp = parseLocalizedNumber(row.mrp);
+      const rowSale = parseLocalizedNumber(row.sale_price);
+      const existingSku = existingVariantByBarcodeTier.get(
+        barcodeTierLookupKey(barcode, rowMrp, rowSale),
+      );
       if (existingSku) {
         insertedVariantMap.set(i, existingSku);
         successCount++;
         continue;
       }
+      const variantData: Record<string, unknown> = {
+        organization_id: currentOrganization.id,
+        product_id: productId,
+        size: row.size?.toString().trim() || '',
+        color: row.color?.toString().trim() || null,
+        barcode,
+        pur_price: parseLocalizedNumber(row.pur_price),
+        sale_price: rowSale,
+        stock_qty: 0,
+        active: true,
+      };
+      if (rowMrp > 0) variantData.mrp = rowMrp;
       variantRowsToInsert.push({
         rowIndex: i,
-        variantData: {
-          organization_id: currentOrganization.id,
-          product_id: productId,
-          size: row.size?.toString().trim() || '',
-          color: row.color?.toString().trim() || null,
-          barcode,
-          pur_price: parseLocalizedNumber(row.pur_price),
-          sale_price: parseLocalizedNumber(row.sale_price),
-          stock_qty: 0,
-          active: true,
-        },
+        variantData,
         row,
       });
     }
@@ -6728,14 +6793,22 @@ const PurchaseEntry = () => {
 
       const barcode = variantData.barcode?.toString();
       if (barcode) {
-        const { data: existing } = await supabase
+        const tierKey = barcodeTierLookupKey(
+          barcode,
+          Number(variantData.mrp) || 0,
+          Number(variantData.sale_price) || 0,
+        );
+        const { data: existingRows } = await supabase
           .from('product_variants')
-          .select('id')
+          .select('id, mrp, sale_price')
           .eq('organization_id', currentOrganization.id)
           .eq('barcode', barcode)
-          .is('deleted_at', null)
-          .maybeSingle();
-        if (existing) return existing.id;
+          .is('deleted_at', null);
+        const matched = (existingRows || []).find(
+          (row) =>
+            barcodeTierLookupKey(barcode, row.mrp, row.sale_price) === tierKey,
+        );
+        if (matched) return matched.id;
       }
       console.error('Variant insert error:', singleErr);
       return null;
@@ -6754,20 +6827,30 @@ const PurchaseEntry = () => {
         const { data: inserted, error: batchErr } = await supabase
           .from('product_variants')
           .insert(batchSlice.map((v) => v.variantData) as any)
-          .select('id, barcode');
+          .select('id, barcode, mrp, sale_price');
 
         if (!batchErr && inserted && inserted.length === batchSlice.length) {
           // CRITICAL: map by barcode, NOT by array index. Postgres RETURNING does not
           // guarantee row order matches insert order, and an index-based map silently
           // assigns Excel rows to the wrong variant ids (causing barcode↔product drift).
-          const insertedByBarcode = new Map<string, string>();
-          (inserted as Array<{ id: string; barcode: string | null }>).forEach((v) => {
-            if (v.barcode) insertedByBarcode.set(v.barcode, v.id);
+          const insertedByBarcodeTier = new Map<string, string>();
+          (inserted as Array<{ id: string; barcode: string | null; mrp?: number | null; sale_price?: number | null }>).forEach((v) => {
+            if (!v.barcode) return;
+            insertedByBarcodeTier.set(
+              barcodeTierLookupKey(v.barcode, v.mrp, v.sale_price),
+              v.id,
+            );
           });
           let mappedInBatch = 0;
           for (const item of batchSlice) {
             const bc = item.variantData.barcode?.toString() || '';
-            const id = insertedByBarcode.get(bc);
+            const id = insertedByBarcodeTier.get(
+              barcodeTierLookupKey(
+                bc,
+                Number(item.variantData.mrp) || 0,
+                Number(item.variantData.sale_price) || 0,
+              ),
+            );
             if (id) {
               insertedVariantMap.set(item.rowIndex, id);
               mappedInBatch++;
@@ -6924,6 +7007,48 @@ const PurchaseEntry = () => {
   };
 
   const isMobile = useIsMobile();
+
+  const handlePurchaseMrpTierSelection = useCallback(
+    async (choiceId: string) => {
+      const pick = mrpTierPicker?.choices.find((c) => c.id === choiceId);
+      setMrpTierPicker(null);
+      if (!pick) {
+        focusSearchBar();
+        return;
+      }
+      await addOrIncrementScannedVariant(pick);
+      focusSearchBar();
+    },
+    [mrpTierPicker, addOrIncrementScannedVariant, focusSearchBar],
+  );
+
+  const purchaseMrpTierDialog = (
+    <MrpTierSelectionDialog
+      open={mrpTierPicker != null}
+      enableMrp={showMrp}
+      onOpenChange={(open) => {
+        if (!open) {
+          setMrpTierPicker(null);
+          focusSearchBar();
+        }
+      }}
+      barcode={mrpTierPicker?.barcode ?? ""}
+      choices={(mrpTierPicker?.choices ?? []).map((v) => ({
+        id: v.id,
+        productName: v.product_name,
+        brand: v.brand,
+        style: v.style,
+        size: v.size,
+        color: v.color,
+        mrp: v.mrp ?? 0,
+        salePrice: v.sale_price,
+        stockQty: 0,
+      }))}
+      onSelect={(choiceId) => {
+        void handlePurchaseMrpTierSelection(choiceId);
+      }}
+    />
+  );
 
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.product_id);
@@ -7191,7 +7316,7 @@ const PurchaseEntry = () => {
           <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Bill Saved</DialogTitle></DialogHeader>
             <div className="space-y-3">
-              <Button variant="outline" onClick={() => { setShowPrintDialog(false); navigate("/barcode-printing", { state: { purchaseItems: savedPurchaseItems.length > 0 ? savedPurchaseItems : lineItems, billId: savedBillId || editingBillId } }); }} className="w-full gap-2"><Printer className="h-4 w-4" /> Print Barcodes</Button>
+              <Button variant="outline" onClick={() => { void handlePrintBarcodes(); }} className="w-full gap-2"><Printer className="h-4 w-4" /> Print Barcodes</Button>
               <Button variant="secondary" onClick={() => { setShowPrintDialog(false); if (savedBillId) navigate("/purchase-entry", { state: { editBillId: savedBillId } }); }} className="w-full gap-2"><Plus className="h-4 w-4" /> Continue Adding</Button>
               <Button variant="outline" onClick={() => setShowPrintDialog(false)} className="w-full">Skip</Button>
             </div>
@@ -7209,7 +7334,7 @@ const PurchaseEntry = () => {
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
         />
-        <PriceUpdateConfirmDialog open={showPriceUpdateDialog} onOpenChange={setShowPriceUpdateDialog} priceChanges={detectedPriceChanges} onConfirm={handlePriceUpdateConfirm} onSkip={handlePriceUpdateSkip} />
+        {purchaseMrpTierDialog}
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
         <DuplicatePurchaseBillDialog
           open={!!duplicateWarning}
@@ -8293,7 +8418,8 @@ const PurchaseEntry = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {(savedBillId || isEditMode) && (
+            {(purchaseBarcodePrintGate.allowed &&
+              purchaseBarcodePrintGate.itemSource === "current-edit-lines") && (
               <Button onClick={handlePrintBarcodes}
                 disabled={lineItems.length === 0}
                 size="sm"
@@ -8409,6 +8535,21 @@ const PurchaseEntry = () => {
                 {/* Print All Labels Button */}
                 <Button
                   onClick={async () => {
+                    if (
+                      !purchaseBarcodePrintGate.allowed ||
+                      purchaseBarcodePrintGate.itemSource !== "just-saved-items"
+                    ) {
+                      const reason = purchaseBarcodePrintGate.allowed
+                        ? "unsaved-draft"
+                        : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
+                      const blocked = purchaseBarcodePrintBlockedMessage(reason);
+                      toast({
+                        title: blocked.title,
+                        description: blocked.description,
+                        variant: "destructive",
+                      });
+                      return;
+                    }
                     try {
                       // Fetch supplier code from suppliers table
                       let supplierCode = "";
@@ -8422,7 +8563,17 @@ const PurchaseEntry = () => {
                         supplierCode = supplierData?.supplier_code || "";
                       }
 
-                      const barcodeItems = savedPurchaseItems.map(item => ({
+                      const itemsToPrint = resolvePurchaseItemsToPrint(savedPurchaseItems);
+                      if (itemsToPrint.length === 0) {
+                        toast({
+                          title: "No Items Selected",
+                          description: "Please select items to print barcodes",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      const barcodeItems = itemsToPrint.map(item => ({
                         sku_id: item.sku_id,
                         product_name: item.product_name || "",
                         brand: item.brand || "",
@@ -8440,17 +8591,14 @@ const PurchaseEntry = () => {
                         supplier_code: supplierCode,
                       }));
 
-                      // Mark all items as printed
                       if (savedBillId) {
-                        await supabase
-                          .from("purchase_items")
-                          .update({ barcode_printed: true })
-                          .eq("bill_id", savedBillId);
+                        await markPurchaseItemsBarcodePrinted(savedBillId, itemsToPrint);
                       }
 
+                      setSelectedForPrint(new Set());
                       setShowPrintDialog(false);
-                      navigate("/barcode-printing", { 
-                        state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+                      navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
+                        state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                       });
                     } catch (error) {
                       console.error("Error preparing barcode data:", error);
@@ -8464,7 +8612,9 @@ const PurchaseEntry = () => {
                   className="w-full gap-2"
                 >
                   <Printer className="h-4 w-4" />
-                  Print All Labels ({savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})
+                  {selectedForPrint.size > 0
+                    ? `Print Selected (${selectedForPrint.size})`
+                    : `Print All Labels (${savedPurchaseItems.reduce((sum, i) => sum + i.qty, 0)})`}
                 </Button>
 
                 {/* Print New Labels Only Button - only show if there are newly added items */}
@@ -8472,6 +8622,21 @@ const PurchaseEntry = () => {
                   <Button
                     variant="secondary"
                     onClick={async () => {
+                      if (
+                        !purchaseBarcodePrintGate.allowed ||
+                        purchaseBarcodePrintGate.itemSource !== "just-saved-items"
+                      ) {
+                        const reason = purchaseBarcodePrintGate.allowed
+                          ? "unsaved-draft"
+                          : ("reason" in purchaseBarcodePrintGate ? purchaseBarcodePrintGate.reason : "unsaved-draft");
+                        const blocked = purchaseBarcodePrintBlockedMessage(reason);
+                        toast({
+                          title: blocked.title,
+                          description: blocked.description,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
                       try {
                         // Fetch supplier code from suppliers table
                         let supplierCode = "";
@@ -8516,8 +8681,8 @@ const PurchaseEntry = () => {
                         }
 
                         setShowPrintDialog(false);
-                        navigate("/barcode-printing", { 
-                          state: { purchaseItems: barcodeItems, billId: savedBillId || editingBillId } 
+                        navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
+                          state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                         });
                       } catch (error) {
                         console.error("Error preparing barcode data:", error);
@@ -8587,14 +8752,7 @@ const PurchaseEntry = () => {
           onUseExistingProduct={handleUseExistingProductFromDialog}
         />
 
-        {/* Price Update Confirmation Dialog */}
-        <PriceUpdateConfirmDialog
-          open={showPriceUpdateDialog}
-          onOpenChange={setShowPriceUpdateDialog}
-          priceChanges={detectedPriceChanges}
-          onConfirm={handlePriceUpdateConfirm}
-          onSkip={handlePriceUpdateSkip}
-        />
+        {purchaseMrpTierDialog}
 
         {/* Add Supplier Dialog */}
         <AddSupplierDialog

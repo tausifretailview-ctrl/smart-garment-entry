@@ -2,6 +2,7 @@ import { type PosThermalPaper, thermalReceiptRollPageSize } from '@/utils/invoic
 import {
   buildThermalReceiptPrintCss,
   detectThermalPaperFromElement,
+  INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from '@/utils/thermalReceiptPrintDocument';
 
 export type ExtractInvoiceHtmlOptions = {
@@ -87,6 +88,7 @@ export const extractInvoiceHTML = (
     @page { margin: 0; ${isThermal ? `size: ${thermalReceiptRollPageSize(thermalPaper)};` : ''} }
     ${allStyles}
     ${thermalPrintCss}
+    ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
   </style>
 </head>
 <body>

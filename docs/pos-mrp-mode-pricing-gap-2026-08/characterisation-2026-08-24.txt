@@ -1,0 +1,60 @@
+
+ RUN  v3.2.4 /workspace
+
+ ✓ src/utils/saleScanPricePreference.test.ts > isKsFootwearSlug > matches ks-footwear only 1ms
+ ✓ src/utils/saleScanPricePreference.test.ts > resolveSaleScanPriceSource > defaults KS Footwear to last purchase even when ask is on 0ms
+ ✓ src/utils/saleScanPricePreference.test.ts > resolveSaleScanPriceSource > lets KS Footwear turn auto-use off and keep the Select Price dialog 0ms
+ ✓ src/utils/saleScanPricePreference.test.ts > resolveSaleScanPriceSource > other orgs still ask by default 0ms
+ ✓ src/utils/saleScanPricePreference.test.ts > resolveSaleScanPriceSource > explicit auto-use wins for any org 0ms
+ ✓ src/utils/saleScanPricePreference.test.ts > resolveSaleScanPriceSource > ask_price_on_scan off still uses master when auto-use is not set 0ms
+ ✓ src/utils/saleScanPricePreference.test.ts > pickLastPurchaseScanPrice > uses last purchase sale and MRP (KS Footwear FL505 7) 1ms
+ ✓ src/utils/saleScanPricePreference.test.ts > pickLastPurchaseScanPrice > returns null when last purchase is missing 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > shouldPromptPosPriceSelection > prompts when sale prices differ 1ms
+ ✓ src/utils/posScanPriceSelection.test.ts > shouldPromptPosPriceSelection > prompts when MRP differs but sale prices match (KS Footwear BHG215 pattern) 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > shouldPromptPosPriceSelection > skips when prices match within tolerance 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > shouldPromptPosPriceSelection > respects ask_price_on_scan off 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > shouldPromptPosPriceSelection > skips when POS bills at MRP (sale-price drift irrelevant) 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > posBarcodeMatchesNeedMrpPicker > detects duplicate barcode at 164.5 vs 204.5 MRP tiers 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > posBarcodeMatchesNeedMrpPicker > false for single match 0ms
+ ✓ src/utils/posScanPriceSelection.test.ts > posVariantDisplayMrp > falls back to sale_price when mrp is zero 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > inclusive: payable is byte-identical regardless of GST extraction (no overcharge) 1ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > inclusive: one line ₹2,100 @5% → GST ₹100, payable ₹2,100 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > inclusive: line discount then extract GST; payable is post-line-disc price 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > inclusive: flat ₹ — GST from post-flat amount; payable drops by flat only 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > inclusive: extracts embedded GST; payable stays at subtotal (tax not added) 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > exclusive: GST allocated after proportional flat share 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — taxType > no_gst: never adds bill GST even when lines carry gstPer 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — line discount > inclusive: Disc% reduces line net and totals.discount 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — line discount > exclusive: Disc% then GST on post-flat taxable 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — line discount > implicit MRP−unit gap counts as line discount 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — flat discount cap > flat % at cap (no line disc) applies fully 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — flat discount cap > flat amount just over remaining room after line disc is capped 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — flat discount cap > line Disc% over remaining room after flat is clamped (mutator) 12ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > mrp basis: unitCost = displayMrp, discount forced 0 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > sale_price basis: unitCost = salePrice; brand disc applies 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > brand disc is not suppressed by legacy customerHasMasterDiscount flag 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > overridePrice disables mrp-as-price even on mrp basis 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > addLine sale_price basis builds net with brand disc 1ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > addLine mrp basis: no brand disc; unit = displayMrp 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — grossBasis (add price) > addLine snapshots stockQty for goods; omits for service/combo 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — round-off boundaries > auto round-off to nearest rupee (0.5 up) 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — round-off boundaries > 0.5 boundary rounds away via Math.round (bankers not used) 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — round-off boundaries > points applied AFTER round-off (POS order quirk) 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — mixed GST rates > exclusive multi-line mixed rates with flat ₹ 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — qty/price edits after discount > qty edit recomputes net with existing Disc% 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — qty/price edits after discount > unit price edit clears Disc% and sets rateAuthority unit 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — qty/price edits after discount > Disc ₹ maps to Disc % and clears discountAmount field 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — qty/price edits after discount > unit price above MRP raises MRP so the line total increases 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — hold resume / edit restore > resolveBillFlatForPosEdit prefers clean flat_discount_percent 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — hold resume / edit restore > resolveBillFlatForPosEdit falls back to flat_discount_amount 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — hold resume / edit restore > resolveBillFlatForPosEdit implies flat from per_qty_net vs line_total 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — hold resume / edit restore > resume-held cart totals match persisted held line nets 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > POS billing characterisation — hold resume / edit restore > edit-existing-bill maps sale_items and restores flat 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > resolvePersistedSaleGrossAmount / buildPosSalePersistPayload > Exclusive persists MRP+GST; Inclusive keeps MRP 0ms
+ ✓ src/lib/posBilling/posBilling.characterisation.test.ts > resolvePersistedSaleGrossAmount / buildPosSalePersistPayload > buildPosSalePersistPayload uses tax-aware gross for Exclusive 0ms
+
+ Test Files  3 passed (3)
+      Tests  51 passed (51)
+   Start at  18:33:01
+   Duration  1.13s (transform 437ms, setup 66ms, collect 700ms, tests 26ms, environment 0ms, prepare 331ms)
+

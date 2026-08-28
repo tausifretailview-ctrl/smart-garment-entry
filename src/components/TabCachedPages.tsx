@@ -12,13 +12,14 @@ import {
   MASTER_TAB_PREFETCH_PATHS,
   INVENTORY_TAB_PREFETCH_PATHS,
   SALES_TAB_PREFETCH_PATHS,
+  ACCOUNTS_TAB_PREFETCH_PATHS,
   resetTabPageChunk,
   refreshStaleInFlightTabChunk,
   resolveTabCachePath,
   type TabPageLayout,
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
-import { isEntryTabPath } from "@/lib/entryPageLayout";
+import { isCacheableEntryTabPath, isEntryTabPath } from "@/lib/entryPageLayout";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
 import { Layout } from "@/components/Layout";
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import {
@@ -300,16 +302,17 @@ function getTabLoadTimeoutMs(path: string): number {
 
 function TabLoadShellView({ path }: { path: string }) {
   const shell = resolveTabLoadShell(path);
+  const message = tabLoadMessage(path, shell);
   if (shell === "entry") {
-    return <AppBootSplash message="Loading bill screen…" />;
+    return <AppBootSplash message={message} />;
   }
   if (shell === "dashboard") {
     if (isElectronShell()) {
-      return <AppBootSplash message="Loading dashboard…" />;
+      return <AppBootSplash message={message} />;
     }
     return <DashboardSkeleton />;
   }
-  return <AppBootSplash message="Loading page…" />;
+  return <AppBootSplash message={message} />;
 }
 
 function TabPageWithPerf({
@@ -445,7 +448,7 @@ function TabPageFallback({
       <TabLoadShellView path={path} />
       {showSoftHint && (
         <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-xs text-muted-foreground">
-          Still loading… slow network
+          {tabLoadMessage(path, resolveTabLoadShell(path)).replace(/^Opening /, "Still opening ").replace(/…$/, " — slow network")}
         </p>
       )}
     </div>
@@ -471,6 +474,7 @@ function CachedTabPane({
   roles,
   layout,
   onActivePaneReady,
+  cacheableEntryRescueKey = 0,
   /** Destination chunk still loading — keep outgoing pane mounted but visibly dimmed (never unmount). */
   dimOutgoing = false,
   /** Suppress active Suspense shell when a sibling pane is already painted. */
@@ -481,6 +485,7 @@ function CachedTabPane({
   roles?: TabPageRole[];
   layout: TabPageLayout;
   onActivePaneReady?: (path: string) => void;
+  cacheableEntryRescueKey?: number;
   dimOutgoing?: boolean;
   silentFallback?: boolean;
 }) {
@@ -558,7 +563,7 @@ function CachedTabPane({
   const page = (
     <TabPaneErrorBoundary tabPath={path} onRetry={retryTabLoad}>
       <Suspense
-        key={loadKey}
+        key={`${loadKey}-${active && isCacheableEntryTabPath(path) ? cacheableEntryRescueKey : 0}`}
         fallback={
           <TabPageFallback
             active={active}
@@ -613,6 +618,8 @@ type TabCachedPagesProps = {
   paths: string[];
   /** Current URL path segment — which cached pane is visible. */
   activePath: string;
+  /** OrgLayout bumps this to remount a stuck cacheable entry without Outlet fallback. */
+  cacheableEntryRescueKey?: number;
   /** Fired when the active pane's lazy chunk has mounted (Suspense resolved). */
   onActivePaneReady?: (path: string) => void;
   /** Fired when an idle tab is unmounted from memory (Electron OOM guard). */
@@ -626,7 +633,13 @@ type TabCachedPagesProps = {
  * On full reload only the active tab is mounted first — other open tabs mount when
  * the user switches to them (avoids loading 8+ dashboards at once).
  */
-export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvicted }: TabCachedPagesProps) {
+export function TabCachedPages({
+  paths,
+  activePath,
+  cacheableEntryRescueKey = 0,
+  onActivePaneReady,
+  onTabEvicted,
+}: TabCachedPagesProps) {
   const resolvedActivePath = resolveTabCachePath(activePath);
   const uniquePaths = useMemo(
     () => [...new Set(paths.map(resolveTabCachePath).filter((p) => isTabCachePath(p)))],
@@ -704,11 +717,16 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     }
     prevActivePathRef.current = resolvedActivePath;
     touchTabActiveAt(resolvedActivePath);
-    // Stale background prefetch can pin Suspense on a hung promise — refresh before mount.
-    if (!isTabPageChunkLoaded(resolvedActivePath)) {
+    // Cross-layout (POS outlet → purchase-entry): drop hung idle prefetches before mount.
+    if (
+      isCacheableEntryTabPath(resolvedActivePath) &&
+      !isTabCachePaneContentReady(resolvedActivePath)
+    ) {
+      refreshStaleInFlightTabChunk(resolvedActivePath, 0);
+    } else if (!isTabPageChunkLoaded(resolvedActivePath)) {
       refreshStaleInFlightTabChunk(resolvedActivePath, STALE_IN_FLIGHT_MS);
-      prefetchTabPage(resolvedActivePath, { intent: true });
     }
+    prefetchTabPage(resolvedActivePath, { intent: true });
     setMountedPaths((prev) => {
       if (electronSingleTab) {
         const next = new Set<string>([resolvedActivePath]);
@@ -791,6 +809,17 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
     }
   }, [uniquePaths, activePath]);
 
+  // Accounts / payments / ledger — intent-warm siblings (Payments header ↔ Accounts tab).
+  useEffect(() => {
+    const shouldWarmAccounts = ACCOUNTS_TAB_PREFETCH_PATHS.some(
+      (p) => uniquePaths.includes(p) || activePath === p,
+    );
+    if (!shouldWarmAccounts) return;
+    for (const path of ACCOUNTS_TAB_PREFETCH_PATHS) {
+      prefetchTabPage(path, { intent: true });
+    }
+  }, [uniquePaths, activePath]);
+
   useEffect(() => {
     return prefetchTabPagesIdle(uniquePaths, activePath);
   }, [uniquePaths, activePath]);
@@ -861,6 +890,7 @@ export function TabCachedPages({ paths, activePath, onActivePaneReady, onTabEvic
             silentFallback={isActive && silentColdNav}
             layout={meta.layout}
             roles={meta.roles}
+            cacheableEntryRescueKey={cacheableEntryRescueKey}
             onActivePaneReady={onActivePaneReady}
           />
         );

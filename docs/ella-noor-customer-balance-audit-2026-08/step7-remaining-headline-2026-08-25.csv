@@ -1,0 +1,22 @@
+field,value,source,notes
+provenance,offline_from_step6e_then_live_7a,step6e+step7a-headline-live-2026-08-25.csv,Class counts confirmed live 7a (exact match). Do not include credit_note_adjustment in receipts.
+n_remaining,136,6e,complete remaining set
+abs_remaining,905800.00,6e,SUM |gap_incl_advance|
+n_cn_leftover_incl_all_matches_party,74,6e identity,gap=cn_memos AND incl-all-memo=party. Numeric match is NOT permission to include CN memos (Farhaan Fab is in this class).
+abs_cn_leftover_incl_all_matches_party,517700.00,6e,57.2% of remaining rupees
+n_gap_equals_twice_used_minus_adv,33,6e identity,gap = 2*(used_amount - advance_memos). Mechanism needs Step 7b amount/unused/opening.
+abs_gap_equals_twice_used_minus_adv,231350.00,6e,25.5% of remaining rupees
+n_cn_partial_leftover,9,6e identity,has cn_memos but leftover is not exactly cn. SIBGAH GEELANI largest.
+abs_cn_partial_leftover,85300.00,6e,9.4%
+n_used_amount_without_adv_voucher,6,6e identity,plus_used matches party; no matching advance_adjustment vouchers. Fatima Pitodia largest.
+abs_used_amount_without_adv_voucher,28800.00,6e,3.2%
+n_gap_equals_paid_amount,3,6e identity,3 small rows; not the morning 647 class. No A/B recommendation.
+abs_gap_equals_paid_amount,9650.00,6e,1.1%
+n_unexplained,11,6e residual,Do not force-fit.
+abs_unexplained,33000.00,6e,3.6%
+n_classified,125,6e,125 / 136
+abs_classified,872800.00,6e,"₹8,72,800 / ₹9,05,800 = 96.4%"
+n_p0,1,6e then live 7a,"SHUMAMA BAIRELI — leftover=CN=SRA ₹61,900; SRA already in 7-sum (gated_away=0)"
+n_cn_leftover_gap_equals_sra_gated_away,0,live_7a_2026-08-25,Disproves 7-sum dropped SRA for class 1
+n_cn_leftover_sra_fully_in_7sum,72,live_7a_2026-08-25,Farhaan shape: SRA already in the 7-sum; party matches incl-all. Do not put CN memos in receipts.
+n_cn_leftover_cn_without_sra,2,live_7a_2026-08-25,AMNA shape: CN memos with sra_raw=0. 72+2+0=74.

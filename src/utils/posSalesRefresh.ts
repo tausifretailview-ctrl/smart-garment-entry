@@ -18,8 +18,34 @@ type PendingPosSalesRefresh = PosSalesChangedDetail & {
 };
 
 const PENDING_POS_REFRESH_KEY = "pos_sales_pending_refresh_v1";
+/** Cross-tab marker — storage events fire in other tabs on the same machine. */
+export const MONEY_VIEW_FRESHNESS_LS_KEY = "money_view_freshness_v1";
 /** Ignore stale pending markers after this window (tab switch / filter snap). */
 const PENDING_POS_REFRESH_TTL_MS = 10 * 60 * 1000;
+
+type MoneyFreshnessMarker = PosSalesChangedDetail & {
+  ts: number;
+};
+
+function writeMoneyFreshnessMarker(detail: PosSalesChangedDetail): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const payload: MoneyFreshnessMarker = { ...detail, ts: Date.now() };
+    localStorage.setItem(MONEY_VIEW_FRESHNESS_LS_KEY, JSON.stringify(payload));
+  } catch {
+    // quota / private mode
+  }
+}
+
+export function parseMoneyFreshnessMarker(raw: string): MoneyFreshnessMarker | null {
+  try {
+    const parsed = JSON.parse(raw) as MoneyFreshnessMarker;
+    if (!parsed || typeof parsed.ts !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function readPendingRaw(): PendingPosSalesRefresh | null {
   if (typeof sessionStorage === "undefined") return null;
@@ -90,9 +116,16 @@ export function notifyPosSalesChanged(detail?: PosSalesChangedDetail) {
   if (typeof window === "undefined") return;
   const payload = detail ?? {};
   writePending(payload);
+  writeMoneyFreshnessMarker(payload);
   window.dispatchEvent(
     new CustomEvent(POS_SALES_REFRESH_EVENT, { detail: payload }),
   );
+}
+
+/** Cross-tab hint after receipt/advance/CN (localStorage). Other PCs use Realtime. */
+export function notifyMoneyViewChanged(detail?: PosSalesChangedDetail) {
+  if (typeof window === "undefined") return;
+  writeMoneyFreshnessMarker(detail ?? {});
 }
 
 export function requestPosBarcodeFocus() {

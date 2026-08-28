@@ -1,0 +1,50 @@
+ELLA NOOR customer-balance audit — anon REST probe
+Date: 2026-08-25
+Org UUID: 3fdca631-1e0c-4417-9704-421f5129ff67
+Supabase: https://lkbbrqcsbhqjvsxiorvp.supabase.co
+Role: anon (VITE_SUPABASE_PUBLISHABLE_KEY). SELECT-only. No writes attempted.
+
+1) get_org_public_info({p_slug: 'ella-noor'})
+   HTTP 200
+   id=3fdca631-1e0c-4417-9704-421f5129ff67
+   name=ELLA NOOR
+   slug=ella-noor
+   business_name='Ellanoor '
+
+2) GET /rest/v1/v_accounting_invariants?limit=3
+   HTTP 401
+   PostgREST error=42501
+   message: permission denied for table customers
+   Note: docs/legacy-paid-baseline-double-count-2026-08.md §D12 recorded this view
+   as anon-readable on 2026-08-01 (three checks). Live is no longer anon-readable.
+   security_invoker / GRANT change is the likely cause. Empty is NOT 'zero hits'.
+
+3) GET /rest/v1/customers?organization_id=eq.<org>&limit=1
+   HTTP 401
+   message: permission denied for table customers
+   (not HTTP 200 [])
+
+4) POST /rest/v1/rpc/_get_customer_party_balances_rows
+   HTTP 401
+   message: permission denied for function _get_customer_party_balances_rows
+
+5) Same 42501 for:
+   get_customer_financial_snapshot_all
+   get_customer_party_balances
+   reconcile_customer_balances
+   _get_customer_party_balances_rows_v2
+
+6) GET /rest/v1/invariant_daily_snapshot?limit=1
+   HTTP 200
+   content-range: */0
+   body: []
+   RLS: table is visible, zero rows for anon. Do not treat as 'no snapshots exist'.
+
+7) get_paid_settlement_mismatch_digest
+   PGRST202 (not in schema cache under the probed signatures; not anon-callable)
+
+Conclusion: this Cloud Agent environment cannot fill the seven-component
+mismatch table, top-25 line-by-line, or live invariant hit counts. The SQL
+editor (postgres / service_role, auth.uid() IS NULL) is the intended runner
+for scripts/ella-noor-customer-balance-audit-2026-08.sql. Do not interpret
+anon empty/401 as zero customer drift.
