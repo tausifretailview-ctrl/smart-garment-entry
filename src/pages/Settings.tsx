@@ -211,6 +211,8 @@ interface SaleSettings {
   default_discount_in_rupees?: boolean;
   /** When true, POS applies category quantity-tier bundle pricing (Trendzo Discount Scheme). */
   pos_category_tier_pricing?: boolean;
+  /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
+  pos_goods_ask_qty_dialog?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */
@@ -2893,6 +2895,33 @@ export default function Settings() {
                     })
                   }
                 />
+
+                <div className="flex items-center justify-between gap-4 pt-4 border-t">
+                  <div>
+                    <Label htmlFor="pos_goods_ask_qty_dialog" className="text-sm font-medium">
+                      POS goods qty / discount dialog (search dropdown)
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      When enabled, picking a regular product from the POS search dropdown opens a
+                      quick Quantity + Price + Discount (₹) dialog before adding to cart — faster
+                      for multi-qty sales. Barcode scans and service codes (1–9) are unchanged.
+                      Other organisations leave this off.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_goods_ask_qty_dialog"
+                    checked={settings.sale_settings?.pos_goods_ask_qty_dialog === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_goods_ask_qty_dialog: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
 
                 {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
                   <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">

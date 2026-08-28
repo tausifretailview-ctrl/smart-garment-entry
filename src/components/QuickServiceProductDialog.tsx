@@ -16,10 +16,13 @@ interface QuickServiceProductDialogProps {
   productName?: string;
   /** Pre-fill MRP from product/variant master (sale price or MRP set at product entry). */
   defaultMrp?: number;
+  /** Show Discount (₹) field — used for regular goods qty dialog; service codes may hide it. */
+  showDiscountField?: boolean;
   onAdd: (data: {
     code: string;
     quantity: number;
     mrp: number;
+    discountAmount?: number;
     description?: string;
   }) => void;
 }
@@ -30,18 +33,22 @@ export const QuickServiceProductDialog = ({
   serviceCode,
   productName,
   defaultMrp,
+  showDiscountField = false,
   onAdd,
 }: QuickServiceProductDialogProps) => {
   const [quantity, setQuantity] = useState(1);
   const [mrp, setMrp] = useState<string>("");
+  const [discountAmount, setDiscountAmount] = useState<string>("");
   const [description, setDescription] = useState("");
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const mrpInputRef = useRef<HTMLInputElement>(null);
+  const discountInputRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setMrp(defaultMrp && defaultMrp > 0 ? String(defaultMrp) : "");
+      setDiscountAmount("");
       setDescription("");
       setQuantity(1);
       setTimeout(() => {
@@ -55,10 +62,12 @@ export const QuickServiceProductDialog = ({
     const mrpValue = parseFloat(mrp);
     if (!mrpValue || mrpValue <= 0) return;
     if (quantity <= 0) return;
+    const disc = showDiscountField ? parseFloat(discountAmount) || 0 : 0;
     onAdd({
       code: serviceCode,
       quantity,
       mrp: mrpValue,
+      discountAmount: disc > 0 ? disc : undefined,
       description: description.trim() || undefined,
     });
   };
@@ -71,6 +80,17 @@ export const QuickServiceProductDialog = ({
   };
 
   const handleMrpKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      if (showDiscountField) {
+        discountInputRef.current?.focus();
+      } else {
+        descriptionRef.current?.focus();
+      }
+    }
+  };
+
+  const handleDiscountKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Tab" || e.key === "Enter") {
       e.preventDefault();
       descriptionRef.current?.focus();
@@ -103,7 +123,7 @@ export const QuickServiceProductDialog = ({
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
               onKeyDown={handleQuantityKeyDown}
-            onFocus={(e) => e.currentTarget.select()}
+              onFocus={(e) => e.currentTarget.select()}
               className="h-9 mt-1"
             />
           </div>
@@ -121,6 +141,22 @@ export const QuickServiceProductDialog = ({
               className="h-9 mt-1"
             />
           </div>
+          {showDiscountField && (
+            <div>
+              <Label className="text-xs">Discount (₹)</Label>
+              <Input
+                ref={discountInputRef}
+                type="number"
+                min={0}
+                step="0.01"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+                onKeyDown={handleDiscountKeyDown}
+                placeholder="Line discount in rupees"
+                className="h-9 mt-1"
+              />
+            </div>
+          )}
           <div>
             <Label className="text-xs">
               Description <span className="text-muted-foreground">(optional)</span>
