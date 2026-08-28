@@ -844,12 +844,12 @@ export default function ItemWiseSalesReport() {
     queryKey: ["item-sales-summary-rpc", currentOrganization?.id, dateRange.from, dateRange.to, selectedCustomer],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const params: Record<string, string> = {
+      const params = {
         p_organization_id: currentOrganization.id,
         p_start_date: dateRange.from.toISOString(),
         p_end_date: dateRange.to.toISOString(),
+        ...(selectedCustomer !== "all" ? { p_customer_name: selectedCustomer } : {}),
       };
-      if (selectedCustomer !== "all") params.p_customer_name = selectedCustomer;
       const { data, error } = await supabase.rpc("get_item_sales_summary", params);
       if (error) throw error;
       return data as { total_qty?: number; total_amount?: number; unique_products?: number; avg_price?: number };
