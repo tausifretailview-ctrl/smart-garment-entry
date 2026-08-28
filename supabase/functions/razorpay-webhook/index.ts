@@ -6,165 +6,191 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-razorpay-signature',
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+/** Constant-time compare so a wrong signature leaks no timing information. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function hmacSha256Hex(secret: string, message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  return Array.from(new Uint8Array(signature))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const razorpayWebhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get the webhook payload
-    const payload = await req.text();
     const signature = req.headers.get('x-razorpay-signature');
-
-    // Reject if webhook secret is not configured
-    if (!razorpayWebhookSecret) {
-      console.error('RAZORPAY_WEBHOOK_SECRET not configured - rejecting request');
-      return new Response(
-        JSON.stringify({ error: 'Webhook not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     if (!signature) {
-      console.error('Missing Razorpay webhook signature - rejecting request');
-      return new Response(
-        JSON.stringify({ error: 'Missing signature' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('Razorpay webhook: missing signature header');
+      return json({ error: 'Missing signature' }, 401);
     }
 
-    // Verify webhook signature
+    // Signature is computed over the RAW body, so read text before parsing.
+    const rawBody = await req.text();
+
+    let payload: Record<string, any>;
     try {
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(razorpayWebhookSecret),
-        { name: 'HMAC', hash: 'SHA-256' },
-        false,
-        ['verify']
-      );
-
-      const data = encoder.encode(payload);
-      const hexPairs = signature.match(/.{1,2}/g);
-      if (!hexPairs) {
-        console.error('Invalid Razorpay webhook signature (malformed)');
-        return new Response(
-          JSON.stringify({ error: 'Invalid signature' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      const signatureBytes = new Uint8Array(
-        hexPairs.map(byte => parseInt(byte, 16))
-      );
-
-      const isValid = await crypto.subtle.verify('HMAC', key, signatureBytes, data);
-
-      if (!isValid) {
-        console.error('Invalid Razorpay webhook signature');
-        return new Response(
-          JSON.stringify({ error: 'Invalid signature' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } catch (verifyErr) {
-      console.error('Razorpay webhook signature verification failed:', verifyErr);
-      return new Response(
-        JSON.stringify({ error: 'Invalid signature' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      payload = JSON.parse(rawBody);
+    } catch {
+      return json({ error: 'Invalid JSON body' }, 400);
     }
 
-    const webhookData = JSON.parse(payload);
-    console.log('Razorpay webhook received:', webhookData.event);
+    const event: string | undefined = payload?.event;
+    const entity = payload?.payload?.payment_link?.entity
+      ?? payload?.payload?.payment?.entity?.payment_link
+      ?? null;
+    const paymentEntity = payload?.payload?.payment?.entity ?? null;
 
-    // Handle payment link paid event
-    if (webhookData.event === 'payment_link.paid') {
-      const paymentLinkId = webhookData.payload?.payment_link?.entity?.id;
-      const paymentId = webhookData.payload?.payment?.entity?.id;
-      const amount = webhookData.payload?.payment?.entity?.amount / 100; // Convert paise to rupees
+    const gatewayLinkId: string | null = entity?.id
+      ?? paymentEntity?.notes?.payment_link_id
+      ?? null;
 
-      if (paymentLinkId) {
-        // Update payment_links table
-        const { data: paymentLink, error: fetchError } = await supabase
-          .from('payment_links')
-          .select('id, sale_id, legacy_invoice_id')
-          .eq('gateway_link_id', paymentLinkId)
-          .single();
-
-        if (fetchError) {
-          console.error('Error fetching payment link:', fetchError);
-        } else if (paymentLink) {
-          // Update payment link status
-          const { error: updateError } = await supabase
-            .from('payment_links')
-            .update({
-              status: 'paid',
-              paid_at: new Date().toISOString(),
-              gateway_payment_id: paymentId,
-            })
-            .eq('id', paymentLink.id);
-
-          if (updateError) {
-            console.error('Error updating payment link:', updateError);
-          }
-
-          // Update invoice payment status if linked
-          if (paymentLink.sale_id) {
-            await supabase
-              .from('sales')
-              .update({
-                payment_status: 'paid',
-                paid_amount: amount,
-              })
-              .eq('id', paymentLink.sale_id);
-          }
-
-          if (paymentLink.legacy_invoice_id) {
-            await supabase
-              .from('legacy_invoices')
-              .update({
-                payment_status: 'paid',
-              })
-              .eq('id', paymentLink.legacy_invoice_id);
-          }
-
-          console.log(`Payment link ${paymentLinkId} marked as paid`);
-        }
-      }
+    if (!gatewayLinkId) {
+      console.log(`Razorpay webhook "${event}": no payment link id in payload, ignoring`);
+      return json({ success: true, ignored: true });
     }
 
-    // Handle payment link expired event
-    if (webhookData.event === 'payment_link.expired') {
-      const paymentLinkId = webhookData.payload?.payment_link?.entity?.id;
+    // Locate the tenant from the link. Nothing is trusted until the signature
+    // is verified with THAT organization's own webhook secret below.
+    const { data: paymentLink, error: linkError } = await supabase
+      .from('payment_links')
+      .select('id, organization_id, sale_id, legacy_invoice_id, amount, status')
+      .eq('gateway_link_id', gatewayLinkId)
+      .maybeSingle();
 
-      if (paymentLinkId) {
+    if (linkError) {
+      console.error('Razorpay webhook: payment link lookup failed:', linkError);
+      return json({ error: 'Lookup failed' }, 500);
+    }
+    if (!paymentLink) {
+      console.log(`Razorpay webhook: unknown payment link ${gatewayLinkId}, ignoring`);
+      return json({ success: true, ignored: true });
+    }
+
+    const { data: secrets, error: secretsError } = await supabase
+      .from('payment_gateway_secrets')
+      .select('razorpay_webhook_secret')
+      .eq('organization_id', paymentLink.organization_id)
+      .maybeSingle();
+
+    if (secretsError) {
+      console.error('Razorpay webhook: secret lookup failed:', secretsError);
+      return json({ error: 'Lookup failed' }, 500);
+    }
+
+    const webhookSecret = secrets?.razorpay_webhook_secret;
+    if (!webhookSecret) {
+      console.error(
+        `Razorpay webhook: no webhook secret configured for organization ${paymentLink.organization_id}`,
+      );
+      return json({ error: 'Webhook not configured for this organization' }, 400);
+    }
+
+    const expected = await hmacSha256Hex(webhookSecret, rawBody);
+    if (!timingSafeEqual(expected, signature)) {
+      console.error('Razorpay webhook: signature mismatch');
+      return json({ error: 'Invalid signature' }, 401);
+    }
+
+    // ---- Verified beyond this point ----
+
+    const isPaid = event === 'payment_link.paid'
+      || (event === 'payment.captured' && !!paymentEntity);
+
+    if (!isPaid) {
+      if (event === 'payment_link.cancelled' || event === 'payment_link.expired') {
         await supabase
           .from('payment_links')
-          .update({ status: 'expired' })
-          .eq('gateway_link_id', paymentLinkId);
+          .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+          .eq('id', paymentLink.id)
+          .eq('organization_id', paymentLink.organization_id);
+      }
+      return json({ success: true, event });
+    }
 
-        console.log(`Payment link ${paymentLinkId} marked as expired`);
+    if (paymentLink.status === 'paid') {
+      console.log(`Razorpay webhook: link ${gatewayLinkId} already settled, skipping`);
+      return json({ success: true, duplicate: true });
+    }
+
+    const gatewayPaymentId: string = paymentEntity?.id
+      ?? entity?.id
+      ?? gatewayLinkId;
+
+    // Prefer the amount actually captured by the gateway over the requested amount.
+    const capturedPaise = typeof paymentEntity?.amount === 'number'
+      ? paymentEntity.amount
+      : (typeof entity?.amount_paid === 'number' ? entity.amount_paid : null);
+    const amount = capturedPaise !== null
+      ? capturedPaise / 100
+      : Number(paymentLink.amount);
+
+    if (!isFinite(amount) || amount <= 0) {
+      console.error('Razorpay webhook: could not determine a valid amount');
+      return json({ error: 'Invalid amount' }, 400);
+    }
+
+    // Record as a receipt voucher. The database triggers recompute the sale's
+    // paid amount, payment status and the customer ledger — we never write
+    // sales.paid_amount directly, which is what used to cause ledger drift.
+    const { error: rpcError } = await supabase.rpc('record_online_payment_receipt', {
+      p_org_id: paymentLink.organization_id,
+      p_payment_link_id: paymentLink.id,
+      p_gateway_payment_id: gatewayPaymentId,
+      p_amount: amount,
+      p_payment_method: 'online',
+    });
+
+    if (rpcError) {
+      console.error('Razorpay webhook: failed to record receipt:', rpcError);
+      // Non-2xx makes Razorpay retry, which is what we want here.
+      return json({ error: 'Failed to record payment', details: rpcError.message }, 500);
+    }
+
+    if (paymentLink.legacy_invoice_id) {
+      const { error: legacyError } = await supabase
+        .from('legacy_invoices')
+        .update({ payment_status: 'paid' })
+        .eq('id', paymentLink.legacy_invoice_id)
+        .eq('organization_id', paymentLink.organization_id);
+      if (legacyError) {
+        console.error('Razorpay webhook: legacy invoice update failed:', legacyError);
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    console.log(`Razorpay webhook: recorded ${amount} for link ${gatewayLinkId}`);
+    return json({ success: true });
   } catch (error: unknown) {
     console.error('Razorpay webhook error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return json({ error: 'Internal server error', details: message }, 500);
   }
 });

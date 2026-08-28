@@ -6,6 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-verify',
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function resolvePaymentStatus(code: string | undefined | null): 'paid' | 'created' | 'cancelled' | null {
   if (code === 'PAYMENT_SUCCESS') return 'paid';
   if (code === 'PAYMENT_PENDING') return 'created';
@@ -14,187 +35,172 @@ function resolvePaymentStatus(code: string | undefined | null): 'paid' | 'create
 }
 
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // GET redirect callback — redirect only, never touch the database
+  // Browser redirect after checkout — redirect only, never touch the database.
   if (req.method === 'GET') {
-    try {
-      const url = new URL(req.url);
-      const transactionId = url.searchParams.get('txnId');
-      const redirectUrl = `${Deno.env.get('SITE_URL') || 'https://example.com'}/payment-status?txnId=${transactionId}`;
-      return new Response(null, {
-        status: 302,
-        headers: {
-          ...corsHeaders,
-          'Location': redirectUrl,
-        },
-      });
-    } catch (error: unknown) {
-      console.error('PhonePe redirect error:', error);
-      return new Response(
-        JSON.stringify({ error: 'Internal server error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const url = new URL(req.url);
+    const transactionId = url.searchParams.get('txnId') ?? '';
+    const siteUrl = Deno.env.get('SITE_URL') || 'https://app.inventoryshop.in';
+    return new Response(null, {
+      status: 302,
+      headers: {
+        ...corsHeaders,
+        'Location': `${siteUrl}/payment-status?txnId=${encodeURIComponent(transactionId)}`,
+      },
+    });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const saltKey = Deno.env.get('PHONEPE_SALT_KEY');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+    );
 
-    // Reject if salt key is not configured
-    if (!saltKey) {
-      console.error('PHONEPE_SALT_KEY not configured - rejecting request');
-      return new Response(
-        JSON.stringify({ error: 'Webhook not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const checksum = req.headers.get('x-verify');
+    if (!checksum) {
+      console.error('PhonePe webhook: missing checksum header');
+      return json({ error: 'Missing checksum' }, 401);
     }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const checksum = req.headers.get('x-verify');
-
-    if (!checksum) {
-      console.error('Missing PhonePe webhook checksum - rejecting request');
-      return new Response(
-        JSON.stringify({ error: 'Missing checksum' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!body?.response || typeof body.response !== 'string') {
+      console.error('PhonePe webhook: missing response body');
+      return json({ error: 'Invalid payload' }, 400);
     }
 
-    if (!body.response) {
-      console.error('Missing PhonePe response body');
-      return new Response(
-        JSON.stringify({ error: 'Invalid checksum' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const [hash, receivedSaltIndex] = checksum.split('###');
+    if (!hash || !receivedSaltIndex) {
+      console.error('PhonePe webhook: malformed checksum');
+      return json({ error: 'Invalid checksum' }, 401);
     }
 
-    const checksumParts = checksum.split('###');
-    if (checksumParts.length !== 2 || !checksumParts[0] || !checksumParts[1]) {
-      console.error('Invalid PhonePe checksum format');
-      return new Response(
-        JSON.stringify({ error: 'Invalid checksum' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const [hash] = checksumParts;
-
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(body.response + '/pg/v1/pay' + saltKey);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const calculatedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      if (calculatedHash !== hash) {
-        console.error('Invalid PhonePe callback checksum');
-        return new Response(
-          JSON.stringify({ error: 'Invalid checksum' }),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } catch (verifyErr) {
-      console.error('PhonePe checksum verification failed:', verifyErr);
-      return new Response(
-        JSON.stringify({ error: 'Invalid checksum' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    let responseData: Record<string, unknown>;
+    let responseData: Record<string, any>;
     try {
       responseData = JSON.parse(atob(body.response));
     } catch (decodeErr) {
-      console.error('Failed to decode PhonePe response:', decodeErr);
-      return new Response(
-        JSON.stringify({ error: 'Invalid checksum' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.error('PhonePe webhook: failed to decode response:', decodeErr);
+      return json({ error: 'Invalid payload' }, 400);
     }
 
-    const transactionId = (responseData?.data as { merchantTransactionId?: string } | undefined)
-      ?.merchantTransactionId ?? null;
+    const transactionId: string | null = responseData?.data?.merchantTransactionId ?? null;
+    if (!transactionId) {
+      console.log('PhonePe webhook: no merchantTransactionId, ignoring');
+      return json({ success: true, ignored: true });
+    }
 
-    console.log('PhonePe webhook received for transaction:', transactionId);
+    // Resolve the tenant first; the checksum is then verified against that
+    // organization's own salt key. Nothing is acted on before verification.
+    const { data: paymentLink, error: linkError } = await supabase
+      .from('payment_links')
+      .select('id, organization_id, sale_id, legacy_invoice_id, amount, status')
+      .eq('gateway_link_id', transactionId)
+      .maybeSingle();
 
-    if (transactionId) {
-      // Fetch payment link by gateway_link_id
-      const { data: paymentLink, error: fetchError } = await supabase
+    if (linkError) {
+      console.error('PhonePe webhook: payment link lookup failed:', linkError);
+      return json({ error: 'Lookup failed' }, 500);
+    }
+    if (!paymentLink) {
+      console.log(`PhonePe webhook: unknown transaction ${transactionId}, ignoring`);
+      return json({ success: true, ignored: true });
+    }
+
+    const { data: secrets, error: secretsError } = await supabase
+      .from('payment_gateway_secrets')
+      .select('phonepe_salt_key, phonepe_salt_index')
+      .eq('organization_id', paymentLink.organization_id)
+      .maybeSingle();
+
+    if (secretsError) {
+      console.error('PhonePe webhook: secret lookup failed:', secretsError);
+      return json({ error: 'Lookup failed' }, 500);
+    }
+
+    const saltKey = secrets?.phonepe_salt_key;
+    if (!saltKey) {
+      console.error(
+        `PhonePe webhook: no salt key configured for organization ${paymentLink.organization_id}`,
+      );
+      return json({ error: 'Webhook not configured for this organization' }, 400);
+    }
+
+    const expected = await sha256Hex(body.response + '/pg/v1/pay' + saltKey);
+    if (!timingSafeEqual(expected, hash)) {
+      console.error('PhonePe webhook: checksum mismatch');
+      return json({ error: 'Invalid checksum' }, 401);
+    }
+
+    // ---- Verified beyond this point ----
+
+    const paymentStatus = resolvePaymentStatus(
+      typeof responseData?.code === 'string' ? responseData.code : null,
+    );
+
+    if (paymentStatus === null) {
+      console.log(`PhonePe webhook ${transactionId}: unhandled code, no status change`);
+      return json({ success: true, ignored: true });
+    }
+
+    if (paymentStatus !== 'paid') {
+      await supabase
         .from('payment_links')
-        .select('id, sale_id, legacy_invoice_id, amount')
-        .eq('gateway_link_id', transactionId)
-        .single();
+        .update({ status: paymentStatus, updated_at: new Date().toISOString() })
+        .eq('id', paymentLink.id)
+        .eq('organization_id', paymentLink.organization_id);
+      return json({ success: true, status: paymentStatus });
+    }
 
-      if (fetchError) {
-        console.error('Error fetching payment link:', fetchError);
-      } else if (paymentLink) {
-        const responseCode = typeof responseData?.code === 'string' ? responseData.code : null;
-        const paymentStatus = resolvePaymentStatus(responseCode);
+    if (paymentLink.status === 'paid') {
+      console.log(`PhonePe webhook: ${transactionId} already settled, skipping`);
+      return json({ success: true, duplicate: true });
+    }
 
-        if (paymentStatus === null) {
-          console.log(
-            `PhonePe callback for ${transactionId}: unknown or absent code "${responseCode ?? ''}" — no status change`,
-          );
-        } else {
-          // Update payment link status
-          const { error: updateError } = await supabase
-            .from('payment_links')
-            .update({
-              status: paymentStatus,
-              paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
-              gateway_payment_id: (responseData?.data as { transactionId?: string } | undefined)?.transactionId || null,
-            })
-            .eq('id', paymentLink.id);
+    const capturedPaise = typeof responseData?.data?.amount === 'number'
+      ? responseData.data.amount
+      : null;
+    const amount = capturedPaise !== null ? capturedPaise / 100 : Number(paymentLink.amount);
 
-          if (updateError) {
-            console.error('Error updating payment link:', updateError);
-          }
+    if (!isFinite(amount) || amount <= 0) {
+      console.error('PhonePe webhook: could not determine a valid amount');
+      return json({ error: 'Invalid amount' }, 400);
+    }
 
-          // Update invoice payment status if payment is successful
-          if (paymentStatus === 'paid') {
-            if (paymentLink.sale_id) {
-              await supabase
-                .from('sales')
-                .update({
-                  payment_status: 'paid',
-                  paid_amount: paymentLink.amount,
-                })
-                .eq('id', paymentLink.sale_id);
-            }
+    const gatewayPaymentId: string = responseData?.data?.transactionId ?? transactionId;
 
-            if (paymentLink.legacy_invoice_id) {
-              await supabase
-                .from('legacy_invoices')
-                .update({
-                  payment_status: 'paid',
-                })
-                .eq('id', paymentLink.legacy_invoice_id);
-            }
+    // Receipt voucher, not a direct paid_amount write: the existing triggers
+    // recompute the sale total and the customer ledger from it.
+    const { error: rpcError } = await supabase.rpc('record_online_payment_receipt', {
+      p_org_id: paymentLink.organization_id,
+      p_payment_link_id: paymentLink.id,
+      p_gateway_payment_id: gatewayPaymentId,
+      p_amount: amount,
+      p_payment_method: 'online',
+    });
 
-            console.log(`Payment for transaction ${transactionId} marked as paid`);
-          }
-        }
+    if (rpcError) {
+      console.error('PhonePe webhook: failed to record receipt:', rpcError);
+      return json({ error: 'Failed to record payment', details: rpcError.message }, 500);
+    }
+
+    if (paymentLink.legacy_invoice_id) {
+      const { error: legacyError } = await supabase
+        .from('legacy_invoices')
+        .update({ payment_status: 'paid' })
+        .eq('id', paymentLink.legacy_invoice_id)
+        .eq('organization_id', paymentLink.organization_id);
+      if (legacyError) {
+        console.error('PhonePe webhook: legacy invoice update failed:', legacyError);
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    console.log(`PhonePe webhook: recorded ${amount} for transaction ${transactionId}`);
+    return json({ success: true });
   } catch (error: unknown) {
     console.error('PhonePe webhook error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return json({ error: 'Internal server error', details: message }, 500);
   }
 });
