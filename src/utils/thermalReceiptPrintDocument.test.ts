@@ -3,6 +3,7 @@ import {
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
   wrapReceiptHtmlForElectron,
 } from "./thermalReceiptPrintDocument";
+import { CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS } from "./creditNotePrintCss";
 
 describe("wrapReceiptHtmlForElectron", () => {
   it("injects roll CSS and print visibility override so InvoicePrint.css cannot hide the receipt", () => {
@@ -16,5 +17,14 @@ describe("wrapReceiptHtmlForElectron", () => {
     expect(INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS).toContain(
       "body .thermal-print-80mm",
     );
+  });
+});
+
+describe("credit note print CSS", () => {
+  it("restores table layout and hides inline style tags during print", () => {
+    expect(INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS).toContain("body .credit-note-print");
+    expect(CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS).toContain("display: table !important");
+    expect(CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS).toContain("display: table-cell !important");
+    expect(CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS).toContain("body .credit-note-print style");
   });
 });

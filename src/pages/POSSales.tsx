@@ -130,6 +130,7 @@ import {
   posThermalPageCss,
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
+  getPosDocumentPrintPageStyle,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -5050,75 +5051,12 @@ export default function POSSales() {
     `;
   };
 
-  const getCreditNotePageStyle = (): string => {
-    const format = posBillFormat;
-    let size = 'A5 portrait';
-    let margin = '5mm';
-
-    const creditNoteVisibilityCss = `
-      @media print {
-        body .credit-note-print-source,
-        body .credit-note-print-source *,
-        body .credit-note-print,
-        body .credit-note-print * {
-          visibility: visible !important;
-          opacity: 1 !important;
-          display: block !important;
-          clip: auto !important;
-          clip-path: none !important;
-          transform: none !important;
-          overflow: visible !important;
-        }
-      }
-    `;
-
-    switch (format) {
-      case 'a5-horizontal':
-        size = 'A5 landscape';
-        break;
-      case 'a4':
-        size = 'A4 portrait';
-        margin = '10mm';
-        break;
-      case 'thermal': {
-        const thermalPage = posThermalPageCss(posThermalPaper);
-        return `
-      @page {
-        size: ${thermalPage.pageSize};
-        margin: 0;
-      }
-      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
-      @media print {
-        html, body {
-          width: ${thermalPage.sourceWidth} !important;
-          max-width: ${thermalPage.sourceWidth} !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          overflow: visible !important;
-        }
-        .credit-note-print {
-          width: ${thermalPage.sourceWidth} !important;
-          max-width: ${thermalPage.sourceWidth} !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-      }
-      ${creditNoteVisibilityCss}
-    `;
-      }
-      default:
-        break;
-    }
-
-    return `
-      @page {
-        size: ${size};
-        margin: ${margin};
-      }
-      ${creditNoteVisibilityCss}
-    `;
-  };
+  const getCreditNotePageStyle = (): string =>
+    getPosDocumentPrintPageStyle(
+      posBillFormat,
+      posThermalPaper,
+      getThermalReceiptPageStyleFragment(posThermalPaper),
+    );
 
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,

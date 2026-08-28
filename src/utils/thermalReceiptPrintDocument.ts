@@ -46,7 +46,13 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
     body .modern-thermal-receipt,
     body .modern-thermal-receipt *,
     body .kids-thermal-receipt-80mm,
-    body .kids-thermal-receipt-80mm * {
+    body .kids-thermal-receipt-80mm *,
+    body .credit-note-print-source,
+    body .credit-note-print-source *,
+    body .credit-note-print,
+    body .credit-note-print *,
+    body .sale-return-thermal,
+    body .sale-return-thermal * {
       visibility: visible !important;
       opacity: 1 !important;
     }
