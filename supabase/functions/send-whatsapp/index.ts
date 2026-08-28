@@ -152,7 +152,8 @@ function buildTemplateParams(
     
     switch (field) {
       case 'customer_name':
-        return String(saleData.customer_name || '');
+        // Walk-in POS bills have no customer name; Meta rejects empty params.
+        return String(saleData.customer_name || '').trim() || 'Customer';
       case 'invoice_number':
       case 'quotation_number':
       case 'order_number':
