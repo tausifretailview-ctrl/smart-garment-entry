@@ -93,6 +93,8 @@ interface MobilePOSLayoutProps {
   openProductSearch?: boolean;
   /** Display gate from POS `enable_mrp` — omit struck MRP when false. */
   enableMrp?: boolean;
+  /** Fast-billing quick price code mode (POS setting) — enables shorthand code entry hints. */
+  fastBillingEnabled?: boolean;
 }
 
 export const MobilePOSLayout = ({
