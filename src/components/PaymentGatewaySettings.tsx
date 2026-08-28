@@ -17,6 +17,9 @@ export function PaymentGatewaySettings() {
     isLoadingSettings,
     saveSettings,
     isSaving,
+    secretStatus,
+    saveSecrets,
+    isSavingSecrets,
   } = usePaymentGateway();
 
   const [localSettings, setLocalSettings] = useState({
@@ -25,8 +28,18 @@ export function PaymentGatewaySettings() {
     upi_business_name: '',
     razorpay_key_id: '',
     razorpay_enabled: false,
+    razorpay_environment: 'test' as 'test' | 'live',
     phonepe_merchant_id: '',
     phonepe_enabled: false,
+    phonepe_environment: 'sandbox' as 'sandbox' | 'production',
+  });
+
+  // Secrets are write-only: these stay empty unless the user types a new value.
+  const [secretInputs, setSecretInputs] = useState({
+    razorpayKeySecret: '',
+    razorpayWebhookSecret: '',
+    phonepeSaltKey: '',
+    phonepeSaltIndex: '',
   });
 
   const [copied, setCopied] = useState<string | null>(null);
@@ -40,15 +53,43 @@ export function PaymentGatewaySettings() {
         upi_business_name: gatewaySettings.upi_business_name || '',
         razorpay_key_id: gatewaySettings.razorpay_key_id || '',
         razorpay_enabled: gatewaySettings.razorpay_enabled || false,
+        razorpay_environment: gatewaySettings.razorpay_environment || 'test',
         phonepe_merchant_id: gatewaySettings.phonepe_merchant_id || '',
         phonepe_enabled: gatewaySettings.phonepe_enabled || false,
+        phonepe_environment: gatewaySettings.phonepe_environment || 'sandbox',
       });
     }
   }, [gatewaySettings]);
 
   const handleSave = () => {
     saveSettings(localSettings);
+
+    // Only send fields the user actually typed into; blanks mean "unchanged".
+    const secretPayload: Record<string, string> = {};
+    if (secretInputs.razorpayKeySecret.trim()) {
+      secretPayload.razorpayKeySecret = secretInputs.razorpayKeySecret.trim();
+    }
+    if (secretInputs.razorpayWebhookSecret.trim()) {
+      secretPayload.razorpayWebhookSecret = secretInputs.razorpayWebhookSecret.trim();
+    }
+    if (secretInputs.phonepeSaltKey.trim()) {
+      secretPayload.phonepeSaltKey = secretInputs.phonepeSaltKey.trim();
+    }
+    if (secretInputs.phonepeSaltIndex.trim()) {
+      secretPayload.phonepeSaltIndex = secretInputs.phonepeSaltIndex.trim();
+    }
+
+    if (Object.keys(secretPayload).length > 0) {
+      saveSecrets(secretPayload);
+      setSecretInputs({
+        razorpayKeySecret: '',
+        razorpayWebhookSecret: '',
+        phonepeSaltKey: '',
+        phonepeSaltIndex: '',
+      });
+    }
   };
+
 
   const copyToClipboard = async (text: string, key: string) => {
     try {
