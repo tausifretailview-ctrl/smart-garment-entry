@@ -3652,6 +3652,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_gateway_secrets: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          phonepe_salt_index: string
+          phonepe_salt_key: string | null
+          razorpay_key_secret: string | null
+          razorpay_webhook_secret: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          phonepe_salt_index?: string
+          phonepe_salt_key?: string | null
+          razorpay_key_secret?: string | null
+          razorpay_webhook_secret?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          phonepe_salt_index?: string
+          phonepe_salt_key?: string | null
+          razorpay_key_secret?: string | null
+          razorpay_webhook_secret?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_gateway_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_gateway_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       payment_gateway_settings: {
         Row: {
           active_gateway: string
@@ -3659,8 +3707,10 @@ export type Database = {
           id: string
           organization_id: string
           phonepe_enabled: boolean | null
+          phonepe_environment: string
           phonepe_merchant_id: string | null
           razorpay_enabled: boolean | null
+          razorpay_environment: string
           razorpay_key_id: string | null
           updated_at: string | null
           upi_business_name: string | null
@@ -3672,8 +3722,10 @@ export type Database = {
           id?: string
           organization_id: string
           phonepe_enabled?: boolean | null
+          phonepe_environment?: string
           phonepe_merchant_id?: string | null
           razorpay_enabled?: boolean | null
+          razorpay_environment?: string
           razorpay_key_id?: string | null
           updated_at?: string | null
           upi_business_name?: string | null
@@ -3685,8 +3737,10 @@ export type Database = {
           id?: string
           organization_id?: string
           phonepe_enabled?: boolean | null
+          phonepe_environment?: string
           phonepe_merchant_id?: string | null
           razorpay_enabled?: boolean | null
+          razorpay_environment?: string
           razorpay_key_id?: string | null
           updated_at?: string | null
           upi_business_name?: string | null
@@ -9717,6 +9771,14 @@ export type Database = {
         }[]
       }
       get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
+      get_payment_gateway_secret_status: {
+        Args: { p_org_id: string }
+        Returns: {
+          has_phonepe_salt_key: boolean
+          has_razorpay_key_secret: boolean
+          has_razorpay_webhook_secret: boolean
+        }[]
+      }
       get_pending_gl_backfill_counts: {
         Args: { p_org_id: string }
         Returns: Json
@@ -10339,6 +10401,16 @@ export type Database = {
         }
         Returns: Json
       }
+      record_online_payment_receipt: {
+        Args: {
+          p_amount: number
+          p_gateway_payment_id: string
+          p_org_id: string
+          p_payment_link_id: string
+          p_payment_method?: string
+        }
+        Returns: string
+      }
       repair_customer_floating_adjustments: {
         Args: {
           p_customer_id: string
@@ -10391,6 +10463,16 @@ export type Database = {
         Returns: Json
       }
       sale_settlement_tolerance: { Args: never; Returns: number }
+      save_payment_gateway_secrets: {
+        Args: {
+          p_org_id: string
+          p_phonepe_salt_index?: string
+          p_phonepe_salt_key?: string
+          p_razorpay_key_secret?: string
+          p_razorpay_webhook_secret?: string
+        }
+        Returns: undefined
+      }
       save_purchase_bill_with_items_atomic: {
         Args: { p_bill: Json; p_items: Json; p_organization_id: string }
         Returns: Json
