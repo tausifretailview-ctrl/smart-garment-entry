@@ -198,6 +198,11 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     loader: () => import("@/pages/AdvanceBookingDashboard"),
     layout: "layout",
   },
+  "discount-scheme-dashboard": {
+    loader: () => import("@/pages/DiscountSchemeDashboard"),
+    layout: "layout",
+    roles: ["admin", "manager"],
+  },
   "salesman-commission": {
     loader: () => import("@/pages/SalesmanCommission"),
     layout: "fullscreen",

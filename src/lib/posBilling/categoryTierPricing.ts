@@ -66,6 +66,36 @@ function buildActiveRuleMap(rules: CategoryTierRule[]): Map<string, CategoryTier
   return map;
 }
 
+/** Resolve which tier rule category key applies to a cart line. */
+export function resolveCartItemCategoryKey(
+  item: PosCartItem,
+  ruleMap: Map<string, CategoryTierRule>,
+): string | null {
+  const direct = normalizeCategoryKey(item.category);
+  if (direct && ruleMap.has(direct)) return direct;
+
+  const productName = String(item.productName ?? "").trim();
+  if (productName) {
+    const segments = productName.split("-").map((s) => s.trim()).filter(Boolean);
+    for (const segment of segments.slice(1)) {
+      const key = normalizeCategoryKey(segment);
+      if (key && ruleMap.has(key)) return key;
+    }
+    for (const [key] of ruleMap) {
+      if (productName.toLowerCase().includes(key)) return key;
+    }
+  }
+
+  const baseName = String(item.baseProductName ?? "").trim();
+  if (baseName) {
+    for (const [key] of ruleMap) {
+      if (baseName.toLowerCase().includes(key)) return key;
+    }
+  }
+
+  return null;
+}
+
 /**
  * Re-price cart lines under category tier rules.
  * Tier pricing wins over MRP-mode / brand line discounts on affected categories.
@@ -80,8 +110,8 @@ export function applyCategoryTierPricingToCart(
 
   const groups = new Map<string, number[]>();
   items.forEach((item, index) => {
-    const key = normalizeCategoryKey(item.category);
-    if (!key || !ruleMap.has(key)) return;
+    const key = resolveCartItemCategoryKey(item, ruleMap);
+    if (!key) return;
     const list = groups.get(key) ?? [];
     list.push(index);
     groups.set(key, list);
@@ -105,6 +135,7 @@ export function applyCategoryTierPricingToCart(
 
       const repriced: PosCartItem = {
         ...item,
+        category: item.category?.trim() || rule.category,
         discountPercent: 0,
         discountAmount: 0,
         unitCost: perUnitNet,

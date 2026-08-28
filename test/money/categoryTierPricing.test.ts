@@ -5,6 +5,7 @@ import {
   computeCategoryTierBillTotal,
   isCategoryTierPricingEnabled,
   normalizeCategoryKey,
+  resolveCartItemCategoryKey,
 } from "@/lib/posBilling/categoryTierPricing";
 import type { PosCartItem } from "@/lib/posBilling/types";
 
@@ -76,10 +77,27 @@ describe("categoryTierPricing", () => {
   });
 
   it("applyCategoryTierPricingToCart skips categories without rules", () => {
-    const items = [makeItem({ category: "Jeans", quantity: 2, unitCost: 900, netAmount: 1800 })];
+    const items = [
+      makeItem({
+        category: "Jeans",
+        productName: "Denim-Jeans",
+        quantity: 2,
+        unitCost: 900,
+        netAmount: 1800,
+      }),
+    ];
     const out = applyCategoryTierPricingToCart(items, [tShirtRule], null);
     expect(out[0].netAmount).toBe(1800);
     expect(out[0].categoryTierApplied).toBeUndefined();
+  });
+
+  it("resolveCartItemCategoryKey matches productName segment when category empty", () => {
+    const ruleMap = new Map([["t-shirt", tShirtRule]]);
+    const key = resolveCartItemCategoryKey(
+      makeItem({ category: null, productName: "TEE-T-Shirt-Brand-Red" }),
+      ruleMap,
+    );
+    expect(key).toBe("t-shirt");
   });
 
   it("categories are independent", () => {

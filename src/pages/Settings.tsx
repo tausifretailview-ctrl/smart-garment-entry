@@ -211,6 +211,8 @@ interface SaleSettings {
   default_discount_in_rupees?: boolean;
   /** When true, POS applies category quantity-tier bundle pricing (Trendzo Discount Scheme). */
   pos_category_tier_pricing?: boolean;
+  /** Active discount scheme for POS tier rules; falls back to org default scheme. */
+  active_discount_scheme_id?: string | null;
   /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
   pos_goods_ask_qty_dialog?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
@@ -2883,7 +2885,6 @@ export default function Settings() {
                 </div>
 
                 <CategoryTierPricingSettings
-                  organizationId={currentOrganization?.id}
                   enabled={settings.sale_settings?.pos_category_tier_pricing === true}
                   onEnabledChange={(checked) =>
                     setSettings({

@@ -147,6 +147,7 @@ const BulkProductUpdate = lazyWithRetry(() => import("./pages/BulkProductUpdate"
 const DeliveryChallanEntry = lazyWithRetry(() => import("./pages/DeliveryChallanEntry"));
 const DeliveryChallanDashboard = lazyWithRetry(() => import("./pages/DeliveryChallanDashboard"));
 const AdvanceBookingDashboard = lazyWithRetry(() => import("./pages/AdvanceBookingDashboard"));
+const DiscountSchemeDashboard = lazyWithRetry(() => import("./pages/DiscountSchemeDashboard"));
 const SalesmanLayout = lazyWithRetry(() => import("./layouts/SalesmanLayout"));
 const SalesmanDashboard = lazyWithRetry(() => import("./pages/salesman/SalesmanDashboard"));
 const SalesmanCustomers = lazyWithRetry(() => import("./pages/salesman/SalesmanCustomers"));
@@ -1103,6 +1104,19 @@ const App = () => {
                       <Layout>
                         <AdvanceBookingDashboard />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="discount-scheme-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <DiscountSchemeDashboard />
+                        </Layout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
