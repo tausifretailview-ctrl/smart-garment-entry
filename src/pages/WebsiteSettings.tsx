@@ -46,8 +46,10 @@ import {
   whatsappShareUrl,
 } from "@/lib/storefrontShare";
 import { classifyStorefrontStock, formatStorefrontPrice, aggregateWebsiteVariantStock } from "@/lib/storefrontStock";
+import { aggregateVariantRows } from "@/lib/storefrontVariantSummary";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
+import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
 import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 
@@ -64,9 +66,11 @@ type VariantRow = {
   product_id: string;
   sale_price: number | null;
   stock_qty: number;
+  size?: string | null;
+  color?: string | null;
 };
 
-type WebsiteTabId = "catalogue" | "add" | "profile" | "enquiries";
+type WebsiteTabId = "catalogue" | "add" | "menus" | "profile" | "enquiries";
 
 const ENQUIRY_STATUSES: WebsiteEnquiryStatus[] = ["new", "contacted", "converted", "closed"];
 
@@ -144,7 +148,7 @@ export default function WebsiteSettingsPage() {
                 Website
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Catalogue · Add products · Store profile · Enquiries
+                Catalogue · Add products · Menus · Store profile · Enquiries
               </p>
             </div>
           </div>
@@ -172,6 +176,9 @@ export default function WebsiteSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="add" className={WEBSITE_TAB_TRIGGER}>
               Add products
+            </TabsTrigger>
+            <TabsTrigger value="menus" className={WEBSITE_TAB_TRIGGER}>
+              Menus
             </TabsTrigger>
             <TabsTrigger value="profile" className={WEBSITE_TAB_TRIGGER}>
               Store profile
@@ -203,6 +210,10 @@ export default function WebsiteSettingsPage() {
                 onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
               />
             ) : null}
+          </TabsContent>
+
+          <TabsContent value="menus" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("menus") ? <WebsiteMenusPanel orgId={orgId} /> : null}
           </TabsContent>
 
           <TabsContent value="profile" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
@@ -402,6 +413,7 @@ function AddProducts({
 }) {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [websitePrices, setWebsitePrices] = useState<Record<string, string>>({});
   const publishedIds = useMemo(() => new Set(listings.map((l) => l.product_id)), [listings]);
 
   const productsQuery = useQuery({
@@ -424,37 +436,72 @@ function AddProducts({
     },
   });
 
+  const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
+  const rowIds = rows.map((p) => p.id).join(",");
+
+  const variantsQuery = useQuery({
+    queryKey: ["website_picker_variants", orgId, rowIds],
+    enabled: !!orgId && rows.length > 0,
+    staleTime: STALE_LIVE,
+    queryFn: async () => {
+      const ids = rows.map((p) => p.id);
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("product_id, size, color")
+        .eq("organization_id", orgId!)
+        .in("product_id", ids)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return aggregateVariantRows((data || []) as { product_id: string; size?: string | null; color?: string | null }[]);
+    },
+  });
+
   const publish = useMutation({
     mutationFn: async () => {
       if (!orgId) throw new Error("No organization");
       const ids = [...selected].filter((id) => !publishedIds.has(id));
       if (ids.length === 0) throw new Error("Select products that are not already published");
       const maxOrder = listings.reduce((m, l) => Math.max(m, l.display_order || 0), 0);
-      const rows = ids.map((product_id, i) => ({
-        organization_id: orgId,
-        product_id,
-        variant_id: null,
-        display_order: maxOrder + i + 1,
-        is_active: true,
-      }));
-      const { error } = await websiteFrom("website_products").insert(rows);
+      const productById = Object.fromEntries(rows.map((p) => [p.id, p]));
+      const rowsToInsert = ids.map((product_id, i) => {
+        const product = productById[product_id];
+        const rawPrice = websitePrices[product_id];
+        const parsed = rawPrice != null && rawPrice.trim() !== "" ? Number(rawPrice) : NaN;
+        const display_price =
+          Number.isFinite(parsed) && parsed >= 0
+            ? parsed
+            : product?.default_sale_price ?? null;
+        return {
+          organization_id: orgId,
+          product_id,
+          variant_id: null,
+          display_price,
+          display_order: maxOrder + i + 1,
+          is_active: true,
+        };
+      });
+      const { error } = await websiteFrom("website_products").insert(rowsToInsert);
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Products added to the store");
       setSelected(new Set());
+      setWebsitePrices({});
       onChanged();
     },
     onError: (err: Error) => toast.error(err.message || "Could not publish"),
   });
 
-  const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
+  const defaultWebsitePrice = (p: CatalogProduct) => {
+    if (websitePrices[p.id] != null) return websitePrices[p.id];
+    return p.default_sale_price != null ? String(p.default_sale_price) : "";
+  };
 
   return (
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
-        subtitle="Search ERP products and publish to the public catalogue"
+        subtitle="Search ERP products, set a website price if needed, and publish to the public catalogue"
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -487,11 +534,20 @@ function AddProducts({
           <InsightsTableHeader>
             <InsightsStaticTh label="" className="w-10" />
             <InsightsStaticTh label="Product" />
+            <InsightsStaticTh label="Category" />
             <InsightsStaticTh label="Brand" />
-            <InsightsStaticTh label="Sale price" className="text-right" />
+            <InsightsStaticTh label="Size" />
+            <InsightsStaticTh label="Colour" />
+            <InsightsStaticTh label="ERP price" className="text-right" />
+            <InsightsStaticTh label="Website price" className="text-right w-28" />
           </InsightsTableHeader>
           <TableBody>
-            {rows.map((p) => (
+            {rows.map((p) => {
+              const variantMeta = lookupMap<{ sizesLabel: string; colorsLabel: string }>(
+                variantsQuery.data,
+                p.id,
+              );
+              return (
               <TableRow key={p.id} className={INSIGHTS_BODY_ROW}>
                 <TableCell className={INSIGHTS_BODY_CELL}>
                   <input
@@ -509,15 +565,36 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900")}>
                   {p.product_name}
                 </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.category || "—"}</TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.brand || "—"}</TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
+                  {variantMeta?.sizesLabel ?? "—"}
+                </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
+                  {variantMeta?.colorsLabel ?? "—"}
+                </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL_NUM}>
                   {formatStorefrontPrice(p.default_sale_price) || "—"}
                 </TableCell>
+                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={defaultWebsitePrice(p)}
+                    onChange={(e) =>
+                      setWebsitePrices((prev) => ({ ...prev, [p.id]: e.target.value }))
+                    }
+                    className="h-8 w-24 ml-auto text-right text-sm font-mono border-slate-200 bg-white"
+                    placeholder="Same as ERP"
+                  />
+                </TableCell>
               </TableRow>
-            ))}
+            );
+            })}
             {rows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={8} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading ? "Loading…" : "No unpublished products match."}
                 </TableCell>
               </TableRow>
@@ -563,12 +640,16 @@ function PublishedCatalogue({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("product_variants")
-        .select("product_id, sale_price, stock_qty")
+        .select("product_id, sale_price, stock_qty, size, color")
         .eq("organization_id", orgId!)
         .in("product_id", productIds)
         .is("deleted_at", null);
       if (error) throw error;
-      return aggregateWebsiteVariantStock((data || []) as VariantRow[]);
+      const rows = (data || []) as VariantRow[];
+      return {
+        stock: aggregateWebsiteVariantStock(rows),
+        variants: aggregateVariantRows(rows),
+      };
     },
   });
 
@@ -644,7 +725,10 @@ function PublishedCatalogue({
                 <InsightsStaticTh label="" className="w-10" />
                 <InsightsStaticTh label="Photo" className="w-16" />
                 <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Category" />
                 <InsightsStaticTh label="Brand" />
+                <InsightsStaticTh label="Size" />
+                <InsightsStaticTh label="Colour" />
                 <InsightsStaticTh label="Stock" />
                 <InsightsStaticTh label="Display price" className="text-right" />
                 <InsightsStaticTh label="Upload" className="w-24" />
@@ -657,7 +741,11 @@ function PublishedCatalogue({
                   if (!listing) return null;
                   const product = lookupMap<CatalogProduct>(productsQuery.data, listing.product_id);
                   const stock = lookupMap<{ qty: number; price: number | null }>(
-                    variantsQuery.data,
+                    variantsQuery.data?.stock,
+                    listing.product_id,
+                  );
+                  const variantMeta = lookupMap<{ sizesLabel: string; colorsLabel: string }>(
+                    variantsQuery.data?.variants,
                     listing.product_id,
                   );
                   const publicStock = classifyStorefrontStock(stock?.qty ?? 0);
@@ -666,6 +754,9 @@ function PublishedCatalogue({
                       key={id}
                       listing={listing}
                       product={product}
+                      categoryLabel={product?.category || "—"}
+                      sizesLabel={variantMeta?.sizesLabel ?? "—"}
+                      colorsLabel={variantMeta?.colorsLabel ?? "—"}
                       stockLabel={publicStock.label}
                       salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
                       orgId={orgId!}
@@ -685,6 +776,9 @@ function PublishedCatalogue({
 function SortableListingRow({
   listing,
   product,
+  categoryLabel,
+  sizesLabel,
+  colorsLabel,
   stockLabel,
   salePrice,
   orgId,
@@ -692,6 +786,9 @@ function SortableListingRow({
 }: {
   listing: WebsiteProduct;
   product?: CatalogProduct;
+  categoryLabel: string;
+  sizesLabel: string;
+  colorsLabel: string;
   stockLabel: string;
   salePrice: number | null;
   orgId: string;
@@ -785,7 +882,10 @@ function SortableListingRow({
       <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900 min-w-[10rem]")}>
         {product?.product_name || listing.product_id}
       </TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{categoryLabel}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{product?.brand || "—"}</TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{sizesLabel}</TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{colorsLabel}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 whitespace-nowrap")}>{stockLabel}</TableCell>
       <TableCell className={INSIGHTS_BODY_CELL_NUM}>
         <Input

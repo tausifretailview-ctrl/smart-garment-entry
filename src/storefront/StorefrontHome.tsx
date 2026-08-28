@@ -1,21 +1,26 @@
 import { useMemo, useState } from "react";
 import { formatStorefrontPrice, storefrontStockLabel } from "@/lib/storefrontStock";
+import { summarizeVariantSizeColor } from "@/lib/storefrontVariantSummary";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import { storefrontProductPath } from "@/lib/storefrontPath";
-import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
+import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { StorefrontShell } from "./StorefrontChrome";
 
 export function StorefrontHome({
   shop,
   orgSlug,
   products,
+  menus = [],
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
   products: PublicStorefrontProduct[];
+  menus?: PublicStorefrontMenu[];
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
+  const [activeTopMenuId, setActiveTopMenuId] = useState<string | null>(null);
+  const [activeSubMenuId, setActiveSubMenuId] = useState<string | null>(null);
 
   const displayName = shop.display_name || shop.name;
 
@@ -27,19 +32,56 @@ export function StorefrontHome({
     return Array.from(set).sort();
   }, [products]);
 
+  const activeTopMenu = menus.find((m) => m.id === activeTopMenuId) ?? null;
+  const subMenus = activeTopMenu?.children ?? [];
+
+  const menuCategoryFilter = useMemo(() => {
+    if (activeSubMenuId) {
+      const sub = subMenus.find((m) => m.id === activeSubMenuId);
+      if (sub?.category_filter) return sub.category_filter;
+    }
+    if (activeTopMenu?.category_filter) return activeTopMenu.category_filter;
+    return "";
+  }, [activeSubMenuId, activeTopMenu, subMenus]);
+
+  const effectiveCategory = menuCategoryFilter || category;
+
   const filtered = products.filter((p) => {
-    const matchesCat = !category || p.category === category;
+    const matchesCat = !effectiveCategory || p.category === effectiveCategory;
     const q = search.trim().toLowerCase();
     const matchesSearch =
       !q ||
       p.name.toLowerCase().includes(q) ||
-      (p.brand || "").toLowerCase().includes(q);
+      (p.brand || "").toLowerCase().includes(q) ||
+      (p.category || "").toLowerCase().includes(q);
     return matchesCat && matchesSearch;
   });
 
   const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
   const categoryEyebrow =
     categories.length > 0 ? categories.slice(0, 3).join(" · ") : "Curated catalogue";
+
+  const selectTopMenu = (menu: PublicStorefrontMenu | null) => {
+    if (!menu) {
+      setActiveTopMenuId(null);
+      setActiveSubMenuId(null);
+      setCategory("");
+      return;
+    }
+    setActiveTopMenuId(menu.id);
+    setActiveSubMenuId(null);
+    setCategory(menu.category_filter || "");
+  };
+
+  const selectSubMenu = (menu: PublicStorefrontMenu | null) => {
+    if (!menu) {
+      setActiveSubMenuId(null);
+      setCategory(activeTopMenu?.category_filter || "");
+      return;
+    }
+    setActiveSubMenuId(menu.id);
+    setCategory(menu.category_filter || activeTopMenu?.category_filter || "");
+  };
 
   return (
     <StorefrontShell shop={shop} orgSlug={orgSlug}>
@@ -57,7 +99,50 @@ export function StorefrontHome({
           />
         </div>
 
-        {categories.length > 0 ? (
+        {menus.length > 0 ? (
+          <>
+            <div className="storefront-chip-row">
+              <button
+                type="button"
+                className={`storefront-chip${!activeTopMenuId ? " active" : ""}`}
+                onClick={() => selectTopMenu(null)}
+              >
+                All
+              </button>
+              {menus.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`storefront-chip${activeTopMenuId === m.id ? " active" : ""}`}
+                  onClick={() => selectTopMenu(m)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            {subMenus.length > 0 ? (
+              <div className="storefront-chip-row storefront-submenu-row">
+                <button
+                  type="button"
+                  className={`storefront-chip storefront-chip-sub${!activeSubMenuId ? " active" : ""}`}
+                  onClick={() => selectSubMenu(null)}
+                >
+                  All {activeTopMenu?.label}
+                </button>
+                {subMenus.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`storefront-chip storefront-chip-sub${activeSubMenuId === m.id ? " active" : ""}`}
+                    onClick={() => selectSubMenu(m)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : categories.length > 0 ? (
           <div className="storefront-chip-row">
             <button
               type="button"
@@ -120,6 +205,14 @@ function ProductCard({ product, orgSlug }: { product: PublicStorefrontProduct; o
       : product.stock_status === "low_stock"
         ? "low"
         : "in";
+  const { sizesLabel, colorsLabel } = summarizeVariantSizeColor(product.variants);
+
+  const metaParts = [
+    product.category,
+    product.brand,
+    sizesLabel !== "—" ? `Size: ${sizesLabel}` : null,
+    colorsLabel !== "—" ? `Colour: ${colorsLabel}` : null,
+  ].filter(Boolean);
 
   return (
     <a href={storefrontProductPath(orgSlug, product.product_id)} className="storefront-card">
@@ -135,7 +228,9 @@ function ProductCard({ product, orgSlug }: { product: PublicStorefrontProduct; o
       </div>
       <div className="storefront-card-body">
         <div className="storefront-card-name">{product.name}</div>
-        {product.brand ? <div className="storefront-card-meta">{product.brand}</div> : null}
+        {metaParts.length > 0 ? (
+          <div className="storefront-card-meta">{metaParts.join(" · ")}</div>
+        ) : null}
         <div className="storefront-price-tag">
           <span className="storefront-price-now">
             {formatStorefrontPrice(product.display_price) || "Ask"}
