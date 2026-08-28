@@ -597,6 +597,10 @@
   .sale-order-print-container *,
   .sale-order-print,
   .sale-order-print *,
+  .credit-note-print,
+  .credit-note-print *,
+  .credit-note-print-source,
+  .credit-note-print-source *,
   .professional-invoice-template,
   .professional-invoice-template * {
     visibility: visible;

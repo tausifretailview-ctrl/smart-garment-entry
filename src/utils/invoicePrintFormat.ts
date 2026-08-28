@@ -1,3 +1,5 @@
+import { CREDIT_NOTE_DOCUMENT_PRINT_CSS } from '@/utils/creditNotePrintCss';
+
 /** Shared invoice template ids used in Settings → Sale. */
 export type InvoiceTemplateId =
   | 'professional'
@@ -381,29 +383,7 @@ export function getPosDocumentPrintPageStyle(
   posThermalPaper: PosThermalPaper,
   thermalStyleFragment: string,
 ): string {
-  const visibilityCss = `
-    @media print {
-      html, body {
-        width: 100%;
-        margin: 0;
-        padding: 0;
-      }
-      .credit-note-print-source,
-      .credit-note-print-source *,
-      .credit-note-print,
-      .credit-note-print *,
-      .sale-return-thermal,
-      .sale-return-thermal * {
-        visibility: visible !important;
-        opacity: 1 !important;
-        display: block !important;
-        clip: auto !important;
-        clip-path: none !important;
-        transform: none !important;
-        overflow: visible !important;
-      }
-    }
-  `;
+  const documentPrintCss = CREDIT_NOTE_DOCUMENT_PRINT_CSS;
 
   if (posBillFormat === 'thermal') {
     const thermalPage = posThermalPageCss(posThermalPaper);
@@ -432,7 +412,7 @@ export function getPosDocumentPrintPageStyle(
           padding: 0 !important;
         }
       }
-      ${visibilityCss}
+      ${documentPrintCss}
     `;
   }
 
@@ -455,6 +435,6 @@ export function getPosDocumentPrintPageStyle(
       size: ${size};
       margin: ${margin};
     }
-    ${visibilityCss}
+    ${documentPrintCss}
   `;
 }

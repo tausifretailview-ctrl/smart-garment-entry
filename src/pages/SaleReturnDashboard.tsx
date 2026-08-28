@@ -938,7 +938,7 @@ export default function SaleReturnDashboard() {
           />
         )}
 
-        <div style={{ display: "none" }}>
+        <div className="credit-note-print-source" style={{ position: 'fixed', top: 0, left: 0, opacity: 0, pointerEvents: 'none', zIndex: -9999 }}>
           {returnToPrint && businessDetails && (
             isThermal ? (
               <SaleReturnThermalPrint

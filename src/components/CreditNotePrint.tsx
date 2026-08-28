@@ -81,13 +81,6 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
     const creditAmount = Number(creditNote.credit_amount ?? 0);
     const isThermal = format === 'thermal';
     const thermalPage = isThermal ? posThermalPageCss(thermalPaper) : null;
-    const pageSize = format === 'a4'
-      ? 'A4 portrait'
-      : format === 'a5-horizontal'
-      ? 'A5 landscape'
-      : isThermal && thermalPage
-      ? thermalPage.pageSize
-      : 'A5 portrait';
 
     const containerWidth = isThermal && thermalPage
       ? thermalPage.sourceWidth
@@ -109,27 +102,6 @@ export const CreditNotePrint = React.forwardRef<HTMLDivElement, CreditNotePrintP
           boxSizing: 'border-box'
         }}
       >
-        <style>
-          {`
-            @media print {
-              @page {
-                size: ${pageSize};
-                margin: ${isThermal ? '2mm' : '5mm'};
-              }
-              .credit-note-print {
-                width: ${isThermal && thermalPage ? thermalPage.sourceWidth : (format === 'a4' ? '200mm' : '138mm')} !important;
-                min-height: ${isThermal ? 'auto' : (format === 'a4' ? '287mm' : '200mm')} !important;
-                padding: ${isThermal ? '2mm' : '5mm'} !important;
-              }
-              .credit-note-print * {
-                color: black !important;
-                background-image: none !important;
-                box-shadow: none !important;
-              }
-            }
-          `}
-        </style>
-
         {/* Header with Border */}
         <div style={{ 
           textAlign: 'center', 
