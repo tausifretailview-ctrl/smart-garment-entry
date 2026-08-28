@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
 import { useSettings } from "@/hooks/useSettings";
 import { BillTabSheetPresetOptions } from "@/components/settings/BillTabSheetPresetOptions";
+import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -208,6 +209,8 @@ interface SaleSettings {
   default_discount?: number;
   /** When true, `default_discount` is applied as flat ₹ on new POS bills; default false = %. */
   default_discount_in_rupees?: boolean;
+  /** When true, POS applies category quantity-tier bundle pricing (Trendzo Discount Scheme). */
+  pos_category_tier_pricing?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */
@@ -2876,6 +2879,20 @@ export default function Settings() {
                     }
                   />
                 </div>
+
+                <CategoryTierPricingSettings
+                  organizationId={currentOrganization?.id}
+                  enabled={settings.sale_settings?.pos_category_tier_pricing === true}
+                  onEnabledChange={(checked) =>
+                    setSettings({
+                      ...settings,
+                      sale_settings: {
+                        ...settings.sale_settings,
+                        pos_category_tier_pricing: checked,
+                      },
+                    })
+                  }
+                />
 
                 {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
                   <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
