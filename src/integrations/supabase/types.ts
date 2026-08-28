@@ -899,6 +899,57 @@ export type Database = {
           },
         ]
       }
+      category_quantity_tier_pricing: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          single_unit_price: number
+          tier_qty: number
+          tier_total_price: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          single_unit_price: number
+          tier_qty: number
+          tier_total_price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          single_unit_price?: number
+          tier_qty?: number
+          tier_total_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_quantity_tier_pricing_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_quantity_tier_pricing_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       chart_of_accounts: {
         Row: {
           account_code: string
