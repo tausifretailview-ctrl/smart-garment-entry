@@ -345,8 +345,12 @@ export function usePaymentGateway() {
     isGatewayConfigured: isGatewayConfigured(),
     saveSettings: saveSettingsMutation.mutate,
     isSaving: saveSettingsMutation.isPending,
+    secretStatus,
+    saveSecrets: saveSecretsMutation.mutate,
+    isSavingSecrets: saveSecretsMutation.isPending,
     generateLocalUPILink,
     generateWebPaymentLink,
+
     createPaymentLink: createPaymentLinkMutation.mutateAsync,
     isCreatingLink: createPaymentLinkMutation.isPending,
     markAsPaid: markAsPaidMutation.mutate,
