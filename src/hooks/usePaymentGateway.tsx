@@ -316,13 +316,16 @@ export function usePaymentGateway() {
   // Mark payment as paid (manual confirmation for UPI link)
   const markAsPaidMutation = useMutation({
     mutationFn: async (paymentLinkId: string) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
       const { error } = await supabase
         .from('payment_links')
         .update({
           status: 'paid',
           paid_at: new Date().toISOString(),
         })
-        .eq('id', paymentLinkId);
+        .eq('id', paymentLinkId)
+        .eq('organization_id', currentOrganization.id);
+
 
       if (error) throw error;
     },
