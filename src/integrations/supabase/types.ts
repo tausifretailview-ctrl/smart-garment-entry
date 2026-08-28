@@ -906,6 +906,7 @@ export type Database = {
           id: string
           is_active: boolean
           organization_id: string
+          scheme_id: string | null
           single_unit_price: number
           tier_qty: number
           tier_total_price: number
@@ -917,6 +918,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           organization_id: string
+          scheme_id?: string | null
           single_unit_price: number
           tier_qty: number
           tier_total_price: number
@@ -928,6 +930,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           organization_id?: string
+          scheme_id?: string | null
           single_unit_price?: number
           tier_qty?: number
           tier_total_price?: number
@@ -947,6 +950,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "category_quantity_tier_pricing_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "discount_schemes"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2228,6 +2238,112 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_scheme_rule_history: {
+        Row: {
+          action: string
+          category: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          rule_id: string | null
+          scheme_id: string | null
+          snapshot: Json
+        }
+        Insert: {
+          action: string
+          category?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          rule_id?: string | null
+          scheme_id?: string | null
+          snapshot?: Json
+        }
+        Update: {
+          action?: string
+          category?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          rule_id?: string | null
+          scheme_id?: string | null
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_scheme_rule_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_scheme_rule_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "discount_scheme_rule_history_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "discount_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_schemes: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_schemes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_schemes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
