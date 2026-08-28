@@ -137,13 +137,9 @@ export function EllaStorefrontHome({
                   <div className="ella-display ella-card-name">{product.name}</div>
                   <div className="ella-eyebrow">{product.category}</div>
                   {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
- cursor/ella-noor-storefront-fa12
                   <div className="ella-card-enquire">
                     {isEllaProductPurchasable(product.stock) ? "Add to cart" : "Enquire"}
                   </div>
-=======
-                  <div className="ella-card-enquire">Enquire</div>
-main
                 </div>
               </button>
             </li>
