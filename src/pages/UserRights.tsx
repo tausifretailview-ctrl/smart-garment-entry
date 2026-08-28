@@ -71,6 +71,7 @@ const menuStructure = [
       { id: "delivery_challan_entry", name: "Delivery Challan Entry" },
       { id: "delivery_challan_dashboard", name: "Delivery Challan Dashboard" },
       { id: "advance_booking_dashboard", name: "Advance Booking Dashboard" },
+      { id: "discount_scheme_dashboard", name: "Discount Scheme" },
     ],
   },
   {
@@ -248,6 +249,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   delivery_challan_entry: true,
   delivery_challan_dashboard: true,
   advance_booking_dashboard: true,
+  discount_scheme_dashboard: true,
   reports_hub: true,
   business_insights: true,
   orphaned_products: true,

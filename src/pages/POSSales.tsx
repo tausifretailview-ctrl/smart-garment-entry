@@ -718,9 +718,11 @@ export default function POSSales() {
   const categoryTierPricingEnabled = isCategoryTierPricingEnabled(
     (settingsData as any)?.sale_settings,
   );
+  const activeDiscountSchemeId =
+    (settingsData as any)?.sale_settings?.active_discount_scheme_id ?? null;
   const { data: categoryTierRules = [] } = useCategoryTierPricingRules(
     currentOrganization?.id,
-    categoryTierPricingEnabled,
+    activeDiscountSchemeId,
   );
 
   const billing = usePosBilling({
