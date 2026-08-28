@@ -206,6 +206,8 @@ interface SaleSettings {
   /** When true, POS keeps the selected salesman after save (default off). */
   pos_retain_salesman?: boolean;
   default_discount?: number;
+  /** When true, `default_discount` is applied as flat ₹ on new POS bills; default false = %. */
+  default_discount_in_rupees?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */
@@ -2463,13 +2465,39 @@ export default function Settings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="default_discount_in_rupees" className="font-normal cursor-pointer">
+                      Default POS flat discount in rupees
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Off by default — the value below is a percentage. When enabled, it is a fixed ₹
+                      discount on new POS bills.
+                    </p>
+                  </div>
+                  <Switch
+                    id="default_discount_in_rupees"
+                    checked={settings.sale_settings?.default_discount_in_rupees === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          default_discount_in_rupees: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="default_discount">Default Discount (%)</Label>
+                  <Label htmlFor="default_discount">
+                    Default Discount ({settings.sale_settings?.default_discount_in_rupees ? "₹" : "%"})
+                  </Label>
                   <Input
                     id="default_discount"
                     type="number"
                     min="0"
-                    max="100"
+                    max={settings.sale_settings?.default_discount_in_rupees ? undefined : 100}
                     step="0.01"
                     value={settings.sale_settings?.default_discount || ""}
                     onChange={(e) =>
@@ -2481,7 +2509,9 @@ export default function Settings() {
                         },
                       })
                     }
-                    placeholder="e.g., 5"
+                    placeholder={
+                      settings.sale_settings?.default_discount_in_rupees ? "e.g., 50" : "e.g., 5"
+                    }
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

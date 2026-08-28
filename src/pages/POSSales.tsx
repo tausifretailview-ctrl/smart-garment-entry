@@ -1701,7 +1701,7 @@ export default function POSSales() {
     if (!saleSettings) return;
     if (saleSettings.default_discount) {
       handleFlatDiscountValueChange(saleSettings.default_discount);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(saleSettings.default_discount_in_rupees ? "amount" : "percent");
     }
     if (saleSettings.default_payment_method) {
       setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
