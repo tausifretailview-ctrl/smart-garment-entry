@@ -482,9 +482,10 @@ export function PaymentGatewaySettings() {
 
         {/* Save Button */}
         <div className="flex justify-end pt-4 border-t">
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Gateway Settings"}
+          <Button onClick={handleSave} disabled={isSaving || isSavingSecrets}>
+            {isSaving || isSavingSecrets ? "Saving..." : "Save Gateway Settings"}
           </Button>
+
         </div>
       </CardContent>
     </Card>
