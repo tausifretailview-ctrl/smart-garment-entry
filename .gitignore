@@ -55,3 +55,6 @@ public/downloads/*.exe
 # by mistake. Never commit it.
 src/smart-garment-entry/
 supabase/.temp/
+
+# tsc -b (npm run typecheck) writes these
+*.tsbuildinfo

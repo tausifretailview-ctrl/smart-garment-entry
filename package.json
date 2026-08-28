@@ -9,6 +9,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
+    "typecheck": "tsc -b --force",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:money": "vitest run test/money src/utils/customerBalanceCore.shumama.test.ts src/utils/saleInvoiceStatus.test.ts src/lib/posBilling/posBilling.characterisation.test.ts src/utils/posGstTotals.test.ts",
@@ -37,7 +38,7 @@
   "build": {
     "appId": "com.ezzyerp.desktop",
     "productName": "EzzyERP",
-    "copyright": "Copyright © 2026 EzzyERP",
+    "copyright": "Copyright \u00a9 2026 EzzyERP",
     "directories": {
       "output": "release",
       "buildResources": "build"
