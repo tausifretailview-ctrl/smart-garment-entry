@@ -103,6 +103,7 @@ const PlatformAdmin = lazyWithRetry(() => import("./pages/PlatformAdmin"));
 const PlatformDataIntegrity = lazyWithRetry(() => import("./pages/PlatformDataIntegrity"));
 const PublicInvoiceView = lazyWithRetry(() => import("./pages/PublicInvoiceView"));
 const PublicPaymentPage = lazyWithRetry(() => import("./pages/PublicPaymentPage"));
+const PaymentStatusPage = lazyWithRetry(() => import("./pages/PaymentStatusPage"));
 const ItemWiseSalesReport = lazyWithRetry(() => import("./pages/ItemWiseSalesReport"));
 const ItemWiseStockReport = lazyWithRetry(() => import("./pages/ItemWiseStockReport"));
 const PriceHistoryReport = lazyWithRetry(() => import("./pages/PriceHistoryReport"));
@@ -463,6 +464,7 @@ const App = () => {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
+              <Route path="/payment-status" element={<PaymentStatusPage />} />
               {ListSkeletonSpotCheck ? (
                 <Route path="/__dev__/list-skeletons" element={<ListSkeletonSpotCheck />} />
               ) : null}

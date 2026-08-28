@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 
@@ -14,9 +15,27 @@ export interface PaymentGatewaySettings {
   upi_business_name?: string;
   razorpay_key_id?: string;
   razorpay_enabled: boolean;
+  razorpay_environment?: 'test' | 'live';
   phonepe_merchant_id?: string;
   phonepe_enabled: boolean;
+  phonepe_environment?: 'sandbox' | 'production';
 }
+
+/** Presence flags only — secret values are never sent to the browser. */
+export interface PaymentSecretStatus {
+  has_razorpay_key_secret: boolean;
+  has_razorpay_webhook_secret: boolean;
+  has_phonepe_salt_key: boolean;
+}
+
+export interface SaveSecretsInput {
+  /** undefined = leave unchanged, '' = clear the stored value. */
+  razorpayKeySecret?: string;
+  razorpayWebhookSecret?: string;
+  phonepeSaltKey?: string;
+  phonepeSaltIndex?: string;
+}
+
 
 export interface PaymentLink {
   id: string;
@@ -110,23 +129,68 @@ export function usePaymentGateway() {
     },
   });
 
+  // Which credentials exist (booleans only — the values stay server-side).
+  const { data: secretStatus } = useQuery({
+    queryKey: ['payment-gateway-secret-status', currentOrganization?.id],
+    queryFn: async (): Promise<PaymentSecretStatus> => {
+      const { data, error } = await supabase.rpc('get_payment_gateway_secret_status', {
+        p_org_id: currentOrganization!.id,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      return (row as PaymentSecretStatus) ?? {
+        has_razorpay_key_secret: false,
+        has_razorpay_webhook_secret: false,
+        has_phonepe_salt_key: false,
+      };
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  const saveSecretsMutation = useMutation({
+    mutationFn: async (input: SaveSecretsInput) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase.rpc('save_payment_gateway_secrets', {
+        p_org_id: currentOrganization.id,
+        p_razorpay_key_secret: input.razorpayKeySecret ?? null,
+        p_razorpay_webhook_secret: input.razorpayWebhookSecret ?? null,
+        p_phonepe_salt_key: input.phonepeSaltKey ?? null,
+        p_phonepe_salt_index: input.phonepeSaltIndex ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['payment-gateway-secret-status'] });
+      toast.success("Payment credentials saved securely");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to save credentials");
+    },
+  });
+
   // Get active gateway info
   const activeGateway = gatewaySettings?.active_gateway || 'upi_link';
-  
+
   const isGatewayConfigured = (): boolean => {
     if (!gatewaySettings) return false;
-    
+
     switch (gatewaySettings.active_gateway) {
       case 'upi_link':
         return !!gatewaySettings.upi_id;
       case 'razorpay':
-        return !!gatewaySettings.razorpay_key_id && gatewaySettings.razorpay_enabled;
+        // Without the shop's own key secret, no link can be created.
+        return !!gatewaySettings.razorpay_key_id
+          && gatewaySettings.razorpay_enabled
+          && !!secretStatus?.has_razorpay_key_secret;
       case 'phonepe':
-        return !!gatewaySettings.phonepe_merchant_id && gatewaySettings.phonepe_enabled;
+        return !!gatewaySettings.phonepe_merchant_id
+          && gatewaySettings.phonepe_enabled
+          && !!secretStatus?.has_phonepe_salt_key;
       default:
         return false;
     }
   };
+
 
   // Generate UPI link locally (for upi_link gateway)
   const generateLocalUPILink = (params: CreatePaymentLinkParams): string | null => {
@@ -183,37 +247,38 @@ export function usePaymentGateway() {
       if (gateway === 'upi_link') {
         // Generate local web payment link
         paymentUrl = generateWebPaymentLink(params);
-      } else if (gateway === 'razorpay') {
-        // Call edge function to create Razorpay payment link
+      } else {
+        // Razorpay / PhonePe: the edge function holds the organization's own keys.
         const { data, error } = await supabase.functions.invoke('create-payment-link', {
           body: {
-            gateway: 'razorpay',
+            gateway,
             amount: params.amount,
             customerName: params.customerName,
             customerPhone: params.customerPhone,
             invoiceNumber: params.invoiceNumber,
             organizationId: currentOrganization.id,
+            // Where the customer's browser lands after paying.
+            returnUrl: `${window.location.origin}/payment-status`,
           },
         });
 
-        if (error) throw error;
-        paymentUrl = data.paymentUrl;
-        gatewayLinkId = data.gatewayLinkId;
-      } else if (gateway === 'phonepe') {
-        // Call edge function to create PhonePe payment link
-        const { data, error } = await supabase.functions.invoke('create-payment-link', {
-          body: {
-            gateway: 'phonepe',
-            amount: params.amount,
-            customerName: params.customerName,
-            customerPhone: params.customerPhone,
-            invoiceNumber: params.invoiceNumber,
-            organizationId: currentOrganization.id,
-          },
-        });
+        if (error) {
+          // invoke() reports every failure as "non-2xx"; read the real reason.
+          let detail = error.message;
+          if (error instanceof FunctionsHttpError) {
+            try {
+              const body = await error.context.json();
+              detail = body?.error || body?.details || detail;
+            } catch {
+              /* keep the generic message */
+            }
+          }
+          throw new Error(detail);
+        }
+        if (data?.error) throw new Error(data.error);
 
-        if (error) throw error;
         paymentUrl = data.paymentUrl;
+
         gatewayLinkId = data.gatewayLinkId;
       }
 
@@ -251,13 +316,16 @@ export function usePaymentGateway() {
   // Mark payment as paid (manual confirmation for UPI link)
   const markAsPaidMutation = useMutation({
     mutationFn: async (paymentLinkId: string) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
       const { error } = await supabase
         .from('payment_links')
         .update({
           status: 'paid',
           paid_at: new Date().toISOString(),
         })
-        .eq('id', paymentLinkId);
+        .eq('id', paymentLinkId)
+        .eq('organization_id', currentOrganization.id);
+
 
       if (error) throw error;
     },
@@ -277,8 +345,12 @@ export function usePaymentGateway() {
     isGatewayConfigured: isGatewayConfigured(),
     saveSettings: saveSettingsMutation.mutate,
     isSaving: saveSettingsMutation.isPending,
+    secretStatus,
+    saveSecrets: saveSecretsMutation.mutate,
+    isSavingSecrets: saveSecretsMutation.isPending,
     generateLocalUPILink,
     generateWebPaymentLink,
+
     createPaymentLink: createPaymentLinkMutation.mutateAsync,
     isCreatingLink: createPaymentLinkMutation.isPending,
     markAsPaid: markAsPaidMutation.mutate,

@@ -17,6 +17,9 @@ export function PaymentGatewaySettings() {
     isLoadingSettings,
     saveSettings,
     isSaving,
+    secretStatus,
+    saveSecrets,
+    isSavingSecrets,
   } = usePaymentGateway();
 
   const [localSettings, setLocalSettings] = useState({
@@ -25,8 +28,18 @@ export function PaymentGatewaySettings() {
     upi_business_name: '',
     razorpay_key_id: '',
     razorpay_enabled: false,
+    razorpay_environment: 'test' as 'test' | 'live',
     phonepe_merchant_id: '',
     phonepe_enabled: false,
+    phonepe_environment: 'sandbox' as 'sandbox' | 'production',
+  });
+
+  // Secrets are write-only: these stay empty unless the user types a new value.
+  const [secretInputs, setSecretInputs] = useState({
+    razorpayKeySecret: '',
+    razorpayWebhookSecret: '',
+    phonepeSaltKey: '',
+    phonepeSaltIndex: '',
   });
 
   const [copied, setCopied] = useState<string | null>(null);
@@ -40,15 +53,43 @@ export function PaymentGatewaySettings() {
         upi_business_name: gatewaySettings.upi_business_name || '',
         razorpay_key_id: gatewaySettings.razorpay_key_id || '',
         razorpay_enabled: gatewaySettings.razorpay_enabled || false,
+        razorpay_environment: gatewaySettings.razorpay_environment || 'test',
         phonepe_merchant_id: gatewaySettings.phonepe_merchant_id || '',
         phonepe_enabled: gatewaySettings.phonepe_enabled || false,
+        phonepe_environment: gatewaySettings.phonepe_environment || 'sandbox',
       });
     }
   }, [gatewaySettings]);
 
   const handleSave = () => {
     saveSettings(localSettings);
+
+    // Only send fields the user actually typed into; blanks mean "unchanged".
+    const secretPayload: Record<string, string> = {};
+    if (secretInputs.razorpayKeySecret.trim()) {
+      secretPayload.razorpayKeySecret = secretInputs.razorpayKeySecret.trim();
+    }
+    if (secretInputs.razorpayWebhookSecret.trim()) {
+      secretPayload.razorpayWebhookSecret = secretInputs.razorpayWebhookSecret.trim();
+    }
+    if (secretInputs.phonepeSaltKey.trim()) {
+      secretPayload.phonepeSaltKey = secretInputs.phonepeSaltKey.trim();
+    }
+    if (secretInputs.phonepeSaltIndex.trim()) {
+      secretPayload.phonepeSaltIndex = secretInputs.phonepeSaltIndex.trim();
+    }
+
+    if (Object.keys(secretPayload).length > 0) {
+      saveSecrets(secretPayload);
+      setSecretInputs({
+        razorpayKeySecret: '',
+        razorpayWebhookSecret: '',
+        phonepeSaltKey: '',
+        phonepeSaltIndex: '',
+      });
+    }
   };
+
 
   const copyToClipboard = async (text: string, key: string) => {
     try {
@@ -238,6 +279,62 @@ export function PaymentGatewaySettings() {
                 </div>
 
                 <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="razorpay_key_secret">API Key Secret *</Label>
+                    {secretStatus?.has_razorpay_key_secret && (
+                      <Badge variant="secondary" className="text-xs">Saved</Badge>
+                    )}
+                  </div>
+                  <Input
+                    id="razorpay_key_secret"
+                    type="password"
+                    autoComplete="new-password"
+                    value={secretInputs.razorpayKeySecret}
+                    onChange={(e) => setSecretInputs({ ...secretInputs, razorpayKeySecret: e.target.value })}
+                    placeholder={secretStatus?.has_razorpay_key_secret ? "•••••••• (leave blank to keep)" : "Paste your Key Secret"}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Stored encrypted on our servers and never shown again. Payments settle directly into your own Razorpay account.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="razorpay_webhook_secret">Webhook Secret *</Label>
+                    {secretStatus?.has_razorpay_webhook_secret && (
+                      <Badge variant="secondary" className="text-xs">Saved</Badge>
+                    )}
+                  </div>
+                  <Input
+                    id="razorpay_webhook_secret"
+                    type="password"
+                    autoComplete="new-password"
+                    value={secretInputs.razorpayWebhookSecret}
+                    onChange={(e) => setSecretInputs({ ...secretInputs, razorpayWebhookSecret: e.target.value })}
+                    placeholder={secretStatus?.has_razorpay_webhook_secret ? "•••••••• (leave blank to keep)" : "Secret you set when adding the webhook"}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Without this, paid invoices cannot be confirmed automatically.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label htmlFor="razorpay_live" className="text-sm font-medium">Live mode</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Off = test keys, no real money moves.
+                    </p>
+                  </div>
+                  <Switch
+                    id="razorpay_live"
+                    checked={localSettings.razorpay_environment === 'live'}
+                    onCheckedChange={(checked) =>
+                      setLocalSettings({ ...localSettings, razorpay_environment: checked ? 'live' : 'test' })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
                   <Label>Webhook URL</Label>
                   <div className="flex gap-2">
                     <Input
@@ -254,17 +351,10 @@ export function PaymentGatewaySettings() {
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Add this URL in Razorpay Dashboard → Settings → Webhooks → Add Webhook
+                    Add this URL in Razorpay Dashboard → Settings → Webhooks, subscribe to the
+                    <strong> payment_link.paid</strong> event, and paste the same webhook secret above.
                   </p>
                 </div>
-
-                <Alert className="bg-blue-50 border-blue-200">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <strong>Important:</strong> The API Secret Key must be configured as a secure environment secret.
-                    Contact your administrator to set up RAZORPAY_KEY_SECRET.
-                  </AlertDescription>
-                </Alert>
 
                 <Button variant="outline" size="sm" asChild>
                   <a href="https://dashboard.razorpay.com/app/keys" target="_blank" rel="noopener noreferrer">
@@ -273,6 +363,7 @@ export function PaymentGatewaySettings() {
                   </a>
                 </Button>
               </div>
+
             </div>
           )}
 
@@ -308,6 +399,54 @@ export function PaymentGatewaySettings() {
                   </p>
                 </div>
 
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="phonepe_salt_key">Salt Key *</Label>
+                      {secretStatus?.has_phonepe_salt_key && (
+                        <Badge variant="secondary" className="text-xs">Saved</Badge>
+                      )}
+                    </div>
+                    <Input
+                      id="phonepe_salt_key"
+                      type="password"
+                      autoComplete="new-password"
+                      value={secretInputs.phonepeSaltKey}
+                      onChange={(e) => setSecretInputs({ ...secretInputs, phonepeSaltKey: e.target.value })}
+                      placeholder={secretStatus?.has_phonepe_salt_key ? "•••••••• (leave blank to keep)" : "Paste your Salt Key"}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phonepe_salt_index">Salt Index</Label>
+                    <Input
+                      id="phonepe_salt_index"
+                      value={secretInputs.phonepeSaltIndex}
+                      onChange={(e) => setSecretInputs({ ...secretInputs, phonepeSaltIndex: e.target.value })}
+                      placeholder="1"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Stored encrypted on our servers and never shown again. Payments settle directly into your own PhonePe account.
+                </p>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label htmlFor="phonepe_live" className="text-sm font-medium">Live mode</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Off = PhonePe sandbox, no real money moves.
+                    </p>
+                  </div>
+                  <Switch
+                    id="phonepe_live"
+                    checked={localSettings.phonepe_environment === 'production'}
+                    onCheckedChange={(checked) =>
+                      setLocalSettings({ ...localSettings, phonepe_environment: checked ? 'production' : 'sandbox' })
+                    }
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label>Callback URL</Label>
                   <div className="flex gap-2">
@@ -329,14 +468,6 @@ export function PaymentGatewaySettings() {
                   </p>
                 </div>
 
-                <Alert className="bg-purple-50 border-purple-200">
-                  <AlertCircle className="h-4 w-4 text-purple-600" />
-                  <AlertDescription className="text-purple-800">
-                    <strong>Important:</strong> Salt Key and Salt Index must be configured as secure environment secrets.
-                    Contact your administrator to set up PHONEPE_SALT_KEY and PHONEPE_SALT_INDEX.
-                  </AlertDescription>
-                </Alert>
-
                 <Button variant="outline" size="sm" asChild>
                   <a href="https://business.phonepe.com" target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
@@ -344,15 +475,17 @@ export function PaymentGatewaySettings() {
                   </a>
                 </Button>
               </div>
+
             </div>
           )}
         </div>
 
         {/* Save Button */}
         <div className="flex justify-end pt-4 border-t">
-          <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Gateway Settings"}
+          <Button onClick={handleSave} disabled={isSaving || isSavingSecrets}>
+            {isSaving || isSavingSecrets ? "Saving..." : "Save Gateway Settings"}
           </Button>
+
         </div>
       </CardContent>
     </Card>
