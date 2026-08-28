@@ -215,5 +215,46 @@ export function getWhatsAppErrorHint(
     };
   }
 
+  const deliveryCallback =
+    pr?.delivery_callback && typeof pr.delivery_callback === "object"
+      ? (pr.delivery_callback as Record<string, unknown>)
+      : undefined;
+  const queuedAck =
+    pr?.message &&
+    typeof pr.message === "object" &&
+    !!(pr.message as Record<string, unknown>).queue_id;
+  if (
+    (errorMessage || "").trim().toLowerCase() === "delivery failed" &&
+    (deliveryCallback || queuedAck)
+  ) {
+    const nestedError = deliveryCallback
+      ? extractDeliveryErrorFromWebhookBody(deliveryCallback)
+      : "";
+    return {
+      title: "Queued by provider, delivery failed at WhatsApp",
+      reason: nestedError
+        ? `The message was accepted (queued) but WhatsApp rejected delivery: ${nestedError}`
+        : "The message was accepted by your Meta/BSP provider (queued) but WhatsApp reported a delivery failure. This is not a missing customer name — check token, template approval, and recipient number.",
+      action:
+        "Settings → WhatsApp API: refresh the access token, confirm the invoice template is Approved in Meta, and verify the customer number is on WhatsApp. Expand API Response → delivery_callback for the exact Meta error code.",
+    };
+  }
+
   return null;
 }
+
+function extractDeliveryErrorFromWebhookBody(body: Record<string, unknown>): string {
+  const msg = body.message as Record<string, unknown> | undefined;
+  const candidates: unknown[] = [msg?.error_message, msg?.error, body.error_message, body.error];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (candidate && typeof candidate === "object") {
+      const obj = candidate as Record<string, unknown>;
+      const text = String(obj.message ?? obj.title ?? obj.error_user_msg ?? "").trim();
+      if (text) {
+        const code = obj.code != null ? ` (${obj.code})` : "";
+        return `${text}${code}`;
+      }
+    }
+  }
+  return "";

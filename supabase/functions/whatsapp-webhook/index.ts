@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildWhatsAppStatusUpdate,
+  extractWhatsAppDeliveryError,
   findWhatsappLogForStatusUpdate,
   normalizeWhatsAppDeliveryStatus,
   parseProviderStatusWebhook,
@@ -879,14 +880,33 @@ Deno.serve(async (req) => {
             ?? (realWamid ? await findWhatsappLogForStatusUpdate(supabase, realWamid) : null);
 
           if (existing && shouldApplyWhatsAppStatus(existing.status, normStatus)) {
+            const deliveryError = extractWhatsAppDeliveryError(body as Record<string, unknown>);
             const updatePayload = buildWhatsAppStatusUpdate(
               normStatus,
               nowIso,
-              body.message?.error || body.message?.error_message || body.error || 'Delivery failed',
+              normStatus === 'failed' ? deliveryError : undefined,
             );
-            await supabase.from('whatsapp_logs').update(updatePayload).eq('id', existing.id);
+
+            const { data: logRow } = await supabase
+              .from('whatsapp_logs')
+              .select('provider_response')
+              .eq('id', existing.id)
+              .maybeSingle();
+
+            const mergedProviderResponse = {
+              ...((logRow?.provider_response as Record<string, unknown> | null) ?? {}),
+              delivery_callback: body,
+            };
+
+            await supabase
+              .from('whatsapp_logs')
+              .update({
+                ...updatePayload,
+                provider_response: mergedProviderResponse,
+              })
+              .eq('id', existing.id);
             await supabase.from('whatsapp_messages').update(updatePayload).eq('wamid', queueId);
-            console.log(`BSP status-only: ${queueId} -> ${normStatus}`);
+            console.log(`BSP status-only: ${queueId} -> ${normStatus}${deliveryError ? ` (${deliveryError})` : ''}`);
           } else if (!existing) {
             console.log(`BSP status-only: no log found for queue_id ${queueId}`);
           }
@@ -984,7 +1004,11 @@ Deno.serve(async (req) => {
                     updateData.read_at = timestamp;
                     updateData.delivered_at = timestamp;
                   } else if (newStatus === 'failed') {
-                    updateData.error_message = status.errors?.[0]?.message || 'Message delivery failed';
+                    const deliveryError =
+                      extractWhatsAppDeliveryError(status as Record<string, unknown>) ||
+                      (status.errors?.[0]?.message as string | undefined) ||
+                      'Message delivery failed';
+                    updateData.error_message = deliveryError;
                   }
 
                   // Update whatsapp_logs
