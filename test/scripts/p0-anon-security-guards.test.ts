@@ -14,6 +14,28 @@ const FAIL_OPEN_SQL = path.join(
   MIGRATIONS,
   "20260828190100_fix_fail_open_org_guards.sql",
 );
+const REMAINING_SQL = path.join(
+  MIGRATIONS,
+  "20260828200000_fix_remaining_fail_open_guards.sql",
+);
+
+/**
+ * The 9 functions the bulk rewrite skipped, triaged against live definitions.
+ * Two are already fail-closed by a different idiom and must stay untouched.
+ */
+const ALREADY_FAIL_CLOSED = [
+  "get_customer_ledger_anomalies",
+  "get_wappconnect_instance_masked",
+];
+const REMAINING_FIXED = [
+  "detect_balance_adjustment_drift",
+  "compute_sale_settlement_v2",
+  "get_stock_at_time",
+  "get_stock_at_time_batch",
+  "get_sale_items_gross_batch",
+  "_zero_unscanned_candidates",
+  "detect_orphan_purchase_stock",
+];
 
 /** Every function that must stay callable by the anon role. */
 /** Drop `--` comment lines so assertions inspect executable SQL only. */
@@ -150,5 +172,46 @@ describe("fail-open org guard fix", () => {
     // Documented non-user callers that must keep working.
     expect(sql).toContain("ai-assistant");
     expect(sql).toContain("stock-alerts-scan-4h");
+  });
+});
+
+describe("remaining fail-open guards (the 9 the bulk rewrite skipped)", () => {
+  it("fixes the 7 that need it", async () => {
+    const sql = await readFile(REMAINING_SQL, "utf8");
+    for (const fn of REMAINING_FIXED) {
+      expect(sql, `${fn} not handled`).toContain(fn);
+    }
+  });
+
+  it("leaves the 2 already-fail-closed functions untouched", async () => {
+    const body = executableSql(await readFile(REMAINING_SQL, "utf8"));
+    for (const fn of ALREADY_FAIL_CLOSED) {
+      expect(body, `${fn} must not be redefined`).not.toMatch(
+        new RegExp(`CREATE OR REPLACE FUNCTION public\\.${fn}\\s*\\(`),
+      );
+    }
+  });
+
+  it("guards LANGUAGE sql bodies with a NULL-safe predicate", async () => {
+    const sql = executableSql(await readFile(REMAINING_SQL, "utf8"));
+    // IS DISTINCT FROM keeps NULL (in-database pg_cron / trigger callers) passing;
+    // a plain <> would evaluate to NULL and silently drop their rows.
+    expect(sql).toMatch(/auth\.role\(\)\s+IS DISTINCT FROM\s+'anon'/);
+    expect(sql).not.toMatch(/auth\.role\(\)\s*<>\s*'anon'/);
+  });
+
+  it("preserves the service_role / pg_cron all-orgs branch in detect_orphan_purchase_stock", async () => {
+    const sql = await readFile(REMAINING_SQL, "utf8");
+    expect(sql).toMatch(
+      /auth\.uid\(\) IS NULL\s*\n\s*OR sm\.organization_id IN \(SELECT public\.get_user_organization_ids/,
+    );
+  });
+
+  it("builds newlines with chr(10), never E'\\\\n' inside a dollar-quoted body", async () => {
+    const sql = executableSql(await readFile(REMAINING_SQL, "utf8"));
+    // E'\\n' inside $$...$$ yields a literal backslash-n and corrupts the rewritten
+    // definition — this produced a real syntax error during verification.
+    expect(sql).toContain("chr(10)");
+    expect(sql).not.toMatch(/E'\\\\n'/);
   });
 });
