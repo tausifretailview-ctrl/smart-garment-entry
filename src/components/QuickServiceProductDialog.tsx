@@ -36,7 +36,7 @@ export const QuickServiceProductDialog = ({
   showDiscountField = false,
   onAdd,
 }: QuickServiceProductDialogProps) => {
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState("1");
   const [mrp, setMrp] = useState<string>("");
   const [discountAmount, setDiscountAmount] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -50,7 +50,7 @@ export const QuickServiceProductDialog = ({
       setMrp(defaultMrp && defaultMrp > 0 ? String(defaultMrp) : "");
       setDiscountAmount("");
       setDescription("");
-      setQuantity(1);
+      setQuantity("1");
       setTimeout(() => {
         quantityInputRef.current?.focus();
         quantityInputRef.current?.select();
@@ -58,14 +58,17 @@ export const QuickServiceProductDialog = ({
     }
   }, [open, defaultMrp]);
 
+  const parsedQuantity = parseInt(quantity, 10);
+
   const handleSubmit = () => {
     const mrpValue = parseFloat(mrp);
     if (!mrpValue || mrpValue <= 0) return;
-    if (quantity <= 0) return;
+    const qty = parsedQuantity;
+    if (!Number.isFinite(qty) || qty <= 0) return;
     const disc = showDiscountField ? parseFloat(discountAmount) || 0 : 0;
     onAdd({
       code: serviceCode,
-      quantity,
+      quantity: qty,
       mrp: mrpValue,
       discountAmount: disc > 0 ? disc : undefined,
       description: description.trim() || undefined,
@@ -118,13 +121,22 @@ export const QuickServiceProductDialog = ({
             <Label className="text-xs">Quantity</Label>
             <Input
               ref={quantityInputRef}
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={quantity}
-              onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
+              onChange={(e) => {
+                const next = e.target.value.replace(/\D/g, "");
+                setQuantity(next);
+              }}
+              onBlur={() => {
+                if (!quantity.trim() || parsedQuantity <= 0) {
+                  setQuantity("1");
+                }
+              }}
               onKeyDown={handleQuantityKeyDown}
               onFocus={(e) => e.currentTarget.select()}
-              className="h-9 mt-1"
+              className="h-9 mt-1 tabular-nums"
             />
           </div>
           <div>
@@ -173,7 +185,7 @@ export const QuickServiceProductDialog = ({
           </div>
           <Button
             onClick={handleSubmit}
-            disabled={!mrp || parseFloat(mrp) <= 0}
+            disabled={!mrp || parseFloat(mrp) <= 0 || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0}
             className="w-full h-9"
           >
             Add to Cart
