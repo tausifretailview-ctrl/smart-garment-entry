@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatStorefrontPrice, storefrontStockLabel } from "@/lib/storefrontStock";
+import { summarizeVariantSizeColor } from "@/lib/storefrontVariantSummary";
 import {
   productEnquiryWhatsAppText,
   publicStorefrontProductUrl,
@@ -30,6 +31,7 @@ export function StorefrontProduct({
       : product.stock_status === "low_stock"
         ? "low"
         : "in";
+  const { sizesLabel, colorsLabel } = summarizeVariantSizeColor(product.variants);
 
   return (
     <StorefrontShell shop={shop} orgSlug={orgSlug}>
@@ -66,10 +68,37 @@ export function StorefrontProduct({
         </div>
 
         <div className="storefront-product-info">
-        {product.brand ? (
-          <p className="storefront-eyebrow mt-4 mb-0">{product.brand}</p>
-        ) : null}
+        <p className="storefront-eyebrow mt-4 mb-0">
+          {[product.category, product.brand].filter(Boolean).join(" · ") || "Product details"}
+        </p>
         <h1 className="storefront-product-title">{product.name}</h1>
+
+        <dl className="storefront-product-specs">
+          {product.category ? (
+            <div className="storefront-product-spec-row">
+              <dt>Category</dt>
+              <dd>{product.category}</dd>
+            </div>
+          ) : null}
+          {product.brand ? (
+            <div className="storefront-product-spec-row">
+              <dt>Brand</dt>
+              <dd>{product.brand}</dd>
+            </div>
+          ) : null}
+          {sizesLabel !== "—" ? (
+            <div className="storefront-product-spec-row">
+              <dt>Size</dt>
+              <dd>{sizesLabel}</dd>
+            </div>
+          ) : null}
+          {colorsLabel !== "—" ? (
+            <div className="storefront-product-spec-row">
+              <dt>Colour</dt>
+              <dd>{colorsLabel}</dd>
+            </div>
+          ) : null}
+        </dl>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="storefront-price-tag">
