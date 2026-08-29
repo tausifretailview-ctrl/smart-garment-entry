@@ -79,18 +79,36 @@ function isExplicitPrintMode(mode: string | undefined): mode is PrecisionPrintMo
 }
 
 export function inferPrecisionPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
-  // Trust an explicit stored print_mode first — thermal presets often also persist
-  // a4_cols/a4_rows from the shared settings form; those must not override mode.
+  const fromName = preset.name ? inferPrintModeFromName(preset.name) : null;
+  const fromCols =
+    (preset.thermalCols || 0) >= 2 ? thermalColsToPrintMode(preset.thermalCols as number) : null;
+
+  // "thermal" was the only thermal value for years. A leftover print_mode=thermal
+  // must not hide 2-up / 3-up evidence from the name or thermal_cols.
+  // Leftover a4_cols/a4_rows on a thermal preset still must not win.
+  if (preset.printMode === "thermal") {
+    if (fromName === "thermal2up" || fromName === "thermal3up" || fromName === "footwear") {
+      return fromName;
+    }
+    if (fromCols) return fromCols;
+    return "thermal";
+  }
+
   if (isExplicitPrintMode(preset.printMode)) {
     return preset.printMode;
   }
-  if (preset.name) {
-    const fromName = inferPrintModeFromName(preset.name);
-    if (fromName) return fromName;
-  }
+  if (fromName) return fromName;
   // Only treat as A4 when mode is unknown and sheet grid dims are present
   if (preset.a4Cols && preset.a4Rows) return "a4";
-  return thermalColsToPrintMode(preset.thermalCols || 1);
+  return fromCols ?? thermalColsToPrintMode(preset.thermalCols || 1);
+}
+
+/** Apply purchase-dashboard landing once per navigation — later preset refreshes must not steal 3-up. */
+export function shouldApplyPurchaseLanding(
+  appliedKey: string | null,
+  purchaseNavKey: string | null,
+): boolean {
+  return Boolean(purchaseNavKey) && appliedKey !== purchaseNavKey;
 }
 
 export function presetMatchesPrintMode(
@@ -118,9 +136,6 @@ export function getPrecisionPrintModeDisplayName(mode: PrecisionPrintMode): stri
 }
 
 export function resolvePresetPrintMode(preset: PrecisionPresetModeHint): PrecisionPrintMode {
-  if (isExplicitPrintMode(preset.printMode)) {
-    return preset.printMode;
-  }
   return inferPrecisionPrintMode(preset);
 }
 
