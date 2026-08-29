@@ -59,6 +59,21 @@ describe("tab load shell coverage", () => {
     expect(resolveTabLoadShell("purchase-entry")).toBe("entry");
     expect(resolveTabLoadShell("product-entry")).toBe("entry");
     expect(resolveTabLoadShell("sales-invoice")).toBe("entry");
+    expect(resolveTabLoadShell("sale-return-entry")).toBe("entry");
+    expect(resolveTabLoadShell("quotation-entry")).toBe("entry");
+    expect(resolveTabLoadShell("sale-order-entry")).toBe("entry");
+    expect(resolveTabLoadShell("purchase-return-entry")).toBe("entry");
+  });
+
+  it("registers the four newly eager-prefetched entry pages", () => {
+    for (const path of [
+      "sale-return-entry",
+      "quotation-entry",
+      "sale-order-entry",
+      "purchase-return-entry",
+    ]) {
+      expect(TAB_PAGE_REGISTRY[path], path).toBeDefined();
+    }
   });
 
   it("maps settings, user-rights, and third-party routes to dashboard shell", () => {

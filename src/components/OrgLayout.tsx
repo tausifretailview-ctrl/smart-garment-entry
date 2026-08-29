@@ -47,6 +47,10 @@ import {
   recordBlankFrame,
   type RenderOwner,
 } from "@/lib/navigationPerfDiagnostics";
+import {
+  classifySpinnerChrome,
+  recordPwaColdOpenSnapshot,
+} from "@/lib/pwaColdOpenDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
 import {
@@ -143,7 +147,13 @@ export const OrgLayout = () => {
   const location = useLocation();
   const { openWindows } = useWindowTabs();
   const showDesktopChrome = useShowDesktopChrome();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const {
+    hasMenuAccess,
+    permissions,
+    loading: permissionsLoading,
+    isFetching: permissionsIsFetching,
+    fetchStatus: permissionsFetchStatus,
+  } = useUserPermissions();
 
   const currentPath = useMemo(
     () => getOrgPathSegment(location.pathname, orgSlug),
@@ -451,6 +461,30 @@ export const OrgLayout = () => {
     forceOutletFallback,
     isCacheableEntryActive,
     tabPaths,
+  ]);
+
+  // PWA cold-open probe — snapshot the stuck-frame fields requested in
+  // docs/pwa-cold-open-blank-dashboard-2026-08.md §8. Evidence only.
+  useEffect(() => {
+    const chrome = classifySpinnerChrome(typeof document !== "undefined" ? document : null);
+    recordPwaColdOpenSnapshot({
+      path: currentPath,
+      forceOutletFallback,
+      effectiveTabPaneReady,
+      dashboardChunkLoaded: isTabPageChunkLoaded(""),
+      orgLoading,
+      permissionsIsFetching,
+      permissionsFetchStatus,
+      spinnerKind: chrome.kind,
+      spinnerText: chrome.text,
+    });
+  }, [
+    currentPath,
+    forceOutletFallback,
+    effectiveTabPaneReady,
+    orgLoading,
+    permissionsIsFetching,
+    permissionsFetchStatus,
   ]);
 
   /**

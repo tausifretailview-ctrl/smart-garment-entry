@@ -31,7 +31,10 @@ export const MenuPermissionRoute = ({ permission, children }: MenuPermissionRout
 
   if ((orgLoading || permissionsLoading) && !waitTimedOut) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background px-4">
+      <div
+        data-ezzy-spinner="menu-permission"
+        className="min-h-screen flex flex-col items-center justify-center gap-3 bg-background px-4"
+      >
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
