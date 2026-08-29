@@ -93,6 +93,7 @@ import {
 import {
   barcodePrintSelectionNavKey,
   clearBarcodePrintSelection,
+  clearBarcodePurchaseBillContext,
   clearBarcodePurchaseItems,
   consumeBarcodePurchaseItems,
   hasPendingBarcodePurchaseItems,
@@ -3858,14 +3859,38 @@ export default function BarcodePrinting() {
   };
 
   const handleClearAll = () => {
+    const billId =
+      sourcePurchaseBillId ??
+      purchaseBillIdParam ??
+      (currentOrganization?.id
+        ? readBarcodePurchaseBillContext(currentOrganization.id)?.billId
+        : null);
+
     setLabelItems([]);
     localStorage.removeItem("barcode_label_items");
     clearBarcodePurchaseItems();
-    if (sourcePurchaseBillId) {
-      clearBarcodePrintSelection(sourcePurchaseBillId);
+    clearBarcodePurchaseBillContext();
+    if (billId) {
+      clearBarcodePrintSelection(billId);
+      // Block purchase-bill DB fallback from re-populating after clear.
+      appliedPurchaseNavKeyRef.current = `db|${billId}`;
+    } else {
+      appliedPurchaseNavKeyRef.current = "cleared-manual";
     }
-    appliedPurchaseNavKeyRef.current = null;
+    sourcePurchaseBillIdRef.current = null;
+    setSourcePurchaseBillId(null);
+    setFromPurchaseBill(false);
     setSearchQuery("");
+
+    const st = location.state as { purchaseItems?: unknown[]; openTab?: string } | null;
+    if (purchaseBillIdParam || st?.purchaseItems?.length) {
+      const preserveState = routeRequestedTab ? { openTab: routeRequestedTab } : {};
+      orgNavigate("/barcode-printing", {
+        replace: true,
+        state: preserveState,
+      });
+    }
+
     toast.success("Cleared all labels");
   };
 

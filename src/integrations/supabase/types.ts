@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -896,6 +896,67 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_dashboard_counts"
             referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      category_quantity_tier_pricing: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          organization_id: string
+          scheme_id: string | null
+          single_unit_price: number
+          tier_qty: number
+          tier_total_price: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id: string
+          scheme_id?: string | null
+          single_unit_price: number
+          tier_qty: number
+          tier_total_price: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          organization_id?: string
+          scheme_id?: string | null
+          single_unit_price?: number
+          tier_qty?: number
+          tier_total_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_quantity_tier_pricing_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_quantity_tier_pricing_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "category_quantity_tier_pricing_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "discount_schemes"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2177,6 +2238,112 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sales_with_customer"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_scheme_rule_history: {
+        Row: {
+          action: string
+          category: string | null
+          changed_by: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          rule_id: string | null
+          scheme_id: string | null
+          snapshot: Json
+        }
+        Insert: {
+          action: string
+          category?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          rule_id?: string | null
+          scheme_id?: string | null
+          snapshot?: Json
+        }
+        Update: {
+          action?: string
+          category?: string | null
+          changed_by?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          rule_id?: string | null
+          scheme_id?: string | null
+          snapshot?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_scheme_rule_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_scheme_rule_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "discount_scheme_rule_history_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "discount_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discount_schemes: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          organization_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          organization_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          organization_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_schemes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_schemes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -3485,6 +3652,54 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_gateway_secrets: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          phonepe_salt_index: string
+          phonepe_salt_key: string | null
+          razorpay_key_secret: string | null
+          razorpay_webhook_secret: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          phonepe_salt_index?: string
+          phonepe_salt_key?: string | null
+          razorpay_key_secret?: string | null
+          razorpay_webhook_secret?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          phonepe_salt_index?: string
+          phonepe_salt_key?: string | null
+          razorpay_key_secret?: string | null
+          razorpay_webhook_secret?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_gateway_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_gateway_secrets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       payment_gateway_settings: {
         Row: {
           active_gateway: string
@@ -3492,8 +3707,10 @@ export type Database = {
           id: string
           organization_id: string
           phonepe_enabled: boolean | null
+          phonepe_environment: string
           phonepe_merchant_id: string | null
           razorpay_enabled: boolean | null
+          razorpay_environment: string
           razorpay_key_id: string | null
           updated_at: string | null
           upi_business_name: string | null
@@ -3505,8 +3722,10 @@ export type Database = {
           id?: string
           organization_id: string
           phonepe_enabled?: boolean | null
+          phonepe_environment?: string
           phonepe_merchant_id?: string | null
           razorpay_enabled?: boolean | null
+          razorpay_environment?: string
           razorpay_key_id?: string | null
           updated_at?: string | null
           upi_business_name?: string | null
@@ -3518,8 +3737,10 @@ export type Database = {
           id?: string
           organization_id?: string
           phonepe_enabled?: boolean | null
+          phonepe_environment?: string
           phonepe_merchant_id?: string | null
           razorpay_enabled?: boolean | null
+          razorpay_environment?: string
           razorpay_key_id?: string | null
           updated_at?: string | null
           upi_business_name?: string | null
@@ -7602,6 +7823,64 @@ export type Database = {
           },
         ]
       }
+      website_menus: {
+        Row: {
+          category_filter: string | null
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          label: string
+          organization_id: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          category_filter?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label: string
+          organization_id: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category_filter?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          label?: string
+          organization_id?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_menus_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_menus_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "website_menus_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "website_menus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_products: {
         Row: {
           created_at: string
@@ -9550,6 +9829,14 @@ export type Database = {
         }[]
       }
       get_outstanding_summary: { Args: { p_org_id: string }; Returns: Json }
+      get_payment_gateway_secret_status: {
+        Args: { p_org_id: string }
+        Returns: {
+          has_phonepe_salt_key: boolean
+          has_razorpay_key_secret: boolean
+          has_razorpay_webhook_secret: boolean
+        }[]
+      }
       get_pending_gl_backfill_counts: {
         Args: { p_org_id: string }
         Returns: Json
@@ -10172,6 +10459,16 @@ export type Database = {
         }
         Returns: Json
       }
+      record_online_payment_receipt: {
+        Args: {
+          p_amount: number
+          p_gateway_payment_id: string
+          p_org_id: string
+          p_payment_link_id: string
+          p_payment_method?: string
+        }
+        Returns: string
+      }
       repair_customer_floating_adjustments: {
         Args: {
           p_customer_id: string
@@ -10224,6 +10521,16 @@ export type Database = {
         Returns: Json
       }
       sale_settlement_tolerance: { Args: never; Returns: number }
+      save_payment_gateway_secrets: {
+        Args: {
+          p_org_id: string
+          p_phonepe_salt_index?: string
+          p_phonepe_salt_key?: string
+          p_razorpay_key_secret?: string
+          p_razorpay_webhook_secret?: string
+        }
+        Returns: undefined
+      }
       save_purchase_bill_with_items_atomic: {
         Args: { p_bill: Json; p_items: Json; p_organization_id: string }
         Returns: Json

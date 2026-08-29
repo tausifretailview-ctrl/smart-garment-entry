@@ -45,7 +45,14 @@ import {
 } from "@/utils/posFastBillingMode";
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
+import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
+import { isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
+import {
+  isPosGoodsAskQtyDialogEnabled,
+  resolveGoodsQtyDialogDefaultPrice,
+} from "@/utils/posGoodsAskQtyDialog";
 import type { CartItem, PosGrossBasis } from "@/lib/posBilling";
+import { resolvePosCustomerName, resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
@@ -123,6 +130,7 @@ import {
   posThermalPageCss,
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
+  getPosDocumentPrintPageStyle,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -245,6 +253,7 @@ interface POSBarcodeRuntimeSettings {
   pos_barcode_price_mode: 'mrp' | 'sale_price';
   enable_mrp: boolean;
   pos_quick_price_code: boolean;
+  pos_goods_ask_qty_dialog: boolean;
 }
 
 const POS_CART_BARCODE_COL_MIN = 128;
@@ -314,6 +323,7 @@ interface PosProductRow {
   product_name: string;
   product_type?: string;
   requires_imei?: boolean | null;
+  default_sale_price?: string | number;
   [key: string]: unknown;
 }
 
@@ -675,6 +685,7 @@ export default function POSSales() {
       pos_barcode_price_mode: saleSettings.pos_barcode_price_mode === 'mrp' ? 'mrp' : 'sale_price',
       enable_mrp: purchaseSettings.show_mrp === true,
       pos_quick_price_code: saleSettings.pos_quick_price_code === true,
+      pos_goods_ask_qty_dialog: saleSettings.pos_goods_ask_qty_dialog === true,
     };
     setPosRuntimeSettings(next);
     posRuntimeSettingsRef.current = next;
@@ -706,12 +717,26 @@ export default function POSSales() {
     },
   );
 
+  const categoryTierPricingEnabled = isCategoryTierPricingEnabled(
+    (settingsData as any)?.sale_settings,
+  );
+  const activeDiscountSchemeId =
+    (settingsData as any)?.sale_settings?.active_discount_scheme_id ?? null;
+  const { data: categoryTierRules = [] } = useCategoryTierPricingRules(
+    currentOrganization?.id,
+    activeDiscountSchemeId,
+  );
+
   const billing = usePosBilling({
     grossBasis,
     garmentGstSettings,
     calculateRedemptionValue,
     initialTaxType: defaultPosTaxTypeEarly,
     initialItems: _savedCart?.items?.length ? (_savedCart.items as CartItem[]) : [],
+    categoryTierPricing: {
+      enabled: categoryTierPricingEnabled,
+      rules: categoryTierRules,
+    },
   });
 
   const {
@@ -1700,7 +1725,7 @@ export default function POSSales() {
     if (!saleSettings) return;
     if (saleSettings.default_discount) {
       handleFlatDiscountValueChange(saleSettings.default_discount);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(saleSettings.default_discount_in_rupees ? "amount" : "percent");
     }
     if (saleSettings.default_payment_method) {
       setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
@@ -2684,6 +2709,7 @@ export default function POSSales() {
             displayBarcode:
               isNumeric && isCompleteNumericBarcodeForPosCart(term) ? term : item.barcode,
             searchText: `${p.product_name || ''} ${item.size || ''} ${item.color || p.color || ''} ${item.barcode || ''} ${p.brand || ''} ${p.category || ''}`.toLowerCase(),
+            quickPriceOverride: undefined as { sale_price: number; mrp: number } | undefined,
           };
         });
 
@@ -3089,47 +3115,136 @@ export default function POSSales() {
     }
   }
 
-  const handleQuickServiceAdd = useCallback(async ({ code, quantity, mrp, description }: { code: string; quantity: number; mrp: number; description?: string }) => {
-    const finishQuickServiceAdd = (newItem: CartItem) => {
-      const existingIndex = findPosServiceMergeIndex(itemsRef.current, {
-        barcode: newItem.barcode,
-        variantId: newItem.variantId,
-        mrp: newItem.mrp,
-        unitCost: newItem.unitCost,
-      });
-
-      if (existingIndex >= 0) {
-        const mergedLineId = itemsRef.current[existingIndex]?.id;
-        setItems((prev) => {
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            quantity: updated[existingIndex].quantity + newItem.quantity,
-          };
-          updated[existingIndex].netAmount = calculatePosCartLineNet(updated[existingIndex]);
-          return updated;
-        });
-        if (mergedLineId) bumpCartHighlight(mergedLineId);
-      } else {
-        const pricedItem = applyPosGarmentGstToItem(newItem, garmentGstSettings);
-        pricedItem.netAmount = calculatePosCartLineNet(pricedItem);
-        setItems((prev) => [...prev, pricedItem]);
-        bumpCartHighlight(newItem.id);
-      }
-
-      playSuccessBeep();
+  const handleQuickServiceAdd = useCallback(async ({
+    code,
+    quantity,
+    mrp,
+    discountAmount,
+    description,
+  }: {
+    code: string;
+    quantity: number;
+    mrp: number;
+    discountAmount?: number;
+    description?: string;
+  }) => {
+    const closeDialog = () => {
       setShowQuickServiceDialog(false);
       setQuickServiceCode("");
       setQuickServiceProductForAdd(null);
       setTimeout(() => barcodeInputRef.current?.focus(), 100);
     };
 
-    // If we have a pre-identified product (from barcode scan), use it directly
+    const applyDiscRsToServiceItem = (item: CartItem, discRs?: number): CartItem => {
+      if (!discRs || discRs <= 0) return item;
+      const baseAmount = item.mrp * item.quantity;
+      const mappedPercent = baseAmount > 0 ? Math.min(100, (discRs / baseAmount) * 100) : 0;
+      const withDisc = {
+        ...item,
+        discountPercent: Number(mappedPercent.toFixed(4)),
+        discountAmount: 0,
+        rateAuthority: "discount" as const,
+      };
+      const withGst = applyPosGarmentGstToItem(withDisc, garmentGstSettings);
+      return { ...withGst, netAmount: calculatePosCartLineNet(withGst) };
+    };
+
+    const finishQuickServiceAdd = (newItem: CartItem, lineDiscountRs?: number) => {
+      const itemToAdd = applyDiscRsToServiceItem(newItem, lineDiscountRs);
+      const existingIndex = findPosServiceMergeIndex(itemsRef.current, {
+        barcode: itemToAdd.barcode,
+        variantId: itemToAdd.variantId,
+        mrp: itemToAdd.mrp,
+        unitCost: itemToAdd.unitCost,
+      });
+
+      if (existingIndex >= 0) {
+        const mergedLineId = itemsRef.current[existingIndex]?.id;
+        setItems((prev) => {
+          const updated = [...prev];
+          const merged = {
+            ...updated[existingIndex],
+            quantity: updated[existingIndex].quantity + itemToAdd.quantity,
+          };
+          updated[existingIndex] = applyDiscRsToServiceItem(merged, lineDiscountRs);
+          return updated;
+        });
+        if (mergedLineId) bumpCartHighlight(mergedLineId);
+      } else {
+        setItems((prev) => [...prev, itemToAdd]);
+        bumpCartHighlight(itemToAdd.id);
+      }
+
+      playSuccessBeep();
+      closeDialog();
+    };
+
+    // Pre-identified product (barcode scan service, or goods qty dialog from dropdown)
     if (quickServiceProductForAdd) {
       const { product, variant } = quickServiceProductForAdd;
       if (blockSettlementLockedVariant(variant, product.product_name || "Product", variant.barcode || code)) {
         return;
       }
+
+      const isServiceProduct = product.product_type === "service";
+
+      if (!isServiceProduct) {
+        const barcode = variant.barcode || "";
+        const beforeIdx = itemsRef.current.findIndex((item) => item.barcode === barcode);
+        const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
+        const targetQty = beforeQty > 0 ? beforeQty + quantity : quantity;
+
+        const stockCheck = await checkStock(variant.id, targetQty);
+        if (!stockCheck.isAvailable) {
+          openStockIssueDialog(
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, targetQty, stockCheck.availableStock),
+            stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+          );
+          return;
+        }
+
+        const masterSalePrice = parseFloat(String(variant.sale_price || 0)) || 0;
+        const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
+        const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
+        const defaultPrice = resolveGoodsQtyDialogDefaultPrice(variant, grossBasis);
+        const overridePrice =
+          Math.abs(mrp - defaultPrice) > 0.01
+            ? { sale_price: mrp, mrp: Math.max(masterMrp, mrp) }
+            : undefined;
+
+        const brandDiscount = getBrandDiscountForProduct(product.brand, product.product_name);
+        hasManuallyAddedNewItemRef.current = true;
+        const addResult = billingAddLine({
+          product,
+          variant,
+          overridePrice,
+          brandDiscountPercent: brandDiscount,
+        });
+
+        const lineIdx = itemsRef.current.findIndex((item) => item.barcode === barcode);
+        if (lineIdx < 0) {
+          playErrorBeep();
+          return;
+        }
+
+        if (itemsRef.current[lineIdx].quantity !== targetQty) {
+          billingUpdateQty(lineIdx, targetQty);
+        }
+
+        if (discountAmount && discountAmount > 0) {
+          billingUpdateDiscountAmount(lineIdx, discountAmount);
+        }
+
+        const highlightId = addResult.mergedItemId || addResult.addedItemId;
+        if (highlightId) bumpCartHighlight(highlightId);
+        playSuccessBeep();
+        closeDialog();
+        setOpenProductSearch(false);
+        setSearchInput("");
+        focusBarcodeScanInput();
+        return;
+      }
+
       const baseServiceGst = product.sale_gst_percent || product.gst_per || 0;
       const newItem: CartItem = {
         id: `service-${variant.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -3153,7 +3268,7 @@ export default function POSSales() {
         productType: 'service',
         itemNotes: description || null,
       };
-      finishQuickServiceAdd(newItem);
+      finishQuickServiceAdd(newItem, discountAmount);
       return;
     }
 
@@ -3211,8 +3326,27 @@ export default function POSSales() {
       productType: 'service',
       itemNotes: description || null,
     };
-    finishQuickServiceAdd(newItem);
-  }, [setItems, playSuccessBeep, currentOrganization?.id, toast, quickServiceProductForAdd, bumpCartHighlight, garmentGstSettings, blockSettlementLockedVariant]);
+    finishQuickServiceAdd(newItem, discountAmount);
+  }, [
+    setItems,
+    playSuccessBeep,
+    playErrorBeep,
+    currentOrganization?.id,
+    toast,
+    quickServiceProductForAdd,
+    bumpCartHighlight,
+    garmentGstSettings,
+    blockSettlementLockedVariant,
+    billingAddLine,
+    billingUpdateQty,
+    billingUpdateDiscountAmount,
+    grossBasis,
+    getBrandDiscountForProduct,
+    checkStock,
+    openStockIssueDialog,
+    buildInsufficientStockIssue,
+    focusBarcodeScanInput,
+  ]);
 
   const addItemToCart = async (
     product: any,
@@ -3227,6 +3361,22 @@ export default function POSSales() {
 
     // Service products: merge same barcode + price into one line; different MRP stays separate (saree pieces).
     const isServiceProduct = product.product_type === 'service';
+
+    // Regular goods from search dropdown: optional qty/discount dialog (Trendzo opt-in).
+    if (
+      !isServiceProduct &&
+      addSource === "manual" &&
+      isPosGoodsAskQtyDialogEnabled((settingsData as any)?.sale_settings) &&
+      !overridePrice
+    ) {
+      setQuickServiceCode(variant.barcode || product.product_name);
+      setQuickServiceProductForAdd({ product, variant });
+      setQuickServiceDialogDefaultMrp(resolveGoodsQtyDialogDefaultPrice(variant, grossBasis));
+      setShowQuickServiceDialog(true);
+      setSearchInput("");
+      setOpenProductSearch(false);
+      return;
+    }
 
     // Service products: ask for actual price before adding — unless the org turned
     // the quick-entry dialog OFF (Settings → Product), in which case we add the item
@@ -4322,7 +4472,7 @@ export default function POSSales() {
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
         method: method,
-        customerName: customerName,
+        customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
         customerAddress: customers.find(c => c.id === customerId)?.address || "",
@@ -4610,7 +4760,7 @@ export default function POSSales() {
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: isRefund ? 0 : finalAmount,
         method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
-        customerName: customerName,
+        customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
         customerAddress: customers.find(c => c.id === customerId)?.address || "",
@@ -4901,75 +5051,12 @@ export default function POSSales() {
     `;
   };
 
-  const getCreditNotePageStyle = (): string => {
-    const format = posBillFormat;
-    let size = 'A5 portrait';
-    let margin = '5mm';
-
-    const creditNoteVisibilityCss = `
-      @media print {
-        body .credit-note-print-source,
-        body .credit-note-print-source *,
-        body .credit-note-print,
-        body .credit-note-print * {
-          visibility: visible !important;
-          opacity: 1 !important;
-          display: block !important;
-          clip: auto !important;
-          clip-path: none !important;
-          transform: none !important;
-          overflow: visible !important;
-        }
-      }
-    `;
-
-    switch (format) {
-      case 'a5-horizontal':
-        size = 'A5 landscape';
-        break;
-      case 'a4':
-        size = 'A4 portrait';
-        margin = '10mm';
-        break;
-      case 'thermal': {
-        const thermalPage = posThermalPageCss(posThermalPaper);
-        return `
-      @page {
-        size: ${thermalPage.pageSize};
-        margin: 0;
-      }
-      ${getThermalReceiptPageStyleFragment(posThermalPaper)}
-      @media print {
-        html, body {
-          width: ${thermalPage.sourceWidth} !important;
-          max-width: ${thermalPage.sourceWidth} !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          height: auto !important;
-          overflow: visible !important;
-        }
-        .credit-note-print {
-          width: ${thermalPage.sourceWidth} !important;
-          max-width: ${thermalPage.sourceWidth} !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-      }
-      ${creditNoteVisibilityCss}
-    `;
-      }
-      default:
-        break;
-    }
-
-    return `
-      @page {
-        size: ${size};
-        margin: ${margin};
-      }
-      ${creditNoteVisibilityCss}
-    `;
-  };
+  const getCreditNotePageStyle = (): string =>
+    getPosDocumentPrintPageStyle(
+      posBillFormat,
+      posThermalPaper,
+      getThermalReceiptPageStyleFragment(posThermalPaper),
+    );
 
   const handlePrint = useReactToPrint({
     contentRef: invoicePrintRef,
@@ -5699,7 +5786,7 @@ export default function POSSales() {
         sale_id: saleId,
         org_slug: orgSlug,
         sale_number: saleNumber,
-        customer_name: custName,
+        customer_name: resolveWhatsAppCustomerName(custName),
         customer_phone: phone,
         sale_date: saleDate,
         net_amount: netAmount,
@@ -8669,10 +8756,17 @@ export default function POSSales() {
           productName={quickServiceProductForAdd?.product?.product_name}
           defaultMrp={(() => {
             if (quickServiceProductForAdd?.variant) {
-              return resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant);
+              if (quickServiceProductForAdd.product?.product_type === "service") {
+                return resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant);
+              }
+              return resolveGoodsQtyDialogDefaultPrice(quickServiceProductForAdd.variant, grossBasis);
             }
             return quickServiceDialogDefaultMrp;
           })()}
+          showDiscountField={
+            quickServiceProductForAdd != null &&
+            quickServiceProductForAdd.product?.product_type !== "service"
+          }
           onAdd={handleQuickServiceAdd}
         />
 

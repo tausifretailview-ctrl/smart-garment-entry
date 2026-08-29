@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
 
-type WebsiteTable = "website_products" | "website_enquiries" | "website_settings";
+type WebsiteTable = "website_products" | "website_enquiries" | "website_settings" | "website_menus";
 
 type WebsiteQuery = {
   select: (columns?: string) => WebsiteQuery;

@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
 import { useSettings } from "@/hooks/useSettings";
 import { BillTabSheetPresetOptions } from "@/components/settings/BillTabSheetPresetOptions";
+import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -201,6 +202,14 @@ interface SaleSettings {
   /** When true, POS keeps the selected salesman after save (default off). */
   pos_retain_salesman?: boolean;
   default_discount?: number;
+  /** When true, `default_discount` is applied as flat ₹ on new POS bills; default false = %. */
+  default_discount_in_rupees?: boolean;
+  /** When true, POS applies category quantity-tier bundle pricing (Trendzo Discount Scheme). */
+  pos_category_tier_pricing?: boolean;
+  /** Active discount scheme for POS tier rules; falls back to org default scheme. */
+  active_discount_scheme_id?: string | null;
+  /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
+  pos_goods_ask_qty_dialog?: boolean;
   /** Shared / Sale default GST mode (existing setting — unchanged for current orgs) */
   default_tax_type?: 'inclusive' | 'exclusive' | 'no_gst';
   /** Optional POS-only override; omit to keep using `default_tax_type` */
@@ -2399,13 +2408,39 @@ export default function Settings() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2.5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="default_discount_in_rupees" className="font-normal cursor-pointer">
+                      Default POS flat discount in rupees
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Off by default — the value below is a percentage. When enabled, it is a fixed ₹
+                      discount on new POS bills.
+                    </p>
+                  </div>
+                  <Switch
+                    id="default_discount_in_rupees"
+                    checked={settings.sale_settings?.default_discount_in_rupees === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          default_discount_in_rupees: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
                 <div className="space-y-2">
-                  <Label htmlFor="default_discount">Default Discount (%)</Label>
+                  <Label htmlFor="default_discount">
+                    Default Discount ({settings.sale_settings?.default_discount_in_rupees ? "₹" : "%"})
+                  </Label>
                   <Input
                     id="default_discount"
                     type="number"
                     min="0"
-                    max="100"
+                    max={settings.sale_settings?.default_discount_in_rupees ? undefined : 100}
                     step="0.01"
                     value={settings.sale_settings?.default_discount || ""}
                     onChange={(e) =>
@@ -2417,7 +2452,9 @@ export default function Settings() {
                         },
                       })
                     }
-                    placeholder="e.g., 5"
+                    placeholder={
+                      settings.sale_settings?.default_discount_in_rupees ? "e.g., 50" : "e.g., 5"
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -2624,6 +2661,158 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
+fix/purchase-sold-qty-import
+=======
+                    <Label htmlFor="pos_allow_date_change" className="text-sm font-medium">
+                      Allow invoice date change in POS
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Show a date picker in the POS billing bar so cashiers can backdate an invoice. Invoice number sequence is unaffected.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_allow_date_change"
+                    checked={(settings.sale_settings as any)?.pos_allow_date_change === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_allow_date_change: checked,
+                        } as any,
+                      })
+                    }
+                />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="allow_pos_edit_unit_price" className="text-sm font-medium">
+                      Allow POS edit unit price
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Let permitted users type Unit Price on the POS cart. Off by default. Admins/managers always allowed when on; cashiers need the Edit POS unit price special right.
+                    </p>
+                  </div>
+                  <Switch
+                    id="allow_pos_edit_unit_price"
+                    checked={(settings.sale_settings as any)?.allow_pos_edit_unit_price === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          allow_pos_edit_unit_price: checked,
+                        } as any,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="pos_quick_price_code" className="text-sm font-medium">
+                      POS quick price-code search (no-barcode shops)
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, POS supports two fast-billing methods: type a price code like
+                      "J900" to add Jeans at ₹900 instantly (first letter(s) of product name or
+                      brand + price), or type a name like "Jeans" and pick from the dropdown
+                      (brand + price shown). Matches variant sale price, MRP, or product default
+                      selling price. Other organisations leave this off — normal POS search unchanged.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_quick_price_code"
+                    checked={(settings.sale_settings as any)?.pos_quick_price_code === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_quick_price_code: checked,
+                        } as any,
+                      })
+                    }
+                  />
+                </div>
+
+                <CategoryTierPricingSettings
+                  enabled={settings.sale_settings?.pos_category_tier_pricing === true}
+                  onEnabledChange={(checked) =>
+                    setSettings({
+                      ...settings,
+                      sale_settings: {
+                        ...settings.sale_settings,
+                        pos_category_tier_pricing: checked,
+                      },
+                    })
+                  }
+                />
+
+                <div className="flex items-center justify-between gap-4 pt-4 border-t">
+                  <div>
+                    <Label htmlFor="pos_goods_ask_qty_dialog" className="text-sm font-medium">
+                      POS goods qty / discount dialog (search dropdown)
+                    </Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      When enabled, picking a regular product from the POS search dropdown opens a
+                      quick Quantity + Price + Discount (₹) dialog before adding to cart — faster
+                      for multi-qty sales. Barcode scans and service codes (1–9) are unchanged.
+                      Other organisations leave this off.
+                    </p>
+                  </div>
+                  <Switch
+                    id="pos_goods_ask_qty_dialog"
+                    checked={settings.sale_settings?.pos_goods_ask_qty_dialog === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_goods_ask_qty_dialog: checked,
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
+                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="pos_unit_price_override_confirm_pct" className="text-sm font-medium">
+                        Confirm when unit price is below MRP by (%)
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Show a confirmation dialog when the typed unit price is more than this percent below MRP. Default 30.
+                      </p>
+                    </div>
+                    <Input
+                      id="pos_unit_price_override_confirm_pct"
+                      type="number"
+                      min={1}
+                      max={99}
+                      step={1}
+                      className="w-20 h-9 text-right"
+                      value={(settings.sale_settings as any)?.pos_unit_price_override_confirm_pct ?? 30}
+                      onChange={(e) => {
+                        const raw = parseFloat(e.target.value);
+                        const pct = Number.isFinite(raw) ? Math.min(99, Math.max(1, Math.round(raw))) : 30;
+                        setSettings({
+                          ...settings,
+                          sale_settings: {
+                            ...settings.sale_settings,
+                            pos_unit_price_override_confirm_pct: pct,
+                          } as any,
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                  <div className="space-y-0.5">
+ main
                     <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
                       Auto-Apply Advance Balance
                     </Label>

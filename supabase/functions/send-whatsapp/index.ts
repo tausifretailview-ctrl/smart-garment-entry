@@ -8,6 +8,7 @@ import {
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
 import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
+import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
   ensureWappConnectPdfUrl,
   redactWappConnectInstanceId,
@@ -152,7 +153,8 @@ function buildTemplateParams(
     
     switch (field) {
       case 'customer_name':
-        return String(saleData.customer_name || '');
+        // Walk-in POS bills may have no customer name; Meta rejects empty params.
+        return String(saleData.customer_name || '').trim() || 'Valued Customer';
       case 'invoice_number':
       case 'quotation_number':
       case 'order_number':
@@ -1595,10 +1597,10 @@ serve(async (req) => {
       };
 
       const metaId = responseData?.messages?.[0]?.id;
-      const bspQueued = responseData?.message?.message_status === 'queued' || !!responseData?.message?.queue_id;
       const successId = metaId || responseData?.message?.queue_id || '';
+      const sendAccepted = isBspSendAccepted(responseData, response.ok);
 
-      if (response.ok && (metaId || bspQueued)) {
+      if (sendAccepted) {
         updateData.status = 'sent';
         updateData.wamid = successId;
       } else {
@@ -1616,10 +1618,9 @@ serve(async (req) => {
         .eq('id', logEntry.id);
     }
 
-    const metaIdCheck = responseData?.messages?.[0]?.id;
-    const bspQueuedCheck = responseData?.message?.message_status === 'queued' || !!responseData?.message?.queue_id;
+    const sendAccepted = isBspSendAccepted(responseData, response.ok);
 
-    if (!response.ok && !bspQueuedCheck) {
+    if (!sendAccepted) {
       console.error('WhatsApp API Error:', responseData);
       return new Response(
         JSON.stringify({ 
@@ -1634,7 +1635,7 @@ serve(async (req) => {
     // Mark pending follow-up when customer clicks the CTA button (WhatsApp 24h policy compliant)
     // The follow-up will be sent by whatsapp-webhook when customer clicks the template button
     if (
-      response.ok && 
+      sendAccepted && 
       templateType === 'sales_invoice' && 
       orgSettings?.send_followup_on_button_click && 
       logEntry

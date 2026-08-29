@@ -35,8 +35,14 @@ jobs:
       - name: Install
         run: npm ci
 
+      # MUST be `tsc -b`, not `tsc --noEmit`. The root tsconfig.json is
+      # references-only ("files": []), so `npx tsc --noEmit` compiles zero files
+      # and exits 0 on any type error — this step passed a deliberate canary
+      # (`const canary: number = "nope"`) while it read `npx tsc --noEmit`.
+      # `vite build` does not typecheck either (esbuild strips types), so nothing
+      # in CI was checking types at all.
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Test
         run: npm test

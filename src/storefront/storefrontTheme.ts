@@ -8,6 +8,8 @@ export type OrgPublicInfoSlice = {
   bill_barcode_settings?: {
     logo_url?: string | null;
     login_display_name?: string | null;
+    upi_id?: string | null;
+    upi_business_name?: string | null;
   } | null;
 };
 
@@ -35,6 +37,9 @@ export function enrichPublicStorefrontShop(
     display_name: displayName,
     logo_url: bill.logo_url || shop.logo_url || null,
     address: address || shop.address || null,
+    upi_id: (bill.upi_id || "").trim() || null,
+    upi_business_name:
+      (bill.upi_business_name || org.business_name || displayName || "").trim() || displayName,
   };
 }
 

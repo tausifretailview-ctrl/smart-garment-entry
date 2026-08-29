@@ -33,6 +33,10 @@ import {
 } from "@/lib/tabPageRegistry";
 import { bumpRecentTabPaneRetention } from "@/lib/recentTabPaneRetention";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import {
+  POS_CONTEXT_PURCHASE_PREFETCH_PATHS,
+  POS_CONTEXT_WARM_TAB_PATH,
+} from "@/lib/chunkLoadRetry";
 import { syncElectronViewportHeight } from "@/lib/electronViewportSync";
 import {
   isNavigationPerfEnabled,
@@ -52,6 +56,7 @@ import {
 import {
   hasPaintedWorkspaceContent,
   isPaintedTabSibling,
+  shouldRemountStuckCacheableEntry,
   usesLongLoadBudget as usesLongLoadBudgetForNav,
 } from "@/lib/tabCacheReadiness";
 import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
@@ -72,6 +77,8 @@ const TAB_CACHE_INACTIVE = "__none__";
 const BLANK_FRAME_GRACE_MS = 1_200;
 /** Stuck tab-cache Suspense → hand route to <Outlet> (with App DashboardSkeleton). */
 const OUTLET_FALLBACK_MS = 4_000;
+/** Cacheable entry stuck on load shell (POS → purchase-entry) → remount chunk, not Outlet. */
+const CACHEABLE_ENTRY_STUCK_RESCUE_MS = 6_000;
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -102,6 +109,9 @@ export const OrgLayout = () => {
    * <Outlet> so Purchase Bills / dashboards are not stuck on DashboardSkeleton forever.
    */
   const [forceOutletFallback, setForceOutletFallback] = useState(false);
+  /** Bumped to remount a stuck cacheable-entry tab-cache pane (draft-safe — no Outlet). */
+  const [cacheableEntryRescueKey, setCacheableEntryRescueKey] = useState(0);
+  const cacheableEntryRescuedPathRef = useRef<string | null>(null);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
   /** Workspace container — watched by the blank-frame watchdog. */
@@ -367,6 +377,7 @@ export const OrgLayout = () => {
   // (e.g. POS) does not flash the <Outlet> copy for one frame before the cached pane shows.
   useLayoutEffect(() => {
     setForceOutletFallback(false);
+    cacheableEntryRescuedPathRef.current = null;
     if (
       isCacheableTabPath(resolvedCurrentPath) &&
       tabPaths.length > 0 &&
@@ -455,6 +466,58 @@ export const OrgLayout = () => {
     }, BLANK_FRAME_GRACE_MS);
     return () => window.clearTimeout(timer);
   }, [currentPath, resolvedCurrentPath, renderOwner, usesLongLoadBudget, forceOutletFallback]);
+
+  /**
+   * Cross-layout cold open (POS outlet → purchase-entry tab-cache): load shell
+   * counts as painted so the 1.2s watchdog and 4s Outlet rescue never run.
+   * Remount the tab-cache chunk if content never signals ready.
+   */
+  useEffect(() => {
+    if (
+      !shouldRemountStuckCacheableEntry({
+        isCacheableEntryActive,
+        contentReady: isTabCachePaneContentReady(resolvedCurrentPath),
+        renderViaTabCache,
+        forceOutletFallback,
+      })
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (isTabCachePaneContentReady(resolvedCurrentPath)) return;
+      if (cacheableEntryRescuedPathRef.current === resolvedCurrentPath) return;
+      cacheableEntryRescuedPathRef.current = resolvedCurrentPath;
+      console.warn(
+        "[OrgLayout] Cacheable entry stuck on load shell — remounting tab-cache chunk for",
+        currentPath,
+      );
+      resetTabPageChunk(resolvedCurrentPath);
+      setCacheableEntryRescueKey((k) => k + 1);
+    }, CACHEABLE_ENTRY_STUCK_RESCUE_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    isCacheableEntryActive,
+    currentPath,
+    resolvedCurrentPath,
+    renderViaTabCache,
+    forceOutletFallback,
+    effectiveTabPaneReady,
+  ]);
+
+  /** SEMME flow: warm purchase-entry while the user is on POS (outlet, not tab-cache). */
+  useEffect(() => {
+    if (!isOrgSynced || !user) return;
+    if (!(POS_CONTEXT_PURCHASE_PREFETCH_PATHS as readonly string[]).includes(resolvedCurrentPath)) {
+      return;
+    }
+    const warm = () => prefetchTabPage(POS_CONTEXT_WARM_TAB_PATH, { intent: true });
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(warm, { timeout: 6_000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(warm, 2_000);
+    return () => window.clearTimeout(t);
+  }, [isOrgSynced, user, resolvedCurrentPath]);
 
   useEffect(() => {
     if (!isNavigationPerfEnabled()) return;
@@ -645,6 +708,7 @@ export const OrgLayout = () => {
           <TabCachedPages
             paths={tabPaths}
             activePath={tabCacheActivePath}
+            cacheableEntryRescueKey={cacheableEntryRescueKey}
             onActivePaneReady={(path) => {
               const canonical = resolveTabCachePath(path);
               tabPaneReadyPathsRef.current.add(canonical);
@@ -680,6 +744,7 @@ export const OrgLayout = () => {
         !effectiveTabPaneReady &&
         !forceOutletFallback &&
         !hasReadySiblingPane &&
+        !isCacheableEntryActive &&
         renderViaTabCache && (
           <div className="absolute inset-0 z-10 bg-background">
             <DashboardSkeleton />

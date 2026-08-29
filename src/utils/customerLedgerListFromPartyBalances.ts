@@ -10,7 +10,7 @@ import {
   enrichPartyRowsWithCanonicalBalance,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
-import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
+
 
 export type CustomerLedgerListRow = {
   id: string;

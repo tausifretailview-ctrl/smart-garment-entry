@@ -5,6 +5,7 @@ import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { DASHBOARD_KPI_QUERY_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
+import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import {
   deleteJournalEntryByReference,

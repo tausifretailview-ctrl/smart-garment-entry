@@ -6,6 +6,7 @@ import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { resolveGarmentGstForLine } from "@/utils/gstRules";
 import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,

@@ -3,6 +3,7 @@ import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "
 import type { PublicStorefrontPayload, PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { applyStorefrontThemeVars, isEllaNoorSlug } from "./storefrontTheme";
 import { loadPublicStorefront } from "./storefrontClient";
+import { buildPublicStorefrontMenuTree } from "@/lib/websiteMenuTree";
 import { StorefrontHome } from "./StorefrontHome";
 import { StorefrontProduct } from "./StorefrontProduct";
 import { EllaStorefront } from "./EllaStorefront";
@@ -114,6 +115,7 @@ export function StorefrontApp() {
   }
 
   const products = payload.products || [];
+  const menuTree = buildPublicStorefrontMenuTree(payload.menus || []);
   const selected: PublicStorefrontProduct | undefined = parsed.productId
     ? products.find((p) => p.product_id === parsed.productId || p.id === parsed.productId)
     : undefined;
@@ -156,6 +158,7 @@ export function StorefrontApp() {
       shop={payload.shop!}
       orgSlug={canonicalSlug}
       products={products}
+      menus={menuTree}
     />
   );
 }

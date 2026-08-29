@@ -83,6 +83,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "delivery-challan-dashboard": { label: "Delivery Challans", icon: "Truck" },
   "delivery-dashboard": { label: "Delivery", icon: "Truck" },
   "advance-booking-dashboard": { label: "Advance Booking", icon: "Wallet" },
+  "discount-scheme-dashboard": { label: "Discount Scheme", icon: "Percent" },
   "barcode-printing": { label: "Barcode Print", icon: "Printer" },
   settings: { label: "Settings", icon: "Settings" },
   website: { label: "Website", icon: "Store" },

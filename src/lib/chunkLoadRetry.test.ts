@@ -9,6 +9,8 @@ import {
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
   ACCOUNTS_TAB_PREFETCH_PATHS,
+  POS_CONTEXT_PURCHASE_PREFETCH_PATHS,
+  POS_CONTEXT_WARM_TAB_PATH,
 } from "./chunkLoadRetry";
 
 describe("isChunkLoadError", () => {
@@ -157,5 +159,13 @@ describe("idle / wake entry-chunk prefetch lists", () => {
         "sales-invoice",
       ]),
     );
+  });
+
+  it("declares POS-context warm for purchase-entry (outlet POS routes)", () => {
+    expect(POS_CONTEXT_PURCHASE_PREFETCH_PATHS).toEqual(
+      expect.arrayContaining(["pos-sales", "pos-delivery-challan"]),
+    );
+    expect(POS_CONTEXT_WARM_TAB_PATH).toBe("purchase-entry");
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("purchase-entry");
   });
 });

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import { ellaCopy, ELLA_CATEGORY_CHIPS, type EllaChipCategory } from "./storefrontTheme";
-import { ellaStockBadgeClass } from "./ellaStock";
+import { ellaStockBadgeClass, isEllaProductPurchasable } from "./ellaStock";
 import { filterEllaProducts, type EllaStorefrontProduct } from "./ellaProduct";
 
 function CornerMarks() {
@@ -36,15 +36,19 @@ export function EllaStorefrontHome({
   orgSlug,
   whatsapp,
   products,
+  cartCount = 0,
   onOpenProduct,
   onOpenGeneralEnquire,
+  onOpenCart,
 }: {
   shopName: string;
   orgSlug: string;
   whatsapp?: string | null;
   products: EllaStorefrontProduct[];
+  cartCount?: number;
   onOpenProduct: (product: EllaStorefrontProduct) => void;
   onOpenGeneralEnquire: () => void;
+  onOpenCart?: () => void;
 }) {
   const [chip, setChip] = useState<EllaChipCategory>("All");
   const [search, setSearch] = useState("");
@@ -133,7 +137,9 @@ export function EllaStorefrontHome({
                   <div className="ella-display ella-card-name">{product.name}</div>
                   <div className="ella-eyebrow">{product.category}</div>
                   {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
-                  <div className="ella-card-enquire">Enquire</div>
+                  <div className="ella-card-enquire">
+                    {isEllaProductPurchasable(product.stock) ? "Add to cart" : "Enquire"}
+                  </div>
                 </div>
               </button>
             </li>
@@ -154,6 +160,11 @@ export function EllaStorefrontHome({
       </footer>
 
       <div className="ella-action-bar">
+        {cartCount > 0 && onOpenCart ? (
+          <button type="button" className="ella-btn ella-btn-outline ella-cart-btn" onClick={onOpenCart}>
+            Cart ({cartCount})
+          </button>
+        ) : null}
         <button type="button" className="ella-btn" onClick={onOpenGeneralEnquire}>
           Enquire
         </button>

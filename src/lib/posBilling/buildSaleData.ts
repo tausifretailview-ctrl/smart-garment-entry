@@ -1,6 +1,22 @@
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import type { PosBillTotals, PosCartItem } from "./types";
 
+/** Default party label when POS customer name is left blank (walk-in). */
+export const POS_WALKIN_CUSTOMER_NAME = "Walk-in Customer";
+
+/** WhatsApp template fallback when customer_name is still empty (defense in depth). */
+export const WHATSAPP_CUSTOMER_NAME_FALLBACK = "Valued Customer";
+
+export function resolvePosCustomerName(name?: string | null): string {
+  const trimmed = name?.trim();
+  return trimmed || POS_WALKIN_CUSTOMER_NAME;
+}
+
+export function resolveWhatsAppCustomerName(name?: string | null): string {
+  const trimmed = name?.trim();
+  return trimmed || WHATSAPP_CUSTOMER_NAME_FALLBACK;
+}
+
 /** Shape expected by useSaveSale — keep field names byte-stable. */
 export type PosSalePersistPayload = {
   customerId: string | null;
@@ -57,7 +73,7 @@ export function buildPosSalePersistPayload(params: {
 }): PosSalePersistPayload {
   return {
     customerId: params.customerId || null,
-    customerName: params.customerName,
+    customerName: resolvePosCustomerName(params.customerName),
     customerPhone: params.customerPhone || null,
     items: params.items,
     grossAmount: resolvePersistedSaleGrossAmount({

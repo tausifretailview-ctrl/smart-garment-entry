@@ -50,6 +50,9 @@ export type PublicStorefrontShop = {
   instagram_url?: string | null;
   facebook_url?: string | null;
   theme_accent_color?: string | null;
+  /** From org bill_barcode_settings — used for storefront UPI checkout. */
+  upi_id?: string | null;
+  upi_business_name?: string | null;
 };
 
 export type PublicStorefrontVariant = {
@@ -75,8 +78,33 @@ export type PublicStorefrontProduct = {
   variants: PublicStorefrontVariant[];
 };
 
+export type PublicStorefrontMenu = {
+  id: string;
+  label: string;
+  category_filter: string | null;
+  display_order: number;
+  children?: PublicStorefrontMenu[];
+};
+
+export type PublicStorefrontMenuFlat = PublicStorefrontMenu & {
+  parent_id: string | null;
+};
+
+export type WebsiteMenu = {
+  id: string;
+  organization_id: string;
+  parent_id: string | null;
+  label: string;
+  category_filter: string | null;
+  display_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
 export type PublicStorefrontPayload = {
   published: boolean;
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
+  menus?: PublicStorefrontMenuFlat[];
 };

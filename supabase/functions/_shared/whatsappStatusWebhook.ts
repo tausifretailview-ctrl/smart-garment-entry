@@ -28,9 +28,70 @@ export function buildWhatsAppStatusUpdate(
     updatePayload.delivered_at = timestampIso;
   }
   if (normStatus === "failed") {
-    updatePayload.error_message = errorMessage || "Delivery failed";
+    updatePayload.error_message = errorMessage?.trim() || "Delivery failed";
   }
   return updatePayload;
+}
+
+/** Pull a human-readable delivery error from Meta / third-party BSP webhook bodies. */
+export function extractWhatsAppDeliveryError(source: Record<string, unknown>): string {
+  const msg = source.message as Record<string, unknown> | undefined;
+  const statusObj = source.status as Record<string, unknown> | undefined;
+  const candidates: unknown[] = [
+    msg?.error_message,
+    msg?.error,
+    source.error_message,
+    source.error,
+  ];
+
+  const statusErrors = statusObj?.errors;
+  if (Array.isArray(statusErrors)) {
+    candidates.push(...statusErrors);
+  }
+  const topErrors = source.errors;
+  if (Array.isArray(topErrors)) {
+    candidates.push(...topErrors);
+  }
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (candidate && typeof candidate === "object") {
+      const obj = candidate as Record<string, unknown>;
+      const text = String(
+        obj.message ?? obj.title ?? obj.error_user_msg ?? obj.details ?? obj.reason ?? "",
+      ).trim();
+      if (text) {
+        const code = obj.code != null ? ` (${obj.code})` : "";
+        return `${text}${code}`;
+      }
+    }
+  }
+
+  return "";
+}
+
+/** Third-party BSP (e.g. crmapi.wappconnect.com) may return queue_id + queued even when HTTP status is non-2xx. */
+export function isBspSendAccepted(
+  responseData: Record<string, unknown> | null | undefined,
+  httpOk: boolean,
+): boolean {
+  if (!responseData || typeof responseData !== "object") return httpOk;
+
+  const metaId = (responseData.messages as Array<{ id?: string }> | undefined)?.[0]?.id;
+  if (metaId) return true;
+
+  const msg = responseData.message as Record<string, unknown> | undefined;
+  const queueId = msg?.queue_id;
+  const msgStatus = String(msg?.message_status || msg?.status || "").trim().toLowerCase();
+
+  if (msgStatus === "failed" || msgStatus === "error") return false;
+  if (queueId && (msgStatus === "queued" || msgStatus === "sent" || msgStatus === "")) {
+    return true;
+  }
+
+  return httpOk && !responseData.error;
 }
 
 export function shouldApplyWhatsAppStatus(currentStatus: string, incomingStatus: string): boolean {

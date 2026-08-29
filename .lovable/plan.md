@@ -1,79 +1,37 @@
-# ELLA NOOR — full customer balance audit (Dr / Cr) — read-only
+# CHIRAG MENS WEAR — barcode 450004951 investigation and data fix
 
-## Goal
+## What the data says
 
-Independently prove whether the Dr/Cr figures on the Customer Balances page are the true
-position for every customer, and hand back a report listing exactly which accounts are correct
-and which are off, with the rupee amount and the reason for each mismatch.
+The item is **not** missing and the purchase is **not** deleted. Verified in the live database:
 
-## What we're auditing against (verified)
+- Variant `450004951` — SHIRT / D.NO 2.POKET / size M / colour BEIGE, brand DIRECT
+- Stock 1, active, not deleted; parent product active, not deleted
+- Bought on purchase bill **PUR/26-27/67** dated 08-Aug-2026, line not deleted, correctly linked to the variant
+- Sale price ₹1199 (matches the tag), purchase price ₹765
 
-The Customer Balances page reads `get_customer_party_balances` →
-`_get_customer_party_balances_rows_v2`. Reading that function's source, a customer's signed
-balance is built from seven components:
+So the barcode resolves fine on an exact scan. Two real data faults explain why the screen can look empty or wrong:
 
-```text
-opening balance
-+ total invoiced          (active, non-cancelled, non-hold sales)
-- sale return on invoice  (with a gate that ignores MRP-gross-absorbed returns)
-- receipt payments        (per-invoice + customer-level, advance adjustments excluded)
-- paid-at-sale drift      (cash/card/UPI recorded on the bill but no matching receipt)
-- pending credit-note / sale-return pool
-- unused advance pool
-+ manual balance adjustments
-```
+1. **MRP is blank.** This variant, and **3,665 of the in-stock variants** in this shop, have no MRP. Every MRP column, MRP-mode price and MRP label field renders blank for them, even though the purchase line carries ₹1199.
+2. **Every product is flagged as an IMEI/serial item** — 848 of 848 products have `requires_imei = true`, inherited from the form's "remember last choice" default. It is dormant today (mobile-ERP IMEI enforcement is off for this shop), but the moment that switch is touched, every 9-digit garment barcode fails the IMEI length check and scanning stops working shop-wide.
 
-Current data volume in the org: **7,639 customers, 4,399 sales, 4,729 vouchers,
-217 sale returns, 101 credit notes, 1,600 advances, 139 manual balance adjustments.**
+## Plan
 
-## The audit
+### 1. Backfill missing MRP for this organization
+Use the existing `fix_missing_mrp_for_org` path: for every non-deleted variant with null/zero MRP, set MRP from the most recent purchase line's MRP, falling back to the variant's sale price when the purchase line has none. Run it as a scoped migration for CHIRAG MENS WEAR only, with a snapshot table taken first so it can be rolled back.
 
-**Step 1 — independent recomputation.** Rebuild each of the seven components in a standalone
-read-only query (not by calling the same function the page calls), for all 7,639 customers, and
-compare component-by-component against what the page shows. Anything differing by more than ₹1
-is flagged.
+### 2. Clear the wrong IMEI flag for this organization
+Set `requires_imei = false` for all products in this org (garment shop, no serialised units), scoped by `organization_id`, snapshot first.
 
-**Step 2 — classify every flagged account** into the known failure patterns:
+### 3. Stop the flag from recurring
+The form default comes from a browser-local "last used" memory that defaults to true. Change the default for `business`-type organizations to false, so a new garment/footwear product is never created as a serial item unless the user ticks it.
 
-| Pattern | Meaning |
-|---|---|
-| CN double-count | credit-note remainder counted in both the return pool and a receipt |
-| Manual-adjustment overlay | a `customer_balance_adjustments` row stacked on top of a fix that already landed (139 such rows exist and each one silently shifts a balance) |
-| Paid-amount drift | `sales.paid_amount` disagrees with the receipts actually on the invoice |
-| Advance over-application / over-refund | advance consumed or refunded beyond the pool |
-| Unrecorded cash/UPI refund | money paid out of the shop with no voucher (the Hanif bhai case) |
-| Orphan receipt | receipt pointing at a deleted or cancelled invoice |
-| Genuinely correct | page figure matches the recomputation |
-
-**Step 3 — cross-checks that catch what per-customer math can't:**
-- Org totals: sum of Dr, sum of Cr, net receivable, unused advance pool — reconciled against
-  sales, receipts and returns totals independently.
-- Every one of the 139 manual adjustments listed with its tag, amount, date and whether the
-  underlying issue it was created for is still present.
-- Sale returns whose credit is visible in two places at once.
-- Invoices marked Paid with no receipt, and invoices marked Pending that are fully receipted.
-
-**Step 4 — the report.** Written to `docs/ella-noor-customer-balance-audit-2026-08.md` and
-summarised in chat:
-- Headline: how many of the 7,639 accounts are provably correct, how many are off, total rupees
-  of drift on each side.
-- Table of every mismatched customer: name, page balance, audited balance, difference,
-  pattern, and the specific document (invoice / return / voucher) causing it.
-- Top 25 Dr and top 25 Cr accounts individually verified line by line, since those carry the
-  money.
-- A prioritised repair queue (P0/P1/P2), each entry saying exactly what write would fix it.
-
-Nothing is changed in this pass — no vouchers, no adjustments, no balances. Repairs happen only
-after you review the report and approve them.
+### 4. Make "not found" honest
+When a scan resolves no row, the toast should name what was searched and whether an IMEI-length rule rejected it, instead of a bare "not found". This is the difference between the shop reporting "barcode missing" and seeing the real reason.
 
 ## Technical notes
 
-- All queries are `SELECT`-only via the read tool. `get_customer_party_balances`,
-  `reconcile_customer_balance` and `compute_sale_settlement` currently reject direct SQL
-  execution (EXECUTE was revoked from `PUBLIC` in the security hardening pass), so the audit
-  recomputes the formula inline rather than calling them — which is the stronger check anyway,
-  since it does not inherit the page's own bugs.
-- Customers are processed in batches to stay under the 1,000-row result cap; the report is
-  assembled from the batches.
-- Existing artefacts reused for continuity: `docs/customer-balance-verification-recipe.md`,
-  `docs/ella-noor-phase1-repair-queue.md`, and the `scripts/ella-noor-*` audit SQL.
+- Both data changes are `UPDATE ... WHERE organization_id = 'e4e8ddf5-53cc-49c2-b453-739259dc53e2'`, each preceded by a `CREATE TABLE ... AS SELECT` snapshot of the affected rows for rollback.
+- MRP backfill source order: latest `purchase_items.mrp` for the variant → `product_variants.last_purchase_mrp` → `sale_price`. Never overwrite an MRP that is already set.
+- Form default lives in `src/utils/productRequiresImei.ts` (`getRequiresImeiFormDefault`); the change is to seed `false` when there is no stored preference.
+- Scan messaging lives in `src/pages/POSSales.tsx` around the barcode-resolve branch, using the candidates already returned by `lookupVariantRowsByScan`.
+- No change to barcode resolution order, stock maths, or RLS.

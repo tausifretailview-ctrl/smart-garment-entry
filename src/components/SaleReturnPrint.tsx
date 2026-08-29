@@ -135,32 +135,6 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
           boxSizing: 'border-box'
         }}
       >
-        <style>
-          {`
-            @media print {
-              @page {
-                size: ${page.pageSize};
-                margin: 5mm;
-              }
-              .credit-note-print {
-                width: ${page.printWidth} !important;
-                min-height: ${page.printMinHeight} !important;
-              }
-              .credit-note-print * {
-                color: black !important;
-                background-image: none !important;
-                box-shadow: none !important;
-                border-radius: 0 !important;
-              }
-              .credit-note-print table,
-              .credit-note-print th,
-              .credit-note-print td {
-                border: 1px solid #000 !important;
-              }
-            }
-          `}
-        </style>
-
         {/* Outer Border Container */}
         <div style={{ border: '2px solid #000' }}>
           {/* Company Header */}
@@ -221,11 +195,24 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
           </div>
 
           {/* Items Table */}
-          <table style={{ 
+          <table
+            className="print-table"
+            style={{
             width: '100%', 
             borderCollapse: 'collapse',
+            tableLayout: 'fixed',
             fontSize: '9pt'
           }}>
+            <colgroup>
+              <col style={{ width: '6%' }} />
+              <col style={{ width: '28%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '18%' }} />
+            </colgroup>
             <thead>
               <tr style={{ backgroundColor: '#f5f5f5' }}>
                 <th style={{ border: '1px solid #000', padding: '6px', width: '6%', fontWeight: 'bold' }}>Sr.</th>
@@ -252,7 +239,7 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 </tr>
               ))}
               {/* Empty rows for minimum display */}
-              {(saleReturn.items?.length || 0) < 8 && Array.from({ length: 8 - (saleReturn.items?.length || 0) }).map((_, index) => (
+              {(saleReturn.items?.length || 0) < 3 && Array.from({ length: 3 - (saleReturn.items?.length || 0) }).map((_, index) => (
                 <tr key={`empty-${index}`}>
                   <td style={{ border: '1px solid #000', padding: '5px', height: '20px' }}>&nbsp;</td>
                   <td style={{ border: '1px solid #000', padding: '5px' }}>&nbsp;</td>

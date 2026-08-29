@@ -37,6 +37,10 @@ import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
+import {
+  resolvePosCustomerName,
+  resolveWhatsAppCustomerName,
+} from "@/lib/posBilling/buildSaleData";
 
 interface CartItem {
   id: string;
@@ -868,7 +872,7 @@ export const useSaveSale = () => {
           sale_type: saleType,
           sale_date: saleDateIso,
           customer_id: saleData.customerId || null,
-          customer_name: saleData.customerName,
+          customer_name: resolvePosCustomerName(saleData.customerName),
           customer_phone: saleData.customerPhone || null,
           gross_amount: saleData.grossAmount,
           discount_amount: saleData.discountAmount,
@@ -1035,13 +1039,13 @@ export const useSaveSale = () => {
             const formattedAmount = `${Number(saleData.netAmount).toLocaleString('en-IN')}`;
 
             // Build message text (used as fallback if no template)
-            const messageText = `Hello ${saleData.customerName},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
+            const messageText = `Hello ${resolveWhatsAppCustomerName(saleData.customerName)},\n\nYour invoice ${saleNumber} has been created.\nAmount: ₹${formattedAmount}\nDate: ${formattedDate}\n\nThank you for your business!\n${companyName}`;
 
             // Build saleData object for dynamic parameter building in edge function
             const saleDataForWhatsApp = {
               sale_id: sale.id,
               org_slug: currentOrganization.slug,
-              customer_name: saleData.customerName,
+              customer_name: resolveWhatsAppCustomerName(saleData.customerName),
               sale_number: saleNumber,
               sale_date: sale.sale_date,
               net_amount: saleData.netAmount,
@@ -1086,7 +1090,7 @@ export const useSaveSale = () => {
                   const pdfData: InvoicePdfData = {
                     billNo: saleNumber,
                     billDate: new Date(sale.sale_date || sale.created_at || Date.now()),
-                    customerName: saleData.customerName,
+                    customerName: resolvePosCustomerName(saleData.customerName),
                     customerPhone: saleData.customerPhone || undefined,
                     items: saleData.items.map(item => ({
                       particulars: item.productName,
@@ -1213,7 +1217,7 @@ export const useSaveSale = () => {
                 const pdfData: InvoicePdfData = {
                   billNo: saleNumber,
                   billDate: new Date(sale.sale_date || sale.created_at || Date.now()),
-                  customerName: saleData.customerName,
+                  customerName: resolvePosCustomerName(saleData.customerName),
                   customerPhone: saleData.customerPhone || undefined,
                   items: saleData.items.map(item => ({
                     particulars: item.productName,
@@ -1694,7 +1698,7 @@ export const useSaveSale = () => {
         .from('sales')
         .update({
           customer_id: saleData.customerId || null,
-          customer_name: saleData.customerName,
+          customer_name: resolvePosCustomerName(saleData.customerName),
           customer_phone: saleData.customerPhone || null,
           gross_amount: saleData.grossAmount,
           discount_amount: saleData.discountAmount,
@@ -1931,7 +1935,7 @@ export const useSaveSale = () => {
         sale_number: saleNumber,
         sale_type: 'pos',
         customer_id: saleData.customerId || null,
-        customer_name: saleData.customerName,
+        customer_name: resolvePosCustomerName(saleData.customerName),
         customer_phone: saleData.customerPhone || null,
         gross_amount: saleData.grossAmount,
         discount_amount: saleData.discountAmount,
@@ -2167,7 +2171,7 @@ export const useSaveSale = () => {
           sale_number: newSaleNumber,
           sale_date: saleData.saleDate || saleDateIsoIst(),
           customer_id: saleData.customerId || null,
-          customer_name: saleData.customerName,
+          customer_name: resolvePosCustomerName(saleData.customerName),
           customer_phone: saleData.customerPhone || null,
           gross_amount: saleData.grossAmount,
           discount_amount: saleData.discountAmount,
