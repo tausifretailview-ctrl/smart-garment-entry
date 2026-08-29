@@ -9,7 +9,7 @@ const corsHeaders = {
 
 // Minimum retention we will ever act on. A caller-supplied 0 or negative value would put
 // the purge cutoff at (or after) "now", deleting every backup the org has ever taken.
-export const MIN_RETENTION_DAYS = 7;
+export const MIN_RETENTION_DAYS = 3;
 export const MAX_RETENTION_DAYS = 3650;
 
 /** Clamp an untrusted retention value into a safe range. Returns null if not a number. */
@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
         .select('backup_retention_days')
         .eq('organization_id', organizationId)
         .single();
-      retentionDays = clampRetentionDays((s as any)?.backup_retention_days) ?? 30;
+      retentionDays = clampRetentionDays((s as any)?.backup_retention_days) ?? 3;
     }
 
     // Get org name
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
     }).eq('organization_id', organizationId);
 
     // Retention purge (per-org, honors backup_retention_days)
-    const purgeResult = await purgeOldBackups(supabase, organizationId, retentionDays ?? 30);
+    const purgeResult = await purgeOldBackups(supabase, organizationId, retentionDays ?? 3);
 
     return new Response(
       JSON.stringify({

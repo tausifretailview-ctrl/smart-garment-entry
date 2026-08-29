@@ -36,6 +36,11 @@ describe("menuPermissions", () => {
     expect(getMenuPermissionForPath("/website")).toBe("website_settings");
   });
 
+  it("maps backup path to settings_view permission", () => {
+    expect(getMenuPermissionForPath("backup")).toBe("settings_view");
+    expect(getMenuPermissionForPath("/backup")).toBe("settings_view");
+  });
+
   it("enables website_settings by default when the key was never saved", () => {
     expect(
       isMenuPermissionGranted({ menu: { settings_view: true }, mainMenu: { settings: true } }, "website_settings"),

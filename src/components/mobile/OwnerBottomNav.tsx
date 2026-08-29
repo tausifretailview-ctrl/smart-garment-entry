@@ -51,6 +51,7 @@ const sideTabs: NavTab[] = [
       "/owner-purchases",
       "/owner-stock",
       "/settings",
+      "/backup",
       "/daily-cashier-report",
       "/gst-reports",
       "/customer-ledger-report",

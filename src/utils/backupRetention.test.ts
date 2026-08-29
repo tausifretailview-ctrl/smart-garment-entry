@@ -15,10 +15,13 @@ describe("normalizeBackupRetentionDays", () => {
 
   it("floors below the minimum", () => {
     expect(normalizeBackupRetentionDays(1)).toBe(MIN_BACKUP_RETENTION_DAYS);
-    expect(normalizeBackupRetentionDays(6)).toBe(MIN_BACKUP_RETENTION_DAYS);
+    expect(normalizeBackupRetentionDays(2)).toBe(MIN_BACKUP_RETENTION_DAYS);
   });
 
   it("keeps valid windows", () => {
+    expect(MIN_BACKUP_RETENTION_DAYS).toBe(3);
+    expect(DEFAULT_BACKUP_RETENTION_DAYS).toBe(3);
+    expect(normalizeBackupRetentionDays(3)).toBe(3);
     expect(normalizeBackupRetentionDays(7)).toBe(7);
     expect(normalizeBackupRetentionDays(30)).toBe(30);
     expect(normalizeBackupRetentionDays("90")).toBe(90);

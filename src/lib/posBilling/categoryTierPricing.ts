@@ -10,10 +10,27 @@ export type CategoryTierRule = {
   isActive?: boolean;
 };
 
+const PRICE_EPS = 0.005;
+
 export function normalizeCategoryKey(category: string | null | undefined): string {
   return String(category ?? "")
     .trim()
     .toLowerCase();
+}
+
+export function normalizeTierUnitPrice(price: number | null | undefined): number {
+  return Math.round((Number(price) || 0) * 100) / 100;
+}
+
+export function pricesMatchForTier(
+  a: number | null | undefined,
+  b: number | null | undefined,
+): boolean {
+  return Math.abs(normalizeTierUnitPrice(a) - normalizeTierUnitPrice(b)) < PRICE_EPS;
+}
+
+export function categoryTierRuleKey(category: string, singleUnitPrice: number): string {
+  return `${normalizeCategoryKey(category)}::${normalizeTierUnitPrice(singleUnitPrice).toFixed(2)}`;
 }
 
 /** Bill total for qty using bundle + remainder rule (e.g. 5 @ 4-for-999 + 1 single). */
@@ -55,40 +72,46 @@ export function allocateCategoryTierLineTotals(
   return out;
 }
 
-function buildActiveRuleMap(rules: CategoryTierRule[]): Map<string, CategoryTierRule> {
-  const map = new Map<string, CategoryTierRule>();
+function activeCategoryKeys(rules: CategoryTierRule[]): Set<string> {
+  const keys = new Set<string>();
   for (const rule of rules) {
     if (rule.isActive === false) continue;
     const key = normalizeCategoryKey(rule.category);
-    if (!key) continue;
-    map.set(key, rule);
+    if (key) keys.add(key);
   }
-  return map;
+  return keys;
 }
 
-/** Resolve which tier rule category key applies to a cart line. */
+function categoryKeySetFromMapOrSet(
+  categoryKeys: Map<string, unknown> | Set<string>,
+): Set<string> {
+  return categoryKeys instanceof Set ? categoryKeys : new Set(categoryKeys.keys());
+}
+
+/** Resolve which tier rule category key applies to a cart line (price is applied separately). */
 export function resolveCartItemCategoryKey(
   item: PosCartItem,
-  ruleMap: Map<string, CategoryTierRule>,
+  categoryKeys: Map<string, unknown> | Set<string>,
 ): string | null {
+  const keys = categoryKeySetFromMapOrSet(categoryKeys);
   const direct = normalizeCategoryKey(item.category);
-  if (direct && ruleMap.has(direct)) return direct;
+  if (direct && keys.has(direct)) return direct;
 
   const productName = String(item.productName ?? "").trim();
   if (productName) {
     const segments = productName.split("-").map((s) => s.trim()).filter(Boolean);
     for (const segment of segments.slice(1)) {
       const key = normalizeCategoryKey(segment);
-      if (key && ruleMap.has(key)) return key;
+      if (key && keys.has(key)) return key;
     }
-    for (const [key] of ruleMap) {
+    for (const key of keys) {
       if (productName.toLowerCase().includes(key)) return key;
     }
   }
 
   const baseName = String(item.baseProductName ?? "").trim();
   if (baseName) {
-    for (const [key] of ruleMap) {
+    for (const key of keys) {
       if (baseName.toLowerCase().includes(key)) return key;
     }
   }
@@ -97,32 +120,60 @@ export function resolveCartItemCategoryKey(
 }
 
 /**
- * Re-price cart lines under category tier rules.
- * Tier pricing wins over MRP-mode / brand line discounts on affected categories.
+ * Unit price used to match a rule. After a bundle apply, `unitCost` is the
+ * allocated rate — rematch must use the stored list price instead.
+ */
+export function cartLineUnitPriceForTier(item: PosCartItem): number {
+  const listed = Number(item.categoryTierListPrice);
+  if (item.categoryTierApplied && listed > PRICE_EPS) {
+    return listed;
+  }
+  return Number(item.unitCost) || 0;
+}
+
+export function findMatchingCategoryTierRule(
+  item: PosCartItem,
+  rules: CategoryTierRule[],
+): CategoryTierRule | null {
+  const categoryKey = resolveCartItemCategoryKey(item, activeCategoryKeys(rules));
+  if (!categoryKey) return null;
+  const price = cartLineUnitPriceForTier(item);
+  for (const rule of rules) {
+    if (rule.isActive === false) continue;
+    if (normalizeCategoryKey(rule.category) !== categoryKey) continue;
+    if (pricesMatchForTier(rule.singleUnitPrice, price)) return rule;
+  }
+  return null;
+}
+
+/**
+ * Re-price cart lines under category + unit-price tier rules.
+ * A ₹600 Track Pant never pools with a ₹300 Track Pant bundle.
+ * Tier pricing wins over MRP-mode / brand line discounts on matched lines.
  */
 export function applyCategoryTierPricingToCart(
   items: PosCartItem[],
   rules: CategoryTierRule[],
   garmentGstSettings: GarmentGstRuleSettings | null | undefined,
 ): PosCartItem[] {
-  const ruleMap = buildActiveRuleMap(rules);
-  if (ruleMap.size === 0) return items;
+  const activeRules = rules.filter((rule) => rule.isActive !== false);
+  if (activeRules.length === 0) return items;
 
-  const groups = new Map<string, number[]>();
+  const groups = new Map<string, { rule: CategoryTierRule; indices: number[] }>();
   items.forEach((item, index) => {
-    const key = resolveCartItemCategoryKey(item, ruleMap);
-    if (!key) return;
-    const list = groups.get(key) ?? [];
-    list.push(index);
-    groups.set(key, list);
+    const rule = findMatchingCategoryTierRule(item, activeRules);
+    if (!rule) return;
+    const key = categoryTierRuleKey(rule.category, rule.singleUnitPrice);
+    const group = groups.get(key);
+    if (group) group.indices.push(index);
+    else groups.set(key, { rule, indices: [index] });
   });
 
   if (groups.size === 0) return items;
 
   const next = items.map((item) => ({ ...item }));
 
-  for (const [categoryKey, indices] of groups) {
-    const rule = ruleMap.get(categoryKey)!;
+  for (const { rule, indices } of groups.values()) {
     const lineQtys = indices.map((i) => next[i].quantity);
     const totalQty = lineQtys.reduce((s, q) => s + q, 0);
     const categoryTotal = computeCategoryTierBillTotal(totalQty, rule);
@@ -132,6 +183,7 @@ export function applyCategoryTierPricingToCart(
       const item = next[itemIndex];
       const lineTotal = lineTotals[groupIndex];
       const perUnitNet = item.quantity > 0 ? lineTotal / item.quantity : 0;
+      const listPrice = cartLineUnitPriceForTier(item);
 
       const repriced: PosCartItem = {
         ...item,
@@ -141,6 +193,7 @@ export function applyCategoryTierPricingToCart(
         unitCost: perUnitNet,
         rateAuthority: "discount",
         categoryTierApplied: true,
+        categoryTierListPrice: listPrice,
         netAmount: lineTotal,
       };
       next[itemIndex] = applyPosGarmentGstToItem(

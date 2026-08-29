@@ -138,7 +138,9 @@ export async function fetchCategoryTierPricingRules(
   if (schemeId) {
     query = query.eq("scheme_id", schemeId);
   }
-  const { data, error } = await query.order("category", { ascending: true });
+  const { data, error } = await query
+    .order("category", { ascending: true })
+    .order("single_unit_price", { ascending: true });
   if (error) throw error;
   return ((data as CategoryTierPricingRow[]) ?? []).map(mapCategoryTierRow);
 }
@@ -211,6 +213,7 @@ export async function upsertCategoryTierPricingRule(params: {
     .eq("organization_id", params.organizationId)
     .eq("scheme_id", params.schemeId)
     .eq("category", params.category.trim())
+    .eq("single_unit_price", params.singleUnitPrice)
     .maybeSingle();
   if (findError) throw findError;
 

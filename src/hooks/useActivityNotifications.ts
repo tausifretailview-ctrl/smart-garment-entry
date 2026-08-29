@@ -196,7 +196,7 @@ export function useActivityNotifications(
           title: ev.title,
           subtitle: ev.subtitle,
           ctaLabel: ev.kind === "backup" ? "View backups →" : "View system health →",
-          path: ev.kind === "backup" ? "/settings" : "/admin/health",
+          path: ev.kind === "backup" ? "/backup" : "/admin/health",
           navigateState: ev.kind === "backup" ? { scrollTo: "backup" } : undefined,
           timestamp: ev.timestamp,
           unread: isCategoryUnread("system", ev.timestamp, readState),

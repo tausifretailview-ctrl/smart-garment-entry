@@ -5,7 +5,7 @@ import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, Building2, ShoppingCart, Receipt, CreditCard, BarChart2, Users, MessageSquare, MessageCircle, Database, Palette, FileText, Smartphone, History, Store } from "lucide-react";
+import { ArrowLeft, Home, Save, Eye, EyeOff, Shield, Printer, Package, Paintbrush, Copy, RefreshCw, CheckCircle2, Loader2, FileText, Smartphone, History, Settings as SettingsIcon, BarChart2 } from "lucide-react";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { SaleInvoiceFormatBackupDialog } from "@/components/settings/SaleInvoiceFormatBackupDialog";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
@@ -18,8 +18,14 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { STANDARD_SHEET_TYPE_OPTIONS } from "@/constants/standardSheetTypeOptions";
 import { useSettings } from "@/hooks/useSettings";
 import { BillTabSheetPresetOptions } from "@/components/settings/BillTabSheetPresetOptions";
-import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  SETTINGS_TAB_ITEMS,
+  SETTINGS_TAB_SUBTITLE,
+  coerceSettingsTab,
+} from "@/components/settings/settingsChrome";
+import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,15 +72,9 @@ const LazyWhatsAppTemplateSettings = lazyWithRetry(() =>
 const LazyWhatsAppAPISettings = lazyWithRetry(() =>
   import("@/components/WhatsAppAPISettings").then((m) => ({ default: m.WhatsAppAPISettings })),
 );
-const LazySMSTemplateSettings = lazyWithRetry(() =>
-  import("@/components/SMSTemplateSettings").then((m) => ({ default: m.SMSTemplateSettings })),
-);
 const LazyStockReconciliation = lazyWithRetry(() =>
   import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
 );
-const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings")) as unknown as React.ComponentType<
-  React.ComponentProps<typeof import("@/components/BackupSettings").default>
->;
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
@@ -220,7 +220,7 @@ interface SaleSettings {
   pos_numbering_format?: string;  // For POS billing POS-{YYYY}-{####}
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4' | 'thermal';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // kept for backward compat
-  pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
+  pos_bill_format?: 'a4' | 'a5' | 'a5-vertical' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
@@ -446,14 +446,10 @@ export default function Settings() {
       "settings",
     );
     if (merged?.scrollTo === "backup") {
-      setCurrentTab("backup");
-      setVisitedTabs((prev) => new Set([...prev, "backup"]));
       window.history.replaceState({}, document.title);
-      requestAnimationFrame(() => {
-        document.getElementById("settings-backup-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      navigate("/backup");
     }
-  }, [location.key, location.state, currentOrganization?.id]);
+  }, [location.key, location.state, currentOrganization?.id, navigate]);
 
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
@@ -467,7 +463,7 @@ export default function Settings() {
     sale_settings: {},
     bill_barcode_settings: {},
     report_settings: {},
-    auto_backup_enabled: false,
+    auto_backup_enabled: true,
     backup_email: "",
     backup_retention_days: DEFAULT_BACKUP_RETENTION_DAYS,
     last_auto_backup_at: null,
@@ -735,7 +731,7 @@ export default function Settings() {
       sale_settings: (settingsData.sale_settings as SaleSettings) || {},
       bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
       report_settings: (settingsData.report_settings as ReportSettings) || {},
-      auto_backup_enabled: settingsData.auto_backup_enabled || false,
+      auto_backup_enabled: settingsData.auto_backup_enabled !== false,
       backup_email: settingsData.backup_email || "",
       backup_retention_days: settingsData.backup_retention_days ?? DEFAULT_BACKUP_RETENTION_DAYS,
       last_auto_backup_at: settingsData.last_auto_backup_at ?? null,
@@ -1231,13 +1227,13 @@ export default function Settings() {
 
   return (
     <div className="settings-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
-      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-1.5">
-        <div className="flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-2 min-w-0">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Button
               variant="outline"
               size="sm"
-              className="h-9 px-3 text-sm shrink-0"
+              className="h-9 px-3 text-sm shrink-0 border-slate-200 bg-white"
               onClick={() => {
                 if (window.history.length > 1) window.history.back();
                 else navigate("/");
@@ -1249,13 +1245,19 @@ export default function Settings() {
             <Button
               variant="outline"
               size="sm"
-              className="h-9 w-9 p-0 shrink-0"
+              className="h-9 w-9 p-0 shrink-0 border-slate-200 bg-white"
               onClick={() => navigate("/")}
               title="Home"
             >
               <Home className="h-4 w-4" />
             </Button>
-            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none">Settings</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5 shrink-0" />
+                Settings
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">{SETTINGS_TAB_SUBTITLE}</p>
+            </div>
           </div>
           <Button
             size="sm"
@@ -1269,40 +1271,35 @@ export default function Settings() {
         </div>
 
         <Tabs
-          value={currentTab}
+          value={coerceSettingsTab(currentTab)}
           onValueChange={(value) => {
-            setCurrentTab(value);
-            setVisitedTabs((prev) => new Set([...prev, value]));
-            if (value === "pos") setInvoicePreviewChannel("pos");
-            if (value === "sale") setInvoicePreviewChannel("sale");
+            const next = coerceSettingsTab(value);
+            setCurrentTab(next);
+            setVisitedTabs((prev) => new Set([...prev, next]));
+            if (next === "pos") setInvoicePreviewChannel("pos");
+            if (next === "sale") setInvoicePreviewChannel("sale");
           }}
           className="settings-tabs w-full min-h-0"
         >
-          <TabsList className="settings-tablist">
-            <TabsTrigger value="company" className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5" /> Company</TabsTrigger>
-            <TabsTrigger value="product" className="flex items-center gap-1"><Package className="h-3.5 w-3.5" /> Product</TabsTrigger>
-            <TabsTrigger value="purchase" className="flex items-center gap-1"><ShoppingCart className="h-3.5 w-3.5" /> Purchase</TabsTrigger>
-            <TabsTrigger value="sale" className="flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> Sale</TabsTrigger>
-            <TabsTrigger value="pos" className="flex items-center gap-1"><Store className="h-3.5 w-3.5" /> POS</TabsTrigger>
-            <TabsTrigger value="bill" className="flex items-center gap-1"><Printer className="h-3.5 w-3.5" /> Bill & Barcode</TabsTrigger>
-            <TabsTrigger value="payment" className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5" /> Payment</TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-1"><BarChart2 className="h-3.5 w-3.5" /> Reports</TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> User Rights</TabsTrigger>
-            <TabsTrigger value="sms" className="flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" /> SMS</TabsTrigger>
-            <TabsTrigger value="whatsapp" className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</TabsTrigger>
-            <TabsTrigger value="backup" className="flex items-center gap-1"><Database className="h-3.5 w-3.5" /> Backup</TabsTrigger>
-            <TabsTrigger value="branding" className="flex items-center gap-1"><Palette className="h-3.5 w-3.5" /> Branding</TabsTrigger>
+          <TabsList className={SETTINGS_TAB_LIST_CLASS}>
+            {SETTINGS_TAB_ITEMS.map(({ id, label, icon: Icon }) => (
+              <TabsTrigger key={id} value={id} className={cn(SETTINGS_TAB_TRIGGER_CLASS, "flex items-center")}>
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="company">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Company Profile</CardTitle>
                 <CardDescription>
                   Manage your business information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Company profile">
                 <div className="space-y-2">
                   <Label htmlFor="business_name">Business Name</Label>
                   <Input
@@ -1375,19 +1372,21 @@ export default function Settings() {
                   />
                 </div>
                 <CompanyProfileBankAccounts />
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="branding">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Organization Branding</CardTitle>
                 <CardDescription>
                   Customize your organization's login page and brand identity
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Branding">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="org_logo">Organization Logo</Label>
@@ -1501,26 +1500,22 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
           </TabsContent>
 
-          <TabsContent value="sms">
-            <LazySettingsPanel>
-              <LazySMSTemplateSettings />
-            </LazySettingsPanel>
-          </TabsContent>
-
           <TabsContent value="product">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Product Settings</CardTitle>
                 <CardDescription>
                   Configure product-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Product details">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="default_margin">Default Profit Margin (%)</Label>
@@ -1704,11 +1699,12 @@ export default function Settings() {
                     </div>
                   ))}
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
             {/* Mobile ERP / IMEI Tracking Mode */}
-            <Card className="mt-4">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Smartphone className="h-5 w-5" />
@@ -1890,14 +1886,15 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="purchase">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Purchase Settings</CardTitle>
                 <CardDescription>
                   Configure purchase-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Purchase details">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms">Default Payment Terms</Label>
                   <Select
@@ -2388,6 +2385,7 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
             <div className="mt-4">
@@ -2400,63 +2398,15 @@ export default function Settings() {
           <TabsContent value="sale" className="mt-0">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
               {/* Settings Form */}
-              <Card className="h-fit">
+              <Card className="h-fit settings-panel-card">
                 <CardHeader>
                   <CardTitle>Sale Settings</CardTitle>
                   <CardDescription>
                     Configure sale-related preferences
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2.5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <Label htmlFor="default_discount_in_rupees" className="font-normal cursor-pointer">
-                      Default POS flat discount in rupees
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Off by default — the value below is a percentage. When enabled, it is a fixed ₹
-                      discount on new POS bills.
-                    </p>
-                  </div>
-                  <Switch
-                    id="default_discount_in_rupees"
-                    checked={settings.sale_settings?.default_discount_in_rupees === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          default_discount_in_rupees: checked,
-                        },
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="default_discount">
-                    Default Discount ({settings.sale_settings?.default_discount_in_rupees ? "₹" : "%"})
-                  </Label>
-                  <Input
-                    id="default_discount"
-                    type="number"
-                    min="0"
-                    max={settings.sale_settings?.default_discount_in_rupees ? undefined : 100}
-                    step="0.01"
-                    value={settings.sale_settings?.default_discount || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          default_discount: parseFloat(e.target.value) || 0,
-                        },
-                      })
-                    }
-                    placeholder={
-                      settings.sale_settings?.default_discount_in_rupees ? "e.g., 50" : "e.g., 5"
-                    }
-                  />
-                </div>
+                <CardContent className="space-y-3">
+                <SettingsSection title="Sale details">
                 <div className="space-y-2">
                     <Label htmlFor="default_tax_type">Default GST Type</Label>
                     <Select
@@ -2486,7 +2436,7 @@ export default function Settings() {
                     </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  POS GST, numbering, bill format, and cashier options are under Settings → POS.
+                  POS GST, numbering, default discount, cashier options, and bill format are under Settings → POS.
                 </p>
                 <div className="space-y-2">
                   <Label htmlFor="invoice_numbering_format">Sale Invoice Numbering Format</Label>
@@ -2661,158 +2611,6 @@ export default function Settings() {
 
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="space-y-0.5">
-fix/purchase-sold-qty-import
-=======
-                    <Label htmlFor="pos_allow_date_change" className="text-sm font-medium">
-                      Allow invoice date change in POS
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Show a date picker in the POS billing bar so cashiers can backdate an invoice. Invoice number sequence is unaffected.
-                    </p>
-                  </div>
-                  <Switch
-                    id="pos_allow_date_change"
-                    checked={(settings.sale_settings as any)?.pos_allow_date_change === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          pos_allow_date_change: checked,
-                        } as any,
-                      })
-                    }
-                />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="allow_pos_edit_unit_price" className="text-sm font-medium">
-                      Allow POS edit unit price
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      Let permitted users type Unit Price on the POS cart. Off by default. Admins/managers always allowed when on; cashiers need the Edit POS unit price special right.
-                    </p>
-                  </div>
-                  <Switch
-                    id="allow_pos_edit_unit_price"
-                    checked={(settings.sale_settings as any)?.allow_pos_edit_unit_price === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          allow_pos_edit_unit_price: checked,
-                        } as any,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="pos_quick_price_code" className="text-sm font-medium">
-                      POS quick price-code search (no-barcode shops)
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      When enabled, POS supports two fast-billing methods: type a price code like
-                      "J900" to add Jeans at ₹900 instantly (first letter(s) of product name or
-                      brand + price), or type a name like "Jeans" and pick from the dropdown
-                      (brand + price shown). Matches variant sale price, MRP, or product default
-                      selling price. Other organisations leave this off — normal POS search unchanged.
-                    </p>
-                  </div>
-                  <Switch
-                    id="pos_quick_price_code"
-                    checked={(settings.sale_settings as any)?.pos_quick_price_code === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          pos_quick_price_code: checked,
-                        } as any,
-                      })
-                    }
-                  />
-                </div>
-
-                <CategoryTierPricingSettings
-                  enabled={settings.sale_settings?.pos_category_tier_pricing === true}
-                  onEnabledChange={(checked) =>
-                    setSettings({
-                      ...settings,
-                      sale_settings: {
-                        ...settings.sale_settings,
-                        pos_category_tier_pricing: checked,
-                      },
-                    })
-                  }
-                />
-
-                <div className="flex items-center justify-between gap-4 pt-4 border-t">
-                  <div>
-                    <Label htmlFor="pos_goods_ask_qty_dialog" className="text-sm font-medium">
-                      POS goods qty / discount dialog (search dropdown)
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      When enabled, picking a regular product from the POS search dropdown opens a
-                      quick Quantity + Price + Discount (₹) dialog before adding to cart — faster
-                      for multi-qty sales. Barcode scans and service codes (1–9) are unchanged.
-                      Other organisations leave this off.
-                    </p>
-                  </div>
-                  <Switch
-                    id="pos_goods_ask_qty_dialog"
-                    checked={settings.sale_settings?.pos_goods_ask_qty_dialog === true}
-                    onCheckedChange={(checked) =>
-                      setSettings({
-                        ...settings,
-                        sale_settings: {
-                          ...settings.sale_settings,
-                          pos_goods_ask_qty_dialog: checked,
-                        },
-                      })
-                    }
-                  />
-                </div>
-
-                {(settings.sale_settings as any)?.allow_pos_edit_unit_price === true && (
-                  <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="pos_unit_price_override_confirm_pct" className="text-sm font-medium">
-                        Confirm when unit price is below MRP by (%)
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Show a confirmation dialog when the typed unit price is more than this percent below MRP. Default 30.
-                      </p>
-                    </div>
-                    <Input
-                      id="pos_unit_price_override_confirm_pct"
-                      type="number"
-                      min={1}
-                      max={99}
-                      step={1}
-                      className="w-20 h-9 text-right"
-                      value={(settings.sale_settings as any)?.pos_unit_price_override_confirm_pct ?? 30}
-                      onChange={(e) => {
-                        const raw = parseFloat(e.target.value);
-                        const pct = Number.isFinite(raw) ? Math.min(99, Math.max(1, Math.round(raw))) : 30;
-                        setSettings({
-                          ...settings,
-                          sale_settings: {
-                            ...settings.sale_settings,
-                            pos_unit_price_override_confirm_pct: pct,
-                          } as any,
-                        });
-                      }}
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="space-y-0.5">
- main
                     <Label htmlFor="auto_apply_advance" className="text-sm font-medium">
                       Auto-Apply Advance Balance
                     </Label>
@@ -4747,6 +4545,7 @@ fix/purchase-sold-qty-import
                     </div>
                   )}
                 </div>
+                </SettingsSection>
                 </CardContent>
               </Card>
               
@@ -4783,14 +4582,15 @@ fix/purchase-sold-qty-import
             <LazySettingsPanel>
               <LazyDesktopPrintSettings />
             </LazySettingsPanel>
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Bill & Barcode Settings</CardTitle>
                 <CardDescription>
                   Configure billing and barcode preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Bill & barcode">
                 <div className="space-y-2">
                   <Label htmlFor="upi_id">UPI ID</Label>
                   <Input
@@ -6066,29 +5866,32 @@ fix/purchase-sold-qty-import
                     <LazyChequeFormatManagement />
                   </LazySettingsPanel>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="reports">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Report Settings</CardTitle>
                 <CardDescription>
                   Configure report preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Reports">
                 <div className="text-center py-8 text-muted-foreground">
                   <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
                   <p className="font-medium">Report column customization coming soon</p>
                   <p className="text-xs mt-1">Use the Stock Adjustment and Reconciliation tools below</p>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
             {/* Stock Adjustment Tool */}
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Stock Adjustment Tool</CardTitle>
                 <CardDescription>
@@ -6113,7 +5916,7 @@ fix/purchase-sold-qty-import
               </LazySettingsPanel>
             </div>
 
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Stock Reconciliation Report</CardTitle>
                 <CardDescription>
@@ -6128,7 +5931,7 @@ fix/purchase-sold-qty-import
             </Card>
 
             {/* Customer Balance Reconciliation */}
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Customer Balance Reconciliation</CardTitle>
                 <CardDescription>
@@ -6144,14 +5947,15 @@ fix/purchase-sold-qty-import
           </TabsContent>
 
           <TabsContent value="users">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>User Rights Management</CardTitle>
                 <CardDescription>
                   Manage user roles and configure granular permissions
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3">
+                <SettingsSection title="User rights">
                 <div className="border rounded-lg p-4 bg-muted/50">
                   <h3 className="font-medium mb-2">Configure User Permissions</h3>
                   <p className="text-sm text-muted-foreground mb-4">
@@ -6168,44 +5972,36 @@ fix/purchase-sold-qty-import
                 <LazySettingsPanel>
                   <LazyUserManagement />
                 </LazySettingsPanel>
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="whatsapp">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>WhatsApp Integration</CardTitle>
                 <CardDescription>
                   Configure WhatsApp Business API and message templates
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <LazySettingsPanel>
-                  <LazyWhatsAppAPISettings />
-                </LazySettingsPanel>
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Message Templates</h3>
-                  <LazySettingsPanel>
-                    <LazyWhatsAppTemplateSettings />
-                  </LazySettingsPanel>
-                </div>
+              <CardContent className="space-y-3">
+                <SettingsSection title="WhatsApp API">
+                  <div className="px-3 py-2.5">
+                    <LazySettingsPanel>
+                      <LazyWhatsAppAPISettings />
+                    </LazySettingsPanel>
+                  </div>
+                </SettingsSection>
+                <SettingsSection title="Message templates">
+                  <div className="px-3 py-2.5">
+                    <LazySettingsPanel>
+                      <LazyWhatsAppTemplateSettings />
+                    </LazySettingsPanel>
+                  </div>
+                </SettingsSection>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="backup" id="settings-backup-panel">
-            <LazySettingsPanel>
-              <LazyBackupSettings
-                autoBackupEnabled={settings.auto_backup_enabled}
-                backupEmail={settings.backup_email}
-                backupRetentionDays={settings.backup_retention_days}
-                lastAutoBackupAt={settings.last_auto_backup_at}
-                onAutoBackupEnabledChange={(enabled) =>
-                  setSettings((prev) => ({ ...prev, auto_backup_enabled: enabled }))
-                }
-              />
-            </LazySettingsPanel>
           </TabsContent>
 
           <TabsContent value="payment">

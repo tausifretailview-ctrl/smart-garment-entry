@@ -51,6 +51,7 @@ import {
   upsertCategoryTierPricingRule,
   type DiscountSchemeRow,
 } from "@/lib/discountSchemeDb";
+import { normalizeCategoryKey, pricesMatchForTier } from "@/lib/posBilling/categoryTierPricing";
 
 type RuleForm = {
   id?: string;
@@ -228,6 +229,15 @@ function DiscountSchemeDashboardPage() {
     if (!orgId || !effectiveSchemeId) return;
     try {
       const parsed = parseRuleForm(ruleForm);
+      const duplicate = rules.find(
+        (rule) =>
+          rule.id !== ruleForm.id &&
+          normalizeCategoryKey(rule.category) === normalizeCategoryKey(parsed.category) &&
+          pricesMatchForTier(rule.singleUnitPrice, parsed.singleUnitPrice),
+      );
+      if (duplicate) {
+        throw new Error("A rule already exists for this category at this unit price");
+      }
       await upsertCategoryTierPricingRule({
         organizationId: orgId,
         schemeId: effectiveSchemeId,
@@ -287,6 +297,7 @@ function DiscountSchemeDashboardPage() {
   };
 
   return (
+    fix/purchase-sold-qty-import
     <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
         <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
@@ -327,8 +338,27 @@ function DiscountSchemeDashboardPage() {
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
+=======
+    <div className="container max-w-6xl py-6 space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Percent className="h-6 w-6 text-primary" />
+            Discount Scheme
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Category + unit-price bundle pricing for POS (e.g. Track Pants @ ₹300 → 4 for ₹1000).
+            A different price in the same category is a separate product line. Manage rules
+            here; enable on POS from the toggle below or{" "}
+            <Link to={getOrgPath("/settings")} className="text-primary underline-offset-2 hover:underline">
+              Settings → Sale
+            </Link>
+            .
+          </p>
+ main
         </div>
 
+ fix/purchase-sold-qty-import
         <div className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100">
             <div className="min-w-0 mr-auto">
@@ -351,6 +381,18 @@ function DiscountSchemeDashboardPage() {
             )}
           </div>
           <div className="flex flex-wrap items-center gap-3 px-3 py-3">
+=======
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">POS application</CardTitle>
+          <CardDescription>
+            When enabled, POS sums quantity per category and matching unit price, then applies
+            the active scheme&apos;s rules. Unmatched prices bill at their own rate.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3"
+            main
             <Switch
               checked={posEnabled}
               disabled={savingPosToggle}
@@ -383,6 +425,7 @@ function DiscountSchemeDashboardPage() {
                         ? "border-teal-600 bg-teal-50"
                         : "border-slate-200 hover:bg-slate-50",
                     )}
+                    fix/purchase-sold-qty-import
                   >
                     <div className="font-semibold text-slate-800 flex items-center gap-2">
                       {scheme.name}
@@ -441,6 +484,77 @@ function DiscountSchemeDashboardPage() {
                     onChange={(e) => setNewSchemeName(e.target.value)}
                     className="h-8 text-sm"
                   />
+=======
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {activeSchemeId === scheme.id || (scheme.is_default && !activeSchemeId)
+                      ? "Active on POS"
+                      : "Set active"}
+                  </div>
+                  {effectiveSchemeId === scheme.id && activeSchemeId !== scheme.id && !scheme.is_default && (
+                    <Button
+                      size="sm"
+                      variant="link"
+                      className="h-auto p-0 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleSetActiveScheme(scheme);
+                      }}
+                    >
+                      Use on POS
+                    </Button>
+                  )}
+                  {effectiveSchemeId !== scheme.id && (
+                    <Button
+                      size="sm"
+                      variant="link"
+                      className="h-auto p-0 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleSetActiveScheme(scheme);
+                      }}
+                    >
+                      Set active on POS
+                    </Button>
+                  )}
+                </button>
+              ))
+            )}
+            <div className="flex gap-2 pt-2 border-t">
+              <Input
+                placeholder="New scheme name"
+                value={newSchemeName}
+                onChange={(e) => setNewSchemeName(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <Button size="sm" variant="secondary" onClick={() => void addScheme()} disabled={!newSchemeName.trim()}>
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Tabs defaultValue="rules" className="min-w-0">
+          <TabsList>
+            <TabsTrigger value="rules">Category rules</TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="h-4 w-4 mr-1" />
+              History
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="rules" className="mt-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <div>
+                  <CardTitle className="text-base">
+                    {activeScheme?.name ?? "Rules"}
+                  </CardTitle>
+                  <CardDescription>
+                    Each rule is category + single unit price. Same category at ₹300 and ₹600
+                    are two rules. Example: Track Pants @ ₹300 — 4 for ₹1000.
+                  </CardDescription>
+main
                 </div>
                 <Button
                   size="sm"
@@ -584,7 +698,7 @@ function DiscountSchemeDashboardPage() {
       <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{ruleForm.id ? "Edit category rule" : "Add category rule"}</DialogTitle>
+            <DialogTitle>{ruleForm.id ? "Edit price-point rule" : "Add price-point rule"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div>

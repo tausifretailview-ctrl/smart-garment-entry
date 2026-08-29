@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode } from "react";
+import { Suspense, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -76,9 +76,9 @@ type SettingsLike = {
   bill_barcode_settings?: { direct_print_pos_paper?: string };
 };
 
-type SettingsInvoicePreviewProps = {
-  settings: SettingsLike;
-  setSettings: (next: SettingsLike) => void;
+type SettingsInvoicePreviewProps<T extends SettingsLike> = {
+  settings: T;
+  setSettings: Dispatch<SetStateAction<T>>;
   invoicePreviewChannel: SettingsInvoicePreviewChannel;
   setInvoicePreviewChannel: (ch: SettingsInvoicePreviewChannel) => void;
   sampleInvoiceData: SettingsInvoicePreviewSample;
@@ -94,14 +94,14 @@ function LazyPanel({ children }: { children: ReactNode }) {
 }
 
 /** Shared Sale/POS live preview — writes the same paper-format keys as Settings → Sale/POS. */
-export function SettingsInvoicePreview({
+export function SettingsInvoicePreview<T extends SettingsLike>({
   settings,
   setSettings,
   invoicePreviewChannel,
   setInvoicePreviewChannel,
   sampleInvoiceData,
   showChannelSwitch = true,
-}: SettingsInvoicePreviewProps) {
+}: SettingsInvoicePreviewProps<T>) {
   const sale = settings.sale_settings;
   const previewTemplate =
     invoicePreviewChannel === "pos"
@@ -135,23 +135,29 @@ export function SettingsInvoicePreview({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <CardTitle className="text-sm">Live Invoice Preview</CardTitle>
+              <CardTitle className="text-sm flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Live Invoice Preview
+              </CardTitle>
               <CardDescription className="text-[11px] mt-0.5">
                 {invoicePreviewChannel === "pos" ? "POS bill design" : "Sale invoice design"} — updates as you change
                 settings
               </CardDescription>
             </div>
             {showChannelSwitch ? (
-              <div className="flex gap-1 shrink-0 rounded-md border p-0.5 bg-muted/40">
+              <div className="flex gap-1 shrink-0 rounded-md border border-slate-200 p-0.5 bg-white">
                 {(["sale", "pos"] as const).map((ch) => (
                   <button
                     key={ch}
                     type="button"
                     onClick={() => setInvoicePreviewChannel(ch)}
-                    className={`px-2.5 py-1 text-[10px] font-semibold rounded transition-colors ${
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded transition-colors duration-200 ${
                       invoicePreviewChannel === ch
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
+                        ? "bg-slate-700 text-white shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
                     }`}
                   >
                     {ch === "sale" ? "Sale" : "POS"}
@@ -167,30 +173,30 @@ export function SettingsInvoicePreview({
                 type="button"
                 onClick={() => {
                   if (invoicePreviewChannel === "pos") {
-                    setSettings({
-                      ...settings,
+                    setSettings((prev) => ({
+                      ...prev,
                       sale_settings: {
-                        ...settings.sale_settings,
+                        ...prev.sale_settings,
                         pos_bill_format: fmt,
                       },
-                    });
+                    }));
                   } else {
-                    setSettings({
-                      ...settings,
+                    setSettings((prev) => ({
+                      ...prev,
                       sale_settings: {
-                        ...settings.sale_settings,
+                        ...prev.sale_settings,
                         invoice_paper_format: fmt,
                         sales_bill_format:
                           fmt === "thermal" ? "thermal" : fmt === "a5-vertical" ? "a5" : "a4",
                       },
-                    });
+                    }));
                   }
                 }}
-                className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors
+                className={`px-2 py-1 text-[10px] font-semibold rounded border transition-colors duration-200
                   ${
                     previewPaper === fmt
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-background text-muted-foreground border-border hover:border-primary"
+                      ? "bg-slate-700 text-white border-slate-700"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"
                   }`}
               >
                 {fmt === "a5-vertical"

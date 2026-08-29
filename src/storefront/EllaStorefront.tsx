@@ -83,6 +83,10 @@ export function EllaStorefront({
         shopName={shopName}
         orgSlug={orgSlug}
         whatsapp={shop.whatsapp_number}
+        logoUrl={shop.logo_url}
+        address={shop.address}
+        instagramUrl={shop.instagram_url}
+        facebookUrl={shop.facebook_url}
         products={ellaProducts}
         cartCount={cartCount}
         onOpenProduct={openProduct}

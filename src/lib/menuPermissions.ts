@@ -59,6 +59,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "delivery-challan-dashboard": "delivery_challan_dashboard",
   settings: "settings_view",
   website: "website_settings",
+  backup: "settings_view",
   "barcode-printing": "barcode_printing",
   "stock-adjustment": "stock_adjustment",
   "stock-settlement": "stock_settlement",

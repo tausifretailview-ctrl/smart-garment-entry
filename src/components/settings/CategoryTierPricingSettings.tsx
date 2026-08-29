@@ -10,20 +10,21 @@ type Props = {
   onEnabledChange: (enabled: boolean) => void;
 };
 
-/** Sale-tab opt-in only — manage rules on Discount Scheme dashboard. */
+/** POS-tab opt-in — manage rules on Discount Scheme dashboard. */
 export function CategoryTierPricingSettings({ enabled, onEnabledChange }: Props) {
   const { getOrgPath } = useOrgNavigation();
 
   return (
-    <div className="space-y-3 pt-4 border-t">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-4">
         <div>
           <Label htmlFor="pos_category_tier_pricing" className="text-sm font-medium">
             Discount Scheme (category quantity tiers)
           </Label>
           <p className="text-xs text-muted-foreground mt-1">
-            When enabled, POS sums quantity per category and applies bundle pricing from your
-            active scheme. Configure category rules on the Discount Scheme page (Sales menu).
+            When enabled, POS sums quantity per category and matching unit price, then applies
+            bundle pricing from your active scheme. A ₹600 item never joins a ₹300 bundle in
+            the same category. Configure rules on the Discount Scheme page (Sales menu).
           </p>
         </div>
         <Switch

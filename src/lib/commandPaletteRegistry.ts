@@ -17,6 +17,7 @@ import {
   Truck,
   Grid3X3,
   Banknote,
+  Database,
 } from "lucide-react";
 
 export type CommandPaletteGroup = "Actions" | "Go to";
@@ -253,6 +254,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     path: "/website",
     permission: "website_settings",
     keywords: ["store", "storefront", "catalogue", "enquiry"],
+  },
+  {
+    id: "nav-backup",
+    group: "Go to",
+    label: "Backup",
+    subtitle: "Daily cloud backup and history",
+    icon: Database,
+    path: "/backup",
+    permission: "settings_view",
+    keywords: ["backup", "restore", "cloud", "export"],
   },
 ];
 

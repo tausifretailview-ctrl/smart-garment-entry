@@ -137,6 +137,14 @@ import {
 import { useShopName } from "@/hooks/useShopName";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { logError } from "@/lib/errorLogger";
+import {
+  formatPaidInvoiceLineEditWarning,
+  hydrateSaleItemDiscountFields,
+  recordedInvoiceReceiptAmount,
+  resolveFlatDiscountFromSale,
+  saleItemDiscountPercentForPersist,
+  saleLineFingerprint,
+} from "@/utils/salesInvoiceDiscountRestore";
 
 interface LineItem {
   id: string;
@@ -260,55 +268,6 @@ const customerSchema = z.object({
   gst_number: z.string().trim().max(15).optional(),
   transport_details: z.string().trim().max(200).optional().or(z.literal("")),
 });
-
-/** Restore flat discount when opening a saved invoice (legacy rows may only have discount in discount_amount). */
-function resolveFlatDiscountFromSale(
-  invoice: {
-    gross_amount?: number | null;
-    net_amount?: number | null;
-    discount_amount?: number | null;
-    flat_discount_amount?: number | null;
-    flat_discount_percent?: number | null;
-    other_charges?: number | null;
-    round_off?: number | null;
-    points_redeemed_amount?: number | null;
-  },
-  saleItems: Array<{
-    unit_price?: number | null;
-    quantity?: number | null;
-    discount_percent?: number | null;
-    discount_amount?: number | null;
-    line_total?: number | null;
-  }>,
-): { percent: number; rupees: number } {
-  const percent = Number(invoice.flat_discount_percent || 0);
-  const rupees = Number(invoice.flat_discount_amount || 0);
-  if (rupees > 0.005 || percent > 0.005) {
-    return { percent, rupees };
-  }
-
-  const lineDisc = saleItems.reduce((sum, item) => {
-    const lt = Number(item.line_total ?? 0);
-    const base = Number(item.unit_price || 0) * Number(item.quantity || 0);
-    if (lt > 0 && base > 0) {
-      return sum + Math.max(0, base - lt);
-    }
-    const itemDiscAmt = Number(item.discount_amount || 0);
-    if (itemDiscAmt > 0) return sum + itemDiscAmt;
-    return sum + (base * Number(item.discount_percent || 0)) / 100;
-  }, 0);
-
-  const headerDisc = Number(invoice.discount_amount || 0);
-  const orphanHeader = Math.max(0, headerDisc - lineDisc);
-  const gross = Number(invoice.gross_amount || 0);
-  const net = Number(invoice.net_amount || 0);
-  const other = Number(invoice.other_charges || 0);
-  const round = Number(invoice.round_off || 0);
-  const points = Number(invoice.points_redeemed_amount || 0);
-  const implied = Math.max(0, gross - lineDisc - net + other - round - points);
-  const flatRupees = orphanHeader > 0.005 ? orphanHeader : implied;
-  return { percent: 0, rupees: Math.round(flatRupees * 100) / 100 };
-}
 
 function applyFlatDiscountFromInvoice(
   invoice: Parameters<typeof resolveFlatDiscountFromSale>[0],
@@ -514,6 +473,42 @@ export default function SalesInvoice() {
   const isInitializingEditRef = useRef(false);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
+  const [recordedReceiptAmount, setRecordedReceiptAmount] = useState(0);
+  const [originalNetAmount, setOriginalNetAmount] = useState(0);
+  const [showPaidLineEditDialog, setShowPaidLineEditDialog] = useState(false);
+  const paidLineEditAcknowledgedRef = useRef(false);
+  const pendingPaidLineEditRef = useRef<(() => void) | null>(null);
+
+  const capturePaidInvoiceGuard = useCallback((invoice: {
+    paid_amount?: number | null;
+    credit_applied?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+    net_amount?: number | null;
+  }) => {
+    paidLineEditAcknowledgedRef.current = false;
+    pendingPaidLineEditRef.current = null;
+    setRecordedReceiptAmount(recordedInvoiceReceiptAmount(invoice));
+    setOriginalNetAmount(Number(invoice.net_amount) || 0);
+  }, []);
+
+  const resetPaidInvoiceGuard = useCallback(() => {
+    paidLineEditAcknowledgedRef.current = false;
+    pendingPaidLineEditRef.current = null;
+    setRecordedReceiptAmount(0);
+    setOriginalNetAmount(0);
+    setShowPaidLineEditDialog(false);
+  }, []);
+
+  const requestPaidInvoiceLineEdit = useCallback((proceed: () => void) => {
+    if (!editingInvoiceId || recordedReceiptAmount <= 0.005 || paidLineEditAcknowledgedRef.current) {
+      proceed();
+      return;
+    }
+    pendingPaidLineEditRef.current = proceed;
+    setShowPaidLineEditDialog(true);
+  }, [editingInvoiceId, recordedReceiptAmount]);
 
   const blockSettlementLockedVariant = useCallback(
     (
@@ -1209,6 +1204,7 @@ export default function SalesInvoice() {
       setShippingAddress(invoiceData.shipping_address || "");
       setShippingInstructions(invoiceData.shipping_instructions || "");
       setSalesman(invoiceData.salesman || "");
+      capturePaidInvoiceGuard(invoiceData);
       applyFlatDiscountFromInvoice(
         invoiceData,
         invoiceData.sale_items || [],
@@ -1234,8 +1230,7 @@ export default function SalesInvoice() {
           quantity: item.quantity,
           mrp: item.mrp,
           salePrice: item.unit_price,
-          discountPercent: item.discount_percent,
-          discountAmount: 0,
+          ...hydrateSaleItemDiscountFields(item),
           gstPercent: item.gst_percent,
           lineTotal: item.line_total,
           hsnCode: item.hsn_code || '',
@@ -1321,8 +1316,7 @@ export default function SalesInvoice() {
               box: '',
               mrp: item.mrp,
               salePrice: item.unit_price,
-              discountPercent: item.discount_percent,
-              discountAmount: 0,
+              ...hydrateSaleItemDiscountFields(item),
               gstPercent: item.gst_percent,
               lineTotal: item.line_total,
               hsnCode: item.hsn_code || '',
@@ -1339,6 +1333,7 @@ export default function SalesInvoice() {
 
   // Recalculate all line items when tax type changes
   useEffect(() => {
+    if (isInitializingEditRef.current) return;
     if (lineItems.length > 0) {
       setLineItems(prevItems => prevItems.map(item => calculateLineTotal(item)));
     }
@@ -1349,6 +1344,9 @@ export default function SalesInvoice() {
   // and only when no brand-discount rows exist).
   useEffect(() => {
     if (isInitializingEditRef.current) return;
+    // Saved invoice lines keep their persisted discounts. New lines get brand %
+    // at add-time; auto-stamping here would wipe rupee line discounts (percent=0).
+    if (editingInvoiceId) return;
     if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
 
     let applied = false;
@@ -1383,6 +1381,7 @@ export default function SalesInvoice() {
       });
     }
   }, [
+    editingInvoiceId,
     brandDiscounts,
     hasBrandDiscounts,
     isBrandDiscountsLoading,
@@ -1704,6 +1703,13 @@ export default function SalesInvoice() {
   const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>) => {
     const product = sizeGridProduct;
     if (!product) return;
+    if (editingInvoiceId && recordedReceiptAmount > 0.005 && !paidLineEditAcknowledgedRef.current) {
+      pendingPaidLineEditRef.current = () => {
+        void handleSizeGridConfirm(items);
+      };
+      setShowPaidLineEditDialog(true);
+      return;
+    }
 
     // Build all new items first, then update state once
     let updatedItems = [...lineItems];
@@ -2055,6 +2061,13 @@ export default function SalesInvoice() {
     overridePrice?: { sale_price: number; mrp: number },
     options?: { skipSizeGrid?: boolean; quantity?: number; description?: string },
   ) => {
+    if (editingInvoiceId && recordedReceiptAmount > 0.005 && !paidLineEditAcknowledgedRef.current) {
+      pendingPaidLineEditRef.current = () => {
+        void addProductToInvoice(product, variant, overridePrice, options);
+      };
+      setShowPaidLineEditDialog(true);
+      return;
+    }
     // Block variants currently in an open Stock Settlement session.
     // In edit mode we still allow the variant if it was on the original invoice.
     if (
@@ -2406,6 +2419,7 @@ export default function SalesInvoice() {
       setShippingAddress(invoiceData.shipping_address || "");
       setShippingInstructions(invoiceData.shipping_instructions || "");
       setSalesman(invoiceData.salesman || "");
+      capturePaidInvoiceGuard(invoiceData);
       applyFlatDiscountFromInvoice(
         invoiceData,
         invoiceData.sale_items || [],
@@ -2431,8 +2445,7 @@ export default function SalesInvoice() {
           box: '',
           mrp: item.mrp || 0,
           salePrice: item.unit_price || 0,
-          discountPercent: item.discount_percent || 0,
-          discountAmount: item.discount_amount || 0,
+          ...hydrateSaleItemDiscountFields(item),
           gstPercent: item.gst_percent || 0,
           lineTotal: item.line_total || 0,
           hsnCode: item.hsn_code || '',
@@ -2526,7 +2539,7 @@ export default function SalesInvoice() {
       isInitializingEditRef.current = false;
       setIsLoadingNavInvoice(false);
     }
-  }, [currentOrganization?.id, toast, rebuildStagedQtyByVariantRef]);
+  }, [currentOrganization?.id, toast, rebuildStagedQtyByVariantRef, capturePaidInvoiceGuard]);
 
   const handleLastInvoice = useCallback(() => {
     if (!allInvoiceIds || allInvoiceIds.length === 0) return;
@@ -2621,11 +2634,13 @@ export default function SalesInvoice() {
       return;
     }
     
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? calculateLineTotal({ ...item, quantity }) : item
-    );
-    setLineItems(updatedItems);
-    syncStagedQtyForVariant(item.variantId, updatedItems);
+    requestPaidInvoiceLineEdit(() => {
+      const updatedItems = lineItems.map(item =>
+        item.id === id ? calculateLineTotal({ ...item, quantity }) : item
+      );
+      setLineItems(updatedItems);
+      syncStagedQtyForVariant(item.variantId, updatedItems);
+    });
   };
 
   // Qty field edit: allow the box to be cleared/retyped (e.g. remove "1", type "2").
@@ -2764,28 +2779,30 @@ export default function SalesInvoice() {
   };
 
   const removeItem = (id: string) => {
-    // Clear the row instead of removing it
-    const updatedItems = lineItems.map(item => 
-      item.id === id ? {
-        ...item,
-        productId: '',
-        variantId: '',
-        productName: '',
-        size: '',
-        barcode: '',
-        color: '',
-        quantity: 0,
-        mrp: 0,
-        salePrice: 0,
-        discountPercent: 0,
-        discountAmount: 0,
-        gstPercent: 0,
-        lineTotal: 0,
-        hsnCode: '',
-      } : item
-    );
-    setLineItems(updatedItems);
-    rebuildStagedQtyByVariantRef(updatedItems);
+    requestPaidInvoiceLineEdit(() => {
+      // Clear the row instead of removing it
+      const updatedItems = lineItems.map(item =>
+        item.id === id ? {
+          ...item,
+          productId: '',
+          variantId: '',
+          productName: '',
+          size: '',
+          barcode: '',
+          color: '',
+          quantity: 0,
+          mrp: 0,
+          salePrice: 0,
+          discountPercent: 0,
+          discountAmount: 0,
+          gstPercent: 0,
+          lineTotal: 0,
+          hsnCode: '',
+        } : item
+      );
+      setLineItems(updatedItems);
+      rebuildStagedQtyByVariantRef(updatedItems);
+    });
   };
 
   const filledLineItems = useMemo(
@@ -3122,6 +3139,27 @@ Thank you for choosing us!`;
       return;
     }
 
+    if (
+      editingInvoiceId &&
+      recordedReceiptAmount > 0.005 &&
+      !paidLineEditAcknowledgedRef.current
+    ) {
+      const currentFp = saleLineFingerprint(
+        filledItems.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+      );
+      const originalFp = saleLineFingerprint(originalItemsForEdit);
+      const netMoved = Math.abs(netAmount - originalNetAmount) > 0.5;
+      if (currentFp !== originalFp || netMoved) {
+        savingLockRef.current = false;
+        pendingPaidLineEditRef.current = () => {
+          paidLineEditAcknowledgedRef.current = true;
+          void handleSaveInvoice();
+        };
+        setShowPaidLineEditDialog(true);
+        return;
+      }
+    }
+
     if (!validateCartSettlementLocks(filledItems)) {
       savingLockRef.current = false;
       return;
@@ -3198,7 +3236,11 @@ Thank you for choosing us!`;
           quantity: item.quantity,
           unit_price: item.salePrice,
           mrp: item.mrp,
-          discount_percent: item.discountPercent,
+          discount_percent: saleItemDiscountPercentForPersist(
+            item.salePrice * getMtrMultiplier(item),
+            item.discountPercent,
+            item.discountAmount,
+          ),
           gst_percent: item.gstPercent,
           line_total: item.lineTotal,
           hsn_code: item.hsnCode || null,
@@ -3277,6 +3319,13 @@ Thank you for choosing us!`;
           .single();
 
         if (updatedSale) {
+          if (Math.abs(Number(updatedSale.net_amount || 0) - netAmount) > 1) {
+            toast({
+              variant: "destructive",
+              title: "Invoice total changed after save",
+              description: `Saved ₹${netAmount.toLocaleString("en-IN")} but the database now shows ₹${Math.round(Number(updatedSale.net_amount) || 0).toLocaleString("en-IN")}. A server recompute may have dropped the header discount.`,
+            });
+          }
           const totalSettled = (updatedSale.paid_amount || 0) + (updatedSale.sale_return_adjust || 0);
           const correctStatus = totalSettled >= updatedSale.net_amount - 1
             ? 'completed'
@@ -3399,7 +3448,11 @@ Thank you for choosing us!`;
           quantity: item.quantity,
           unit_price: item.salePrice,
           mrp: item.mrp,
-          discount_percent: item.discountPercent,
+          discount_percent: saleItemDiscountPercentForPersist(
+            item.salePrice * getMtrMultiplier(item),
+            item.discountPercent,
+            item.discountAmount,
+          ),
           gst_percent: item.gstPercent,
           line_total: item.lineTotal,
           hsn_code: item.hsnCode || null,
@@ -3595,6 +3648,7 @@ Thank you for choosing us!`;
         setIsManualRoundOff(false);
         setEditingInvoiceId(null);
         setOriginalItemsForEdit([]);
+        resetPaidInvoiceGuard();
         setPaymentOverride(null);
 
         // Now show print dialog with saved data
@@ -3702,6 +3756,7 @@ Thank you for choosing us!`;
     if (editingInvoiceId) {
       setEditingInvoiceId(null);
       setOriginalItemsForEdit([]);
+      resetPaidInvoiceGuard();
       navigate('/sales-invoice-dashboard', { state: { refreshSalesList: true } });
     }
     
@@ -3770,6 +3825,48 @@ Thank you for choosing us!`;
       : grossAmount;
 
   const isMobile = useIsMobile();
+
+  const paidLineEditDialog = (
+    <AlertDialog
+      open={showPaidLineEditDialog}
+      onOpenChange={(open) => {
+        if (!open) {
+          pendingPaidLineEditRef.current = null;
+          setShowPaidLineEditDialog(false);
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Invoice already has payment</AlertDialogTitle>
+          <AlertDialogDescription>
+            {formatPaidInvoiceLineEditWarning(recordedReceiptAmount)}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => {
+              pendingPaidLineEditRef.current = null;
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={(e) => {
+              e.preventDefault();
+              paidLineEditAcknowledgedRef.current = true;
+              const proceed = pendingPaidLineEditRef.current;
+              pendingPaidLineEditRef.current = null;
+              setShowPaidLineEditDialog(false);
+              proceed?.();
+            }}
+          >
+            Continue
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.productId !== '');
@@ -3985,6 +4082,7 @@ Thank you for choosing us!`;
             </Form>
           </DialogContent>
         </Dialog>
+        {paidLineEditDialog}
         <AlertDialog
           open={showPrintDialog}
           onOpenChange={(open) => {
@@ -4116,6 +4214,7 @@ Thank you for choosing us!`;
                 setShippingInstructions("");
                 setEditingInvoiceId(null);
                 setOriginalItemsForEdit([]);
+                resetPaidInvoiceGuard();
                 setSavedInvoiceData(null);
                 setFlatDiscountPercent(0);
                 setFlatDiscountRupees(0);
@@ -5476,6 +5575,8 @@ Thank you for choosing us!`;
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {paidLineEditDialog}
 
       {/* Print Confirmation Dialog */}
       <AlertDialog
