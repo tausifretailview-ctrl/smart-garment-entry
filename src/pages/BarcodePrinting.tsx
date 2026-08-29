@@ -100,6 +100,13 @@ import {
   type UserPrintModeLock,
 } from "@/utils/precisionPrintModeLock";
 import {
+  decidePrecisionAutoload,
+  markPrecisionAutoload,
+  nextBarcodeLoadAllMountSeq,
+  normalizePrecisionPresetName,
+  precisionAutoloadSettingsAlreadyInPlace,
+} from "@/utils/precisionPresetAutoloadGuard";
+import {
   precisionLabelDesignHasUnsavedChanges,
   snapshotPrecisionDesign,
   syncBaselineLabelConfig,
@@ -1523,6 +1530,8 @@ export default function BarcodePrinting() {
     labelConfig: null as any,
     thermalCols: 1,
   });
+  const precisionSettingsRef = useRef(precisionSettings);
+  precisionSettingsRef.current = precisionSettings;
   const [footwearDesign, setFootwearDesign] = useState<FootwearFormDesign>(() =>
     resolveFootwearFormDesign(null),
   );
@@ -1569,9 +1578,23 @@ export default function BarcodePrinting() {
   /** From bill_barcode_settings — not overwritten when user toggles tabs */
   const [precisionProEnabledFromSettings, setPrecisionProEnabledFromSettings] = useState(false);
   const [activePrecisionTemplateName, setActivePrecisionTemplateNameRaw] = useState<string | null>(null);
+  const activePrecisionTemplateNameRef = useRef<string | null>(activePrecisionTemplateName);
+  useEffect(() => {
+    activePrecisionTemplateNameRef.current = activePrecisionTemplateName;
+  }, [activePrecisionTemplateName]);
   const setActivePrecisionTemplateName = useCallback((name: string | null) => {
+    activePrecisionTemplateNameRef.current = name;
     setActivePrecisionTemplateNameRaw(name);
     if (!currentOrganization?.id) return;
+    if (name) {
+      try {
+        markPrecisionAutoload({
+          orgId: currentOrganization.id,
+          presetName: name,
+          storage: typeof sessionStorage !== "undefined" ? sessionStorage : null,
+        });
+      } catch {}
+    }
     try {
       const key = precisionPresetStorageKey(currentOrganization.id);
       if (name) localStorage.setItem(key, name);
@@ -2146,11 +2169,21 @@ export default function BarcodePrinting() {
     settingsOrgLoadedRef.current = null;
     setSettingsLoading(true);
     setActivePrecisionTemplateNameRaw(null);
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id) {
+      activePrecisionTemplateNameRef.current = null;
+      return;
+    }
     try {
       const saved = localStorage.getItem(precisionPresetStorageKey(currentOrganization.id));
-      if (saved) setActivePrecisionTemplateNameRaw(saved);
-    } catch {}
+      if (saved) {
+        activePrecisionTemplateNameRef.current = saved;
+        setActivePrecisionTemplateNameRaw(saved);
+      } else {
+        activePrecisionTemplateNameRef.current = null;
+      }
+    } catch {
+      activePrecisionTemplateNameRef.current = null;
+    }
   }, [currentOrganization?.id]);
 
   // Resolve barcode-printing tab from Settings (same rules as web app).
@@ -2415,9 +2448,9 @@ export default function BarcodePrinting() {
                   thermalCols: thermalColsForPrintMode(settingsMode.mode, prev.thermalCols),
                 }
               : {}),
-            // Only use settings labelConfig as fallback when NO active preset is selected from localStorage
-            // If activePrecisionTemplateName is set, the preset's labelConfig will be loaded by fetchDbPresets
-            labelConfig: prev.labelConfig || (!activePrecisionTemplateName ? (bbs.precision_label_config || null) : prev.labelConfig),
+            // Only use settings labelConfig as fallback when NO active preset is selected.
+            // Read the ref — the closured state is stale on remount (starts null).
+            labelConfig: prev.labelConfig || (!normalizePrecisionPresetName(activePrecisionTemplateNameRef.current) ? (bbs.precision_label_config || null) : prev.labelConfig),
           }));
         }
       } catch (error) {
@@ -2438,7 +2471,11 @@ export default function BarcodePrinting() {
           setDbPresets(mapped);
 
           // Auto-load: localStorage → settings default design → is_default for landing mode
-          const localStoragePresetName = activePrecisionTemplateName?.replace("preset:", "") || null;
+          // Read the ref, not the closured state — remount starts with null even when
+          // the UI has already restored "PAYAL 102*53" from localStorage.
+          const localStoragePresetName = normalizePrecisionPresetName(
+            activePrecisionTemplateNameRef.current,
+          );
           const settingsPreset = defaultPresetIdFromSettings
             ? mapped.find((p: { id?: string }) => p.id === defaultPresetIdFromSettings)
             : undefined;
@@ -2459,38 +2496,73 @@ export default function BarcodePrinting() {
                 : loadedMode;
             const autoloadMode = takePrintModeWrite(requestedMode, "preset-autoload");
             const printMode = autoloadMode.accepted ? autoloadMode.mode : requestedMode;
-            setPrecisionSettings((prev) => {
-              const next = {
-                ...prev,
-                xOffset: presetToLoad.xOffset,
-                yOffset: presetToLoad.yOffset,
-                vGap: presetToLoad.vGap,
-                hGap: presetToLoad.hGap ?? 0,
-                labelWidth: fixedDims?.width ?? presetToLoad.width,
-                labelHeight: fixedDims?.height ?? presetToLoad.height,
-                ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
-                ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
-                ...(autoloadMode.accepted
-                  ? {
-                      printMode,
-                      thermalCols:
-                        printModeToThermalCols(printMode) > 1
-                          ? printModeToThermalCols(printMode)
-                          : presetToLoad.thermalCols || 1,
-                    }
-                  : {}),
-                ...(resolvedConfig ? { labelConfig: resolvedConfig } : {}),
-                enabled: true,
-              };
-              precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, presetToLoad.name);
-              return next;
+            const incomingWidth = fixedDims?.width ?? presetToLoad.width;
+            const incomingHeight = fixedDims?.height ?? presetToLoad.height;
+            const live = precisionSettingsRef.current;
+            const sessionStore = typeof sessionStorage !== "undefined" ? sessionStorage : null;
+            const decision = decidePrecisionAutoload({
+              orgId: currentOrganization.id,
+              currentPresetName: localStoragePresetName,
+              incomingPresetName: presetToLoad.name,
+              settingsAlreadyInPlace: precisionAutoloadSettingsAlreadyInPlace(
+                {
+                  name: localStoragePresetName,
+                  width: live.labelWidth,
+                  height: live.labelHeight,
+                  xOffset: live.xOffset,
+                  yOffset: live.yOffset,
+                },
+                {
+                  name: presetToLoad.name,
+                  width: incomingWidth,
+                  height: incomingHeight,
+                  xOffset: presetToLoad.xOffset,
+                  yOffset: presetToLoad.yOffset,
+                },
+              ),
+              storage: sessionStore,
             });
-            if (!localStoragePresetName) {
+            if (decision.apply) {
+              setPrecisionSettings((prev) => {
+                const next = {
+                  ...prev,
+                  xOffset: presetToLoad.xOffset,
+                  yOffset: presetToLoad.yOffset,
+                  vGap: presetToLoad.vGap,
+                  hGap: presetToLoad.hGap ?? 0,
+                  labelWidth: incomingWidth,
+                  labelHeight: incomingHeight,
+                  ...(presetToLoad.a4Cols ? { a4Cols: presetToLoad.a4Cols } : {}),
+                  ...(presetToLoad.a4Rows ? { a4Rows: presetToLoad.a4Rows } : {}),
+                  ...(autoloadMode.accepted
+                    ? {
+                        printMode,
+                        thermalCols:
+                          printModeToThermalCols(printMode) > 1
+                            ? printModeToThermalCols(printMode)
+                            : presetToLoad.thermalCols || 1,
+                      }
+                    : {}),
+                  ...(resolvedConfig ? { labelConfig: resolvedConfig } : {}),
+                  enabled: true,
+                };
+                precisionDesignBaselineRef.current = snapshotPrecisionDesign(next, presetToLoad.name);
+                return next;
+              });
+            }
+            if (decision.setActiveName) {
               setActivePrecisionTemplateName(presetToLoad.name);
+            }
+            if (decision.toast) {
               toast.success(
                 `Auto-loaded preset "${presetToLoad.name}" (${presetToLoad.width}×${presetToLoad.height}mm, ${getPrecisionThermalModeLabel(printMode)})`,
               );
             }
+            markPrecisionAutoload({
+              orgId: currentOrganization.id,
+              presetName: presetToLoad.name,
+              storage: sessionStore,
+            });
           }
         }
       } catch (error) {
@@ -2500,6 +2572,8 @@ export default function BarcodePrinting() {
 
     settingsFullyLoadedRef.current = false;
     setSettingsLoading(true);
+    const loadAllMountN = nextBarcodeLoadAllMountSeq();
+    console.info(`[BarcodePrinting] loadAll mount #${loadAllMountN} for org ${orgId}`);
     const loadAll = async () => {
       await fetchBusinessName();
       await fetchDbPresets();

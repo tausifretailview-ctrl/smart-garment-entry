@@ -19,4 +19,15 @@ describe("BarcodePrinting print-mode lock wiring", () => {
     expect(page).toContain('"sheet-type"');
     expect(page).toContain("lockedPrintLayout");
   });
+
+  it("reads the live preset name from a ref and guards remount autoload", () => {
+    expect(page).toContain("activePrecisionTemplateNameRef");
+    expect(page).toContain("decidePrecisionAutoload");
+    expect(page).toContain("markPrecisionAutoload");
+    expect(page).toContain("[BarcodePrinting] loadAll mount #");
+    expect(page).toContain("nextBarcodeLoadAllMountSeq");
+    expect(page).not.toMatch(
+      /const localStoragePresetName = activePrecisionTemplateName\?\.replace/,
+    );
+  });
 });
