@@ -1,12 +1,11 @@
 import { useState, useEffect } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useBackup } from "@/hooks/useBackup";
@@ -39,7 +38,6 @@ interface BackupSettingsProps {
 }
 
 const BackupSettings = ({
-  autoBackupEnabled: autoBackupEnabledProp = false,
   backupEmail: backupEmailProp = "",
   backupRetentionDays: backupRetentionDaysProp = DEFAULT_BACKUP_RETENTION_DAYS,
   lastAutoBackupAt: lastAutoBackupAtProp = null,
@@ -54,7 +52,6 @@ const BackupSettings = ({
   } = useBackup();
   
   // Auto-backup settings
-  const [autoBackupEnabled, setAutoBackupEnabled] = useState(false);
   const [backupEmail, setBackupEmail] = useState("");
   const [retentionDays, setRetentionDays] = useState(String(DEFAULT_BACKUP_RETENTION_DAYS));
   const [lastAutoBackupAt, setLastAutoBackupAt] = useState<string | null>(null);
@@ -72,7 +69,6 @@ const BackupSettings = ({
   const [restoreTarget, setRestoreTarget] = useState<BackupLog | null>(null);
 
   useEffect(() => {
-    setAutoBackupEnabled(autoBackupEnabledProp);
     setBackupEmail(backupEmailProp);
     setRetentionDays(() => {
       const n = normalizeBackupRetentionDays(backupRetentionDaysProp);
@@ -82,63 +78,7 @@ const BackupSettings = ({
     });
     setLastAutoBackupAt(lastAutoBackupAtProp);
     setIsLoadingSettings(false);
-  }, [autoBackupEnabledProp, backupEmailProp, backupRetentionDaysProp, lastAutoBackupAtProp]);
-
-  const applyEnabledLocally = (enabled: boolean) => {
-    setAutoBackupEnabled(enabled);
-    onAutoBackupEnabledChange?.(enabled);
-  };
-
-  const toggleAutoBackup = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      if (!currentOrganization?.id) throw new Error("No organization selected");
-      const { error } = await supabase
-        .from("settings")
-        .update({ auto_backup_enabled: enabled })
-        .eq("organization_id", currentOrganization.id);
-      if (error) throw error;
-      return enabled;
-    },
-    onMutate: async (enabled) => {
-      const orgId = currentOrganization?.id;
-      const previousEnabled = autoBackupEnabled;
-      applyEnabledLocally(enabled);
-
-      let previousOrgSettings: unknown;
-      if (orgId) {
-        const key = ["org-settings", orgId] as const;
-        await queryClient.cancelQueries({ queryKey: key });
-        previousOrgSettings = queryClient.getQueryData(key);
-        queryClient.setQueryData(key, (old: Record<string, unknown> | null | undefined) =>
-          old ? { ...old, auto_backup_enabled: enabled } : old,
-        );
-      }
-
-      return { previousEnabled, previousOrgSettings, orgId };
-    },
-    onError: (error, _enabled, context) => {
-      if (context) {
-        applyEnabledLocally(context.previousEnabled);
-        if (context.orgId) {
-          queryClient.setQueryData(["org-settings", context.orgId], context.previousOrgSettings);
-        }
-      }
-      if (isStatementTimeout(error)) return;
-      const offline = typeof navigator !== "undefined" && navigator.onLine === false;
-      toast.error("Couldn't save — change undone", {
-        description: offline
-          ? "You're offline. Reconnect and try again."
-          : error instanceof Error
-            ? error.message
-            : "Auto-backup setting was not saved",
-      });
-    },
-    onSettled: () => {
-      if (currentOrganization?.id) {
-        void queryClient.invalidateQueries({ queryKey: ["org-settings", currentOrganization.id] });
-      }
-    },
-  });
+  }, [backupEmailProp, backupRetentionDaysProp, lastAutoBackupAtProp]);
 
   const handleSaveAutoBackupSettings = async () => {
     if (!currentOrganization?.id) return;
@@ -147,14 +87,14 @@ const BackupSettings = ({
       const { error } = await supabase
         .from("settings")
         .update({
-          auto_backup_enabled: autoBackupEnabled,
+          auto_backup_enabled: true,
           backup_email: backupEmail.trim() || null,
           backup_retention_days: normalizeBackupRetentionDays(retentionDays),
         })
         .eq("organization_id", currentOrganization.id);
 
       if (error) throw error;
-      onAutoBackupEnabledChange?.(autoBackupEnabled);
+      onAutoBackupEnabledChange?.(true);
       void queryClient.invalidateQueries({ queryKey: ["org-settings", currentOrganization.id] });
       toast.success("Backup settings saved!");
     } catch (error: unknown) {
@@ -165,11 +105,6 @@ const BackupSettings = ({
     } finally {
       setIsSavingSettings(false);
     }
-  };
-
-  const handleToggleAutoBackup = (checked: boolean) => {
-    if (toggleAutoBackup.isPending) return;
-    toggleAutoBackup.mutate(checked);
   };
 
   const handleSaveCredentials = async () => {
@@ -220,9 +155,8 @@ const BackupSettings = ({
 
   const AUTO_BACKUP_OVERDUE_MS = 36 * 60 * 60 * 1000; // >1 missed night
   const autoBackupOverdue =
-    autoBackupEnabled &&
-    (!lastCompletedAutoAt ||
-      Date.now() - new Date(lastCompletedAutoAt).getTime() > AUTO_BACKUP_OVERDUE_MS);
+    !lastCompletedAutoAt ||
+    Date.now() - new Date(lastCompletedAutoAt).getTime() > AUTO_BACKUP_OVERDUE_MS;
 
   return (
     <div className="space-y-6">
@@ -234,7 +168,7 @@ const BackupSettings = ({
             Cloud Auto-Backup
           </CardTitle>
            <CardDescription>
-            Backs up your data automatically every night at 11:00 PM IST to secure cloud storage. Download any backup from Backup History below.
+            Every organization is backed up automatically every night at 11:00 PM IST to secure cloud storage. Download any backup from Backup History below.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -267,16 +201,12 @@ const BackupSettings = ({
 
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
-                   <h4 className="font-medium">Enable Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
+                   <h4 className="font-medium">Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
                    <p className="text-sm text-muted-foreground">
-                     Backs up your data automatically every night at 11:00 PM IST to secure cloud storage
+                     Always on for every organization. Nightly cloud backup cannot be turned off.
                   </p>
                 </div>
-                <Switch
-                  checked={autoBackupEnabled}
-                  onCheckedChange={handleToggleAutoBackup}
-                  disabled={isSavingSettings || toggleAutoBackup.isPending}
-                />
+                <Badge className="bg-green-100 text-green-800">Always on</Badge>
               </div>
 
               <div className="space-y-2">
@@ -311,7 +241,7 @@ const BackupSettings = ({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  After each nightly backup, files and history older than this are removed. Minimum 7 days.
+                  After each nightly backup, files and history older than this are removed. Default and minimum 3 days.
                 </p>
               </div>
 
@@ -330,7 +260,7 @@ const BackupSettings = ({
                 <Button
                   size="sm"
                   onClick={() => void handleSaveAutoBackupSettings()}
-                  disabled={isSavingSettings || toggleAutoBackup.isPending}
+                  disabled={isSavingSettings}
                   variant="outline"
                   className="gap-1"
                 >
@@ -465,7 +395,7 @@ const BackupSettings = ({
             </div>
           ) : !backupLogs?.length ? (
             <div className="text-center py-8 text-muted-foreground">
-              No backups yet. Enable auto-backup or create one manually.
+              No backups yet. A nightly backup runs for every organization, or create one manually.
             </div>
           ) : (
             <Table>

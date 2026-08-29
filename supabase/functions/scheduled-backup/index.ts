@@ -1,12 +1,19 @@
-// Dispatcher: lists orgs with auto-backup enabled and fans out to auto-backup
+// Dispatcher: backs up every non-suspended organization and fans out to auto-backup
 // (one invocation per org, fire-and-forget) so we never hit edge function timeout.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   isInternalDispatch,
   isServiceRoleRequest,
   optionalInternalDispatchHeaders,
+  parseDispatchTicketFromBody,
   parseDispatchTicketHeader,
 } from "../_shared/internalDispatch.ts";
+import {
+  DEFAULT_NIGHTLY_RETENTION_DAYS,
+  isDueForNightlyBackup,
+  isOrgEligibleForNightlyBackup,
+  resolveNightlyRetentionDays,
+} from "../_shared/nightlyBackupEligibility.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,9 +26,6 @@ interface BackupSetting {
   last_auto_backup_at: string | null;
 }
 
-const AUTO_BACKUP_INTERVAL_DAYS = 1;
-const AUTO_BACKUP_INTERVAL_MS = AUTO_BACKUP_INTERVAL_DAYS * 24 * 60 * 60 * 1000;
-
 async function authorizeDispatcher(
   req: Request,
   supabaseUrl: string,
@@ -29,7 +33,18 @@ async function authorizeDispatcher(
 ): Promise<boolean> {
   if (isInternalDispatch(req) || isServiceRoleRequest(req)) return true;
 
-  const ticket = parseDispatchTicketHeader(req);
+  // Ticket in the header identifies cron. Body is a fallback when pg_net strips
+  // custom headers. Only after a well-formed ticket is present do we open a
+  // service-role client to consume it (consume_backup_dispatch_ticket is
+  // service_role-only).
+  let ticket = parseDispatchTicketHeader(req);
+  if (!ticket) {
+    try {
+      ticket = parseDispatchTicketFromBody(await req.clone().json());
+    } catch {
+      ticket = null;
+    }
+  }
   if (!ticket) return false;
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -68,35 +83,56 @@ Deno.serve(async (req) => {
 
     console.log('Scheduled backup dispatcher started');
 
+    const { data: orgs, error: orgsError } = await supabase
+      .from('organizations')
+      .select('id, is_suspended');
+
+    if (orgsError) {
+      console.error('Failed to fetch organizations:', orgsError);
+      throw new Error('Failed to fetch organizations');
+    }
+
     const { data: allSettings, error: settingsError } = await supabase
       .from('settings')
-      .select('organization_id, backup_retention_days, last_auto_backup_at')
-      .eq('auto_backup_enabled', true);
+      .select('organization_id, backup_retention_days, last_auto_backup_at');
 
     if (settingsError) {
       console.error('Failed to fetch settings:', settingsError);
       throw new Error('Failed to fetch backup settings');
     }
 
-    const settings = (allSettings || []) as BackupSetting[];
-    const eligibleSettings = settings.filter((setting) => {
-      if (!setting.last_auto_backup_at) return true;
-      return Date.now() - new Date(setting.last_auto_backup_at).getTime() >= AUTO_BACKUP_INTERVAL_MS;
-    });
+    const settingsByOrg = new Map(
+      ((allSettings || []) as BackupSetting[]).map((row) => [row.organization_id, row]),
+    );
+
+    const eligibleOrgs = (orgs || []).filter((org) =>
+      isOrgEligibleForNightlyBackup({ is_suspended: org.is_suspended }),
+    );
+
+    const eligibleSettings = eligibleOrgs
+      .map((org) => {
+        const setting = settingsByOrg.get(org.id);
+        return {
+          organization_id: org.id,
+          backup_retention_days: setting?.backup_retention_days ?? null,
+          last_auto_backup_at: setting?.last_auto_backup_at ?? null,
+        };
+      })
+      .filter((setting) => isDueForNightlyBackup(setting.last_auto_backup_at));
 
     if (!eligibleSettings.length) {
       return new Response(
         JSON.stringify({
           success: true,
-          message: `No orgs due for auto-backup within ${AUTO_BACKUP_INTERVAL_DAYS} days`,
+          message: 'No orgs due for auto-backup within 1 day',
           dispatched: 0,
-          skipped: settings.length,
+          skipped: eligibleOrgs.length,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const skipped = settings.length - eligibleSettings.length;
+    const skipped = eligibleOrgs.length - eligibleSettings.length;
     console.log(`Dispatching backup for ${eligibleSettings.length} organizations (${skipped} skipped as recently backed up)`);
 
     const extraHeaders = optionalInternalDispatchHeaders();
@@ -105,9 +141,7 @@ Deno.serve(async (req) => {
     // We don't await — each invocation runs in its own short-lived edge function.
     const dispatchPromises = eligibleSettings.map(async (setting) => {
       const orgId = setting.organization_id;
-      const retentionDays = setting.backup_retention_days && setting.backup_retention_days > 0
-        ? setting.backup_retention_days
-        : 30;
+      const retentionDays = resolveNightlyRetentionDays(setting.backup_retention_days);
       try {
         // Fire-and-forget: do not await response body; just kick it off.
         // Using fetch directly so we control headers and don't block on body.
@@ -148,6 +182,7 @@ Deno.serve(async (req) => {
         dispatched,
         failed,
         skipped,
+        default_retention_days: DEFAULT_NIGHTLY_RETENTION_DAYS,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
