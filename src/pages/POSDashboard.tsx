@@ -61,7 +61,7 @@ import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { normalizeGstTaxType, resolvePosDefaultTaxType } from "@/utils/gstRegisterUtils";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useReactToPrint } from 'react-to-print';
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import {
   Dialog,
   DialogContent,

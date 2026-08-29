@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Loader2, Save, Printer } from "lucide-react";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 
 interface ModifyFeeReceiptDialogProps {

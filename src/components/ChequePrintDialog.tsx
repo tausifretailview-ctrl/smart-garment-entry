@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useChequeFormats } from "@/hooks/useChequeFormats";
 import { ChequePrintPreview } from "@/components/ChequePrintPreview";
 import { Printer, Settings } from "lucide-react";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { toast } from "sonner";
 
 interface ChequePrintDialogProps {

@@ -28,7 +28,7 @@ import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleRe
 import { ensureCreditNoteHeadroom } from "@/utils/saleReturnCnBalance";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
 import { useSettings } from "@/hooks/useSettings";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { waitForPrintReady } from "@/utils/printReady";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
@@ -164,6 +164,7 @@ export const FloatingSaleReturn = ({
   const handleBrowserPrint = useReactToPrint({
     contentRef: printRef,
     pageStyle: returnPrintPageStyle,
+    expectedMaxPages: 1,
   });
 
   const triggerReturnPrint = useCallback(

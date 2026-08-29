@@ -38,7 +38,7 @@ import type * as XLSXType from "xlsx";
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
 import { fetchAllSalesWithFilters } from "@/utils/fetchAllRows";

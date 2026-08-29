@@ -7,6 +7,7 @@ import {
   wrapReceiptHtmlForElectron,
 } from "@/utils/thermalReceiptPrintDocument";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import { printHtmlLooksLikeLeakedCss } from "@/utils/printOutputPreflight";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const electronAPI = (window as any).electronAPI;
@@ -85,6 +86,15 @@ function marginsForType(type: AppPrintType) {
  * Print using Electron silent print when available, otherwise the browser.
  */
 export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult> {
+  if (options.html && printHtmlLooksLikeLeakedCss(options.html)) {
+    return {
+      success: false,
+      method: isElectron() ? "electron" : "browser",
+      error:
+        "Print preview contains raw CSS text. Printing was blocked so a customer document is not sent like this.",
+    };
+  }
+
   if (!isElectron()) {
     if (options.onFallback) {
       options.onFallback();

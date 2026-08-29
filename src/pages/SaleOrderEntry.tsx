@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { SaleOrderStockCheckDialog } from "@/components/SaleOrderStockCheckDialog";
 import { buildAvailableStockMatrix, type AvailableStockMatrixRow } from "@/utils/availableStockPrintMatrix";

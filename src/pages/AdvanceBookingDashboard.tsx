@@ -23,7 +23,7 @@ import { AddAdvanceBookingDialog } from "@/components/AddAdvanceBookingDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useSettings } from "@/hooks/useSettings";
 import { useSearchParams } from "react-router-dom";
 import { createAdvanceRefund } from "@/utils/advanceRefundService";
