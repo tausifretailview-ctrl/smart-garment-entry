@@ -110,12 +110,30 @@ export function peekBarcodePurchaseItems(): BarcodePendingPurchaseNav | null {
   }
 }
 
-export function consumeBarcodePurchaseItems(navKey?: string | null): BarcodePendingPurchaseNav | null {
+export function consumeBarcodePurchaseItems(
+  navKey?: string | null,
+  billId?: string | null,
+): BarcodePendingPurchaseNav | null {
   const pending = peekBarcodePurchaseItems();
   if (!pending) return null;
-  if (navKey && pending.navKey !== navKey) return null;
+  const navMatches = !navKey || pending.navKey === navKey;
+  const billMatches = Boolean(billId && pending.billId && pending.billId === billId);
+  // After URL replace, purchaseNavKey becomes query|<billId>|<location.key> and no longer
+  // matches the queued key. Same-bill queue must still win over a full-bill DB fetch.
+  if (!navMatches && !billMatches) return null;
   safeRemove(PENDING_ITEMS_KEY);
   return pending;
+}
+
+/** Persist the exact Print Barcode subset before navigation so settings reload cannot DB-replace it. */
+export function stashPurchaseBarcodePrintPayload(billId: string, items: unknown[]): void {
+  if (!billId || !items?.length) return;
+  persistBarcodePrintSelection(billId, items);
+  queueBarcodePurchaseItems({
+    navKey: barcodePrintSelectionNavKey(billId, items),
+    billId,
+    items,
+  });
 }
 
 export function clearBarcodePurchaseItems(): void {
