@@ -24,7 +24,7 @@ import {
   SETTINGS_TAB_SUBTITLE,
   coerceSettingsTab,
 } from "@/components/settings/settingsChrome";
-import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS } from "@/components/settings/settingsLayout";
+import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -75,9 +75,6 @@ const LazyWhatsAppAPISettings = lazyWithRetry(() =>
 const LazyStockReconciliation = lazyWithRetry(() =>
   import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
 );
-const LazyBackupSettings = lazyWithRetry(() => import("@/components/BackupSettings")) as unknown as React.ComponentType<
-  React.ComponentProps<typeof import("@/components/BackupSettings").default>
->;
 import { CompanyProfileBankAccounts } from "@/components/settings/CompanyProfileBankAccounts";
 
 const LazyDesktopPrintSettings = lazyWithRetry(() =>
@@ -449,14 +446,10 @@ export default function Settings() {
       "settings",
     );
     if (merged?.scrollTo === "backup") {
-      setCurrentTab("backup");
-      setVisitedTabs((prev) => new Set([...prev, "backup"]));
       window.history.replaceState({}, document.title);
-      requestAnimationFrame(() => {
-        document.getElementById("settings-backup-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
+      navigate("/backup");
     }
-  }, [location.key, location.state, currentOrganization?.id]);
+  }, [location.key, location.state, currentOrganization?.id, navigate]);
 
   const [settings, setSettings] = useState<Settings>({
     business_name: "",
@@ -1298,14 +1291,15 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="company">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Company Profile</CardTitle>
                 <CardDescription>
                   Manage your business information
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Company profile">
                 <div className="space-y-2">
                   <Label htmlFor="business_name">Business Name</Label>
                   <Input
@@ -1378,19 +1372,21 @@ export default function Settings() {
                   />
                 </div>
                 <CompanyProfileBankAccounts />
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="branding">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Organization Branding</CardTitle>
                 <CardDescription>
                   Customize your organization's login page and brand identity
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Branding">
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="org_logo">Organization Logo</Label>
@@ -1504,20 +1500,22 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
           </TabsContent>
 
           <TabsContent value="product">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Product Settings</CardTitle>
                 <CardDescription>
                   Configure product-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Product details">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="default_margin">Default Profit Margin (%)</Label>
@@ -1701,11 +1699,12 @@ export default function Settings() {
                     </div>
                   ))}
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
             {/* Mobile ERP / IMEI Tracking Mode */}
-            <Card className="mt-4">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Smartphone className="h-5 w-5" />
@@ -1887,14 +1886,15 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="purchase">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Purchase Settings</CardTitle>
                 <CardDescription>
                   Configure purchase-related preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Purchase details">
                 <div className="space-y-2">
                   <Label htmlFor="payment_terms">Default Payment Terms</Label>
                   <Select
@@ -2385,6 +2385,7 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
             <div className="mt-4">
@@ -2397,14 +2398,15 @@ export default function Settings() {
           <TabsContent value="sale" className="mt-0">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
               {/* Settings Form */}
-              <Card className="h-fit">
+              <Card className="h-fit settings-panel-card">
                 <CardHeader>
                   <CardTitle>Sale Settings</CardTitle>
                   <CardDescription>
                     Configure sale-related preferences
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-2.5">
+                <CardContent className="space-y-3">
+                <SettingsSection title="Sale details">
                 <div className="space-y-2">
                     <Label htmlFor="default_tax_type">Default GST Type</Label>
                     <Select
@@ -4543,6 +4545,7 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
+                </SettingsSection>
                 </CardContent>
               </Card>
               
@@ -4579,14 +4582,15 @@ export default function Settings() {
             <LazySettingsPanel>
               <LazyDesktopPrintSettings />
             </LazySettingsPanel>
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Bill & Barcode Settings</CardTitle>
                 <CardDescription>
                   Configure billing and barcode preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Bill & barcode">
                 <div className="space-y-2">
                   <Label htmlFor="upi_id">UPI ID</Label>
                   <Input
@@ -5862,29 +5866,32 @@ export default function Settings() {
                     <LazyChequeFormatManagement />
                   </LazySettingsPanel>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="reports">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Report Settings</CardTitle>
                 <CardDescription>
                   Configure report preferences
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
+                <SettingsSection title="Reports">
                 <div className="text-center py-8 text-muted-foreground">
                   <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
                   <p className="font-medium">Report column customization coming soon</p>
                   <p className="text-xs mt-1">Use the Stock Adjustment and Reconciliation tools below</p>
                 </div>
+                </SettingsSection>
               </CardContent>
             </Card>
 
             {/* Stock Adjustment Tool */}
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Stock Adjustment Tool</CardTitle>
                 <CardDescription>
@@ -5909,7 +5916,7 @@ export default function Settings() {
               </LazySettingsPanel>
             </div>
 
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Stock Reconciliation Report</CardTitle>
                 <CardDescription>
@@ -5924,7 +5931,7 @@ export default function Settings() {
             </Card>
 
             {/* Customer Balance Reconciliation */}
-            <Card className="mt-6">
+            <Card className="mt-3 h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Customer Balance Reconciliation</CardTitle>
                 <CardDescription>
@@ -5940,14 +5947,15 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="users">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>User Rights Management</CardTitle>
                 <CardDescription>
                   Manage user roles and configure granular permissions
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-3">
+                <SettingsSection title="User rights">
                 <div className="border rounded-lg p-4 bg-muted/50">
                   <h3 className="font-medium mb-2">Configure User Permissions</h3>
                   <p className="text-sm text-muted-foreground mb-4">
@@ -5964,44 +5972,36 @@ export default function Settings() {
                 <LazySettingsPanel>
                   <LazyUserManagement />
                 </LazySettingsPanel>
+                </SettingsSection>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="whatsapp">
-            <Card>
+            <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>WhatsApp Integration</CardTitle>
                 <CardDescription>
                   Configure WhatsApp Business API and message templates
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <LazySettingsPanel>
-                  <LazyWhatsAppAPISettings />
-                </LazySettingsPanel>
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold mb-4">Message Templates</h3>
-                  <LazySettingsPanel>
-                    <LazyWhatsAppTemplateSettings />
-                  </LazySettingsPanel>
-                </div>
+              <CardContent className="space-y-3">
+                <SettingsSection title="WhatsApp API">
+                  <div className="px-3 py-2.5">
+                    <LazySettingsPanel>
+                      <LazyWhatsAppAPISettings />
+                    </LazySettingsPanel>
+                  </div>
+                </SettingsSection>
+                <SettingsSection title="Message templates">
+                  <div className="px-3 py-2.5">
+                    <LazySettingsPanel>
+                      <LazyWhatsAppTemplateSettings />
+                    </LazySettingsPanel>
+                  </div>
+                </SettingsSection>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="backup" id="settings-backup-panel">
-            <LazySettingsPanel>
-              <LazyBackupSettings
-                autoBackupEnabled={settings.auto_backup_enabled}
-                backupEmail={settings.backup_email}
-                backupRetentionDays={settings.backup_retention_days}
-                lastAutoBackupAt={settings.last_auto_backup_at}
-                onAutoBackupEnabledChange={(enabled) =>
-                  setSettings((prev) => ({ ...prev, auto_backup_enabled: enabled }))
-                }
-              />
-            </LazySettingsPanel>
           </TabsContent>
 
           <TabsContent value="payment">

@@ -40,6 +40,7 @@ const navItems: NavItem[] = [
       "/mobile-more",
       MOBILE_REPORTS_PATH,
       "/settings",
+      "/backup",
       "/stock-report",
       "/purchase-bills",
       "/owner-purchases",

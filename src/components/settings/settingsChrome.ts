@@ -3,7 +3,6 @@ import {
   BarChart2,
   Building2,
   CreditCard,
-  Database,
   MessageCircle,
   Package,
   Palette,
@@ -26,7 +25,6 @@ export type SettingsTabId =
   | "reports"
   | "users"
   | "whatsapp"
-  | "backup"
   | "branding";
 
 export type SettingsTabItem = {
@@ -46,7 +44,6 @@ export const SETTINGS_TAB_ITEMS: SettingsTabItem[] = [
   { id: "reports", label: "Reports", icon: BarChart2 },
   { id: "users", label: "User Rights", icon: Users },
   { id: "whatsapp", label: "WhatsApp", icon: MessageCircle },
-  { id: "backup", label: "Backup", icon: Database },
   { id: "branding", label: "Branding", icon: Palette },
 ];
 
@@ -54,7 +51,8 @@ export const SETTINGS_TAB_IDS: SettingsTabId[] = SETTINGS_TAB_ITEMS.map((tab) =>
 
 export const SETTINGS_TAB_SUBTITLE = SETTINGS_TAB_ITEMS.map((tab) => tab.label).join(" · ");
 
-export const HIDDEN_SETTINGS_TABS = ["sms"] as const;
+/** SMS is covered by WhatsApp. Backup is a main-menu page after Website. */
+export const HIDDEN_SETTINGS_TABS = ["sms", "backup"] as const;
 
 /** Input/control ids that belong on Settings → POS (not Sale). */
 export const POS_TAB_SETTING_FIELD_IDS = [

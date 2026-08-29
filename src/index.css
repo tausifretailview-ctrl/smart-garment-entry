@@ -2510,10 +2510,13 @@ main:has(.website-workspace) {
   gap: 0.125rem;
 }
 .settings-workspace .bg-card > .flex.flex-col > h3 {
-  font-size: 0.875rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: rgb(30 41 59);
-  letter-spacing: -0.01em;
+  color: rgb(15 23 42);
+  letter-spacing: -0.02em;
+}
+.settings-workspace .settings-panel-card > .flex.flex-col {
+  padding: 1rem 1rem 0.5rem !important;
 }
 .settings-workspace .bg-card > .flex.flex-col > p {
   font-size: 0.8125rem;

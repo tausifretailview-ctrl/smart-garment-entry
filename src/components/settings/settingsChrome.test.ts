@@ -21,8 +21,9 @@ describe("settingsChrome", () => {
     expect(SETTINGS_TAB_IDS).toContain("pos");
     expect(SETTINGS_TAB_IDS).toContain("sale");
     expect(SETTINGS_TAB_IDS).not.toContain("sms");
-    expect(HIDDEN_SETTINGS_TABS).toEqual(["sms"]);
+    expect(HIDDEN_SETTINGS_TABS).toEqual(["sms", "backup"]);
     expect(SETTINGS_TAB_ITEMS.some((tab) => tab.label === "SMS")).toBe(false);
+    expect(SETTINGS_TAB_ITEMS.some((tab) => tab.id === "backup")).toBe(false);
     expect(SETTINGS_TAB_ITEMS.some((tab) => tab.id === "pos" && tab.label === "POS")).toBe(true);
   });
 
@@ -30,12 +31,15 @@ describe("settingsChrome", () => {
     expect(SETTINGS_TAB_SUBTITLE).toContain("POS");
     expect(SETTINGS_TAB_SUBTITLE).toContain("Sale");
     expect(SETTINGS_TAB_SUBTITLE).not.toMatch(/SMS/i);
+    expect(SETTINGS_TAB_SUBTITLE).not.toMatch(/Backup/i);
   });
 
   it("coerces hidden or unknown tabs to company", () => {
     expect(isVisibleSettingsTab("sms")).toBe(false);
+    expect(isVisibleSettingsTab("backup")).toBe(false);
     expect(isVisibleSettingsTab("pos")).toBe(true);
     expect(coerceSettingsTab("sms")).toBe("company");
+    expect(coerceSettingsTab("backup")).toBe("company");
     expect(coerceSettingsTab("unknown")).toBe("company");
     expect(coerceSettingsTab("pos")).toBe("pos");
     expect(coerceSettingsTab(undefined)).toBe("company");
@@ -66,6 +70,8 @@ describe("settingsChrome", () => {
 
   it("keeps POS field controls on the POS form, not the Sale page markup", () => {
     expect(settingsPage).not.toMatch(/value=["']sms["']/);
+    expect(settingsPage).not.toMatch(/value=["']backup["']/);
+    expect(settingsPage).not.toContain("LazyBackupSettings");
     expect(settingsPage).not.toMatch(/<<<<<<<|=======|>>>>>>>/);
     expect(settingsPage).not.toContain("fix/purchase-sold-qty-import");
     expect(settingsPage).toContain("PosSettingsForm");
