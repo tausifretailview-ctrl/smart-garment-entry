@@ -23,6 +23,7 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(home).toMatch(/ella-site-footer/);
     expect(home).toMatch(/Search styles/);
     expect(home).toMatch(/Collections/);
+    expect(home).toMatch(/setSearch\(""\)/);
   });
 
   it("does not change the default storefront boxed wrap", async () => {

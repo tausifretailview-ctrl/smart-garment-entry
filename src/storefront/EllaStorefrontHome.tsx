@@ -90,6 +90,7 @@ export function EllaStorefrontHome({
 
   const selectChip = (next: EllaChipCategory) => {
     setChip(next);
+    setSearch("");
     collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 

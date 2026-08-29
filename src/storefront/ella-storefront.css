@@ -1,9 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=Barlow+Condensed:wght@600&display=swap");
 
 html.ella-root,
-body.ella-root {
+body.ella-root,
+html.ella-root #root {
   background: #ffffff;
+  margin: 0;
+  max-width: none;
   overflow-x: hidden;
+  padding: 0;
+  width: 100%;
 }
 
 .ella-store {
@@ -979,6 +984,16 @@ body.ella-root {
   .ella-site-nav {
     flex: 1 1 auto;
     justify-content: center;
+  }
+
+  .ella-nav-link {
+    font-size: 16px;
+    height: 48px;
+    padding: 0 18px;
+  }
+
+  .ella-site-wordmark {
+    font-size: 24px;
   }
 
   .ella-site-tools {
