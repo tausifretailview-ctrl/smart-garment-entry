@@ -13,6 +13,11 @@ export interface PosCartItem {
   category?: string | null;
   /** Set when category tier pricing repriced this line (wins over MRP-mode discount). */
   categoryTierApplied?: boolean;
+  /**
+   * Pre-tier unit sale price used to rematch (category + price) after a bundle
+   * reprice overwrites `unitCost` with the allocated per-unit rate.
+   */
+  categoryTierListPrice?: number;
   size: string;
   color: string;
   quantity: number;

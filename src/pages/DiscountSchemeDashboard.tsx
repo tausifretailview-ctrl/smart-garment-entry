@@ -41,6 +41,7 @@ import {
   upsertCategoryTierPricingRule,
   type DiscountSchemeRow,
 } from "@/lib/discountSchemeDb";
+import { normalizeCategoryKey, pricesMatchForTier } from "@/lib/posBilling/categoryTierPricing";
 
 type RuleForm = {
   id?: string;
@@ -209,6 +210,15 @@ export default function DiscountSchemeDashboard() {
     if (!orgId || !effectiveSchemeId) return;
     try {
       const parsed = parseRuleForm(ruleForm);
+      const duplicate = rules.find(
+        (rule) =>
+          rule.id !== ruleForm.id &&
+          normalizeCategoryKey(rule.category) === normalizeCategoryKey(parsed.category) &&
+          pricesMatchForTier(rule.singleUnitPrice, parsed.singleUnitPrice),
+      );
+      if (duplicate) {
+        throw new Error("A rule already exists for this category at this unit price");
+      }
       await upsertCategoryTierPricingRule({
         organizationId: orgId,
         schemeId: effectiveSchemeId,
@@ -276,7 +286,8 @@ export default function DiscountSchemeDashboard() {
             Discount Scheme
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Category quantity-tier bundle pricing for POS (e.g. 4 T-Shirts for ₹999). Manage rules
+            Category + unit-price bundle pricing for POS (e.g. Track Pants @ ₹300 → 4 for ₹1000).
+            A different price in the same category is a separate product line. Manage rules
             here; enable on POS from the toggle below or{" "}
             <Link to={getOrgPath("/settings")} className="text-primary underline-offset-2 hover:underline">
               Settings → Sale
@@ -302,7 +313,8 @@ export default function DiscountSchemeDashboard() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">POS application</CardTitle>
           <CardDescription>
-            When enabled, POS sums quantity per category and applies the active scheme&apos;s rules.
+            When enabled, POS sums quantity per category and matching unit price, then applies
+            the active scheme&apos;s rules. Unmatched prices bill at their own rate.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-4">
@@ -418,8 +430,8 @@ export default function DiscountSchemeDashboard() {
                     {activeScheme?.name ?? "Rules"}
                   </CardTitle>
                   <CardDescription>
-                    Category must match product master (case-insensitive). Example: T-Shirt — ₹299
-                    single, 4 for ₹999.
+                    Each rule is category + single unit price. Same category at ₹300 and ₹600
+                    are two rules. Example: Track Pants @ ₹300 — 4 for ₹1000.
                   </CardDescription>
                 </div>
                 <Button size="sm" onClick={openCreateRule} disabled={!effectiveSchemeId}>
@@ -531,7 +543,7 @@ export default function DiscountSchemeDashboard() {
       <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{ruleForm.id ? "Edit category rule" : "Add category rule"}</DialogTitle>
+            <DialogTitle>{ruleForm.id ? "Edit price-point rule" : "Add price-point rule"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div>
