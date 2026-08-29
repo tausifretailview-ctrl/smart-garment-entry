@@ -50,6 +50,11 @@ import {
   resolveQuotationPrintTemplate,
   type QuotationPrintTemplateId,
 } from "@/utils/quotationPrintTemplate";
+import { useOrganizationBankAccounts } from "@/hooks/useOrganizationBankAccounts";
+import {
+  organizationBankAccountToInvoiceDetails,
+  pickDefaultReceivingBankAccount,
+} from "@/utils/organizationBankAccounts";
 
 export default function QuotationDashboard() {
   const { toast } = useToast();
@@ -766,6 +771,9 @@ function PrintQuotationDialog({
   onClose: () => void;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
+  const { accounts: receivingBankAccounts } = useOrganizationBankAccounts(organizationId);
+  const companyBank = pickDefaultReceivingBankAccount(receivingBankAccounts);
+  const companyBankDetails = organizationBankAccountToInvoiceDetails(companyBank);
   const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(
     settings?.sale_settings?.bill_format || 'a4'
   );
@@ -830,6 +838,13 @@ function PrintQuotationDialog({
     footerText: settings?.sale_settings?.invoice_footer_text || "",
     showBankDetails: settings?.sale_settings?.show_bank_details ?? false,
     bankDetails: settings?.sale_settings?.bank_details || null,
+  };
+
+  const itCompanyPrintProps = {
+    ...quotationPrintProps,
+    showBankDetails: true,
+    bankDetails: companyBankDetails || settings?.sale_settings?.bank_details || null,
+    upiId: settings?.bill_barcode_settings?.upi_id || "",
   };
 
   const onTemplateChange = (value: QuotationPrintTemplateId) => {
@@ -944,7 +959,7 @@ function PrintQuotationDialog({
               termsConditions={saleTerms}
             />
           ) : printTemplate === "it-company" ? (
-            <QuotationPrintITCompany ref={printRef} {...quotationPrintProps} />
+            <QuotationPrintITCompany ref={printRef} {...itCompanyPrintProps} />
           ) : (
             <QuotationPrint
               ref={printRef}

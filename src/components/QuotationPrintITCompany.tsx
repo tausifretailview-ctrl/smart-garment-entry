@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { numberToWords } from "@/lib/utils";
 
 export interface QuotationPrintItem {
@@ -55,6 +56,8 @@ export interface QuotationPrintSharedProps {
   footerText?: string;
   showBankDetails?: boolean;
   bankDetails?: QuotationBankDetails | null;
+  /** Settings → Bill & Barcode UPI ID — payment QR on IT Company A4. */
+  upiId?: string;
 }
 
 const SCHEMES: Record<string, { primary: string; accent: string; ink: string; line: string }> = {
@@ -115,13 +118,13 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
       termsConditions,
       notes,
       showHSN = true,
-      taxType = "exclusive",
       format = "a4",
       colorScheme = "blue",
       brandColor,
       footerText,
-      showBankDetails = false,
+      showBankDetails = true,
       bankDetails,
+      upiId,
     } = props;
 
     const scheme = SCHEMES[colorScheme] || SCHEMES.blue;
@@ -129,16 +132,47 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
     const isA4 = format === "a4";
     const isHorizontal = format === "a5-horizontal";
     const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
-    const targetRows = isA4 ? 12 : isHorizontal ? 6 : 8;
+    const targetRows = isA4 ? 8 : isHorizontal ? 6 : 8;
     const manyItems = items.length > targetRows;
     const blankCount = manyItems ? 0 : Math.max(0, targetRows - items.length);
     const colCount = showHSN ? 6 : 5;
-    const showBank = showBankDetails && hasBank(bankDetails);
+    const showBank = (showBankDetails !== false) && hasBank(bankDetails);
+
+    const [qrCodeUrl, setQrCodeUrl] = useState("");
+    const upiTrimmed = (upiId || "").trim();
+
+    useEffect(() => {
+      let cancelled = false;
+      if (!upiTrimmed) {
+        setQrCodeUrl("");
+        return;
+      }
+      const upiString = `upi://pay?pa=${encodeURIComponent(upiTrimmed)}&pn=${encodeURIComponent(
+        businessName || "Store",
+      )}&am=${Number(netAmount || 0).toFixed(2)}&cu=INR&tn=${encodeURIComponent(quotationNumber || "Quotation")}`;
+      QRCode.toDataURL(upiString, {
+        width: 280,
+        margin: 1,
+        errorCorrectionLevel: "M",
+        color: { dark: "#000000", light: "#FFFFFF" },
+      })
+        .then((url) => {
+          if (!cancelled) setQrCodeUrl(url);
+        })
+        .catch((err) => {
+          console.error("IT quotation UPI QR failed", err);
+          if (!cancelled) setQrCodeUrl("");
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [upiTrimmed, businessName, netAmount, quotationNumber]);
 
     const pageW = isA4 ? "210mm" : isHorizontal ? "210mm" : "148mm";
     const pageH = isA4 ? "297mm" : isHorizontal ? "148mm" : "210mm";
-    const pad = isA4 ? "12mm" : "7mm";
-    const fsSmall = isA4 ? "8pt" : "6.5pt";
+    const pad = isA4 ? "10mm" : "7mm";
+    const fsSmall = isA4 ? "10pt" : "6.5pt";
+    const qrMm = isA4 ? 28 : 20;
 
     const th: React.CSSProperties = {
       background: primary,
@@ -171,7 +205,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
           background: "#fff",
           color: scheme.ink,
           fontFamily: '"Segoe UI", Calibri, Arial, sans-serif',
-          fontSize: isA4 ? "9.5pt" : "7.5pt",
+          fontSize: isA4 ? "11pt" : "7.5pt",
           display: "flex",
           flexDirection: "column",
           overflow: manyItems ? "visible" : "hidden",
@@ -194,8 +228,8 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
                 src={logoUrl}
                 alt=""
                 style={{
-                  width: isA4 ? 56 : 42,
-                  height: isA4 ? 56 : 42,
+                  width: isA4 ? 64 : 42,
+                  height: isA4 ? 64 : 42,
                   objectFit: "contain",
                   flexShrink: 0,
                 }}
@@ -204,7 +238,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontSize: isA4 ? "15pt" : "11pt",
+                  fontSize: isA4 ? "18pt" : "11pt",
                   fontWeight: 700,
                   color: primary,
                   letterSpacing: "0.04em",
@@ -230,7 +264,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
           <div style={{ textAlign: "right", flexShrink: 0 }}>
             <div
               style={{
-                fontSize: isA4 ? "16pt" : "12pt",
+                fontSize: isA4 ? "18pt" : "12pt",
                 fontWeight: 700,
                 color: primary,
                 letterSpacing: "0.14em",
@@ -257,7 +291,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
           <div>
             <div
               style={{
-                fontSize: "7.5pt",
+                fontSize: isA4 ? "9pt" : "7.5pt",
                 fontWeight: 700,
                 letterSpacing: "0.1em",
                 color: primary,
@@ -286,11 +320,6 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
             <MetaRow label="Quote No." value={quotationNumber} primary={primary} />
             <MetaRow label="Date" value={formatDate(quotationDate)} primary={primary} />
             {validUntil ? <MetaRow label="Valid until" value={formatDate(validUntil)} primary={primary} /> : null}
-            <MetaRow
-              label="Tax"
-              value={taxType === "inclusive" ? "GST Inclusive" : taxType === "no_gst" ? "No GST" : "GST Exclusive"}
-              primary={primary}
-            />
             {salesman ? <MetaRow label="Prepared by" value={salesman} primary={primary} /> : null}
           </div>
         </div>
@@ -340,7 +369,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
               {Array.from({ length: blankCount }).map((_, i) => (
                 <tr key={`blank-${i}`}>
                   {Array.from({ length: colCount }).map((__, c) => (
-                    <td key={c} style={{ ...td, height: isA4 ? 22 : 16 }}>
+                    <td key={c} style={{ ...td, height: isA4 ? 26 : 16 }}>
                       &nbsp;
                     </td>
                   ))}
@@ -388,7 +417,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
                     whiteSpace: "pre-line",
                     lineHeight: 1.4,
                     color: "#334155",
-                    maxHeight: manyItems ? "none" : isA4 ? 88 : 52,
+                    maxHeight: manyItems ? "none" : isA4 ? 72 : 52,
                     overflow: manyItems ? "visible" : "hidden",
                   }}
                 >
@@ -427,7 +456,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
                 paddingTop: 8,
                 borderTop: `2px solid ${primary}`,
                 fontWeight: 700,
-                fontSize: isA4 ? "10.5pt" : "8.5pt",
+                fontSize: isA4 ? "13pt" : "8.5pt",
                 color: primary,
               }}
             >
@@ -449,7 +478,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
             style={{
               display: "flex",
               justifyContent: "space-between",
-              gap: 16,
+              gap: isA4 ? 12 : 10,
               alignItems: "flex-end",
               fontSize: fsSmall,
             }}
@@ -459,8 +488,8 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
                 <div>
                   <div style={{ fontWeight: 700, color: primary, marginBottom: 3 }}>Bank details</div>
                   {bankDetails?.bank_name ? <div>{bankDetails.bank_name}</div> : null}
-                  {bankDetails?.account_holder ? <div>A/c: {bankDetails.account_holder}</div> : null}
-                  {bankDetails?.account_number ? <div>No.: {bankDetails.account_number}</div> : null}
+                  {bankDetails?.account_holder ? <div>A/c name: {bankDetails.account_holder}</div> : null}
+                  {bankDetails?.account_number ? <div>A/c no.: {bankDetails.account_number}</div> : null}
                   {bankDetails?.ifsc_code ? <div>IFSC: {bankDetails.ifsc_code}</div> : null}
                   {bankDetails?.branch ? <div>Branch: {bankDetails.branch}</div> : null}
                 </div>
@@ -468,8 +497,36 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
                 <div style={{ color: "#64748b" }}>This is a computer-generated quotation.</div>
               )}
             </div>
-            <div style={{ textAlign: "center", minWidth: isA4 ? 150 : 120 }}>
-              <div style={{ height: isA4 ? 36 : 24 }} />
+            {qrCodeUrl ? (
+              <div
+                style={{
+                  flexShrink: 0,
+                  textAlign: "center",
+                  width: `${qrMm + 4}mm`,
+                }}
+              >
+                <img
+                  src={qrCodeUrl}
+                  alt="UPI QR"
+                  style={{
+                    width: `${qrMm}mm`,
+                    height: `${qrMm}mm`,
+                    display: "block",
+                    margin: "0 auto",
+                    border: `1px solid ${scheme.line}`,
+                    background: "#fff",
+                  }}
+                />
+                <div style={{ fontWeight: 700, color: primary, marginTop: 3, fontSize: isA4 ? "8.5pt" : "6.5pt" }}>
+                  Scan to pay
+                </div>
+                <div style={{ color: "#475569", fontSize: isA4 ? "8pt" : "6pt", wordBreak: "break-all" }}>
+                  {upiTrimmed}
+                </div>
+              </div>
+            ) : null}
+            <div style={{ textAlign: "center", minWidth: isA4 ? 140 : 110, flexShrink: 0 }}>
+              <div style={{ height: isA4 ? (qrCodeUrl ? 8 : 36) : 24 }} />
               <div style={{ borderTop: `1px solid ${primary}`, paddingTop: 4, fontWeight: 600, color: primary }}>
                 Authorised Signatory
               </div>
@@ -485,7 +542,7 @@ export const QuotationPrintITCompany = React.forwardRef<HTMLDivElement, Quotatio
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              fontSize: isA4 ? "7.5pt" : "6.5pt",
+              fontSize: isA4 ? "9pt" : "6.5pt",
               letterSpacing: "0.02em",
             }}
           >
@@ -502,7 +559,7 @@ QuotationPrintITCompany.displayName = "QuotationPrintITCompany";
 
 function MetaRow({ label, value, primary }: { label: string; value: string; primary: string }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, margin: "2px 0", fontSize: "8pt" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, margin: "3px 0", fontSize: "10pt" }}>
       <span style={{ color: "#64748b" }}>{label}</span>
       <span style={{ fontWeight: 600, color: primary }}>{value}</span>
     </div>
