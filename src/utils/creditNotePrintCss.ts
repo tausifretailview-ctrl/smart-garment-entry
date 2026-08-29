@@ -1,3 +1,5 @@
+import { PRINT_NESTED_STYLE_TAG_HIDE_CSS } from "@/utils/printNestedStyleTagSafety";
+
 /** Restore table layout when print visibility CSS uses broad selectors (sale return / credit note). */
 export const CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS = `
   @media print {
@@ -23,10 +25,8 @@ export const CREDIT_NOTE_PRINT_TABLE_LAYOUT_CSS = `
       word-wrap: break-word !important;
       overflow-wrap: anywhere !important;
     }
-    body .credit-note-print style {
-      display: none !important;
-    }
   }
+  ${PRINT_NESTED_STYLE_TAG_HIDE_CSS}
 `;
 
 /** Beat InvoicePrint.css `body * { visibility: hidden }` for credit notes / sale returns. */
