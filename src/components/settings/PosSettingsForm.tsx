@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
@@ -16,7 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  isPosThermalBillFormat,
   paperPatchesForInvoiceTemplate,
+  posInvoiceTemplateForBillFormat,
   resolvePosInvoiceTemplate,
   type InvoiceTemplateId,
 } from "@/utils/invoicePrintFormat";
@@ -44,6 +46,7 @@ type SaleSlice = {
   pos_category_tier_pricing?: boolean;
   pos_bill_format?: "a4" | "a5" | "a5-vertical" | "a5-horizontal" | "thermal";
   pos_invoice_template?: InvoiceTemplateId;
+  thermal_receipt_style?: "classic" | "compact" | "modern" | "tvs" | "new-design";
 };
 
 export type PosSettingsFormState = {
@@ -75,6 +78,19 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
     });
   };
 
+  const posThermal = isPosThermalBillFormat(sale.pos_bill_format);
+  const resolvedPosTemplate = resolvePosInvoiceTemplate(sale);
+
+  useEffect(() => {
+    if (!posThermal) return;
+    const nextTemplate = posInvoiceTemplateForBillFormat(sale.pos_bill_format || "thermal", resolvedPosTemplate);
+    if (nextTemplate && nextTemplate !== sale.pos_invoice_template) {
+      patchSale({ pos_invoice_template: nextTemplate as InvoiceTemplateId });
+    }
+    // Only coerce when thermal POS is on and the resolved template is not 80mm.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- patchSale is inline
+  }, [posThermal, resolvedPosTemplate, sale.pos_bill_format, sale.pos_invoice_template]);
+
   return (
     <Card className="h-fit settings-panel-card">
       <CardHeader>
@@ -86,8 +102,8 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
       <CardContent className="space-y-3">
         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
           Shared Sale + POS options stay under <strong className="text-foreground">Settings → Sale</strong>: Invoice
-          Preview, Totals &amp; Taxes print flags, Thermal Receipt Style, Customer Price Memory, and last-purchase
-          price. Changing them there still applies to POS bills.
+          Preview, Totals &amp; Taxes print flags, Customer Price Memory, and last-purchase price. Thermal Receipt
+          Style is on this tab. Changing Sale options still applies to POS bills.
         </div>
 
         <SettingsSection title="GST & numbering">
@@ -353,7 +369,13 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               value={sale.pos_bill_format || "thermal"}
               onValueChange={(value) => {
                 onFocusPosPreview();
-                patchSale({ pos_bill_format: value as SaleSlice["pos_bill_format"] });
+                const nextFormat = value as SaleSlice["pos_bill_format"];
+                const currentTemplate = resolvePosInvoiceTemplate(sale);
+                const nextTemplate = posInvoiceTemplateForBillFormat(value, currentTemplate);
+                patchSale({
+                  pos_bill_format: nextFormat,
+                  ...(nextTemplate ? { pos_invoice_template: nextTemplate as InvoiceTemplateId } : {}),
+                });
               }}
             >
               <SelectTrigger id="pos_bill_format">
@@ -379,10 +401,18 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
           <SettingsFieldBlock
             label="POS Invoice Template"
             htmlFor="pos_invoice_template"
-            description="Grouped by A4 / A5 / Thermal. Can differ from Sale. Live preview on the right is POS."
+            description={
+              posThermal
+                ? "Thermal POS bills use 80mm designs only (Kids 80mm). Switch POS Bill Format to A4/A5 for laser templates."
+                : "Grouped by A4 / A5 / Thermal. Can differ from Sale. Live preview on the right is POS."
+            }
           >
             <Select
-              value={resolvePosInvoiceTemplate(sale)}
+              value={
+                posThermal
+                  ? posInvoiceTemplateForBillFormat("thermal", resolvedPosTemplate) ?? resolvedPosTemplate
+                  : resolvedPosTemplate
+              }
               onValueChange={(value) => {
                 onFocusPosPreview();
                 patchSale({
@@ -395,16 +425,39 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <SelectValue placeholder="Select template" />
               </SelectTrigger>
               <SelectContent>
-                <InvoiceTemplateSelectItems currentValue={resolvePosInvoiceTemplate(sale)} />
+                <InvoiceTemplateSelectItems
+                  currentValue={resolvedPosTemplate}
+                  paperGroups={posThermal ? "thermal-80mm" : "all"}
+                />
               </SelectContent>
             </Select>
           </SettingsFieldBlock>
-          {sale.pos_bill_format === "thermal" || !sale.pos_bill_format ? (
-            <p className="px-3 py-2.5 text-xs text-muted-foreground">
-              Thermal Receipt Style is set under <strong className="text-foreground">Settings → Sale → Print Format</strong>{" "}
-              (same style for sale + POS thermal). No second copy here so the saved value cannot drift.
-            </p>
-          ) : null}
+          <SettingsFieldBlock
+            label="Thermal Receipt Style"
+            htmlFor="thermal_receipt_style"
+            description="Applies to thermal printers (sale + POS). Same saved value as before — only the tab moved."
+          >
+            <Select
+              value={sale.thermal_receipt_style || "classic"}
+              onValueChange={(value) => {
+                onFocusPosPreview();
+                patchSale({
+                  thermal_receipt_style: value as SaleSlice["thermal_receipt_style"],
+                });
+              }}
+            >
+              <SelectTrigger id="thermal_receipt_style">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
+                <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
+                <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
+                <SelectItem value="tvs">TVS 80mm — Bold columns, clear print</SelectItem>
+                <SelectItem value="new-design">New Design — Clean sans-serif, restaurant style</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingsFieldBlock>
         </SettingsSection>
       </CardContent>
     </Card>

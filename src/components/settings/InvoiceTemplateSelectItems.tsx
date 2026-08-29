@@ -13,14 +13,36 @@ const LEGACY_INVOICE_TEMPLATES: Record<string, string> = {
 type InvoiceTemplateSelectItemsProps = {
   /** Current saved value — keeps legacy templates selectable until changed. */
   currentValue?: string | null;
+  /** POS thermal bill print — 80mm designs only. */
+  paperGroups?: "all" | "thermal-80mm";
 };
 
 /** Shared invoice template options for Sale / POS settings selects, grouped by paper size. */
-export function InvoiceTemplateSelectItems({ currentValue }: InvoiceTemplateSelectItemsProps = {}) {
+export function InvoiceTemplateSelectItems({
+  currentValue,
+  paperGroups = "all",
+}: InvoiceTemplateSelectItemsProps = {}) {
+  const thermal80Only = paperGroups === "thermal-80mm";
   const legacyLabel =
-    currentValue && LEGACY_INVOICE_TEMPLATES[currentValue]
+    !thermal80Only && currentValue && LEGACY_INVOICE_TEMPLATES[currentValue]
       ? LEGACY_INVOICE_TEMPLATES[currentValue]
       : null;
+
+  const thermal80Group = (
+    <SelectGroup>
+      <SelectLabel>Thermal 80mm</SelectLabel>
+      <SelectItem value="kids-80mm">
+        <span className="flex items-center gap-2">
+          <span className="text-amber-600 font-bold text-xs w-5">KID</span>
+          Kids 80mm — Compact thermal receipt
+        </span>
+      </SelectItem>
+    </SelectGroup>
+  );
+
+  if (thermal80Only) {
+    return thermal80Group;
+  }
 
   return (
     <>
@@ -123,15 +145,7 @@ export function InvoiceTemplateSelectItems({ currentValue }: InvoiceTemplateSele
         </SelectItem>
       </SelectGroup>
 
-      <SelectGroup>
-        <SelectLabel>Thermal 80mm</SelectLabel>
-        <SelectItem value="kids-80mm">
-          <span className="flex items-center gap-2">
-            <span className="text-amber-600 font-bold text-xs w-5">KID</span>
-            Kids 80mm — Compact thermal receipt
-          </span>
-        </SelectItem>
-      </SelectGroup>
+      {thermal80Group}
     </>
   );
 }
