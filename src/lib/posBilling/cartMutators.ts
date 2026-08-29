@@ -222,6 +222,8 @@ export function updatePrice(
     unitCost: nextUnit,
     discountPercent: 0,
     discountAmount: 0,
+    categoryTierApplied: undefined,
+    categoryTierListPrice: undefined,
   };
   updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
   return { items: updatedItems };
