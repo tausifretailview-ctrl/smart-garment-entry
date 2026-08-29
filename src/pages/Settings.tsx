@@ -606,7 +606,7 @@ export default function Settings() {
           xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
           vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
           a4Cols: p.a4_cols, a4Rows: p.a4_rows,
-          printMode: (p.print_mode as CalibrationPreset["printMode"]) || "thermal",
+          printMode: (p.print_mode as CalibrationPreset["printMode"]) || undefined,
           thermalCols: Number(p.thermal_cols) || 1,
           labelConfig: p.label_config, isDefault: p.is_default,
         })));
