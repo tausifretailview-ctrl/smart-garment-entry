@@ -3325,7 +3325,9 @@ export default function Settings() {
                       designs.
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {settings.sale_settings?.invoice_template === 'kids-80mm'
+                      {settings.sale_settings?.invoice_template === 'retail-pos-80mm'
+                        ? 'Retail POS prints on 80mm thermal roll in monospace — shop logo (if uploaded), org address/mobile/GSTIN, terms, and UPI QR when UPI ID is set.'
+                        : settings.sale_settings?.invoice_template === 'kids-80mm'
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
                         : settings.sale_settings?.invoice_template === 'retail-erp-dc'
                           ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'

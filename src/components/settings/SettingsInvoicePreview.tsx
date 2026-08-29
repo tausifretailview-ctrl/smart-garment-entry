@@ -3,6 +3,7 @@ import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  isThermal80mmInvoiceTemplate,
   resolvePosInvoiceTemplate,
   resolvePosThermalPaper,
   resolveSaleInvoiceTemplate,
@@ -115,7 +116,7 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
         "a4";
   const previewPaper = previewPaperRaw === "a5" ? "a5-vertical" : previewPaperRaw;
   const previewFormat =
-    previewPaper === "thermal" || previewTemplate === "kids-80mm"
+    previewPaper === "thermal" || isThermal80mmInvoiceTemplate(previewTemplate)
       ? "thermal"
       : previewTemplate === "real-tast" ||
           previewTemplate === "gift_tally" ||
@@ -123,7 +124,7 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
         ? "a4"
         : (previewPaper as "a4" | "a5-vertical" | "a5-horizontal" | "thermal");
   const previewScale =
-    previewFormat === "thermal" || previewTemplate === "kids-80mm"
+    previewFormat === "thermal" || isThermal80mmInvoiceTemplate(previewTemplate)
       ? "scale(0.9)"
       : previewFormat === "a4"
         ? "scale(0.6)"
@@ -248,10 +249,12 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
                 }
                 template={previewTemplate}
                 documentType={
-                  invoicePreviewChannel === "pos" || previewTemplate === "kids-80mm" ? "pos" : undefined
+                  invoicePreviewChannel === "pos" || isThermal80mmInvoiceTemplate(previewTemplate)
+                    ? "pos"
+                    : undefined
                 }
                 salesman={
-                  previewTemplate === "kids-80mm" || invoicePreviewChannel === "pos"
+                  isThermal80mmInvoiceTemplate(previewTemplate) || invoicePreviewChannel === "pos"
                     ? "SAMPLE SALES"
                     : undefined
                 }

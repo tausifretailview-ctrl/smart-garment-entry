@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getRealTastA4PrintPageStyle,
   isPosThermalBillFormat,
+  isThermal80mmInvoiceTemplate,
   posInvoiceTemplateForBillFormat,
   resolvePosBillFormat,
   resolvePosBillFormatFromSaleSettings,
@@ -59,6 +60,12 @@ describe('resolvePosBillFormat', () => {
 
   it('forces thermal for kids-80mm template', () => {
     expect(resolvePosBillFormat('kids-80mm', 'a4', 'a4')).toBe('thermal');
+  });
+
+  it('forces thermal for Retail POS 80mm template', () => {
+    expect(resolvePosBillFormat('retail-pos-80mm', 'a4', 'a4')).toBe('thermal');
+    expect(isThermal80mmInvoiceTemplate('retail-pos-80mm')).toBe(true);
+    expect(posInvoiceTemplateForBillFormat('thermal', 'retail-pos-80mm')).toBeUndefined();
   });
 
   it('follows POS A5 for preprinted letterhead template', () => {

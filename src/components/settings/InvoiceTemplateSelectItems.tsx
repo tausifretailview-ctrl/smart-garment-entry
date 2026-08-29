@@ -37,6 +37,12 @@ export function InvoiceTemplateSelectItems({
           Kids 80mm — Compact thermal receipt
         </span>
       </SelectItem>
+      <SelectItem value="retail-pos-80mm">
+        <span className="flex items-center gap-2">
+          <span className="text-sky-700 font-bold text-xs w-5">RPS</span>
+          Retail POS — Monospace 80mm (logo + UPI QR)
+        </span>
+      </SelectItem>
     </SelectGroup>
   );
 
