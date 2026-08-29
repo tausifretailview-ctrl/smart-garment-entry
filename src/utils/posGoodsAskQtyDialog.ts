@@ -1,4 +1,4 @@
-/** Settings → Sale → ask qty/discount before adding regular goods from search dropdown. */
+/** Settings → POS → ask qty/discount before adding regular goods from search dropdown. */
 export function isPosGoodsAskQtyDialogEnabled(
   saleSettings?: { pos_goods_ask_qty_dialog?: boolean | null } | null,
 ): boolean {

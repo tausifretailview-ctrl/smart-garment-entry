@@ -10,12 +10,12 @@ type Props = {
   onEnabledChange: (enabled: boolean) => void;
 };
 
-/** Sale-tab opt-in only — manage rules on Discount Scheme dashboard. */
+/** POS-tab opt-in — manage rules on Discount Scheme dashboard. */
 export function CategoryTierPricingSettings({ enabled, onEnabledChange }: Props) {
   const { getOrgPath } = useOrgNavigation();
 
   return (
-    <div className="space-y-3 pt-4 border-t">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-4">
         <div>
           <Label htmlFor="pos_category_tier_pricing" className="text-sm font-medium">
