@@ -17,15 +17,16 @@ body.ella-root {
   --ella-gold-line: rgba(201, 162, 39, 0.35);
   --ella-hairline: rgba(18, 16, 14, 0.12);
   --ella-radius: 0px;
-  --ella-max: 560px;
+  --ella-max: none;
   background: #ffffff;
   color: var(--ella-paper);
   font-family: Barlow, system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 400;
   line-height: 1.55;
-  margin: 0 auto;
-  max-width: var(--ella-max);
+  margin: 0;
+  max-width: none;
+  width: 100%;
   min-height: 100dvh;
   overflow-x: clip;
   text-wrap: pretty;
@@ -67,22 +68,117 @@ body.ella-root {
 
 .ella-eyebrow {
   color: var(--ella-paper-faint);
-  font-size: 10.5px;
+  font-size: 13px;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
+.ella-site-header {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ella-gold-line);
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  width: 100%;
+}
+
+.ella-site-header-inner {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 14px 20px;
+  width: 100%;
+}
+
+.ella-site-brand {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ella-site-logo {
+  height: 36px;
+  object-fit: contain;
+  width: 36px;
+}
+
+.ella-site-wordmark {
+  color: var(--ella-ink);
+  font-size: 20px;
+  letter-spacing: 0.14em;
+}
+
+.ella-site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ella-nav-link {
+  border: 1px solid transparent;
+  color: var(--ella-paper-muted);
+  font-size: 14px;
+  font-weight: 500;
+  height: 44px;
+  letter-spacing: 0.12em;
+  padding: 0 14px;
+  text-transform: uppercase;
+}
+
+.ella-nav-link-active {
+  background: var(--ella-gold);
+  border-color: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-site-tools {
+  align-items: center;
+  display: flex;
+  flex: 1 1 220px;
+  gap: 10px;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.ella-header-btn {
+  align-items: center;
+  background: var(--ella-gold);
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  height: 48px;
+  letter-spacing: 0.14em;
+  padding: 0 16px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ella-header-btn-ghost {
+  background: #ffffff;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold);
+}
+
 .ella-hero {
   position: relative;
-  height: 520px;
+  height: min(72vh, 720px);
+  min-height: 420px;
   overflow: hidden;
+  width: 100%;
 }
 
 .ella-hero img,
 .ella-hero-ph {
+  display: block;
   height: 100%;
   object-fit: cover;
+  object-position: center 22%;
   width: 100%;
 }
 
@@ -91,7 +187,12 @@ body.ella-root {
 }
 
 .ella-hero-veil {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 10%, rgba(255, 255, 255, 0.88) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(18, 16, 14, 0.18) 0%,
+    rgba(18, 16, 14, 0.08) 42%,
+    rgba(18, 16, 14, 0.62) 100%
+  );
   inset: 0;
   position: absolute;
 }
@@ -116,27 +217,28 @@ body.ella-root {
 }
 
 .ella-wordmark {
-  color: var(--ella-ink);
-  font-size: 42px;
+  color: #ffffff;
+  font-size: 48px;
   letter-spacing: 0.16em;
+  text-shadow: 0 2px 18px rgba(18, 16, 14, 0.35);
 }
 
 .ella-designer {
   color: var(--ella-gold);
-  font-size: 11px;
+  font-size: 14px;
   letter-spacing: 0.18em;
   margin-top: 10px;
 }
 
 .ella-collection-title {
-  color: var(--ella-ink);
-  font-size: 20px;
+  color: #ffffff;
+  font-size: 26px;
   letter-spacing: 0.14em;
 }
 
 .ella-collection-lead {
-  color: var(--ella-paper-muted);
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 16px;
   margin-top: 8px;
 }
 
@@ -203,23 +305,25 @@ body.ella-root {
   border: 1px solid var(--ella-gold-line);
   color: var(--ella-gold);
   display: inline-flex;
-  font-size: 10.5px;
-  height: 44px;
+  font-size: 13px;
+  gap: 8px;
+  height: 48px;
   letter-spacing: 0.14em;
-  min-width: 44px;
-  padding: 0 12px;
+  min-width: 48px;
+  padding: 0 14px;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .ella-search {
   background: #ffffff;
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper);
-  flex: 1;
-  font-size: 13px;
-  height: 44px;
+  flex: 1 1 180px;
+  font-size: 16px;
+  height: 48px;
   min-width: 0;
-  padding: 0 12px;
+  padding: 0 14px;
 }
 
 .ella-search::placeholder {
@@ -243,10 +347,10 @@ body.ella-root {
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper-muted);
   flex: 0 0 auto;
-  font-size: 11px;
-  height: 44px;
+  font-size: 14px;
+  height: 48px;
   letter-spacing: 0.14em;
-  padding: 0 14px;
+  padding: 0 16px;
   text-transform: uppercase;
   transition: background 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;
 }
@@ -271,12 +375,12 @@ body.ella-root {
 
 .ella-section h2 {
   color: var(--ella-ink);
-  font-size: 20px;
+  font-size: 26px;
 }
 
 .ella-count {
   color: var(--ella-paper-faint);
-  font-size: 11px;
+  font-size: 14px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -327,27 +431,27 @@ body.ella-root {
 
 .ella-card-name {
   color: var(--ella-ink);
-  font-size: 17px;
+  font-size: 20px;
   letter-spacing: 0.1em;
 }
 
 .ella-price {
   color: var(--ella-gold);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 400;
 }
 
 .ella-card-enquire {
   border-top: 1px solid var(--ella-hairline);
   color: var(--ella-gold);
-  font-size: 10.5px;
+  font-size: 13px;
   letter-spacing: 0.16em;
   padding-top: 10px;
   text-transform: uppercase;
 }
 
 .ella-badge {
-  font-size: 9.5px;
+  font-size: 12px;
   letter-spacing: 0.14em;
   line-height: 1;
   padding: 4px 8px;
@@ -374,29 +478,72 @@ body.ella-root {
   color: var(--ella-paper-muted);
 }
 
+.ella-main {
+  width: 100%;
+}
+
 .ella-note {
   background: var(--ella-panel);
   border-top: 1px solid var(--ella-gold-line);
   color: var(--ella-paper-muted);
-  font-size: 13px;
-  padding: 24px 22px 28px;
+  font-size: 16px;
+  padding: 28px 22px 32px;
 }
 
 .ella-note-address {
   margin-top: 12px;
 }
 
-.ella-footer {
-  background: #ffffff;
+.ella-footer,
+.ella-site-footer {
+  background: #12100e;
   border-top: 1px solid var(--ella-gold-line);
-  color: var(--ella-paper-faint);
-  display: flex;
-  flex-direction: column;
-  font-size: 11.5px;
-  gap: 6px;
-  letter-spacing: 0.08em;
-  padding: 22px 22px 120px;
+  color: rgba(244, 241, 234, 0.78);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  padding: 36px 22px 120px;
+}
+
+.ella-site-footer-inner {
+  display: grid;
+  gap: 28px;
+  width: 100%;
+}
+
+.ella-footer-heading {
+  color: #ffffff;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.ella-footer-label {
+  color: var(--ella-gold);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  margin-bottom: 10px;
   text-transform: uppercase;
+}
+
+.ella-footer-copy {
+  color: rgba(244, 241, 234, 0.72);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0 0 8px;
+}
+
+.ella-footer-link {
+  color: rgba(244, 241, 234, 0.9);
+  display: block;
+  font-size: 15px;
+  padding: 4px 0;
+  text-align: left;
+}
+
+.ella-footer-social {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
 }
 
 .ella-action-bar {
@@ -407,7 +554,7 @@ body.ella-root {
   gap: 8px;
   left: 0;
   margin: 0 auto;
-  max-width: var(--ella-max);
+  max-width: none;
   padding: 16px 20px 18px;
   position: fixed;
   right: 0;
@@ -424,7 +571,7 @@ body.ella-root {
   display: inline-flex;
   flex: 1;
   font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   height: 52px;
   justify-content: center;
@@ -538,7 +685,7 @@ body.ella-root {
 .ella-spec-row {
   border-bottom: 1px solid var(--ella-hairline);
   display: flex;
-  font-size: 13px;
+  font-size: 16px;
   gap: 16px;
   justify-content: space-between;
   padding: 12px 0;
@@ -546,7 +693,7 @@ body.ella-root {
 
 .ella-spec-row dt {
   color: var(--ella-paper-faint);
-  font-size: 10.5px;
+  font-size: 13px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
@@ -676,7 +823,7 @@ body.ella-root {
 .ella-form label span {
   color: var(--ella-paper-faint);
   display: block;
-  font-size: 10.5px;
+  font-size: 13px;
   letter-spacing: 0.16em;
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -688,8 +835,9 @@ body.ella-root {
   border: 1px solid var(--ella-hairline);
   color: var(--ella-paper);
   font: inherit;
-  min-height: 44px;
-  padding: 10px 12px;
+  font-size: 16px;
+  min-height: 48px;
+  padding: 12px 14px;
   width: 100%;
 }
 
@@ -707,7 +855,7 @@ body.ella-root {
 
 .ella-form-note {
   color: var(--ella-paper-faint);
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .ella-success {
@@ -776,7 +924,7 @@ body.ella-root {
 
 @media (min-width: 640px) {
   .ella-store {
-    --ella-max: 720px;
+    --ella-max: none;
   }
 
   .ella-grid,
@@ -784,9 +932,10 @@ body.ella-root {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .ella-sticky-head,
+  .ella-site-header-inner,
   .ella-section,
   .ella-note,
+  .ella-site-footer,
   .ella-footer {
     padding-left: 32px;
     padding-right: 32px;
@@ -797,19 +946,43 @@ body.ella-root {
     padding-left: 32px;
     padding-right: 32px;
   }
+
+  .ella-site-footer-inner {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (min-width: 1024px) {
   .ella-store {
-    --ella-max: 1200px;
+    --ella-max: none;
+    width: 100%;
   }
 
   .ella-hero {
-    height: 480px;
+    height: min(82vh, 920px);
+    min-height: 560px;
   }
 
   .ella-wordmark {
-    font-size: 52px;
+    font-size: 72px;
+  }
+
+  .ella-collection-title {
+    font-size: 32px;
+  }
+
+  .ella-site-header-inner {
+    flex-wrap: nowrap;
+    padding: 16px 40px;
+  }
+
+  .ella-site-nav {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .ella-site-tools {
+    flex: 0 1 520px;
   }
 
   .ella-grid,
@@ -817,18 +990,31 @@ body.ella-root {
     grid-template-columns: repeat(4, 1fr);
   }
 
-  .ella-sticky-head,
   .ella-section,
   .ella-note,
+  .ella-site-footer,
   .ella-footer {
     padding-left: 40px;
     padding-right: 40px;
+  }
+
+  .ella-site-footer {
+    padding-bottom: 48px;
+  }
+
+  .ella-site-footer-inner {
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 40px;
   }
 
   .ella-hero-center,
   .ella-hero-foot {
     padding-left: 40px;
     padding-right: 40px;
+  }
+
+  .ella-action-bar {
+    display: none;
   }
 
   .ella-sheet {
