@@ -54,6 +54,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useReactToPrint } from "react-to-print";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
+import { SaleOrderStockCheckDialog } from "@/components/SaleOrderStockCheckDialog";
+import { buildAvailableStockMatrix, type AvailableStockMatrixRow } from "@/utils/availableStockPrintMatrix";
+import { fetchArticleSizeStockForProductIds, sizeStockForLine } from "@/utils/fetchArticleSizeStock";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { waitForPrintReady } from "@/utils/printReady";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -131,6 +134,12 @@ export default function SaleOrderEntry() {
   const [notes, setNotes] = useState<string>("");
   const [shippingAddress, setShippingAddress] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [stockCheckOpen, setStockCheckOpen] = useState(false);
+  const [stockCheckLoading, setStockCheckLoading] = useState(false);
+  const [stockCheckSizes, setStockCheckSizes] = useState<string[]>([]);
+  const [stockCheckRows, setStockCheckRows] = useState<AvailableStockMatrixRow[]>([]);
+  const [stockCheckGrand, setStockCheckGrand] = useState({ available: 0, ordered: 0 });
+  const pendingSaveAfterCheckRef = useRef<"dashboard" | "print" | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [quotationId, setQuotationId] = useState<string | null>(null);
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
@@ -1290,6 +1299,70 @@ export default function SaleOrderEntry() {
     }
   };
 
+  const openSizeWiseStockCheck = async (after: "dashboard" | "print") => {
+    const itemsToSave = lineItems.filter((item) => item.productId !== "" && item.orderQty > 0);
+    if (itemsToSave.length === 0) {
+      toast({ title: "Error", description: "Add at least one item with quantity", variant: "destructive" });
+      return;
+    }
+    if (!currentOrganization?.id) {
+      toast({ title: "Error", description: "Organization not loaded", variant: "destructive" });
+      return;
+    }
+    pendingSaveAfterCheckRef.current = after;
+    setStockCheckOpen(true);
+    setStockCheckLoading(true);
+    try {
+      const productIds = itemsToSave.map((item) => item.productId);
+      const { productMeta, sizeWiseByGroup } = await fetchArticleSizeStockForProductIds(
+        currentOrganization.id,
+        productIds,
+      );
+      const matrixItems = itemsToSave.map((item) => {
+        const meta = productMeta.get(item.productId);
+        const article = meta?.product_name || item.productName;
+        const brand = meta?.brand || "";
+        const color = item.color || "";
+        return {
+          particulars: article,
+          color,
+          brand,
+          style: meta?.style || "",
+          size: item.size,
+          orderQty: item.orderQty,
+          pendingQty: item.orderQty,
+          sizeStock: sizeStockForLine(sizeWiseByGroup, article, brand, color),
+        };
+      });
+      const matrix = buildAvailableStockMatrix(matrixItems);
+      setStockCheckRows(matrix.rows);
+      setStockCheckSizes(matrix.sizes);
+      setStockCheckGrand({ available: matrix.grandAvailable, ordered: matrix.grandOrdered });
+    } catch (error: any) {
+      setStockCheckOpen(false);
+      pendingSaveAfterCheckRef.current = null;
+      toast({
+        title: "Could not load size-wise stock",
+        description: error?.message || "Try again before booking",
+        variant: "destructive",
+      });
+    } finally {
+      setStockCheckLoading(false);
+    }
+  };
+
+  const confirmStockCheckAndSave = async () => {
+    const after = pendingSaveAfterCheckRef.current;
+    setStockCheckOpen(false);
+    pendingSaveAfterCheckRef.current = null;
+    if (after === "print") {
+      await handleSaveAndPrint();
+      return;
+    }
+    const result = await handleSaveOrder();
+    if (result.success) navigate("/sale-order-dashboard");
+  };
+
   const handleSaveAndPrint = async () => {
     const result = await handleSaveOrder();
     if (result.success) {
@@ -1881,8 +1954,8 @@ export default function SaleOrderEntry() {
             </Button>
             <Button
               size="sm"
-              onClick={handleSaveAndPrint}
-              disabled={isSaving}
+              onClick={() => void openSizeWiseStockCheck("print")}
+              disabled={isSaving || stockCheckLoading}
               variant="outline"
               className="h-9 px-4 text-[13px] font-extrabold gap-1.5 border-2 border-black text-black hover:bg-black/5"
             >
@@ -1891,16 +1964,31 @@ export default function SaleOrderEntry() {
             </Button>
             <Button
               size="sm"
-              onClick={() => handleSaveOrder().then((r) => r.success && navigate("/sale-order-dashboard"))}
-              disabled={isSaving}
+              onClick={() => void openSizeWiseStockCheck("dashboard")}
+              disabled={isSaving || stockCheckLoading}
               className="h-9 px-5 text-[14px] bg-black text-white hover:bg-black/90 font-extrabold gap-1.5"
             >
               <Save className="h-4 w-4" />
-              {isSaving ? "Saving..." : "Book Sale Order"}
+              {isSaving ? "Saving..." : stockCheckLoading ? "Checking stock..." : "Book Sale Order"}
             </Button>
           </div>
         </div>
       </footer>
+
+      <SaleOrderStockCheckDialog
+        open={stockCheckOpen}
+        loading={stockCheckLoading}
+        customerName={selectedCustomer?.customer_name || "Walk in Customer"}
+        sizes={stockCheckSizes}
+        rows={stockCheckRows}
+        grandAvailable={stockCheckGrand.available}
+        grandOrdered={stockCheckGrand.ordered}
+        onCancel={() => {
+          setStockCheckOpen(false);
+          pendingSaveAfterCheckRef.current = null;
+        }}
+        onConfirm={() => void confirmStockCheckAndSave()}
+      />
 
       {/* Off-screen print source — do not use Tailwind hidden (blanks react-to-print) */}
       <div className="invoice-print-source-screen">
