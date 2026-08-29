@@ -110,6 +110,55 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     expect(fromMock.mock.calls.length).toBeLessThanOrEqual(3);
   });
 
+  it("400-line resolve stays a constant handful of reads (client, mocked I/O)", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-729",
+        product_id: "prod-729",
+        size: "M",
+        color: null,
+        barcode: "8901326331101",
+        pur_price: 500,
+        sale_price: 729,
+        mrp: null,
+      },
+    ];
+    fromMock.mockImplementation((table: string) => {
+      if (table === "product_variants") return chainSelect(variants);
+      if (table === "products") {
+        return chainSelect([
+          {
+            id: "prod-729",
+            product_name: "JOCKEY BRA",
+            brand: "JOCKEY",
+            category: "INNER",
+            color: null,
+            style: null,
+            default_sale_price: 729,
+          },
+        ]);
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const lines = Array.from({ length: 400 }, () => ({
+      organizationId: "org-1",
+      variantId: "sku-729",
+      barcode: "8901326331101",
+      incomingPurPrice: 500,
+      incomingSalePrice: 729,
+    }));
+
+    const started = performance.now();
+    const results = await resolveVariantsForIncomingPriceTiers(lines);
+    const elapsedMs = performance.now() - started;
+
+    expect(results).toHaveLength(400);
+    expect(results.every((r) => r?.variantId === "sku-729")).toBe(true);
+    expect(fromMock.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(elapsedMs).toBeLessThan(250);
+  });
+
   it("dedupes fork inserts for identical tier keys on multiple lines", async () => {
     const variants: VariantRow[] = [
       {
