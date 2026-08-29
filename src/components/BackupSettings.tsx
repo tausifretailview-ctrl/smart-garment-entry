@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SettingsFieldBlock, SettingsRow, SettingsSection } from "@/components/settings/settingsLayout";
 import { useBackup } from "@/hooks/useBackup";
 import type { BackupLog } from "@/hooks/useBackup";
-import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Key, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle, Cloud, Mail, ChevronDown, Shield, RotateCcw } from "lucide-react";
+import { CloudUpload, ExternalLink, Loader2, HardDrive, CheckCircle2, XCircle, Clock, Eye, EyeOff, Save, Download, FileSpreadsheet, Trash2, AlertTriangle, ChevronDown, RotateCcw } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -159,19 +159,16 @@ const BackupSettings = ({
     Date.now() - new Date(lastCompletedAutoAt).getTime() > AUTO_BACKUP_OVERDUE_MS;
 
   return (
-    <div className="space-y-6">
-      {/* Cloud Auto-Backup */}
-      <Card>
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
+      <Card className="h-fit settings-panel-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cloud className="h-5 w-5" />
-            Cloud Auto-Backup
-          </CardTitle>
-           <CardDescription>
-            Every organization is backed up automatically every night at 11:00 PM IST to secure cloud storage. Download any backup from Backup History below.
+          <CardTitle>Backup Settings</CardTitle>
+          <CardDescription>
+            Nightly cloud backup, retention, and on-demand downloads. Same saved keys as before — only the page moved.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {isLoadingSettings ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -181,7 +178,7 @@ const BackupSettings = ({
               {autoBackupOverdue && (
                 <div
                   role="alert"
-                  className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+                  className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
                 >
                   <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600" />
                   <div className="space-y-1">
@@ -191,202 +188,173 @@ const BackupSettings = ({
                         ? `Last completed automatic backup: ${format(new Date(lastCompletedAutoAt), "dd MMM yyyy, hh:mm a")}. `
                         : "No completed automatic backup found. "}
                       Nightly runs are expected at 11:00 PM IST. Use{" "}
-                      <span className="font-medium text-foreground">Run Cloud Backup Now</span> below
-                      for an immediate backup. If this is still overdue after tonight's 11:00 PM run,
-                      contact platform admin.
+                      <span className="font-medium text-foreground">Run Cloud Backup Now</span> for
+                      an immediate backup.
                     </p>
                   </div>
                 </div>
               )}
 
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div>
-                   <h4 className="font-medium">Daily Auto-Backup (Every Night 11:00 PM IST)</h4>
-                   <p className="text-sm text-muted-foreground">
-                     Always on for every organization. Nightly cloud backup cannot be turned off.
-                  </p>
-                </div>
-                <Badge className="bg-green-100 text-green-800">Always on</Badge>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-muted-foreground">
+                Every organization is backed up every night at <strong className="text-foreground">11:00 PM IST</strong>.
+                Files older than the retention window are removed after each run.
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="backupEmail" className="flex items-center gap-1">
-                  <Mail className="h-3.5 w-3.5" />
-                  Notification Email (coming soon)
-                </Label>
-                <Input
-                  id="backupEmail"
-                  type="email"
-                  placeholder="admin@company.com"
-                  value={backupEmail}
-                  onChange={(e) => setBackupEmail(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Email delivery is not active yet.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="backupRetention">Delete backups older than</Label>
-                <Select value={retentionDays} onValueChange={setRetentionDays}>
-                  <SelectTrigger id="backupRetention" className="max-w-xs">
-                    <SelectValue placeholder="Choose retention" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BACKUP_RETENTION_OPTIONS.map((days) => (
-                      <SelectItem key={days} value={String(days)}>
-                        {days} days
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  After each nightly backup, files and history older than this are removed. Default and minimum 3 days.
-                </p>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="text-sm text-muted-foreground">
-                  {lastCompletedAutoAt ? (
-                    <span>
-                      Last automatic backup:{" "}
-                      {format(new Date(lastCompletedAutoAt), "dd MMM yyyy, hh:mm a")}
-                      {autoBackupOverdue ? " (overdue)" : ""}
-                    </span>
-                  ) : (
-                    <span>No automatic backup yet</span>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  onClick={() => void handleSaveAutoBackupSettings()}
-                  disabled={isSavingSettings}
-                  variant="outline"
-                  className="gap-1"
+              <SettingsSection title="Daily auto-backup">
+                <SettingsRow
+                  label="Nightly cloud backup"
+                  description="Always on for every organization. Cannot be turned off."
                 >
-                  {isSavingSettings ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                  Save Settings
-                </Button>
-              </div>
+                  <Badge className="bg-green-100 text-green-800">Always on</Badge>
+                </SettingsRow>
+                <SettingsFieldBlock
+                  label="Notification email (coming soon)"
+                  htmlFor="backupEmail"
+                  description="Email delivery is not active yet."
+                >
+                  <Input
+                    id="backupEmail"
+                    type="email"
+                    placeholder="admin@company.com"
+                    value={backupEmail}
+                    onChange={(e) => setBackupEmail(e.target.value)}
+                  />
+                </SettingsFieldBlock>
+
+                <SettingsFieldBlock
+                  label="Delete backups older than"
+                  htmlFor="backupRetention"
+                  description="After each nightly backup, files and history older than this are removed. Default and minimum 3 days."
+                >
+                  <Select value={retentionDays} onValueChange={setRetentionDays}>
+                    <SelectTrigger id="backupRetention" className="max-w-xs">
+                      <SelectValue placeholder="Choose retention" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BACKUP_RETENTION_OPTIONS.map((days) => (
+                        <SelectItem key={days} value={String(days)}>
+                          {days} days
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </SettingsFieldBlock>
+                <SettingsRow
+                  label="Last automatic backup"
+                  description={
+                    lastCompletedAutoAt
+                      ? `${format(new Date(lastCompletedAutoAt), "dd MMM yyyy, hh:mm a")}${autoBackupOverdue ? " (overdue)" : ""}`
+                      : "No automatic backup yet"
+                  }
+                >
+                  <Button
+                    size="sm"
+                    onClick={() => void handleSaveAutoBackupSettings()}
+                    disabled={isSavingSettings}
+                    variant="outline"
+                    className="gap-1"
+                  >
+                    {isSavingSettings ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    Save Settings
+                  </Button>
+                </SettingsRow>
+              </SettingsSection>
+
+              <SettingsSection title="Manual backup">
+                <SettingsFieldBlock
+                  label="On-demand backup"
+                  description="Customers, Suppliers, Products, Sales, Purchases, Returns, Quotations, Sale Orders, Credit Notes, Vouchers, Ledgers, Employees, Settings"
+                >
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={downloadBackup} disabled={isDownloading} variant="outline" className="gap-2">
+                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      Download JSON
+                    </Button>
+                    <Button onClick={downloadBackupAsExcel} disabled={isDownloading} variant="outline" className="gap-2">
+                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
+                      Download Excel
+                    </Button>
+                    <Button
+                      onClick={() => void startCloudBackup()}
+                      disabled={isCloudBackingUp}
+                      className="gap-2"
+                    >
+                      {isCloudBackingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
+                      Run Cloud Backup Now
+                    </Button>
+                  </div>
+                </SettingsFieldBlock>
+              </SettingsSection>
+
+              <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                <SettingsSection title="Google Drive (advanced)">
+                  <CollapsibleTrigger className="w-full">
+                    <SettingsRow
+                      label="Google Drive setup"
+                      description="Backup directly to Google Drive using OAuth credentials."
+                    >
+                      <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+                    </SettingsRow>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SettingsFieldBlock label="Client ID" htmlFor="clientId">
+                      <Input id="clientId" type="text" placeholder="xxxxx.apps.googleusercontent.com" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+                    </SettingsFieldBlock>
+                    <SettingsFieldBlock label="Client Secret" htmlFor="clientSecret">
+                      <div className="relative">
+                        <Input id="clientSecret" type={showClientSecret ? "text" : "password"} placeholder="GOCSPX-xxxxxx" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
+                        <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
+                          {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </SettingsFieldBlock>
+                    <SettingsFieldBlock
+                      label="Refresh Token"
+                      htmlFor="refreshToken"
+                      description={
+                        <>
+                          Get credentials from{" "}
+                          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google Cloud Console</a>
+                          {" "}and{" "}
+                          <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">OAuth Playground</a>
+                        </>
+                      }
+                    >
+                      <div className="relative">
+                        <Input id="refreshToken" type={showRefreshToken ? "text" : "password"} placeholder="1//04xxxxxx" value={refreshToken} onChange={(e) => setRefreshToken(e.target.value)} />
+                        <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowRefreshToken(!showRefreshToken)}>
+                          {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                    </SettingsFieldBlock>
+                    <SettingsRow label="Google Drive backup" description="Save credentials, then run a Drive backup.">
+                      <div className="flex flex-wrap gap-2">
+                        <Button onClick={handleSaveCredentials} disabled={isSaving || !clientId || !clientSecret || !refreshToken} variant="outline" className="gap-2">
+                          {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : <><Save className="h-4 w-4" />Save</>}
+                        </Button>
+                        <Button onClick={startBackup} disabled={isBackingUp} className="gap-2">
+                          {isBackingUp ? <><Loader2 className="h-4 w-4 animate-spin" />Backing up...</> : <><HardDrive className="h-4 w-4" />Backup to Drive</>}
+                        </Button>
+                      </div>
+                    </SettingsRow>
+                  </CollapsibleContent>
+                </SettingsSection>
+              </Collapsible>
             </>
           )}
         </CardContent>
       </Card>
 
-      {/* Manual Backup */}
-      <Card>
+      <Card className="h-fit settings-panel-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Manual Backup
+            Backup History
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
           </CardTitle>
-          <CardDescription>
-            Download or create a cloud backup on demand.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={downloadBackup} disabled={isDownloading} variant="outline" className="gap-2">
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Download JSON
-            </Button>
-            <Button onClick={downloadBackupAsExcel} disabled={isDownloading} variant="outline" className="gap-2">
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-              Download Excel
-            </Button>
-            <Button
-              onClick={() => void startCloudBackup()}
-              disabled={isCloudBackingUp}
-              className="gap-2"
-            >
-              {isCloudBackingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <CloudUpload className="h-4 w-4" />}
-              Run Cloud Backup Now
-            </Button>
-          </div>
-
-          <div className="text-sm text-muted-foreground">
-            <p className="font-medium mb-1">Data included:</p>
-            <p className="text-xs">
-              Customers, Suppliers, Products, Sales, Purchases, Returns, Quotations, Sale Orders, Credit Notes, Vouchers, Ledgers, Employees, Settings
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Advanced: Google Drive */}
-      <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
-        <Card>
-          <CollapsibleTrigger className="w-full">
-            <CardHeader className="cursor-pointer">
-              <CardTitle className="flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  <HardDrive className="h-5 w-5" />
-                  Advanced: Google Drive Setup
-                </span>
-                <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-              </CardTitle>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
-              <CardDescription>
-                For power users: backup directly to Google Drive using OAuth credentials.
-              </CardDescription>
-              
-              <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                <div>
-                  <h4 className="font-medium">Google Drive Backup</h4>
-                  <p className="text-sm text-muted-foreground">Backup to your Google Drive account</p>
-                </div>
-                <Button onClick={startBackup} disabled={isBackingUp} className="gap-2">
-                  {isBackingUp ? <><Loader2 className="h-4 w-4 animate-spin" />Backing up...</> : <><CloudUpload className="h-4 w-4" />Backup to Drive</>}
-                </Button>
-              </div>
-
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="clientId">Client ID</Label>
-                  <Input id="clientId" type="text" placeholder="xxxxx.apps.googleusercontent.com" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="clientSecret">Client Secret</Label>
-                  <div className="relative">
-                    <Input id="clientSecret" type={showClientSecret ? "text" : "password"} placeholder="GOCSPX-xxxxxx" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
-                    <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowClientSecret(!showClientSecret)}>
-                      {showClientSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="refreshToken">Refresh Token</Label>
-                  <div className="relative">
-                    <Input id="refreshToken" type={showRefreshToken ? "text" : "password"} placeholder="1//04xxxxxx" value={refreshToken} onChange={(e) => setRefreshToken(e.target.value)} />
-                    <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 hover:bg-transparent" onClick={() => setShowRefreshToken(!showRefreshToken)}>
-                      {showRefreshToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Get credentials from{" "}
-                    <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google Cloud Console</a>
-                    {" "}and{" "}
-                    <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noopener noreferrer" className="text-primary underline">OAuth Playground</a>
-                  </p>
-                </div>
-              </div>
-              
-              <Button onClick={handleSaveCredentials} disabled={isSaving || !clientId || !clientSecret || !refreshToken} className="gap-2">
-                {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving...</> : <><Save className="h-4 w-4" />Save Credentials</>}
-              </Button>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* Backup History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Backup History</CardTitle>
-          <CardDescription>Recent backups for your organization</CardDescription>
+          <CardDescription>Recent backups for this organization — updates as new files land.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingLogs ? (
@@ -456,10 +424,11 @@ const BackupSettings = ({
           )}
         </CardContent>
       </Card>
+      </div>
 
       {/* Reset Organization Data - Admin Only */}
       {organizationRole === "admin" && (
-        <Card className="border-destructive/50">
+        <Card className="border-destructive/50 settings-panel-card">
           <CardHeader>
             <CardTitle className="text-destructive flex items-center gap-2">
               <Trash2 className="h-5 w-5" />

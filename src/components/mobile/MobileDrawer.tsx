@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, HelpCircle, LogOut, User, Building, ChevronRight, Store } from "lucide-react";
+import { Settings, HelpCircle, LogOut, User, Building, ChevronRight, Store, Database } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -42,6 +42,7 @@ export const MobileDrawer = ({ trigger }: MobileDrawerProps) => {
     { icon: User, label: "Profile", path: "/profile" },
     { icon: Settings, label: "Settings", path: "/settings" },
     { icon: Store, label: "Website", path: "/website" },
+    { icon: Database, label: "Backup", path: "/backup" },
     { icon: HelpCircle, label: "Help & Support", path: "/settings" },
   ];
 

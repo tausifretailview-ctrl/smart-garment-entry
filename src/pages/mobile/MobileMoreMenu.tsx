@@ -17,6 +17,7 @@ import {
   Users,
   Building2,
   Store,
+  Database,
 } from "lucide-react";
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -96,6 +97,7 @@ export default function MobileMoreMenu() {
       items: [
         { icon: Settings, label: "App Settings", path: "/settings", color: "text-slate-500" },
         { icon: Store, label: "Website", path: "/website", color: "text-sky-500" },
+        { icon: Database, label: "Backup", path: "/backup", color: "text-emerald-500" },
         { icon: User, label: "Profile", path: "/profile", color: "text-blue-500" },
         { icon: HelpCircle, label: "Help & Support", path: "/settings", color: "text-teal-500" },
         { icon: LogOut, label: "Sign Out", action: handleSignOut, color: "text-red-500" },

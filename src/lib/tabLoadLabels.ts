@@ -14,6 +14,8 @@ const TAB_LOAD_LABELS: Record<string, string> = {
   "customer-party-balances": "Opening Customer Balances…",
   "customer-ledger-report": "Opening Customer Ledger…",
   settings: "Opening Settings…",
+  backup: "Opening Backup…",
+  website: "Opening Website…",
   "user-rights": "Opening User Rights…",
   "pos-sales": "Opening POS…",
   "pos-dashboard": "Opening POS Dashboard…",

@@ -189,6 +189,7 @@ const PortalInvoices = lazyWithRetry(() => import("./pages/portal/PortalInvoices
 const PortalAccount = lazyWithRetry(() => import("./pages/portal/PortalAccount"));
 const PublicStorefront = lazyWithRetry(() => import("./pages/PublicStorefront"));
 const WebsiteSettings = lazyWithRetry(() => import("./pages/WebsiteSettings"));
+const BackupSettingsPage = lazyWithRetry(() => import("./pages/BackupSettingsPage"));
 const SalesmanCommission = lazyWithRetry(() => import("./pages/SalesmanCommission"));
 const AdminHealth = lazyWithRetry(() => import("./pages/AdminHealth"));
 
@@ -761,6 +762,18 @@ const App = () => {
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
                         <Layout>
                           <WebsiteSettings />
+                        </Layout>
+                      </RoleProtectedRoute>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="backup"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <Layout>
+                          <BackupSettingsPage />
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
