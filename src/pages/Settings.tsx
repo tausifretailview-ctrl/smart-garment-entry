@@ -2991,37 +2991,11 @@ export default function Settings() {
                     />
                   </div>
 
-                  {/* Thermal style — shown only when either format is thermal */}
-                  {(settings.sale_settings?.invoice_paper_format === 'thermal' ||
-                    settings.sale_settings?.pos_bill_format === 'thermal') && (
-                    <div className="space-y-2">
-                      <Label htmlFor="thermal_receipt_style" className="text-sm font-medium">Thermal Receipt Style</Label>
-                      <Select
-                        value={settings.sale_settings?.thermal_receipt_style || "classic"}
-                        onValueChange={(value) =>
-                          setSettings({
-                            ...settings,
-                            sale_settings: {
-                              ...settings.sale_settings,
-                              thermal_receipt_style: value as 'classic' | 'compact' | 'modern' | 'tvs' | 'new-design',
-                            },
-                          })
-                        }
-                      >
-                        <SelectTrigger id="thermal_receipt_style">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
-                          <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
-                          <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
-                          <SelectItem value="tvs">TVS 80mm — Bold columns, clear print</SelectItem>
-                          <SelectItem value="new-design">New Design — Clean sans-serif, restaurant style</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Applies to all thermal printers (sale + POS)</p>
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Thermal Receipt Style is under{" "}
+                    <strong className="text-foreground">Settings → POS → POS print</strong> (same style for sale +
+                    POS thermal).
+                  </p>
 
                   {/* Default Printer Selection — quick setup for direct printing */}
                   <div className="space-y-3 pt-3 border-t border-dashed">
@@ -3346,8 +3320,9 @@ export default function Settings() {
                   <div className="rounded-lg border border-dashed p-3 bg-muted/20 space-y-1">
                     <p className="text-sm font-medium">Invoice templates</p>
                     <p className="text-xs text-muted-foreground">
-                      Sale and POS invoice templates are set under <span className="font-medium">Print Format</span> above
-                      (Sale Invoice Template / POS Invoice Template). Use the Sale / POS toggle on the live preview to check both designs.
+                      Sale Invoice Template is under Print Format above. POS Invoice Template and Thermal Receipt
+                      Style are under Settings → POS. Use the Sale / POS toggle on the live preview to check both
+                      designs.
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {settings.sale_settings?.invoice_template === 'kids-80mm'

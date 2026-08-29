@@ -139,6 +139,33 @@ export const PREPRINTED_LETTERHEAD_TEMPLATES = new Set(['retail-erp-preprinted']
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
 
+/** Default 80mm design when POS Bill Format is Thermal. */
+export const DEFAULT_THERMAL_80MM_INVOICE_TEMPLATE = 'kids-80mm';
+
+/** POS Bill Format default is thermal when unset. */
+export function isPosThermalBillFormat(format?: string | null): boolean {
+  return !format || format === 'thermal';
+}
+
+/**
+ * When POS thermal is on, keep only 80mm designs.
+ * When leaving thermal, drop kids-80mm so A4/A5 format is not forced back.
+ */
+export function posInvoiceTemplateForBillFormat(
+  nextFormat: string,
+  currentTemplate: string,
+): string | undefined {
+  if (isPosThermalBillFormat(nextFormat)) {
+    return THERMAL_ONLY_INVOICE_TEMPLATES.has(currentTemplate)
+      ? undefined
+      : DEFAULT_THERMAL_80MM_INVOICE_TEMPLATE;
+  }
+  if (THERMAL_ONLY_INVOICE_TEMPLATES.has(currentTemplate)) {
+    return 'modern';
+  }
+  return undefined;
+}
+
 /** Paper-size patches when an A4 / A5 / thermal-only template is chosen. */
 export function paperPatchesForInvoiceTemplate(
   template: string,

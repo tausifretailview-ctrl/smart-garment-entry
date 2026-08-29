@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   getRealTastA4PrintPageStyle,
+  isPosThermalBillFormat,
+  posInvoiceTemplateForBillFormat,
   resolvePosBillFormat,
   resolvePosBillFormatFromSaleSettings,
   resolvePosInvoiceTemplate,
@@ -69,6 +71,24 @@ describe('resolvePosBillFormat', () => {
 
   it('falls back to A4 when POS thermal is selected with preprinted template', () => {
     expect(resolvePosBillFormat('retail-erp-preprinted', 'thermal', 'a4')).toBe('a4');
+  });
+});
+
+describe('isPosThermalBillFormat / posInvoiceTemplateForBillFormat', () => {
+  it('treats unset POS bill format as thermal', () => {
+    expect(isPosThermalBillFormat(undefined)).toBe(true);
+    expect(isPosThermalBillFormat('thermal')).toBe(true);
+    expect(isPosThermalBillFormat('a4')).toBe(false);
+  });
+
+  it('forces kids-80mm when enabling thermal on a laser template', () => {
+    expect(posInvoiceTemplateForBillFormat('thermal', 'modern')).toBe('kids-80mm');
+    expect(posInvoiceTemplateForBillFormat('thermal', 'kids-80mm')).toBeUndefined();
+  });
+
+  it('drops kids-80mm when leaving thermal so A4/A5 can stick', () => {
+    expect(posInvoiceTemplateForBillFormat('a4', 'kids-80mm')).toBe('modern');
+    expect(posInvoiceTemplateForBillFormat('a5-vertical', 'wholesale-a5')).toBeUndefined();
   });
 });
 
