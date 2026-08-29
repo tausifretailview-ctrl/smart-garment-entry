@@ -51,6 +51,7 @@ import {
   upsertCategoryTierPricingRule,
   type DiscountSchemeRow,
 } from "@/lib/discountSchemeDb";
+import { normalizeCategoryKey, pricesMatchForTier } from "@/lib/posBilling/categoryTierPricing";
 
 type RuleForm = {
   id?: string;
@@ -228,6 +229,15 @@ function DiscountSchemeDashboardPage() {
     if (!orgId || !effectiveSchemeId) return;
     try {
       const parsed = parseRuleForm(ruleForm);
+      const duplicate = rules.find(
+        (rule) =>
+          rule.id !== ruleForm.id &&
+          normalizeCategoryKey(rule.category) === normalizeCategoryKey(parsed.category) &&
+          pricesMatchForTier(rule.singleUnitPrice, parsed.singleUnitPrice),
+      );
+      if (duplicate) {
+        throw new Error("A rule already exists for this category at this unit price");
+      }
       await upsertCategoryTierPricingRule({
         organizationId: orgId,
         schemeId: effectiveSchemeId,
@@ -334,7 +344,8 @@ function DiscountSchemeDashboardPage() {
             <div className="min-w-0 mr-auto">
               <h3 className="text-sm font-bold text-slate-800 leading-tight">POS application</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                When enabled, POS sums quantity per category and applies the active scheme&apos;s rules.
+                When enabled, POS sums quantity per category and matching unit price, then applies
+                the active scheme&apos;s rules. Unmatched prices bill at their own rate.
               </p>
             </div>
             {activeScheme && (
