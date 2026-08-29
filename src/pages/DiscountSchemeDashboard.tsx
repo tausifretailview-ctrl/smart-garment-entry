@@ -7,13 +7,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
   TableBody,
@@ -29,8 +27,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, RefreshCw, Percent, History } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, RefreshCw, Percent } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { MenuPermissionRoute } from "@/components/MenuPermissionRoute";
+import {
+  InsightsPanel,
+  InsightsSubTabPanel,
+  InsightsSubTabs,
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_NEUTRAL_TH,
+  INSIGHTS_TABLE_HEAD,
+} from "@/components/business-insights/insightsLayout";
 import {
   createDiscountScheme,
   deleteCategoryTierPricingRule,
@@ -81,10 +91,18 @@ function parseRuleForm(form: RuleForm) {
 }
 
 export default function DiscountSchemeDashboard() {
+  return (
+    <MenuPermissionRoute permission="discount_scheme_dashboard">
+      <DiscountSchemeDashboardPage />
+    </MenuPermissionRoute>
+  );
+}
+
+function DiscountSchemeDashboardPage() {
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { data: settingsData, refetch: refetchSettings } = useSettings();
-  const { getOrgPath } = useOrgNavigation();
+  const { getOrgPath, orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
 
@@ -101,6 +119,7 @@ export default function DiscountSchemeDashboard() {
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRuleForm);
   const [newSchemeName, setNewSchemeName] = useState("");
   const [savingPosToggle, setSavingPosToggle] = useState(false);
+  const [detailTab, setDetailTab] = useState<"rules" | "history">("rules");
 
   const { data: schemes = [], isLoading: schemesLoading, refetch: refetchSchemes } = useQuery({
     queryKey: ["discount_schemes", orgId],
@@ -278,6 +297,48 @@ export default function DiscountSchemeDashboard() {
   };
 
   return (
+    fix/purchase-sold-qty-import
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Percent className="h-5 w-5 shrink-0" />
+                Discount Scheme
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Category + unit-price bundle pricing for POS. Enable below or in{" "}
+                <Link to={getOrgPath("/settings")} className="text-teal-700 underline-offset-2 hover:underline">
+                  Settings → POS
+                </Link>
+                .
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 text-sm shrink-0"
+            onClick={() => {
+              refetchSchemes();
+              refetchRules();
+              refetchHistory();
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh
+          </Button>
+=======
     <div className="container max-w-6xl py-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -294,21 +355,33 @@ export default function DiscountSchemeDashboard() {
             </Link>
             .
           </p>
+ main
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            refetchSchemes();
-            refetchRules();
-            refetchHistory();
-          }}
-        >
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
-        </Button>
-      </div>
 
+ fix/purchase-sold-qty-import
+        <div className="shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100">
+            <div className="min-w-0 mr-auto">
+              <h3 className="text-sm font-bold text-slate-800 leading-tight">POS application</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                When enabled, POS sums quantity per category and applies the active scheme&apos;s rules.
+              </p>
+            </div>
+            {activeScheme && (
+              <Badge
+                className={cn(
+                  "text-xs font-semibold",
+                  posEnabled
+                    ? "bg-teal-600 hover:bg-teal-600 text-white"
+                    : "bg-slate-200 text-slate-700 hover:bg-slate-200",
+                )}
+              >
+                Active scheme: {activeScheme.name}
+              </Badge>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 px-3 py-3">
+=======
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">POS application</CardTitle>
@@ -318,52 +391,100 @@ export default function DiscountSchemeDashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3"
+            main
             <Switch
               checked={posEnabled}
               disabled={savingPosToggle}
               onCheckedChange={(checked) => void handlePosToggle(checked)}
             />
-            <span className="text-sm font-medium">
+            <span className="text-sm font-semibold text-slate-800">
               {posEnabled ? "Enabled on POS bills" : "Disabled — normal POS pricing"}
             </span>
           </div>
-          {activeScheme && (
-            <Badge variant={posEnabled ? "default" : "secondary"}>
-              Active scheme: {activeScheme.name}
-            </Badge>
-          )}
-        </CardContent>
-      </Card>
+        </div>
 
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Schemes</CardTitle>
-            <CardDescription>Multiple schemes supported — one is active on POS.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {schemesLoading ? (
-              <p className="text-sm text-muted-foreground">Loading…</p>
-            ) : (
-              schemes.map((scheme) => (
-                <button
-                  key={scheme.id}
-                  type="button"
-                  onClick={() => setSelectedSchemeId(scheme.id)}
-                  className={`w-full text-left rounded-md border px-3 py-2 text-sm transition-colors ${
-                    effectiveSchemeId === scheme.id
-                      ? "border-primary bg-primary/10"
-                      : "hover:bg-muted/50"
-                  }`}
-                >
-                  <div className="font-medium flex items-center gap-2">
-                    {scheme.name}
-                    {scheme.is_default && (
-                      <Badge variant="outline" className="text-[10px]">
-                        default
-                      </Badge>
+        <div className="grid gap-2 lg:grid-cols-[260px_1fr] flex-1 min-h-0 overflow-hidden">
+          <InsightsPanel
+            className="min-h-0 h-full"
+            title="Schemes"
+            subtitle="One scheme is active on POS."
+          >
+            <div className="space-y-2 p-3">
+              {schemesLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : (
+                schemes.map((scheme) => (
+                  <button
+                    key={scheme.id}
+                    type="button"
+                    onClick={() => setSelectedSchemeId(scheme.id)}
+                    className={cn(
+                      "w-full text-left rounded-md border px-3 py-2 text-sm transition-colors",
+                      effectiveSchemeId === scheme.id
+                        ? "border-teal-600 bg-teal-50"
+                        : "border-slate-200 hover:bg-slate-50",
                     )}
+                    fix/purchase-sold-qty-import
+                  >
+                    <div className="font-semibold text-slate-800 flex items-center gap-2">
+                      {scheme.name}
+                      {scheme.is_default && (
+                        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                          default
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {activeSchemeId === scheme.id || (scheme.is_default && !activeSchemeId)
+                        ? "Active on POS"
+                        : "Set active"}
+                    </div>
+                    {effectiveSchemeId === scheme.id && activeSchemeId !== scheme.id && !scheme.is_default && (
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="h-auto p-0 text-xs text-teal-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleSetActiveScheme(scheme);
+                        }}
+                      >
+                        Use on POS
+                      </Button>
+                    )}
+                    {effectiveSchemeId !== scheme.id && (
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="h-auto p-0 text-xs text-teal-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleSetActiveScheme(scheme);
+                        }}
+                      >
+                        Set active on POS
+                      </Button>
+                    )}
+                  </button>
+                ))
+              )}
+              <div className="flex gap-2 pt-2 border-t border-slate-100">
+                <div className="space-y-1 flex-1 min-w-0">
+                  <Label
+                    htmlFor="new-scheme-name"
+                    className="text-[11px] font-semibold uppercase tracking-wide text-slate-500"
+                  >
+                    New scheme name
+                  </Label>
+                  <Input
+                    id="new-scheme-name"
+                    placeholder="New scheme name"
+                    value={newSchemeName}
+                    onChange={(e) => setNewSchemeName(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+=======
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {activeSchemeId === scheme.id || (scheme.is_default && !activeSchemeId)
@@ -433,111 +554,145 @@ export default function DiscountSchemeDashboard() {
                     Each rule is category + single unit price. Same category at ₹300 and ₹600
                     are two rules. Example: Track Pants @ ₹300 — 4 for ₹1000.
                   </CardDescription>
+main
                 </div>
-                <Button size="sm" onClick={openCreateRule} disabled={!effectiveSchemeId}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add rule
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="self-end h-8"
+                  onClick={() => void addScheme()}
+                  disabled={!newSchemeName.trim()}
+                >
+                  <Plus className="h-4 w-4" />
                 </Button>
-              </CardHeader>
-              <CardContent>
-                {rulesLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading rules…</p>
-                ) : rules.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">
-                    No category rules yet. Add T-Shirt, Shirt, Jeans, etc.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="text-right">Single (₹)</TableHead>
-                        <TableHead className="text-right">Bundle qty</TableHead>
-                        <TableHead className="text-right">Bundle total (₹)</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Updated</TableHead>
-                        <TableHead className="w-[88px]" />
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rules.map((rule) => (
-                        <TableRow key={rule.id}>
-                          <TableCell className="font-medium">{rule.category}</TableCell>
-                          <TableCell className="text-right tabular-nums">{rule.singleUnitPrice}</TableCell>
-                          <TableCell className="text-right tabular-nums">{rule.tierQty}</TableCell>
-                          <TableCell className="text-right tabular-nums">{rule.tierTotalPrice}</TableCell>
-                          <TableCell>
-                            <Badge variant={rule.isActive !== false ? "default" : "secondary"}>
-                              {rule.isActive !== false ? "Active" : "Off"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {rule.updatedAt
-                              ? format(new Date(rule.updatedAt), "dd MMM yyyy HH:mm")
-                              : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Button size="icon" variant="ghost" onClick={() => openEditRule(rule)}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button size="icon" variant="ghost" onClick={() => void removeRule(rule)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
+          </InsightsPanel>
 
-          <TabsContent value="history" className="mt-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Change history</CardTitle>
-                <CardDescription>Created, updated, and deleted category rules.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {historyLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading history…</p>
-                ) : history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-8 text-center">No history yet.</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>When</TableHead>
-                        <TableHead>Action</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Details</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {history.map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell className="text-xs whitespace-nowrap">
-                            {format(new Date(row.created_at), "dd MMM yyyy HH:mm")}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{row.action}</Badge>
-                          </TableCell>
-                          <TableCell>{row.category ?? "—"}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-md truncate">
-                            {JSON.stringify(row.snapshot)}
-                          </TableCell>
+          <div className="flex flex-col min-h-0 min-w-0 overflow-hidden">
+            <InsightsSubTabs
+              value={detailTab}
+              onValueChange={setDetailTab}
+              items={[
+                { id: "rules", label: "Category rules" },
+                { id: "history", label: "History" },
+              ]}
+            >
+              <InsightsSubTabPanel value="rules">
+                <InsightsPanel
+                  className="flex-1 min-h-0 h-full"
+                  title={activeScheme?.name ?? "Rules"}
+                  subtitle="Category must match product master (case-insensitive). Example: T-Shirt — ₹299 single, 4 for ₹999."
+                  toolbar={
+                    <Button size="sm" className="h-8 text-sm" onClick={openCreateRule} disabled={!effectiveSchemeId}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add rule
+                    </Button>
+                  }
+                >
+                  {rulesLoading ? (
+                    <p className="text-sm text-muted-foreground px-3 py-8">Loading rules…</p>
+                  ) : rules.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">
+                      No category rules yet. Add T-Shirt, Shirt, Jeans, etc.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader className={INSIGHTS_TABLE_HEAD}>
+                        <TableRow>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Category</TableHead>
+                          <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Single (₹)</TableHead>
+                          <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Bundle qty</TableHead>
+                          <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>
+                            Bundle total (₹)
+                          </TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Updated</TableHead>
+                          <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "w-[88px]")} />
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                      </TableHeader>
+                      <TableBody>
+                        {rules.map((rule) => (
+                          <TableRow key={rule.id} className={INSIGHTS_BODY_ROW}>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold")}>
+                              {rule.category}
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL_NUM}>{rule.singleUnitPrice}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL_NUM}>{rule.tierQty}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL_NUM}>{rule.tierTotalPrice}</TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              <Badge variant={rule.isActive !== false ? "default" : "secondary"}>
+                                {rule.isActive !== false ? "Active" : "Off"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground")}>
+                              {rule.updatedAt
+                                ? format(new Date(rule.updatedAt), "dd MMM yyyy HH:mm")
+                                : "—"}
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              <div className="flex gap-1">
+                                <Button size="icon" variant="ghost" onClick={() => openEditRule(rule)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button size="icon" variant="ghost" onClick={() => void removeRule(rule)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </InsightsPanel>
+              </InsightsSubTabPanel>
+
+              <InsightsSubTabPanel value="history">
+                <InsightsPanel
+                  className="flex-1 min-h-0 h-full"
+                  title="Change history"
+                  subtitle="Created, updated, and deleted category rules."
+                >
+                  {historyLoading ? (
+                    <p className="text-sm text-muted-foreground px-3 py-8">Loading history…</p>
+                  ) : history.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-8 text-center">No history yet.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader className={INSIGHTS_TABLE_HEAD}>
+                        <TableRow>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>When</TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Action</TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Category</TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {history.map((row) => (
+                          <TableRow key={row.id} className={INSIGHTS_BODY_ROW}>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs whitespace-nowrap")}>
+                              {format(new Date(row.created_at), "dd MMM yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              <Badge variant="outline">{row.action}</Badge>
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>{row.category ?? "—"}</TableCell>
+                            <TableCell
+                              className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground max-w-md truncate")}
+                            >
+                              {JSON.stringify(row.snapshot)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </InsightsPanel>
+              </InsightsSubTabPanel>
+            </InsightsSubTabs>
+          </div>
+        </div>
       </div>
 
       <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>

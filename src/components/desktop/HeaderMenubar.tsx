@@ -19,6 +19,7 @@ import {
   ShoppingCart,
   TrendingUp,
   Truck,
+  Percent,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -77,7 +78,8 @@ export function HeaderMenubar({
     can("sales_invoice") ||
     can("sale_return_entry") ||
     can("sales_invoice_dashboard") ||
-    can("quotation_entry");
+    can("quotation_entry") ||
+    can("discount_scheme_dashboard");
 
   const showPurchase =
     can("purchase_bill") ||
@@ -299,6 +301,15 @@ export function HeaderMenubar({
                 onClick={() => orgNavigate("/sales-invoice-dashboard")}
               >
                 Sales Dashboard
+              </MenubarItem>
+            )}
+            {can("discount_scheme_dashboard") && (
+              <MenubarItem
+                {...tabPrefetchProps("discount-scheme-dashboard")}
+                onClick={() => orgNavigate("/discount-scheme-dashboard")}
+              >
+                <Percent className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Discount Scheme
               </MenubarItem>
             )}
             {canQuickSaleLookup && (

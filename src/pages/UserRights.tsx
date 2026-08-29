@@ -216,6 +216,7 @@ const defaultBasicPermissions: Record<string, boolean> = {
   pos_dashboard: true,
   reports_hub: true,
   business_insights: true,
+  discount_scheme_dashboard: true,
 };
 
 // Default permissions for managers - more comprehensive access
