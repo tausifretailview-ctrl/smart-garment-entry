@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";

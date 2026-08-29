@@ -65,6 +65,11 @@ import {
 } from '@/utils/barcodeDesktopPrint';
 import { isElectron } from "@/utils/appPrint";
 import {
+  assertPrintTargetSafe,
+  printHtmlLooksLikeLeakedCss,
+  PrintPreflightError,
+} from "@/utils/printOutputPreflight";
+import {
   resolveBarcodePrintTab,
   thermalLandingFromDefaultPrintTab,
   type BarcodeDefaultPrintTabSetting,
@@ -5618,6 +5623,14 @@ export default function BarcodePrinting() {
       return;
     }
 
+    if (printHtmlLooksLikeLeakedCss(htmlDoc)) {
+      toast.error("Print blocked", {
+        description:
+          "Print preview contains raw CSS text. Printing was blocked so a customer document is not sent like this.",
+      });
+      return;
+    }
+
     const printWindow = window.open("", "_blank");
     if (!printWindow) {
       toast.error("Popup blocked — please allow popups for this site.");
@@ -5735,6 +5748,16 @@ export default function BarcodePrinting() {
       document.title = " ";
       setPrintPageActive(true);
       setTimeout(() => {
+        try {
+          assertPrintTargetSafe(document.getElementById("printArea"));
+        } catch (err) {
+          document.title = originalTitle;
+          setPrintPageActive(false);
+          if (err instanceof PrintPreflightError) {
+            toast.error("Print blocked", { description: err.message });
+          }
+          return;
+        }
         window.print();
         document.title = originalTitle;
         // Fallback in case `afterprint` does not fire (some browsers/dialogs).
@@ -5831,6 +5854,17 @@ export default function BarcodePrinting() {
     document.title = ' ';
     setPrintPageActive(true);
     setTimeout(() => {
+      try {
+        assertPrintTargetSafe(document.getElementById("printArea"));
+      } catch (err) {
+        document.title = originalTitle;
+        setTestPrintActive(false);
+        setPrintPageActive(false);
+        if (err instanceof PrintPreflightError) {
+          toast.error("Print blocked", { description: err.message });
+        }
+        return;
+      }
       window.print();
       document.title = originalTitle;
       setTestPrintActive(false);

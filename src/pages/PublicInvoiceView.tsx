@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Printer, Download, FileX } from "lucide-react";
 import { format } from "date-fns";
 import { useRef, useEffect, useState, useLayoutEffect } from "react";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { ProfessionalTemplate } from "@/components/invoice-templates/ProfessionalTemplate";
 import { ClassicTemplate } from "@/components/invoice-templates/ClassicTemplate";
 import { ModernTemplate } from "@/components/invoice-templates/ModernTemplate";

@@ -68,7 +68,7 @@ import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";

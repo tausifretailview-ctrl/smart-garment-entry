@@ -229,7 +229,7 @@ import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
@@ -5092,6 +5092,7 @@ export default function POSSales() {
     contentRef: creditNotePrintRef,
     documentTitle: creditNoteData?.credit_note_number || "Credit Note",
     pageStyle: getCreditNotePageStyle(),
+    expectedMaxPages: 1,
     onBeforePrint: () =>
       new Promise<void>((resolve) => {
         waitForPrintReady(creditNotePrintRef, resolve, { maxWait: 8000 });

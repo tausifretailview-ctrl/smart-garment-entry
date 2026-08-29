@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { CalendarIcon, Check, ChevronsUpDown, FileDown, FileText, Printer, Scale } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;

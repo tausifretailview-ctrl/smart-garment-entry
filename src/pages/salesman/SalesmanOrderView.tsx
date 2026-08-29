@@ -11,7 +11,7 @@ import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 
 interface OrderItem {
   id: string;

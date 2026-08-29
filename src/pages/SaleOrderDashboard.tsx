@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleOrderPrint } from "@/components/SaleOrderPrint";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
