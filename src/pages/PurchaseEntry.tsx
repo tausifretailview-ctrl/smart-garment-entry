@@ -148,6 +148,7 @@ import {
 } from "@/utils/purchaseBarcodePrintGuard";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
+import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -6323,6 +6324,7 @@ const PurchaseEntry = () => {
       setSelectedForPrint(new Set());
       setShowPrintDialog(false);
 
+      stashPurchaseBarcodePrintPayload(gate.billId, barcodeItems);
       // Navigate to barcode printing page with items
       navigate(barcodePrintingPathWithBill(gate.billId), { 
         state: { purchaseItems: barcodeItems, billId: gate.billId } 
@@ -8597,6 +8599,7 @@ const PurchaseEntry = () => {
 
                       setSelectedForPrint(new Set());
                       setShowPrintDialog(false);
+                      stashPurchaseBarcodePrintPayload(purchaseBarcodePrintGate.billId, barcodeItems);
                       navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
                         state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                       });
@@ -8681,6 +8684,7 @@ const PurchaseEntry = () => {
                         }
 
                         setShowPrintDialog(false);
+                        stashPurchaseBarcodePrintPayload(purchaseBarcodePrintGate.billId, barcodeItems);
                         navigate(barcodePrintingPathWithBill(purchaseBarcodePrintGate.billId), { 
                           state: { purchaseItems: barcodeItems, billId: purchaseBarcodePrintGate.billId } 
                         });

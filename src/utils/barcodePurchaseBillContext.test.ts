@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   barcodePrintSelectionNavKey,
   clearBarcodePrintSelection,
+  consumeBarcodePurchaseItems,
   persistBarcodePrintSelection,
+  queueBarcodePurchaseItems,
   readBarcodePrintSelection,
+  stashPurchaseBarcodePrintPayload,
 } from "./barcodePurchaseBillContext";
 
 const billId = "550e8400-e29b-41d4-a716-446655440000";
@@ -51,5 +54,23 @@ describe("barcode print selection persistence", () => {
     persistBarcodePrintSelection(billId, [{ sku_id: "sku-a" }]);
     clearBarcodePrintSelection(billId);
     expect(readBarcodePrintSelection(billId)).toBeNull();
+  });
+
+  it("consumes queued items when nav key changed but bill id matches", () => {
+    const subset = [{ sku_id: "sku-l" }, { sku_id: "sku-xl" }, { sku_id: "sku-xxl" }];
+    queueBarcodePurchaseItems({
+      navKey: `${"abc"}|${billId}|3|sku-l`,
+      billId,
+      items: subset,
+    });
+    const taken = consumeBarcodePurchaseItems(`query|${billId}|def`, billId);
+    expect(taken?.items).toEqual(subset);
+    expect(consumeBarcodePurchaseItems(`query|${billId}|def`, billId)).toBeNull();
+  });
+
+  it("stashes selection so persist survives a cleared router state", () => {
+    const subset = [{ sku_id: "sku-l", qty: 1 }];
+    stashPurchaseBarcodePrintPayload(billId, subset);
+    expect(readBarcodePrintSelection(billId)).toEqual(subset);
   });
 });

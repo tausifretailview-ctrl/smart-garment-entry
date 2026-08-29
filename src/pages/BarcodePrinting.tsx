@@ -3070,6 +3070,9 @@ export default function BarcodePrinting() {
   useLayoutEffect(() => {
     const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
     if (!purchaseNavKey || !st?.purchaseItems?.length) return;
+    if (st.billId) {
+      persistBarcodePrintSelection(st.billId, st.purchaseItems);
+    }
     queueBarcodePurchaseItems({
       navKey: purchaseNavKey,
       billId: st.billId,
@@ -3088,9 +3091,6 @@ export default function BarcodePrinting() {
     const fromState = st?.purchaseItems?.length
       ? { navKey: purchaseNavKey, billId: st.billId, items: st.purchaseItems as unknown[] }
       : null;
-    let pending = fromState?.navKey
-      ? fromState
-      : consumeBarcodePurchaseItems(purchaseNavKey ?? undefined);
 
     let cancelled = false;
 
@@ -3103,6 +3103,10 @@ export default function BarcodePrinting() {
           : null) ||
         null;
 
+      let pending = fromState?.navKey
+        ? fromState
+        : consumeBarcodePurchaseItems(purchaseNavKey ?? undefined, billIdForFetch);
+
       if (!pending?.items?.length && billIdForFetch) {
         const persistedItems = readBarcodePrintSelection(billIdForFetch);
         if (persistedItems?.length) {
@@ -3114,6 +3118,7 @@ export default function BarcodePrinting() {
         }
       }
 
+      // Full-bill DB fetch only when there is no explicit Purchase Entry subset.
       if (!pending?.items?.length && currentOrganization?.id && billIdForFetch) {
         const navKey = `db|${billIdForFetch}`;
         if (appliedPurchaseNavKeyRef.current !== navKey) {
@@ -3299,7 +3304,7 @@ export default function BarcodePrinting() {
 
       const billId = pending.billId;
       const billNumber = items.find((item) => item.bill_number?.trim())?.bill_number;
-      if (billId && pending.items.length) {
+      if (billId && pending.items.length && !String(pending.navKey || "").startsWith("db|")) {
         persistBarcodePrintSelection(billId, pending.items);
       }
       if (currentOrganization?.id && billId) {
