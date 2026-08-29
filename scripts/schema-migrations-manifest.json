@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-08-29",
-  "count": 739,
-  "fileCount": 756,
+  "count": 740,
+  "fileCount": 757,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -664,6 +664,7 @@
     "20260828190100",
     "20260828200000",
     "20260829070000",
+    "20260829120000",
     "20260909120000",
     "20260909120100",
     "20260909120200",
@@ -1420,6 +1421,7 @@
     "20260828190100_fix_fail_open_org_guards.sql",
     "20260828200000_fix_remaining_fail_open_guards.sql",
     "20260829070000_daily_backup_all_orgs_3day_retention.sql",
+    "20260829120000_category_tier_unique_include_unit_price.sql",
     "20260909120000_get_customer_party_balances.sql",
     "20260909120100_fix_get_customer_party_balances_ambiguity.sql",
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
