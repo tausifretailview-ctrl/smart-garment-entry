@@ -223,7 +223,7 @@ interface SaleSettings {
   pos_numbering_format?: string;  // For POS billing POS-{YYYY}-{####}
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4' | 'thermal';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // kept for backward compat
-  pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
+  pos_bill_format?: 'a4' | 'a5' | 'a5-vertical' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;
@@ -470,7 +470,7 @@ export default function Settings() {
     sale_settings: {},
     bill_barcode_settings: {},
     report_settings: {},
-    auto_backup_enabled: false,
+    auto_backup_enabled: true,
     backup_email: "",
     backup_retention_days: DEFAULT_BACKUP_RETENTION_DAYS,
     last_auto_backup_at: null,
@@ -738,7 +738,7 @@ export default function Settings() {
       sale_settings: (settingsData.sale_settings as SaleSettings) || {},
       bill_barcode_settings: (settingsData.bill_barcode_settings as BillBarcodeSettings) || {},
       report_settings: (settingsData.report_settings as ReportSettings) || {},
-      auto_backup_enabled: settingsData.auto_backup_enabled || false,
+      auto_backup_enabled: settingsData.auto_backup_enabled !== false,
       backup_email: settingsData.backup_email || "",
       backup_retention_days: settingsData.backup_retention_days ?? DEFAULT_BACKUP_RETENTION_DAYS,
       last_auto_backup_at: settingsData.last_auto_backup_at ?? null,

@@ -72,6 +72,14 @@ export function parseDispatchTicketHeader(req: Request): { id: string; token: st
   return parseDispatchTicket(req.headers.get(DISPATCH_TICKET_HEADER) ?? "");
 }
 
+/** pg_net has dropped custom headers in the past — cron also sends `ticket` in the body. */
+export function parseDispatchTicketFromBody(body: unknown): { id: string; token: string } | null {
+  if (!body || typeof body !== "object") return null;
+  const ticket = (body as { ticket?: unknown }).ticket;
+  if (typeof ticket !== "string") return null;
+  return parseDispatchTicket(ticket);
+}
+
 /** Headers an internal caller must send. Throws if the secret is not configured. */
 export function internalDispatchHeaders(): Record<string, string> {
   const configured = Deno.env.get("BACKUP_DISPATCH_SECRET") ?? "";
