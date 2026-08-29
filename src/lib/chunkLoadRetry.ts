@@ -165,15 +165,37 @@ export const ACCOUNTS_TAB_PREFETCH_PATHS = [
   "ledger-opening-balances",
 ] as const;
 
-/** Re-warm after the browser tab was hidden/idle (module cache may have been discarded). */
+/**
+ * Re-warm after the browser tab was hidden/idle (module cache may have been discarded).
+ * Web/PWA: all 7 long-budget Outlet entries plus purchase/product entry.
+ * Electron wake/hover uses ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS — do not grow that
+ * list; sequential idle prefetch is the desktop warm path (memory-capped).
+ */
 export const CRITICAL_ENTRY_CHUNK_PATHS = [
   "purchase-entry",
   "product-entry",
   "pos-sales",
   "pos-delivery-challan",
   "sales-invoice",
+  "sale-return-entry",
+  "quotation-entry",
+  "sale-order-entry",
+  "purchase-return-entry",
   // Later: add mobile-pos when it uses the tab-cache registry (billing must not cold-load).
 ] as const;
+
+/** Electron visibility/hover re-warm — original slim set. Idle prefetch stays sequential. */
+export const ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS = [
+  "purchase-entry",
+  "product-entry",
+  "pos-sales",
+  "pos-delivery-challan",
+  "sales-invoice",
+] as const;
+
+export function criticalEntryChunkPathsForShell(electron: boolean): readonly string[] {
+  return electron ? ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS : CRITICAL_ENTRY_CHUNK_PATHS;
+}
 
 /** Heavy admin modules — warmed on browser idle after login (not blocking bill entry). */
 export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [

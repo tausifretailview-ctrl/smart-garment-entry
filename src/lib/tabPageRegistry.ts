@@ -6,6 +6,7 @@ import {
   lazyWithRetry,
   scheduleSequentialIdlePrefetch,
   CRITICAL_ENTRY_CHUNK_PATHS,
+  criticalEntryChunkPathsForShell,
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
@@ -451,7 +452,10 @@ export function dedupeTabPrefetchPaths(paths: readonly string[]): string[] {
 
 /** Warm purchase/product/POS entry chunks (login idle + after tab wake from idle). */
 export function prefetchCriticalEntryChunks(): void {
-  dedupeTabPrefetchPaths(CRITICAL_ENTRY_CHUNK_PATHS).forEach((p) => prefetchTabPage(p));
+  // Electron: keep the slim wake set. Expanding CRITICAL_ENTRY_CHUNK_PATHS is web/PWA only —
+  // desktop idle prefetch is sequential and memory-capped (see prefetchTabPagesIdle).
+  const list = criticalEntryChunkPathsForShell(isElectronShell());
+  dedupeTabPrefetchPaths(list).forEach((p) => prefetchTabPage(p));
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */
