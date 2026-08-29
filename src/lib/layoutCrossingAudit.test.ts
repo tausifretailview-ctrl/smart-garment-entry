@@ -64,23 +64,25 @@ describe("layout-crossing audit", () => {
     expect(remount).toEqual(["purchase-entry"]);
   });
 
-  it("lists long-budget Outlet destinations with no watchdog (the coverage gap)", () => {
-    const none = destinationsWithNoWatchdog();
-    expect(none).toEqual(
-      expect.arrayContaining([
-        "pos-sales",
-        "pos-delivery-challan",
-        "sales-invoice",
-        "sale-return-entry",
-        "quotation-entry",
-        "sale-order-entry",
-        "purchase-return-entry",
-      ]),
-    );
-    expect(none).not.toContain("purchase-entry");
-    expect(none).not.toContain("pos-dashboard");
-    expect(none).not.toContain("barcode-printing");
-    expect(none).toHaveLength(7);
+  it("covers the 7 long-budget Outlet entries with the 6s remount only", () => {
+    const seven = [
+      "pos-sales",
+      "pos-delivery-challan",
+      "sales-invoice",
+      "sale-return-entry",
+      "quotation-entry",
+      "sale-order-entry",
+      "purchase-return-entry",
+    ];
+    for (const path of seven) {
+      const cov = watchdogCoverageForDestination(path);
+      expect(cov.blankFrame12s, path).toBe(false);
+      expect(cov.outletRescue4s, path).toBe(false);
+      expect(cov.cacheableRemount6s, path).toBe(false);
+      expect(cov.longBudgetOutletRemount6s, path).toBe(true);
+      expect(cov.anyRescue, path).toBe(true);
+    }
+    expect(destinationsWithNoWatchdog()).toEqual([]);
   });
 
   it("POS → purchase-entry is covered only by the 6s remount, not 1.2s/4s", () => {

@@ -13,7 +13,10 @@ import {
   TAB_PAGE_REGISTRY,
   type TabPageLayout,
 } from "@/lib/tabPageRegistry";
-import { usesLongLoadBudget } from "@/lib/tabCacheReadiness";
+import {
+  isLongBudgetOutletEntryPath,
+  usesLongLoadBudget,
+} from "@/lib/tabCacheReadiness";
 
 export const TAB_PAGE_LAYOUTS: TabPageLayout[] = ["layout", "fullscreen", "pos", "pos-dc"];
 
@@ -24,6 +27,8 @@ export type WatchdogCoverage = {
   outletRescue4s: boolean;
   /** 6s remount of tab-cache chunk. Only purchase-entry (cacheable entry). */
   cacheableRemount6s: boolean;
+  /** 6s remount of Outlet lazy tree. The 7 long-budget entry pages. */
+  longBudgetOutletRemount6s: boolean;
   anyRescue: boolean;
 };
 
@@ -80,11 +85,13 @@ export function watchdogCoverageForDestination(path: string): WatchdogCoverage {
   const blankFrame12s = !longBudget;
   const outletRescue4s = !longBudget && wantsTabCache;
   const cacheableRemount6s = isCacheable;
+  const longBudgetOutletRemount6s = isLongBudgetOutletEntryPath(resolved);
   return {
     blankFrame12s,
     outletRescue4s,
     cacheableRemount6s,
-    anyRescue: blankFrame12s || outletRescue4s || cacheableRemount6s,
+    longBudgetOutletRemount6s,
+    anyRescue: blankFrame12s || outletRescue4s || cacheableRemount6s || longBudgetOutletRemount6s,
   };
 }
 
