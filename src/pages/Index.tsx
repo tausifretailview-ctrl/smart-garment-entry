@@ -41,6 +41,7 @@ import {
   Megaphone,
   Calculator,
   Layers,
+  Percent,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -249,6 +250,8 @@ const DesktopDashboard = () => {
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
   const canViewSupplierBalance =
     !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
+  const canViewDiscountScheme =
+    !permissionsLoading && (permissions === null || hasMenuAccess("discount_scheme_dashboard"));
   
   const { start: startDate, end: endDate, label: dateLabel } = getDateRange(
     dateRange,
@@ -826,6 +829,20 @@ const DesktopDashboard = () => {
             >
               <TrendingUp className="mr-1.5 h-4 w-4" />
               Net Profit
+            </Button>
+          )}
+          {canViewDiscountScheme && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/discount-scheme-dashboard")}
+              onPointerEnter={() => prefetchTabPage("discount-scheme-dashboard")}
+              onTouchStart={() => prefetchTabPage("discount-scheme-dashboard", { intent: true })}
+              title="Open Discount Scheme (Sales)"
+              className="h-9 shrink-0 border-sky-200 bg-sky-50 text-sm font-medium text-sky-800 hover:bg-sky-100"
+            >
+              <Percent className="mr-1.5 h-4 w-4" />
+              Discount Scheme
             </Button>
           )}
           {canViewSupplierBalance && (

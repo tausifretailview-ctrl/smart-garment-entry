@@ -1114,11 +1114,11 @@ const App = () => {
                   path="discount-scheme-dashboard"
                   element={
                     <ProtectedRoute>
-                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                      <MenuPermissionRoute permission="discount_scheme_dashboard">
                         <Layout>
                           <DiscountSchemeDashboard />
                         </Layout>
-                      </RoleProtectedRoute>
+                      </MenuPermissionRoute>
                     </ProtectedRoute>
                   }
                 />

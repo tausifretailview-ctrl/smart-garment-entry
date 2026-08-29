@@ -45,6 +45,21 @@ describe("menuPermissions", () => {
     ).toBe(false);
   });
 
+  it("enables discount_scheme_dashboard by default when the key was never saved", () => {
+    expect(
+      isMenuPermissionGranted(
+        { menu: { pos_sales: true }, mainMenu: { sales: true } },
+        "discount_scheme_dashboard",
+      ),
+    ).toBe(true);
+    expect(
+      isMenuPermissionGranted(
+        { menu: { discount_scheme_dashboard: false }, mainMenu: { sales: true } },
+        "discount_scheme_dashboard",
+      ),
+    ).toBe(false);
+  });
+
   it("maps mobile-dashboard path to main_dashboard permission", () => {
     expect(getMenuPermissionForPath("mobile-dashboard")).toBe("main_dashboard");
     expect(getMenuPermissionForPath("/mobile-dashboard")).toBe("main_dashboard");

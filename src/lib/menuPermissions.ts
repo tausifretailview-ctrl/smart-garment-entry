@@ -106,7 +106,11 @@ export function normalizeStoredMenuPermissions(
 
 /** True when submenu is enabled and parent "Dashboard" main menu is enabled (if permissions exist). */
 /** Menu items enabled by default when custom permissions exist but the key was never saved. */
-const DEFAULT_ON_MENU_IDS = new Set(["business_insights", "website_settings"]);
+const DEFAULT_ON_MENU_IDS = new Set([
+  "business_insights",
+  "website_settings",
+  "discount_scheme_dashboard",
+]);
 
 export function isMenuPermissionGranted(
   permissions: { menu?: Record<string, boolean>; mainMenu?: Record<string, boolean> } | null,
