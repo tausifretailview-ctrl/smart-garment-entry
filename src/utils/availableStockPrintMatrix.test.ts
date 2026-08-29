@@ -75,14 +75,16 @@ describe("buildAvailableStockMatrix", () => {
     ]);
 
     expect(matrix.grandOrdered).toBe(53);
-    // On-hand (not capped): JT21 size 8 has 11 in stock vs 8 ordered.
-    expect(matrix.grandAvailable).toBe(47);
-    expect(matrix.sizes).toEqual(["6", "7", "8", "37", "38"]);
+    // On-hand includes every size-wise cell for the article, not only ordered sizes.
+    expect(matrix.grandAvailable).toBe(83);
+    expect(matrix.sizes).toEqual(["6", "7", "8", "35", "37", "38"]);
 
     const jt18 = matrix.rows.find((r) => r.productName === "JT18-IN")!;
     expect(jt18.cells.get("6")?.available).toBe(10);
     expect(jt18.cells.get("6")?.ordered).toBe(10);
-    expect(jt18.cells.has("35")).toBe(false);
+    expect(jt18.cells.get("7")?.available).toBe(12);
+    expect(jt18.cells.get("7")?.ordered).toBe(0);
+    expect(jt18.cells.get("35")?.available).toBe(4);
 
     const rr57 = matrix.rows.find((r) => r.productName === "RR57-IN")!;
     expect(rr57.cells.get("7")?.ordered).toBe(9);

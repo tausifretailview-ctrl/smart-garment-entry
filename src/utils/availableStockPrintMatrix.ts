@@ -37,7 +37,8 @@ function emptyCell(): AvailableStockCell {
 
 /**
  * Article × size pick-list matrix: available = Size-wise Stock on-hand (stock_qty).
- * Columns are only sizes that appear on the order so Avl/Ord stays readable.
+ * Columns include every size that has on-hand or ordered qty for products on the order
+ * (full size-wise stock for that article/colour, not only ordered sizes).
  */
 export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   rows: AvailableStockMatrixRow[];
@@ -79,9 +80,9 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
     if (!row) return;
     (item.sizeStock || []).forEach((s) => {
       const sz = sizeMatrixKey(s.size);
-      const cur = row.cells.get(sz);
-      if (!cur) return;
+      const cur = row.cells.get(sz) || emptyCell();
       cur.stock = Number(s.qty) || 0;
+      row.cells.set(sz, cur);
     });
   });
 
@@ -104,7 +105,7 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   const sizeSet = new Set<string>();
   rows.forEach((r) => {
     r.cells.forEach((c, sz) => {
-      if (c.ordered > 0) sizeSet.add(sz);
+      if (c.ordered > 0 || c.stock > 0) sizeSet.add(sz);
     });
   });
 

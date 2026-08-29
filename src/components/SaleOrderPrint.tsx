@@ -622,6 +622,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                       const cell = row.cells.get(sz);
                       const available = cell?.available ?? 0;
                       const ordered = cell?.ordered ?? 0;
+                      const hasQty = available > 0 || ordered > 0;
                       const short = ordered > 0 && available < ordered;
                       return (
                         <td
@@ -632,7 +633,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                             background: short ? '#fff5f5' : ordered > 0 ? '#f2fbf4' : '#fff',
                           })}
                         >
-                          {ordered > 0 ? renderAvlOrd(available, ordered) : '—'}
+                          {hasQty ? renderAvlOrd(available, ordered) : '—'}
                         </td>
                       );
                     })}
