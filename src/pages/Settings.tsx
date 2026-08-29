@@ -223,7 +223,7 @@ interface SaleSettings {
   pos_numbering_format?: string;  // For POS billing POS-{YYYY}-{####}
   invoice_paper_format?: 'a5-vertical' | 'a5-horizontal' | 'a4' | 'thermal';  // Paper size
   sales_bill_format?: 'a4' | 'a5' | 'thermal';  // kept for backward compat
-  pos_bill_format?: 'a4' | 'a5' | 'a5-horizontal' | 'thermal';  // POS bill format
+  pos_bill_format?: 'a4' | 'a5' | 'a5-vertical' | 'a5-horizontal' | 'thermal';  // POS bill format
   defaultEntryMode?: 'grid' | 'inline';  // Default entry mode for Sale Order
   enable_size_grid_sales?: boolean; // Enable/disable size grid in Sales Invoice
   sales_tax_rate?: number;

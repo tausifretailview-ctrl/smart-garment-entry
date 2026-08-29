@@ -1,3 +1,4 @@
+import type { Dispatch, SetStateAction } from "react";
 import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { CategoryTierPricingSettings } from "@/components/settings/CategoryTierPricingSettings";
@@ -50,23 +51,27 @@ export type PosSettingsFormState = {
   purchase_settings?: { show_mrp?: boolean };
 };
 
-type PosSettingsFormProps = {
-  settings: PosSettingsFormState;
-  setSettings: (next: PosSettingsFormState) => void;
+type PosSettingsFormProps<T extends PosSettingsFormState> = {
+  settings: T;
+  setSettings: Dispatch<SetStateAction<T>>;
   onFocusPosPreview: () => void;
 };
 
-export function PosSettingsForm({ settings, setSettings, onFocusPosPreview }: PosSettingsFormProps) {
+export function PosSettingsForm<T extends PosSettingsFormState>({
+  settings,
+  setSettings,
+  onFocusPosPreview,
+}: PosSettingsFormProps<T>) {
   const sale = settings.sale_settings || {};
   const showMrp = settings.purchase_settings?.show_mrp === true;
   const mrpAsPrice = (sale.pos_barcode_price_mode || "sale_price") === "mrp";
   const flatDiscount = sale.default_discount_in_rupees === true;
 
   const patchSale = (patch: Partial<SaleSlice> | ((prev: SaleSlice) => SaleSlice)) => {
-    const nextSale = typeof patch === "function" ? patch(sale) : { ...sale, ...patch };
-    setSettings({
-      ...settings,
-      sale_settings: nextSale,
+    setSettings((prev) => {
+      const current = prev.sale_settings || {};
+      const nextSale = typeof patch === "function" ? patch(current) : { ...current, ...patch };
+      return { ...prev, sale_settings: nextSale };
     });
   };
 
@@ -104,11 +109,10 @@ export function PosSettingsForm({ settings, setSettings, onFocusPosPreview }: Po
               onValueChange={(v: string) => {
                 onFocusPosPreview();
                 if (v === "__same_as_sale__") {
-                  const nextSale = { ...sale };
-                  delete nextSale.default_pos_tax_type;
-                  setSettings({
-                    ...settings,
-                    sale_settings: nextSale,
+                  patchSale((prev) => {
+                    const nextSale = { ...prev };
+                    delete nextSale.default_pos_tax_type;
+                    return nextSale;
                   });
                   return;
                 }
