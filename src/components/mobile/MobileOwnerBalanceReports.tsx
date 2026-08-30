@@ -6,9 +6,11 @@ import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { sortSizes } from "@/utils/sizeSort";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
+import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
+import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ChevronDown, List, Phone, Table2 } from "lucide-react";
+import { ChevronDown, Phone } from "lucide-react";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -129,35 +131,8 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
             placeholder="Search product, brand, color, size…"
           />
         </div>
-        <div
-          className="mb-3 flex h-10 shrink-0 items-center rounded-xl border border-border/40 bg-card p-0.5"
-          role="group"
-          aria-label="View mode"
-        >
-          <button
-            type="button"
-            aria-label="List view"
-            aria-pressed={view === "list"}
-            onClick={() => setView("list")}
-            className={cn(
-              "flex h-full items-center justify-center rounded-lg px-2 touch-manipulation",
-              view === "list" ? "bg-primary/10 text-primary" : "text-muted-foreground",
-            )}
-          >
-            <List className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Table view"
-            aria-pressed={view === "table"}
-            onClick={() => setView("table")}
-            className={cn(
-              "flex h-full items-center justify-center rounded-lg px-2 touch-manipulation",
-              view === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground",
-            )}
-          >
-            <Table2 className="h-4 w-4" />
-          </button>
+        <div className="mb-3 flex h-10 shrink-0 items-center">
+          <ReportViewToggle view={view} onChange={setView} />
         </div>
       </div>
       <div className="flex gap-2">
@@ -302,6 +277,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
+  const [view, setView] = useState<"list" | "table">("list");
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-customer-balance", orgId],
@@ -356,9 +332,47 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No customers found" />;
 
+  const customerColumns: ReportTableColumn<(typeof filtered)[number]>[] = [
+    {
+      key: "name",
+      header: "Name",
+      sticky: true,
+      minWidth: "min-w-[120px]",
+      render: (c) => (
+        <div className="min-w-[120px] max-w-[160px]">
+          <p className="font-semibold truncate">{c.customer_name}</p>
+          {c.phone ? <p className="text-[11px] text-muted-foreground truncate">{c.phone}</p> : null}
+        </div>
+      ),
+    },
+    {
+      key: "outstanding",
+      header: "Outstanding",
+      align: "right",
+      render: (c) => (
+        <span className={cn(c.outstanding > 0 ? "text-destructive" : undefined)}>{fmt(c.outstanding)}</span>
+      ),
+    },
+    {
+      key: "advance",
+      header: "Advance",
+      align: "right",
+      render: (c) => (
+        <span className={cn(c.advance > 0 ? "text-emerald-600" : undefined)}>{fmt(c.advance)}</span>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search customer name or phone…" />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search customer name or phone…" />
+        </div>
+        <div className="mb-3 flex h-10 shrink-0 items-center">
+          <ReportViewToggle view={view} onChange={setView} />
+        </div>
+      </div>
       <div className="flex gap-2 items-center">
         <MetricCard label="Total O/S" value={fmt(totalOutstanding)} color="text-destructive" />
         <MetricCard label="Shown" value={String(filtered.length)} />
@@ -374,6 +388,8 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
       </label>
       {!filtered.length ? (
         <EmptyState />
+      ) : view === "table" ? (
+        <MobileReportTable columns={customerColumns} rows={filtered} rowKey={(c) => c.id} />
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
@@ -444,6 +460,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
+  const [view, setView] = useState<"list" | "table">("list");
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-supplier-balance", orgId],
@@ -500,9 +517,53 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No suppliers found" />;
 
+  const supplierColumns: ReportTableColumn<(typeof filtered)[number]>[] = [
+    {
+      key: "name",
+      header: "Name",
+      sticky: true,
+      minWidth: "min-w-[120px]",
+      render: (s) => (
+        <div className="min-w-[120px] max-w-[160px]">
+          <p className="font-semibold truncate">{s.supplier_name}</p>
+          {s.phone ? <p className="text-[11px] text-muted-foreground truncate">{s.phone}</p> : null}
+        </div>
+      ),
+    },
+    {
+      key: "balance",
+      header: "Balance",
+      align: "right",
+      render: (s) => {
+        const balanceColor =
+          s.balance > 0 ? "text-destructive" : s.balance < 0 ? "text-emerald-600" : "text-muted-foreground";
+        return <span className={balanceColor}>{fmt(Math.abs(s.balance))}</span>;
+      },
+    },
+    {
+      key: "purchases",
+      header: "Purchases",
+      align: "right",
+      render: (s) => fmt(s.totalPurchases),
+    },
+    {
+      key: "paid",
+      header: "Paid",
+      align: "right",
+      render: (s) => fmt(s.totalPaid),
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search supplier name or phone…" />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search supplier name or phone…" />
+        </div>
+        <div className="mb-3 flex h-10 shrink-0 items-center">
+          <ReportViewToggle view={view} onChange={setView} />
+        </div>
+      </div>
       <div className="flex gap-2">
         <MetricCard label="Total Payable" value={fmt(totalPayable)} color="text-destructive" />
         <MetricCard label="Shown" value={String(filtered.length)} />
@@ -518,6 +579,8 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
       </label>
       {!filtered.length ? (
         <EmptyState />
+      ) : view === "table" ? (
+        <MobileReportTable columns={supplierColumns} rows={filtered} rowKey={(s) => s.id} />
       ) : (
         <div className="space-y-2">
           {filtered.map((s) => {

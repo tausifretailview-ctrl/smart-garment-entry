@@ -37,7 +37,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("product_variants")
-        .select("id, size, color, barcode, current_stock, pur_price, sale_price")
+        .select("id, size, color, barcode, stock_qty, pur_price, sale_price")
         .eq("product_id", productId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
@@ -63,7 +63,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
     enabled: !!currentOrganization && (variants?.length || 0) > 0,
   });
 
-  const totalStock = variants?.reduce((s, v) => s + (Number(v.current_stock) || 0), 0) || 0;
+  const totalStock = variants?.reduce((s, v) => s + (Number(v.stock_qty) || 0), 0) || 0;
 
   const stockColor = (qty: number) =>
     qty <= 0 ? "text-destructive" : qty <= 5 ? "text-warning" : "text-success";
@@ -164,8 +164,8 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
                         </p>
                       </div>
                       <div className="shrink-0 ml-2">
-                        <span className={cn("text-xs font-bold px-2.5 py-1 rounded-full", stockBadge(Number(v.current_stock) || 0))}>
-                          {Number(v.current_stock) || 0}
+                        <span className={cn("text-xs font-bold px-2.5 py-1 rounded-full", stockBadge(Number(v.stock_qty) || 0))}>
+                          {Number(v.stock_qty) || 0}
                         </span>
                       </div>
                     </div>
