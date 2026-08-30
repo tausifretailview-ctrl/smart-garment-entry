@@ -5,9 +5,8 @@
  * Readout: window.__ezzyColdOpen.print()
  * Grep: [PWAColdOpen]
  *
- * `forceOutletFallback === false` on four shop captures does not mean the page
- * felt fine. Chrome `[Violation] 'message' handler took Nms` is a separate
- * mechanism — see `mainThreadViolationProbe.ts`.
+ * ELLA NOOR 2026-08-30: forceOutletFallback flipped because the 4s timer
+ * armed during org splash. See docs/pwa-cold-open-chunk-ready-2026-08-30.md.
  */
 
 export type PwaSpinnerKind =
@@ -25,6 +24,7 @@ export type PwaColdOpenSnapshot = {
   forceOutletFallback: boolean;
   effectiveTabPaneReady: boolean;
   dashboardChunkLoaded: boolean;
+  dashboardChunkInFlight: boolean;
   orgLoading: boolean;
   permissionsIsFetching: boolean | null;
   permissionsFetchStatus: string | null;
@@ -32,13 +32,45 @@ export type PwaColdOpenSnapshot = {
   spinnerText: string;
 };
 
+export type TabChunkLoadPhase = "start" | "resolved" | "failed";
+
+export type TabChunkLoadEvent = {
+  at: number;
+  path: string;
+  phase: TabChunkLoadPhase;
+};
+
 const MAX_SNAPSHOTS = 40;
+const MAX_CHUNK_EVENTS = 40;
 const snapshots: PwaColdOpenSnapshot[] = [];
+const chunkEvents: TabChunkLoadEvent[] = [];
 let lastFingerprint = "";
 
 export function resetPwaColdOpenDiagnosticsForTests(): void {
   snapshots.length = 0;
+  chunkEvents.length = 0;
   lastFingerprint = "";
+}
+
+export function recordTabChunkLoadEvent(
+  path: string,
+  phase: TabChunkLoadPhase,
+  at?: number,
+): TabChunkLoadEvent {
+  const row: TabChunkLoadEvent = {
+    at: at ?? Date.now(),
+    path,
+    phase,
+  };
+  chunkEvents.push(row);
+  if (chunkEvents.length > MAX_CHUNK_EVENTS) chunkEvents.shift();
+  console.info("[PWAColdOpen] chunk", path || "(dashboard)", phase);
+  exposePwaColdOpenApi();
+  return row;
+}
+
+export function getTabChunkLoadEvents(): TabChunkLoadEvent[] {
+  return [...chunkEvents];
 }
 
 export function classifySpinnerChrome(root: ParentNode | null | undefined): {
@@ -83,7 +115,10 @@ export function classifySpinnerChrome(root: ParentNode | null | undefined): {
 }
 
 export function recordPwaColdOpenSnapshot(
-  input: Omit<PwaColdOpenSnapshot, "at"> & { at?: number },
+  input: Omit<PwaColdOpenSnapshot, "at" | "dashboardChunkInFlight"> & {
+    at?: number;
+    dashboardChunkInFlight?: boolean;
+  },
 ): PwaColdOpenSnapshot {
   const snap: PwaColdOpenSnapshot = {
     at: input.at ?? Date.now(),
@@ -91,6 +126,7 @@ export function recordPwaColdOpenSnapshot(
     forceOutletFallback: input.forceOutletFallback,
     effectiveTabPaneReady: input.effectiveTabPaneReady,
     dashboardChunkLoaded: input.dashboardChunkLoaded,
+    dashboardChunkInFlight: input.dashboardChunkInFlight ?? false,
     orgLoading: input.orgLoading,
     permissionsIsFetching: input.permissionsIsFetching,
     permissionsFetchStatus: input.permissionsFetchStatus,
@@ -102,6 +138,7 @@ export function recordPwaColdOpenSnapshot(
     snap.forceOutletFallback,
     snap.effectiveTabPaneReady,
     snap.dashboardChunkLoaded,
+    snap.dashboardChunkInFlight,
     snap.orgLoading,
     snap.permissionsIsFetching,
     snap.permissionsFetchStatus,
@@ -116,6 +153,7 @@ export function recordPwaColdOpenSnapshot(
     forceOutletFallback: snap.forceOutletFallback,
     effectiveTabPaneReady: snap.effectiveTabPaneReady,
     "isTabPageChunkLoaded(\"\")": snap.dashboardChunkLoaded,
+    dashboardChunkInFlight: snap.dashboardChunkInFlight,
     orgLoading: snap.orgLoading,
     permissionsIsFetching: snap.permissionsIsFetching,
     permissionsFetchStatus: snap.permissionsFetchStatus,
@@ -135,8 +173,19 @@ export function latestPwaColdOpenSnapshot(): PwaColdOpenSnapshot | null {
 }
 
 export function buildPwaColdOpenReport(): string {
-  if (snapshots.length === 0) return "(no PWA cold-open snapshots yet)";
-  return snapshots
+  const chunkLines =
+    chunkEvents.length === 0
+      ? "(no tab-chunk start/resolve events yet)"
+      : chunkEvents
+          .map(
+            (e) =>
+              `${new Date(e.at).toISOString()} chunk ${e.path || "(dashboard)"} ${e.phase}`,
+          )
+          .join("\n");
+  if (snapshots.length === 0) {
+    return `${chunkLines}\n(no PWA cold-open snapshots yet)`;
+  }
+  const snapLines = snapshots
     .map((s) => {
       return [
         new Date(s.at).toISOString(),
@@ -144,6 +193,7 @@ export function buildPwaColdOpenReport(): string {
         `forceOutletFallback=${s.forceOutletFallback}`,
         `effectiveTabPaneReady=${s.effectiveTabPaneReady}`,
         `isTabPageChunkLoaded("")=${s.dashboardChunkLoaded}`,
+        `inFlight=${s.dashboardChunkInFlight}`,
         `orgLoading=${s.orgLoading}`,
         `permissions isFetching=${s.permissionsIsFetching}`,
         `fetchStatus=${s.permissionsFetchStatus}`,
@@ -151,6 +201,7 @@ export function buildPwaColdOpenReport(): string {
       ].join(" ");
     })
     .join("\n");
+  return `${chunkLines}\n${snapLines}`;
 }
 
 let exposed = false;
@@ -160,6 +211,7 @@ function exposePwaColdOpenApi(): void {
   (window as Window & { __ezzyColdOpen?: Record<string, unknown> }).__ezzyColdOpen = {
     get: getPwaColdOpenSnapshots,
     latest: latestPwaColdOpenSnapshot,
+    chunks: getTabChunkLoadEvents,
     print: () => console.log(buildPwaColdOpenReport()),
     report: buildPwaColdOpenReport,
   };

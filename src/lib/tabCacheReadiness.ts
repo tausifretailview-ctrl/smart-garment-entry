@@ -62,6 +62,32 @@ export function shouldFireLongBudgetStuckRescue(opts: {
   return opts.elapsedMs >= (opts.minMs ?? LONG_BUDGET_STUCK_RESCUE_MS);
 }
 
+/**
+ * 4s Outlet rescue for the dashboard tab-cache pane.
+ *
+ * Do not arm while OrgLayout still early-returns the org splash
+ * (`orgLoading` or `!isOrgSynced`). Hooks run during that splash, so a timer
+ * started then eats the fetch window. ELLA NOOR live capture 2026-08-30:
+ * timer armed 29.523Z (boot-splash, orgLoading=true); workspace mounted
+ * 31.386Z (load-shell); rescue 33.924Z. The Index chunk had ~2.5s, not 4s.
+ *
+ * Do not retune OUTLET_FALLBACK_MS (4000). Start the clock when TabCachedPages
+ * / Outlet can actually call `import("@/pages/Index")`.
+ */
+export function shouldArmOutletFallbackTimer(opts: {
+  wantsTabCache: boolean;
+  effectiveTabPaneReady: boolean;
+  forceOutletFallback: boolean;
+  usesLongLoadBudget: boolean;
+  workspaceCanLoadChunk: boolean;
+}): boolean {
+  if (!opts.workspaceCanLoadChunk) return false;
+  if (!opts.wantsTabCache) return false;
+  if (opts.effectiveTabPaneReady || opts.forceOutletFallback) return false;
+  if (opts.usesLongLoadBudget) return false;
+  return true;
+}
+
 /** True when the workspace has real entry UI — not an empty pane or load shell alone. */
 export function workspaceHasCommittedEntryUi(el: HTMLElement | null): boolean {
   if (!el) return false;

@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import {
   classifySpinnerChrome,
   getPwaColdOpenSnapshots,
+  getTabChunkLoadEvents,
   recordPwaColdOpenSnapshot,
+  recordTabChunkLoadEvent,
   resetPwaColdOpenDiagnosticsForTests,
 } from "./pwaColdOpenDiagnostics";
 
@@ -82,5 +84,18 @@ describe("OrgLayout wires the probe", () => {
     expect(src).toContain("forceOutletFallback");
     expect(src).toContain("effectiveTabPaneReady");
     expect(src).toContain("orgLoading");
+    expect(src).toContain("chunkLoadedBeforeReset");
+    expect(src).toContain("shouldArmOutletFallbackTimer");
+  });
+});
+
+describe("tab chunk load events", () => {
+  it("records start/resolve so rescue cannot hide a completed import", () => {
+    recordTabChunkLoadEvent("", "start", 1_000);
+    recordTabChunkLoadEvent("", "resolved", 3_500);
+    const events = getTabChunkLoadEvents();
+    expect(events).toHaveLength(2);
+    expect(events[0].phase).toBe("start");
+    expect(events[1].phase).toBe("resolved");
   });
 });

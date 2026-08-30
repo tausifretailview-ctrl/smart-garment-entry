@@ -84,7 +84,7 @@ describe("each of the 7 Outlet entry pages", () => {
   it("OrgLayout skips 1.2s/4s on long budget and remounts Outlet at 6s", () => {
     const src = readFileSync(join(here, "../components/OrgLayout.tsx"), "utf8");
     expect(src).toMatch(/if \(usesLongLoadBudget \|\| forceOutletFallback\) return;/);
-    expect(src).toMatch(/if \(usesLongLoadBudget\) return;/);
+    expect(src).toMatch(/shouldArmOutletFallbackTimer/);
     expect(src).toMatch(/isLongBudgetOutletEntryPath\(resolvedCurrentPath\)/);
     expect(src).toMatch(/LONG_BUDGET_STUCK_RESCUE_MS/);
     expect(src).toMatch(/<Outlet key=\{outletRescueKey\}/);
