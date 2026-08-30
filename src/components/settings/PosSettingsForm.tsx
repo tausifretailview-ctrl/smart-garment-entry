@@ -403,7 +403,7 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
             htmlFor="pos_invoice_template"
             description={
               posThermal
-                ? "Thermal POS bills use 80mm designs only (Kids 80mm). Switch POS Bill Format to A4/A5 for laser templates."
+                ? "Thermal POS bills use 80mm designs only (Kids 80mm or Retail POS). Switch POS Bill Format to A4/A5 for laser templates."
                 : "Grouped by A4 / A5 / Thermal. Can differ from Sale. Live preview on the right is POS."
             }
           >

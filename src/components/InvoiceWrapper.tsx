@@ -30,6 +30,7 @@ import {
 } from '@/utils/cnAdjustBillNote';
 import { NewDesignThermalReceipt80mm } from './NewDesignThermalReceipt80mm';
 import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
+import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
 import QRCode from 'qrcode';
 import {
   calculateGSTBreakup,
@@ -39,7 +40,11 @@ import {
   resolveSaleDefaultTaxType,
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
-import { resolvePosThermalPaper, type PosThermalPaper } from '@/utils/invoicePrintFormat';
+import {
+  isThermal80mmInvoiceTemplate,
+  resolvePosThermalPaper,
+  type PosThermalPaper,
+} from '@/utils/invoicePrintFormat';
 import {
   organizationBankAccountToInvoiceDetails,
   pickDefaultReceivingBankAccount,
@@ -294,8 +299,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     ) {
       format = 'a5-vertical';
     }
-    // Kids 80mm is thermal-only — always use roll receipt layout.
-    if (templateForFormat === 'kids-80mm') {
+    // Dedicated 80mm templates always use roll receipt layout.
+    if (isThermal80mmInvoiceTemplate(templateForFormat)) {
       format = 'thermal';
     }
     // Real Tast is A4 Bill of Supply only.
@@ -576,6 +581,36 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const renderTemplate = () => {
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
       if (format === 'thermal-receipt' || format === 'thermal') {
+        if (templateForFormat === 'retail-pos-80mm') {
+          return (
+            <RetailPosThermalReceipt80mm
+              billNo={props.billNo}
+              date={props.date}
+              customerPhone={props.customerMobile}
+              items={props.items.map((item) => ({
+                particulars: item.particulars,
+                size: item.size,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+              }))}
+              subTotal={props.subTotal}
+              discount={props.discount}
+              saleReturnAdjust={props.saleReturnAdjust}
+              roundOff={props.roundOff}
+              grandTotal={props.grandTotal}
+              paymentMethod={props.paymentMethod}
+              cashPaid={props.cashPaid || props.cashAmount}
+              upiPaid={props.upiPaid || props.upiAmount}
+              cardPaid={props.cardAmount}
+              creditPaid={props.creditAmount}
+              paidAmount={props.paidAmount}
+              documentType={props.documentType || 'pos'}
+              salesman={props.salesman}
+              thermalPaper={thermalPaper}
+            />
+          );
+        }
         if (templateForFormat === 'kids-80mm') {
           return (
             <KidsThermalReceipt80mm

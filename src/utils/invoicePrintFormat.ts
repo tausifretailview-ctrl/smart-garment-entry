@@ -22,6 +22,7 @@ export type InvoiceTemplateId =
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
   | 'kids-80mm'
+  | 'retail-pos-80mm'
   | 'real-tast';
 
 export type SaleSettingsTemplateSlice = {
@@ -137,7 +138,11 @@ export const A5_ONLY_INVOICE_TEMPLATES = new Set([
 export const PREPRINTED_LETTERHEAD_TEMPLATES = new Set(['retail-erp-preprinted']);
 
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
-export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm']);
+export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set(['kids-80mm', 'retail-pos-80mm']);
+
+export function isThermal80mmInvoiceTemplate(template?: string | null): boolean {
+  return Boolean(template && THERMAL_ONLY_INVOICE_TEMPLATES.has(template));
+}
 
 /** Default 80mm design when POS Bill Format is Thermal. */
 export const DEFAULT_THERMAL_80MM_INVOICE_TEMPLATE = 'kids-80mm';
