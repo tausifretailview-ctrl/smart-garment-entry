@@ -8,7 +8,7 @@ import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Phone } from "lucide-react";
+import { ChevronDown, List, Phone, Table2 } from "lucide-react";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -55,6 +55,7 @@ type SizeWiseRow = {
 export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [view, setView] = useState<"list" | "table">("list");
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-size-wise-stock", orgId],
@@ -120,17 +121,101 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
 
   return (
     <div className="space-y-3">
-      <MobileReportSearchBar
-        value={search}
-        onChange={setSearch}
-        placeholder="Search product, brand, color, size…"
-      />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <MobileReportSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search product, brand, color, size…"
+          />
+        </div>
+        <div
+          className="mb-3 flex h-10 shrink-0 items-center rounded-xl border border-border/40 bg-card p-0.5"
+          role="group"
+          aria-label="View mode"
+        >
+          <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={view === "list"}
+            onClick={() => setView("list")}
+            className={cn(
+              "flex h-full items-center justify-center rounded-lg px-2 touch-manipulation",
+              view === "list" ? "bg-primary/10 text-primary" : "text-muted-foreground",
+            )}
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Table view"
+            aria-pressed={view === "table"}
+            onClick={() => setView("table")}
+            className={cn(
+              "flex h-full items-center justify-center rounded-lg px-2 touch-manipulation",
+              view === "table" ? "bg-primary/10 text-primary" : "text-muted-foreground",
+            )}
+          >
+            <Table2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
       <div className="flex gap-2">
         <MetricCard label="Products" value={String(totals.products)} />
         <MetricCard label="Total Qty" value={String(totals.qty)} color="text-violet-600" />
       </div>
       {!rows.length ? (
         <EmptyState />
+      ) : view === "table" ? (
+        <div className="overflow-x-auto -mx-4 px-4">
+          <table className="w-full text-xs border-collapse">
+            <thead className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
+              <tr>
+                <th className="sticky left-0 bg-muted/95 z-20 text-left px-2 py-2 min-w-[120px]">Product</th>
+                {sizes.map((size) => (
+                  <th key={size} className="px-2 py-2 text-right whitespace-nowrap min-w-[44px]">
+                    {size}
+                  </th>
+                ))}
+                <th className="px-2 py-2 text-right whitespace-nowrap min-w-[44px] font-bold">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.productKey} className="group odd:bg-muted/20 even:bg-card">
+                  <td className="sticky left-0 z-10 bg-card group-odd:bg-muted/20 px-2 py-2 min-w-[120px] max-w-[160px]">
+                    <p className="font-semibold truncate">{row.productName}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {[row.brand, row.color, row.department].filter(Boolean).join(" • ")}
+                    </p>
+                  </td>
+                  {sizes.map((size) => {
+                    const qty = row.sizeStocks[size] || 0;
+                    return (
+                      <td
+                        key={size}
+                        className={cn(
+                          "px-2 py-2 text-right tabular-nums whitespace-nowrap",
+                          qty === 0 && "text-muted-foreground",
+                        )}
+                      >
+                        {qty}
+                      </td>
+                    );
+                  })}
+                  <td
+                    className={cn(
+                      "px-2 py-2 text-right font-bold tabular-nums whitespace-nowrap",
+                      row.totalStock <= 0 ? "text-destructive" : row.totalStock <= 5 ? "text-orange-600" : "text-emerald-600",
+                    )}
+                  >
+                    {row.totalStock}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div className="space-y-2">
           {rows.map((row) => {
