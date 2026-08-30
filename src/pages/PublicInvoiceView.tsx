@@ -26,6 +26,7 @@ import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
 import { NewDesignThermalReceipt80mm } from "@/components/NewDesignThermalReceipt80mm";
+import { isA5PortraitInvoiceTemplate } from "@/utils/invoicePrintFormat";
 
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
@@ -350,6 +351,14 @@ export default function PublicInvoiceView() {
             showBarcode={false}
           />
         );
+      case 'gurukrupa':
+        return (
+          <RetailERPTemplate
+            {...templateProps}
+            variant="gurukrupa"
+            format="a5-vertical"
+          />
+        );
       case 'retail-erp-preprinted': {
         const preprintedFormat =
           formatParam === 'a5' || formatParam === 'a5-vertical'
@@ -398,7 +407,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : template === 'retail-tax-ezzy' || template === 'retail-erp' || template === 'retail-erp-dc' || template === 'zaika' || template === 'wholesale-a5' ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : template === 'retail-erp' || template === 'retail-erp-dc' || template === 'zaika' || template === 'retail-tax-ezzy' ? '4mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : isA5PortraitInvoiceTemplate(template) ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : isA5PortraitInvoiceTemplate(template) ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;

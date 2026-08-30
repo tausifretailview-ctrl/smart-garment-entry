@@ -124,8 +124,9 @@ interface RetailERPTemplateProps {
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
    *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo).
    *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan).
-   *  Zaika — Retail ERP tax invoice without size/barcode/qty/rate columns, balance row, or terms. */
-  variant?: "standard" | "real-tast" | "preprinted" | "dc" | "zaika";
+   *  Zaika — Retail ERP tax invoice without size/barcode/qty/rate columns, balance row, or terms.
+   *  Gurukrupa — A5 Retail ERP tax invoice: Sub Total, Discount, S/R Adjust, Bill Total (no Round Off). */
+  variant?: "standard" | "real-tast" | "preprinted" | "dc" | "zaika" | "gurukrupa";
 }
 
 const B = "1px solid #000";
@@ -192,6 +193,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isPreprinted = variant === "preprinted";
   const isDc = variant === "dc";
   const isZaika = variant === "zaika";
+  const isGurukrupa = variant === "gurukrupa";
   const isA4 = format === "a4" || isRealTast;
   const isA5Retail = !isA4 && !isRealTast;
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
@@ -1350,19 +1352,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>₹{fmt(displaySubTotal)}</span>
                         </div>
                       )}
-                      {saleReturnAdjust > 0 && (
-                        <div style={{ ...totalsRowBase, fontSize: fsSrAdjust, fontWeight: 900 }}>
-                          <span style={{ ...totalsLabelStyle, fontWeight: 900 }}>S/R Adjust</span>
-                          <span style={{ ...totalsAmountStyle, fontWeight: 900 }}>- ₹{fmt(saleReturnAdjust)}</span>
-                        </div>
-                      )}
-                      {!isRealTast && displayDiscount > 0 && (
+                      {!isRealTast && (isGurukrupa || displayDiscount > 0) && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>Discount</span>
                           <span style={totalsAmountStyle}>- ₹{fmt(displayDiscount)}</span>
                         </div>
                       )}
-                      {showGstInTotals && gstTotalsAmount > 0 && (
+                      {(isGurukrupa || saleReturnAdjust > 0) && (
+                        <div style={{ ...totalsRowBase, fontSize: fsSrAdjust, fontWeight: 900 }}>
+                          <span style={{ ...totalsLabelStyle, fontWeight: 900 }}>S/R Adjust</span>
+                          <span style={{ ...totalsAmountStyle, fontWeight: 900 }}>- ₹{fmt(saleReturnAdjust)}</span>
+                        </div>
+                      )}
+                      {!isGurukrupa && showGstInTotals && gstTotalsAmount > 0 && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>
                             {isInterState ? "IGST Amount" : "GST Amount"}
@@ -1370,14 +1372,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>+ ₹{fmt(gstTotalsAmount)}</span>
                         </div>
                       )}
-                      {displayOtherCharges > 0 && (
+                      {!isGurukrupa && displayOtherCharges > 0 && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>Other Charges</span>
                           <span style={totalsAmountStyle}>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
-                      {/* Round Off hidden on Retail ERP DC (Bill of Supply) print. */}
-                      {!isRealTast && !isDc && (
+                      {/* Round Off hidden on Retail ERP DC and Gurukrupa. */}
+                      {!isRealTast && !isDc && !isGurukrupa && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 800 }}>
                           <span style={totalsLabelStyle}>Round Off</span>
                           <span style={totalsAmountStyle}>

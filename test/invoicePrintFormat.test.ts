@@ -11,6 +11,7 @@ import {
   resolveSaleInvoiceTemplate,
   resolveSaleReturnPrintFormatFromSettings,
   toInvoiceWrapperFormat,
+  isA5PortraitInvoiceTemplate,
 } from '@/utils/invoicePrintFormat';
 
 describe('resolveSaleInvoiceTemplate / resolvePosInvoiceTemplate', () => {
@@ -44,6 +45,14 @@ describe('toInvoiceWrapperFormat', () => {
 describe('resolvePosBillFormat', () => {
   it('uses A5 Retail ERP when template is retail-erp even if POS format is thermal', () => {
     expect(resolvePosBillFormat('retail-erp', 'thermal', 'thermal')).toBe('a5');
+  });
+
+  it('uses A5 for Gurukrupa even if POS format is thermal', () => {
+    expect(resolvePosBillFormat('gurukrupa', 'thermal', 'thermal')).toBe('a5');
+    expect(resolveSaleBillFormat('gurukrupa', 'thermal', 'thermal')).toBe('a5');
+    expect(isA5PortraitInvoiceTemplate('gurukrupa')).toBe(true);
+    expect(isA5PortraitInvoiceTemplate('retail-erp')).toBe(true);
+    expect(isA5PortraitInvoiceTemplate('kids-80mm')).toBe(false);
   });
 
   it('honors POS thermal for generic tax-invoice template', () => {

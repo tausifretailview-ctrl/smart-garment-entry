@@ -18,6 +18,7 @@ export type InvoiceTemplateId =
   | 'retail-erp'
   | 'retail-erp-dc'
   | 'zaika'
+  | 'gurukrupa'
   | 'retail-erp-preprinted'
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
@@ -129,7 +130,13 @@ export const A5_ONLY_INVOICE_TEMPLATES = new Set([
   'retail-erp',
   'retail-erp-dc',
   'zaika',
+  'gurukrupa',
 ]);
+
+/** A5 portrait laser templates (Retail ERP family + Ezzy / Wholesale A5). */
+export function isA5PortraitInvoiceTemplate(template?: string | null): boolean {
+  return Boolean(template && A5_ONLY_INVOICE_TEMPLATES.has(template));
+}
 
 /**
  * Preprinted letterhead templates — follow POS/Sale paper size (A4 or A5),
@@ -226,6 +233,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'retail-erp',
   'retail-erp-dc',
   'zaika',
+  'gurukrupa',
   'retail-erp-preprinted',
   'real-tast',
 ]);

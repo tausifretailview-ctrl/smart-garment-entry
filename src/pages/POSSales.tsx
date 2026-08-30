@@ -132,6 +132,7 @@ import {
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
   getPosDocumentPrintPageStyle,
+  isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -4924,7 +4925,7 @@ export default function POSSales() {
     `;
     }
 
-    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5' || posInvoiceTemplate === 'retail-erp' || posInvoiceTemplate === 'retail-erp-dc' || posInvoiceTemplate === 'zaika') {
+    if (isA5PortraitInvoiceTemplate(posInvoiceTemplate)) {
       return `
       @page {
         size: A5 portrait;
