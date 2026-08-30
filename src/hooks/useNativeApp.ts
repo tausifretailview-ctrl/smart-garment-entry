@@ -58,6 +58,19 @@ export async function initNativeShell(): Promise<void> {
   } catch {
     // Splash may already be hidden
   }
+
+  try {
+    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((reg) => reg.unregister()));
+    }
+    if (typeof caches !== "undefined") {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+    }
+  } catch {
+    // SW cleanup is best-effort — remote shell should not depend on a PWA cache.
+  }
 }
 
 export function useIsNativeApp(): boolean {

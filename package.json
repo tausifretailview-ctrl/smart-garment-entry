@@ -91,6 +91,12 @@
       ],
       "artifactName": "EzzyERP-Setup-${version}.${ext}"
     },
+    "protocols": [
+      {
+        "name": "EzzyERP",
+        "schemes": ["ezzyerp"]
+      }
+    ],
     "nsis": {
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,

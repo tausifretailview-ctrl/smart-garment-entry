@@ -40,13 +40,11 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
-        // Intentionally omit html — index.html must come from network (see vercel.json
-        // no-cache + kill-sw.js). Do NOT set navigateFallback to /index.html while it is
-        // absent from precache: Workbox createHandlerBoundToURL throws
-        // `non-precached-url :: [{"url":"/index.html"}]` and navigation/fallback hangs.
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        // Precache offline.html only — never index.html (stale HTML + hashed chunk 404).
+        // NetworkOnly navigations fall back to this page instead of a white screen.
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}', 'offline.html'],
         cleanupOutdatedCaches: true,
-        navigateFallback: null,
+        navigateFallback: 'offline.html',
         runtimeCaching: [
           {
             // Navigations must NEVER fall back to a cached HTML shell after deploy.
@@ -112,7 +110,7 @@ export default defineConfig(({ mode }) => ({
         short_name: 'EzzyERP',
         description: 'EzzyERP - Easy Billing, Smart Business for garment & retail businesses',
         theme_color: '#1e40af',
-        background_color: '#ffffff',
+        background_color: '#1e40af',
         display: 'standalone',
         // "any" — portrait-only can block Chrome desktop install prompts on Windows.
         orientation: 'any',

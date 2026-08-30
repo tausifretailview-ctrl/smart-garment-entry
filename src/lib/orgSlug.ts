@@ -1,3 +1,5 @@
+import { isReservedAppPathSegment } from "@/lib/reservedAppPaths";
+
 const ORG_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const normalizeOrgSlug = (value?: string | null): string => {
@@ -5,7 +7,10 @@ export const normalizeOrgSlug = (value?: string | null): string => {
 };
 
 export const isValidOrgSlug = (value?: string | null): boolean => {
-  return ORG_SLUG_PATTERN.test(normalizeOrgSlug(value));
+  const normalized = normalizeOrgSlug(value);
+  if (!ORG_SLUG_PATTERN.test(normalized)) return false;
+  if (isReservedAppPathSegment(normalized)) return false;
+  return true;
 };
 
 // Cookie helpers for ultimate fallback persistence
@@ -60,8 +65,19 @@ export const storeOrgSlug = (value?: string | null): string | null => {
   localStorage.setItem("selectedOrgSlug", normalized);
   sessionStorage.setItem("selectedOrgSlug", normalized);
   setOrgSlugCookie(normalized);
+  persistSlugToDesktopShell(normalized);
   return normalized;
 };
+
+function persistSlugToDesktopShell(slug: string): void {
+  try {
+    const api = (window as Window & { electronAPI?: { rememberOrgSlug?: (next: string) => void } })
+      .electronAPI;
+    api?.rememberOrgSlug?.(slug);
+  } catch {
+    // Browser / tests — desktop persist is additive only.
+  }
+}
 
 /**
  * Extract org slug from the current URL path.

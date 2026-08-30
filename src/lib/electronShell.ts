@@ -10,6 +10,7 @@ type ElectronWindowApi = {
   windowMinimize?: () => Promise<{ success?: boolean }>;
   windowToggleMaximize?: () => Promise<{ success?: boolean; maximized?: boolean }>;
   windowClose?: () => Promise<{ success?: boolean }>;
+  rememberOrgSlug?: (slug: string) => Promise<unknown> | void;
 };
 
 /** True when running inside the EzzyERP Electron desktop shell. */
