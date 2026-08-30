@@ -9,7 +9,14 @@ import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
 import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
 import { ReportExportButton } from "@/components/mobile/ReportExportButton";
-import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
+import {
+  MobileReportTable,
+  mobileReportTableWrapClass,
+  mobileReportTdClass,
+  mobileReportThClass,
+  mobileReportTheadClass,
+  type ReportTableColumn,
+} from "@/components/mobile/MobileReportTable";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -177,23 +184,25 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
       {!rows.length ? (
         <EmptyState />
       ) : view === "table" ? (
-        <div ref={tableRef} className="overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-xs border-collapse">
-            <thead className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
+        <div ref={tableRef} className={mobileReportTableWrapClass}>
+          <table className="w-full min-w-full text-xs border-collapse">
+            <thead className={mobileReportTheadClass}>
               <tr>
-                <th className="sticky left-0 bg-muted/95 z-20 text-left px-2 py-2 min-w-[120px]">Product</th>
+                <th className={cn(mobileReportThClass, "sticky left-0 bg-primary/15 z-20 text-left min-w-[120px]")}>
+                  Product
+                </th>
                 {sizes.map((size) => (
-                  <th key={size} className="px-2 py-2 text-right whitespace-nowrap min-w-[44px]">
+                  <th key={size} className={cn(mobileReportThClass, "text-right min-w-[44px]")}>
                     {size}
                   </th>
                 ))}
-                <th className="px-2 py-2 text-right whitespace-nowrap min-w-[44px] font-bold">Total</th>
+                <th className={cn(mobileReportThClass, "text-right min-w-[44px] font-bold")}>Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.productKey} className="group odd:bg-muted/20 even:bg-card">
-                  <td className="sticky left-0 z-10 bg-card group-odd:bg-muted/20 px-2 py-2 min-w-[120px] max-w-[160px]">
+                <tr key={row.productKey} className="group odd:bg-muted/20 even:bg-card border-b border-border/40 last:border-b-0">
+                  <td className={cn(mobileReportTdClass, "sticky left-0 z-10 bg-card group-odd:bg-muted/20 min-w-[120px] max-w-[160px]")}>
                     <p className="font-semibold truncate">{row.productName}</p>
                     <p className="text-[11px] text-muted-foreground truncate">
                       {[row.brand, row.color, row.department].filter(Boolean).join(" • ")}
@@ -205,7 +214,8 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
                       <td
                         key={size}
                         className={cn(
-                          "px-2 py-2 text-right tabular-nums whitespace-nowrap",
+                          mobileReportTdClass,
+                          "text-right tabular-nums",
                           qty === 0 && "text-muted-foreground",
                         )}
                       >
@@ -215,7 +225,8 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
                   })}
                   <td
                     className={cn(
-                      "px-2 py-2 text-right font-bold tabular-nums whitespace-nowrap",
+                      mobileReportTdClass,
+                      "text-right font-bold tabular-nums",
                       row.totalStock <= 0 ? "text-destructive" : row.totalStock <= 5 ? "text-orange-600" : "text-emerald-600",
                     )}
                   >
