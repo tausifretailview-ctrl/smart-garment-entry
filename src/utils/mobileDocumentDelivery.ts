@@ -1,17 +1,20 @@
 import { Capacitor } from "@capacitor/core";
 
-export type PdfDeliveryResult = "shared" | "downloaded" | "opened";
+export type FileDeliveryResult = "shared" | "downloaded" | "opened";
+
+/** @deprecated Use FileDeliveryResult — kept so existing type imports stay valid. */
+export type PdfDeliveryResult = FileDeliveryResult;
 
 /**
- * Save or share a PDF on mobile browsers and Capacitor APK WebViews.
+ * Save or share any file blob on mobile browsers and Capacitor APK WebViews.
  * Desktop browsers use a normal anchor download.
  */
-export async function deliverPdfBlob(
+export async function deliverFileBlob(
   blob: Blob,
   fileName: string,
-): Promise<PdfDeliveryResult> {
-  const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
-  const file = new File([blob], safeName, { type: "application/pdf" });
+  mimeType: string,
+): Promise<FileDeliveryResult> {
+  const file = new File([blob], fileName, { type: mimeType });
   const isNative = Capacitor.isNativePlatform();
 
   if (typeof navigator.share === "function") {
@@ -19,18 +22,15 @@ export async function deliverPdfBlob(
       const canShareFiles =
         typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] });
       if (canShareFiles) {
-        await navigator.share({ files: [file], title: safeName });
+        await navigator.share({ files: [file], title: fileName });
         return "shared";
       }
     } catch (err) {
-      if ((err as Error)?.name === "AbortError") {
-        throw err;
-      }
+      if ((err as Error)?.name === "AbortError") throw err;
     }
   }
 
   const url = URL.createObjectURL(blob);
-
   if (isNative) {
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (opened) {
@@ -41,7 +41,7 @@ export async function deliverPdfBlob(
 
   const link = document.createElement("a");
   link.href = url;
-  link.download = safeName;
+  link.download = fileName;
   link.style.display = "none";
   document.body.appendChild(link);
   link.click();
@@ -51,6 +51,12 @@ export async function deliverPdfBlob(
   }, 1000);
 
   return "downloaded";
+}
+
+/** Back-compat wrapper — existing invoice/print callers keep working unchanged. */
+export async function deliverPdfBlob(blob: Blob, fileName: string): Promise<FileDeliveryResult> {
+  const safeName = fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`;
+  return deliverFileBlob(blob, safeName, "application/pdf");
 }
 
 export function shouldUseMobileDocumentDelivery(): boolean {

@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
@@ -7,7 +8,9 @@ import { sortSizes } from "@/utils/sizeSort";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
 import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
+import { ReportExportButton } from "@/components/mobile/ReportExportButton";
 import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
+import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronDown, Phone } from "lucide-react";
@@ -58,6 +61,7 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-size-wise-stock", orgId],
@@ -121,6 +125,30 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No stock data found" />;
 
+  const sizeWiseCsvColumns: ReportTableColumn<SizeWiseRow>[] = [
+    {
+      key: "product",
+      header: "Product",
+      render: () => "",
+      csvText: (row) => {
+        const subtitle = [row.brand, row.color, row.department].filter(Boolean).join(" • ");
+        return subtitle ? `${row.productName} — ${subtitle}` : row.productName;
+      },
+    },
+    ...sizes.map((size) => ({
+      key: `size-${size}`,
+      header: size,
+      render: () => "",
+      csvText: (row: SizeWiseRow) => String(row.sizeStocks[size] || 0),
+    })),
+    {
+      key: "total",
+      header: "Total",
+      render: () => "",
+      csvText: (row) => String(row.totalStock),
+    },
+  ];
+
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2">
@@ -131,8 +159,15 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
             placeholder="Search product, brand, color, size…"
           />
         </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center">
+        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
           <ReportViewToggle view={view} onChange={setView} />
+          {view === "table" && (
+            <ReportExportButton
+              fileBaseName={`size-wise-stock-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(sizeWiseCsvColumns, rows)}
+              tableRef={tableRef}
+            />
+          )}
         </div>
       </div>
       <div className="flex gap-2">
@@ -142,7 +177,7 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
       {!rows.length ? (
         <EmptyState />
       ) : view === "table" ? (
-        <div className="overflow-x-auto -mx-4 px-4">
+        <div ref={tableRef} className="overflow-x-auto -mx-4 px-4">
           <table className="w-full text-xs border-collapse">
             <thead className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
               <tr>
@@ -278,6 +313,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-customer-balance", orgId],
@@ -338,6 +374,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
       header: "Name",
       sticky: true,
       minWidth: "min-w-[120px]",
+      csvText: (c) => (c.phone ? `${c.customer_name} — ${c.phone}` : c.customer_name),
       render: (c) => (
         <div className="min-w-[120px] max-w-[160px]">
           <p className="font-semibold truncate">{c.customer_name}</p>
@@ -349,6 +386,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
       key: "outstanding",
       header: "Outstanding",
       align: "right",
+      csvText: (c) => fmt(c.outstanding),
       render: (c) => (
         <span className={cn(c.outstanding > 0 ? "text-destructive" : undefined)}>{fmt(c.outstanding)}</span>
       ),
@@ -357,6 +395,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
       key: "advance",
       header: "Advance",
       align: "right",
+      csvText: (c) => fmt(c.advance),
       render: (c) => (
         <span className={cn(c.advance > 0 ? "text-emerald-600" : undefined)}>{fmt(c.advance)}</span>
       ),
@@ -369,8 +408,15 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
         <div className="min-w-0 flex-1">
           <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search customer name or phone…" />
         </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center">
+        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
           <ReportViewToggle view={view} onChange={setView} />
+          {view === "table" && (
+            <ReportExportButton
+              fileBaseName={`customer-balance-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(customerColumns, filtered)}
+              tableRef={tableRef}
+            />
+          )}
         </div>
       </div>
       <div className="flex gap-2 items-center">
@@ -389,7 +435,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
       {!filtered.length ? (
         <EmptyState />
       ) : view === "table" ? (
-        <MobileReportTable columns={customerColumns} rows={filtered} rowKey={(c) => c.id} />
+        <MobileReportTable ref={tableRef} columns={customerColumns} rows={filtered} rowKey={(c) => c.id} />
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => {
@@ -461,6 +507,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-supplier-balance", orgId],
@@ -523,6 +570,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
       header: "Name",
       sticky: true,
       minWidth: "min-w-[120px]",
+      csvText: (s) => (s.phone ? `${s.supplier_name} — ${s.phone}` : s.supplier_name),
       render: (s) => (
         <div className="min-w-[120px] max-w-[160px]">
           <p className="font-semibold truncate">{s.supplier_name}</p>
@@ -534,6 +582,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
       key: "balance",
       header: "Balance",
       align: "right",
+      csvText: (s) => fmt(Math.abs(s.balance)),
       render: (s) => {
         const balanceColor =
           s.balance > 0 ? "text-destructive" : s.balance < 0 ? "text-emerald-600" : "text-muted-foreground";
@@ -544,12 +593,14 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
       key: "purchases",
       header: "Purchases",
       align: "right",
+      csvText: (s) => fmt(s.totalPurchases),
       render: (s) => fmt(s.totalPurchases),
     },
     {
       key: "paid",
       header: "Paid",
       align: "right",
+      csvText: (s) => fmt(s.totalPaid),
       render: (s) => fmt(s.totalPaid),
     },
   ];
@@ -560,8 +611,15 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
         <div className="min-w-0 flex-1">
           <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search supplier name or phone…" />
         </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center">
+        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
           <ReportViewToggle view={view} onChange={setView} />
+          {view === "table" && (
+            <ReportExportButton
+              fileBaseName={`supplier-balance-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(supplierColumns, filtered)}
+              tableRef={tableRef}
+            />
+          )}
         </div>
       </div>
       <div className="flex gap-2">
@@ -580,7 +638,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
       {!filtered.length ? (
         <EmptyState />
       ) : view === "table" ? (
-        <MobileReportTable columns={supplierColumns} rows={filtered} rowKey={(s) => s.id} />
+        <MobileReportTable ref={tableRef} columns={supplierColumns} rows={filtered} rowKey={(s) => s.id} />
       ) : (
         <div className="space-y-2">
           {filtered.map((s) => {
