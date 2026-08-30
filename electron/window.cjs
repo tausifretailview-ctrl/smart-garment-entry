@@ -10,6 +10,7 @@ const {
   openExternalSafely,
   attachShellNavigation,
 } = require('./security.cjs');
+const { resolveElectronStartUrl, writeSavedOrgSlug } = require('./startupUrl.cjs');
 
 const isDev = !app.isPackaged;
 
@@ -77,7 +78,16 @@ let loadRetryCount = 0;
 const MAX_LOAD_RETRIES = 4;
 
 function getAppUrl() {
-  return isDev ? DEV_URL : PROD_URL;
+  if (isDev) return DEV_URL;
+  try {
+    return resolveElectronStartUrl({
+      prodUrl: PROD_URL,
+      userDataPath: app.getPath('userData'),
+      argv: process.argv,
+    });
+  } catch {
+    return `${PROD_URL}/organization-setup`;
+  }
 }
 
 function reloadMainWindow(reason) {
@@ -474,6 +484,15 @@ function targetWindow() {
   return BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0] || null;
 }
 
+
+ipcMain.handle('remember-org-slug', async (_event, slug) => {
+  try {
+    const ok = writeSavedOrgSlug(app.getPath('userData'), slug);
+    return { success: !!ok };
+  } catch {
+    return { success: false };
+  }
+});
 
 ipcMain.handle('reload-app', async () => {
   manualReloadMainWindow('ipc');

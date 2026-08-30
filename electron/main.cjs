@@ -19,6 +19,7 @@ const {
   targetWindow,
   isDev,
 } = require('./window.cjs');
+const { parseOrgSlugFromHref, writeSavedOrgSlug } = require('./startupUrl.cjs');
 const {
   bindGetMainWindow: bindUpdaterMainWindow,
   initAutoUpdater,
@@ -52,13 +53,35 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => {
+  app.on('second-instance', (_event, argv) => {
     const mainWindow = getMainWindow();
+    const protocolHref = Array.isArray(argv)
+      ? argv.find((arg) => typeof arg === 'string' && arg.startsWith('ezzyerp:'))
+      : null;
+    const slug = parseOrgSlugFromHref(protocolHref);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       if (!mainWindow.isVisible()) mainWindow.show();
+      if (slug) {
+        writeSavedOrgSlug(app.getPath('userData'), slug);
+        mainWindow.loadURL(`${PROD_URL}/${slug}`);
+      }
       mainWindow.focus();
       notifyRendererLayoutSync();
+    }
+  });
+
+  if (!app.isDefaultProtocolClient('ezzyerp')) {
+    app.setAsDefaultProtocolClient('ezzyerp');
+  }
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    const slug = parseOrgSlugFromHref(url);
+    const mainWindow = getMainWindow();
+    if (slug && mainWindow && !mainWindow.isDestroyed()) {
+      writeSavedOrgSlug(app.getPath('userData'), slug);
+      mainWindow.loadURL(`${PROD_URL}/${slug}`);
     }
   });
 

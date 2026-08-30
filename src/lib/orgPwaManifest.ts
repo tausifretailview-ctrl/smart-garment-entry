@@ -101,7 +101,7 @@ export function applyOrgPwaManifest(orgSlug: string, orgName?: string | null): v
     short_name: displayName || "EzzyERP",
     description: "EzzyERP - Easy Billing, Smart Business for garment & retail businesses",
     theme_color: "#1e40af",
-    background_color: "#ffffff",
+    background_color: "#1e40af",
     display: "standalone",
     orientation: "any",
     scope: `${origin}/`,

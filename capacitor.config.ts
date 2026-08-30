@@ -21,6 +21,7 @@ const config: CapacitorConfig = {
     androidScheme: "https",
     url: serverUrl,
     cleartext: false,
+    allowNavigation: ["app.inventoryshop.in", "*.supabase.co"],
     // Local asset shown if remote shell URL fails (no network / DNS).
     errorPath: "native-load-error.html",
   },
