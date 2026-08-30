@@ -48,7 +48,22 @@
         Check Wi‑Fi or mobile data, then tap Retry. The installed app needs a
         network to open your shop.
       </p>
-      <button type="button" onclick="location.reload()">Retry</button>
+      <button type="button" id="retry">Retry</button>
+      <script>
+        document.getElementById("retry").onclick = async function () {
+          try {
+            if ("serviceWorker" in navigator) {
+              var regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.map(function (reg) { return reg.unregister(); }));
+            }
+            if ("caches" in window) {
+              var names = await caches.keys();
+              await Promise.all(names.map(function (name) { return caches.delete(name); }));
+            }
+          } catch (e) {}
+          location.replace(location.origin + "/");
+        };
+      </script>
     </div>
   </body>
 </html>
