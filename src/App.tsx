@@ -14,7 +14,8 @@ import {
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
+import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
+import { markPersistRestoreComplete } from "@/lib/mainThreadViolationProbe";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
@@ -443,6 +444,9 @@ const App = () => {
         },
       }}
       onSuccess={() => {
+        void readPersistCacheCharLength().then((chars) => {
+          markPersistRestoreComplete(chars);
+        });
         void queryClient.resumePausedMutations();
       }}
     >

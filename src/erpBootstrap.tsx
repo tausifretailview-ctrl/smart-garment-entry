@@ -10,8 +10,10 @@ import { initElectronViewportSync } from "@/lib/electronViewportSync";
 import { ensurePosAppSession } from "@/lib/posCartPersistence";
 import { initScrollWheelFix } from "@/lib/scrollWheel";
 import { initAppTheme } from "@/lib/appTheme";
+import { initMainThreadViolationProbe } from "@/lib/mainThreadViolationProbe";
 
 recoverElectronOAuthErrorPage();
+initMainThreadViolationProbe();
 
 initAppTheme();
 initForceDesktopViewPreference();

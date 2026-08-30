@@ -66,7 +66,12 @@ const LIVE_SEARCH_MARKERS = [
   "paymentstatus",
 ] as const;
 
-/** Skip live search, barcode, and auth keys — persist reference/dashboard data only. */
+/**
+ * Skip live search, barcode, and auth keys — persist reference/dashboard data only.
+ * `product-catalog` is NOT volatile: restoring a large catalog (thousands of
+ * rows) on cold open is main-thread JSON + React commit work. Dashboard
+ * cards themselves only show RPC aggregates (product_count / stock qty).
+ */
 export function isVolatileOrSensitiveKey(queryKey: readonly unknown[]): boolean {
   const head = String(queryKey[0] ?? "").toLowerCase();
   const serialized = serializeQueryKey(queryKey);
@@ -86,3 +91,13 @@ export function isVolatileOrSensitiveKey(queryKey: readonly unknown[]): boolean 
 /** Changes every deploy — mismatched cache is discarded on restore. */
 export const APP_BUILD_BUSTER =
   typeof __APP_BUILD_ID__ !== "undefined" ? __APP_BUILD_ID__ : "dev";
+
+/** Character length of the dehydrated React Query blob. Null if IDB is empty or unreadable. */
+export async function readPersistCacheCharLength(): Promise<number | null> {
+  try {
+    const value = await storage.getItem("EZZY_RQ_CACHE");
+    return typeof value === "string" ? value.length : null;
+  } catch {
+    return null;
+  }
+}
