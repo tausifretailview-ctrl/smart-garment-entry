@@ -77,7 +77,7 @@ function parseRuleForm(form: RuleForm) {
   const singleUnitPrice = Number(form.singleUnitPrice);
   const tierQty = Math.floor(Number(form.tierQty));
   const tierTotalPrice = Number(form.tierTotalPrice);
-  if (!category) throw new Error("Category is required");
+  if (!category) throw new Error("Product name or category is required");
   if (!Number.isFinite(singleUnitPrice) || singleUnitPrice <= 0) {
     throw new Error("Single unit price must be greater than 0");
   }
@@ -236,7 +236,7 @@ function DiscountSchemeDashboardPage() {
           pricesMatchForTier(rule.singleUnitPrice, parsed.singleUnitPrice),
       );
       if (duplicate) {
-        throw new Error("A rule already exists for this category at this unit price");
+        throw new Error("A rule already exists for this product/category at this selling price");
       }
       await upsertCategoryTierPricingRule({
         organizationId: orgId,
@@ -473,7 +473,7 @@ function DiscountSchemeDashboardPage() {
                 if (value === "rules" || value === "history") setDetailTab(value);
               }}
               items={[
-                { id: "rules", label: "Category rules" },
+                { id: "rules", label: "Rules" },
                 { id: "history", label: "History" },
               ]}
             >
@@ -481,7 +481,7 @@ function DiscountSchemeDashboardPage() {
                 <InsightsPanel
                   className="flex-1 min-h-0 h-full"
                   title={activeScheme?.name ?? "Rules"}
-                  subtitle="Each rule is category + single unit price. Same category at ₹300 and ₹600 are two rules."
+                  subtitle="Each rule is product name or category + selling price. BAGGY TRACK @ ₹450 is not the same as every TRACK @ ₹450."
                   toolbar={
                     <Button size="sm" className="h-8 text-sm" onClick={openCreateRule} disabled={!effectiveSchemeId}>
                       <Plus className="h-4 w-4 mr-1" />
@@ -493,13 +493,13 @@ function DiscountSchemeDashboardPage() {
                     <p className="text-sm text-muted-foreground px-3 py-8">Loading rules…</p>
                   ) : rules.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-8 text-center">
-                      No category rules yet. Add T-Shirt, Shirt, Jeans, etc.
+                      No rules yet. Add a product name (BAGGY TRACK) or a category (TRACK).
                     </p>
                   ) : (
                     <Table>
                       <TableHeader className={INSIGHTS_TABLE_HEAD}>
                         <TableRow>
-                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Category</TableHead>
+                          <TableHead className={INSIGHTS_NEUTRAL_TH}>Product / category</TableHead>
                           <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Single (₹)</TableHead>
                           <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Bundle qty</TableHead>
                           <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>
@@ -597,16 +597,19 @@ function DiscountSchemeDashboardPage() {
       <Dialog open={ruleDialogOpen} onOpenChange={setRuleDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{ruleForm.id ? "Edit category rule" : "Add category rule"}</DialogTitle>
+            <DialogTitle>{ruleForm.id ? "Edit rule" : "Add rule"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <div>
-              <Label>Category</Label>
+              <Label>Product name or category</Label>
               <Input
                 value={ruleForm.category}
                 onChange={(e) => setRuleForm({ ...ruleForm, category: e.target.value })}
-                placeholder="T-Shirt"
+                placeholder="BAGGY TRACK or TRACK"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Product name (BAGGY TRACK) wins over category (TRACK). Single ₹ must match the POS selling price.
+              </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>

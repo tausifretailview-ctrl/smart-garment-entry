@@ -195,6 +195,60 @@ describe("categoryTierPricing", () => {
     expect(out[1].netAmount).toBe(1000);
   });
 
+  it("BAGGY TRACK @ ₹450 uses product-name rule 3 for ₹1200, not category TRACK", () => {
+    const baggyTrackRule = {
+      category: "baggy track",
+      singleUnitPrice: 450,
+      tierQty: 3,
+      tierTotalPrice: 1200,
+      isActive: true,
+    };
+    const trackRule = {
+      category: "TRACK",
+      singleUnitPrice: 450,
+      tierQty: 4,
+      tierTotalPrice: 1600,
+      isActive: true,
+    };
+    const item = makeItem({
+      id: "bt",
+      productName: "BAGGY TRACK-TRACK-TB",
+      baseProductName: "BAGGY TRACK",
+      category: "TRACK",
+      quantity: 3,
+      mrp: 450,
+      originalMrp: 450,
+      unitCost: 450,
+      netAmount: 1350,
+    });
+    const out = applyCategoryTierPricingToCart([item], [trackRule, baggyTrackRule], null);
+    expect(out[0].netAmount).toBe(1200);
+    expect(out[0].categoryTierApplied).toBe(true);
+    expect(resolveCartItemCategoryKey(item, new Set(["track", "baggy track"]))).toBe("baggy track");
+  });
+
+  it("does not apply a BAGGY TRACK rule to another TRACK product at the same price", () => {
+    const baggyTrackRule = {
+      category: "baggy track",
+      singleUnitPrice: 450,
+      tierQty: 3,
+      tierTotalPrice: 1200,
+      isActive: true,
+    };
+    const otherTrack = makeItem({
+      id: "ot",
+      productName: "PLAIN TRACK-TRACK-TB",
+      baseProductName: "PLAIN TRACK",
+      category: "TRACK",
+      quantity: 3,
+      unitCost: 450,
+      netAmount: 1350,
+    });
+    const out = applyCategoryTierPricingToCart([otherTrack], [baggyTrackRule], null);
+    expect(out[0].netAmount).toBe(1350);
+    expect(out[0].categoryTierApplied).toBeUndefined();
+  });
+
   it("rematch after bundle reprice still uses the original ₹300 list price", () => {
     const first = applyCategoryTierPricingToCart([trackPant("a", 300, 4)], [trackPants300], null);
     expect(first[0].unitCost).toBe(250);

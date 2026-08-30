@@ -15,7 +15,40 @@ const PRICE_EPS = 0.005;
 export function normalizeCategoryKey(category: string | null | undefined): string {
   return String(category ?? "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * How well a scheme label matches a cart line.
+ * Product name beats category so "BAGGY TRACK" is not stolen by category "TRACK".
+ * Loose substring matching is not used — "track" must not win inside "baggy track".
+ */
+export function scoreTierRuleIdentity(ruleLabel: string, item: PosCartItem): number {
+  const key = normalizeCategoryKey(ruleLabel);
+  if (!key) return 0;
+
+  const base = normalizeCategoryKey(item.baseProductName);
+  const productName = normalizeCategoryKey(item.productName);
+  const category = normalizeCategoryKey(item.category);
+  const nameHead = productName.split("-")[0]?.trim() || "";
+
+  if (key === base || key === nameHead) return 100 + key.length;
+  if (productName === key || productName.startsWith(`${key}-`)) return 90 + key.length;
+  if (key === category) return 50 + key.length;
+
+  const segments = productName.split("-").map((s) => s.trim()).filter(Boolean);
+  if (segments.slice(1).includes(key)) return 40 + key.length;
+  // Hyphenated labels in the POS description (TEE-T-Shirt-Brand) — not loose
+  // substring, so "track" does not match the words inside "baggy track".
+  if (
+    productName.includes(`-${key}-`) ||
+    productName.endsWith(`-${key}`) ||
+    productName.startsWith(`${key}-`)
+  ) {
+    return 45 + key.length;
+  }
+  return 0;
 }
 
 export function normalizeTierUnitPrice(price: number | null | undefined): number {
@@ -72,51 +105,28 @@ export function allocateCategoryTierLineTotals(
   return out;
 }
 
-function activeCategoryKeys(rules: CategoryTierRule[]): Set<string> {
-  const keys = new Set<string>();
-  for (const rule of rules) {
-    if (rule.isActive === false) continue;
-    const key = normalizeCategoryKey(rule.category);
-    if (key) keys.add(key);
-  }
-  return keys;
-}
-
 function categoryKeySetFromMapOrSet(
   categoryKeys: Map<string, unknown> | Set<string>,
 ): Set<string> {
   return categoryKeys instanceof Set ? categoryKeys : new Set(categoryKeys.keys());
 }
 
-/** Resolve which tier rule category key applies to a cart line (price is applied separately). */
+/** Resolve which tier rule label applies to a cart line (price is applied separately). */
 export function resolveCartItemCategoryKey(
   item: PosCartItem,
   categoryKeys: Map<string, unknown> | Set<string>,
 ): string | null {
   const keys = categoryKeySetFromMapOrSet(categoryKeys);
-  const direct = normalizeCategoryKey(item.category);
-  if (direct && keys.has(direct)) return direct;
-
-  const productName = String(item.productName ?? "").trim();
-  if (productName) {
-    const segments = productName.split("-").map((s) => s.trim()).filter(Boolean);
-    for (const segment of segments.slice(1)) {
-      const key = normalizeCategoryKey(segment);
-      if (key && keys.has(key)) return key;
-    }
-    for (const key of keys) {
-      if (productName.toLowerCase().includes(key)) return key;
+  let bestKey: string | null = null;
+  let bestScore = 0;
+  for (const key of keys) {
+    const score = scoreTierRuleIdentity(key, item);
+    if (score > bestScore) {
+      bestScore = score;
+      bestKey = key;
     }
   }
-
-  const baseName = String(item.baseProductName ?? "").trim();
-  if (baseName) {
-    for (const key of keys) {
-      if (baseName.toLowerCase().includes(key)) return key;
-    }
-  }
-
-  return null;
+  return bestScore > 0 ? bestKey : null;
 }
 
 /**
@@ -135,15 +145,15 @@ export function findMatchingCategoryTierRule(
   item: PosCartItem,
   rules: CategoryTierRule[],
 ): CategoryTierRule | null {
-  const categoryKey = resolveCartItemCategoryKey(item, activeCategoryKeys(rules));
-  if (!categoryKey) return null;
   const price = cartLineUnitPriceForTier(item);
+  let best: { rule: CategoryTierRule; score: number } | null = null;
   for (const rule of rules) {
     if (rule.isActive === false) continue;
-    if (normalizeCategoryKey(rule.category) !== categoryKey) continue;
-    if (pricesMatchForTier(rule.singleUnitPrice, price)) return rule;
+    if (!pricesMatchForTier(rule.singleUnitPrice, price)) continue;
+    const score = scoreTierRuleIdentity(rule.category, item);
+    if (score > (best?.score ?? 0)) best = { rule, score };
   }
-  return null;
+  return best?.rule ?? null;
 }
 
 /**

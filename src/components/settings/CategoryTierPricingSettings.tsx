@@ -22,9 +22,9 @@ export function CategoryTierPricingSettings({ enabled, onEnabledChange }: Props)
             Discount Scheme (category quantity tiers)
           </Label>
           <p className="text-xs text-muted-foreground mt-1">
-            When enabled, POS sums quantity per category and matching unit price, then applies
-            bundle pricing from your active scheme. A ₹600 item never joins a ₹300 bundle in
-            the same category. Configure rules on the Discount Scheme page (Sales menu).
+            When enabled, POS matches the active scheme by product name, then category, then
+            selling price. A BAGGY TRACK @ ₹450 rule does not apply to every TRACK item.
+            Configure rules on the Discount Scheme page (Sales menu).
           </p>
         </div>
         <Switch
