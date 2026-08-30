@@ -97,6 +97,7 @@ import {
   shouldCreatePosCommissionOnSave,
 } from "@/utils/posSalesmanRetain";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
+import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7442,6 +7443,7 @@ export default function POSSales() {
                               </Tooltip>
                             )}
                             <span className="truncate">{item.productName}</span>
+                            <PosSchemeAppliedTag applied={item.categoryTierApplied} />
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}

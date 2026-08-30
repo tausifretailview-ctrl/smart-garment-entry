@@ -4,6 +4,7 @@ import { QtyInput } from "@/components/ui/qty-input";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { getUOMLabel } from "@/constants/uom";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
+import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 
 interface CartItem {
   id: string;
@@ -24,6 +25,7 @@ interface CartItem {
   hsnCode?: string;
   productType?: string;
   uom?: string;
+  categoryTierApplied?: boolean;
 }
 
 interface MobilePOSCartItemProps {
@@ -49,8 +51,9 @@ export const MobilePOSCartItem = ({
     <Card className="p-3 mb-2 bg-card border-border">
       <div className="flex justify-between items-start gap-2">
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-sm leading-tight truncate">
-            {item.productName}
+          <h4 className="flex items-center gap-1 font-semibold text-sm leading-tight min-w-0">
+            <span className="truncate">{item.productName}</span>
+            <PosSchemeAppliedTag applied={item.categoryTierApplied} />
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
             {item.size}
