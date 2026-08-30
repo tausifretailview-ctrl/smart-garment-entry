@@ -40,11 +40,17 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
-        // Precache offline.html only — never index.html (stale HTML + hashed chunk 404).
-        // NetworkOnly navigations fall back to this page instead of a white screen.
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}', 'offline.html'],
+        // Never precache index.html (stale HTML + hashed chunk 404 after deploy).
+        // Do NOT set navigateFallback to offline.html — Workbox then serves that
+        // page for every SPA route (/, /trendzo, …) and Chrome/PWA show
+        // "Can't reach EzzyERP" while the phone is online.
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
-        navigateFallback: 'offline.html',
+        navigateFallback: null,
+        // Take over immediately so clients stuck on the bad offline fallback
+        // get this SW without waiting for React UpdatePrompt (which never loads).
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Navigations must NEVER fall back to a cached HTML shell after deploy.
