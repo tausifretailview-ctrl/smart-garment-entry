@@ -10,6 +10,7 @@ const REPAIR_TAG_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /duplicate advance application/i, label: "Duplicate advance cleanup" },
   { pattern: /\[reversed /i, label: "Reversed duplicate entry" },
   { pattern: /repair 2026/i, label: "Automated data repair" },
+  { pattern: /auto-rollback/i, label: "Save rollback (empty header)" },
 ];
 
 export type RecycleBinDeletionMeta = {

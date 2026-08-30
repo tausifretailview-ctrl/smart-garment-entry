@@ -25,6 +25,15 @@ describe("recycleBinDeletionReason", () => {
     expect(formatRecycleBinDeletedBy(meta)).toBe("User");
   });
 
+  it("labels save auto-rollback from cancelled_reason", () => {
+    const meta = {
+      deletedBy: null,
+      description: "auto-rollback: sale_items insert failed during save",
+    };
+    expect(formatRecycleBinDeletedBy(meta)).toBe("System repair");
+    expect(extractRepairTag(undefined, meta.description)).toBe("Save rollback (empty header)");
+  });
+
   it("returns unknown for blank metadata", () => {
     expect(formatRecycleBinDeletedBy({ deletedBy: null })).toBe("Unknown");
     expect(isRepairTaggedDeletion({ deletedBy: null })).toBe(false);
