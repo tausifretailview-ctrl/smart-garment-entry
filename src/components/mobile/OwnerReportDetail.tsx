@@ -420,7 +420,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
     enabled: !!orgId,
     queryFn: async () => {
       const { data: variants } = await supabase.from("product_variants")
-        .select("id, size, color, current_stock, pur_price, sale_price, product_id, products!inner(product_name, brand)")
+        .select("id, size, color, stock_qty, pur_price, sale_price, product_id, products!inner(product_name, brand)")
         .eq("organization_id", orgId!);
       return variants || [];
     },
@@ -433,7 +433,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
     const items: any[] = [];
     data.forEach((v: any) => {
       prodSet.add(v.product_id);
-      const stock = v.current_stock || 0;
+      const stock = v.stock_qty || 0;
       purValue += stock * (v.pur_price || 0);
       saleValue += stock * (v.sale_price || 0);
     });
@@ -443,7 +443,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       const pid = v.product_id;
       const prod = (v as any).products;
       const existing = prodMap.get(pid) || { name: prod?.product_name || "—", brand: prod?.brand || "", totalStock: 0, purVal: 0, saleVal: 0 };
-      const stock = v.current_stock || 0;
+      const stock = v.stock_qty || 0;
       existing.totalStock += stock;
       existing.purVal += stock * (v.pur_price || 0);
       existing.saleVal += stock * (v.sale_price || 0);

@@ -68,7 +68,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
       if (!currentOrganization) return [];
       const { data } = await supabase
         .from("product_variants")
-        .select("id, product_id, size, color, barcode, current_stock, pur_price, sale_price")
+        .select("id, product_id, size, color, barcode, stock_qty, pur_price, sale_price")
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
         .eq("active", true)
@@ -84,7 +84,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     const variantMap = new Map<string, { totalStock: number; variantCount: number; purchaseValue: number; saleValue: number; salePrice: number }>();
     variants.forEach((v) => {
       const ex = variantMap.get(v.product_id) || { totalStock: 0, variantCount: 0, purchaseValue: 0, saleValue: 0, salePrice: 0 };
-      const stock = Number(v.current_stock) || 0;
+      const stock = Number(v.stock_qty) || 0;
       ex.totalStock += stock;
       ex.variantCount++;
       ex.purchaseValue += stock * (Number(v.pur_price) || 0);
