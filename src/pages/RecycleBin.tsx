@@ -730,7 +730,7 @@ export default function RecycleBin() {
                                   {field.label}
                                 </TableHead>
                               ))}
-                              {activeTab === "voucher_entries" && (
+                              {(activeTab === "voucher_entries" || activeTab === "sales") && (
                                 <>
                                   <TableHead className="font-semibold hidden lg:table-cell">Deleted By</TableHead>
                                   <TableHead className="font-semibold hidden lg:table-cell">Reason</TableHead>
@@ -773,7 +773,7 @@ export default function RecycleBin() {
                                     {formatValue(record[field.key], field)}
                                   </TableCell>
                                 ))}
-                                {activeTab === "voucher_entries" && (
+                                {(activeTab === "voucher_entries" || activeTab === "sales") && (
                                   <>
                                     <TableCell className="hidden lg:table-cell whitespace-nowrap">
                                       <Badge
@@ -781,7 +781,7 @@ export default function RecycleBin() {
                                           formatRecycleBinDeletedBy({
                                             deletedBy: record.deleted_by,
                                             notes: record.notes,
-                                            description: record.description,
+                                            description: record.description ?? record.cancelled_reason,
                                           }) === "System repair"
                                             ? "secondary"
                                             : "outline"
@@ -790,12 +790,14 @@ export default function RecycleBin() {
                                         {formatRecycleBinDeletedBy({
                                           deletedBy: record.deleted_by,
                                           notes: record.notes,
-                                          description: record.description,
+                                          description: record.description ?? record.cancelled_reason,
                                         })}
                                       </Badge>
                                     </TableCell>
                                     <TableCell className="hidden lg:table-cell max-w-[200px] truncate text-xs text-muted-foreground">
-                                      {extractRepairTag(record.notes, record.description) || "—"}
+                                      {extractRepairTag(record.notes, record.description ?? record.cancelled_reason)
+                                        || record.cancelled_reason
+                                        || "—"}
                                     </TableCell>
                                   </>
                                 )}
