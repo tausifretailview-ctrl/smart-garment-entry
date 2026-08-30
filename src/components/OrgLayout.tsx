@@ -24,6 +24,7 @@ import {
 } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
+  isTabPageChunkInFlight,
   isTabPageChunkLoaded,
   prefetchPostLoginCriticalPages,
   prefetchPostLoginIdlePages,
@@ -63,6 +64,7 @@ import {
   isPaintedTabSibling,
   LONG_BUDGET_STUCK_RESCUE_MS,
   shouldArmLongBudgetStuckRescue,
+  shouldArmOutletFallbackTimer,
   shouldFireLongBudgetStuckRescue,
   shouldRemountStuckCacheableEntry,
   usesLongLoadBudget as usesLongLoadBudgetForNav,
@@ -413,17 +415,47 @@ export const OrgLayout = () => {
   // not chunk download. If this warning still appears, the fix is incomplete —
   // do not retune this timer.
   useEffect(() => {
-    if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
-    // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
-    if (usesLongLoadBudget) return;
-    // 4s: hand off to <Outlet> + App LazyFallback (DashboardSkeleton) before the
-    // "Taking longer than expected" card appears at 6s in TabCachedPages.
+    const workspaceCanLoadChunk = Boolean(user && !orgLoading && isOrgSynced);
+    if (
+      !shouldArmOutletFallbackTimer({
+        wantsTabCache,
+        effectiveTabPaneReady,
+        forceOutletFallback,
+        usesLongLoadBudget,
+        workspaceCanLoadChunk,
+      })
+    ) {
+      return;
+    }
+    // 4s of *workspace* time — not splash. OrgLayout early-returns while
+    // orgLoading / !isOrgSynced, so a timer started then ate the fetch window
+    // (ELLA NOOR 2026-08-30: 4.4s wall, ~2.5s of actual Index import).
     const timeoutMs = OUTLET_FALLBACK_MS;
     const timer = window.setTimeout(() => {
-      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
+      // Read chunk flags BEFORE resetTabPageChunk — that delete makes
+      // isTabPageChunkLoaded("") look false even when the module had resolved.
+      const chunkLoadedBeforeReset = isTabPageChunkLoaded(resolvedCurrentPath);
+      const chunkInFlightBeforeReset = isTabPageChunkInFlight(resolvedCurrentPath);
+      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath, {
+        chunkLoadedBeforeReset,
+        chunkInFlightBeforeReset,
+      });
+      const chrome = classifySpinnerChrome(typeof document !== "undefined" ? document : null);
+      recordPwaColdOpenSnapshot({
+        path: currentPath,
+        forceOutletFallback: true,
+        effectiveTabPaneReady,
+        dashboardChunkLoaded: chunkLoadedBeforeReset,
+        dashboardChunkInFlight: chunkInFlightBeforeReset,
+        orgLoading,
+        permissionsIsFetching,
+        permissionsFetchStatus,
+        spinnerKind: chrome.kind,
+        spinnerText: chrome.text,
+      });
       // Clear poisoned tab-cache bookkeeping so a later switch can remount cleanly.
-      // Outlet uses App.tsx lazyWithRetry (separate promise) and often recovers when
-      // the tab-cache path was stuck on a stale prefetch.
+      // Org index Outlet is MobileOrgIndexRedirect's bare lazy(), not App.tsx
+      // lazyWithRetry — same Vite URL, so the browser may still share a hung import().
       resetTabPageChunk(resolvedCurrentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
@@ -435,6 +467,11 @@ export const OrgLayout = () => {
     usesLongLoadBudget,
     currentPath,
     resolvedCurrentPath,
+    user,
+    orgLoading,
+    isOrgSynced,
+    permissionsIsFetching,
+    permissionsFetchStatus,
   ]);
 
   // Record the render-owner decision for every navigation (always on — field evidence).
@@ -472,6 +509,7 @@ export const OrgLayout = () => {
       forceOutletFallback,
       effectiveTabPaneReady,
       dashboardChunkLoaded: isTabPageChunkLoaded(""),
+      dashboardChunkInFlight: isTabPageChunkInFlight(""),
       orgLoading,
       permissionsIsFetching,
       permissionsFetchStatus,

@@ -13,6 +13,7 @@ import {
   isPaintedTabSibling,
   paneLooksPaintedFromFlags,
   resolveTabPageFallbackKind,
+  shouldArmOutletFallbackTimer,
   shouldRemountStuckCacheableEntry,
   shouldSilentTabSuspenseFallback,
   tabCacheWorkspaceLooksPainted,
@@ -106,10 +107,35 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(src).toMatch(/shouldRemountStuckCacheableEntry/);
     expect(src).toMatch(/CACHEABLE_ENTRY_STUCK_RESCUE_MS/);
     expect(src).toMatch(/POS_CONTEXT_WARM_TAB_PATH/);
-    const rescueSkip = src.includes("if (usesLongLoadBudget) return;");
+    const rescueSkip = src.includes("shouldArmOutletFallbackTimer");
     const watchdogSkip = src.includes("if (usesLongLoadBudget || forceOutletFallback) return;");
     expect(rescueSkip).toBe(true);
     expect(watchdogSkip).toBe(true);
+  });
+});
+
+describe("shouldArmOutletFallbackTimer", () => {
+  const ready = {
+    wantsTabCache: true,
+    effectiveTabPaneReady: false,
+    forceOutletFallback: false,
+    usesLongLoadBudget: false,
+    workspaceCanLoadChunk: true,
+  };
+
+  it("does not arm during org splash when the workspace cannot import yet", () => {
+    expect(shouldArmOutletFallbackTimer({ ...ready, workspaceCanLoadChunk: false })).toBe(false);
+  });
+
+  it("arms a full 4s only after the workspace can load the dashboard chunk", () => {
+    expect(shouldArmOutletFallbackTimer(ready)).toBe(true);
+  });
+
+  it("does not arm when the pane is already ready or already rescued", () => {
+    expect(shouldArmOutletFallbackTimer({ ...ready, effectiveTabPaneReady: true })).toBe(false);
+    expect(shouldArmOutletFallbackTimer({ ...ready, forceOutletFallback: true })).toBe(false);
+    expect(shouldArmOutletFallbackTimer({ ...ready, usesLongLoadBudget: true })).toBe(false);
+    expect(shouldArmOutletFallbackTimer({ ...ready, wantsTabCache: false })).toBe(false);
   });
 });
 
