@@ -41,6 +41,7 @@ import {
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
 import {
+  isA5PortraitInvoiceTemplate,
   isThermal80mmInvoiceTemplate,
   resolvePosThermalPaper,
   type PosThermalPaper,
@@ -289,14 +290,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     let format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
     const isThermalFormat = format === 'thermal' || format === 'thermal-receipt';
     // A5-only templates use A5 when printing laser — not when caller requests thermal receipt.
-    if (
-      !isThermalFormat &&
-      (templateForFormat === 'retail-tax-ezzy' ||
-        templateForFormat === 'wholesale-a5' ||
-        templateForFormat === 'retail-erp' ||
-        templateForFormat === 'retail-erp-dc' ||
-        templateForFormat === 'zaika')
-    ) {
+    if (!isThermalFormat && isA5PortraitInvoiceTemplate(templateForFormat)) {
       format = 'a5-vertical';
     }
     // Dedicated 80mm templates always use roll receipt layout.
@@ -809,6 +803,13 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               {...commonProps}
               variant="zaika"
               showBarcode={false}
+            />
+          );
+        case 'gurukrupa':
+          return (
+            <RetailERPTemplate
+              {...commonProps}
+              variant="gurukrupa"
             />
           );
         case 'retail-erp-preprinted':
