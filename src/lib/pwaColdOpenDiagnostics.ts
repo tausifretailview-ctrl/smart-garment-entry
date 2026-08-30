@@ -4,6 +4,10 @@
  * Evidence only. Does not change render owner, prefetch, or rescue timers.
  * Readout: window.__ezzyColdOpen.print()
  * Grep: [PWAColdOpen]
+ *
+ * `forceOutletFallback === false` on four shop captures does not mean the page
+ * felt fine. Chrome `[Violation] 'message' handler took Nms` is a separate
+ * mechanism — see `mainThreadViolationProbe.ts`.
  */
 
 export type PwaSpinnerKind =

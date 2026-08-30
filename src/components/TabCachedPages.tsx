@@ -132,6 +132,9 @@ function nudgePaneScrollLayout(root: HTMLElement) {
   collectTabScrollTargets(root).forEach((el) => {
     const top = el.scrollTop;
     el.style.overflowY = "hidden";
+    // Chrome logs this as [Violation] Forced reflow. Do not remove without a
+    // replacement — it unsticks tab-return scroll. An expanded shop stack that
+    // lands here should be ~1 frame, not 500ms, unless the pane subtree is huge.
     void el.offsetHeight;
     el.style.overflowY = "";
     el.scrollTop = top;
