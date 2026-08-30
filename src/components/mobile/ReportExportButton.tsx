@@ -59,7 +59,7 @@ export function ReportExportButton({
         <button
           type="button"
           disabled={busy}
-          className="flex items-center justify-center h-7 w-7 rounded-md bg-primary/10 text-primary touch-manipulation shrink-0"
+          className="flex items-center justify-center h-7 w-7 rounded-md bg-primary text-primary-foreground touch-manipulation shrink-0"
           aria-label="Export report"
         >
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
