@@ -20,6 +20,8 @@ import {
   CustomerBalanceReport,
   SupplierBalanceReport,
 } from "./MobileOwnerBalanceReports";
+import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
+import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
 
 /* ─── Helpers ─── */
 const fmt = (v: number) =>
@@ -203,6 +205,7 @@ function saleDateBounds(start: string, end: string) {
 
 /* 1. Daily Sales */
 const DailySalesReport = ({ orgId, start, end }: RProps) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-sales", orgId, start, end],
     enabled: !!orgId,
@@ -222,38 +225,83 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState />;
 
+  const salesColumns: ReportTableColumn<(typeof data)[number]>[] = [
+    {
+      key: "bill",
+      header: "Bill No",
+      sticky: true,
+      minWidth: "min-w-[100px]",
+      render: (s) => <span className="font-semibold">{s.sale_number}</span>,
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      render: (s) => s.customer_name || "Walk-in",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (s) => (
+        <span
+          className={cn(
+            "text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+            s.payment_status === "paid"
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+              : s.payment_status === "partial"
+                ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400"
+                : "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
+          )}
+        >
+          {s.payment_status || "pending"}
+        </span>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (s) => fmt(s.net_amount || 0),
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <MetricCard label="Total Sale" value={fmt(total)} color="text-emerald-600" />
         <MetricCard label="Bills" value={String(data.length)} />
+        <ReportViewToggle view={view} onChange={setView} />
       </div>
-      <div className="space-y-2">
-        {data.map((s: any) => (
-          <div key={s.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{s.sale_number}</p>
-              <p className="text-[11px] text-muted-foreground">{s.customer_name || "Walk-in"}</p>
+      {view === "table" ? (
+        <MobileReportTable columns={salesColumns} rows={data} rowKey={(s) => s.id} />
+      ) : (
+        <div className="space-y-2">
+          {data.map((s: any) => (
+            <div key={s.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
+              <div>
+                <p className="text-sm font-semibold">{s.sale_number}</p>
+                <p className="text-[11px] text-muted-foreground">{s.customer_name || "Walk-in"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-bold text-emerald-600">{fmt(s.net_amount || 0)}</p>
+                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full",
+                  s.payment_status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" :
+                  s.payment_status === "partial" ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400" :
+                  "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
+                )}>
+                  {s.payment_status || "pending"}
+                </span>
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-emerald-600">{fmt(s.net_amount || 0)}</p>
-              <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                s.payment_status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" :
-                s.payment_status === "partial" ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400" :
-                "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-              )}>
-                {s.payment_status || "pending"}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 /* 2. Daily Purchase */
 const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-purchase", orgId, start, end],
     enabled: !!orgId,
@@ -272,23 +320,56 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState />;
 
+  const purchaseColumns: ReportTableColumn<(typeof data)[number]>[] = [
+    {
+      key: "bill",
+      header: "Bill No",
+      sticky: true,
+      minWidth: "min-w-[100px]",
+      render: (b) => <span className="font-semibold">{b.software_bill_no}</span>,
+    },
+    {
+      key: "supplier",
+      header: "Supplier",
+      render: (b) => (
+        <div className="min-w-[120px] max-w-[180px]">
+          <p className="truncate">{b.supplier_name}</p>
+          {b.supplier_invoice_no ? (
+            <p className="text-[11px] text-muted-foreground truncate">{b.supplier_invoice_no}</p>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      render: (b) => fmt(b.net_amount || 0),
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-center">
         <MetricCard label="Total Purchase" value={fmt(total)} color="text-orange-600" />
         <MetricCard label="Bills" value={String(data.length)} />
+        <ReportViewToggle view={view} onChange={setView} />
       </div>
-      <div className="space-y-2">
-        {data.map((b: any) => (
-          <div key={b.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{b.software_bill_no}</p>
-              <p className="text-[11px] text-muted-foreground">{b.supplier_name} {b.supplier_invoice_no ? `• ${b.supplier_invoice_no}` : ""}</p>
+      {view === "table" ? (
+        <MobileReportTable columns={purchaseColumns} rows={data} rowKey={(b) => b.id} />
+      ) : (
+        <div className="space-y-2">
+          {data.map((b: any) => (
+            <div key={b.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
+              <div>
+                <p className="text-sm font-semibold">{b.software_bill_no}</p>
+                <p className="text-[11px] text-muted-foreground">{b.supplier_name} {b.supplier_invoice_no ? `• ${b.supplier_invoice_no}` : ""}</p>
+              </div>
+              <p className="text-sm font-bold text-orange-600">{fmt(b.net_amount || 0)}</p>
             </div>
-            <p className="text-sm font-bold text-orange-600">{fmt(b.net_amount || 0)}</p>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -333,6 +414,7 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
 
 /* 4. Stock Summary */
 const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-stock-summary", orgId],
     enabled: !!orgId,
@@ -378,28 +460,76 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No products found" />;
 
+  const stockRows = stats.items.slice(0, 100);
+  const stockColumns: ReportTableColumn<(typeof stockRows)[number]>[] = [
+    {
+      key: "product",
+      header: "Product",
+      sticky: true,
+      minWidth: "min-w-[120px]",
+      render: (p) => (
+        <div className="min-w-[120px] max-w-[160px]">
+          <p className="font-semibold truncate">{p.name}</p>
+          {p.brand ? <p className="text-[11px] text-muted-foreground truncate">{p.brand}</p> : null}
+        </div>
+      ),
+    },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "right",
+      render: (p) => (
+        <span
+          className={cn(
+            "font-bold",
+            p.totalStock <= 0 ? "text-destructive" : p.totalStock <= 10 ? "text-orange-600" : "text-emerald-600",
+          )}
+        >
+          {p.totalStock}
+        </span>
+      ),
+    },
+    {
+      key: "saleValue",
+      header: "Sale Value",
+      align: "right",
+      render: (p) => fmt(p.saleVal),
+    },
+  ];
+
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <ReportViewToggle view={view} onChange={setView} />
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <MetricCard label="Products" value={String(stats.totalProducts)} />
         <MetricCard label="Variants" value={String(stats.totalVariants)} />
         <MetricCard label="Pur. Value" value={fmt(stats.purValue)} color="text-orange-600" />
         <MetricCard label="Sale Value" value={fmt(stats.saleValue)} color="text-emerald-600" />
       </div>
-      <div className="space-y-2">
-        {stats.items.slice(0, 100).map((p, i) => (
-          <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{p.name}</p>
-              <p className="text-[11px] text-muted-foreground">{p.brand}</p>
+      {view === "table" ? (
+        <MobileReportTable
+          columns={stockColumns}
+          rows={stockRows}
+          rowKey={(p) => `${p.name}|${p.brand}|${p.totalStock}|${p.saleVal}|${p.purVal}`}
+        />
+      ) : (
+        <div className="space-y-2">
+          {stockRows.map((p, i) => (
+            <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
+              <div>
+                <p className="text-sm font-semibold">{p.name}</p>
+                <p className="text-[11px] text-muted-foreground">{p.brand}</p>
+              </div>
+              <div className="text-right">
+                <p className={cn("text-sm font-bold", p.totalStock <= 0 ? "text-destructive" : p.totalStock <= 10 ? "text-orange-600" : "text-emerald-600")}>{p.totalStock}</p>
+                <p className="text-[10px] text-muted-foreground">{fmt(p.saleVal)}</p>
+              </div>
             </div>
-            <div className="text-right">
-              <p className={cn("text-sm font-bold", p.totalStock <= 0 ? "text-destructive" : p.totalStock <= 10 ? "text-orange-600" : "text-emerald-600")}>{p.totalStock}</p>
-              <p className="text-[10px] text-muted-foreground">{fmt(p.saleVal)}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -409,6 +539,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
 
 /* 7. GST Report */
 const GSTReport = ({ orgId, start, end }: RProps) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-gst", orgId, start, end],
     enabled: !!orgId,
@@ -445,29 +576,56 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
   if (isLoading) return <LoadingRows />;
   if (!grouped.length) return <EmptyState />;
 
+  const gstColumns: ReportTableColumn<(typeof grouped)[number]>[] = [
+    {
+      key: "rate",
+      header: "GST %",
+      sticky: true,
+      minWidth: "min-w-[64px]",
+      render: (g) => <span className="font-semibold">{g.rate}%</span>,
+    },
+    { key: "taxable", header: "Taxable", align: "right", render: (g) => fmt(g.taxable) },
+    { key: "cgst", header: "CGST", align: "right", render: (g) => fmt(g.cgst) },
+    { key: "sgst", header: "SGST", align: "right", render: (g) => fmt(g.sgst) },
+    {
+      key: "tax",
+      header: "Tax",
+      align: "right",
+      render: (g) => <span className="font-bold">{fmt(g.tax)}</span>,
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <MetricCard label="Total Tax" value={fmt(totalTax)} color="text-amber-600" />
-      <div className="space-y-2">
-        {grouped.map((g) => (
-          <div key={g.rate} className="p-3 bg-card rounded-xl border border-border/40">
-            <div className="flex justify-between items-center mb-1">
-              <p className="text-sm font-bold">GST {g.rate}%</p>
-              <p className="text-sm font-bold text-amber-600">{fmt(g.tax)}</p>
-            </div>
-            <div className="flex justify-between text-[11px] text-muted-foreground">
-              <span>Taxable: {fmt(g.taxable)}</span>
-              <span>CGST: {fmt(g.cgst)} | SGST: {fmt(g.sgst)}</span>
-            </div>
-          </div>
-        ))}
+      <div className="flex gap-2 items-center">
+        <MetricCard label="Total Tax" value={fmt(totalTax)} color="text-amber-600" />
+        <ReportViewToggle view={view} onChange={setView} />
       </div>
+      {view === "table" ? (
+        <MobileReportTable columns={gstColumns} rows={grouped} rowKey={(g) => String(g.rate)} />
+      ) : (
+        <div className="space-y-2">
+          {grouped.map((g) => (
+            <div key={g.rate} className="p-3 bg-card rounded-xl border border-border/40">
+              <div className="flex justify-between items-center mb-1">
+                <p className="text-sm font-bold">GST {g.rate}%</p>
+                <p className="text-sm font-bold text-amber-600">{fmt(g.tax)}</p>
+              </div>
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>Taxable: {fmt(g.taxable)}</span>
+                <span>CGST: {fmt(g.cgst)} | SGST: {fmt(g.sgst)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
 
 /* 8. Brand Sales */
 const BrandSalesReport = ({ orgId, start, end }: RProps) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-brand-sales", orgId, start, end],
     enabled: !!orgId,
@@ -504,23 +662,43 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState />;
 
+  const brandColumns: ReportTableColumn<(typeof data)[number]>[] = [
+    {
+      key: "brand",
+      header: "Brand",
+      sticky: true,
+      minWidth: "min-w-[100px]",
+      render: (b) => <span className="font-semibold">{b.brand}</span>,
+    },
+    { key: "qty", header: "Qty", align: "right", render: (b) => b.qty },
+    { key: "amount", header: "Amount", align: "right", render: (b) => fmt(b.total) },
+  ];
+
   return (
     <div className="space-y-2">
-      {data.map((b: any, i: number) => (
-        <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-          <div>
-            <p className="text-sm font-semibold">{b.brand}</p>
-            <p className="text-[11px] text-muted-foreground">{b.qty} items sold</p>
+      <div className="flex justify-end">
+        <ReportViewToggle view={view} onChange={setView} />
+      </div>
+      {view === "table" ? (
+        <MobileReportTable columns={brandColumns} rows={data} rowKey={(b) => b.brand} />
+      ) : (
+        data.map((b: any, i: number) => (
+          <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
+            <div>
+              <p className="text-sm font-semibold">{b.brand}</p>
+              <p className="text-[11px] text-muted-foreground">{b.qty} items sold</p>
+            </div>
+            <p className="text-sm font-bold text-teal-600">{fmt(b.total)}</p>
           </div>
-          <p className="text-sm font-bold text-teal-600">{fmt(b.total)}</p>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 };
 
 /* 9. Size Sales */
 const SizeSalesReport = ({ orgId, start, end }: RProps) => {
+  const [view, setView] = useState<"list" | "table">("list");
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-size-sales", orgId, start, end],
     enabled: !!orgId,
@@ -548,17 +726,36 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState />;
 
+  const sizeColumns: ReportTableColumn<(typeof data)[number]>[] = [
+    {
+      key: "size",
+      header: "Size",
+      sticky: true,
+      minWidth: "min-w-[64px]",
+      render: (s) => <span className="font-semibold">{s.size}</span>,
+    },
+    { key: "qty", header: "Qty", align: "right", render: (s) => s.qty },
+    { key: "amount", header: "Amount", align: "right", render: (s) => fmt(s.total) },
+  ];
+
   return (
     <div className="space-y-2">
-      {data.map((s: any, i: number) => (
-        <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-          <div>
-            <p className="text-sm font-semibold">{s.size}</p>
-            <p className="text-[11px] text-muted-foreground">{s.qty} sold</p>
+      <div className="flex justify-end">
+        <ReportViewToggle view={view} onChange={setView} />
+      </div>
+      {view === "table" ? (
+        <MobileReportTable columns={sizeColumns} rows={data} rowKey={(s) => s.size} />
+      ) : (
+        data.map((s: any, i: number) => (
+          <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
+            <div>
+              <p className="text-sm font-semibold">{s.size}</p>
+              <p className="text-[11px] text-muted-foreground">{s.qty} sold</p>
+            </div>
+            <p className="text-sm font-bold text-indigo-600">{fmt(s.total)}</p>
           </div>
-          <p className="text-sm font-bold text-indigo-600">{fmt(s.total)}</p>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 };
