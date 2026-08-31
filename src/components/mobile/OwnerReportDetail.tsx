@@ -28,6 +28,7 @@ import {
   MobileSalesmanWiseSalesReport,
   MobileTopSellingProductsReport,
   MobileItemWiseStockReport,
+  MobileDeadStockReport,
   MobileNetProfitReport,
   MobileStockReport,
 } from "./MobileInsightsReports";
@@ -76,6 +77,7 @@ const TITLES: Record<ReportType, string> = {
   "salesman-wise-sales": "Salesman-wise Sale",
   "top-selling-products": "Top Selling Products",
   "item-wise-stock": "Item-wise Stock",
+  "dead-stock": "Dead Stock Analytics",
   "net-profit": "Net Profit",
   "stock-report": "Stock Report",
 };
@@ -113,6 +115,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
     "customer-outstanding",
     "supplier-outstanding",
     "item-wise-stock",
+    "dead-stock",
   ].includes(reportType);
 
   return (
@@ -198,6 +201,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
         {reportType === "salesman-wise-sales" && <MobileSalesmanWiseSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "top-selling-products" && <MobileTopSellingProductsReport orgId={orgId} start={start} end={end} />}
         {reportType === "item-wise-stock" && <MobileItemWiseStockReport orgId={orgId} />}
+        {reportType === "dead-stock" && <MobileDeadStockReport orgId={orgId} />}
         {reportType === "net-profit" && <MobileNetProfitReport orgId={orgId} start={start} end={end} />}
         {reportType === "stock-report" && <MobileStockReport orgId={orgId} />}
       </div>

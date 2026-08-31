@@ -9,7 +9,7 @@ import { useDesktopViewActions } from "@/hooks/useDesktopViewPreference";
 import {
   TrendingUp, TrendingDown, PieChart, Package, Users, UserCheck, Building2,
   Receipt, Tag, Ruler, CreditCard, ChevronRight, Grid3X3, Calculator, Monitor,
-  BarChart3, Wallet, Trophy,
+  BarChart3, Wallet, Trophy, PackageX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerReportDetail } from "./OwnerReportDetail";
@@ -29,7 +29,7 @@ export type ReportType =
   | "daily-sales" | "daily-purchase" | "profit-loss" | "stock-summary"
   | "customer-outstanding" | "supplier-outstanding" | "gst"
   | "brand-sales" | "size-sales" | "payment-collection"
-  | "daily-cashier" | "item-wise-sales" | "customer-wise-sales" | "salesman-wise-sales" | "top-selling-products" | "item-wise-stock" | "net-profit" | "stock-report";
+  | "daily-cashier" | "item-wise-sales" | "customer-wise-sales" | "salesman-wise-sales" | "top-selling-products" | "item-wise-stock" | "dead-stock" | "net-profit" | "stock-report";
 
 interface ReportCard {
   id: ReportType;
@@ -46,6 +46,7 @@ const REPORTS: ReportCard[] = [
   { id: "salesman-wise-sales", icon: UserCheck, label: "Salesman-wise Sale", description: "Bills and amount by salesman", color: "text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/40" },
   { id: "top-selling-products", icon: Trophy, label: "Top Selling Products", description: "Top 50 by revenue or quantity", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
   { id: "item-wise-stock", icon: Wallet, label: "Item-wise Stock", description: "Closing qty and stock value", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+  { id: "dead-stock", icon: PackageX, label: "Dead Stock Analytics", description: "Slow-moving stock by days idle", color: "text-red-700 bg-red-50 dark:bg-red-950/40" },
   { id: "net-profit", icon: PieChart, label: "Net Profit", description: "Product profit, COGS and margin", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
   { id: "stock-report", icon: Package, label: "Stock Report", description: "Live stock, size, color and rate", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
   { id: "size-wise-stock", icon: Grid3X3, label: "Size-wise Stock", description: "Search products & qty by size", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },

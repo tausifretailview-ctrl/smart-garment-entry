@@ -38,6 +38,8 @@ import {
   type ItemWiseStockFilters,
 } from "@/utils/itemWiseStockQueries";
 import { aggregateForTab, loadProfitDataset } from "@/utils/netProfitAnalysis";
+import { useSlowMovingStock } from "@/hooks/useBusinessInsights";
+import { filterSlowMovingStockRows } from "@/utils/slowMovingStockFilter";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -985,6 +987,134 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
           </div>
           <p className="text-sm font-semibold text-sky-700">Detailed Stock And Sales Statement</p>
           <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.id} />
+        </>
+      )}
+    </div>
+  );
+}
+
+export function MobileDeadStockReport({ orgId }: { orgId?: string }) {
+  const [search, setSearch] = useState("");
+  const [daysThreshold, setDaysThreshold] = useState(60);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const { data, isLoading, isError, refetch } = useSlowMovingStock(orgId, daysThreshold);
+
+  const rows = useMemo(() => {
+    const list = data || [];
+    return filterSlowMovingStockRows(list, search).slice(0, 300);
+  }, [data, search]);
+
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (a, r) => ({
+          variants: a.variants + 1,
+          stock: a.stock + (Number(r.current_stock) || 0),
+          value: a.value + (Number(r.stock_value) || 0),
+        }),
+        { variants: 0, stock: 0, value: 0 },
+      ),
+    [rows],
+  );
+
+  const columns: ReportTableColumn<NonNullable<typeof data>[number]>[] = [
+    {
+      key: "product",
+      header: "Product Name",
+      sticky: true,
+      minWidth: "min-w-[130px]",
+      csvText: (r) => (r.brand ? `${r.product_name} — ${r.brand}` : r.product_name || ""),
+      render: (r) => (
+        <div className="min-w-[130px] max-w-[170px]">
+          <p className="font-semibold truncate">{r.product_name}</p>
+          {r.brand ? <p className="text-[11px] text-muted-foreground truncate">{r.brand}</p> : null}
+        </div>
+      ),
+    },
+    { key: "size", header: "Size", align: "right", csvText: (r) => r.size || "", render: (r) => r.size },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "right",
+      csvText: (r) => String(r.current_stock ?? 0),
+      render: (r) => <span className="font-bold text-orange-600">{r.current_stock ?? 0}</span>,
+    },
+    {
+      key: "value",
+      header: "Value",
+      align: "right",
+      csvText: (r) => fmt(Number(r.stock_value) || 0),
+      render: (r) => fmt(Number(r.stock_value) || 0),
+    },
+    {
+      key: "lastSold",
+      header: "Last Sold",
+      align: "right",
+      csvText: (r) => (r.last_sold_date ? format(new Date(r.last_sold_date), "dd/MM/yy") : "Never"),
+      render: (r) => (
+        <span className={cn("text-[11px]", !r.last_sold_date && "text-destructive font-semibold")}>
+          {r.last_sold_date ? format(new Date(r.last_sold_date), "dd/MM/yy") : "Never"}
+        </span>
+      ),
+    },
+    {
+      key: "days",
+      header: "Days Idle",
+      align: "right",
+      csvText: (r) => String(r.days_since_sold ?? ""),
+      render: (r) => r.days_since_sold ?? "—",
+    },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product, brand…" />
+      <div className="flex gap-1 rounded-lg border border-border/40 p-0.5 w-fit">
+        {[30, 60, 90, 180].map((d) => (
+          <button
+            key={d}
+            type="button"
+            onClick={() => setDaysThreshold(d)}
+            className={cn(
+              "px-2.5 py-1.5 rounded-md text-xs font-semibold touch-manipulation",
+              daysThreshold === d ? "bg-primary/10 text-primary" : "text-muted-foreground",
+            )}
+          >
+            {d}d+
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        {rows.length ? (
+          <ReportExportButton
+            fileBaseName={`dead-stock-${daysThreshold}d-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(columns, rows)}
+            tableRef={tableRef}
+          />
+        ) : null}
+      </div>
+      {isLoading ? (
+        <LoadingRows />
+      ) : isError ? (
+        <div className="text-center py-12 space-y-3">
+          <p className="text-muted-foreground text-sm">Could not load dead stock.</p>
+          <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+            Try again
+          </button>
+        </div>
+      ) : !rows.length ? (
+        <EmptyState message="No slow-moving stock at this threshold." />
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <MetricCard label="Variants" value={String(totals.variants)} />
+            <MetricCard label="Stock Qty" value={String(totals.stock)} color="text-orange-600" />
+            <MetricCard label="Stuck Value" value={fmt(totals.value)} color="text-destructive" />
+          </div>
+          <p className="text-sm font-semibold text-sky-700">Dead Stock ({daysThreshold}+ days no sale)</p>
+          <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.variant_id} />
         </>
       )}
     </div>
