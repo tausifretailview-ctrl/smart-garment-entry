@@ -584,6 +584,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               items={props.items.map((item) => ({
                 particulars: item.particulars,
                 size: item.size,
+                barcode: item.barcode,
                 qty: item.qty,
                 rate: item.rate,
                 total: item.total,
