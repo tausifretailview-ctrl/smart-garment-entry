@@ -17,7 +17,8 @@ import {
   Receipt,
   TrendingUp,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Trophy
 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -71,6 +72,7 @@ export default function MobileReportsHub() {
         { icon: BarChart3, label: "Sales Report", path: "/sales-invoice-dashboard", desc: "All sales invoices" },
         { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", desc: "Cash summary for day" },
         { icon: ShoppingBag, label: "Item-wise Sales", path: "/item-wise-sales", desc: "Sales by product" },
+        { icon: Trophy, label: "Top Selling Products", path: `${MOBILE_REPORTS_PATH}?report=top-selling-products`, desc: "Top 50 by revenue or qty" },
         { icon: Users, label: "Customer-wise Sale", path: `${MOBILE_REPORTS_PATH}?report=customer-wise-sales`, desc: "Sales by customer" },
         { icon: UserCheck, label: "Salesman-wise Sale", path: `${MOBILE_REPORTS_PATH}?report=salesman-wise-sales`, desc: "Sales by salesman" },
         { icon: Users, label: "Customer Sales", path: "/sales-report-by-customer", desc: "Sales by customer" },

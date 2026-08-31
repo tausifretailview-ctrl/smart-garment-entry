@@ -172,23 +172,19 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
   );
 }
 
-export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
-  const [search, setSearch] = useState("");
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
-  const tableRef = useRef<HTMLDivElement>(null);
-  const activeCount = countActiveReportFilters(filters, { includeStockStatus: false });
+type ItemWiseSaleRow = {
+  key: string;
+  name: string;
+  size: string;
+  brand: string;
+  category: string;
+  qty: number;
+  amount: number;
+};
 
-  const { data: optionLists } = useQuery({
-    queryKey: ["stock-filter-options", orgId],
-    enabled: !!orgId,
-    staleTime: STALE_FREQUENT,
-    retry: 1,
-    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockFilterOptions(orgId!), 20_000),
-  });
-
+function useItemWiseSalesAggregation(orgId?: string, start?: string, end?: string) {
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-sales", orgId, start, end],
+    queryKey: ["rpt-item-wise-sales-raw", orgId, start, end],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
@@ -205,7 +201,12 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
           .order("sale_date", { ascending: false })
           .limit(800);
         if (error) throw error;
-        if (!sales?.length) return { saleItems: [] as Awaited<ReturnType<typeof fetchAllSaleItems>>, metaById: new Map<string, { brand?: string | null; category?: string | null }>() };
+        if (!sales?.length) {
+          return {
+            saleItems: [] as Awaited<ReturnType<typeof fetchAllSaleItems>>,
+            metaById: new Map<string, { brand?: string | null; category?: string | null }>(),
+          };
+        }
         const saleItems = await fetchAllSaleItems(sales.map((s) => s.id));
         const productIds = [...new Set((saleItems || []).map((i: { product_id?: string }) => i.product_id).filter(Boolean))] as string[];
         const metaById = await fetchSaleItemProductMeta(orgId!, productIds);
@@ -214,7 +215,7 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
   });
 
   const rows = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; size: string; brand: string; category: string; qty: number; amount: number }>();
+    const map = new Map<string, ItemWiseSaleRow>();
     const items = data?.saleItems || [];
     const metaById = data?.metaById ?? new Map();
     items.forEach((i: { product_id?: string; product_name?: string; size?: string; quantity?: number; line_total?: number }) => {
@@ -235,10 +236,33 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
       ex.amount += Number(i.line_total) || 0;
       map.set(key, ex);
     });
+    return [...map.values()];
+  }, [data]);
+
+  return { rows, isLoading, isError, refetch, hasSaleLines: (data?.saleItems.length ?? 0) > 0 };
+}
+
+export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
+  const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const activeCount = countActiveReportFilters(filters, { includeStockStatus: false });
+  const { rows: allRows, isLoading, isError, refetch, hasSaleLines } = useItemWiseSalesAggregation(orgId, start, end);
+
+  const { data: optionLists } = useQuery({
+    queryKey: ["stock-filter-options", orgId],
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
+    retry: 1,
+    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockFilterOptions(orgId!), 20_000),
+  });
+
+  const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const brandFilter = filters.brand !== "__all__" && filters.brand !== "all" ? filters.brand : "";
     const categoryFilter = filters.category !== "__all__" && filters.category !== "all" ? filters.category : "";
-    return [...map.values()]
+    return allRows
       .filter((r) => {
         if (q && !r.name.toLowerCase().includes(q) && !r.size.toLowerCase().includes(q)) return false;
         if (brandFilter && r.brand !== brandFilter) return false;
@@ -247,7 +271,7 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
       })
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 250);
-  }, [data, search, filters]);
+  }, [allRows, search, filters]);
 
   const totals = useMemo(
     () => rows.reduce((a, r) => ({ qty: a.qty + r.qty, amount: a.amount + r.amount }), { qty: 0, amount: 0 }),
@@ -280,8 +304,6 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
       render: (r) => <span className="font-bold">{fmt(r.amount)}</span>,
     },
   ];
-
-  const hasSaleLines = (data?.saleItems.length ?? 0) > 0;
 
   return (
     <div className="space-y-3">
@@ -336,6 +358,100 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
           <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
         </>
       )}
+    </div>
+  );
+}
+
+export function MobileTopSellingProductsReport({ orgId, start, end }: DateProps) {
+  const { rows: allRows, isLoading, isError, refetch } = useItemWiseSalesAggregation(orgId, start, end);
+  const [sortBy, setSortBy] = useState<"amount" | "qty">("amount");
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rows = useMemo(() => {
+    const sorted = [...allRows].sort((a, b) => (sortBy === "amount" ? b.amount - a.amount : b.qty - a.qty));
+    return sorted.slice(0, 50).map((r, i) => ({ ...r, rank: i + 1 }));
+  }, [allRows, sortBy]);
+
+  const columns: ReportTableColumn<(typeof rows)[number]>[] = [
+    {
+      key: "rank",
+      header: "#",
+      sticky: true,
+      minWidth: "min-w-[36px]",
+      csvText: (r) => String(r.rank),
+      render: (r) => (
+        <span
+          className={cn(
+            "inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
+            r.rank === 1
+              ? "bg-amber-400 text-amber-950"
+              : r.rank === 2
+                ? "bg-slate-300 text-slate-800"
+                : r.rank === 3
+                  ? "bg-orange-300 text-orange-950"
+                  : "text-muted-foreground",
+          )}
+        >
+          {r.rank}
+        </span>
+      ),
+    },
+    {
+      key: "product",
+      header: "Product Name",
+      minWidth: "min-w-[120px]",
+      csvText: (r) => r.name,
+      render: (r) => <span className="font-semibold truncate block max-w-[150px]">{r.name}</span>,
+    },
+    { key: "size", header: "Pack", align: "right", csvText: (r) => r.size, render: (r) => r.size },
+    { key: "qty", header: "Qty", align: "right", csvText: (r) => String(r.qty), render: (r) => r.qty },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      csvText: (r) => fmt(r.amount),
+      render: (r) => <span className="font-bold">{fmt(r.amount)}</span>,
+    },
+  ];
+
+  if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load top selling products.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (!allRows.length) return <EmptyState message="No sales in this date range. Try Week, Month, or Custom." />;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Top 50</p>
+        <ReportExportButton
+          fileBaseName={`top-selling-products-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(columns, rows)}
+          tableRef={tableRef}
+        />
+      </div>
+      <div className="flex gap-1 rounded-lg border border-border/40 p-0.5 w-fit">
+        {(["amount", "qty"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setSortBy(k)}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-semibold touch-manipulation",
+              sortBy === k ? "bg-primary/10 text-primary" : "text-muted-foreground",
+            )}
+          >
+            By {k === "amount" ? "Revenue" : "Quantity"}
+          </button>
+        ))}
+      </div>
+      <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
     </div>
   );
 }
