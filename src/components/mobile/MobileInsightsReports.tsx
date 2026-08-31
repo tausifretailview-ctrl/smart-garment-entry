@@ -1,11 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { localDayBounds } from "@/lib/localDayBounds";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { STALE_LIVE, STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
 import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
+import { ReportExportButton } from "@/components/mobile/ReportExportButton";
+import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
+import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import {
+  fetchMobileStockReportPages,
+  fetchMobileStockSuppliers,
+} from "@/utils/mobileStockReportQuery";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -137,43 +145,48 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
 }
 
 export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
-  const { data, isLoading } = useQuery({
+  const [search, setSearch] = useState("");
+  const tableRef = useRef<HTMLDivElement>(null);
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-item-wise-sales", orgId, start, end],
     enabled: !!orgId && !!start && !!end,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
         const { startIso, endIso } = localDayBounds(start!, end!);
-        const { data: items, error } = await supabase
-          .from("sale_items")
-          .select(
-            "product_name, size, barcode, quantity, line_total, unit_price, product_id, sales!inner(organization_id, sale_date, deleted_at, is_cancelled), products(brand)",
-          )
-          .eq("sales.organization_id", orgId!)
-          .is("sales.deleted_at", null)
-          .eq("sales.is_cancelled", false)
-          .gte("sales.sale_date", startIso)
-          .lte("sales.sale_date", endIso)
-          .limit(2500);
+        const { data: sales, error } = await supabase
+          .from("sales")
+          .select("id")
+          .eq("organization_id", orgId!)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .gte("sale_date", startIso)
+          .lte("sale_date", endIso)
+          .order("sale_date", { ascending: false })
+          .limit(800);
         if (error) throw error;
-        return items || [];
-      }),
+        if (!sales?.length) return [];
+        return fetchAllSaleItems(sales.map((s) => s.id));
+      }, 25_000),
   });
 
   const rows = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; brand: string; size: string; qty: number; amount: number }>();
-    (data || []).forEach((i: any) => {
+    const map = new Map<string, { key: string; name: string; size: string; qty: number; amount: number }>();
+    (data || []).forEach((i: { product_name?: string; size?: string; quantity?: number; line_total?: number }) => {
       const name = i.product_name || "—";
       const size = i.size || "—";
-      const brand = i.products?.brand || "";
-      const key = `${name}|${size}|${brand}`;
-      const ex = map.get(key) || { key, name, brand, size, qty: 0, amount: 0 };
+      const key = `${name}|${size}`;
+      const ex = map.get(key) || { key, name, size, qty: 0, amount: 0 };
       ex.qty += Number(i.quantity) || 0;
       ex.amount += Number(i.line_total) || 0;
       map.set(key, ex);
     });
-    return [...map.values()].sort((a, b) => b.amount - a.amount).slice(0, 200);
-  }, [data]);
+    const q = search.trim().toLowerCase();
+    return [...map.values()]
+      .filter((r) => !q || r.name.toLowerCase().includes(q) || r.size.toLowerCase().includes(q))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 250);
+  }, [data, search]);
 
   const totals = useMemo(
     () => rows.reduce((a, r) => ({ qty: a.qty + r.qty, amount: a.amount + r.amount }), { qty: 0, amount: 0 }),
@@ -183,38 +196,61 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
   const columns: ReportTableColumn<(typeof rows)[number]>[] = [
     {
       key: "product",
-      header: "Product",
+      header: "Product Name",
       sticky: true,
       minWidth: "min-w-[120px]",
-      render: (r) => (
-        <div className="min-w-[120px] max-w-[160px]">
-          <p className="font-semibold truncate">{r.name}</p>
-          {r.brand ? <p className="text-[11px] text-muted-foreground truncate">{r.brand}</p> : null}
-        </div>
-      ),
+      csvText: (r) => r.name,
+      render: (r) => <span className="font-semibold truncate block max-w-[160px]">{r.name}</span>,
     },
-    { key: "size", header: "Size / Pack", align: "right", render: (r) => r.size },
-    { key: "qty", header: "Qty", align: "right", render: (r) => r.qty },
+    { key: "size", header: "Pack", align: "right", csvText: (r) => r.size, render: (r) => r.size },
+    { key: "qty", header: "Qty", align: "right", csvText: (r) => String(r.qty), render: (r) => r.qty },
     {
       key: "rate",
       header: "Rate",
       align: "right",
+      csvText: (r) => fmt(r.qty ? r.amount / r.qty : 0),
       render: (r) => fmt(r.qty ? r.amount / r.qty : 0),
     },
-    { key: "amount", header: "Amount", align: "right", render: (r) => <span className="font-bold">{fmt(r.amount)}</span> },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      csvText: (r) => fmt(r.amount),
+      render: (r) => <span className="font-bold">{fmt(r.amount)}</span>,
+    },
   ];
 
   if (isLoading) return <LoadingRows />;
-  if (!rows.length) return <EmptyState />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load item-wise sales.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (!rows.length) return <EmptyState message="No sales in this date range. Try Week, Month, or Custom." />;
 
   return (
     <div className="space-y-3">
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product or size…" />
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`item-wise-sale-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(columns, rows)}
+          tableRef={tableRef}
+        />
+      </div>
       <div className="flex gap-2">
         <MetricCard label="Qty" value={String(totals.qty)} />
         <MetricCard label="Amount" value={fmt(totals.amount)} color="text-emerald-600" />
-        <MetricCard label="Lines" value={String(rows.length)} />
+        <MetricCard label="Items" value={String(rows.length)} />
       </div>
-      <MobileReportTable variant="insights" columns={columns} rows={rows} rowKey={(r) => r.key} />
+      <p className="text-sm font-semibold text-sky-700">Item-wise Sale</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
     </div>
   );
 }
@@ -341,6 +377,8 @@ export function MobileNetProfitReport({ orgId, start, end }: DateProps) {
 
 export function MobileStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const tableRef = useRef<HTMLDivElement>(null);
 
   const { data: totals } = useQuery({
     queryKey: ["rpt-stock-report-totals", orgId],
@@ -363,40 +401,50 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
       }),
   });
 
-  const { data: rows, isLoading } = useQuery({
-    queryKey: ["rpt-stock-report-rows", orgId, search],
+  const { data: suppliers } = useQuery({
+    queryKey: ["rpt-stock-report-suppliers", orgId],
     enabled: !!orgId,
-    staleTime: search.trim() ? STALE_LIVE : STALE_FREQUENT,
+    staleTime: STALE_FREQUENT,
+    retry: 1,
+    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockSuppliers(orgId!), 20_000),
+  });
+
+  const { data: rows, isLoading, isError, refetch } = useQuery({
+    queryKey: ["rpt-stock-report-rows", orgId, search, supplier],
+    enabled: !!orgId,
+    staleTime: search.trim() || supplier.trim() ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
-        const { data, error } = await supabase.rpc("get_stock_report", {
-          p_org_id: orgId!,
-          p_search: search.trim() || null,
-          p_limit: 150,
-          p_offset: 0,
-          p_low_stock_threshold: 10,
+        const data = await fetchMobileStockReportPages(orgId!, {
+          search,
+          supplier: supplier.trim() || undefined,
+          maxRows: 400,
+          pageSize: 200,
         });
-        if (error) throw error;
-        return (data || []).map((r) => ({
+        return data.map((r) => ({
           id: r.variant_id,
           name: r.product_name || "—",
           brand: r.brand || "",
           size: r.size || "—",
           color: r.color || "",
+          opening: Number(r.opening_qty) || 0,
+          purchase: Number(r.purchase_qty) || 0,
+          sales: Number(r.sales_qty) || 0,
           qty: Number(r.current_stock) || 0,
           rate: Number(r.sale_price) || 0,
           pur: Number(r.pur_price) || 0,
         }));
-      }),
+      }, 25_000),
   });
 
   const columns: ReportTableColumn<NonNullable<typeof rows>[number]>[] = [
     {
       key: "product",
-      header: "Product",
+      header: "Product Name",
       sticky: true,
       minWidth: "min-w-[120px]",
+      csvText: (r) => (r.brand ? `${r.name} — ${r.brand}` : r.name),
       render: (r) => (
         <div className="min-w-[120px] max-w-[160px]">
           <p className="font-semibold truncate">{r.name}</p>
@@ -404,35 +452,105 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
         </div>
       ),
     },
-    { key: "size", header: "Size / Pack", align: "right", render: (r) => r.size },
-    { key: "color", header: "Color", render: (r) => r.color || "—" },
+    { key: "size", header: "Pack", align: "right", csvText: (r) => r.size, render: (r) => r.size },
+    { key: "opening", header: "Opening", align: "right", csvText: (r) => String(r.opening), render: (r) => r.opening },
+    { key: "purchase", header: "Receipts", align: "right", csvText: (r) => String(r.purchase), render: (r) => r.purchase },
+    { key: "sales", header: "Sales", align: "right", csvText: (r) => String(r.sales), render: (r) => r.sales },
     {
       key: "qty",
       header: "Stock",
       align: "right",
+      csvText: (r) => String(r.qty),
       render: (r) => (
         <span className={cn("font-bold", r.qty <= 0 ? "text-destructive" : r.qty <= 10 ? "text-orange-600" : "text-emerald-600")}>
           {r.qty}
         </span>
       ),
     },
-    { key: "rate", header: "Rate", align: "right", render: (r) => fmt(r.rate) },
-    { key: "pur", header: "Pur.", align: "right", render: (r) => fmt(r.pur) },
+    { key: "rate", header: "Rate", align: "right", csvText: (r) => fmt(r.rate), render: (r) => fmt(r.rate) },
   ];
 
+  const pageTotals = useMemo(() => {
+    const list = rows || [];
+    return {
+      opening: list.reduce((s, r) => s + r.opening, 0),
+      purchase: list.reduce((s, r) => s + r.purchase, 0),
+      sales: list.reduce((s, r) => s + r.sales, 0),
+      stock: list.reduce((s, r) => s + r.qty, 0),
+      stockValue: list.reduce((s, r) => s + r.qty * r.rate, 0),
+    };
+  }, [rows]);
+
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load stock report.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
   if (!rows?.length) return <EmptyState message="No stock rows found" />;
+
+  const supplierOptions = (suppliers || []).filter((s) =>
+    !supplier.trim() || s.toLowerCase().includes(supplier.trim().toLowerCase()),
+  );
 
   return (
     <div className="space-y-3">
-      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product or barcode…" />
-      <div className="flex gap-2 overflow-x-auto no-scrollbar">
-        <MetricCard label="Variants" value={String(totals?.variants ?? rows.length)} />
-        <MetricCard label="Stock Qty" value={String(Math.round(totals?.qty ?? 0))} />
-        <MetricCard label="Pur. Value" value={fmt(totals?.pur ?? 0)} color="text-orange-600" />
-        <MetricCard label="Sale Value" value={fmt(totals?.sale ?? 0)} color="text-emerald-600" />
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product, barcode…" />
+      <MobileReportSearchBar value={supplier} onChange={setSupplier} placeholder="Search supplier…" />
+      {supplier.trim() && supplierOptions.length > 0 && supplierOptions.length <= 8 ? (
+        <div className="flex flex-wrap gap-1.5 -mt-1">
+          {supplierOptions.slice(0, 8).map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => setSupplier(name)}
+              className={cn(
+                "px-2.5 py-1 rounded-full text-[11px] font-medium border touch-manipulation",
+                supplier === name ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border text-muted-foreground",
+              )}
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`stock-report-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(columns, rows)}
+          tableRef={tableRef}
+        />
       </div>
-      <MobileReportTable variant="insights" columns={columns} rows={rows} rowKey={(r) => r.id} />
+      <div className="overflow-x-auto -mx-2 px-2">
+        <table className="w-full text-xs border border-sky-200 rounded-lg overflow-hidden">
+          <thead>
+            <tr className="bg-sky-100 text-sky-900">
+              <th className="px-2 py-2 text-right font-semibold">Opening</th>
+              <th className="px-2 py-2 text-right font-semibold">Receipts</th>
+              <th className="px-2 py-2 text-right font-semibold">Sales</th>
+              <th className="px-2 py-2 text-right font-semibold">Stock Qty</th>
+              <th className="px-2 py-2 text-right font-semibold">Sale Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="bg-card">
+              <td className="px-2 py-2 text-right tabular-nums">{pageTotals.opening}</td>
+              <td className="px-2 py-2 text-right tabular-nums">{pageTotals.purchase}</td>
+              <td className="px-2 py-2 text-right tabular-nums">{pageTotals.sales}</td>
+              <td className="px-2 py-2 text-right tabular-nums font-bold">{Math.round(totals?.qty ?? pageTotals.stock)}</td>
+              <td className="px-2 py-2 text-right tabular-nums font-bold">{fmt(totals?.sale ?? pageTotals.stockValue)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Detailed Stock And Sales Statement</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.id} />
     </div>
   );
 }

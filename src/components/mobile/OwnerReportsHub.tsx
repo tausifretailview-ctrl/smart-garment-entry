@@ -138,7 +138,7 @@ export const OwnerReportsHub = () => {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2 py-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2 py-3 safe-area-pt">
         <h1 className="text-lg font-bold text-foreground">📊 Reports</h1>
         <p className="text-xs text-muted-foreground">Tap a report to view details</p>
       </div>
