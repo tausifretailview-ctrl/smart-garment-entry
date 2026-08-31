@@ -1,78 +1,30 @@
-import { useEffect, useState } from "react";
-import { Filter, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { MobilePickerSheet } from "@/components/mobile/MobilePickerSheet";
 import { cn } from "@/lib/utils";
 
-export type MobileReportFilterOption = { value: string; label: string };
-
-export type MobileReportFilterValues = {
+export type FilterValue = {
   brand: string;
   category: string;
-  stockStatus: string;
+  stockStatus: "all" | "in_stock" | "zero_stock";
 };
 
 const ALL = "__all__";
 
-function Chip({
-  selected,
-  onClick,
-  children,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "max-w-full truncate px-2.5 py-1.5 rounded-full text-[11px] font-medium border touch-manipulation",
-        selected
-          ? "bg-primary text-primary-foreground border-primary"
-          : "bg-card border-border text-muted-foreground",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+export const DEFAULT_STOCK_FILTERS: FilterValue = {
+  brand: ALL,
+  category: ALL,
+  stockStatus: "all",
+};
 
-function ChipGroup({
-  label,
-  options,
-  value,
-  onChange,
-  includeAll = true,
-}: {
-  label: string;
-  options: MobileReportFilterOption[];
-  value: string;
-  onChange: (value: string) => void;
-  includeAll?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">{label}</p>
-      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-        {includeAll ? (
-          <Chip selected={value === ALL} onClick={() => onChange(ALL)}>
-            All
-          </Chip>
-        ) : null}
-        {options.map((opt) => (
-          <Chip key={opt.value} selected={value === opt.value} onClick={() => onChange(opt.value)}>
-            {opt.label}
-          </Chip>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export function countActiveReportFilters(values: MobileReportFilterValues): number {
-  return [values.brand, values.category, values.stockStatus].filter((v) => v && v !== ALL && v !== "all").length;
+export function countActiveReportFilters(values: FilterValue): number {
+  return [
+    values.brand !== ALL && values.brand !== "all",
+    values.category !== ALL && values.category !== "all",
+    values.stockStatus !== "all",
+  ].filter(Boolean).length;
 }
 
 export function MobileReportFilterButton({
@@ -86,85 +38,145 @@ export function MobileReportFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className="relative mb-3 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border/60 bg-card touch-manipulation"
+      className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-foreground touch-manipulation"
       aria-label="Filters"
     >
-      <Filter className="h-4 w-4" />
+      <Filter className="h-3.5 w-3.5" />
       {activeCount > 0 ? (
-        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-4 text-center">
-          {activeCount}
-        </span>
+        <span className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-primary" />
       ) : null}
     </button>
   );
 }
 
+function SearchablePickList({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return options;
+    return options.filter((o) => o.toLowerCase().includes(needle));
+  }, [options, q]);
+
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">{label}</p>
+      <Input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={`Search ${label.toLowerCase()}…`}
+        className="h-9 mb-2 rounded-lg text-sm"
+      />
+      <div className="max-h-36 overflow-y-auto rounded-lg border border-border/50 divide-y divide-border/40">
+        <button
+          type="button"
+          onClick={() => onChange(ALL)}
+          className={cn(
+            "w-full text-left px-3 py-2 text-sm touch-manipulation",
+            value === ALL ? "bg-primary/10 text-primary font-semibold" : "active:bg-muted/40",
+          )}
+        >
+          All
+        </button>
+        {filtered.map((opt) => (
+          <button
+            key={opt}
+            type="button"
+            onClick={() => onChange(opt)}
+            className={cn(
+              "w-full text-left px-3 py-2 text-sm touch-manipulation truncate",
+              value === opt ? "bg-primary/10 text-primary font-semibold" : "active:bg-muted/40",
+            )}
+          >
+            {opt}
+          </button>
+        ))}
+        {filtered.length === 0 ? (
+          <p className="px-3 py-2 text-xs text-muted-foreground">No matches</p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+const STATUS_OPTIONS: { value: FilterValue["stockStatus"]; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "in_stock", label: "In Stock" },
+  { value: "zero_stock", label: "Zero Stock" },
+];
+
 export function MobileReportFilterSheet({
   open,
   onOpenChange,
-  values,
-  onApply,
   brands,
   categories,
-  stockStatusOptions,
+  value,
+  onApply,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  values: MobileReportFilterValues;
-  onApply: (next: MobileReportFilterValues) => void;
   brands: string[];
   categories: string[];
-  stockStatusOptions: MobileReportFilterOption[];
+  value: FilterValue;
+  onApply: (v: FilterValue) => void;
 }) {
-  const [draft, setDraft] = useState(values);
+  const [draft, setDraft] = useState(value);
 
   useEffect(() => {
-    if (open) setDraft(values);
-  }, [open, values]);
-
-  const brandOptions = brands.map((b) => ({ value: b, label: b }));
-  const categoryOptions = categories.map((c) => ({ value: c, label: c }));
+    if (open) setDraft(value);
+  }, [open, value]);
 
   return (
-    <MobilePickerSheet
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Filters"
-      description="Brand, category and stock status"
-    >
+    <MobilePickerSheet open={open} onOpenChange={onOpenChange} title="Filters" description="Brand, category and stock status">
       <div className="space-y-4">
-        <ChipGroup
+        <SearchablePickList
           label="Brand"
-          options={brandOptions}
+          options={brands}
           value={draft.brand}
           onChange={(brand) => setDraft((d) => ({ ...d, brand }))}
         />
-        <ChipGroup
+        <SearchablePickList
           label="Category"
-          options={categoryOptions}
+          options={categories}
           value={draft.category}
           onChange={(category) => setDraft((d) => ({ ...d, category }))}
         />
-        <ChipGroup
-          label="Stock status"
-          options={stockStatusOptions}
-          value={draft.stockStatus}
-          onChange={(stockStatus) => setDraft((d) => ({ ...d, stockStatus }))}
-          includeAll={false}
-        />
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Stock status</p>
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setDraft((d) => ({ ...d, stockStatus: opt.value }))}
+                className={cn(
+                  "rounded-lg py-2 text-[11px] font-semibold touch-manipulation",
+                  draft.stockStatus === opt.value
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground",
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2 pt-1">
           <Button
             type="button"
             variant="outline"
             className="flex-1"
-            onClick={() => {
-              const cleared = { brand: ALL, category: ALL, stockStatus: stockStatusOptions[0]?.value || "all" };
-              setDraft(cleared);
-              onApply(cleared);
-              onOpenChange(false);
-            }}
+            onClick={() => setDraft(DEFAULT_STOCK_FILTERS)}
           >
-            <X className="h-4 w-4 mr-1" />
             Clear
           </Button>
           <Button

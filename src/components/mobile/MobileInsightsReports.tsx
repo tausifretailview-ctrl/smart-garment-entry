@@ -10,15 +10,18 @@ import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/M
 import { ReportExportButton } from "@/components/mobile/ReportExportButton";
 import {
   countActiveReportFilters,
+  DEFAULT_STOCK_FILTERS,
   MobileReportFilterButton,
   MobileReportFilterSheet,
-  type MobileReportFilterValues,
+  type FilterValue,
 } from "@/components/mobile/MobileReportFilterSheet";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { fetchAllSaleItems } from "@/utils/fetchAllRows";
+import { fetchMobileStockFilterOptions } from "@/utils/mobileStockFilterOptions";
 import {
-  fetchMobileStockFilterOptions,
+  fetchMobileStockFilteredTotals,
   fetchMobileStockReportPages,
+  fetchMobileStockSuppliers,
 } from "@/utils/mobileStockReportQuery";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -29,7 +32,6 @@ import {
   getSaleReportNetAmount,
 } from "@/utils/cashierReportUtils";
 import {
-  fetchItemWiseStockFilterOptions,
   fetchItemWiseStockPage,
   fetchItemWiseStockTotals,
   type ItemWiseStockClosingFilter,
@@ -63,24 +65,11 @@ const ITEM_STOCK_FILTERS: ItemWiseStockFilters = {
   closingStockFilter: "all",
 };
 
-const ITEM_STOCK_STATUS_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "in_stock", label: "In stock" },
-  { value: "zero_stock", label: "Zero stock" },
-];
-
-const STOCK_REPORT_STATUS_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "in", label: "In stock" },
-  { value: "low", label: "Low stock" },
-  { value: "out", label: "Out of stock" },
-];
-
-const EMPTY_FILTERS: MobileReportFilterValues = {
-  brand: "__all__",
-  category: "__all__",
-  stockStatus: "all",
-};
+function inStockRpcArg(status: FilterValue["stockStatus"]): boolean | undefined {
+  if (status === "in_stock") return true;
+  if (status === "zero_stock") return false;
+  return undefined;
+}
 
 export function MobileCashierReport({ orgId, start, end }: DateProps) {
   const { data, isLoading } = useQuery({
@@ -279,40 +268,41 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
 export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [sheet, setSheet] = useState<MobileReportFilterValues>(EMPTY_FILTERS);
-  const filters = useMemo<ItemWiseStockFilters>(
+  const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rpcFilters = useMemo<ItemWiseStockFilters>(
     () => ({
       ...ITEM_STOCK_FILTERS,
       searchQuery: search,
-      brandFilter: sheet.brand,
-      categoryFilter: sheet.category,
+      brandFilter: filters.brand,
+      categoryFilter: filters.category,
       closingStockFilter:
-        sheet.stockStatus === "in_stock" || sheet.stockStatus === "zero_stock"
-          ? (sheet.stockStatus as ItemWiseStockClosingFilter)
+        filters.stockStatus === "in_stock" || filters.stockStatus === "zero_stock"
+          ? (filters.stockStatus as ItemWiseStockClosingFilter)
           : "all",
     }),
-    [search, sheet],
+    [search, filters],
   );
-  const activeCount = countActiveReportFilters(sheet);
+  const activeCount = countActiveReportFilters(filters);
 
   const { data: options } = useQuery({
     queryKey: ["rpt-item-wise-stock-filters", orgId],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
     retry: 1,
-    queryFn: () => withMobileQueryTimeout(() => fetchItemWiseStockFilterOptions(orgId!), 20_000),
+    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockFilterOptions(orgId!), 20_000),
   });
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-item-wise-stock", orgId, search, sheet.brand, sheet.category, sheet.stockStatus],
+    queryKey: ["rpt-item-wise-stock", orgId, search, filters],
     enabled: !!orgId,
     staleTime: search.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
         const [page, totals] = await Promise.all([
-          fetchItemWiseStockPage(orgId!, filters, 1, 150),
-          fetchItemWiseStockTotals(orgId!, filters),
+          fetchItemWiseStockPage(orgId!, rpcFilters, 1, 150),
+          fetchItemWiseStockTotals(orgId!, rpcFilters),
         ]);
         return { rows: page.rows, totals };
       }, 25_000),
@@ -324,30 +314,38 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
       header: "Product",
       sticky: true,
       minWidth: "min-w-[120px]",
+      csvText: (r) => r.key,
       render: (r) => <span className="font-semibold truncate block max-w-[160px]">{r.key}</span>,
     },
-    { key: "qty", header: "Stock", align: "right", render: (r) => <span className="font-bold">{r.total_qty}</span> },
-    { key: "pur", header: "Pur. Value", align: "right", render: (r) => fmt(r.purchase_value) },
-    { key: "sale", header: "Sale Value", align: "right", render: (r) => fmt(r.sale_value) },
+    { key: "qty", header: "Stock", align: "right", csvText: (r) => String(r.total_qty), render: (r) => <span className="font-bold">{r.total_qty}</span> },
+    { key: "pur", header: "Pur. Value", align: "right", csvText: (r) => fmt(r.purchase_value), render: (r) => fmt(r.purchase_value) },
+    { key: "sale", header: "Sale Value", align: "right", csvText: (r) => fmt(r.sale_value), render: (r) => fmt(r.sale_value) },
   ];
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product…" />
-        </div>
-        <MobileReportFilterButton activeCount={activeCount} onClick={() => setFilterOpen(true)} />
-      </div>
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product…" />
       <MobileReportFilterSheet
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        values={sheet}
-        onApply={setSheet}
+        value={filters}
+        onApply={setFilters}
         brands={options?.brands ?? []}
         categories={options?.categories ?? []}
-        stockStatusOptions={ITEM_STOCK_STATUS_OPTIONS}
       />
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <div className="flex items-center gap-1">
+          <MobileReportFilterButton activeCount={activeCount} onClick={() => setFilterOpen(true)} />
+          {data?.rows.length ? (
+            <ReportExportButton
+              fileBaseName={`item-wise-stock-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(columns, data.rows)}
+              tableRef={tableRef}
+            />
+          ) : null}
+        </div>
+      </div>
       {isLoading ? (
         <LoadingRows />
       ) : isError ? (
@@ -367,7 +365,8 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
             <MetricCard label="Pur. Value" value={fmt(data.totals.purchase_value)} color="text-orange-600" />
             <MetricCard label="Sale Value" value={fmt(data.totals.sale_value)} color="text-emerald-600" />
           </div>
-          <MobileReportTable variant="insights" columns={columns} rows={data.rows} rowKey={(r) => r.key} />
+          <p className="text-sm font-semibold text-sky-700">Item-wise Stock</p>
+          <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={data.rows} rowKey={(r) => r.key} />
         </>
       )}
     </div>
@@ -446,17 +445,28 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [supplier, setSupplier] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [sheet, setSheet] = useState<MobileReportFilterValues>(EMPTY_FILTERS);
+  const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
   const tableRef = useRef<HTMLDivElement>(null);
-  const activeCount = countActiveReportFilters(sheet);
+  const activeCount = countActiveReportFilters(filters);
+  const inStock = inStockRpcArg(filters.stockStatus);
+  const hasRpcFilters = activeCount > 0 || !!search.trim() || !!supplier.trim();
 
   const { data: totals } = useQuery({
-    queryKey: ["rpt-stock-report-totals", orgId],
+    queryKey: ["rpt-stock-report-totals", orgId, search, supplier, filters, hasRpcFilters],
     enabled: !!orgId,
-    staleTime: STALE_FREQUENT,
+    staleTime: hasRpcFilters ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
+        if (hasRpcFilters) {
+          return fetchMobileStockFilteredTotals(orgId!, {
+            search,
+            supplier: supplier.trim() || undefined,
+            brand: filters.brand,
+            category: filters.category,
+            inStock,
+          });
+        }
         const { data, error } = await supabase.rpc("get_stock_report_totals", {
           p_organization_id: orgId!,
         });
@@ -468,10 +478,10 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
           sale: Number(row?.sale_value ?? 0),
           variants: Number(row?.variant_count ?? 0),
         };
-      }),
+      }, 20_000),
   });
 
-  const { data: filterOptions } = useQuery({
+  const { data: optionLists } = useQuery({
     queryKey: ["rpt-stock-report-filter-options", orgId],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
@@ -479,8 +489,16 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
     queryFn: () => withMobileQueryTimeout(() => fetchMobileStockFilterOptions(orgId!), 20_000),
   });
 
+  const { data: suppliers } = useQuery({
+    queryKey: ["rpt-stock-report-suppliers", orgId],
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
+    retry: 1,
+    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockSuppliers(orgId!), 20_000),
+  });
+
   const { data: rows, isLoading, isError, refetch } = useQuery({
-    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, sheet.brand, sheet.category, sheet.stockStatus],
+    queryKey: ["rpt-stock-report-rows", orgId, search, supplier, filters],
     enabled: !!orgId,
     staleTime: search.trim() || supplier.trim() || activeCount ? STALE_LIVE : STALE_FREQUENT,
     retry: 1,
@@ -489,9 +507,9 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
         const data = await fetchMobileStockReportPages(orgId!, {
           search,
           supplier: supplier.trim() || undefined,
-          brand: sheet.brand,
-          category: sheet.category,
-          stockStatus: sheet.stockStatus,
+          brand: filters.brand,
+          category: filters.category,
+          inStock,
           maxRows: 400,
           pageSize: 200,
         });
@@ -554,27 +572,21 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
     };
   }, [rows]);
 
-  const supplierOptions = (filterOptions?.suppliers || []).filter((s) =>
+  const supplierOptions = (suppliers || []).filter((s) =>
     !supplier.trim() || s.toLowerCase().includes(supplier.trim().toLowerCase()),
   );
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product, barcode…" />
-        </div>
-        <MobileReportFilterButton activeCount={activeCount} onClick={() => setFilterOpen(true)} />
-      </div>
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product, barcode…" />
       <MobileReportSearchBar value={supplier} onChange={setSupplier} placeholder="Search supplier…" />
       <MobileReportFilterSheet
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        values={sheet}
-        onApply={setSheet}
-        brands={filterOptions?.brands ?? []}
-        categories={filterOptions?.categories ?? []}
-        stockStatusOptions={STOCK_REPORT_STATUS_OPTIONS}
+        value={filters}
+        onApply={setFilters}
+        brands={optionLists?.brands ?? []}
+        categories={optionLists?.categories ?? []}
       />
       {supplier.trim() && supplierOptions.length > 0 && supplierOptions.length <= 8 ? (
         <div className="flex flex-wrap gap-1.5 -mt-1">
@@ -593,6 +605,19 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
           ))}
         </div>
       ) : null}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <div className="flex items-center gap-1">
+          <MobileReportFilterButton activeCount={activeCount} onClick={() => setFilterOpen(true)} />
+          {rows?.length ? (
+            <ReportExportButton
+              fileBaseName={`stock-report-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(columns, rows)}
+              tableRef={tableRef}
+            />
+          ) : null}
+        </div>
+      </div>
       {isLoading ? (
         <LoadingRows />
       ) : isError ? (
@@ -606,14 +631,6 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
         <EmptyState message="No stock rows found" />
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-sky-700">Summary</p>
-            <ReportExportButton
-              fileBaseName={`stock-report-${format(new Date(), "ddMMyyyy")}`}
-              buildCsv={() => buildCsvFromReportTable(columns, rows)}
-              tableRef={tableRef}
-            />
-          </div>
           <div className="overflow-x-auto -mx-2 px-2">
             <table className="w-full text-xs border border-sky-200 rounded-lg overflow-hidden">
               <thead>
