@@ -45,6 +45,8 @@ describe("thermal POS item layout", () => {
     expect(html).toContain("font-size:10px");
     expect(html).toContain("font-weight:500");
     expect(html).toContain(THERMAL_POS_ITEM_COLUMNS);
+    expect(html).toContain("white-space:nowrap");
+    expect(html).not.toContain("word-break");
     expect(html).not.toContain(" × ");
   });
 
