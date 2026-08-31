@@ -12,6 +12,11 @@ import {
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import {
+  friendlySaleNumberRestoreError,
+  isSaleNumberActiveUniqueViolation,
+  withSaleRestoreNumberResolution,
+} from "@/utils/saleRestoreNumber";
 
 export type SoftDeleteEntity = 
   | "customers"
@@ -217,8 +222,9 @@ export function useSoftDelete() {
     return successCount;
   };
 
-  const restore = async (entity: SoftDeleteEntity, id: string) => {
+  const restore = async (entity: SoftDeleteEntity, id: string): Promise<boolean | string> => {
     try {
+      let restoreNote: string | null = null;
       switch (entity) {
         case "purchase_bills": {
           const { error: pbError } = await supabase.rpc("restore_purchase_bill", { p_bill_id: id });
@@ -262,8 +268,17 @@ export function useSoftDelete() {
         }
 
         case "sales": {
-          const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
-          if (saleRestErr) throw saleRestErr;
+          try {
+            restoreNote = await withSaleRestoreNumberResolution(id, async () => {
+              const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
+              if (saleRestErr) throw saleRestErr;
+            });
+          } catch (saleRestErr) {
+            if (isSaleNumberActiveUniqueViolation(saleRestErr)) {
+              throw new Error(friendlySaleNumberRestoreError());
+            }
+            throw saleRestErr;
+          }
           const { data: saleRow } = await supabase
             .from("sales")
             .select("organization_id, net_amount, paid_amount, payment_method, sale_date")
@@ -439,12 +454,14 @@ export function useSoftDelete() {
           if (error) throw error;
       }
 
-      return true;
+      return restoreNote || true;
     } catch (error: any) {
       console.error(`Error restoring ${entity}:`, error);
       toast({
         title: "Error",
-        description: error.message || `Failed to restore ${entity}`,
+        description: isSaleNumberActiveUniqueViolation(error)
+          ? friendlySaleNumberRestoreError()
+          : error.message || `Failed to restore ${entity}`,
         variant: "destructive",
       });
       return false;
