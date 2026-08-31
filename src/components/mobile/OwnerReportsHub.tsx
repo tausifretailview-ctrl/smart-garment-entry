@@ -7,7 +7,7 @@ import { invalidateOwnerReportQueries } from "@/lib/mobileHubRefresh";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useDesktopViewActions } from "@/hooks/useDesktopViewPreference";
 import {
-  TrendingUp, TrendingDown, PieChart, Package, Users, Building2,
+  TrendingUp, TrendingDown, PieChart, Package, Users, UserCheck, Building2,
   Receipt, Tag, Ruler, CreditCard, ChevronRight, Grid3X3, Calculator, Monitor,
   BarChart3, Wallet,
 } from "lucide-react";
@@ -29,7 +29,7 @@ export type ReportType =
   | "daily-sales" | "daily-purchase" | "profit-loss" | "stock-summary"
   | "customer-outstanding" | "supplier-outstanding" | "gst"
   | "brand-sales" | "size-sales" | "payment-collection"
-  | "daily-cashier" | "item-wise-sales" | "item-wise-stock" | "net-profit" | "stock-report";
+  | "daily-cashier" | "item-wise-sales" | "customer-wise-sales" | "salesman-wise-sales" | "item-wise-stock" | "net-profit" | "stock-report";
 
 interface ReportCard {
   id: ReportType;
@@ -42,6 +42,8 @@ interface ReportCard {
 const REPORTS: ReportCard[] = [
   { id: "daily-cashier", icon: Calculator, label: "Cashier Report", description: "Bills with cash, UPI, card & net", color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40" },
   { id: "item-wise-sales", icon: BarChart3, label: "Item-wise Sale", description: "Qty, rate and amount by product", color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
+  { id: "customer-wise-sales", icon: Users, label: "Customer-wise Sale", description: "Bills and amount by customer", color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
+  { id: "salesman-wise-sales", icon: UserCheck, label: "Salesman-wise Sale", description: "Bills and amount by salesman", color: "text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/40" },
   { id: "item-wise-stock", icon: Wallet, label: "Item-wise Stock", description: "Closing qty and stock value", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
   { id: "net-profit", icon: PieChart, label: "Net Profit", description: "Product profit, COGS and margin", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
   { id: "stock-report", icon: Package, label: "Stock Report", description: "Live stock, size, color and rate", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
