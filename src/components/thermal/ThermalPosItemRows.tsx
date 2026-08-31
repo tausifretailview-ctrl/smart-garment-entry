@@ -88,7 +88,7 @@ export function ThermalPosItemRows({
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                minWidth: 0,
+                flex: "0 0 auto",
                 maxWidth: "100%",
               }}
             >
@@ -101,6 +101,7 @@ export function ThermalPosItemRows({
                   fontWeight: THERMAL_POS_BC_FONT_WEIGHT,
                   whiteSpace: "nowrap",
                   color: "#000",
+                  flex: "0 0 auto",
                 }}
               >
                 BC:{item.barcode}
