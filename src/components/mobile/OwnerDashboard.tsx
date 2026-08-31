@@ -464,7 +464,7 @@ export const OwnerDashboard = () => {
       <PullToRefreshIndicator visible={isRefreshing} />
 
       {/* ── HEADER + TODAY HERO ── */}
-      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pt-5 pb-5 overflow-hidden">
+      <div className="relative bg-gradient-to-br from-[#0a0f1e] via-[#111827] to-[#1e2a4a] px-4 pb-5 overflow-hidden pt-[max(1.25rem,env(safe-area-inset-top,0px))]">
         <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl" />
         <div className="relative flex items-start justify-between mb-1">
