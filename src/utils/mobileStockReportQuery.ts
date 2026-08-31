@@ -19,20 +19,50 @@ export type MobileStockReportRow = {
   pur_price: number | null;
 };
 
+export type MobileStockReportStatus = "all" | "in" | "low" | "out";
+
+export function stockStatusToRpcArgs(status: MobileStockReportStatus | string | undefined) {
+  return {
+    p_in_stock: status === "in" ? true : null,
+    p_low_stock: status === "out" ? true : null,
+    p_low_stock_band: status === "low" ? true : null,
+  };
+}
+
+export type MobileStockFilterOptions = {
+  brands: string[];
+  categories: string[];
+  suppliers: string[];
+};
+
 export async function fetchMobileStockReportPages(
   orgId: string,
-  opts?: { search?: string; supplier?: string; maxRows?: number; pageSize?: number },
+  opts?: {
+    search?: string;
+    supplier?: string;
+    brand?: string;
+    category?: string;
+    stockStatus?: MobileStockReportStatus | string;
+    maxRows?: number;
+    pageSize?: number;
+  },
 ): Promise<MobileStockReportRow[]> {
   const pageSize = opts?.pageSize ?? 250;
   const maxRows = opts?.maxRows ?? 1500;
   const all: MobileStockReportRow[] = [];
   let offset = 0;
+  const brand = opts?.brand?.trim() && opts.brand !== "__all__" ? opts.brand.trim() : null;
+  const category = opts?.category?.trim() && opts.category !== "__all__" ? opts.category.trim() : null;
+  const stockArgs = stockStatusToRpcArgs(opts?.stockStatus);
 
   while (offset < maxRows) {
     const { data, error } = await supabase.rpc("get_stock_report", {
       p_org_id: orgId,
       p_search: opts?.search?.trim() || null,
       p_supplier: opts?.supplier?.trim() || null,
+      p_brand: brand,
+      p_category: category,
+      ...stockArgs,
       p_limit: Math.min(pageSize, maxRows - offset),
       p_offset: offset,
       p_low_stock_threshold: 10,
@@ -47,16 +77,32 @@ export async function fetchMobileStockReportPages(
   return all;
 }
 
-export async function fetchMobileStockSuppliers(orgId: string): Promise<string[]> {
+function uniqueSorted(values: Array<string | null | undefined>): string[] {
+  const set = new Set<string>();
+  for (const raw of values) {
+    const name = (raw || "").trim();
+    if (name) set.add(name);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+export async function fetchMobileStockFilterOptions(orgId: string): Promise<MobileStockFilterOptions> {
   const { data, error } = await supabase.rpc("get_stock_report_filter_options", {
     p_org_id: orgId,
   });
   if (error) throw error;
-  const payload = data as { supplierPairs?: Array<{ supplier_name?: string | null }> } | null;
-  const names = new Set<string>();
-  for (const pair of payload?.supplierPairs ?? []) {
-    const name = (pair.supplier_name || "").trim();
-    if (name) names.add(name);
-  }
-  return [...names].sort((a, b) => a.localeCompare(b));
+  const payload = data as {
+    rawProducts?: Array<{ brand?: string | null; category?: string | null }>;
+    supplierPairs?: Array<{ supplier_name?: string | null }>;
+  } | null;
+  return {
+    brands: uniqueSorted((payload?.rawProducts ?? []).map((p) => p.brand)),
+    categories: uniqueSorted((payload?.rawProducts ?? []).map((p) => p.category)),
+    suppliers: uniqueSorted((payload?.supplierPairs ?? []).map((p) => p.supplier_name)),
+  };
+}
+
+export async function fetchMobileStockSuppliers(orgId: string): Promise<string[]> {
+  const opts = await fetchMobileStockFilterOptions(orgId);
+  return opts.suppliers;
 }
