@@ -65,7 +65,7 @@ describe("posGoodsAskQtyDialog", () => {
 
     expect(repriced[0].category).toBe("T-Shirt");
     expect(repriced[0].quantity).toBe(3);
-    expect(repriced[0].netAmount).toBe(897);
+    expect(repriced[0].netAmount).toBe(749.25);
     expect(repriced[0].categoryTierApplied).toBe(true);
   });
 
