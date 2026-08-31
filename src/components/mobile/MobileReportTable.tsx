@@ -16,6 +16,7 @@ export interface MobileReportTableProps<T> {
   columns: ReportTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
+  variant?: "default" | "insights";
 }
 
 /** Full-bleed data table: cancels the report body `px-4` and stretches columns to the page width. */
@@ -30,21 +31,23 @@ export const mobileReportThClass =
 export const mobileReportTdClass = "px-3 py-2.5 whitespace-nowrap";
 
 function MobileReportTableInner<T>(
-  { columns, rows, rowKey }: MobileReportTableProps<T>,
+  { columns, rows, rowKey, variant = "default" }: MobileReportTableProps<T>,
   ref: Ref<HTMLDivElement>,
 ) {
+  const insights = variant === "insights";
   return (
     <div ref={ref} className={mobileReportTableWrapClass}>
       <table className="w-full min-w-full text-xs border-collapse">
-        <thead className={mobileReportTheadClass}>
+        <thead className={cn(mobileReportTheadClass, insights && "bg-slate-800")}>
           <tr>
             {columns.map((col, i) => (
               <th
                 key={col.key}
                 className={cn(
                   mobileReportThClass,
+                  insights && "bg-slate-800 text-white uppercase tracking-wide text-[10px]",
                   col.align === "right" ? "text-right" : "text-left",
-                  col.sticky && i === 0 && "sticky left-0 bg-primary/15 z-20",
+                  col.sticky && i === 0 && (insights ? "sticky left-0 bg-slate-800 z-20" : "sticky left-0 bg-primary/15 z-20"),
                   col.minWidth,
                 )}
               >
@@ -55,14 +58,22 @@ function MobileReportTableInner<T>(
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="odd:bg-muted/20 border-b border-border/40 last:border-b-0">
+            <tr
+              key={rowKey(row)}
+              className={cn(
+                "group odd:bg-muted/20 border-b border-border/40 last:border-b-0",
+                insights && "odd:bg-transparent even:bg-slate-50/80 border-slate-100",
+              )}
+            >
               {columns.map((col, i) => (
                 <td
                   key={col.key}
                   className={cn(
                     mobileReportTdClass,
                     col.align === "right" ? "text-right tabular-nums" : "text-left",
-                    col.sticky && i === 0 && "sticky left-0 bg-card z-10",
+                    col.sticky && i === 0 && (insights
+                      ? "sticky left-0 z-10 bg-background group-even:bg-slate-50"
+                      : "sticky left-0 bg-card z-10"),
                   )}
                 >
                   {col.render(row)}
