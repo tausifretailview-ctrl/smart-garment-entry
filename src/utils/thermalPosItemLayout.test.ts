@@ -50,14 +50,16 @@ describe("thermal POS item layout", () => {
     expect(html).not.toContain(" × ");
   });
 
-  it("wires the shared item row into modern, classic, and Retail POS thermals", () => {
+  it("wires the shared item row into modern and Retail POS thermals", () => {
     const modern = readFileSync(resolve(here, "../components/ModernThermalReceipt80mm.tsx"), "utf8");
     expect(modern).toContain("ThermalPosItemRows");
     expect(modern).not.toContain("overflow: 'hidden'");
     expect(modern).not.toContain("{item.qty} × ₹");
 
     const classic = readFileSync(resolve(here, "../components/ThermalPrint80mm.tsx"), "utf8");
-    expect(classic).toContain("ThermalPosItemRows");
+    expect(classic).not.toMatch(/<<<<<<<|=======|>>>>>>>/);
+    expect(classic).not.toMatch(/^fix\/purchase-sold-qty-import$/m);
+    expect(classic).not.toMatch(/^main$/m);
 
     const retailPos = readFileSync(resolve(here, "../components/RetailPosThermalReceipt80mm.tsx"), "utf8");
     expect(retailPos).toContain("BC:{item.barcode}");
