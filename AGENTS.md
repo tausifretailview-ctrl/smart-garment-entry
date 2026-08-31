@@ -14,6 +14,11 @@ EzzyERP — a single Vite + React + TypeScript web app (multi-tenant retail POS 
 - Build: `npm run build` (prod) or `npm run build:dev`. Preview a build with `npm run preview`.
 - Lint: `npm run lint`. NOTE: the existing codebase currently reports thousands of pre-existing eslint errors (mostly `@typescript-eslint/no-explicit-any`); a non-zero lint exit is the repo baseline, not something your change necessarily introduced. Judge lint by the delta on files you touched.
 
+### Console / load performance
+- Do **not** add `console.log` / `console.info` on POS, dashboard, or paginated-fetch hot paths. DevTools serializes those on the main thread and the app feels frozen. See `docs/console-perf-protections.md` and `.cursor/rules/console-hot-paths.mdc`.
+- New probes must use `diagConsoleInfo` (`src/lib/diagConsole.ts`) behind a `localStorage` flag. In-memory + `window.__ezzy*.print()` is fine without a flag.
+- CI: `npm run check:console-guard`. Do not enable Vite `drop_console` (hides real `console.error`).
+
 ### Testing (see `test/README.md` for full detail)
 - `npm test` runs the full Vitest suite. Unit tests need no credentials and pass offline; the 9 integration/seed tests are **skipped** unless a separate staging Supabase is configured via `.env.test` (`SUPABASE_TEST_URL`, `SUPABASE_TEST_SERVICE_ROLE_KEY`). Never point test config at production.
 - `npm run test:money` runs the pure money-path logic tests (settlement, balance, drift) — fast, no DB.

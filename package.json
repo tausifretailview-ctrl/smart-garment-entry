@@ -19,6 +19,7 @@
     "test:seed": "vitest run test/scripts/seed-staging.test.ts",
     "test:verify-staging": "vitest run test/scripts/verify-staging-schema.test.ts",
     "check:cn-guard": "node scripts/check-cn-adjust-literals.mjs",
+    "check:console-guard": "node scripts/check-hot-path-console.mjs",
     "check:schema-drift": "node scripts/check-schema-migrations-drift.mjs --check",
     "check:schema-drift:write": "node scripts/check-schema-migrations-drift.mjs --write",
     "check:schema-drift:live": "node scripts/check-schema-migrations-drift.mjs --check --require-live",
