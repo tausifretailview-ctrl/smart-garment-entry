@@ -14,23 +14,32 @@ export function MobileReportTable<T>({
   columns,
   rows,
   rowKey,
+  variant = "default",
 }: {
   columns: ReportTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
+  variant?: "default" | "insights";
 }) {
+  const insights = variant === "insights";
   return (
     <div className="overflow-x-auto -mx-4 px-4">
       <table className="w-full text-xs border-collapse">
-        <thead className="sticky top-0 bg-muted/95 backdrop-blur-sm z-10">
+        <thead
+          className={cn(
+            "sticky top-0 z-10",
+            insights ? "bg-slate-800" : "bg-muted/95 backdrop-blur-sm",
+          )}
+        >
           <tr>
             {columns.map((col, i) => (
               <th
                 key={col.key}
                 className={cn(
                   "px-2 py-2 whitespace-nowrap font-semibold",
+                  insights && "bg-slate-800 text-white uppercase tracking-wide text-[10px]",
                   col.align === "right" ? "text-right" : "text-left",
-                  col.sticky && i === 0 && "sticky left-0 bg-muted/95 z-20",
+                  col.sticky && i === 0 && (insights ? "sticky left-0 bg-slate-800 z-20" : "sticky left-0 bg-muted/95 z-20"),
                   col.minWidth,
                 )}
               >
@@ -41,14 +50,22 @@ export function MobileReportTable<T>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={rowKey(row)} className="odd:bg-muted/20">
+            <tr
+              key={rowKey(row)}
+              className={cn(
+                "group",
+                insights ? "even:bg-slate-50/80 border-b border-slate-100" : "odd:bg-muted/20",
+              )}
+            >
               {columns.map((col, i) => (
                 <td
                   key={col.key}
                   className={cn(
                     "px-2 py-2 whitespace-nowrap",
                     col.align === "right" ? "text-right tabular-nums" : "text-left",
-                    col.sticky && i === 0 && "sticky left-0 bg-card z-10",
+                    col.sticky && i === 0 && (insights
+                      ? "sticky left-0 z-10 bg-background group-even:bg-slate-50"
+                      : "sticky left-0 bg-card z-10"),
                   )}
                 >
                   {col.render(row)}

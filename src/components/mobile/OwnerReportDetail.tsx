@@ -20,6 +20,13 @@ import {
   CustomerBalanceReport,
   SupplierBalanceReport,
 } from "./MobileOwnerBalanceReports";
+import {
+  MobileCashierReport,
+  MobileItemWiseSalesReport,
+  MobileItemWiseStockReport,
+  MobileNetProfitReport,
+  MobileStockReport,
+} from "./MobileInsightsReports";
 import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
 import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
 
@@ -58,6 +65,11 @@ const TITLES: Record<ReportType, string> = {
   "brand-sales": "Brand-wise Sales",
   "size-sales": "Size-wise Sales",
   "payment-collection": "Payment Collection",
+  "daily-cashier": "Cashier Report",
+  "item-wise-sales": "Item-wise Sale",
+  "item-wise-stock": "Item-wise Stock",
+  "net-profit": "Net Profit",
+  "stock-report": "Stock Report",
 };
 
 const PERIOD_CHIPS: { value: Period; label: string }[] = [
@@ -92,6 +104,8 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
     "supplier-balance",
     "customer-outstanding",
     "supplier-outstanding",
+    "item-wise-stock",
+    "stock-report",
   ].includes(reportType);
 
   return (
@@ -170,6 +184,11 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
         {reportType === "brand-sales" && <BrandSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "size-sales" && <SizeSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "payment-collection" && <PaymentCollectionReport orgId={orgId} start={start} end={end} />}
+        {reportType === "daily-cashier" && <MobileCashierReport orgId={orgId} start={start} end={end} />}
+        {reportType === "item-wise-sales" && <MobileItemWiseSalesReport orgId={orgId} start={start} end={end} />}
+        {reportType === "item-wise-stock" && <MobileItemWiseStockReport orgId={orgId} />}
+        {reportType === "net-profit" && <MobileNetProfitReport orgId={orgId} start={start} end={end} />}
+        {reportType === "stock-report" && <MobileStockReport orgId={orgId} />}
       </div>
     </div>
   );

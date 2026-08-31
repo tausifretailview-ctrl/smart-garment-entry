@@ -9,6 +9,7 @@ import { useDesktopViewActions } from "@/hooks/useDesktopViewPreference";
 import {
   TrendingUp, TrendingDown, PieChart, Package, Users, Building2,
   Receipt, Tag, Ruler, CreditCard, ChevronRight, Grid3X3, Calculator, Monitor,
+  BarChart3, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OwnerReportDetail } from "./OwnerReportDetail";
@@ -27,7 +28,8 @@ export type ReportType =
   | "size-wise-stock" | "customer-balance" | "supplier-balance"
   | "daily-sales" | "daily-purchase" | "profit-loss" | "stock-summary"
   | "customer-outstanding" | "supplier-outstanding" | "gst"
-  | "brand-sales" | "size-sales" | "payment-collection";
+  | "brand-sales" | "size-sales" | "payment-collection"
+  | "daily-cashier" | "item-wise-sales" | "item-wise-stock" | "net-profit" | "stock-report";
 
 interface ReportCard {
   id: ReportType;
@@ -38,6 +40,11 @@ interface ReportCard {
 }
 
 const REPORTS: ReportCard[] = [
+  { id: "daily-cashier", icon: Calculator, label: "Cashier Report", description: "Bills with cash, UPI, card & net", color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40" },
+  { id: "item-wise-sales", icon: BarChart3, label: "Item-wise Sale", description: "Qty, rate and amount by product", color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
+  { id: "item-wise-stock", icon: Wallet, label: "Item-wise Stock", description: "Closing qty and stock value", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+  { id: "net-profit", icon: PieChart, label: "Net Profit", description: "Product profit, COGS and margin", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "stock-report", icon: Package, label: "Stock Report", description: "Live stock, size, color and rate", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
   { id: "size-wise-stock", icon: Grid3X3, label: "Size-wise Stock", description: "Search products & qty by size", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
   { id: "customer-balance", icon: Users, label: "Customer Balance", description: "Search customers with O/S & advance", color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
   { id: "supplier-balance", icon: Building2, label: "Supplier Balance", description: "Search suppliers with payables", color: "text-red-600 bg-red-50 dark:bg-red-950/40" },
@@ -62,14 +69,14 @@ const QUICK_LINKS: QuickLink[] = [
   { label: "Today's Sales", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40", report: "daily-sales" },
   { label: "Customer Balance", icon: Users, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40", report: "customer-balance" },
   { label: "Supplier Balance", icon: Building2, color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40", report: "supplier-balance" },
-  { label: "Stock Report", icon: Package, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "size-wise-stock" },
-  { label: "Profit & Loss", icon: PieChart, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "profit-loss" },
+  { label: "Stock Report", icon: Package, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "stock-report" },
+  { label: "Item-wise Sale", icon: BarChart3, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40", report: "item-wise-sales" },
+  { label: "Net Profit", icon: PieChart, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "net-profit" },
   {
     label: "Daily Cashier",
     icon: Calculator,
     color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40",
-    desktopPath: "/daily-cashier-report",
-    desktopLabel: "Daily Cashier Report",
+    report: "daily-cashier",
   },
   { label: "Payment Collection", icon: CreditCard, color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40", report: "payment-collection" },
 ];
