@@ -581,7 +581,10 @@ export default function RecycleBin() {
     if (success) {
       toast({
         title: "Restored",
-        description: `${record[config.displayField]} has been restored.`,
+        description:
+          typeof success === "string"
+            ? success
+            : `${record[config.displayField]} has been restored.`,
       });
       invalidateDeletedQueries();
       setSelectedIds((prev) => {
