@@ -17,6 +17,7 @@ export interface MobileReportTableProps<T> {
   rows: T[];
   rowKey: (row: T) => string;
   variant?: "default" | "insights" | "statement";
+  onRowClick?: (row: T) => void;
 }
 
 /** Full-bleed data table: cancels the report body `px-4` and stretches columns to the page width. */
@@ -31,7 +32,7 @@ export const mobileReportThClass =
 export const mobileReportTdClass = "px-3 py-2.5 whitespace-nowrap";
 
 function MobileReportTableInner<T>(
-  { columns, rows, rowKey, variant = "default" }: MobileReportTableProps<T>,
+  { columns, rows, rowKey, variant = "default", onRowClick }: MobileReportTableProps<T>,
   ref: Ref<HTMLDivElement>,
 ) {
   const insights = variant === "insights";
@@ -64,10 +65,12 @@ function MobileReportTableInner<T>(
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
               className={cn(
                 "group odd:bg-muted/20 border-b border-border/40 last:border-b-0",
                 insights && "odd:bg-transparent even:bg-slate-50/80 border-slate-100",
                 statement && "odd:bg-transparent even:bg-sky-50/50 border-slate-200",
+                onRowClick && "cursor-pointer active:bg-muted/40 touch-manipulation",
               )}
             >
               {columns.map((col, i) => (
