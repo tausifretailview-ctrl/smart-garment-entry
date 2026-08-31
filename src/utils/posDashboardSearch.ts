@@ -1,5 +1,12 @@
 /** Pure helpers for POS dashboard sale search (invoice number vs line-item matching). */
 
+/** Default list is today — restored/older bills need a date change or invoice serial. */
+export const POS_DASHBOARD_SEARCH_PLACEHOLDER =
+  "Sale no / serial (not ₹ amount), customer, barcode...";
+
+export const POS_DASHBOARD_SEARCH_HINT =
+  "List defaults to today. Restored or older bills: change Daily date, or type the invoice serial (e.g. 1029) — not the amount.";
+
 /** Numeric-only input that likely targets an invoice serial (e.g. "1029" → POS/26-27/1029). */
 export function looksLikeInvoiceSequence(search: string): boolean {
   const t = search.trim();

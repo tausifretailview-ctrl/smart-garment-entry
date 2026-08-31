@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatSaleRestoreFindHint,
   formatSaleRestoreNumberNote,
   friendlySaleNumberRestoreError,
   isSaleNumberActiveUniqueViolation,
+  saleRestoreLedgerAmounts,
   saleRestoreNumberKind,
   shouldKeepOriginalSaleNumber,
 } from "./saleRestoreNumber";
@@ -65,5 +67,22 @@ describe("saleRestoreNumber", () => {
   it("maps the raw Postgres error to a restore instruction", () => {
     expect(friendlySaleNumberRestoreError("POS/26-27/50")).toContain("POS/26-27/50");
     expect(friendlySaleNumberRestoreError("POS/26-27/50")).toContain("original date");
+  });
+
+  it("tells the cashier to open POS Dashboard by date or invoice serial, not amount", () => {
+    expect(
+      formatSaleRestoreFindHint({ saleNumber: "POS/26-27/50", saleDate: "2026-08-30" }),
+    ).toBe(
+      "Find it on POS Dashboard: set Daily to 2026-08-30, or search 50 (serial — not the ₹ amount).",
+    );
+  });
+
+  it("rebuilds statement SALE/RECEIPT the same way as the ledger trigger", () => {
+    expect(
+      saleRestoreLedgerAmounts({ net_amount: 1500, paid_amount: 1500 }),
+    ).toEqual({ saleDebit: 1500, receiptCredit: 1500 });
+    expect(
+      saleRestoreLedgerAmounts({ net_amount: 1500, paid_amount: 0 }),
+    ).toEqual({ saleDebit: 1500, receiptCredit: 0 });
   });
 });
