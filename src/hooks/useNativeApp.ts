@@ -6,7 +6,7 @@ import { StatusBar, Style } from "@capacitor/status-bar";
 import { Keyboard, KeyboardResize } from "@capacitor/keyboard";
 import { useLocation, useNavigate } from "react-router-dom";
 
-const THEME_COLOR = "#1e40af";
+const THEME_COLOR = "#1857A6";
 
 /** Root paths where hardware back should exit the app instead of navigating. */
 const EXIT_ON_BACK_PATHS = [

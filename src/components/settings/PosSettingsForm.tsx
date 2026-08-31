@@ -461,7 +461,7 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="classic">Classic — Monospace receipt</SelectItem>
+                <SelectItem value="classic">Classic — Professional 80mm retail</SelectItem>
                 <SelectItem value="compact">Compact — Sans-serif, denser</SelectItem>
                 <SelectItem value="modern">Modern — Stylish, pill headers</SelectItem>
                 <SelectItem value="tvs">TVS 80mm — Bold columns, clear print</SelectItem>
