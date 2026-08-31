@@ -24,6 +24,10 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { MobileCustomerLedgerList } from "@/components/mobile/MobileCustomerLedgerList";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
@@ -72,6 +76,27 @@ function fmtAmt(n: number) {
 }
 
 export default function CustomerPartyBalancesPage() {
+  const isMobile = useIsMobile();
+  if (isMobile) {
+    return <MobileCustomerPartyBalancesScreen />;
+  }
+  return <CustomerPartyBalancesDesktop />;
+}
+
+function MobileCustomerPartyBalancesScreen() {
+  const { currentOrganization } = useOrganization();
+  return (
+    <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+      <MobilePageHeader title="Customer Balances" backTo="/" />
+      <div className="px-2 pt-3 flex-1 min-h-0">
+        <MobileCustomerLedgerList orgId={currentOrganization?.id} />
+      </div>
+      <MobileBottomNav />
+    </div>
+  );
+}
+
+function CustomerPartyBalancesDesktop() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { toast } = useToast();
