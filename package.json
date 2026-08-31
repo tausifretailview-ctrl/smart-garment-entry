@@ -40,6 +40,7 @@
     "appId": "com.ezzyerp.desktop",
     "productName": "EzzyERP",
     "copyright": "Copyright \u00a9 2026 EzzyERP",
+    "icon": "build/icon.png",
     "directories": {
       "output": "release",
       "buildResources": "build"

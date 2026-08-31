@@ -115,8 +115,8 @@ export default defineConfig(({ mode }) => ({
         name: 'EzzyERP - Easy Billing, Smart Business',
         short_name: 'EzzyERP',
         description: 'EzzyERP - Easy Billing, Smart Business for garment & retail businesses',
-        theme_color: '#1e40af',
-        background_color: '#1e40af',
+        theme_color: '#1857A6',
+        background_color: '#1857A6',
         display: 'standalone',
         // "any" — portrait-only can block Chrome desktop install prompts on Windows.
         orientation: 'any',

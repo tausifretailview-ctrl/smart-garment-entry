@@ -32,7 +32,7 @@ const config: CapacitorConfig = {
       // slow/first install before the remote HTML arrived (EzzyERP 1.1.0 white screen).
       launchShowDuration: 0,
       launchAutoHide: false,
-      backgroundColor: "#1e40af",
+      backgroundColor: "#1857A6",
       androidSplashResourceName: "splash",
       showSpinner: true,
       androidSpinnerStyle: "large",
@@ -40,7 +40,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: "LIGHT",
-      backgroundColor: "#1e40af",
+      backgroundColor: "#1857A6",
     },
     Keyboard: {
       resize: "body",
