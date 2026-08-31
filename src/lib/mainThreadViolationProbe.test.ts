@@ -1,7 +1,10 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildMainThreadReport,
   classifyChromeMessageViolation,
@@ -17,6 +20,8 @@ import { isVolatileOrSensitiveKey } from "./queryPersister";
 
 afterEach(() => {
   resetMainThreadViolationProbeForTests();
+  if (typeof localStorage !== "undefined") localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 describe("main-thread violation probe", () => {
@@ -78,6 +83,25 @@ describe("main-thread violation probe", () => {
     markPersistRestoreComplete(1_250_000);
     expect(getPersistRestoreProbe().persistCacheChars).toBe(1_250_000);
     expect(buildMainThreadReport()).toContain("persistCacheChars=1250000");
+  });
+
+  it("does not console.info longtasks unless ezzy_main_thread=1", () => {
+    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    recordMainThreadLongTask({
+      durationMs: 80,
+      startTime: 1,
+      name: "self",
+      href: "https://app.inventoryshop.in/demo",
+    });
+    expect(spy).not.toHaveBeenCalled();
+    localStorage.setItem("ezzy_main_thread", "1");
+    recordMainThreadLongTask({
+      durationMs: 90,
+      startTime: 2,
+      name: "self",
+      href: "https://app.inventoryshop.in/demo",
+    });
+    expect(spy).toHaveBeenCalled();
   });
 });
 

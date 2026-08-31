@@ -12,13 +12,17 @@
  * records longtasks with `href` so a detached DevTools window on
  * `/organization-setup` is not mistaken for the visible Dashboard.
  *
- * Readout: window.__ezzyMainThread.print()
+ * In-memory always. Console is opt-in only:
+ *   localStorage.setItem("ezzy_main_thread", "1")  or  ?mainthread=1
+ * Readout (no flag needed): window.__ezzyMainThread.print()
  * Grep: [MainThread]
  *
  * Next capture: expand the Chrome violation *stack* (not just the summary
  * line) and confirm `href` matches the visible org URL before treating the
  * numbers as that window's load.
  */
+
+import { diagConsoleInfo } from "@/lib/diagConsole";
 
 export type MainThreadLongTask = {
   at: number;
@@ -90,7 +94,7 @@ export function markPersistRestoreComplete(cacheChars?: number | null): void {
   persistRestoredAt = Date.now();
   persistRestoreMs = bootAt > 0 ? persistRestoredAt - bootAt : null;
   if (cacheChars != null) persistCacheChars = cacheChars;
-  console.info("[MainThread]", {
+  diagConsoleInfo("ezzy_main_thread", "mainthread", "[MainThread]", {
     persistRestoreMs,
     persistCacheChars,
   });
@@ -123,7 +127,7 @@ export function recordMainThreadLongTask(
   };
   tasks.push(row);
   if (tasks.length > MAX) tasks.shift();
-  console.info("[MainThread]", {
+  diagConsoleInfo("ezzy_main_thread", "mainthread", "[MainThread]", {
     durationMs: Math.round(row.durationMs),
     name: row.name,
     href: row.href,

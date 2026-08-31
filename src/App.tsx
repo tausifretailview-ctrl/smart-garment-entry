@@ -358,9 +358,10 @@ const App = () => {
 
   useEffect(() => {
     initNavigationPerfDiagnostics();
-    // Only attach fetch-wrapper diagnostics when explicitly enabled — avoids prod overhead.
+    // Fetch-wrapper is flag-only. Never auto-enable in DEV — wrapping every
+    // fetch (and logging it) repeats the console-on-hot-path regression.
+    // Enable: localStorage ezzy_cloud_usage=1 or ?cloudusage=1
     const diagEnabled =
-      import.meta.env.DEV ||
       (typeof localStorage !== "undefined" &&
         localStorage.getItem("ezzy_cloud_usage") === "1") ||
       (typeof window !== "undefined" &&
