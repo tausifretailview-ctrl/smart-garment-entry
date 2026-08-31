@@ -5,6 +5,29 @@ export type FileDeliveryResult = "shared" | "downloaded" | "opened";
 /** @deprecated Use FileDeliveryResult — kept so existing type imports stay valid. */
 export type PdfDeliveryResult = FileDeliveryResult;
 
+/** Android WebView share sheets can hang forever. Fall through to download. */
+export const FILE_SHARE_TIMEOUT_MS = 12_000;
+
+function withShareTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      const err = new Error("share-timeout");
+      err.name = "TimeoutError";
+      reject(err);
+    }, ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        window.clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 /**
  * Save or share any file blob on mobile browsers and Capacitor APK WebViews.
  * Desktop browsers use a normal anchor download.
@@ -22,7 +45,7 @@ export async function deliverFileBlob(
       const canShareFiles =
         typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] });
       if (canShareFiles) {
-        await navigator.share({ files: [file], title: fileName });
+        await withShareTimeout(navigator.share({ files: [file], title: fileName }), FILE_SHARE_TIMEOUT_MS);
         return "shared";
       }
     } catch (err) {

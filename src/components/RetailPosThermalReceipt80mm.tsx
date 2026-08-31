@@ -7,6 +7,7 @@ import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 export interface RetailPosThermalItem {
   particulars: string;
   size?: string;
+  barcode?: string;
   qty: number;
   rate: number;
   total: number;
@@ -316,7 +317,22 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
             marginBottom: 2,
           }}
         >
-          <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>{item.particulars}</span>
+          <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
+            {item.particulars}
+            {item.barcode ? (
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 500,
+                  marginLeft: 4,
+                  whiteSpace: "nowrap",
+                  textTransform: "none",
+                }}
+              >
+                BC:{item.barcode}
+              </span>
+            ) : null}
+          </span>
           <span style={{ textAlign: "right" }}>{cleanSize(item.size)}</span>
           <span style={{ textAlign: "right" }}>{item.qty}</span>
           <span style={{ textAlign: "right" }}>{fmtDec(item.rate)}</span>

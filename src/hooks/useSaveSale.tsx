@@ -28,6 +28,10 @@ import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
+  posBillHasExchangeRefundDue,
+  shouldPromoteHoldNumberToPos,
+} from "@/utils/posHoldBill";
+import {
   insertSaleItemsInChunks,
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
@@ -178,6 +182,30 @@ export const useSaveSale = () => {
     return generateOrgSaleNumber(currentOrganization!.id, saleSettings, kind);
   };
 
+  const allocatePosSaleNumber = async () => {
+    const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
+    if (saleSettings?.pos_numbering_format) {
+      return generateInvoiceNumber(
+        saleSettings.pos_numbering_format,
+        saleSettings?.pos_series_start,
+        "pos",
+      );
+    }
+    if (saleSettings?.pos_series_start) {
+      return generateInvoiceNumber(
+        saleSettings.pos_series_start,
+        saleSettings.pos_series_start,
+        "pos",
+      );
+    }
+    const { data: defaultNumber, error: numberError } = await supabase.rpc(
+      "generate_pos_number_atomic",
+      { p_organization_id: currentOrganization!.id },
+    );
+    if (numberError) throw numberError;
+    return defaultNumber as string;
+  };
+
   const roundMoney = (value: number) => Math.round((Number(value) || 0) * 100) / 100;
 
   /** Cap line+flat discount to gross (before S/R); toast excess instead of silent drop. */
@@ -321,6 +349,28 @@ export const useSaveSale = () => {
       "round_off",
       `Round off adjustment for POS exchange ${params.saleNumber}`,
     );
+  };
+
+  const deletePosExchangeVouchersForSaleNumber = async (
+    saleNumber: string,
+    customerId: string,
+  ) => {
+    if (!currentOrganization?.id || !saleNumber || !customerId) return;
+    await (supabase as any)
+      .from("voucher_entries")
+      .delete()
+      .eq("organization_id", currentOrganization.id)
+      .eq("voucher_type", "payment")
+      .eq("reference_type", "customer")
+      .eq("reference_id", customerId)
+      .ilike("description", `%POS exchange ${saleNumber}%`);
+    await (supabase as any)
+      .from("customer_ledger_entries")
+      .delete()
+      .eq("organization_id", currentOrganization.id)
+      .eq("customer_id", customerId)
+      .eq("voucher_type", "PAYMENT")
+      .ilike("particulars", `%POS exchange ${saleNumber}%`);
   };
 
   const markCreditNoteFullyUsedForSrAdjust = async (cnId: string) => {
@@ -1671,6 +1721,15 @@ export const useSaveSale = () => {
         isUpdate: true,
       });
 
+      const previousSaleNumber = String(existingSale?.sale_number || "");
+      const promoteHoldNumber = shouldPromoteHoldNumberToPos(
+        previousSaleNumber,
+        payStatus,
+      );
+      const promotedSaleNumber = promoteHoldNumber
+        ? await allocatePosSaleNumber()
+        : null;
+
       // First-time completion of hold/pending: stamp sale_date only if the bill never had one.
       // Do not re-date invoices that already have sale_date (e.g. old pending bills edited later).
       const hadPriorSaleDate = !!existingSale?.sale_date;
@@ -1733,6 +1792,9 @@ export const useSaveSale = () => {
       const { data: sale, error: saleError } = await supabase
         .from('sales')
         .update({
+          ...(promotedSaleNumber
+            ? { sale_number: promotedSaleNumber, held_cart_data: null }
+            : {}),
           customer_id: saleData.customerId || null,
           customer_name: resolvePosCustomerName(saleData.customerName),
           customer_phone: saleData.customerPhone || null,
@@ -1785,21 +1847,16 @@ export const useSaveSale = () => {
       if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
         try {
           const txnDate = istCalendarYmd();
-          await (supabase as any)
-            .from('voucher_entries')
-            .delete()
-            .eq('organization_id', currentOrganization.id)
-            .eq('voucher_type', 'payment')
-            .eq('reference_type', 'customer')
-            .eq('reference_id', saleData.customerId)
-            .ilike('description', `%POS exchange ${sale.sale_number}%`);
-          await (supabase as any)
-            .from('customer_ledger_entries')
-            .delete()
-            .eq('organization_id', currentOrganization.id)
-            .eq('customer_id', saleData.customerId)
-            .eq('voucher_type', 'PAYMENT')
-            .ilike('particulars', `%POS exchange ${sale.sale_number}%`);
+          if (previousSaleNumber && previousSaleNumber !== sale.sale_number) {
+            await deletePosExchangeVouchersForSaleNumber(
+              previousSaleNumber,
+              saleData.customerId,
+            );
+          }
+          await deletePosExchangeVouchersForSaleNumber(
+            sale.sale_number,
+            saleData.customerId,
+          );
           await writeExchangePaymentVouchers({
             saleNumber: sale.sale_number,
             customerId: saleData.customerId,
@@ -1907,6 +1964,17 @@ export const useSaveSale = () => {
       toast({
         title: "Error",
         description: "Cannot hold sale with no items",
+        variant: "destructive",
+      });
+      return null;
+    }
+
+    if (posBillHasExchangeRefundDue(saleData.netAmount)) {
+      savingLockRef.current = false;
+      toast({
+        title: "Refund due — use Mix Payment",
+        description:
+          "S/R is more than the new bill. Use Mix Payment (F6) to refund cash or issue a C/Note. Hold is not allowed on a refund.",
         variant: "destructive",
       });
       return null;
@@ -2137,20 +2205,13 @@ export const useSaveSale = () => {
 
     try {
       await ensureFreshSupabaseSession();
-      // Generate a NEW running POS number for the resumed sale (cached settings)
-      const saleSettings = (orgSettings as any)?.sale_settings as Record<string, any> | null;
-      let newSaleNumber: string;
-
-      if (saleSettings?.pos_numbering_format) {
-        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_numbering_format, saleSettings?.pos_series_start, 'pos');
-      } else if (saleSettings?.pos_series_start) {
-        newSaleNumber = await generateInvoiceNumber(saleSettings.pos_series_start, saleSettings.pos_series_start, 'pos');
-      } else {
-        const { data: defaultNumber, error: numberError } = await supabase
-          .rpc('generate_pos_number_atomic', { p_organization_id: currentOrganization.id });
-        if (numberError) throw numberError;
-        newSaleNumber = defaultNumber;
-      }
+      const { data: heldRow } = await supabase
+        .from("sales")
+        .select("sale_number")
+        .eq("id", heldSaleId)
+        .maybeSingle();
+      const previousHoldNumber = String(heldRow?.sale_number || "");
+      const newSaleNumber = await allocatePosSaleNumber();
 
       const {
         cashAmt,
@@ -2164,6 +2225,12 @@ export const useSaveSale = () => {
         exchange,
         consumeSrAmount,
       } = resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown);
+
+      const { error: deleteHeldItemsError } = await supabase
+        .from("sale_items")
+        .delete()
+        .eq("sale_id", heldSaleId);
+      if (deleteHeldItemsError) throw deleteHeldItemsError;
 
       // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
       const subTotal = saleData.grossAmount;
@@ -2226,6 +2293,7 @@ export const useSaveSale = () => {
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
+          held_cart_data: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', heldSaleId)
@@ -2252,6 +2320,12 @@ export const useSaveSale = () => {
       if (isExchangeRefund && saleData.customerId && sale?.sale_number) {
         try {
           const txnDate = istCalendarYmd();
+          if (previousHoldNumber && previousHoldNumber !== sale.sale_number) {
+            await deletePosExchangeVouchersForSaleNumber(
+              previousHoldNumber,
+              saleData.customerId,
+            );
+          }
           await writeExchangePaymentVouchers({
             saleNumber: sale.sale_number,
             customerId: saleData.customerId,

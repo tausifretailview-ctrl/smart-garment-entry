@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getPosPaymentModeDisplayAmounts } from "./posDashboardSettlement";
+import {
+  getPosPaymentModeDisplayAmounts,
+  isHoldLikePosSale,
+  isPosSalePaidCompleted,
+} from "./posDashboardSettlement";
 
 describe("getPosPaymentModeDisplayAmounts", () => {
   it("shows full mix breakdown when bank/finance was omitted from card_amount", () => {
@@ -58,5 +62,37 @@ describe("getPosPaymentModeDisplayAmounts", () => {
     expect(amounts.cash).toBe(4500);
     expect(amounts.card).toBe(0);
     expect(amounts.upi).toBe(0);
+  });
+});
+
+describe("Hold/ invoice after accidental Hold on S/R exchange refund", () => {
+  const heldExchange = {
+    sale_number: "Hold/26-27/2",
+    payment_status: "completed",
+    payment_method: "pay_later",
+    gross_amount: 700,
+    net_amount: -200,
+    paid_amount: 0,
+    sale_return_adjust: 900,
+    cash_amount: 0,
+    card_amount: 0,
+    upi_amount: 0,
+  };
+
+  it("does not treat a Hold/ S/R-exchange row as Paid even if status was flipped to completed", () => {
+    expect(isHoldLikePosSale(heldExchange)).toBe(true);
+    expect(isPosSalePaidCompleted(heldExchange)).toBe(false);
+  });
+
+  it("still treats a real POS/ settled bill as Paid", () => {
+    expect(
+      isPosSalePaidCompleted({
+        sale_number: "POS/26-27/612",
+        payment_status: "completed",
+        net_amount: 100,
+        paid_amount: 100,
+        cash_amount: 100,
+      }),
+    ).toBe(true);
   });
 });

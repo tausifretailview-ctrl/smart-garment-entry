@@ -1,10 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  POS_DASHBOARD_SEARCH_HINT,
+  POS_DASHBOARD_SEARCH_PLACEHOLDER,
   buildPosSaleHeaderSearchFilter,
   looksLikeInvoiceSequence,
   rankPosDashboardSearchResults,
   shouldUnionSaleItemsForPosSearch,
 } from "./posDashboardSearch";
+
+describe("POS dashboard restore find copy", () => {
+  it("tells cashiers not to search the rupee amount", () => {
+    expect(POS_DASHBOARD_SEARCH_PLACEHOLDER).toContain("not ₹ amount");
+    expect(POS_DASHBOARD_SEARCH_HINT).toContain("serial");
+    expect(POS_DASHBOARD_SEARCH_HINT).toContain("today");
+  });
+});
 
 describe("looksLikeInvoiceSequence", () => {
   it("matches short numeric invoice serials", () => {

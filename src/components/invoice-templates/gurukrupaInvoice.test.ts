@@ -8,10 +8,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 describe("Gurukrupa POS A5 invoice", () => {
   it("wires a Retail ERP variant with Sub Total / Discount / S/R / Bill Total and no Round Off", () => {
     const template = readFileSync(resolve(here, "./RetailERPTemplate.tsx"), "utf8");
-    expect(template).toContain('"gurukrupa"');
-    expect(template).toContain("isGurukrupa");
-    expect(template).toContain("!isGurukrupa &&");
-    expect(template).toMatch(/!isDc && !isGurukrupa/);
+    expect(template).toContain("const GURUKRUPA_SN_ROWS = 10");
+    expect(template).toMatch(/isGurukrupa \? GURUKRUPA_SN_ROWS/);
+    expect(template).toContain("Amount in Words");
+    expect(template).toMatch(/\{\s*!isGurukrupa && \(/);
+    expect(template).toMatch(/paymentMethod && !isRealTast && !isGurukrupa/);
 
     const wrapper = readFileSync(resolve(here, "../InvoiceWrapper.tsx"), "utf8");
     expect(wrapper).toContain("case 'gurukrupa'");

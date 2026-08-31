@@ -103,13 +103,34 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
         while (offset < 4000) {
           const { data: variants, error } = await supabase
             .from("product_variants")
-            .select("size, color, stock_qty, product_id, products!inner(product_name, brand, category, department)")
+            .select("size, color, stock_qty, product_id, products!inner(product_name, brand, category, style)")
             .eq("organization_id", orgId!)
             .is("deleted_at", null)
             .range(offset, offset + pageSize - 1);
           if (error) throw error;
           if (!variants?.length) break;
-          all.push(...(variants as typeof all));
+          for (const row of variants as Array<{
+            size: string | null;
+            color: string | null;
+            stock_qty: number | null;
+            product_id: string;
+            products: { product_name?: string | null; brand?: string | null; category?: string | null; style?: string | null } | null;
+          }>) {
+            all.push({
+              size: row.size,
+              color: row.color,
+              stock_qty: row.stock_qty,
+              product_id: row.product_id,
+              products: row.products
+                ? {
+                    product_name: row.products.product_name,
+                    brand: row.products.brand,
+                    category: row.products.category,
+                    department: row.products.style || "",
+                  }
+                : null,
+            });
+          }
           if (variants.length < pageSize) break;
           offset += pageSize;
         }

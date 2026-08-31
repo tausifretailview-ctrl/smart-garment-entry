@@ -207,20 +207,23 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const A5_RETAIL_SN_ROWS = 8;
   /** Real Tast A4: enough empty SN lines so the bordered sheet fills 297mm (old print). */
   const REAL_TAST_SN_ROWS = 16;
-  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? A5_RETAIL_SN_ROWS : 12;
+  /** Gurukrupa A5: 10 SN lines — Amount in Words and Payment rows are omitted. */
+  const GURUKRUPA_SN_ROWS = 10;
+  const a5SnRows = isGurukrupa ? GURUKRUPA_SN_ROWS : A5_RETAIL_SN_ROWS;
+  const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? a5SnRows : 12;
   const TARGET_ROWS = isRealTast
     ? Math.max(items.length, REAL_TAST_SN_ROWS)
     : isPreprintedAny
       ? Math.max(items.length, PREPRINTED_DEFAULT_ROWS)
       : isA4
         ? Math.max(14, minItemRows)
-        : A5_RETAIL_SN_ROWS;
+        : a5SnRows;
   const MIN_BLANK_ROWS = isRealTast
     ? REAL_TAST_SN_ROWS
     : isPreprintedAny
       ? PREPRINTED_DEFAULT_ROWS
       : isA5Retail
-        ? A5_RETAIL_SN_ROWS
+        ? a5SnRows
         : 2;
 
   const fmt = (amount: number) => {
@@ -512,7 +515,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsInvoiceNo = isA4 ? "15px" : "13px";
   const fsDiscMedium = isA4 ? "11px" : "10px";
 
-  // A5: 8 SN rows + larger QR/balance band — row height uses remaining flex space.
+  // A5: 8 SN rows (Gurukrupa 10) + QR/balance band — row height uses remaining flex space.
   const ROW_H = isA4 ? "26px" : isA5Retail ? "22px" : "22px";
   const ROW_H_WITH_DISC = isA4 ? "36px" : isA5Retail ? "30px" : "30px";
 
@@ -649,7 +652,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const fsGstSummaryBody = isA4 ? "11px" : "9px";
   const fsTermsTitle = isA4 ? (isRealTast ? "14px" : "13px") : "11px";
   const fsTermsBody = isA4 ? (isRealTast ? "13px" : "12px") : "10px";
-  // A5 SN: readable row numbers with 8-line grid.
+  // A5 SN: readable row numbers with 8-line grid (Gurukrupa 10).
   const fsSrNo = isRealTast ? fsBody : isA5Retail ? "11px" : "16px";
   const fsSrHeader = isRealTast ? fsHeading : isA5Retail ? "9px" : "14px";
   /** Header type scaled to column width so labels fit fixed % cols (esp. WhatsApp PDF). */
@@ -1405,13 +1408,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   </div>
 
-                  {/* Amount in Words */}
+                  {/* Amount in Words — hidden on Gurukrupa (space used for 10 SN lines). */}
+                  {!isGurukrupa && (
                   <div style={{ borderBottom: B, padding: isA4 ? "4px 8px" : "2px 5px", fontSize: fsFooterMeta, fontWeight: 800, color: "#000", lineHeight: 1.25 }}>
                     <strong>Amount in Words:</strong> {numberToWords(grandTotal)}
                   </div>
+                  )}
 
-                  {/* Payment + mix breakdown */}
-                  {paymentMethod && !isRealTast && (
+                  {/* Payment + mix breakdown — hidden on Gurukrupa. */}
+                  {paymentMethod && !isRealTast && !isGurukrupa && (
                     <div style={{ borderBottom: B, padding: isA4 ? "4px 8px" : "2px 5px", fontSize: fsFooterMeta, fontWeight: 800, color: "#000", lineHeight: 1.25 }}>
                       <strong>Payment:</strong>{" "}
                       {isMixPayment ? "Mix Payment" : paymentMethod}

@@ -110,6 +110,10 @@ function DiscountSchemeDashboardPage() {
     (settingsData as { sale_settings?: { pos_category_tier_pricing?: boolean } })?.sale_settings
       ?.pos_category_tier_pricing === true;
 
+  const autoCalculateDiscount =
+    (settingsData as { sale_settings?: { pos_scheme_auto_calculate_discount?: boolean } })?.sale_settings
+      ?.pos_scheme_auto_calculate_discount === true;
+
   const activeSchemeId =
     (settingsData as { sale_settings?: { active_discount_scheme_id?: string | null } })?.sale_settings
       ?.active_discount_scheme_id ?? null;
@@ -119,6 +123,7 @@ function DiscountSchemeDashboardPage() {
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRuleForm);
   const [newSchemeName, setNewSchemeName] = useState("");
   const [savingPosToggle, setSavingPosToggle] = useState(false);
+  const [savingAutoCalc, setSavingAutoCalc] = useState(false);
   const [detailTab, setDetailTab] = useState<"rules" | "history">("rules");
 
   const { data: schemes = [], isLoading: schemesLoading, refetch: refetchSchemes } = useQuery({
@@ -189,12 +194,31 @@ function DiscountSchemeDashboardPage() {
   const handlePosToggle = async (checked: boolean) => {
     setSavingPosToggle(true);
     try {
-      await persistSaleSettings({ pos_category_tier_pricing: checked });
+      await persistSaleSettings({
+        pos_category_tier_pricing: checked,
+        ...(checked ? {} : { pos_scheme_auto_calculate_discount: false }),
+      });
       toast.success(checked ? "Discount scheme enabled on POS" : "Discount scheme disabled on POS");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not update POS setting");
     } finally {
       setSavingPosToggle(false);
+    }
+  };
+
+  const handleAutoCalcToggle = async (checked: boolean) => {
+    setSavingAutoCalc(true);
+    try {
+      await persistSaleSettings({ pos_scheme_auto_calculate_discount: checked });
+      toast.success(
+        checked
+          ? "Auto Calculate Discount on — leftover qty uses scheme rate"
+          : "Auto Calculate Discount off — leftover qty uses Single price",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update Auto Calculate setting");
+    } finally {
+      setSavingAutoCalc(false);
     }
   };
 
@@ -345,8 +369,9 @@ function DiscountSchemeDashboardPage() {
               <h3 className="text-sm font-bold text-slate-800 leading-tight">POS application</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 When enabled, POS sums quantity per matching product/category and unit price.
-                Qty 1 bills at Single (₹). Qty 2+ bills at (Bundle total ÷ Bundle qty) × qty
-                (example: ₹300 / 4 for ₹1000 → 2 pcs = ₹500). Unmatched prices bill at their own rate.
+                Qty 1 bills at Single (₹). Leftover pieces stay at Single unless Auto Calculate
+                Discount is on for a festival day (then 1@₹300 / 4@₹1000 → qty 2 = ₹500). Extra
+                Disc ₹ on a scheme line is always allowed.
               </p>
             </div>
             {activeScheme && (
@@ -371,6 +396,21 @@ function DiscountSchemeDashboardPage() {
             <span className="text-sm font-semibold text-slate-800">
               {posEnabled ? "Enabled on POS bills" : "Disabled — normal POS pricing"}
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 px-3 py-3 border-t border-slate-100">
+            <Switch
+              checked={autoCalculateDiscount}
+              disabled={!posEnabled || savingAutoCalc}
+              onCheckedChange={(checked) => void handleAutoCalcToggle(checked)}
+            />
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-slate-800">Auto Calculate Discount</span>
+              <p className="text-xs text-muted-foreground">
+                {autoCalculateDiscount
+                  ? "On — leftover qty uses scheme rate (2 pcs = ₹500 on a 4@₹1000 scheme)."
+                  : "Off — leftover qty uses Single price (2 pcs = ₹600 on a 4@₹1000 scheme)."}
+              </p>
+            </div>
           </div>
         </div>
 

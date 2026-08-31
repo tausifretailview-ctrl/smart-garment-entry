@@ -79,6 +79,8 @@ import { RelinkLegacyInvoicesDialog } from "@/components/RelinkLegacyInvoicesDia
 import { UpdateLegacyPhonesDialog } from "@/components/UpdateLegacyPhonesDialog";
 import { BrandDiscountDialog } from "@/components/BrandDiscountDialog";
 import { CustomerBalanceImportDialog } from "@/components/CustomerBalanceImportDialog";
+import { CustomerLocationFilter } from "@/components/CustomerLocationFilter";
+import { customerLocationOrFilter, uniqueCustomerLocations } from "@/utils/customerLocationFilter";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -157,6 +159,7 @@ const segmentBadgeClass = (seg: CustomerSegment) => {
 const CustomerMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>("all");
+  const [locationFilter, setLocationFilter] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -308,8 +311,8 @@ const CustomerMaster = () => {
     WINDOW_FILTER_IDS.customers,
     currentOrganization?.id,
     useMemo(
-      () => ({ searchQuery, segmentFilter, currentPage }),
-      [searchQuery, segmentFilter, currentPage],
+      () => ({ searchQuery, segmentFilter, locationFilter, currentPage }),
+      [searchQuery, segmentFilter, locationFilter, currentPage],
     ),
     (saved) => {
       restoreDashboardFilters(saved, {
@@ -319,6 +322,7 @@ const CustomerMaster = () => {
             setDebouncedSearch(v);
           }],
           ["segmentFilter", (v) => setSegmentFilter(v as SegmentFilter)],
+          ["locationFilter", setLocationFilter],
         ],
         numbers: [["currentPage", setCurrentPage]],
       });
@@ -330,6 +334,11 @@ const CustomerMaster = () => {
     setCurrentPage(1);
     if (searchTimerRef[0]) clearTimeout(searchTimerRef[0]);
     searchTimerRef[0] = setTimeout(() => setDebouncedSearch(value), 300);
+  };
+
+  const handleLocationFilter = (location: string) => {
+    setLocationFilter(location);
+    setCurrentPage(1);
   };
 
   const { data: totalCount = 0 } = useQuery({
@@ -347,6 +356,35 @@ const CustomerMaster = () => {
     enabled: !!currentOrganization?.id,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
     staleTime: 60000,
+  });
+
+  const { data: locationOptions = [] } = useQuery({
+    queryKey: ["customer-locations", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [] as string[];
+      const addresses: Array<string | null> = [];
+      const BATCH = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("address")
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .not("address", "is", null)
+          .range(from, from + BATCH - 1);
+        if (error) throw error;
+        const batch = data || [];
+        for (const row of batch) addresses.push(row.address);
+        if (batch.length < BATCH) break;
+        from += BATCH;
+        if (from >= 20000) break;
+      }
+      return uniqueCustomerLocations(addresses);
+    },
+    enabled: !!currentOrganization?.id,
+    ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    staleTime: 5 * 60 * 1000,
   });
 
   /**
@@ -387,13 +425,24 @@ const CustomerMaster = () => {
   };
 
   const { data: customersPage, isLoading } = useQuery({
-    queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage, segmentFilter],
+    queryKey: ["customers", currentOrganization?.id, debouncedSearch, currentPage, segmentFilter, locationFilter],
     queryFn: async () => {
       if (!currentOrganization?.id) return { customers: [] as Customer[], filteredCount: 0 };
 
       const offset = (currentPage - 1) * ITEMS_PER_PAGE;
       const term = debouncedSearch.trim();
       const orgId = currentOrganization.id;
+      const nameSearchOr = term
+        ? `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,address.ilike.%${term}%`
+        : null;
+      const locationOr = customerLocationOrFilter(locationFilter);
+
+      const applySearchAndLocation = <T extends { or: (filters: string) => T }>(query: T): T => {
+        let next = query;
+        if (nameSearchOr) next = next.or(nameSearchOr);
+        if (locationOr) next = next.or(locationOr);
+        return next;
+      };
 
       const fetchByIds = async (ids: string[]) => {
         if (ids.length === 0) return [] as Customer[];
@@ -429,21 +478,21 @@ const CustomerMaster = () => {
           return { customers: [], filteredCount: 0 };
         }
 
-        if (term) {
-          // Search within segment IDs in batches — avoid org-wide unbounded id dump.
+        if (nameSearchOr || locationOr) {
+          // Search / location within segment IDs in batches — avoid org-wide unbounded id dump.
           const SEGMENT_IN_BATCH = 200;
           const matchSet = new Set<string>();
           for (let i = 0; i < segmentIds.length; i += SEGMENT_IN_BATCH) {
             const chunk = segmentIds.slice(i, i + SEGMENT_IN_BATCH);
-            const { data: searchRows, error: searchErr } = await supabase
-              .from("customers")
-              .select("id")
-              .eq("organization_id", orgId)
-              .is("deleted_at", null)
-              .in("id", chunk)
-              .or(
-                `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
-              );
+            const searchQuery = applySearchAndLocation(
+              supabase
+                .from("customers")
+                .select("id")
+                .eq("organization_id", orgId)
+                .is("deleted_at", null)
+                .in("id", chunk),
+            );
+            const { data: searchRows, error: searchErr } = await searchQuery;
             if (searchErr) throw searchErr;
             for (const row of searchRows || []) {
               if (row.id) matchSet.add(row.id);
@@ -462,17 +511,13 @@ const CustomerMaster = () => {
         return { customers, filteredCount };
       }
 
-      let query = supabase
-        .from("customers")
-        .select(CUSTOMER_LIST_COLUMNS, { count: "planned" })
-        .eq("organization_id", orgId)
-        .is("deleted_at", null);
-
-      if (term) {
-        query = query.or(
-          `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
-        );
-      }
+      let query = applySearchAndLocation(
+        supabase
+          .from("customers")
+          .select(CUSTOMER_LIST_COLUMNS, { count: "planned" })
+          .eq("organization_id", orgId)
+          .is("deleted_at", null),
+      );
 
       const { data, error, count } = await query
         .order("created_at", { ascending: false })
@@ -547,6 +592,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       invalidateCustomers(currentOrganization?.id);
       toast({ title: "Customer created successfully" });
@@ -587,6 +633,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: "Customer updated successfully" });
       resetForm();
@@ -606,6 +653,7 @@ const CustomerMaster = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: "Customer moved to recycle bin" });
     },
@@ -622,6 +670,7 @@ const CustomerMaster = () => {
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       toast({ title: `${count} customers moved to recycle bin` });
       setSelectedCustomers(new Set());
@@ -805,6 +854,7 @@ const CustomerMaster = () => {
     }
 
     queryClient.invalidateQueries({ queryKey: ["customers"] });
+    queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
     queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
     const skippedEmptyRows = mappedData.length - validRows.length;
     let description = `${successCount} customers imported`;
@@ -820,6 +870,17 @@ const CustomerMaster = () => {
 
     const orgId = currentOrganization.id;
     const term = debouncedSearch.trim();
+    const nameSearchOr = term
+      ? `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%,address.ilike.%${term}%`
+      : null;
+    const locationOr = customerLocationOrFilter(locationFilter);
+
+    const applySearchAndLocation = <T extends { or: (filters: string) => T }>(query: T): T => {
+      let next = query;
+      if (nameSearchOr) next = next.or(nameSearchOr);
+      if (locationOr) next = next.or(locationOr);
+      return next;
+    };
 
     const fetchByIds = async (ids: string[]) => {
       if (ids.length === 0) return [] as Customer[];
@@ -851,18 +912,19 @@ const CustomerMaster = () => {
           return (segmentIndex.stats[b]?.revenue ?? 0) - (segmentIndex.stats[a]?.revenue ?? 0);
         });
 
-      if (term) {
+      if (term || locationOr) {
         const SEGMENT_IN_BATCH = 200;
         const matchSet = new Set<string>();
         for (let i = 0; i < segmentIds.length; i += SEGMENT_IN_BATCH) {
           const chunk = segmentIds.slice(i, i + SEGMENT_IN_BATCH);
-          const { data: searchRows, error: searchErr } = await supabase
-            .from("customers")
-            .select("id")
-            .eq("organization_id", orgId)
-            .is("deleted_at", null)
-            .in("id", chunk)
-            .or(`customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`);
+          const { data: searchRows, error: searchErr } = await applySearchAndLocation(
+            supabase
+              .from("customers")
+              .select("id")
+              .eq("organization_id", orgId)
+              .is("deleted_at", null)
+              .in("id", chunk),
+          );
           if (searchErr) throw searchErr;
           for (const row of searchRows || []) {
             if (row.id) matchSet.add(row.id);
@@ -879,17 +941,13 @@ const CustomerMaster = () => {
     let from = 0;
 
     while (true) {
-      let query = supabase
-        .from("customers")
-        .select(CUSTOMER_LIST_COLUMNS)
-        .eq("organization_id", orgId)
-        .is("deleted_at", null);
-
-      if (term) {
-        query = query.or(
-          `customer_name.ilike.%${term}%,phone.ilike.%${term}%,email.ilike.%${term}%`,
-        );
-      }
+      let query = applySearchAndLocation(
+        supabase
+          .from("customers")
+          .select(CUSTOMER_LIST_COLUMNS)
+          .eq("organization_id", orgId)
+          .is("deleted_at", null),
+      );
 
       const { data, error } = await query
         .order("created_at", { ascending: false })
@@ -904,7 +962,7 @@ const CustomerMaster = () => {
     }
 
     return allCustomers;
-  }, [currentOrganization?.id, debouncedSearch, segmentFilter, segmentIndex]);
+  }, [currentOrganization?.id, debouncedSearch, segmentFilter, locationFilter, segmentIndex]);
 
   const fetchAdvanceBalancesForExport = useCallback(
     async (customerIds: string[]): Promise<Record<string, number>> => {
@@ -954,10 +1012,12 @@ const CustomerMaster = () => {
 
       const advanceMap = await fetchAdvanceBalancesForExport(rows.map((r) => r.id));
 
-      const filterLabel =
-        segmentFilter === "all"
-          ? "All customers"
-          : CUSTOMER_SEGMENT_LABELS[segmentFilter];
+      const filterLabel = [
+        segmentFilter === "all" ? "All customers" : CUSTOMER_SEGMENT_LABELS[segmentFilter],
+        locationFilter.trim() ? `Location: ${locationFilter.trim()}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ");
       const searchLabel = debouncedSearch.trim()
         ? `Search: ${debouncedSearch.trim()}`
         : "Search: (none)";
@@ -1064,6 +1124,7 @@ const CustomerMaster = () => {
     currentOrganization?.name,
     debouncedSearch,
     segmentFilter,
+    locationFilter,
     segmentIndex,
     fetchAllCustomersForExport,
     fetchAdvanceBalancesForExport,
@@ -1129,6 +1190,15 @@ const CustomerMaster = () => {
       size: 130,
       cell: ({ getValue }) => (
         <span className="tabular-nums text-sm">{getValue() || "-"}</span>
+      ),
+    },
+    {
+      id: "address",
+      accessorKey: "address",
+      header: "Location",
+      size: 180,
+      cell: ({ getValue }) => (
+        <span className="text-sm text-muted-foreground line-clamp-2">{getValue() || "-"}</span>
       ),
     },
     {
@@ -1320,6 +1390,12 @@ const CustomerMaster = () => {
               className="pl-9 h-10 bg-background border-border/60 rounded-xl text-sm"
             />
           </div>
+          <CustomerLocationFilter
+            value={locationFilter}
+            options={locationOptions}
+            onChange={handleLocationFilter}
+            className="h-10 w-full rounded-xl"
+          />
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
             {segmentCards.map((card) => (
               <button
@@ -1540,6 +1616,20 @@ const CustomerMaster = () => {
             </button>
           </p>
         )}
+        {locationFilter.trim() && (
+          <p className="shrink-0 text-sm text-muted-foreground">
+            Location:{" "}
+            <span className="font-semibold text-foreground">{locationFilter.trim()}</span>
+            {" · "}
+            <button
+              type="button"
+              className="text-primary hover:underline font-medium"
+              onClick={() => handleLocationFilter("")}
+            >
+              Clear location
+            </button>
+          </p>
+        )}
 
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
@@ -1547,17 +1637,24 @@ const CustomerMaster = () => {
               {segmentFilter === "all"
                 ? `${filteredCount.toLocaleString("en-IN")} of ${totalCount.toLocaleString("en-IN")} records`
                 : `${filteredCount.toLocaleString("en-IN")} in ${CUSTOMER_SEGMENT_LABELS[segmentFilter]}`}
+              {locationFilter.trim() ? ` · ${locationFilter.trim()}` : ""}
             </span>
 
             <div className="relative min-w-[200px] max-w-full flex-1 sm:max-w-md md:max-w-xl">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="SEARCH BY NAME, PHONE, EMAIL..."
+                placeholder="SEARCH BY NAME, PHONE, EMAIL, LOCATION..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="h-10 border-slate-200 bg-slate-50 pl-10 text-sm uppercase placeholder:normal-case focus:bg-white"
               />
             </div>
+
+            <CustomerLocationFilter
+              value={locationFilter}
+              options={locationOptions}
+              onChange={handleLocationFilter}
+            />
 
             <div id="erp-toolbar-portal-customer" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
 
@@ -1698,7 +1795,9 @@ const CustomerMaster = () => {
               fitToContainer
               isLoading={isLoading || (segmentFilter !== "all" && segmentsLoading)}
               emptyMessage={
-                segmentFilter !== "all"
+                locationFilter.trim()
+                  ? `No customers found in ${locationFilter.trim()}`
+                  : segmentFilter !== "all"
                   ? `No ${CUSTOMER_SEGMENT_LABELS[segmentFilter].toLowerCase()} customers match your search`
                   : "No customers found"
               }

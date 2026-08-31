@@ -1,9 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
+import { ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
@@ -12,6 +15,12 @@ import {
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import {
+  formatSaleRestoreFindHint,
+  friendlySaleNumberRestoreError,
+  isSaleNumberActiveUniqueViolation,
+  withSaleRestoreNumberResolution,
+} from "@/utils/saleRestoreNumber";
 
 export type SoftDeleteEntity = 
   | "customers"
@@ -62,6 +71,7 @@ export function useSoftDelete() {
   const { user } = useAuth();
   const { organizationRole, currentOrganization } = useOrganization();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
   const softDelete = async (
@@ -217,8 +227,9 @@ export function useSoftDelete() {
     return successCount;
   };
 
-  const restore = async (entity: SoftDeleteEntity, id: string) => {
+  const restore = async (entity: SoftDeleteEntity, id: string): Promise<boolean | string> => {
     try {
+      let restoreNote: string | null = null;
       switch (entity) {
         case "purchase_bills": {
           const { error: pbError } = await supabase.rpc("restore_purchase_bill", { p_bill_id: id });
@@ -262,14 +273,42 @@ export function useSoftDelete() {
         }
 
         case "sales": {
-          const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
-          if (saleRestErr) throw saleRestErr;
+          try {
+            restoreNote = await withSaleRestoreNumberResolution(id, async () => {
+              const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
+              if (saleRestErr) throw saleRestErr;
+            });
+          } catch (saleRestErr) {
+            if (isSaleNumberActiveUniqueViolation(saleRestErr)) {
+              throw new Error(friendlySaleNumberRestoreError());
+            }
+            throw saleRestErr;
+          }
           const { data: saleRow } = await supabase
             .from("sales")
-            .select("organization_id, net_amount, paid_amount, payment_method, sale_date")
+            .select(
+              "organization_id, customer_id, sale_number, net_amount, paid_amount, payment_method, sale_date, sale_return_adjust, refund_amount",
+            )
             .eq("id", id)
             .maybeSingle();
           if (saleRow?.organization_id) {
+            try {
+              await ensureCustomerLedgerAfterSaleRestore(saleRow);
+            } catch (ledgerErr) {
+              console.error("Rebuild customer statement after sale restore:", ledgerErr);
+            }
+            invalidateMoneyViewsAfterMutation(
+              queryClient,
+              saleRow.organization_id,
+              saleRow.customer_id,
+            );
+            const findHint = formatSaleRestoreFindHint({
+              saleNumber: saleRow.sale_number,
+              saleDate: saleRow.sale_date,
+            });
+            restoreNote = restoreNote
+              ? `${restoreNote} ${findHint}`
+              : `${saleRow.sale_number || "Sale"} restored. Stock deducted again. ${findHint}`;
             const { data: setS } = await supabase
               .from("settings")
               .select("accounting_engine_enabled")
@@ -439,12 +478,14 @@ export function useSoftDelete() {
           if (error) throw error;
       }
 
-      return true;
+      return restoreNote || true;
     } catch (error: any) {
       console.error(`Error restoring ${entity}:`, error);
       toast({
         title: "Error",
-        description: error.message || `Failed to restore ${entity}`,
+        description: isSaleNumberActiveUniqueViolation(error)
+          ? friendlySaleNumberRestoreError()
+          : error.message || `Failed to restore ${entity}`,
         variant: "destructive",
       });
       return false;

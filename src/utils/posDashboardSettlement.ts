@@ -5,6 +5,7 @@
  */
 
 import { capPaymentModesToSettled } from "@/utils/mixPaymentAllocation";
+import { isHoldSaleNumber } from "@/utils/posHoldBill";
 
 const SETTLEMENT_EPS = 0.01;
 
@@ -27,12 +28,10 @@ export type PosDashboardSaleLike = {
 
 export function isHoldLikePosSale(sale: PosDashboardSaleLike): boolean {
   if (sale.payment_status === "hold") return true;
-  return (
-    sale.payment_status === "pending" &&
-    typeof sale.sale_number === "string" &&
-    sale.sale_number.startsWith("Hold/") &&
-    sale.payment_method === "pay_later"
-  );
+  // Any Hold/ number is still a parked bill until Mix/Cash promotes it to POS/.
+  // A trigger/recompute can flip payment_status to pending/completed (negative
+  // S/R net looks "paid") while the invoice number stays Hold/.
+  return isHoldSaleNumber(sale.sale_number);
 }
 
 /** Net payable for settlement (matches POS amount column). */

@@ -14,6 +14,11 @@ import { useSettings } from "@/hooks/useSettings";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import { useSaveSale } from "@/hooks/useSaveSale";
 import { usePosBilling } from "@/hooks/usePosBilling";
+import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
+import {
+  isCategoryTierAutoCalculateEnabled,
+  isCategoryTierPricingEnabled,
+} from "@/lib/posBilling/categoryTierPricing";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import {
   GST_TAX_TYPE_OPTIONS,
@@ -126,11 +131,27 @@ export default function MobilePosBilling() {
         : undefined,
   });
 
+  const categoryTierPricingEnabled = isCategoryTierPricingEnabled(saleSettings);
+  const categoryTierAutoCalculate = isCategoryTierAutoCalculateEnabled(saleSettings);
+  const activeDiscountSchemeId =
+    typeof saleSettings.active_discount_scheme_id === "string"
+      ? saleSettings.active_discount_scheme_id
+      : null;
+  const { data: categoryTierRules = [] } = useCategoryTierPricingRules(
+    currentOrganization?.id,
+    activeDiscountSchemeId,
+  );
+
   const billing = usePosBilling({
     grossBasis,
     garmentGstSettings,
     calculateRedemptionValue,
     initialTaxType,
+    categoryTierPricing: {
+      enabled: categoryTierPricingEnabled,
+      rules: categoryTierRules,
+      autoCalculateDiscount: categoryTierAutoCalculate,
+    },
   });
 
   const {
@@ -144,6 +165,7 @@ export default function MobilePosBilling() {
     updateQty,
     updatePrice,
     updateDiscountPercent,
+    updateDiscountAmount,
     removeLine,
     clearCart,
     buildSaleData,
@@ -675,6 +697,25 @@ export default function MobilePosBilling() {
                   }}
                 />
               </div>
+              {editItem.categoryTierApplied ? (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Extra Disc ₹</Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    className="mt-1 h-11 text-base tabular-nums"
+                    defaultValue={String(editItem.discountAmount || 0)}
+                    key={`disc-amt-${editIndex}-${editItem.discountAmount}`}
+                    onFocus={selectOnFocus}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (!Number.isFinite(v)) return;
+                      const r = updateDiscountAmount(editIndex, v);
+                      if (r.error) toast.warning(r.error.message);
+                    }}
+                  />
+                </div>
+              ) : null}
               <p className="text-sm font-semibold tabular-nums">
                 Line total: ₹{formatInr(editItem.netAmount)}
               </p>

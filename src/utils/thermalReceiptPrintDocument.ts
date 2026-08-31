@@ -145,7 +145,7 @@ export function buildThermalReceiptPrintCss(
     max-width: ${contentWidth} !important;
     margin: 0 auto !important;
     padding: 1.5mm 2mm !important;
-    overflow-x: hidden !important;
+    overflow-x: visible !important;
     overflow-y: visible !important;
     box-sizing: border-box !important;
     page-break-inside: auto !important;

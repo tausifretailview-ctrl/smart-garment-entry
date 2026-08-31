@@ -44,6 +44,8 @@ type SaleSlice = {
   pos_barcode_price_mode?: "mrp" | "sale_price";
   pos_goods_ask_qty_dialog?: boolean;
   pos_category_tier_pricing?: boolean;
+  /** Festival leftover pricing for discount schemes. Default false = leftover at Single (₹). */
+  pos_scheme_auto_calculate_discount?: boolean;
   pos_bill_format?: "a4" | "a5" | "a5-vertical" | "a5-horizontal" | "thermal";
   pos_invoice_template?: InvoiceTemplateId;
   thermal_receipt_style?: "classic" | "compact" | "modern" | "tvs" | "new-design";
@@ -358,7 +360,16 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
           <div className="px-3 py-2.5">
             <CategoryTierPricingSettings
               enabled={sale.pos_category_tier_pricing === true}
-              onEnabledChange={(checked) => patchSale({ pos_category_tier_pricing: checked })}
+              onEnabledChange={(checked) =>
+                patchSale({
+                  pos_category_tier_pricing: checked,
+                  ...(checked ? {} : { pos_scheme_auto_calculate_discount: false }),
+                })
+              }
+              autoCalculateDiscount={sale.pos_scheme_auto_calculate_discount === true}
+              onAutoCalculateDiscountChange={(checked) =>
+                patchSale({ pos_scheme_auto_calculate_discount: checked })
+              }
             />
           </div>
         </SettingsSection>

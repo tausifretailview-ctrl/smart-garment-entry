@@ -33,6 +33,7 @@ describe("deliverFileBlob / deliverPdfBlob", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     createObjectURL.mockClear();
@@ -110,5 +111,19 @@ describe("deliverFileBlob / deliverPdfBlob", () => {
 
     expect(result).toBe("opened");
     expect(open).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+  });
+
+  it("falls through to download when navigator.share never settles", async () => {
+    vi.useFakeTimers();
+    const share = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal("navigator", { ...navigator, share, canShare: () => true });
+
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    const pending = deliverPdfBlob(blob, "Invoice.pdf");
+    await vi.advanceTimersByTimeAsync(12_000);
+    const result = await pending;
+
+    expect(result).toBe("downloaded");
+    expect(click).toHaveBeenCalledTimes(1);
   });
 });
