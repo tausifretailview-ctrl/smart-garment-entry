@@ -80,35 +80,35 @@ export function ThermalPosItemRows({
       </div>
       {items.map((item, i) => (
         <div key={i} style={{ ...itemGrid, padding: "1px 0", fontSize: bodySize }}>
-          <div style={{ minWidth: 0, display: "flex", flexWrap: "wrap", columnGap: 4, alignItems: "baseline" }}>
-            <span
+          <div style={{ minWidth: 0 }}>
+            <div
               style={{
                 fontWeight: nameWeight,
                 fontSize: bodySize,
-                whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                flex: "0 0 auto",
-                maxWidth: "100%",
+                whiteSpace: "nowrap",
               }}
             >
               {item.particulars}
-            </span>
+            </div>
             {item.barcode ? (
-              <span
+              <div
                 style={{
                   fontSize: THERMAL_POS_BC_FONT_SIZE,
                   fontWeight: THERMAL_POS_BC_FONT_WEIGHT,
                   whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
                   color: "#000",
-                  flex: "0 0 auto",
+                  lineHeight: 1.2,
                 }}
               >
                 BC:{item.barcode}
-              </span>
+              </div>
             ) : null}
             {item.itemNotes ? (
-              <div style={{ flexBasis: "100%", fontSize: "9px", fontWeight: 600, color: "#444", fontStyle: "italic", lineHeight: 1.2 }}>
+              <div style={{ fontSize: "9px", fontWeight: 600, color: "#444", fontStyle: "italic", lineHeight: 1.2 }}>
                 {item.itemNotes}
               </div>
             ) : null}
