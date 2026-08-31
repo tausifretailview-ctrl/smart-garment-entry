@@ -166,7 +166,7 @@ export default function MobileSalesHub() {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 space-y-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 pb-3 space-y-3 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-xl font-semibold text-foreground">Sales Summary</h1>

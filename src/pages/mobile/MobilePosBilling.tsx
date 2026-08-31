@@ -430,7 +430,7 @@ export default function MobilePosBilling() {
       )}
 
       {/* Top — sticky search */}
-      <div className="shrink-0 border-b border-border bg-background px-3 pt-2 pb-2">
+      <div className="shrink-0 border-b border-border bg-background px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top,0px))]">
         <div className="flex items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

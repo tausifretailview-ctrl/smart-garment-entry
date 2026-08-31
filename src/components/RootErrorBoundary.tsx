@@ -36,19 +36,20 @@ export class RootErrorBoundary extends Component<Props, State> {
 
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-6">
-          <div className="max-w-md text-center space-y-6">
+        <div className="min-h-screen flex items-center justify-center bg-background p-6 overflow-x-hidden">
+          <div className="w-full max-w-md text-center space-y-6">
             <p className="text-6xl">😵</p>
             <h1 className="text-2xl font-bold text-foreground">Something went wrong</h1>
             <p className="text-muted-foreground">
               An unexpected error occurred. Your data is safe.
               Please try refreshing the page.
             </p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={() => window.location.reload()}>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center w-full">
+              <Button className="w-full sm:w-auto" onClick={() => window.location.reload()}>
                 Refresh Page
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 variant="outline"
                 onClick={() => {
                   if (this.state.error && isChunkLoadError(this.state.error)) {
@@ -60,7 +61,7 @@ export class RootErrorBoundary extends Component<Props, State> {
               >
                 Try Again
               </Button>
-              <Button variant="link" onClick={() => {
+              <Button className="w-full sm:w-auto" variant="link" onClick={() => {
                 const slug = localStorage.getItem("selectedOrgSlug");
                 window.location.href = slug ? `/${slug}` : "/";
               }}>
