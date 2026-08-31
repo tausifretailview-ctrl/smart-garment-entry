@@ -19,11 +19,14 @@ export const DEFAULT_STOCK_FILTERS: FilterValue = {
   stockStatus: "all",
 };
 
-export function countActiveReportFilters(values: FilterValue): number {
+export function countActiveReportFilters(
+  values: FilterValue,
+  opts?: { includeStockStatus?: boolean },
+): number {
   return [
     values.brand !== ALL && values.brand !== "all",
     values.category !== ALL && values.category !== "all",
-    values.stockStatus !== "all",
+    opts?.includeStockStatus !== false && values.stockStatus !== "all",
   ].filter(Boolean).length;
 }
 
@@ -121,6 +124,7 @@ export function MobileReportFilterSheet({
   categories,
   value,
   onApply,
+  showStockStatus = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -128,6 +132,7 @@ export function MobileReportFilterSheet({
   categories: string[];
   value: FilterValue;
   onApply: (v: FilterValue) => void;
+  showStockStatus?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
 
@@ -136,7 +141,12 @@ export function MobileReportFilterSheet({
   }, [open, value]);
 
   return (
-    <MobilePickerSheet open={open} onOpenChange={onOpenChange} title="Filters" description="Brand, category and stock status">
+    <MobilePickerSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Filters"
+      description={showStockStatus ? "Brand, category and stock status" : "Brand and category"}
+    >
       <div className="space-y-4">
         <SearchablePickList
           label="Brand"
@@ -150,26 +160,28 @@ export function MobileReportFilterSheet({
           value={draft.category}
           onChange={(category) => setDraft((d) => ({ ...d, category }))}
         />
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Stock status</p>
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
-            {STATUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setDraft((d) => ({ ...d, stockStatus: opt.value }))}
-                className={cn(
-                  "rounded-lg py-2 text-[11px] font-semibold touch-manipulation",
-                  draft.stockStatus === opt.value
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground",
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
+        {showStockStatus ? (
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium mb-1.5">Stock status</p>
+            <div className="grid grid-cols-3 gap-1 rounded-xl bg-muted p-1">
+              {STATUS_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setDraft((d) => ({ ...d, stockStatus: opt.value }))}
+                  className={cn(
+                    "rounded-lg py-2 text-[11px] font-semibold touch-manipulation",
+                    draft.stockStatus === opt.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
         <div className="flex gap-2 pt-1">
           <Button
             type="button"

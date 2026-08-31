@@ -71,6 +71,24 @@ function inStockRpcArg(status: FilterValue["stockStatus"]): boolean | undefined 
   return undefined;
 }
 
+async function fetchSaleItemProductMeta(orgId: string, productIds: string[]) {
+  const unique = [...new Set(productIds.filter(Boolean))];
+  const metaById = new Map<string, { brand?: string | null; category?: string | null }>();
+  if (unique.length === 0) return metaById;
+  const batchSize = 500;
+  for (let i = 0; i < unique.length; i += batchSize) {
+    const batchIds = unique.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, brand, category")
+      .eq("organization_id", orgId)
+      .in("id", batchIds);
+    if (error) throw error;
+    for (const p of data || []) metaById.set(p.id, p);
+  }
+  return metaById;
+}
+
 export function MobileCashierReport({ orgId, start, end }: DateProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-cashier", orgId, start, end],
@@ -156,7 +174,19 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
 
 export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
   const [search, setSearch] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
   const tableRef = useRef<HTMLDivElement>(null);
+  const activeCount = countActiveReportFilters(filters, { includeStockStatus: false });
+
+  const { data: optionLists } = useQuery({
+    queryKey: ["stock-filter-options", orgId],
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
+    retry: 1,
+    queryFn: () => withMobileQueryTimeout(() => fetchMobileStockFilterOptions(orgId!), 20_000),
+  });
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-item-wise-sales", orgId, start, end],
     enabled: !!orgId && !!start && !!end,
@@ -175,28 +205,49 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
           .order("sale_date", { ascending: false })
           .limit(800);
         if (error) throw error;
-        if (!sales?.length) return [];
-        return fetchAllSaleItems(sales.map((s) => s.id));
+        if (!sales?.length) return { saleItems: [] as Awaited<ReturnType<typeof fetchAllSaleItems>>, metaById: new Map<string, { brand?: string | null; category?: string | null }>() };
+        const saleItems = await fetchAllSaleItems(sales.map((s) => s.id));
+        const productIds = [...new Set((saleItems || []).map((i: { product_id?: string }) => i.product_id).filter(Boolean))] as string[];
+        const metaById = await fetchSaleItemProductMeta(orgId!, productIds);
+        return { saleItems, metaById };
       }, 25_000),
   });
 
   const rows = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; size: string; qty: number; amount: number }>();
-    (data || []).forEach((i: { product_name?: string; size?: string; quantity?: number; line_total?: number }) => {
+    const map = new Map<string, { key: string; name: string; size: string; brand: string; category: string; qty: number; amount: number }>();
+    const items = data?.saleItems || [];
+    const metaById = data?.metaById ?? new Map();
+    items.forEach((i: { product_id?: string; product_name?: string; size?: string; quantity?: number; line_total?: number }) => {
       const name = i.product_name || "—";
       const size = i.size || "—";
       const key = `${name}|${size}`;
-      const ex = map.get(key) || { key, name, size, qty: 0, amount: 0 };
+      const meta = i.product_id ? metaById.get(i.product_id) : undefined;
+      const ex = map.get(key) || {
+        key,
+        name,
+        size,
+        brand: (meta?.brand || "").trim(),
+        category: (meta?.category || "").trim(),
+        qty: 0,
+        amount: 0,
+      };
       ex.qty += Number(i.quantity) || 0;
       ex.amount += Number(i.line_total) || 0;
       map.set(key, ex);
     });
     const q = search.trim().toLowerCase();
+    const brandFilter = filters.brand !== "__all__" && filters.brand !== "all" ? filters.brand : "";
+    const categoryFilter = filters.category !== "__all__" && filters.category !== "all" ? filters.category : "";
     return [...map.values()]
-      .filter((r) => !q || r.name.toLowerCase().includes(q) || r.size.toLowerCase().includes(q))
+      .filter((r) => {
+        if (q && !r.name.toLowerCase().includes(q) && !r.size.toLowerCase().includes(q)) return false;
+        if (brandFilter && r.brand !== brandFilter) return false;
+        if (categoryFilter && r.category !== categoryFilter) return false;
+        return true;
+      })
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 250);
-  }, [data, search]);
+  }, [data, search, filters]);
 
   const totals = useMemo(
     () => rows.reduce((a, r) => ({ qty: a.qty + r.qty, amount: a.amount + r.amount }), { qty: 0, amount: 0 }),
@@ -230,37 +281,61 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
     },
   ];
 
-  if (isLoading) return <LoadingRows />;
-  if (isError) {
-    return (
-      <div className="text-center py-12 space-y-3">
-        <p className="text-muted-foreground text-sm">Could not load item-wise sales.</p>
-        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
-          Try again
-        </button>
-      </div>
-    );
-  }
-  if (!rows.length) return <EmptyState message="No sales in this date range. Try Week, Month, or Custom." />;
+  const hasSaleLines = (data?.saleItems.length ?? 0) > 0;
 
   return (
     <div className="space-y-3">
       <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product or size…" />
+      <MobileReportFilterSheet
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        value={filters}
+        onApply={setFilters}
+        brands={optionLists?.brands ?? []}
+        categories={optionLists?.categories ?? []}
+        showStockStatus={false}
+      />
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-sky-700">Summary</p>
-        <ReportExportButton
-          fileBaseName={`item-wise-sale-${format(new Date(), "ddMMyyyy")}`}
-          buildCsv={() => buildCsvFromReportTable(columns, rows)}
-          tableRef={tableRef}
+        <div className="flex items-center gap-1">
+          <MobileReportFilterButton activeCount={activeCount} onClick={() => setFilterOpen(true)} />
+          {rows.length ? (
+            <ReportExportButton
+              fileBaseName={`item-wise-sale-${format(new Date(), "ddMMyyyy")}`}
+              buildCsv={() => buildCsvFromReportTable(columns, rows)}
+              tableRef={tableRef}
+            />
+          ) : null}
+        </div>
+      </div>
+      {isLoading ? (
+        <LoadingRows />
+      ) : isError ? (
+        <div className="text-center py-12 space-y-3">
+          <p className="text-muted-foreground text-sm">Could not load item-wise sales.</p>
+          <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+            Try again
+          </button>
+        </div>
+      ) : !rows.length ? (
+        <EmptyState
+          message={
+            hasSaleLines || search.trim() || activeCount
+              ? "No sales match these filters"
+              : "No sales in this date range. Try Week, Month, or Custom."
+          }
         />
-      </div>
-      <div className="flex gap-2">
-        <MetricCard label="Qty" value={String(totals.qty)} />
-        <MetricCard label="Amount" value={fmt(totals.amount)} color="text-emerald-600" />
-        <MetricCard label="Items" value={String(rows.length)} />
-      </div>
-      <p className="text-sm font-semibold text-sky-700">Item-wise Sale</p>
-      <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <MetricCard label="Qty" value={String(totals.qty)} />
+            <MetricCard label="Amount" value={fmt(totals.amount)} color="text-emerald-600" />
+            <MetricCard label="Items" value={String(rows.length)} />
+          </div>
+          <p className="text-sm font-semibold text-sky-700">Item-wise Sale</p>
+          <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
+        </>
+      )}
     </div>
   );
 }
@@ -286,7 +361,7 @@ export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   const activeCount = countActiveReportFilters(filters);
 
   const { data: options } = useQuery({
-    queryKey: ["rpt-item-wise-stock-filters", orgId],
+    queryKey: ["stock-filter-options", orgId],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
     retry: 1,
@@ -482,7 +557,7 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   });
 
   const { data: optionLists } = useQuery({
-    queryKey: ["rpt-stock-report-filter-options", orgId],
+    queryKey: ["stock-filter-options", orgId],
     enabled: !!orgId,
     staleTime: STALE_FREQUENT,
     retry: 1,
