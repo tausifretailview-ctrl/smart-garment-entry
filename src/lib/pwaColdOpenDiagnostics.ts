@@ -2,12 +2,16 @@
  * PWA cold-open blank Dashboard — stuck-frame probe.
  *
  * Evidence only. Does not change render owner, prefetch, or rescue timers.
- * Readout: window.__ezzyColdOpen.print()
+ * In-memory always. Console is opt-in only:
+ *   localStorage.setItem("ezzy_pwa_cold_open", "1")  or  ?pwacold=1
+ * Readout (no flag needed): window.__ezzyColdOpen.print()
  * Grep: [PWAColdOpen]
  *
  * ELLA NOOR 2026-08-30: forceOutletFallback flipped because the 4s timer
  * armed during org splash. See docs/pwa-cold-open-chunk-ready-2026-08-30.md.
  */
+
+import { diagConsoleInfo } from "@/lib/diagConsole";
 
 export type PwaSpinnerKind =
   | "boot-splash"
@@ -64,7 +68,13 @@ export function recordTabChunkLoadEvent(
   };
   chunkEvents.push(row);
   if (chunkEvents.length > MAX_CHUNK_EVENTS) chunkEvents.shift();
-  console.info("[PWAColdOpen] chunk", path || "(dashboard)", phase);
+  diagConsoleInfo(
+    "ezzy_pwa_cold_open",
+    "pwacold",
+    "[PWAColdOpen] chunk",
+    path || "(dashboard)",
+    phase,
+  );
   exposePwaColdOpenApi();
   return row;
 }
@@ -148,11 +158,11 @@ export function recordPwaColdOpenSnapshot(
   lastFingerprint = fingerprint;
   snapshots.push(snap);
   if (snapshots.length > MAX_SNAPSHOTS) snapshots.shift();
-  console.info("[PWAColdOpen]", {
+  diagConsoleInfo("ezzy_pwa_cold_open", "pwacold", "[PWAColdOpen]", {
     path: snap.path || "(dashboard)",
     forceOutletFallback: snap.forceOutletFallback,
     effectiveTabPaneReady: snap.effectiveTabPaneReady,
-    "isTabPageChunkLoaded(\"\")": snap.dashboardChunkLoaded,
+    'isTabPageChunkLoaded("")': snap.dashboardChunkLoaded,
     dashboardChunkInFlight: snap.dashboardChunkInFlight,
     orgLoading: snap.orgLoading,
     permissionsIsFetching: snap.permissionsIsFetching,

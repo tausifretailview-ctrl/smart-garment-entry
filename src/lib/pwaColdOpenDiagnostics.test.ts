@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 afterEach(() => {
   resetPwaColdOpenDiagnosticsForTests();
   document.body.innerHTML = "";
+  if (typeof localStorage !== "undefined") localStorage.clear();
+  vi.restoreAllMocks();
 });
 
 describe("classifySpinnerChrome", () => {
@@ -97,5 +99,14 @@ describe("tab chunk load events", () => {
     expect(events).toHaveLength(2);
     expect(events[0].phase).toBe("start");
     expect(events[1].phase).toBe("resolved");
+  });
+
+  it("does not console.info snapshots unless ezzy_pwa_cold_open=1", () => {
+    const spy = vi.spyOn(console, "info").mockImplementation(() => {});
+    recordTabChunkLoadEvent("", "start", 1);
+    expect(spy).not.toHaveBeenCalled();
+    localStorage.setItem("ezzy_pwa_cold_open", "1");
+    recordTabChunkLoadEvent("", "resolved", 2);
+    expect(spy).toHaveBeenCalled();
   });
 });

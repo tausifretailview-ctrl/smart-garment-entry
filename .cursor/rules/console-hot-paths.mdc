@@ -1,0 +1,36 @@
+---
+description: Never add always-on console.log/info on POS, dashboard, or fetch hot paths
+globs: src/**/*.{ts,tsx}
+alwaysApply: true
+---
+
+# Console on hot paths (load / POS / dashboard)
+
+Chrome DevTools serializes `console.log` / `console.info` on the **main thread**.
+A loop that logs every paginated fetch or every longtask makes POS and dashboards
+feel frozen. That already shipped once (`fb649cbaf` stripped 17 fetch logs).
+
+## Forbidden on these files
+
+`fetchAllRows.ts`, `POSSales.tsx`, `POSDashboard.tsx`, `Index.tsx`,
+`cartMutators.ts`, `posCartPersistence.ts`, `usePosBilling.ts`,
+`saleSettlement.ts`, `customerBalanceUtils.ts`, `customerBalanceCore.ts`,
+`queryPersister.ts`.
+
+- Do **not** add `console.log`, `console.info`, `console.debug`, or `console.time`.
+- `console.error` / `console.warn` on real failures are OK.
+
+## Diagnostics stay opt-in
+
+New probes must use `diagConsoleInfo` from `src/lib/diagConsole.ts` (or an
+existing flag: `ezzy_nav_perf`, `ezzy_cloud_usage`). Never log on every
+render, fetch page, longtask, or tab switch.
+
+In-memory rings + `window.__ezzy*.print()` are fine without a flag.
+
+Do **not** auto-enable cloud-usage / fetch wrapping with `import.meta.env.DEV`.
+
+## CI
+
+`npm run check:console-guard` and `src/lib/hotPathConsole.guard.test.ts` fail
+the build if the above returns. See `docs/console-perf-protections.md`.

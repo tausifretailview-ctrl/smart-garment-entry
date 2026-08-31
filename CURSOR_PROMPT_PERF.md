@@ -85,3 +85,16 @@ localStorage.setItem('ezzy_nav_perf', '1');
 localStorage.setItem('ezzy_cloud_usage', '1');
 location.reload();
 ```
+
+---
+
+## Console on hot paths (do not regress)
+
+DevTools serializes `console.log` / `console.info` on the main thread. That is
+how paginated-fetch logs froze POS/dashboard (`fb649cbaf`).
+
+- No `console.log`/`info` in `fetchAllRows`, POS, Index, cart, settlement, persist.
+- New probes: `diagConsoleInfo` + a flag (`ezzy_main_thread`, `ezzy_pwa_cold_open`).
+- Never `import.meta.env.DEV ||` around `initCloudUsageDiagnostics`.
+- CI: `npm run check:console-guard`. Full report: `docs/console-perf-protections.md`.
+
