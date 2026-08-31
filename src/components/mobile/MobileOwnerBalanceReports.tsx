@@ -7,8 +7,8 @@ import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { sortSizes } from "@/utils/sizeSort";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { MobileReportSearchBar } from "@/components/mobile/MobileReportSearchBar";
-import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
 import { ReportExportButton } from "@/components/mobile/ReportExportButton";
+import { MetricCard } from "@/components/mobile/MobileReportMetricCard";
 import {
   MobileReportTable,
   mobileReportTableWrapClass,
@@ -20,7 +20,7 @@ import {
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronsUpDown, Phone, X } from "lucide-react";
+import { ChevronsUpDown, X } from "lucide-react";
 import { MobilePickerSheet } from "@/components/mobile/MobilePickerSheet";
 import { fetchMobileStockReportPages } from "@/utils/mobileStockReportQuery";
 
@@ -48,13 +48,6 @@ function tokenMatch(haystack: string, query: string) {
   return tokens.every((t) => hay.includes(t));
 }
 
-const MetricCard = ({ label, value, color }: { label: string; value: string; color?: string }) => (
-  <div className="flex-1 min-w-[100px] rounded-xl border border-border/40 bg-card p-3">
-    <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-    <p className={cn("text-base font-bold mt-0.5 tabular-nums", color || "text-foreground")}>{value}</p>
-  </div>
-);
-
 type SizeWiseRow = {
   productKey: string;
   productName: string;
@@ -68,8 +61,6 @@ type SizeWiseRow = {
 
 export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [view, setView] = useState<"list" | "table">("list");
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -195,8 +186,6 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   }
   if (!data?.length) return <EmptyState message="No stock data found" />;
 
-  const cutView = selectedProduct ? "table" : view;
-
   const sizeWiseCsvColumns: ReportTableColumn<SizeWiseRow>[] = [
     {
       key: "product",
@@ -231,16 +220,6 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
             placeholder="Search product, brand, color, size…"
           />
         </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
-          {!selectedProduct ? <ReportViewToggle view={view} onChange={setView} /> : null}
-          {cutView === "table" && (
-            <ReportExportButton
-              fileBaseName={`size-wise-stock-${format(new Date(), "ddMMyyyy")}`}
-              buildCsv={() => buildCsvFromReportTable(sizeWiseCsvColumns, rows)}
-              tableRef={tableRef}
-            />
-          )}
-        </div>
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -265,10 +244,6 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
           </button>
         ) : null}
       </div>
-      <div className="flex gap-2">
-        <MetricCard label="Products" value={String(totals.products)} />
-        <MetricCard label="Total Qty" value={String(totals.qty)} color="text-violet-600" />
-      </div>
       <MobilePickerSheet
         open={pickerOpen}
         onOpenChange={setPickerOpen}
@@ -283,7 +258,6 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
               type="button"
               onClick={() => {
                 setSelectedProduct(name);
-                setView("table");
                 setPickerOpen(false);
               }}
               className={cn(
@@ -297,9 +271,22 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
           {!pickerNames.length ? <EmptyState message="No products match" /> : null}
         </div>
       </MobilePickerSheet>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`size-wise-stock-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(sizeWiseCsvColumns, rows)}
+          tableRef={tableRef}
+        />
+      </div>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Products" value={String(totals.products)} />
+        <MetricCard label="Total Stock" value={String(totals.qty)} color="text-violet-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Size-wise Stock</p>
       {!rows.length ? (
         <EmptyState />
-      ) : cutView === "table" ? (
+      ) : (
         <div ref={tableRef} className={mobileReportTableWrapClass}>
           <table className="w-full min-w-full text-xs border-collapse">
             <thead className={cn(mobileReportTheadClass, "bg-sky-100")}>
@@ -353,57 +340,6 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
             </tbody>
           </table>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {rows.map((row) => {
-            const expanded = expandedKey === row.productKey;
-            return (
-              <div key={row.productKey} className="bg-card rounded-xl border border-border/40 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setExpandedKey(expanded ? null : row.productKey)}
-                  className="w-full flex items-center justify-between p-3 text-left active:bg-muted/40 touch-manipulation"
-                >
-                  <div className="flex-1 min-w-0 pr-2">
-                    <p className="text-sm font-semibold truncate">{row.productName}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {[row.brand, row.color, row.department].filter(Boolean).join(" • ")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={cn(
-                        "text-sm font-bold tabular-nums",
-                        row.totalStock <= 0 ? "text-destructive" : row.totalStock <= 5 ? "text-orange-600" : "text-emerald-600",
-                      )}
-                    >
-                      {row.totalStock}
-                    </span>
-                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
-                  </div>
-                </button>
-                {expanded && (
-                  <div className="px-3 pb-3 border-t border-border/40 pt-2">
-                    <div className="flex flex-wrap gap-1.5">
-                      {sortSizes(Object.keys(row.sizeStocks)).map((size) => (
-                        <div
-                          key={size}
-                          className="flex flex-col items-center min-w-[2.75rem] px-2 py-1.5 rounded-lg bg-muted/50 border border-border/40"
-                        >
-                          <span className="text-[10px] font-medium text-muted-foreground">{size}</span>
-                          <span className="text-xs font-bold tabular-nums">{row.sizeStocks[size] || 0}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {row.category ? (
-                      <p className="text-[10px] text-muted-foreground mt-2">Category: {row.category}</p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
       )}
       {sizes.length > 0 && rows.length > 0 ? (
         <div className="rounded-xl border border-border/40 bg-muted/30 p-3">
@@ -437,9 +373,7 @@ type CustomerBalanceRow = {
 
 export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
@@ -491,6 +425,10 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
     () => filtered.reduce((s, c) => s + Math.max(0, c.outstanding), 0),
     [filtered],
   );
+  const totalAdvance = useMemo(
+    () => filtered.reduce((s, c) => s + Math.max(0, c.advance), 0),
+    [filtered],
+  );
 
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No customers found" />;
@@ -531,25 +469,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search customer name or phone…" />
-        </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
-          <ReportViewToggle view={view} onChange={setView} />
-          {view === "table" && (
-            <ReportExportButton
-              fileBaseName={`customer-balance-${format(new Date(), "ddMMyyyy")}`}
-              buildCsv={() => buildCsvFromReportTable(customerColumns, filtered)}
-              tableRef={tableRef}
-            />
-          )}
-        </div>
-      </div>
-      <div className="flex gap-2 items-center">
-        <MetricCard label="Total O/S" value={fmt(totalOutstanding)} color="text-destructive" />
-        <MetricCard label="Shown" value={String(filtered.length)} />
-      </div>
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search customer name or phone…" />
       <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground touch-manipulation">
         <input
           type="checkbox"
@@ -559,60 +479,24 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
         />
         Include zero-balance customers
       </label>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`customer-balance-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(customerColumns, filtered)}
+          tableRef={tableRef}
+        />
+      </div>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Customers" value={String(filtered.length)} />
+        <MetricCard label="Total Outstanding" value={fmt(totalOutstanding)} color="text-destructive" />
+        <MetricCard label="Total Advance" value={fmt(totalAdvance)} color="text-emerald-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Customer Balance</p>
       {!filtered.length ? (
         <EmptyState />
-      ) : view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={customerColumns} rows={filtered} rowKey={(c) => c.id} />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((c) => {
-            const expanded = expandedId === c.id;
-            return (
-              <div key={c.id} className="bg-card rounded-xl border border-border/40 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(expanded ? null : c.id)}
-                  className="w-full flex items-center justify-between p-3 text-left active:bg-muted/40 touch-manipulation"
-                >
-                  <div className="flex-1 min-w-0 pr-2">
-                    <p className="text-sm font-semibold truncate">{c.customer_name}</p>
-                    {c.phone ? (
-                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {c.phone}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="text-right">
-                      <p className={cn("text-sm font-bold tabular-nums", c.outstanding > 0 ? "text-destructive" : "text-muted-foreground")}>
-                        {fmt(c.outstanding)}
-                      </p>
-                      {c.advance > 0 ? (
-                        <p className="text-[10px] text-emerald-600 tabular-nums">Adv {fmt(c.advance)}</p>
-                      ) : null}
-                    </div>
-                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
-                  </div>
-                </button>
-                {expanded && (
-                  <div className="px-3 pb-3 border-t border-border/40 pt-2 space-y-1.5 text-xs">
-                    <DetailRow label="Opening balance" value={fmt(c.opening_balance || 0)} />
-                    <DetailRow label="Outstanding (Dr)" value={fmt(c.outstanding)} highlight={c.outstanding > 0 ? "destructive" : undefined} />
-                    <DetailRow label="Advance available" value={fmt(c.advance)} highlight={c.advance > 0 ? "success" : undefined} />
-                    <DetailRow label="Credit notes" value={fmt(c.cnAvailable)} />
-                    {(c as { gst_number?: string }).gst_number ? (
-                      <DetailRow label="GSTIN" value={(c as { gst_number?: string }).gst_number!} />
-                    ) : null}
-                    {(c as { address?: string }).address ? (
-                      <p className="text-[11px] text-muted-foreground pt-1">{(c as { address?: string }).address}</p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <MobileReportTable ref={tableRef} variant="statement" columns={customerColumns} rows={filtered} rowKey={(c) => c.id} />
       )}
     </div>
   );
@@ -631,9 +515,7 @@ type SupplierBalanceRow = {
 
 export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showZero, setShowZero] = useState(false);
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
@@ -734,25 +616,7 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search supplier name or phone…" />
-        </div>
-        <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
-          <ReportViewToggle view={view} onChange={setView} />
-          {view === "table" && (
-            <ReportExportButton
-              fileBaseName={`supplier-balance-${format(new Date(), "ddMMyyyy")}`}
-              buildCsv={() => buildCsvFromReportTable(supplierColumns, filtered)}
-              tableRef={tableRef}
-            />
-          )}
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <MetricCard label="Total Payable" value={fmt(totalPayable)} color="text-destructive" />
-        <MetricCard label="Shown" value={String(filtered.length)} />
-      </div>
+      <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search supplier name or phone…" />
       <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground touch-manipulation">
         <input
           type="checkbox"
@@ -762,88 +626,25 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
         />
         Include settled (zero) suppliers
       </label>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`supplier-balance-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(supplierColumns, filtered)}
+          tableRef={tableRef}
+        />
+      </div>
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Suppliers" value={String(filtered.length)} />
+        <MetricCard label="Total Payable" value={fmt(totalPayable)} color="text-destructive" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Supplier Balance</p>
       {!filtered.length ? (
         <EmptyState />
-      ) : view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={supplierColumns} rows={filtered} rowKey={(s) => s.id} />
       ) : (
-        <div className="space-y-2">
-          {filtered.map((s) => {
-            const expanded = expandedId === s.id;
-            const balanceColor =
-              s.balance > 0 ? "text-destructive" : s.balance < 0 ? "text-emerald-600" : "text-muted-foreground";
-            return (
-              <div key={s.id} className="bg-card rounded-xl border border-border/40 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(expanded ? null : s.id)}
-                  className="w-full flex items-center justify-between p-3 text-left active:bg-muted/40 touch-manipulation"
-                >
-                  <div className="flex-1 min-w-0 pr-2">
-                    <p className="text-sm font-semibold truncate">{s.supplier_name}</p>
-                    {s.phone ? (
-                      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {s.phone}
-                      </p>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <p className={cn("text-sm font-bold tabular-nums", balanceColor)}>{fmt(Math.abs(s.balance))}</p>
-                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", expanded && "rotate-180")} />
-                  </div>
-                </button>
-                {expanded && (
-                  <div className="px-3 pb-3 border-t border-border/40 pt-2 space-y-1.5 text-xs">
-                    <DetailRow label="Opening balance" value={fmt(s.opening_balance || 0)} />
-                    <DetailRow label="Total purchases" value={fmt(s.totalPurchases)} />
-                    <DetailRow label="Total paid" value={fmt(s.totalPaid)} />
-                    <DetailRow label="Unapplied CN" value={fmt(s.unappliedCreditNotes)} />
-                    <DetailRow
-                      label="Net balance (payable)"
-                      value={fmt(s.balance)}
-                      highlight={s.balance > 0 ? "destructive" : s.balance < 0 ? "success" : undefined}
-                    />
-                    {s.balance > 0 ? <p className="text-[10px] text-destructive">Amount owed to supplier</p> : null}
-                    {s.balance < 0 ? <p className="text-[10px] text-emerald-600">Advance / credit with supplier</p> : null}
-                    {(s as { gst_number?: string }).gst_number ? (
-                      <DetailRow label="GSTIN" value={(s as { gst_number?: string }).gst_number!} />
-                    ) : null}
-                    {(s as { address?: string }).address ? (
-                      <p className="text-[11px] text-muted-foreground pt-1">{(s as { address?: string }).address}</p>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        <MobileReportTable ref={tableRef} variant="statement" columns={supplierColumns} rows={filtered} rowKey={(s) => s.id} />
       )}
     </div>
   );
 }
 
-function DetailRow({
-  label,
-  value,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  highlight?: "destructive" | "success";
-}) {
-  return (
-    <div className="flex justify-between gap-2">
-      <span className="text-muted-foreground">{label}</span>
-      <span
-        className={cn(
-          "font-semibold tabular-nums text-right",
-          highlight === "destructive" && "text-destructive",
-          highlight === "success" && "text-emerald-600",
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}

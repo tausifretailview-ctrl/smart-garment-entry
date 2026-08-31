@@ -8,13 +8,13 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { localDayBounds } from "@/lib/localDayBounds";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
+import { MetricCard } from "@/components/mobile/MobileReportMetricCard";
 import type { ReportType } from "./OwnerReportsHub";
 import {
   SizeWiseStockReport,
@@ -28,7 +28,6 @@ import {
   MobileNetProfitReport,
   MobileStockReport,
 } from "./MobileInsightsReports";
-import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
 import { ReportExportButton } from "@/components/mobile/ReportExportButton";
 import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
@@ -198,15 +197,6 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
 };
 
 /* ─── Reusable Components ─── */
-const MetricCard = ({ label, value, color }: { label: string; value: string; color?: string }) => (
-  <Card className="flex-1 min-w-[100px]">
-    <CardContent className="p-3">
-      <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
-      <p className={cn("text-base font-bold mt-0.5", color || "text-foreground")}>{value}</p>
-    </CardContent>
-  </Card>
-);
-
 const LoadingRows = () => (
   <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-14 rounded-xl" />)}</div>
 );
@@ -227,9 +217,8 @@ function saleDateBounds(start: string, end: string) {
 
 /* 1. Daily Sales */
 const DailySalesReport = ({ orgId, start, end }: RProps) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-daily-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
@@ -246,6 +235,14 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
   const total = useMemo(() => (data || []).reduce((s, r) => s + (r.net_amount || 0), 0), [data]);
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load daily sales.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState />;
 
   const salesColumns: ReportTableColumn<(typeof data)[number]>[] = [
@@ -293,51 +290,28 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 items-center">
-        <MetricCard label="Total Sale" value={fmt(total)} color="text-emerald-600" />
-        <MetricCard label="Bills" value={String(data.length)} />
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`daily-sales-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(salesColumns, data)}
-            tableRef={tableRef}
-          />
-        )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`daily-sales-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(salesColumns, data)}
+          tableRef={tableRef}
+        />
       </div>
-      {view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={salesColumns} rows={data} rowKey={(s) => s.id} />
-      ) : (
-        <div className="space-y-2">
-          {data.map((s: any) => (
-            <div key={s.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-              <div>
-                <p className="text-sm font-semibold">{s.sale_number}</p>
-                <p className="text-[11px] text-muted-foreground">{s.customer_name || "Walk-in"}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-bold text-emerald-600">{fmt(s.net_amount || 0)}</p>
-                <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded-full",
-                  s.payment_status === "paid" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400" :
-                  s.payment_status === "partial" ? "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400" :
-                  "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400"
-                )}>
-                  {s.payment_status || "pending"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Bills" value={String(data.length)} />
+        <MetricCard label="Total" value={fmt(total)} color="text-emerald-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Daily Sales</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={salesColumns} rows={data} rowKey={(s) => s.id} />
     </div>
   );
 };
 
 /* 2. Daily Purchase */
 const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-daily-purchase", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
@@ -353,6 +327,14 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
   const total = useMemo(() => (data || []).reduce((s, r) => s + (r.net_amount || 0), 0), [data]);
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load daily purchase.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState />;
 
   const purchaseColumns: ReportTableColumn<(typeof data)[number]>[] = [
@@ -389,33 +371,20 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 items-center">
-        <MetricCard label="Total Purchase" value={fmt(total)} color="text-orange-600" />
-        <MetricCard label="Bills" value={String(data.length)} />
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`daily-purchase-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(purchaseColumns, data)}
-            tableRef={tableRef}
-          />
-        )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`daily-purchase-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(purchaseColumns, data)}
+          tableRef={tableRef}
+        />
       </div>
-      {view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={purchaseColumns} rows={data} rowKey={(b) => b.id} />
-      ) : (
-        <div className="space-y-2">
-          {data.map((b: any) => (
-            <div key={b.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-              <div>
-                <p className="text-sm font-semibold">{b.software_bill_no}</p>
-                <p className="text-[11px] text-muted-foreground">{b.supplier_name} {b.supplier_invoice_no ? `• ${b.supplier_invoice_no}` : ""}</p>
-              </div>
-              <p className="text-sm font-bold text-orange-600">{fmt(b.net_amount || 0)}</p>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Bills" value={String(data.length)} />
+        <MetricCard label="Total" value={fmt(total)} color="text-orange-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Daily Purchase</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={purchaseColumns} rows={data} rowKey={(b) => b.id} />
     </div>
   );
 };
@@ -460,9 +429,8 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
 
 /* 4. Stock Summary */
 const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-stock-summary", orgId],
     enabled: !!orgId,
     queryFn: async () => {
@@ -505,6 +473,14 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   }, [data]);
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load stock summary.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState message="No products found" />;
 
   const stockRows = stats.items.slice(0, 100);
@@ -549,45 +525,28 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end items-center gap-1">
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`stock-summary-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(stockColumns, stockRows)}
-            tableRef={tableRef}
-          />
-        )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`stock-summary-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(stockColumns, stockRows)}
+          tableRef={tableRef}
+        />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
         <MetricCard label="Products" value={String(stats.totalProducts)} />
         <MetricCard label="Variants" value={String(stats.totalVariants)} />
-        <MetricCard label="Pur. Value" value={fmt(stats.purValue)} color="text-orange-600" />
+        <MetricCard label="Stock Value" value={fmt(stats.purValue)} color="text-orange-600" />
         <MetricCard label="Sale Value" value={fmt(stats.saleValue)} color="text-emerald-600" />
       </div>
-      {view === "table" ? (
-        <MobileReportTable
-          ref={tableRef}
-          columns={stockColumns}
-          rows={stockRows}
-          rowKey={(p) => `${p.name}|${p.brand}|${p.totalStock}|${p.saleVal}|${p.purVal}`}
-        />
-      ) : (
-        <div className="space-y-2">
-          {stockRows.map((p, i) => (
-            <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-              <div>
-                <p className="text-sm font-semibold">{p.name}</p>
-                <p className="text-[11px] text-muted-foreground">{p.brand}</p>
-              </div>
-              <div className="text-right">
-                <p className={cn("text-sm font-bold", p.totalStock <= 0 ? "text-destructive" : p.totalStock <= 10 ? "text-orange-600" : "text-emerald-600")}>{p.totalStock}</p>
-                <p className="text-[10px] text-muted-foreground">{fmt(p.saleVal)}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <p className="text-sm font-semibold text-sky-700">Stock Summary</p>
+      <MobileReportTable
+        ref={tableRef}
+        variant="statement"
+        columns={stockColumns}
+        rows={stockRows}
+        rowKey={(p) => `${p.name}|${p.brand}|${p.totalStock}|${p.saleVal}|${p.purVal}`}
+      />
     </div>
   );
 };
@@ -597,9 +556,8 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
 
 /* 7. GST Report */
 const GSTReport = ({ orgId, start, end }: RProps) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-gst", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
@@ -630,9 +588,20 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
       .sort((a, b) => a.rate - b.rate);
   }, [data]);
 
-  const totalTax = grouped.reduce((s, g) => s + g.tax, 0);
+  const gstSummary = grouped.reduce(
+    (s, g) => ({ taxable: s.taxable + g.taxable, cgst: s.cgst + g.cgst, sgst: s.sgst + g.sgst, tax: s.tax + g.tax }),
+    { taxable: 0, cgst: 0, sgst: 0, tax: 0 },
+  );
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load GST report.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!grouped.length) return <EmptyState />;
 
   const gstColumns: ReportTableColumn<(typeof grouped)[number]>[] = [
@@ -658,44 +627,30 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2 items-center">
-        <MetricCard label="Total Tax" value={fmt(totalTax)} color="text-amber-600" />
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`gst-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(gstColumns, grouped)}
-            tableRef={tableRef}
-          />
-        )}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`gst-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(gstColumns, grouped)}
+          tableRef={tableRef}
+        />
       </div>
-      {view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={gstColumns} rows={grouped} rowKey={(g) => String(g.rate)} />
-      ) : (
-        <div className="space-y-2">
-          {grouped.map((g) => (
-            <div key={g.rate} className="p-3 bg-card rounded-xl border border-border/40">
-              <div className="flex justify-between items-center mb-1">
-                <p className="text-sm font-bold">GST {g.rate}%</p>
-                <p className="text-sm font-bold text-amber-600">{fmt(g.tax)}</p>
-              </div>
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>Taxable: {fmt(g.taxable)}</span>
-                <span>CGST: {fmt(g.cgst)} | SGST: {fmt(g.sgst)}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Taxable" value={fmt(gstSummary.taxable)} />
+        <MetricCard label="CGST" value={fmt(gstSummary.cgst)} />
+        <MetricCard label="SGST" value={fmt(gstSummary.sgst)} />
+        <MetricCard label="Total Tax" value={fmt(gstSummary.tax)} color="text-amber-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">GST Report</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={gstColumns} rows={grouped} rowKey={(g) => String(g.rate)} />
     </div>
   );
 };
 
 /* 8. Brand Sales */
 const BrandSalesReport = ({ orgId, start, end }: RProps) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-brand-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
@@ -729,6 +684,14 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
   });
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load brand-wise sales.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState />;
 
   const brandColumns: ReportTableColumn<(typeof data)[number]>[] = [
@@ -744,40 +707,36 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
     { key: "amount", header: "Amount", align: "right", csvText: (b) => fmt(b.total), render: (b) => fmt(b.total) },
   ];
 
+  const brandTotals = {
+    qty: data.reduce((s, b) => s + b.qty, 0),
+    amount: data.reduce((s, b) => s + b.total, 0),
+  };
+
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end items-center gap-1">
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`brand-sales-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(brandColumns, data)}
-            tableRef={tableRef}
-          />
-        )}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`brand-sales-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(brandColumns, data)}
+          tableRef={tableRef}
+        />
       </div>
-      {view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={brandColumns} rows={data} rowKey={(b) => b.brand} />
-      ) : (
-        data.map((b: any, i: number) => (
-          <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{b.brand}</p>
-              <p className="text-[11px] text-muted-foreground">{b.qty} items sold</p>
-            </div>
-            <p className="text-sm font-bold text-teal-600">{fmt(b.total)}</p>
-          </div>
-        ))
-      )}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Brands" value={String(data.length)} />
+        <MetricCard label="Total Qty" value={String(brandTotals.qty)} />
+        <MetricCard label="Total Amount" value={fmt(brandTotals.amount)} color="text-teal-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Brand-wise Sales</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={brandColumns} rows={data} rowKey={(b) => b.brand} />
     </div>
   );
 };
 
 /* 9. Size Sales */
 const SizeSalesReport = ({ orgId, start, end }: RProps) => {
-  const [view, setView] = useState<"list" | "table">("list");
   const tableRef = useRef<HTMLDivElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-size-sales", orgId, start, end],
     enabled: !!orgId,
     queryFn: async () => {
@@ -802,6 +761,14 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
   });
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load size-wise sales.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">Try again</button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState />;
 
   const sizeColumns: ReportTableColumn<(typeof data)[number]>[] = [
@@ -817,31 +784,28 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
     { key: "amount", header: "Amount", align: "right", csvText: (s) => fmt(s.total), render: (s) => fmt(s.total) },
   ];
 
+  const sizeTotals = {
+    qty: data.reduce((s, r) => s + r.qty, 0),
+    amount: data.reduce((s, r) => s + r.total, 0),
+  };
+
   return (
-    <div className="space-y-2">
-      <div className="flex justify-end items-center gap-1">
-        <ReportViewToggle view={view} onChange={setView} />
-        {view === "table" && (
-          <ReportExportButton
-            fileBaseName={`size-sales-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(sizeColumns, data)}
-            tableRef={tableRef}
-          />
-        )}
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        <ReportExportButton
+          fileBaseName={`size-sales-${format(new Date(), "ddMMyyyy")}`}
+          buildCsv={() => buildCsvFromReportTable(sizeColumns, data)}
+          tableRef={tableRef}
+        />
       </div>
-      {view === "table" ? (
-        <MobileReportTable ref={tableRef} columns={sizeColumns} rows={data} rowKey={(s) => s.size} />
-      ) : (
-        data.map((s: any, i: number) => (
-          <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
-            <div>
-              <p className="text-sm font-semibold">{s.size}</p>
-              <p className="text-[11px] text-muted-foreground">{s.qty} sold</p>
-            </div>
-            <p className="text-sm font-bold text-indigo-600">{fmt(s.total)}</p>
-          </div>
-        ))
-      )}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        <MetricCard label="Sizes" value={String(data.length)} />
+        <MetricCard label="Total Qty" value={String(sizeTotals.qty)} />
+        <MetricCard label="Total Amount" value={fmt(sizeTotals.amount)} color="text-indigo-600" />
+      </div>
+      <p className="text-sm font-semibold text-sky-700">Size-wise Sales</p>
+      <MobileReportTable ref={tableRef} variant="statement" columns={sizeColumns} rows={data} rowKey={(s) => s.size} />
     </div>
   );
 };
