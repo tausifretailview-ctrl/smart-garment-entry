@@ -66,10 +66,12 @@ type QuickLink =
 
 /** One-tap shortcuts — mobile-native reports first; desktop-only shows a prompt. */
 const QUICK_LINKS: QuickLink[] = [
+  { label: "Size Stock", icon: Grid3X3, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "size-wise-stock" },
   { label: "Today's Sales", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40", report: "daily-sales" },
   { label: "Customer Balance", icon: Users, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40", report: "customer-balance" },
   { label: "Supplier Balance", icon: Building2, color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40", report: "supplier-balance" },
   { label: "Stock Report", icon: Package, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "stock-report" },
+  { label: "Item Stock", icon: Wallet, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40", report: "item-wise-stock" },
   { label: "Item-wise Sale", icon: BarChart3, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40", report: "item-wise-sales" },
   { label: "Net Profit", icon: PieChart, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "net-profit" },
   {
@@ -136,17 +138,17 @@ export const OwnerReportsHub = () => {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2 py-3">
         <h1 className="text-lg font-bold text-foreground">📊 Reports</h1>
         <p className="text-xs text-muted-foreground">Tap a report to view details</p>
       </div>
 
-      {/* Quick links */}
-      <div className="px-4 pt-4 pb-1">
-        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
+      {/* Quick links — horizontal like Home module strip */}
+      <div className="pt-3 pb-1">
+        <p className="px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
           Quick access
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar px-2 py-1">
           {QUICK_LINKS.map((link) => {
             const Icon = link.icon;
             const isDesktopOnly = "desktopPath" in link;
@@ -155,17 +157,17 @@ export const OwnerReportsHub = () => {
                 key={link.label}
                 type="button"
                 onClick={() => handleQuickLink(link)}
-                className="flex items-center gap-2.5 p-3 bg-card rounded-xl border border-border/50 shadow-sm active:scale-[0.98] transition-all touch-manipulation text-left"
+                className="flex flex-col items-center justify-center shrink-0 w-[4.5rem] gap-1 rounded-xl border border-border/60 bg-card px-1 py-2 active:scale-95 touch-manipulation shadow-sm"
               >
-                <div className={cn("flex items-center justify-center w-9 h-9 rounded-lg shrink-0", link.color)}>
+                <div className={cn("flex items-center justify-center w-8 h-8 rounded-lg", link.color)}>
                   <Icon className="h-4 w-4" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-foreground leading-tight">{link.label}</p>
-                  {isDesktopOnly ? (
-                    <p className="text-[9px] text-muted-foreground mt-0.5">Desktop report</p>
-                  ) : null}
-                </div>
+                <span className="text-[9px] font-medium text-foreground text-center leading-tight">
+                  {link.label}
+                </span>
+                {isDesktopOnly ? (
+                  <span className="text-[8px] text-muted-foreground">Desktop</span>
+                ) : null}
               </button>
             );
           })}
@@ -173,14 +175,14 @@ export const OwnerReportsHub = () => {
       </div>
 
       {/* All reports */}
-      <div className="px-4 pt-3 pb-1">
+      <div className="px-2 pt-3 pb-1">
         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
           All reports
         </p>
       </div>
 
       {/* Report Cards */}
-      <div className="px-4 pb-4 space-y-2.5">
+      <div className="px-2 pb-4 space-y-2">
         {REPORTS.map((r) => {
           const Icon = r.icon;
           return (

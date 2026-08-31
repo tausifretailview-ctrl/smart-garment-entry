@@ -20,7 +20,8 @@ import {
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Phone } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, Phone, X } from "lucide-react";
+import { MobilePickerSheet } from "@/components/mobile/MobilePickerSheet";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -68,6 +69,8 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "table">("list");
+  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
@@ -94,10 +97,11 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
 
     const filtered = data.filter((v: any) => {
       const prod = v.products;
+      if (selectedProduct && prod?.product_name !== selectedProduct) return false;
       const hay = [prod?.product_name, prod?.brand, v.color, v.size, prod?.category, prod?.department]
         .filter(Boolean)
         .join(" ");
-      return tokenMatch(hay, search);
+      return tokenMatch(hay, selectedProduct ? "" : search);
     });
 
     const productMap = new Map<string, SizeWiseRow>();
@@ -127,10 +131,27 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
     const allSizes = sortSizes([...new Set(filtered.map((v: any) => v.size).filter(Boolean))]);
     const qty = rows.reduce((s, r) => s + r.totalStock, 0);
     return { rows, sizes: allSizes, totals: { qty, products: rows.length } };
-  }, [data, search]);
+  }, [data, search, selectedProduct]);
+
+  const productNames = useMemo(() => {
+    if (!data?.length) return [] as string[];
+    const names = new Set<string>();
+    data.forEach((v: any) => {
+      const n = v.products?.product_name;
+      if (n) names.add(n);
+    });
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
+  const pickerNames = useMemo(
+    () => productNames.filter((n) => tokenMatch(n, pickerOpen ? search : "")),
+    [productNames, search, pickerOpen],
+  );
 
   if (isLoading) return <LoadingRows />;
   if (!data?.length) return <EmptyState message="No stock data found" />;
+
+  const cutView = selectedProduct ? "table" : view;
 
   const sizeWiseCsvColumns: ReportTableColumn<SizeWiseRow>[] = [
     {
@@ -167,8 +188,8 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
           />
         </div>
         <div className="mb-3 flex h-10 shrink-0 items-center gap-1">
-          <ReportViewToggle view={view} onChange={setView} />
-          {view === "table" && (
+          {!selectedProduct ? <ReportViewToggle view={view} onChange={setView} /> : null}
+          {cutView === "table" && (
             <ReportExportButton
               fileBaseName={`size-wise-stock-${format(new Date(), "ddMMyyyy")}`}
               buildCsv={() => buildCsvFromReportTable(sizeWiseCsvColumns, rows)}
@@ -177,13 +198,64 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
           )}
         </div>
       </div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="flex-1 min-w-0 flex items-center justify-between gap-2 rounded-xl border border-border/40 bg-card px-3 py-2.5 text-left touch-manipulation active:bg-muted/40"
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Select product details</p>
+            <p className="text-sm font-semibold truncate">{selectedProduct || "Choose a product for cut sizes"}</p>
+          </div>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </button>
+        {selectedProduct ? (
+          <button
+            type="button"
+            aria-label="Clear product"
+            onClick={() => setSelectedProduct(null)}
+            className="shrink-0 h-11 w-11 rounded-xl border border-border/40 bg-card flex items-center justify-center touch-manipulation"
+          >
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        ) : null}
+      </div>
       <div className="flex gap-2">
         <MetricCard label="Products" value={String(totals.products)} />
         <MetricCard label="Total Qty" value={String(totals.qty)} color="text-violet-600" />
       </div>
+      <MobilePickerSheet
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title="Select product details"
+        description="Pick a product to open the cut-size report"
+      >
+        <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search product name…" />
+        <div className="max-h-[50vh] overflow-y-auto space-y-1">
+          {pickerNames.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => {
+                setSelectedProduct(name);
+                setView("table");
+                setPickerOpen(false);
+              }}
+              className={cn(
+                "w-full text-left px-3 py-2.5 rounded-lg text-sm touch-manipulation",
+                selectedProduct === name ? "bg-primary/10 text-primary font-semibold" : "active:bg-muted/40",
+              )}
+            >
+              {name}
+            </button>
+          ))}
+          {!pickerNames.length ? <EmptyState message="No products match" /> : null}
+        </div>
+      </MobilePickerSheet>
       {!rows.length ? (
         <EmptyState />
-      ) : view === "table" ? (
+      ) : cutView === "table" ? (
         <div ref={tableRef} className={mobileReportTableWrapClass}>
           <table className="w-full min-w-full text-xs border-collapse">
             <thead className={mobileReportTheadClass}>

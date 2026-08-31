@@ -7,7 +7,7 @@ export function MobileModuleNavStrip({ className }: { className?: string }) {
   const { orgNavigate } = useOrgNavigation();
 
   return (
-    <div className={cn("px-4 pb-2 lg:hidden", className)}>
+    <div className={cn("px-2 pb-2 lg:hidden", className)}>
       <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
         {MOBILE_SUMMARY_STRIP_ITEMS.map((item) => {
           const Icon = item.icon;
