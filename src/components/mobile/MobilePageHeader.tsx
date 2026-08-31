@@ -13,13 +13,15 @@ export const MobilePageHeader = ({ title, backTo, onBackClick, rightContent, sub
   const { orgNavigate } = useOrgNavigation();
   const showBack = Boolean(onBackClick || backTo);
   return (
-    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-md border-b border-border pt-[max(1.75rem,env(safe-area-inset-top,0px))]">
+      <div className="flex items-center justify-between px-3 py-2.5">
+        <div className="flex items-center gap-2 min-w-0">
           {showBack && (
             <button
+              type="button"
               onClick={() => (onBackClick ? onBackClick() : orgNavigate(backTo!))}
-              className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0 active:scale-90 touch-manipulation"
+              className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-full bg-muted flex items-center justify-center shrink-0 active:scale-90 touch-manipulation"
+              aria-label="Go back"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>

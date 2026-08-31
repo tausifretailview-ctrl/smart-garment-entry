@@ -16,7 +16,7 @@ export interface MobileReportTableProps<T> {
   columns: ReportTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
-  variant?: "default" | "insights";
+  variant?: "default" | "insights" | "statement";
 }
 
 /** Full-bleed data table: cancels the report body `px-4` and stretches columns to the page width. */
@@ -35,10 +35,13 @@ function MobileReportTableInner<T>(
   ref: Ref<HTMLDivElement>,
 ) {
   const insights = variant === "insights";
+  const statement = variant === "statement";
+  const headBg = insights ? "bg-slate-800" : statement ? "bg-sky-100" : undefined;
+  const stickyHead = insights ? "bg-slate-800" : statement ? "bg-sky-100" : "bg-primary/15";
   return (
     <div ref={ref} className={mobileReportTableWrapClass}>
       <table className="w-full min-w-full text-xs border-collapse">
-        <thead className={cn(mobileReportTheadClass, insights && "bg-slate-800")}>
+        <thead className={cn(mobileReportTheadClass, headBg, statement && "bg-sky-100")}>
           <tr>
             {columns.map((col, i) => (
               <th
@@ -46,8 +49,9 @@ function MobileReportTableInner<T>(
                 className={cn(
                   mobileReportThClass,
                   insights && "bg-slate-800 text-white uppercase tracking-wide text-[10px]",
+                  statement && "bg-sky-100 text-sky-900 uppercase tracking-wide text-[10px] border-b border-sky-200",
                   col.align === "right" ? "text-right" : "text-left",
-                  col.sticky && i === 0 && (insights ? "sticky left-0 bg-slate-800 z-20" : "sticky left-0 bg-primary/15 z-20"),
+                  col.sticky && i === 0 && `sticky left-0 ${stickyHead} z-20`,
                   col.minWidth,
                 )}
               >
@@ -63,6 +67,7 @@ function MobileReportTableInner<T>(
               className={cn(
                 "group odd:bg-muted/20 border-b border-border/40 last:border-b-0",
                 insights && "odd:bg-transparent even:bg-slate-50/80 border-slate-100",
+                statement && "odd:bg-transparent even:bg-sky-50/50 border-slate-200",
               )}
             >
               {columns.map((col, i) => (
@@ -73,7 +78,9 @@ function MobileReportTableInner<T>(
                     col.align === "right" ? "text-right tabular-nums" : "text-left",
                     col.sticky && i === 0 && (insights
                       ? "sticky left-0 z-10 bg-background group-even:bg-slate-50"
-                      : "sticky left-0 bg-card z-10"),
+                      : statement
+                        ? "sticky left-0 z-10 bg-background group-even:bg-sky-50/50"
+                        : "sticky left-0 bg-card z-10"),
                   )}
                 >
                   {col.render(row)}

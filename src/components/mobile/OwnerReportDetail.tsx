@@ -6,7 +6,7 @@ import { invalidateOwnerReportQueries } from "@/lib/mobileHubRefresh";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { localDayBounds } from "@/lib/localDayBounds";
+import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import type { ReportType } from "./OwnerReportsHub";
 import {
   SizeWiseStockReport,
@@ -93,7 +94,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateOwnerReportQueries(queryClient), [queryClient])
   );
-  const [period, setPeriod] = useState<Period>("today");
+  const [period, setPeriod] = useState<Period>("month");
   const [customRange, setCustomRange] = useState<{ from: Date; to: Date } | null>(null);
   const [showFromCal, setShowFromCal] = useState(false);
   const [showToCal, setShowToCal] = useState(false);
@@ -107,7 +108,6 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
     "customer-outstanding",
     "supplier-outstanding",
     "item-wise-stock",
-    "stock-report",
   ].includes(reportType);
 
   return (
@@ -117,11 +117,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
       {...pullHandlers}
     >
       <PullToRefreshIndicator visible={isRefreshing} />
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2 py-3 flex items-center gap-3">
-        <button onClick={onBack} className="p-1 -ml-0.5 touch-manipulation"><ArrowLeft className="h-5 w-5" /></button>
-        <h1 className="text-base font-bold text-foreground">{TITLES[reportType]}</h1>
-      </div>
+      <MobilePageHeader title={TITLES[reportType]} onBackClick={onBack} />
 
       {/* Period Chips */}
       {needsDateFilter && (
@@ -140,6 +136,11 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
               </button>
             ))}
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            From <span className="font-semibold text-foreground tabular-nums">{format(new Date(`${start}T00:00:00`), "dd-MM-yyyy")}</span>
+            {" "}to{" "}
+            <span className="font-semibold text-foreground tabular-nums">{format(new Date(`${end}T00:00:00`), "dd-MM-yyyy")}</span>
+          </p>
           {period === "custom" && (
             <div className="flex gap-2 mt-2">
               <Popover open={showFromCal} onOpenChange={setShowFromCal}>

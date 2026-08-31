@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronsUpDown, Phone, X } from "lucide-react";
 import { MobilePickerSheet } from "@/components/mobile/MobilePickerSheet";
+import { fetchMobileStockReportPages } from "@/utils/mobileStockReportQuery";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -73,23 +74,56 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-size-wise-stock", orgId],
     enabled: !!orgId,
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
-        const { data: variants, error } = await supabase
-          .from("product_variants")
-          .select(
-            "size, color, stock_qty, product_id, products!inner(product_name, brand, category, department, organization_id)",
-          )
-          .eq("organization_id", orgId!)
-          .eq("products.organization_id", orgId!)
-          .is("deleted_at", null);
-        if (error) throw error;
-        return variants || [];
-      }),
+        try {
+          const rpcRows = await fetchMobileStockReportPages(orgId!, { maxRows: 2000, pageSize: 250 });
+          if (rpcRows.length) {
+            return rpcRows.map((r) => ({
+              size: r.size,
+              color: r.color,
+              stock_qty: Number(r.current_stock) || 0,
+              product_id: r.variant_id,
+              products: {
+                product_name: r.product_name,
+                brand: r.brand,
+                category: r.category,
+                department: r.style,
+              },
+            }));
+          }
+        } catch {
+          // Fall through to a paged variant query.
+        }
+
+        const pageSize = 800;
+        const all: Array<{
+          size: string | null;
+          color: string | null;
+          stock_qty: number | null;
+          product_id: string;
+          products: { product_name?: string | null; brand?: string | null; category?: string | null; department?: string | null } | null;
+        }> = [];
+        let offset = 0;
+        while (offset < 4000) {
+          const { data: variants, error } = await supabase
+            .from("product_variants")
+            .select("size, color, stock_qty, product_id, products!inner(product_name, brand, category, department)")
+            .eq("organization_id", orgId!)
+            .is("deleted_at", null)
+            .range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          if (!variants?.length) break;
+          all.push(...(variants as typeof all));
+          if (variants.length < pageSize) break;
+          offset += pageSize;
+        }
+        return all;
+      }, 25_000),
   });
 
   const { rows, sizes, totals } = useMemo(() => {
@@ -149,6 +183,16 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
   );
 
   if (isLoading) return <LoadingRows />;
+  if (isError) {
+    return (
+      <div className="text-center py-12 space-y-3">
+        <p className="text-muted-foreground text-sm">Could not load size-wise stock.</p>
+        <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
   if (!data?.length) return <EmptyState message="No stock data found" />;
 
   const cutView = selectedProduct ? "table" : view;
@@ -258,17 +302,17 @@ export function SizeWiseStockReport({ orgId }: { orgId?: string }) {
       ) : cutView === "table" ? (
         <div ref={tableRef} className={mobileReportTableWrapClass}>
           <table className="w-full min-w-full text-xs border-collapse">
-            <thead className={mobileReportTheadClass}>
+            <thead className={cn(mobileReportTheadClass, "bg-sky-100")}>
               <tr>
-                <th className={cn(mobileReportThClass, "sticky left-0 bg-primary/15 z-20 text-left min-w-[120px]")}>
+                <th className={cn(mobileReportThClass, "sticky left-0 bg-sky-100 z-20 text-left min-w-[120px] text-sky-900 uppercase text-[10px]")}>
                   Product
                 </th>
                 {sizes.map((size) => (
-                  <th key={size} className={cn(mobileReportThClass, "text-right min-w-[44px]")}>
+                  <th key={size} className={cn(mobileReportThClass, "text-right min-w-[44px] bg-sky-100 text-sky-900 uppercase text-[10px]")}>
                     {size}
                   </th>
                 ))}
-                <th className={cn(mobileReportThClass, "text-right min-w-[44px] font-bold")}>Total</th>
+                <th className={cn(mobileReportThClass, "text-right min-w-[44px] font-bold bg-sky-100 text-sky-900 uppercase text-[10px]")}>Total</th>
               </tr>
             </thead>
             <tbody>
