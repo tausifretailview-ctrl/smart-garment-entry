@@ -6,23 +6,40 @@ import { SoftDeleteEntity, useSoftDelete } from "@/hooks/useSoftDelete";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { ProductRelationDialog } from "@/components/ProductRelationDialog";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2, RotateCcw } from "lucide-react";
+import { Trash2, Search, Archive, Users, Truck, Package, ShoppingCart, FileText, Receipt, Loader2, RotateCcw, ArrowLeft } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { cn } from "@/lib/utils";
+import {
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_NEUTRAL_TH,
+  InsightsKpiCard,
+  InsightsKpiStrip,
+  InsightsPanel,
+  InsightsStaticTh,
+  InsightsTableHeader,
+} from "@/components/business-insights/insightsLayout";
 import {
   extractRepairTag,
   formatRecycleBinDeletedBy,
   isRepairTaggedDeletion,
 } from "@/utils/recycleBinDeletionReason";
+
+const RECYCLE_TAB_TRIGGER = cn(
+  "h-9 px-3 text-sm font-semibold rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm",
+  "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
+);
 
 interface DeletedRecord {
   id: string;
@@ -215,6 +232,7 @@ export default function RecycleBin() {
   const { hasSpecialPermission } = useUserPermissions();
   const { getProductRelationDetails } = useProductProtection();
   const { toast } = useToast();
+  const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const canDelete = hasSpecialPermission("delete_records");
   const [activeTab, setActiveTab] = useState<SoftDeleteEntity>("customers");
@@ -618,61 +636,108 @@ export default function RecycleBin() {
     setRecordToRestore(null);
   };
 
+  const fieldLabel = (key: string) =>
+    key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+
   return (
-    <div className="w-full px-6 py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Archive className="h-8 w-8 text-primary" />
-            Recycle Bin
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage deleted records. Restore or permanently delete items.
-          </p>
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Dashboard
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Archive className="h-5 w-5 shrink-0" />
+                Recycle Bin
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Restore or permanently delete records
+              </p>
+            </div>
+          </div>
         </div>
-        <Badge variant="secondary" className="text-lg px-4 py-2">
-          {totalDeletedCount} deleted items
-        </Badge>
-      </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SoftDeleteEntity)}>
-            <TabsList className="flex flex-wrap h-auto gap-1 mb-6">
-              {Object.entries(entityConfig).map(([key, { label, icon: Icon }]) => (
-                <TabsTrigger key={key} value={key} className="flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
-                  {label}
-                  {(counts[key] || 0) > 0 && (
-                    <Badge variant="destructive" className="ml-1 h-5 px-1.5">
-                      {counts[key]}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+        <InsightsKpiStrip>
+          <InsightsKpiCard
+            label="Deleted items"
+            value={totalDeletedCount}
+            tone={totalDeletedCount > 0 ? "attention" : "neutral"}
+            sub="All categories"
+          />
+          <InsightsKpiCard
+            label={config.label}
+            value={counts[activeTab] || 0}
+            tone={(counts[activeTab] || 0) > 0 ? "attention" : "neutral"}
+            sub="This tab"
+          />
+          <InsightsKpiCard
+            label="Selected"
+            value={selectedIds.size}
+            tone={selectedIds.size > 0 ? "attention" : "neutral"}
+            sub={selectedIds.size > 0 ? "Ready to restore or delete" : "None selected"}
+          />
+        </InsightsKpiStrip>
 
-            {Object.keys(entityConfig).map((entity) => {
-              const entityConf = entityConfig[entity as SoftDeleteEntity];
-              return (
-                <TabsContent key={entity} value={entity}>
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <div className="relative flex-1 max-w-md">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as SoftDeleteEntity)}
+          className="flex flex-col flex-1 min-h-0 gap-2"
+        >
+          <TabsList className="no-print flex h-auto w-full flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+            {Object.entries(entityConfig).map(([key, { label, icon: Icon }]) => (
+              <TabsTrigger key={key} value={key} className={cn(RECYCLE_TAB_TRIGGER, "group flex items-center gap-1.5")}>
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                {label}
+                {(counts[key] || 0) > 0 && (
+                  <span className="ml-0.5 rounded-full bg-amber-100 px-1.5 text-[10px] font-bold tabular-nums text-amber-900 group-data-[state=active]:bg-white/20 group-data-[state=active]:text-white">
+                    {counts[key]}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {Object.keys(entityConfig).map((entity) => {
+            const entityConf = entityConfig[entity as SoftDeleteEntity];
+            return (
+              <TabsContent
+                key={entity}
+                value={entity}
+                className="mt-0 flex flex-1 min-h-0 flex-col focus-visible:outline-none data-[state=inactive]:hidden"
+              >
+                <InsightsPanel
+                  className="flex-1 min-h-0"
+                  title={entityConf.label}
+                  subtitle={
+                    isLoading
+                      ? "Loading…"
+                      : `${filteredRecords.length} shown${searchQuery.trim() ? " · filtered" : ""}`
+                  }
+                  toolbar={
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative min-w-[12rem] flex-1 sm:max-w-xs">
+                        <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                         <Input
-                          placeholder={`Search deleted ${entityConf.label.toLowerCase()}...`}
+                          placeholder={`Search deleted ${entityConf.label.toLowerCase()}…`}
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="pl-10"
+                          className="h-9 pl-8 text-sm border-slate-200 bg-white"
                         />
                       </div>
                       {selectedIds.size > 0 && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">{selectedIds.size} selected</Badge>
+                        <>
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-9"
                             onClick={handleBulkRestore}
                             disabled={isBulkRestoring || isDeleting}
                           >
@@ -687,6 +752,7 @@ export default function RecycleBin() {
                             <Button
                               variant="destructive"
                               size="sm"
+                              className="h-9"
                               onClick={handleBulkDeleteClick}
                               disabled={isDeleting || isBulkRestoring}
                             >
@@ -694,161 +760,172 @@ export default function RecycleBin() {
                               <span className="ml-1">Delete Permanently</span>
                             </Button>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
-
-                    {isLoading ? (
-                      <ListTableSkeleton rows={8} columns={5} className="py-2" />
-                    ) : filteredRecords.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Trash2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">No Deleted Records</h3>
-                        <p className="text-muted-foreground">
-                          No deleted {entityConf.label.toLowerCase()} found
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="border rounded-lg overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead className="w-10">
-                                <Checkbox
-                                  checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
-                                  onCheckedChange={(checked) => toggleSelectAll(!!checked)}
-                                  aria-label="Select all"
-                                />
-                              </TableHead>
-                              <TableHead className="font-semibold">
-                                {entityConf.displayField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                              </TableHead>
-                              {entityConf.secondaryField && (
-                                <TableHead className="font-semibold">
-                                  {entityConf.secondaryField.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                                </TableHead>
-                              )}
-                              {entityConf.detailFields?.map((field) => (
-                                <TableHead key={field.key} className="font-semibold hidden md:table-cell">
-                                  {field.label}
-                                </TableHead>
-                              ))}
-                              {(activeTab === "voucher_entries" || activeTab === "sales") && (
-                                <>
-                                  <TableHead className="font-semibold hidden lg:table-cell">Deleted By</TableHead>
-                                  <TableHead className="font-semibold hidden lg:table-cell">Reason</TableHead>
-                                </>
-                              )}
-                              <TableHead className="font-semibold">Deleted At</TableHead>
-                              <TableHead className="font-semibold text-right">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {filteredRecords.map((record) => (
-                              <TableRow key={record.id} className={selectedIds.has(record.id) ? "bg-muted/30" : ""}>
-                                <TableCell>
-                                  <Checkbox
-                                    checked={selectedIds.has(record.id)}
-                                    onCheckedChange={(checked) => toggleSelectRecord(record.id, !!checked)}
-                                    aria-label={`Select ${record[entityConf.displayField] || "record"}`}
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <div className="font-medium">
-                                    {record[entityConf.displayField] || "-"}
-                                  </div>
-                                  <div className="md:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
-                                    {entityConf.detailFields?.map((field) => (
-                                      record[field.key] && (
-                                        <div key={field.key}>
-                                          <span className="font-medium">{field.label}:</span>{" "}
-                                          {formatValue(record[field.key], field)}
-                                        </div>
-                                      )
-                                    ))}
-                                  </div>
-                                </TableCell>
-                                {entityConf.secondaryField && (
-                                  <TableCell>{record[entityConf.secondaryField] || "-"}</TableCell>
-                                )}
+                  }
+                >
+                  {isLoading ? (
+                    <ListTableSkeleton rows={8} columns={5} className="py-2" />
+                  ) : filteredRecords.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Trash2 className="h-10 w-10 mx-auto text-slate-300 mb-3" />
+                      <h3 className="text-sm font-bold text-slate-800 mb-1">No deleted records</h3>
+                      <p className="text-xs text-muted-foreground">
+                        No deleted {entityConf.label.toLowerCase()} found
+                      </p>
+                    </div>
+                  ) : (
+                    <Table className="w-full min-w-max">
+                      <InsightsTableHeader>
+                        <th className={cn(INSIGHTS_NEUTRAL_TH, "w-10")}>
+                          <Checkbox
+                            checked={allFilteredSelected ? true : someFilteredSelected ? "indeterminate" : false}
+                            onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+                            aria-label="Select all"
+                            className="border-white/70 data-[state=checked]:bg-white data-[state=checked]:text-slate-800"
+                          />
+                        </th>
+                        <InsightsStaticTh label={fieldLabel(entityConf.displayField)} />
+                        {entityConf.secondaryField && (
+                          <InsightsStaticTh label={fieldLabel(entityConf.secondaryField)} />
+                        )}
+                        {entityConf.detailFields?.map((field) => (
+                          <InsightsStaticTh
+                            key={field.key}
+                            label={field.label}
+                            className={cn("hidden md:table-cell", field.isAmount && "text-right")}
+                          />
+                        ))}
+                        {(activeTab === "voucher_entries" || activeTab === "sales") && (
+                          <>
+                            <InsightsStaticTh label="Deleted By" className="hidden lg:table-cell" />
+                            <InsightsStaticTh label="Reason" className="hidden lg:table-cell" />
+                          </>
+                        )}
+                        <InsightsStaticTh label="Deleted At" />
+                        <InsightsStaticTh label="Actions" className="text-right" />
+                      </InsightsTableHeader>
+                      <TableBody>
+                        {filteredRecords.map((record) => (
+                          <TableRow
+                            key={record.id}
+                            className={cn(
+                              INSIGHTS_BODY_ROW,
+                              selectedIds.has(record.id) && "bg-sky-100 hover:bg-sky-100",
+                            )}
+                          >
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              <Checkbox
+                                checked={selectedIds.has(record.id)}
+                                onCheckedChange={(checked) => toggleSelectRecord(record.id, !!checked)}
+                                aria-label={`Select ${record[entityConf.displayField] || "record"}`}
+                              />
+                            </TableCell>
+                            <TableCell className={INSIGHTS_BODY_CELL}>
+                              <div className="font-semibold text-slate-800">
+                                {record[entityConf.displayField] || "-"}
+                              </div>
+                              <div className="md:hidden text-xs text-muted-foreground mt-1 space-y-0.5">
                                 {entityConf.detailFields?.map((field) => (
-                                  <TableCell key={field.key} className="hidden md:table-cell">
-                                    {formatValue(record[field.key], field)}
-                                  </TableCell>
+                                  record[field.key] && (
+                                    <div key={field.key}>
+                                      <span className="font-medium">{field.label}:</span>{" "}
+                                      {formatValue(record[field.key], field)}
+                                    </div>
+                                  )
                                 ))}
-                                {(activeTab === "voucher_entries" || activeTab === "sales") && (
-                                  <>
-                                    <TableCell className="hidden lg:table-cell whitespace-nowrap">
-                                      <Badge
-                                        variant={
-                                          formatRecycleBinDeletedBy({
-                                            deletedBy: record.deleted_by,
-                                            notes: record.notes,
-                                            description: record.description ?? record.cancelled_reason,
-                                          }) === "System repair"
-                                            ? "secondary"
-                                            : "outline"
-                                        }
-                                      >
-                                        {formatRecycleBinDeletedBy({
-                                          deletedBy: record.deleted_by,
-                                          notes: record.notes,
-                                          description: record.description ?? record.cancelled_reason,
-                                        })}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell className="hidden lg:table-cell max-w-[200px] truncate text-xs text-muted-foreground">
-                                      {extractRepairTag(record.notes, record.description ?? record.cancelled_reason)
-                                        || record.cancelled_reason
-                                        || "—"}
-                                    </TableCell>
-                                  </>
+                              </div>
+                            </TableCell>
+                            {entityConf.secondaryField && (
+                              <TableCell className={INSIGHTS_BODY_CELL}>
+                                {record[entityConf.secondaryField] || "-"}
+                              </TableCell>
+                            )}
+                            {entityConf.detailFields?.map((field) => (
+                              <TableCell
+                                key={field.key}
+                                className={cn(
+                                  "hidden md:table-cell",
+                                  field.isAmount ? INSIGHTS_BODY_CELL_NUM : INSIGHTS_BODY_CELL,
                                 )}
-                                <TableCell className="whitespace-nowrap">
-                                  {record.deleted_at
-                                    ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
-                                    : "-"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleRestore(record)}
-                                      disabled={isRestoring === record.id}
-                                    >
-                                      {isRestoring === record.id ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <RotateCcw className="h-4 w-4" />
-                                      )}
-                                      <span className="ml-1 hidden sm:inline">Restore</span>
-                                    </Button>
-                                    {canHardDeleteRecord(activeTab) && (
-                                      <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={() => handleDeleteClick(record)}
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                        <span className="ml-1 hidden sm:inline">Delete</span>
-                                      </Button>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+                              >
+                                {formatValue(record[field.key], field)}
+                              </TableCell>
                             ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </div>
-                </TabsContent>
-              );
-            })}
-          </Tabs>
-        </CardContent>
-      </Card>
+                            {(activeTab === "voucher_entries" || activeTab === "sales") && (
+                              <>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "hidden lg:table-cell whitespace-nowrap")}>
+                                  <Badge
+                                    variant={
+                                      formatRecycleBinDeletedBy({
+                                        deletedBy: record.deleted_by,
+                                        notes: record.notes,
+                                        description: record.description ?? record.cancelled_reason,
+                                      }) === "System repair"
+                                        ? "secondary"
+                                        : "outline"
+                                    }
+                                  >
+                                    {formatRecycleBinDeletedBy({
+                                      deletedBy: record.deleted_by,
+                                      notes: record.notes,
+                                      description: record.description ?? record.cancelled_reason,
+                                    })}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "hidden lg:table-cell max-w-[200px] truncate text-xs text-muted-foreground")}>
+                                  {extractRepairTag(record.notes, record.description ?? record.cancelled_reason)
+                                    || record.cancelled_reason
+                                    || "—"}
+                                </TableCell>
+                              </>
+                            )}
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "whitespace-nowrap tabular-nums")}>
+                              {record.deleted_at
+                                ? format(new Date(record.deleted_at), "dd/MM/yyyy HH:mm")
+                                : "-"}
+                            </TableCell>
+                            <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right")}>
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={() => handleRestore(record)}
+                                  disabled={isRestoring === record.id}
+                                >
+                                  {isRestoring === record.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <RotateCcw className="h-4 w-4" />
+                                  )}
+                                  <span className="ml-1 hidden sm:inline">Restore</span>
+                                </Button>
+                                {canHardDeleteRecord(activeTab) && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="h-8"
+                                    onClick={() => handleDeleteClick(record)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span className="ml-1 hidden sm:inline">Delete</span>
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </InsightsPanel>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      </div>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
