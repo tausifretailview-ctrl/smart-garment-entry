@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
+import { formatThermalPosAmount } from '@/utils/thermalPosItemLayout';
+import { ThermalPosItemRows } from '@/components/thermal/ThermalPosItemRows';
 
 interface ThermalItem {
   sr: number;
@@ -67,7 +69,7 @@ interface ThermalPrint80mmPropsExt extends ThermalPrint80mmProps {
   settingsOverride?: any;
 }
 
-const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
+const fmtAmt = formatThermalPosAmount;
 const fmtDec = (n: number): string => n.toFixed(2);
 
 export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80mmProps>(
@@ -136,7 +138,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       boxSizing: 'border-box',
       WebkitPrintColorAdjust: 'exact',
       printColorAdjust: 'exact',
-      overflowX: 'hidden',
+      overflowX: 'visible',
       overflowY: 'visible',
     };
     const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
@@ -148,17 +150,6 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       width: '100%',
       maxWidth: '100%',
     };
-    const amountCols: React.CSSProperties = {
-      display: 'flex',
-      justifyContent: 'flex-end',
-      width: '100%',
-      maxWidth: '100%',
-      gap: '1mm',
-      flexWrap: 'nowrap',
-    };
-    const qtyCol: React.CSSProperties = { flex: '0 0 11mm', textAlign: 'right', fontWeight: 900 };
-    const rateCol: React.CSSProperties = { flex: '0 0 15mm', textAlign: 'right', fontWeight: 900 };
-    const amtCol: React.CSSProperties = { flex: '0 0 17mm', textAlign: 'right', fontWeight: 900 };
     const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
     const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
 
@@ -234,49 +225,13 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
 
         <div style={singleLine} />
 
-        {/* ═══ ITEMS TABLE ═══ */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginBottom: '3px' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '3px 0', fontWeight: 900, width: '100%', fontSize: '14px', letterSpacing: '0.5px' }}>ITEM</th>
-            </tr>
-            <tr style={{ borderBottom: '2px solid #000' }}>
-              <th style={{ textAlign: 'right', padding: '2px 0', fontWeight: 900, fontSize: '14px', letterSpacing: '0.5px' }}>
-                <div style={amountCols}>
-                  <span style={qtyCol}>QTY</span>
-                  <span style={rateCol}>RATE</span>
-                  <span style={amtCol}>AMT</span>
-                </div>
-              </th>
-            </tr>
-          </thead>
-        </table>
-
-        {items.map((item, i) => (
-          <React.Fragment key={i}>
-            <div style={{ fontSize: '13px', marginBottom: '4px' }}>
-              {/* Item name — full width */}
-              <div style={{ fontWeight: 900, lineHeight: '1.3', wordBreak: 'break-word' }}>
-                {item.particulars}
-              </div>
-              {item.itemNotes ? (
-                <div style={{ fontSize: '11px', fontWeight: 700, color: '#444', fontStyle: 'italic', lineHeight: 1.25 }}>
-                  {item.itemNotes}
-                </div>
-              ) : null}
-              {/* Barcode */}
-              {item.barcode && (
-                <div style={{ fontSize: '14px', fontWeight: 900 }}>BC: {item.barcode}</div>
-              )}
-              {/* Qty, Rate, Amount — right aligned */}
-              <div style={{ ...amountCols, fontSize: '13px' }}>
-                <span style={qtyCol}>{item.qty}</span>
-                <span style={rateCol}>₹{fmtAmt(item.rate)}</span>
-                <span style={amtCol}>₹{fmtAmt(item.total)}</span>
-              </div>
-            </div>
-          </React.Fragment>
-        ))}
+        <ThermalPosItemRows
+          items={items}
+          monoFont="'Courier New', Courier, monospace"
+          nameWeight={800}
+          headerSize="11px"
+          bodySize="12px"
+        />
 
         <div style={singleLine} />
 
