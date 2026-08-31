@@ -25,7 +25,7 @@ describe("thermal POS item layout", () => {
   it("keeps a medium barcode face and a reserved amount column", () => {
     expect(THERMAL_POS_BC_FONT_SIZE).toBe("10px");
     expect(THERMAL_POS_BC_FONT_WEIGHT).toBe(500);
-    expect(THERMAL_POS_ITEM_COLUMNS).toContain("20mm");
+    expect(THERMAL_POS_ITEM_COLUMNS).toContain("18mm");
     expect(THERMAL_POS_ITEM_COLUMNS).toContain("minmax(0,1fr)");
   });
 
@@ -45,6 +45,8 @@ describe("thermal POS item layout", () => {
     expect(html).toContain("font-size:10px");
     expect(html).toContain("font-weight:500");
     expect(html).toContain(THERMAL_POS_ITEM_COLUMNS);
+    expect(html).toContain("white-space:nowrap");
+    expect(html).not.toContain("word-break");
     expect(html).not.toContain(" × ");
   });
 
