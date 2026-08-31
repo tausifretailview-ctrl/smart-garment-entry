@@ -402,7 +402,8 @@ export const FloatingSaleReturn = ({
     if (!open) {
       setReturnItems([]);
       setBarcodeInput("");
-      setSearchTerm("");
+      setNameSearchOpen(false);
+      setSelectedSearchIndex(0);
       setBillNumber("");
       setBillSaleId(null);
       setBillItems([]);
