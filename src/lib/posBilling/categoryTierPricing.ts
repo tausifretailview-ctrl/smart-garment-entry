@@ -66,19 +66,31 @@ export function categoryTierRuleKey(category: string, singleUnitPrice: number): 
   return `${normalizeCategoryKey(category)}::${normalizeTierUnitPrice(singleUnitPrice).toFixed(2)}`;
 }
 
-/** Bill total for qty using bundle + remainder rule (e.g. 5 @ 4-for-999 + 1 single). */
+/** Scheme rate per piece: bundle total ÷ bundle qty (e.g. ₹1000 / 4 = ₹250). */
+export function categoryTierSchemeUnitPrice(
+  rule: Pick<CategoryTierRule, "tierQty" | "tierTotalPrice">,
+): number {
+  const tierQty = Math.max(2, Math.floor(Number(rule.tierQty) || 0));
+  const tierTotal = Math.max(0, Number(rule.tierTotalPrice) || 0);
+  return tierQty > 0 ? tierTotal / tierQty : 0;
+}
+
+/**
+ * Bill total for a scheme product.
+ * Qty 1 stays at Single (₹). Qty 2+ uses the scheme rate on every piece
+ * so 1@₹300 / 4@₹1000 bills qty 2 at ₹500 (not 2×₹300).
+ * Full bundles stay exact: 4→₹1000, 8→₹2000.
+ */
 export function computeCategoryTierBillTotal(
   totalQty: number,
   rule: Pick<CategoryTierRule, "singleUnitPrice" | "tierQty" | "tierTotalPrice">,
 ): number {
   const qty = Math.max(0, Math.floor(Number(totalQty) || 0));
   if (qty <= 0) return 0;
-  const tierQty = Math.max(2, Math.floor(Number(rule.tierQty) || 0));
-  const bundles = Math.floor(qty / tierQty);
-  const remainder = qty % tierQty;
   const single = Math.max(0, Number(rule.singleUnitPrice) || 0);
-  const tierTotal = Math.max(0, Number(rule.tierTotalPrice) || 0);
-  return Math.round((bundles * tierTotal + remainder * single) * 100) / 100;
+  if (qty === 1) return Math.round(single * 100) / 100;
+  const schemeUnit = categoryTierSchemeUnitPrice(rule);
+  return Math.round(qty * schemeUnit * 100) / 100;
 }
 
 /** Split category total across lines by quantity (last line absorbs rounding). */

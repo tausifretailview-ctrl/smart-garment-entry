@@ -344,8 +344,9 @@ function DiscountSchemeDashboardPage() {
             <div className="min-w-0 mr-auto">
               <h3 className="text-sm font-bold text-slate-800 leading-tight">POS application</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                When enabled, POS sums quantity per category and matching unit price, then applies
-                the active scheme&apos;s rules. Unmatched prices bill at their own rate.
+                When enabled, POS sums quantity per matching product/category and unit price.
+                Qty 1 bills at Single (₹). Qty 2+ bills at (Bundle total ÷ Bundle qty) × qty
+                (example: ₹300 / 4 for ₹1000 → 2 pcs = ₹500). Unmatched prices bill at their own rate.
               </p>
             </div>
             {activeScheme && (
@@ -608,7 +609,8 @@ function DiscountSchemeDashboardPage() {
                 placeholder="BAGGY TRACK or TRACK"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Product name (BAGGY TRACK) wins over category (TRACK). Single ₹ must match the POS selling price.
+                Product name (BAGGY TRACK) wins over category (TRACK). Single ₹ must match the POS
+                selling price. Qty 1 = Single; qty 2+ = scheme rate (Bundle total ÷ Bundle qty).
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
