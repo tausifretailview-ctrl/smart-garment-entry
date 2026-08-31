@@ -704,7 +704,6 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             paidAmount={props.paidAmount}
             refundCash={props.refundCash}
             documentType={props.documentType || 'invoice'}
-            documentTitle={documentTitle}
             termsConditions={filteredTerms.join('\n')}
             notes={mergedNotes}
             pointsRedeemed={props.pointsRedeemed}
@@ -713,8 +712,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             salesman={props.salesman}
             isDcInvoice={props.isDcInvoice}
             showYouSaved={showYouSaved}
-            showHSN={showHSN}
-            showBarcode={showBarcode}
+            {...(ThermalComponent === ThermalPrint80mm
+              ? { documentTitle, showHSN, showBarcode }
+              : {})}
           />
         );
       }
