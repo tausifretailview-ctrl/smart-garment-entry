@@ -118,14 +118,14 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
     >
       <PullToRefreshIndicator visible={isRefreshing} />
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center gap-3">
-        <button onClick={onBack} className="p-1 -ml-1 touch-manipulation"><ArrowLeft className="h-5 w-5" /></button>
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-md border-b border-border px-2 py-3 flex items-center gap-3">
+        <button onClick={onBack} className="p-1 -ml-0.5 touch-manipulation"><ArrowLeft className="h-5 w-5" /></button>
         <h1 className="text-base font-bold text-foreground">{TITLES[reportType]}</h1>
       </div>
 
       {/* Period Chips */}
       {needsDateFilter && (
-        <div className="px-4 pt-3 pb-1">
+        <div className="px-2 pt-3 pb-1">
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             {PERIOD_CHIPS.map((c) => (
               <button
@@ -170,7 +170,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
       )}
 
       {/* Report Body */}
-      <div className="px-4 pt-3">
+      <div className="px-2 pt-3">
         {reportType === "size-wise-stock" && <SizeWiseStockReport orgId={orgId} />}
         {(reportType === "customer-balance" || reportType === "customer-outstanding") && (
           <CustomerBalanceReport orgId={orgId} />

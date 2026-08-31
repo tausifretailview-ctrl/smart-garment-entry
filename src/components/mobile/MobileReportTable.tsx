@@ -21,7 +21,7 @@ export interface MobileReportTableProps<T> {
 
 /** Full-bleed data table: cancels the report body `px-4` and stretches columns to the page width. */
 export const mobileReportTableWrapClass =
-  "overflow-x-auto -mx-4 w-[calc(100%+2rem)] max-w-none border-y border-border/40 bg-card";
+  "overflow-x-auto -mx-2 w-[calc(100%+1rem)] max-w-none border-y border-border/40 bg-card";
 
 export const mobileReportTheadClass = "sticky top-0 z-10 bg-primary/15";
 
