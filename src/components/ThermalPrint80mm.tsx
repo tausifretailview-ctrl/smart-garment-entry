@@ -1,19 +1,8 @@
- fix/purchase-sold-qty-import
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
-=======
-import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
-import { useOrganization } from '@/contexts/OrganizationContext';
-import { useSettings } from '@/hooks/useSettings';
-import QRCode from 'qrcode';
-import { formatThermalPosAmount } from '@/utils/thermalPosItemLayout';
-import { ThermalPosItemRows } from '@/components/thermal/ThermalPosItemRows';
-main
 
 interface ThermalItem {
   sr: number;
@@ -98,7 +87,6 @@ function hasText(v?: string | null): v is string {
   return typeof v === "string" && v.trim().length > 0;
 }
 
- fix/purchase-sold-qty-import
 function normalizePaymentLabel(method?: string): string {
   if (!method) return "";
   const normalized = method.toLowerCase().replace(/_/g, " ");
@@ -124,10 +112,6 @@ function stripEstimateBanner(notes?: string): string {
     .replace(/^\s+|\s+$/g, "")
     .trim();
 }
-=======
-const fmtAmt = formatThermalPosAmount;
-const fmtDec = (n: number): string => n.toFixed(2);
-main
 
 export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80mmProps>(
   (props, ref) => {
@@ -278,7 +262,6 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
     const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
     const balanceDue = grandTotal - totalPaid;
-fix/purchase-sold-qty-import
     const salesPerson = (salesman || cashier || "").trim();
     const showCustomer =
       hasText(customerName) &&
@@ -320,38 +303,6 @@ fix/purchase-sold-qty-import
       isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id
         ? settings.bill_barcode_settings.dc_upi_id
         : settings?.bill_barcode_settings?.upi_id;
-=======
-    const salesPerson = salesman || cashier;
-
-    // ─── Styles ────────────────────────────────────
-    const base: React.CSSProperties = {
-      width: '72mm',
-      maxWidth: '72mm',
-      padding: '1.5mm 2mm',
-      backgroundColor: 'white',
-      fontFamily: "'Courier New', Courier, monospace",
-      fontSize: '13px',
-      lineHeight: '1.45',
-      color: '#000',
-      fontWeight: 700,
-      boxSizing: 'border-box',
-      WebkitPrintColorAdjust: 'exact',
-      printColorAdjust: 'exact',
-      overflowX: 'visible',
-      overflowY: 'visible',
-    };
-    const center: React.CSSProperties = { textAlign: 'center', width: '100%' };
-    const row: React.CSSProperties = {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'flex-start',
-      gap: '2mm',
-      width: '100%',
-      maxWidth: '100%',
-    };
-    const dblLine: React.CSSProperties = { borderTop: '2px solid #000', margin: '3px 0' };
-    const singleLine: React.CSSProperties = { borderTop: '1px dashed #000', margin: '3px 0' };
- main
 
     if (!settings) {
       return (
@@ -550,7 +501,6 @@ fix/purchase-sold-qty-import
 
         <div className="tr-sep-solid" />
 
-fix/purchase-sold-qty-import
         {/* 4. PRODUCT TABLE */}
         <table>
           <thead>
@@ -609,15 +559,6 @@ fix/purchase-sold-qty-import
           <span>Total Items : {items.length}</span>
           <span>Total Quantity : {Number.isInteger(totalQty) ? totalQty : fmtDec(totalQty)}</span>
         </div>
-=======
-        <ThermalPosItemRows
-          items={items}
-          monoFont="'Courier New', Courier, monospace"
-          nameWeight={800}
-          headerSize="11px"
-          bodySize="12px"
-        />
- main
 
         <div className="tr-sep" />
 
