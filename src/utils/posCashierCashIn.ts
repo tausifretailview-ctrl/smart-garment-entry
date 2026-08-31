@@ -6,6 +6,8 @@
  * Prior-day sale receipts and true customer/OB receipts still count in full.
  */
 
+import { isHoldSaleNumber } from "@/utils/posHoldBill";
+
 const OVERLAP_EPS = 0.5;
 
 export type CashierSaleRow = {
@@ -267,7 +269,7 @@ function resolveMode(paymentMethod: string | null | undefined, description: stri
 
 function isHoldLikeSale(sale: CashierSaleRow): boolean {
   if (sale.payment_status === "hold") return true;
-  return sale.payment_status === "pending" && String(sale.sale_number || "").startsWith("Hold/");
+  return isHoldSaleNumber(sale.sale_number);
 }
 
 /** Mirrors FloatingPOSReports cash legs with same-day sale-RCP overlap stripped. */

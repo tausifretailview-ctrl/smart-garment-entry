@@ -87,6 +87,8 @@ import {
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
 } from "@/utils/posApplyAdvance";
+import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
+import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
@@ -2028,17 +2030,7 @@ export default function POSSales() {
     );
   }, [todaysSales, applyLastCompletedPosHint]);
 
-  const isHoldLikeBill = (sale: any) => {
-    if (!sale) return false;
-    if (sale.payment_status === 'hold') return true;
-    // Backward-compat: older DB trigger rewrote pay_later hold rows to pending.
-    return (
-      sale.payment_status === 'pending' &&
-      typeof sale.sale_number === 'string' &&
-      sale.sale_number.startsWith('Hold/') &&
-      sale.payment_method === 'pay_later'
-    );
-  };
+  const isHoldLikeBill = (sale: any) => isHoldLikePosSale(sale);
 
   // Held bills query (all-time, not just today)
   const { data: heldBills = [], refetch: refetchHeldBills } = useQuery({
@@ -2050,8 +2042,8 @@ export default function POSSales() {
         .select('id, sale_number, sale_date, net_amount, customer_name, customer_phone, notes, held_cart_data, created_at, payment_status, payment_method')
         .eq('organization_id', currentOrganization.id)
         .eq('sale_type', 'pos')
-        .in('payment_status', ['hold', 'pending'])
         .is('deleted_at', null)
+        .or('payment_status.eq.hold,sale_number.like.Hold/%')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data || []).filter((sale: any) => isHoldLikeBill(sale));
@@ -4159,8 +4151,9 @@ export default function POSSales() {
       saleDate: buildPosSaleDate(),
     }));
 
-    // Use updateSale if editing existing sale, otherwise create new
-    const result = currentSaleId
+    const result = isHeldSale && currentSaleId
+      ? await resumeHeldSale(currentSaleId, saleData, effectiveMethod, undefined, buildPosRuntimeOpts())
+      : currentSaleId
       ? await updateSale(currentSaleId, saleData, effectiveMethod, undefined, buildPosRuntimeOpts())
       : await saveSale(saleData, effectiveMethod, undefined, "pos", buildPosRuntimeOpts());
     
@@ -4663,8 +4656,10 @@ export default function POSSales() {
       };
     }
 
-    // Use updateSale if editing existing sale, otherwise create new
-    const result = currentSaleId 
+    // Completing a parked Hold/ bill must assign a POS number (resumeHeldSale).
+    const result = isHeldSale && currentSaleId
+      ? await resumeHeldSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
+      : currentSaleId
       ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
       : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', buildPosRuntimeOpts());
     
@@ -5693,6 +5688,13 @@ export default function POSSales() {
   // Resume a held bill (auto-saves current cart first if needed)
   const handleResumeHeldBill = async (bill: any) => {
     if (items.length > 0 && !isHeldSale) {
+      if (posBillHasExchangeRefundDue(finalAmount, exchangeRefundDue)) {
+        toast.error("Refund due — use Mix Payment", {
+          description:
+            "Finish this S/R exchange with Mix Payment (F6) before opening another held bill.",
+        });
+        return;
+      }
       const holdData = {
         customerId: customerId || null,
         customerName: customerName || 'Walk in Customer',
@@ -5734,6 +5736,17 @@ export default function POSSales() {
   const handleHoldBill = async () => {
     if (items.length === 0) {
       toast.error("No Items", { description: "Please add items to the cart before holding" });
+      return;
+    }
+
+    // Same-bill S/R exchange with money owed to the customer cannot be parked.
+    // Hold would keep a Hold/ invoice number after the return is already saved.
+    if (posBillHasExchangeRefundDue(finalAmount, exchangeRefundDue)) {
+      toast.error("Refund due — use Mix Payment", {
+        description:
+          "S/R is more than the new bill. Open Mix Payment (F6) to refund cash or issue a C/Note. Hold is not allowed on a refund.",
+      });
+      handleMixPayment();
       return;
     }
 
