@@ -1,0 +1,1138 @@
+/**
+ * Retail customer-ledger transaction list — extracted VERBATIM from
+ * `CustomerLedger.tsx` retail `queryFn` (the branch after the school/student
+ * early-return). Do not "simplify" this module: desktop output is the spec.
+ *
+ * School/fee ledgers stay in `CustomerLedger.tsx`.
+ */
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { format } from "date-fns";
+import { supabase as defaultClient } from "@/integrations/supabase/client";
+import {
+  reconcileSaleInvoiceDisplay,
+  splitSaleLinkedReceiptRows,
+} from "@/utils/customerBalanceUtils";
+import { residualPaymentAtSaleTender, residualTenderBreakdown } from "@/utils/customerAuditBundle";
+import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import { saleReturnRunningBalanceCredit } from "@/utils/customerLedgerSaleReturnBalance";
+import { isCnRefundPaymentVoucher } from "@/utils/cnRefundVoucher";
+import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
+import { fetchAdvanceRefundsForAdvances } from "@/utils/advanceRefundService";
+
+export interface CustomerLedgerTransaction {
+  id: string;
+  date: string;
+  timestamp: string | null;
+  type: 'invoice' | 'payment' | 'advance' | 'advance_application' | 'adjustment' | 'fee' | 'return' | 'refund' | 'adv_refund' | 'cn_refund' | 'credit_note' | 'cn_adjusted';
+  reference: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+  paymentStatus?: string;
+  paymentBreakdown?: {
+    cash?: number;
+    card?: number;
+    upi?: number;
+    method?: string;
+    /** Cash/UPI/card actually received on a receipt voucher (excl. settlement discount). */
+    cashReceived?: number;
+    settlementDiscount?: number;
+    discountReason?: string;
+  };
+  appliedAmount?: number;
+  status?: string;
+  amount?: number;
+  /** Optional display-only amounts used to show GROSS invoice or informational
+   *  offset rows without changing the balance math. When undefined, falls back
+   *  to debit/credit. */
+  displayDebit?: number;
+  displayCredit?: number;
+  /** Full bill before CN/S/R applied on this invoice (Sales Dashboard amount). */
+  grossBill?: number;
+  /** CN/S/R absorbed on this invoice via `sales.sale_return_adjust`. */
+  saleReturnAdjustApplied?: number;
+  /** Informational/secondary row — rendered with muted styling and EXCLUDED
+   *  from the totals row to avoid double-counting. */
+  informational?: boolean;
+  /** Advance booking remaining = amount − used_amount (same as list unused calc). */
+  advanceRemaining?: number;
+}
+
+const cleanDescription = (desc: string) => {
+  return (desc || "")
+    .replace(/\(info only\)/gi, "")
+    .replace(/info only/gi, "")
+    .trim();
+};
+
+export type FetchCustomerLedgerDateRange = {
+  startDate: Date | null;
+  endDate: Date | null;
+};
+
+/**
+ * Dual-run / staging harness. Same body as desktop retail queryFn.
+ * `customerOpeningBalance` is the list-row value (`Math.round(customers.opening_balance)`).
+ * When omitted, loaded from `customers.opening_balance` (rounded) so mobile callers
+ * that only have ids still match desktop.
+ */
+export async function fetchCustomerLedgerTransactionsWithClient(
+  supabase: SupabaseClient,
+  organizationId: string,
+  customerId: string,
+  dateRange?: FetchCustomerLedgerDateRange,
+  openingBalanceOverride?: number,
+): Promise<CustomerLedgerTransaction[]> {
+  const startDate = dateRange?.startDate ?? undefined;
+  const endDate = dateRange?.endDate ?? undefined;
+
+  let resolvedOpening = openingBalanceOverride;
+  if (resolvedOpening === undefined) {
+    const { data: customerRow, error: customerRowError } = await supabase
+      .from("customers")
+      .select("opening_balance")
+      .eq("id", customerId)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    if (customerRowError) throw customerRowError;
+    resolvedOpening = Math.round(Number(customerRow?.opening_balance || 0));
+  }
+  const customerOpeningBalance = resolvedOpening || 0;
+
+  // First, get ALL sales for this customer (without date filter) to get all possible reference_ids
+  const { data: allCustomerSales, error: allSalesError } = await supabase
+    .from("sales")
+    .select("id")
+    .eq("customer_id", customerId)
+    .is("deleted_at", null)
+    .neq("payment_status", "hold");
+
+  if (allSalesError) throw allSalesError;
+
+  const allSaleIds = allCustomerSales?.map(s => s.id) || [];
+
+  // Build date filter for displayed sales
+  let salesQuery = supabase
+    .from("sales")
+    .select("*, created_at")
+    .eq("customer_id", customerId)
+    .is("deleted_at", null)
+    .neq("payment_status", "hold")
+    .eq("is_cancelled", false);
+
+  // Apply date filters - normalize dates to yyyy-MM-dd format for accurate comparison
+  if (startDate) {
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    salesQuery = salesQuery.gte("sale_date", startDateStr);
+  }
+  if (endDate) {
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    salesQuery = salesQuery.lte("sale_date", endDateStr);
+  }
+
+  const { data: salesData, error: salesError } = await salesQuery.order("sale_date", { ascending: true });
+
+  if (salesError) throw salesError;
+
+  // Build voucher query - fetch all payments for ANY of this customer's invoices
+  let vouchersQuery = supabase
+    .from("voucher_entries")
+    .select("*")
+    .in("voucher_type", ["receipt", "payment"])
+    .is("deleted_at", null)
+    .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
+
+  // Apply date filters to vouchers
+  if (startDate) {
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    vouchersQuery = vouchersQuery.gte("voucher_date", startDateStr);
+  }
+  if (endDate) {
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    vouchersQuery = vouchersQuery.lte("voucher_date", endDateStr);
+  }
+
+  const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: true });
+
+  if (vouchersError) throw vouchersError;
+
+  // Also fetch opening balance payments (reference_type = 'customer')
+  let openingBalanceQuery = supabase
+    .from("voucher_entries")
+    .select("*")
+    .eq("reference_type", "customer")
+    .eq("reference_id", customerId)
+    .in("voucher_type", ["receipt", "payment"])
+    .is("deleted_at", null);
+
+  if (startDate) {
+    openingBalanceQuery = openingBalanceQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  const { data: openingBalancePayments, error: openingError } = await openingBalanceQuery.order("voucher_date", { ascending: true });
+
+  if (openingError) throw openingError;
+
+  // Merge invoice payments and opening balance payments
+  // Exclude payment-type (refund) vouchers for sale returns — they are already
+  // represented by the Sale Return entry with "(Cash Refunded)" label
+  let allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
+    .filter((v: any) => {
+      // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
+      if (v.voucher_type === 'receipt') {
+        const desc = (v.description || '').toLowerCase();
+        // Credit note adjustments are already represented by the Sale Return entry (cn_adjustment)
+        if (desc.includes('credit note adjusted') || desc.includes('cn adjusted')) {
+          return false;
+        }
+        return true;
+      }
+      return true;
+    });
+
+  // Fetch customer advances
+  let advancesQuery = supabase
+    .from("customer_advances")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId);
+
+  if (startDate) {
+    advancesQuery = advancesQuery.gte("advance_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    advancesQuery = advancesQuery.lte("advance_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  const { data: advancesData, error: advancesError } = await advancesQuery.order("advance_date", { ascending: true });
+
+  if (advancesError) throw advancesError;
+
+  // Fetch balance adjustments
+  let adjustmentsQuery = (supabase as any)
+    .from("customer_balance_adjustments")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId);
+
+  if (startDate) {
+    adjustmentsQuery = adjustmentsQuery.gte("adjustment_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    adjustmentsQuery = adjustmentsQuery.lte("adjustment_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  const { data: adjustmentsData, error: adjustmentsError } = await adjustmentsQuery.order("created_at", { ascending: true });
+
+  if (adjustmentsError) throw adjustmentsError;
+
+  // Fetch ALL sale returns for this customer (all statuses)
+  let saleReturnsQuery = supabase
+    .from("sale_returns")
+    .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, credit_note_id, created_at")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (startDate) {
+    saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    saleReturnsQuery = saleReturnsQuery.lte("return_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  const { data: saleReturnsData, error: saleReturnsError } = await saleReturnsQuery.order("return_date", { ascending: true });
+  if (saleReturnsError) throw saleReturnsError;
+
+  // Include sale-return refund payment vouchers even when they still point to an old/orphan customer_id.
+  // We map by return_number mentioned in voucher description.
+  const returnNumbers = (saleReturnsData || [])
+    .map((sr: any) => String(sr.return_number || "").trim())
+    .filter(Boolean);
+  if (returnNumbers.length > 0) {
+    const orFilter = returnNumbers
+      .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
+      .join(",");
+    if (orFilter) {
+      const { data: saleReturnRefundVouchers } = await supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .eq("voucher_type", "payment")
+        .eq("reference_type", "customer")
+        .is("deleted_at", null)
+        .or(orFilter)
+        .order("voucher_date", { ascending: true });
+
+      if (saleReturnRefundVouchers?.length) {
+        const byId = new Map<string, any>();
+        [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
+          if (v?.id) byId.set(v.id, v);
+        });
+        allVouchers = Array.from(byId.values());
+      }
+    }
+  }
+
+  // Get linked sale numbers for display
+  const linkedSaleIds = (saleReturnsData || []).filter((sr: any) => sr.linked_sale_id).map((sr: any) => sr.linked_sale_id);
+  let linkedSaleMap: Record<string, string> = {};
+  if (linkedSaleIds.length > 0) {
+    const { data: linkedSales } = await supabase
+      .from("sales")
+      .select("id, sale_number")
+      .in("id", linkedSaleIds);
+    linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
+  }
+
+  // Build applied-CN map: sale_return_id -> { saleId, saleNumber, applied }[]
+  // by reading credit_note_adjustment vouchers that target each linked sale.
+  // We sum CN-adjustment voucher amounts per linked_sale_id, and attribute
+  // them to the SR that links to that sale. If multiple SRs link to the
+  // same sale, applied amount is allocated in chronological order up to
+  // each SR's net_amount.
+  const cnVoucherBySaleId: Record<string, number> = {};
+  (vouchersData || []).forEach((v: any) => {
+    if (v.voucher_type !== 'receipt') return;
+    const desc = (v.description || '').toLowerCase();
+    const isCn = v.payment_method === 'credit_note_adjustment'
+      || desc.includes('credit note adjusted')
+      || desc.includes('cn adjusted');
+    if (!isCn || !v.reference_id) return;
+    cnVoucherBySaleId[v.reference_id] =
+      (cnVoucherBySaleId[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+  });
+
+  // Allocate applied amount per SR (chronological by return_date)
+  const srAppliedMap: Record<string, { saleId: string; saleNumber: string | null; applied: number }> = {};
+  const remainingBySale: Record<string, number> = { ...cnVoucherBySaleId };
+  const sortedSRs = [...(saleReturnsData || [])]
+    .filter((sr: any) => sr.linked_sale_id)
+    .sort((a: any, b: any) =>
+      new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
+      || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+  sortedSRs.forEach((sr: any) => {
+    const saleId = sr.linked_sale_id;
+    const remaining = remainingBySale[saleId] || 0;
+    if (remaining <= 0) return;
+    const applied = Math.min(remaining, Number(sr.net_amount) || 0);
+    srAppliedMap[sr.id] = {
+      saleId,
+      saleNumber: linkedSaleMap[saleId] || null,
+      applied,
+    };
+    remainingBySale[saleId] = remaining - applied;
+  });
+
+  // Pass 2: Distribute any leftover voucher balance to UNLINKED SRs of this
+  // customer (chronological). This handles cases where multiple SRs were
+  // applied via sales.sale_return_adjust at billing time but only one was
+  // recorded with linked_sale_id, leaving the rest "phantom pending".
+  const unlinkedSRs = [...(saleReturnsData || [])]
+    .filter((sr: any) => !sr.linked_sale_id)
+    .sort((a: any, b: any) =>
+      new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
+      || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    );
+  const saleIdsWithRemainder = Object.keys(remainingBySale).filter(
+    (sid) => (remainingBySale[sid] || 0) > 0
+  );
+  for (const sr of unlinkedSRs) {
+    let srRemaining = Number(sr.net_amount) || 0;
+    if (srRemaining <= 0) continue;
+    for (const sid of saleIdsWithRemainder) {
+      const avail = remainingBySale[sid] || 0;
+      if (avail <= 0) continue;
+      const take = Math.min(avail, srRemaining);
+      if (take <= 0) continue;
+      // Use first sale we attribute against (most common case is one sale)
+      if (!srAppliedMap[sr.id]) {
+        srAppliedMap[sr.id] = {
+          saleId: sid,
+          saleNumber: linkedSaleMap[sid] || null,
+          applied: take,
+        };
+      } else {
+        srAppliedMap[sr.id].applied += take;
+      }
+      remainingBySale[sid] = avail - take;
+      srRemaining -= take;
+      if (srRemaining <= 0) break;
+    }
+  }
+
+  // Fetch advance refunds for this customer
+  const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
+  let filteredAdvanceRefunds: any[] = [];
+  if (customerAdvanceIds.length > 0) {
+    filteredAdvanceRefunds = await fetchAdvanceRefundsForAdvances(
+      supabase,
+      organizationId,
+      customerAdvanceIds,
+      { includeAdvanceNumber: true },
+    );
+  }
+
+  // Fetch credit notes for this customer
+  let creditNotesQuery = supabase
+    .from("credit_notes")
+    .select("id, credit_note_number, issue_date, credit_amount, used_amount, status, notes, sale_id, created_at")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (startDate) {
+    creditNotesQuery = creditNotesQuery.gte("issue_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    creditNotesQuery = creditNotesQuery.lte("issue_date", format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+  }
+
+  const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
+
+
+  // Calculate total voucher payments per sale to exclude from "payment at sale"
+  const saleReceiptSplitMap = splitSaleLinkedReceiptRows(
+    [...(vouchersData || []), ...(openingBalancePayments || [])]
+      .filter((v: any) => v.voucher_type === "receipt")
+      .map((v: any) => ({
+        reference_id: v.reference_id,
+        total_amount: v.total_amount,
+        discount_amount: v.discount_amount,
+        payment_method: v.payment_method,
+        description: v.description,
+      })),
+  );
+
+  // Align sales.paid_amount / payment_status with receipts (incl. settlement discount)
+  for (const sale of salesData || []) {
+    const split = saleReceiptSplitMap.get(sale.id);
+    if (!split) continue;
+    const { paidAmount, paymentStatus } = derivePaidAndStatus({
+      netAmount: Number(sale.net_amount || 0),
+      saleReturnAdjust: Number(sale.sale_return_adjust || 0),
+      cashReceived: split.cash,
+      advanceApplied: split.adv,
+      cnApplied: split.cn,
+      discountGiven: split.discount,
+    });
+    const prevPaid = Number(sale.paid_amount || 0);
+    const prevStatus = String(sale.payment_status || "");
+    if (
+      Math.abs(prevPaid - paidAmount) > 0.009 ||
+      prevStatus !== paymentStatus
+    ) {
+      sale.paid_amount = paidAmount;
+      sale.payment_status = paymentStatus;
+      void supabase
+        .from("sales")
+        .update({ paid_amount: paidAmount, payment_status: paymentStatus })
+        .eq("id", sale.id)
+        .eq("organization_id", organizationId);
+    }
+  }
+
+  // Combine and sort transactions
+  const allTransactions: CustomerLedgerTransaction[] = [];
+
+  // When a date filter is active, compute the balance brought forward
+  // from all transactions BEFORE startDate so the running balance starts correctly.
+  let effectiveOpeningBalance = customerOpeningBalance || 0;
+
+  if (startDate) {
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+
+    // Sales prior to startDate
+    const { data: priorSales } = await supabase
+      .from('sales')
+      .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cash_amount, card_amount, upi_amount')
+      .eq('customer_id', customerId)
+      .is('deleted_at', null)
+      .neq('payment_status', 'hold')
+      .eq('is_cancelled', false)
+      .lt('sale_date', startDateStr);
+
+    const priorSaleIds = (priorSales || []).map((s: any) => s.id);
+
+    if (priorSaleIds.length > 0) {
+      const { data: priorVouchers } = await supabase
+        .from('voucher_entries')
+        .select('reference_id, total_amount, payment_method, description')
+        .in('reference_id', priorSaleIds)
+        .eq('voucher_type', 'receipt')
+        .is('deleted_at', null);
+
+      const priorCashVouchers: Record<string, number> = {};
+      (priorVouchers || []).forEach((v: any) => {
+        if (v.reference_id)
+          priorCashVouchers[v.reference_id] =
+            (priorCashVouchers[v.reference_id] || 0) + (v.total_amount || 0);
+      });
+
+      (priorSales || []).forEach((sale: any) => {
+        const receivable = Math.max(
+          0,
+          Number(sale.net_amount || 0) - Number(sale.sale_return_adjust || 0),
+        );
+        effectiveOpeningBalance += receivable;
+        const cashVoucher = priorCashVouchers[sale.id] || 0;
+        // Residual at-sale tender + voucher (same total as full tender or
+        // paid_amount, without double-counting overlapping cash).
+        const residualAtSale = residualPaymentAtSaleTender(sale, cashVoucher);
+        const fromPaid = Math.max(0, (Number(sale.paid_amount) || 0) - cashVoucher);
+        const paidAtSale = Math.max(residualAtSale, fromPaid);
+        effectiveOpeningBalance -= paidAtSale + cashVoucher;
+      });
+    }
+
+    // Prior advances reduce balance (credit)
+    const { data: priorAdv } = await supabase
+      .from('customer_advances')
+      .select('amount')
+      .eq('customer_id', customerId)
+      .eq('organization_id', organizationId)
+      .lt('advance_date', startDateStr);
+    (priorAdv || []).forEach((a: any) => { effectiveOpeningBalance -= a.amount || 0; });
+
+    // Prior actioned sale returns reduce balance
+    const { data: priorReturns } = await supabase
+      .from('sale_returns')
+      .select('net_amount, credit_status')
+      .eq('customer_id', customerId)
+      .eq('organization_id', organizationId)
+      .is('deleted_at', null)
+      .neq('credit_status', 'pending')
+      .neq('credit_status', 'adjusted')
+      .lt('return_date', startDateStr);
+    (priorReturns || []).forEach((sr: any) => { effectiveOpeningBalance -= sr.net_amount || 0; });
+  }
+
+  // Start with opening balance (computed B/F when date-filtered)
+  const openingBalance = effectiveOpeningBalance;
+  let runningBalance = openingBalance;
+
+  // Add opening balance as first entry if it exists
+  if (openingBalance !== 0) {
+    allTransactions.push({
+      id: 'opening-balance',
+      date: '1900-01-01',
+      timestamp: null,
+      type: 'invoice',
+      reference: 'Opening',
+      description: startDate ? 'Balance B/F (as of filter start date)' : 'Opening Balance (Carried Forward)',
+      debit: openingBalance > 0 ? openingBalance : 0,
+      credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
+      balance: runningBalance,
+    });
+  }
+
+  // Merge sales, payments, and advances chronologically
+  // Build a set of sale IDs that already carry at-sale tender (cash/card/upi).
+  // Any "Phase 4 backfill" voucher pointing at those sales is a historical
+  // duplicate of the synthesised "Payment at sale" row and must be skipped,
+  // otherwise the ledger double-counts the receipt.
+  const salesWithAtSaleTender = new Set<string>(
+    (salesData || [])
+      .filter((s: any) =>
+        (Number(s.cash_amount) || 0) +
+          (Number(s.card_amount) || 0) +
+          (Number(s.upi_amount) || 0) >
+        0
+      )
+      .map((s: any) => s.id)
+  );
+  const combined = [
+    ...salesData.map((sale) => ({
+      date: sale.sale_date,
+      timestamp: sale.created_at,
+      type: 'invoice' as const,
+      data: sale,
+    })),
+    // Include all vouchers including advance-application entries
+    ...allVouchers
+      .filter((voucher: any) => {
+        const desc = String(voucher.description || '');
+        if (!desc.toLowerCase().startsWith('phase 4 backfill')) return true;
+        // Drop the backfill duplicate when the linked sale already
+        // accounts for the tender via cash/card/upi columns.
+        return !(voucher.reference_id && salesWithAtSaleTender.has(voucher.reference_id));
+      })
+      .map((voucher: any) => ({
+        date: voucher.voucher_date,
+        timestamp: voucher.created_at,
+        type: (
+          voucher.payment_method === 'advance_adjustment' ||
+          voucher.payment_method === 'credit_note_adjustment' ||
+          (voucher.description && (
+            voucher.description.toLowerCase().includes('adjusted from advance balance') ||
+            voucher.description.toLowerCase().includes('advance adjusted')
+          ))
+        ) ? 'advance_application' as const : 'payment' as const,
+        data: voucher,
+      })),
+    ...(advancesData || []).map((advance) => ({
+      date: advance.advance_date,
+      timestamp: advance.created_at,
+      type: 'advance' as const,
+      data: advance,
+    })),
+    ...(adjustmentsData || []).map((adj: any) => ({
+      date: adj.adjustment_date,
+      timestamp: adj.created_at,
+      type: 'adjustment' as const,
+      data: adj,
+    })),
+    ...(saleReturnsData || []).map((sr: any) => ({
+      date: sr.return_date,
+      timestamp: sr.created_at,
+      type: 'cn_adjustment' as const,
+      data: { ...sr, linkedSaleNumber: linkedSaleMap[sr.linked_sale_id] || null },
+    })),
+    ...(filteredAdvanceRefunds || []).map((refund: any) => ({
+      date: refund.refund_date,
+      timestamp: refund.created_at,
+      type: 'adv_refund' as const,
+      data: refund,
+    })),
+    ...(creditNotesData || [])
+      .filter((cn: any) => {
+        // Skip CNs already represented by a Sale Return row (same ledger amount,
+        // would otherwise double-count). Match by SR.credit_note_id (authoritative
+        // link) OR by the legacy sale_id heuristic.
+        const linkedBySr = (saleReturnsData || []).some(
+          (sr: any) => sr.credit_note_id === cn.id
+        );
+        if (linkedBySr) return false;
+        const linkedBySaleId = cn.sale_id && (saleReturnsData || []).some(
+          (sr: any) => sr.linked_sale_id === cn.sale_id
+        );
+        return !linkedBySaleId;
+      })
+      .map((cn: any) => ({
+        date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+        timestamp: cn.created_at,
+        type: 'credit_note' as const,
+        data: cn,
+      })),
+  ].sort((a, b) => {
+    const sortMs = (item: (typeof combined)[0]) =>
+      item.timestamp ? new Date(item.timestamp).getTime() : new Date(item.date).getTime();
+    const tsA = sortMs(a);
+    const tsB = sortMs(b);
+    if (tsA !== tsB) return tsA - tsB;
+    // Same moment: invoice before payment (then other types)
+    const typeOrder: Record<string, number> = {
+      invoice: 0,
+      cn_adjustment: 1,
+      advance: 1,
+      refund: 1,
+      adv_refund: 1,
+      cn_refund: 1,
+      credit_note: 1,
+      advance_application: 1.5,
+      payment: 2,
+      adjustment: 3,
+    };
+    return (typeOrder[a.type] ?? 1) - (typeOrder[b.type] ?? 1);
+  });
+
+  combined.forEach((item) => {
+    if (item.type === 'invoice') {
+      const sale = item.data as any;
+      const isCancelled = sale.payment_status === 'cancelled';
+      const saleReturnAdjust = Number(sale.sale_return_adjust || 0);
+      const grossBill = Number(sale.net_amount || 0);
+      const isExchangeCoveredByReturn =
+        saleReturnAdjust > 0 && grossBill > 0 && saleReturnAdjust >= grossBill;
+      // Receivable on this invoice (matches Sales Invoice Dashboard & balance RPC).
+      const invoiceDebit = Math.max(0, grossBill - saleReturnAdjust);
+      if (!isCancelled) {
+        runningBalance += invoiceDebit;
+      }
+      
+      // Build payment breakdown for display
+      const paymentBreakdown: any = {};
+      if (sale.cash_amount && sale.cash_amount > 0) paymentBreakdown.cash = sale.cash_amount;
+      if (sale.card_amount && sale.card_amount > 0) paymentBreakdown.card = sale.card_amount;
+      if (sale.upi_amount && sale.upi_amount > 0) paymentBreakdown.upi = sale.upi_amount;
+
+      const split = saleReceiptSplitMap.get(sale.id) ?? {
+        cash: 0,
+        cn: 0,
+        adv: 0,
+        discount: 0,
+      };
+      const recDisplay = reconcileSaleInvoiceDisplay({
+        net_amount: sale.net_amount,
+        sale_return_adjust: sale.sale_return_adjust,
+        paid_amount: sale.paid_amount,
+        split,
+      });
+      const invoiceDescription = `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${recDisplay.payment_status}`;
+
+      allTransactions.push({
+        id: sale.id,
+        date: sale.sale_date,
+        timestamp: item.timestamp || null,
+        type: 'invoice',
+        reference: sale.sale_number,
+        description: invoiceDescription,
+        debit: isCancelled ? 0 : invoiceDebit,
+        credit: 0,
+        grossBill: isCancelled ? 0 : grossBill,
+        saleReturnAdjustApplied: isCancelled ? 0 : saleReturnAdjust,
+        displayDebit: isCancelled ? 0 : grossBill > invoiceDebit ? grossBill : invoiceDebit,
+        balance: runningBalance,
+        paymentStatus: isCancelled ? sale.payment_status : recDisplay.payment_status,
+        paymentBreakdown: Object.keys(paymentBreakdown).length > 0 ? paymentBreakdown : undefined,
+      });
+
+      if (!isCancelled && saleReturnAdjust > 0) {
+        allTransactions.push({
+          id: `${sale.id}-cn-applied`,
+          date: sale.sale_date,
+          timestamp: item.timestamp || null,
+          type: 'cn_adjusted',
+          reference: sale.sale_number,
+          description: `↳ CN / S/R adjusted on ${sale.sale_number} (pending CN applied to bill)`,
+          debit: 0,
+          credit: 0,
+          displayDebit: 0,
+          displayCredit: saleReturnAdjust,
+          balance: runningBalance,
+          informational: true,
+        });
+      }
+
+      // Skip payment processing for cancelled invoices
+      if (isCancelled) return;
+
+      // "Payment at sale" = residual tender on cash/card/upi not already
+      // represented by sale-linked cash receipts. POS bills often have both
+      // at-sale tender columns AND an RCP ("Payment received for POS sale…");
+      // crediting both double-counts overpayment. Voucher receipts stay as
+      // separate rows from `allVouchers` below.
+      const voucherCashOnSale = isExchangeCoveredByReturn
+        ? 0
+        : Number(split.cash || 0);
+      const paidAtSale = isExchangeCoveredByReturn
+        ? 0
+        : residualPaymentAtSaleTender(sale, voucherCashOnSale);
+      
+      if (paidAtSale > 0) {
+        runningBalance -= paidAtSale;
+        const tenderParts = residualTenderBreakdown(sale, paidAtSale);
+        
+        // Build payment description with residual breakdown
+        const paymentParts: string[] = [];
+        if (tenderParts.cash > 0) paymentParts.push(`Cash: ₹${tenderParts.cash.toLocaleString('en-IN')}`);
+        if (tenderParts.card > 0) paymentParts.push(`Card: ₹${tenderParts.card.toLocaleString('en-IN')}`);
+        if (tenderParts.upi > 0) paymentParts.push(`UPI: ₹${tenderParts.upi.toLocaleString('en-IN')}`);
+        
+        allTransactions.push({
+          id: `${sale.id}-payment-at-sale`,
+          date: sale.sale_date,
+          timestamp: item.timestamp || null,
+          type: 'payment',
+          reference: sale.sale_number,
+          description: `Payment at sale${paymentParts.length > 0 ? ' - ' + paymentParts.join(', ') : ''}`,
+          debit: 0,
+          credit: paidAtSale,
+          balance: runningBalance,
+          paymentBreakdown: {
+            cash: tenderParts.cash,
+            card: tenderParts.card,
+            upi: tenderParts.upi,
+          },
+        });
+      }
+
+      // ── Refund outflow row ────────────────────────────────────────
+      // For invoices saved with refund_amount > 0 (negative-net Mix
+      // refund where cash was paid OUT of the drawer to the customer),
+      // record an offsetting DEBIT so the customer balance doesn't
+      // double-count the SR credit. Detected via negative cash/upi/card
+      // (set by POSSales handleMixPaymentSave) — falls back to
+      // refund_amount for legacy data with mode=cash.
+      const refundAmt = Number(sale.refund_amount) || 0;
+      if (refundAmt > 0) {
+        const negCash = sale.cash_amount < 0 ? Math.abs(sale.cash_amount) : 0;
+        const negUpi = sale.upi_amount < 0 ? Math.abs(sale.upi_amount) : 0;
+        const negCard = sale.card_amount < 0 ? Math.abs(sale.card_amount) : 0;
+        const refundOut = negCash + negUpi + negCard || refundAmt;
+        const refundParts: string[] = [];
+        if (negCash > 0) refundParts.push(`Cash: ₹${negCash.toLocaleString('en-IN')}`);
+        if (negUpi > 0) refundParts.push(`UPI: ₹${negUpi.toLocaleString('en-IN')}`);
+        if (negCard > 0) refundParts.push(`Bank: ₹${negCard.toLocaleString('en-IN')}`);
+        const refundDesc = `Refund paid for ${sale.sale_number}${refundParts.length > 0 ? ' - ' + refundParts.join(', ') : ''}`;
+        runningBalance += refundOut;
+        allTransactions.push({
+          id: `${sale.id}-refund-out`,
+          date: sale.sale_date,
+          timestamp: item.timestamp || null,
+          type: 'refund',
+          reference: sale.sale_number,
+          description: refundDesc,
+          debit: refundOut,
+          credit: 0,
+          balance: runningBalance,
+        });
+      }
+    } else if (item.type === 'advance') {
+      // Handle advance booking entries
+      const advance = item.data as any;
+      const availableAmount = (advance.amount || 0) - (advance.used_amount || 0);
+      
+      // Advances reduce the customer's balance (credit)
+      runningBalance -= advance.amount;
+      
+      const paymentMethodText = advance.payment_method 
+        ? advance.payment_method.charAt(0).toUpperCase() + advance.payment_method.slice(1)
+        : 'Cash';
+      
+      let description = `Advance Booking - ${paymentMethodText}`;
+      if (advance.description) {
+        description += ` - ${advance.description}`;
+      }
+      if (advance.status === 'fully_used') {
+        description += ' — Fully Applied to Invoice(s)';
+      } else if (advance.used_amount > 0) {
+        description += ` — Partially Applied (₹${advance.used_amount.toLocaleString('en-IN')} used, ₹${availableAmount.toLocaleString('en-IN')} remaining)`;
+      } else {
+        description += ' — Available for Invoice Settlement';
+      }
+      
+      allTransactions.push({
+        id: advance.id,
+        date: advance.advance_date,
+        timestamp: item.timestamp || null,
+        type: 'advance',
+        reference: advance.advance_number,
+        description: description,
+        debit: 0,
+        credit: advance.amount,
+        balance: runningBalance,
+        paymentBreakdown: advance.payment_method ? { method: advance.payment_method } : undefined,
+        advanceRemaining: Math.max(0, Math.round(availableAmount)),
+      });
+    } else if (item.type === 'advance_application') {
+      // Advance or CN applied to invoice: memo-only — does not change running balance
+      // or Dr/Cr totals (advance booking + invoices already reflect economics).
+      const voucher = item.data as any;
+      const amount = Number(voucher.total_amount) || 0;
+      const isCnApply = voucher.payment_method === 'credit_note_adjustment';
+
+      // Resolve linked invoice number from reference_id when possible,
+      // otherwise fall back to parsing the voucher description.
+      let linkedSaleNumber = '';
+      if (voucher.reference_id) {
+        const linkedSale = (salesData || []).find((s: any) => s.id === voucher.reference_id);
+        if (linkedSale) linkedSaleNumber = linkedSale.sale_number;
+      }
+      if (!linkedSaleNumber) {
+        linkedSaleNumber = voucher.description?.replace('Adjusted from advance balance for ', '') || '';
+      }
+
+      // Short marker only — explained once in the ledger legend (in-app + PDF).
+      const memo = ` [Memo — ₹${amount.toLocaleString("en-IN")}]`;
+      const description = isCnApply
+        ? linkedSaleNumber
+          ? cleanDescription(`Credit note applied to ${linkedSaleNumber}${memo}`)
+          : cleanDescription(`Credit note applied${memo}`)
+        : linkedSaleNumber
+          ? cleanDescription(`Advance applied to ${linkedSaleNumber}${memo}`)
+          : cleanDescription(`Advance applied${memo}`);
+
+      allTransactions.push({
+        id: voucher.id,
+        date: voucher.voucher_date,
+        timestamp: item.timestamp || null,
+        type: 'advance_application',
+        reference: voucher.voucher_number || 'ADV-APP',
+        description,
+        debit: 0,
+        credit: 0,
+        balance: runningBalance,
+        appliedAmount: amount,
+        status: 'applied',
+      });
+    } else if (item.type === 'adjustment') {
+      const adj = item.data as any;
+      const outDiff = adj.outstanding_difference || 0;
+      const advDiff = adj.advance_difference || 0;
+      // When advance is reduced (advDiff < 0), show as debit (advance credit reversed)
+      // When advance is increased (advDiff > 0), skip here (new advance record handles it)
+      const advanceConsumed = advDiff < 0 ? Math.abs(advDiff) : 0;
+      const netDebit = (outDiff > 0 ? outDiff : 0) + advanceConsumed;
+      const netCredit = outDiff < 0 ? Math.abs(outDiff) : 0;
+      runningBalance += netDebit - netCredit;
+      
+      let adjDescription = `Balance Adjustment: ${adj.reason}`;
+      if (advanceConsumed > 0) {
+        adjDescription += ` (Advance Refund: ₹${advanceConsumed.toLocaleString('en-IN')})`;
+      }
+      
+      allTransactions.push({
+        id: adj.id,
+        date: adj.adjustment_date,
+        timestamp: item.timestamp || null,
+        type: 'adjustment',
+        reference: 'ADJ',
+        description: adjDescription,
+        debit: netDebit,
+        credit: netCredit,
+        balance: runningBalance,
+      });
+    } else if (item.type === 'cn_adjustment') {
+      const sr = item.data as any;
+      const amount = Number(sr.net_amount || 0);
+      const appliedInfo = srAppliedMap[sr.id];
+      const appliedAmount = appliedInfo?.applied || 0;
+      const linkedSaleId = String(sr.linked_sale_id || "").trim();
+      const linkedSale = linkedSaleId
+        ? (salesData || []).find((s: any) => String(s.id) === linkedSaleId)
+        : null;
+      const absorbedOnInvoice = linkedSale
+        ? Math.min(amount, Number(linkedSale.sale_return_adjust || 0))
+        : 0;
+      const unusedAmount = Math.max(0, amount - appliedAmount);
+      // The amount is "consumed" if it was absorbed on a directly-linked invoice
+      // (sale_return_adjust) OR if FIFO distribution in srAppliedMap matched it
+      // to a credit_note_adjustment voucher on a different invoice (orphan SR
+      // with credit_status='adjusted'/'partially_adjusted' but linked_sale_id NULL).
+      // Without this guard the SR gets double-credited: once via the invoice's
+      // sale_return_adjust net-down, again as a standalone CN credit line.
+      const consumedAmount = Math.max(absorbedOnInvoice, appliedAmount);
+      // Remaining after CN application — for CN Available / status / recon
+      // saleReturns (t.credit). Must NOT drive the running Balance column.
+      const remainingCredit = Math.max(0, amount - consumedAmount);
+
+      // Skip SRs fully absorbed on a linked invoice via sales.sale_return_adjust
+      // (pending CN applied on Sales Dashboard — same as buildAuditRows / balance RPC).
+      if (String(sr.credit_status || '').toLowerCase() === 'adjusted' && linkedSaleId) {
+        return;
+      }
+      if (remainingCredit <= 0 && consumedAmount > 0) {
+        const memoSaleNumber =
+          (absorbedOnInvoice > 0 && linkedSale?.sale_number) ||
+          appliedInfo?.saleNumber ||
+          'invoice';
+        allTransactions.push({
+          id: `cn-memo-${sr.id}`,
+          date: sr.return_date,
+          timestamp: item.timestamp || null,
+          type: 'return' as const,
+          reference: sr.return_number,
+          description: `Sale Return applied to ${memoSaleNumber} via CN — ₹${consumedAmount.toLocaleString('en-IN')}`,
+          debit: 0,
+          credit: 0,
+          displayCredit: consumedAmount,
+          balance: runningBalance,
+          status: 'adjusted',
+          amount: consumedAmount,
+          informational: true,
+        });
+        return;
+      }
+
+      if (amount > 0 && remainingCredit > 0) {
+        // Running Balance must advance by GROSS return credit (same as Credit
+        // column via displayCredit). Using remainingCredit here double-deducted
+        // applied CN: balance moved net-of-applied, then the invoice still
+        // debited gross (Hanif bhai / SR×INV ₹3,200 → ended ₹150 Dr while
+        // column totals correctly showed ₹3,050 Cr gap).
+        runningBalance -= saleReturnRunningBalanceCredit(amount);
+
+        let status: string;
+        if (absorbedOnInvoice > 0 && remainingCredit <= 0) status = 'Fully Adjusted';
+        else if (appliedAmount > 0 && unusedAmount === 0) status = 'Fully Adjusted';
+        else if (appliedAmount > 0 && unusedAmount > 0)
+          status = `Partial — ₹${unusedAmount.toLocaleString('en-IN')} pending`;
+        else if (sr.credit_status === 'refunded') status = 'Cash Refunded';
+        else if (sr.credit_status === 'adjusted_outstanding') status = 'Adjusted to Outstanding';
+        else if (sr.credit_status === 'adjusted' && sr.linkedSaleNumber)
+          status = `Adjusted via CN against ${sr.linkedSaleNumber}`;
+        else status = 'Pending';
+
+        const appliedSummary = appliedAmount > 0 && appliedInfo?.saleNumber
+          ? ` — ₹${appliedAmount.toLocaleString('en-IN')} applied to ${appliedInfo.saleNumber}`
+          : '';
+        const absorbedSummary =
+          absorbedOnInvoice > 0 && remainingCredit > 0
+            ? ` (₹${absorbedOnInvoice.toLocaleString('en-IN')} on invoice, ₹${remainingCredit.toLocaleString('en-IN')} pending)`
+            : "";
+
+        const desc = `Sale Return [${status}]${appliedSummary}${absorbedSummary}`;
+        const srStatus: "pending" | "adjusted" =
+          remainingCredit > 0 &&
+          (/\bPending\b/i.test(status) || /Partial.*pending/i.test(status))
+            ? "pending"
+            : "adjusted";
+
+        allTransactions.push({
+          id: `cn-${sr.id}`,
+          date: sr.return_date,
+          timestamp: item.timestamp || null,
+          type: 'return' as const,
+          reference: sr.return_number,
+          description: desc,
+          debit: 0,
+          // Recon / CN Available use remaining; Credit column uses displayCredit (gross).
+          credit: remainingCredit,
+          displayCredit: amount,
+          balance: runningBalance,
+          status: srStatus,
+          amount: remainingCredit,
+        });
+      }
+    } else if (item.type === 'adv_refund') {
+      const refund = item.data as any;
+      const amount = refund.refund_amount || 0;
+      runningBalance += amount;
+
+      const methodText = refund.payment_method
+        ? refund.payment_method.charAt(0).toUpperCase() + refund.payment_method.slice(1)
+        : 'Cash';
+      let description = `Advance Refund - ${methodText}`;
+      if (refund.reason) description += ` (${refund.reason})`;
+      const advanceNo =
+        refund.customer_advances?.advance_number ||
+        (refund.advance_id ? String(refund.advance_id).slice(0, 8) : "");
+
+      allTransactions.push({
+        id: `adv-refund-${refund.id}`,
+        date: refund.refund_date,
+        timestamp: refund.created_at || null,
+        type: 'adv_refund',
+        reference: refund.refund_number || 'ARF',
+        description: advanceNo ? `${description} · ${advanceNo}` : description,
+        debit: amount,
+        credit: 0,
+        balance: runningBalance,
+      });
+    } else if (item.type === 'credit_note') {
+      const cn = item.data as any;
+      const amount = cn.credit_amount || 0;
+      runningBalance -= amount;
+
+      const usedText = cn.used_amount > 0
+        ? ` (Used: ₹${cn.used_amount.toLocaleString('en-IN')}, Remaining: ₹${(amount - cn.used_amount).toLocaleString('en-IN')})`
+        : '';
+
+      allTransactions.push({
+        id: `cn-${cn.id}`,
+        date: cn.issue_date ? cn.issue_date.substring(0, 10) : '',
+        timestamp: cn.created_at || null,
+        type: 'credit_note',
+        reference: cn.credit_note_number,
+        description: `Credit Note${cn.notes ? ` - ${cn.notes}` : ''}${usedText}`,
+        debit: 0,
+        credit: amount,
+        balance: runningBalance,
+      });
+    } else {
+      const voucher = item.data as any;
+      const cashReceived = Number(voucher.total_amount) || 0;
+      const discountAmount = Number(voucher.discount_amount) || 0;
+      const totalCredit = cashReceived + discountAmount;
+      if (voucher.voucher_type === 'payment' && voucher.reference_type === 'customer') {
+        if (isAdvanceRefundPaymentVoucher(voucher)) {
+          return;
+        }
+        runningBalance += totalCredit;
+        const cnRefund = isCnRefundPaymentVoucher(voucher);
+        allTransactions.push({
+          id: voucher.id,
+          date: voucher.voucher_date,
+          timestamp: item.timestamp || null,
+          type: cnRefund ? 'cn_refund' : 'refund',
+          reference: voucher.voucher_number,
+          description: cleanDescription(voucher.description || 'Payment / refund paid to customer'),
+          debit: totalCredit,
+          credit: 0,
+          balance: runningBalance,
+          paymentBreakdown: voucher.payment_method ? { method: voucher.payment_method } : undefined,
+        });
+        return;
+      }
+      runningBalance -= totalCredit;
+      
+      // Determine if this is an opening balance payment or invoice payment
+      const isOpeningBalancePayment = voucher.reference_type === 'customer';
+      const relatedSale = !isOpeningBalancePayment ? salesData.find(s => s.id === voucher.reference_id) : null;
+      const invoiceRef = relatedSale ? ` - for ${relatedSale.sale_number}` : '';
+      
+      let description = isOpeningBalancePayment
+        ? (voucher.description || 'Opening balance payment')
+        : (voucher.description || 'Payment received') + invoiceRef;
+      if (discountAmount > 0) {
+        description += ` — Received ₹${cashReceived.toLocaleString('en-IN')}, settlement discount ₹${discountAmount.toLocaleString('en-IN')}`;
+        if (voucher.discount_reason) {
+          description += ` (${voucher.discount_reason})`;
+        }
+      }
+
+      const receiptMethod =
+        voucher.payment_method || voucher.metadata?.paymentMethod || undefined;
+      allTransactions.push({
+        id: voucher.id,
+        date: voucher.voucher_date,
+        timestamp: item.timestamp || null,
+        type: 'payment',
+        reference: voucher.voucher_number,
+        description: cleanDescription(description),
+        debit: 0,
+        credit: totalCredit,
+        balance: runningBalance,
+        paymentBreakdown:
+          discountAmount > 0 || receiptMethod
+            ? {
+                method: receiptMethod,
+                cashReceived: cashReceived > 0 ? cashReceived : undefined,
+                settlementDiscount: discountAmount > 0 ? discountAmount : undefined,
+                discountReason: voucher.discount_reason || undefined,
+              }
+            : undefined,
+      });
+    }
+  });
+
+  // FIX 1 — Suppress "ghost" adjustment rows that have no debit, no credit
+  // and leave the running balance unchanged. They clutter the ledger
+  // without conveying any information.
+  const cleanedTransactions = allTransactions.filter((t, i, arr) => {
+    if (
+      t.type === 'adjustment' &&
+      (t.debit || 0) === 0 &&
+      (t.credit || 0) === 0 &&
+      i > 0 &&
+      t.balance === arr[i - 1].balance
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  return cleanedTransactions;
+
+}
+
+export async function fetchCustomerLedgerTransactions(
+  organizationId: string,
+  customerId: string,
+  dateRange?: FetchCustomerLedgerDateRange,
+  openingBalanceOverride?: number,
+): Promise<CustomerLedgerTransaction[]> {
+  return fetchCustomerLedgerTransactionsWithClient(
+    defaultClient,
+    organizationId,
+    customerId,
+    dateRange,
+    openingBalanceOverride,
+  );
+}
