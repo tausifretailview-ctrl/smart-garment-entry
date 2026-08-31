@@ -17,6 +17,7 @@ import {
 } from "@/utils/mobileInvoicePreviewData";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { cn } from "@/lib/utils";
+import { mobileInvoicePaymentBadge } from "@/components/mobile/mobileInvoicePaymentBadge";
 
 type Props = {
   saleId: string | null;
@@ -27,21 +28,17 @@ type Props = {
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(v);
 
-function statusBadgeClass(status: string | null | undefined) {
-  switch (status) {
+function statusBadgeClass(tone: string) {
+  switch (tone) {
     case "paid":
       return "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400";
     case "partial":
       return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400";
+    case "hold":
+      return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300";
     default:
       return "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950 dark:text-rose-400";
   }
-}
-
-function statusLabel(status: string | null | undefined) {
-  if (status === "paid") return "Paid";
-  if (status === "partial") return "Partial";
-  return "Pending";
 }
 
 export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
@@ -79,6 +76,7 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
   const paidAmount = sale?.paid_amount ?? 0;
   const returnAdjust = sale?.sale_return_adjust ?? 0;
   const pendingAmount = Math.max(0, (sale?.net_amount ?? 0) - paidAmount - returnAdjust);
+  const paymentBadge = mobileInvoicePaymentBadge(sale?.payment_status, pendingAmount, paidAmount);
 
   const handleShare = () => {
     if (!sale) return;
@@ -115,7 +113,7 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
       <Sheet open={open} onOpenChange={handleClose}>
         <SheetContent
           side="bottom"
-          className="h-[min(92vh,780px)] rounded-t-2xl p-0 flex flex-col gap-0 [&>button]:hidden"
+          className="inset-x-0 bottom-0 top-0 h-[100dvh] max-h-[100dvh] rounded-t-2xl p-0 flex flex-col gap-0 overflow-hidden [&>button]:hidden"
         >
           {isLoading ? (
             <div className="flex flex-col h-full">
@@ -150,8 +148,8 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
                       <p className="text-sm font-bold font-mono text-foreground truncate">
                         {sale.sale_number}
                       </p>
-                      <Badge variant="outline" className={cn("text-[10px] h-5", statusBadgeClass(sale.payment_status))}>
-                        {statusLabel(sale.payment_status)}
+                      <Badge variant="outline" className={cn("text-[10px] h-5", statusBadgeClass(paymentBadge.tone))}>
+                        {paymentBadge.label}
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -200,7 +198,7 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
 
                 {/* Items table */}
                 <div className="rounded-xl border border-border/50 overflow-hidden mb-4">
-                  <div className="grid grid-cols-[1.5rem_1fr_2.5rem_2rem_3.5rem_3.5rem] gap-x-1 bg-muted/40 px-2 py-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                  <div className="grid grid-cols-[1.25rem_minmax(0,1fr)_2.25rem_1.75rem_2.75rem_3.25rem] gap-x-1 bg-muted/40 px-2 py-2 text-[10px] font-semibold text-muted-foreground uppercase">
                     <span>#</span>
                     <span>Product</span>
                     <span className="text-center">Size</span>
@@ -212,16 +210,18 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
                     {sale.sale_items.map((item, idx) => (
                       <div
                         key={`${item.product_name}-${idx}`}
-                        className="grid grid-cols-[1.5rem_1fr_2.5rem_2rem_3.5rem_3.5rem] gap-x-1 px-2 py-2 text-[13px] items-start"
+                        className="grid grid-cols-[1.25rem_minmax(0,1fr)_2.25rem_1.75rem_2.75rem_3.25rem] gap-x-1 px-2 py-2 text-[13px] items-start"
                       >
                         <span className="text-muted-foreground tabular-nums">{idx + 1}</span>
-                        <span className="font-medium text-foreground leading-tight truncate">{item.product_name}</span>
+                        <span className="min-w-0 font-medium text-foreground leading-tight line-clamp-2 break-words">
+                          {item.product_name}
+                        </span>
                         <span className="text-center text-muted-foreground text-xs">{item.size || "—"}</span>
                         <span className="text-center tabular-nums">{item.quantity ?? 0}</span>
-                        <span className="text-right tabular-nums text-xs">
+                        <span className="text-right tabular-nums text-xs font-mono">
                           {Math.round(item.unit_price || 0).toLocaleString("en-IN")}
                         </span>
-                        <span className="text-right tabular-nums font-medium">
+                        <span className="text-right tabular-nums font-medium font-mono">
                           {Math.round(item.line_total || 0).toLocaleString("en-IN")}
                         </span>
                       </div>
