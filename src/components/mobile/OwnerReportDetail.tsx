@@ -26,6 +26,7 @@ import {
   MobileItemWiseSalesReport,
   MobileCustomerWiseSalesReport,
   MobileSalesmanWiseSalesReport,
+  MobileTopSellingProductsReport,
   MobileItemWiseStockReport,
   MobileNetProfitReport,
   MobileStockReport,
@@ -73,6 +74,7 @@ const TITLES: Record<ReportType, string> = {
   "item-wise-sales": "Item-wise Sale",
   "customer-wise-sales": "Customer-wise Sale",
   "salesman-wise-sales": "Salesman-wise Sale",
+  "top-selling-products": "Top Selling Products",
   "item-wise-stock": "Item-wise Stock",
   "net-profit": "Net Profit",
   "stock-report": "Stock Report",
@@ -194,6 +196,7 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
         {reportType === "item-wise-sales" && <MobileItemWiseSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "customer-wise-sales" && <MobileCustomerWiseSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "salesman-wise-sales" && <MobileSalesmanWiseSalesReport orgId={orgId} start={start} end={end} />}
+        {reportType === "top-selling-products" && <MobileTopSellingProductsReport orgId={orgId} start={start} end={end} />}
         {reportType === "item-wise-stock" && <MobileItemWiseStockReport orgId={orgId} />}
         {reportType === "net-profit" && <MobileNetProfitReport orgId={orgId} start={start} end={end} />}
         {reportType === "stock-report" && <MobileStockReport orgId={orgId} />}
