@@ -1,4 +1,5 @@
 import { matchesProductSearchFields, scoreProductSearchMatch } from "@/utils/productSearch";
+import { shouldPosEnterUseExactBarcodeLookup } from "@/utils/posBarcodeCartLookup";
 
 /**
  * Sale Return product-dropdown matching.
@@ -74,4 +75,62 @@ export function filterSaleReturnProducts<P extends SaleReturnSearchProduct>(
       scoreProductSearchMatch(productParts(b), term) -
       scoreProductSearchMatch(productParts(a), term),
   );
+}
+
+/**
+ * Flatten filtered sold products into pickable variant rows (name + size), matching
+ * the Sale Return magnifying-glass list. Cap keeps the dropdown keyboard-navigable.
+ */
+export function flattenSaleReturnSearchRows<
+  P extends SaleReturnSearchProduct,
+  V extends SaleReturnSearchVariant,
+>(
+  products: P[],
+  variantsByProduct: Map<string, V[]>,
+  rawTerm: string,
+  limit = 50,
+): Array<{ product: P; variant: V }> {
+  const filtered = filterSaleReturnProducts(products, variantsByProduct, rawTerm);
+  const rows: Array<{ product: P; variant: V }> = [];
+  for (const product of filtered) {
+    for (const variant of variantsByProduct.get(product.id) ?? []) {
+      rows.push({ product, variant });
+      if (rows.length >= limit) return rows;
+    }
+  }
+  return rows;
+}
+
+/** Name / brand / category typing — not a scanner SKU. Opens the POS-style picker. */
+export function shouldSaleReturnShowNameDropdown(term: string): boolean {
+  const t = term.trim();
+  if (!t) return false;
+  return !shouldPosEnterUseExactBarcodeLookup(t);
+}
+
+export type SaleReturnBarcodeEnterAction =
+  | { kind: "noop" }
+  | { kind: "exact-barcode"; term: string }
+  | { kind: "pick-row"; index: number }
+  | { kind: "not-found"; term: string };
+
+/**
+ * Enter / Add on the Sale Return scan box: barcodes add immediately; name terms
+ * pick the highlighted sold-product row instead of the first ILIKE hit.
+ */
+export function resolveSaleReturnBarcodeEnterAction(
+  rawTerm: string,
+  nameSearchRowCount: number,
+  highlightedIndex: number,
+): SaleReturnBarcodeEnterAction {
+  const term = rawTerm.trim();
+  if (!term) return { kind: "noop" };
+  if (shouldPosEnterUseExactBarcodeLookup(term)) {
+    return { kind: "exact-barcode", term };
+  }
+  if (nameSearchRowCount > 0) {
+    const index = Math.min(Math.max(highlightedIndex, 0), nameSearchRowCount - 1);
+    return { kind: "pick-row", index };
+  }
+  return { kind: "not-found", term };
 }

@@ -11,11 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Trash2, Plus, Minus, Search, Loader2, Scan, FileText, Banknote, CreditCard, RotateCcw, UserPlus } from "lucide-react";
 import { QuickAddCustomerDialog } from "@/components/mobile/QuickAddCustomerDialog";
 import {
-  filterSaleReturnProducts,
+  flattenSaleReturnSearchRows,
   groupSaleReturnVariantsByProduct,
+  resolveSaleReturnBarcodeEnterAction,
+  shouldSaleReturnShowNameDropdown,
 } from "@/utils/saleReturnProductSearch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import {
   deleteJournalEntryByReference,
@@ -207,8 +209,8 @@ export const FloatingSaleReturn = ({
   const [showStockIssueDialog, setShowStockIssueDialog] = useState(false);
   const [stockIssuePresentation, setStockIssuePresentation] = useState<StockIssuePresentation | null>(null);
   const [loading, setLoading] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [nameSearchOpen, setNameSearchOpen] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [products, setProducts] = useState<Product[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [billNumber, setBillNumber] = useState("");
@@ -675,8 +677,8 @@ export const FloatingSaleReturn = ({
       updated[existingIndex].quantity += 1;
       updated[existingIndex].lineTotal = updated[existingIndex].quantity * updated[existingIndex].unitPrice;
       setReturnItems(updated);
-      setSearchOpen(false);
-      setSearchTerm("");
+      setNameSearchOpen(false);
+      setBarcodeInput("");
       setTimeout(() => barcodeInputRef.current?.focus(), 100);
       return;
     }
@@ -693,8 +695,8 @@ export const FloatingSaleReturn = ({
       unitPrice,
       lineTotal: unitPrice,
     }]);
-    setSearchOpen(false);
-    setSearchTerm("");
+    setNameSearchOpen(false);
+    setBarcodeInput("");
     setTimeout(() => barcodeInputRef.current?.focus(), 100);
   };
 
@@ -740,12 +742,17 @@ export const FloatingSaleReturn = ({
       }
 
       if (!variant) {
-        const matchedProduct = products.find((p) =>
-          p.product_name.toLowerCase().includes(query.toLowerCase()),
+        // Name terms: only auto-add when a single sold variant matches. Multiple
+        // hits (e.g. TRACK in several sizes) must be picked from the dropdown —
+        // never the first ILIKE product.
+        const nameRows = flattenSaleReturnSearchRows(
+          products,
+          groupSaleReturnVariantsByProduct(variants),
+          query,
         );
-        if (matchedProduct) {
-          product = matchedProduct;
-          variant = variants.find((v) => v.product_id === matchedProduct.id);
+        if (nameRows.length === 1) {
+          product = nameRows[0].product;
+          variant = nameRows[0].variant;
         }
       }
 
@@ -802,6 +809,7 @@ export const FloatingSaleReturn = ({
       }
 
       setBarcodeInput("");
+      setNameSearchOpen(false);
       setTimeout(() => barcodeInputRef.current?.focus(), 50);
     } finally {
       setTimeout(() => {
@@ -810,10 +818,37 @@ export const FloatingSaleReturn = ({
     }
   };
 
+  const submitScanBox = (raw: string) => {
+    const action = resolveSaleReturnBarcodeEnterAction(
+      raw,
+      barcodeNameSearchRows.length,
+      selectedSearchIndex,
+    );
+    if (action.kind === "noop") return;
+    if (action.kind === "exact-barcode") {
+      setNameSearchOpen(false);
+      void searchAndAddProduct(action.term);
+      return;
+    }
+    if (action.kind === "pick-row") {
+      const row = barcodeNameSearchRows[action.index];
+      if (row) {
+        setNameSearchOpen(false);
+        void addProduct(row.product.id, row.variant.id);
+      }
+      return;
+    }
+    toast({
+      title: "Product not found",
+      description: `No sold product matches "${action.term}". Scan a barcode or pick a name from the list.`,
+      variant: "destructive",
+    });
+  };
+
   const handleBarcodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     barcodeScanner.cancelAutoSubmit();
-    await searchAndAddProduct(barcodeInput);
+    submitScanBox(barcodeInput);
   };
 
   const updateQuantity = async (index: number, qty: number) => {
@@ -1320,10 +1355,16 @@ export const FloatingSaleReturn = ({
     [variants],
   );
 
-  const filteredProducts = useMemo(
-    () => filterSaleReturnProducts(products, variantsByProduct, searchTerm),
-    [products, variantsByProduct, searchTerm],
+  const barcodeNameSearchRows = useMemo(
+    () => flattenSaleReturnSearchRows(products, variantsByProduct, barcodeInput),
+    [products, variantsByProduct, barcodeInput],
   );
+
+  useEffect(() => {
+    if (selectedSearchIndex >= barcodeNameSearchRows.length) {
+      setSelectedSearchIndex(Math.max(0, barcodeNameSearchRows.length - 1));
+    }
+  }, [barcodeNameSearchRows.length, selectedSearchIndex]);
 
   return (
     <>
@@ -1602,83 +1643,160 @@ export const FloatingSaleReturn = ({
           </div>
         )}
 
-        {/* Barcode Scanner — sale-bill style auto-add on wedge scan */}
+        {/* Barcode / product-name search — POS-style dropdown for name terms */}
         <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-          <div className="relative flex-1">
-            <Scan className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              ref={barcodeInputRef}
-              type="text"
-              placeholder="Scan barcode or enter product name..."
-              value={barcodeInput}
-              onChange={(e) => {
-                const newValue = e.target.value;
-                const now = Date.now();
-                const delta = now - lastInputTimeRef.current;
-                lastInputTimeRef.current = now;
-                barcodeScanner.recordKeystroke();
-                setBarcodeInput(newValue);
+          <Popover
+            open={nameSearchOpen}
+            onOpenChange={(next) => {
+              setNameSearchOpen(next);
+              if (next) setSelectedSearchIndex(0);
+            }}
+          >
+            <PopoverAnchor asChild>
+              <div className="relative flex-1">
+                <Scan className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  ref={barcodeInputRef}
+                  type="text"
+                  placeholder="Scan barcode or search product name / brand / category..."
+                  value={barcodeInput}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    const now = Date.now();
+                    const delta = now - lastInputTimeRef.current;
+                    lastInputTimeRef.current = now;
+                    barcodeScanner.recordKeystroke();
+                    setBarcodeInput(newValue);
+                    setSelectedSearchIndex(0);
 
-                const isScannerLike =
-                  barcodeScanner.detectScannerInput(newValue, delta) ||
-                  (newValue.length >= 4 && delta < 50);
+                    const isScannerLike =
+                      barcodeScanner.detectScannerInput(newValue, delta) ||
+                      (newValue.length >= 4 && delta < 50);
 
-                if (isScannerLike) {
-                  barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
-                    void searchAndAddProduct(val);
-                  });
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  barcodeScanner.cancelAutoSubmit();
-                  const value = (e.currentTarget.value || barcodeInput).trim();
-                  if (!value) return;
-                  void searchAndAddProduct(value);
-                }
-                if (e.key === "Escape") {
-                  barcodeScanner.cancelAutoSubmit();
-                  setBarcodeInput("");
-                  barcodeScanner.reset();
-                }
-              }}
-              className="pl-9"
-              autoFocus
-              autoComplete="off"
-            />
-          </div>
-          <Button type="submit" size="sm">Add</Button>
-          <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-            <PopoverTrigger asChild>
-              <Button type="button" variant="outline" size="sm">
-                <Search className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="end">
-              <Command>
-                <CommandInput placeholder="Search sold products..." value={searchTerm} onValueChange={setSearchTerm} />
+                    if (isScannerLike) {
+                      setNameSearchOpen(false);
+                      barcodeScanner.scheduleAutoSubmit(newValue, (val) => {
+                        void searchAndAddProduct(val);
+                      });
+                      return;
+                    }
+
+                    setNameSearchOpen(shouldSaleReturnShowNameDropdown(newValue));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      if (nameSearchOpen && barcodeNameSearchRows.length > 0) {
+                        e.preventDefault();
+                        setSelectedSearchIndex((prev) =>
+                          Math.min(prev + 1, barcodeNameSearchRows.length - 1),
+                        );
+                      }
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      if (nameSearchOpen && barcodeNameSearchRows.length > 0) {
+                        e.preventDefault();
+                        setSelectedSearchIndex((prev) => Math.max(prev - 1, 0));
+                      }
+                      return;
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      barcodeScanner.cancelAutoSubmit();
+                      const value = (e.currentTarget.value || barcodeInput).trim();
+                      if (!value) return;
+                      submitScanBox(value);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      barcodeScanner.cancelAutoSubmit();
+                      if (nameSearchOpen) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setNameSearchOpen(false);
+                        return;
+                      }
+                      setBarcodeInput("");
+                      barcodeScanner.reset();
+                    }
+                  }}
+                  className="pl-9"
+                  autoFocus
+                  autoComplete="off"
+                />
+              </div>
+            </PopoverAnchor>
+            <PopoverContent
+              className="w-[var(--radix-popover-trigger-width)] min-w-[20rem] p-0"
+              align="start"
+              onOpenAutoFocus={(e) => e.preventDefault()}
+              onCloseAutoFocus={(e) => e.preventDefault()}
+            >
+              <Command shouldFilter={false}>
+                <div className="hidden">
+                  <CommandInput value={barcodeInput} onValueChange={() => {}} />
+                </div>
                 <CommandList>
-                  <CommandEmpty>{loading ? "Loading..." : "No sold products found"}</CommandEmpty>
+                  <CommandEmpty>
+                    {loading ? "Loading sold products..." : "No sold products match. Scan a barcode or try another name."}
+                  </CommandEmpty>
                   <CommandGroup>
-                    {filteredProducts.slice(0, 50).map(product => {
-                      const productVariants = variantsByProduct.get(product.id) ?? [];
-                      return productVariants.map(variant => (
-                        <CommandItem
-                          key={variant.id}
-                          onSelect={() => addProduct(product.id, variant.id)}
-                          className="flex justify-between"
-                        >
-                          <span className="truncate">{product.product_name} - {variant.size}</span>
-                          <span className="text-xs text-muted-foreground ml-2">₹{variant.sale_price}</span>
-                        </CommandItem>
-                      ));
-                    })}
+                    {barcodeNameSearchRows.length > 0 && (
+                      <div className="px-3 py-1.5 text-[11px] text-muted-foreground border-b bg-muted/40 sticky top-0">
+                        {barcodeNameSearchRows.length} sold item{barcodeNameSearchRows.length !== 1 ? "s" : ""}
+                        {" · "}↑↓ to highlight · Enter to add
+                      </div>
+                    )}
+                    {barcodeNameSearchRows.map((row, index) => (
+                      <CommandItem
+                        key={row.variant.id}
+                        value={`${row.product.id}-${row.variant.id}`}
+                        onSelect={() => {
+                          void addProduct(row.product.id, row.variant.id);
+                        }}
+                        className={cn(
+                          "flex justify-between cursor-pointer",
+                          index === selectedSearchIndex && "bg-primary text-primary-foreground",
+                        )}
+                      >
+                        <span className="truncate">
+                          {row.product.product_name} — {row.variant.size}
+                          {row.variant.barcode ? (
+                            <span className={cn(
+                              "ml-2 text-[11px] font-mono",
+                              index === selectedSearchIndex ? "opacity-80" : "text-muted-foreground",
+                            )}>
+                              {row.variant.barcode}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className={cn(
+                          "text-xs ml-2 tabular-nums font-mono shrink-0",
+                          index === selectedSearchIndex ? "opacity-90" : "text-muted-foreground",
+                        )}>
+                          ₹{row.variant.sale_price}
+                        </span>
+                      </CommandItem>
+                    ))}
                   </CommandGroup>
                 </CommandList>
               </Command>
             </PopoverContent>
           </Popover>
+          <Button type="submit" size="sm">Add</Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            title="Browse sold products by name"
+            onClick={() => {
+              setNameSearchOpen(true);
+              setSelectedSearchIndex(0);
+              setTimeout(() => barcodeInputRef.current?.focus(), 0);
+            }}
+          >
+            <Search className="h-4 w-4" />
+          </Button>
         </form>
 
         {/* Return Items Table */}
@@ -1751,7 +1869,7 @@ export const FloatingSaleReturn = ({
         ) : (
           <div className="text-center py-8 text-muted-foreground border rounded-md">
             <Scan className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Scan barcode to add return items</p>
+            <p className="text-sm">Scan barcode or search by product name to add return items</p>
           </div>
         )}
 

@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { matchesProductSearchFields } from "@/utils/productSearch";
 import {
   filterSaleReturnProducts,
+  flattenSaleReturnSearchRows,
   groupSaleReturnVariantsByProduct,
+  resolveSaleReturnBarcodeEnterAction,
+  shouldSaleReturnShowNameDropdown,
   type SaleReturnSearchProduct,
   type SaleReturnSearchVariant,
 } from "./saleReturnProductSearch";
@@ -14,6 +17,8 @@ const PRODUCTS: SaleReturnSearchProduct[] = [
   { id: "p3", product_name: "BOOTCUT JEANS", brand: "TB", category: "Jeans", style: null },
   { id: "p4", product_name: "KOREAN PANT", brand: "Z DESINER", category: "Pant", style: null },
   { id: "p5", product_name: "OFFER T-SHIRT", brand: "TB", category: null, style: null },
+  { id: "p6", product_name: "TRACK PANT", brand: "TB", category: "Track", style: null },
+  { id: "p7", product_name: "TRACK SUIT", brand: "GAZIBO", category: "Track", style: null },
 ];
 
 const VARIANTS: SaleReturnSearchVariant[] = [
@@ -22,6 +27,9 @@ const VARIANTS: SaleReturnSearchVariant[] = [
   { product_id: "p3", size: "32", barcode: "20001631" },
   { product_id: "p4", size: "34", barcode: "20001632" },
   { product_id: "p5", size: "S", barcode: "20001633" },
+  { product_id: "p6", size: "M", barcode: "20001634" },
+  { product_id: "p6", size: "L", barcode: "20001635" },
+  { product_id: "p7", size: "XL", barcode: "20001636" },
 ];
 
 const byProduct = groupSaleReturnVariantsByProduct(VARIANTS);
@@ -117,6 +125,10 @@ describe("Sale Return product search — existing behaviour preserved", () => {
     expect(found[0].id).toBe("p1");
   });
 
+  it("finds TRACK by product name when no barcode is typed", () => {
+    expect(ids(filterSaleReturnProducts(PRODUCTS, byProduct, "TRACK"))).toEqual(["p6", "p7"]);
+  });
+
   it("never loses a result the previous filter would have found", () => {
     const terms = [
       "AARIBA", "BOXY", "BOOTCUT JEANS", "KOREAN", "OFFER",
@@ -131,5 +143,47 @@ describe("Sale Return product search — existing behaviour preserved", () => {
         expect(after, `"${term}" lost ${id}`).toContain(id);
       }
     }
+  });
+});
+
+describe("Sale Return barcode box — POS-style name pick vs exact barcode", () => {
+  it("opens the name dropdown for a word like TRACK, not for a barcode", () => {
+    expect(shouldSaleReturnShowNameDropdown("TRACK")).toBe(true);
+    expect(shouldSaleReturnShowNameDropdown("track pant")).toBe(true);
+    expect(shouldSaleReturnShowNameDropdown("SHIRT")).toBe(true);
+    expect(shouldSaleReturnShowNameDropdown("20001631")).toBe(false);
+    expect(shouldSaleReturnShowNameDropdown("BHG215")).toBe(false);
+    expect(shouldSaleReturnShowNameDropdown("")).toBe(false);
+  });
+
+  it("flattens TRACK into pickable sold-variant rows (sizes), never unsold products", () => {
+    const rows = flattenSaleReturnSearchRows(PRODUCTS, byProduct, "TRACK");
+    expect(rows.map((r) => `${r.product.id}:${r.variant.size}`)).toEqual([
+      "p6:M",
+      "p6:L",
+      "p7:XL",
+    ]);
+    const soldOnly = PRODUCTS.filter((p) => p.id !== "p7");
+    const soldOnlyRows = flattenSaleReturnSearchRows(soldOnly, byProduct, "TRACK");
+    expect(soldOnlyRows.map((r) => r.product.id)).toEqual(["p6", "p6"]);
+  });
+
+  it("Enter on a name term picks the highlighted row instead of first-barcode-fallback", () => {
+    const rows = flattenSaleReturnSearchRows(PRODUCTS, byProduct, "TRACK");
+    expect(resolveSaleReturnBarcodeEnterAction("TRACK", rows.length, 1)).toEqual({
+      kind: "pick-row",
+      index: 1,
+    });
+    expect(resolveSaleReturnBarcodeEnterAction("TRACK", 0, 0)).toEqual({
+      kind: "not-found",
+      term: "TRACK",
+    });
+  });
+
+  it("Enter on a barcode still uses exact lookup, even if a name list is open", () => {
+    expect(resolveSaleReturnBarcodeEnterAction("20001631", 3, 0)).toEqual({
+      kind: "exact-barcode",
+      term: "20001631",
+    });
   });
 });
