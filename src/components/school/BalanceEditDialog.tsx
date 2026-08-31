@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Printer, AlertTriangle, TrendingUp, TrendingDown, Edit3, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { recordStudentFeeAdjustmentJournalEntry } from "@/utils/accounting/journalService";
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;

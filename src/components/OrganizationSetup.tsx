@@ -149,31 +149,6 @@ export const OrganizationSetup = () => {
       return <Navigate to={`/${startupOrgSlug}`} replace />;
     }
 
-    if (isNativeApp) {
-      return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">
-          <Card className="w-full max-w-md">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <Building2 className="h-8 w-8 text-primary" />
-              </div>
-              <CardTitle>App Not Linked to a Shop</CardTitle>
-              <CardDescription>
-                Install this app using your shop&apos;s install link (from Settings → Install App), then open it again.
-                You will go straight to the login screen — no organization URL needed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full" onClick={() => navigate("/auth?platform=1")}>
-                <Shield className="mr-2 h-4 w-4" />
-                Platform Admin Login
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      );
-    }
-
     return (
       <OrgLoginShell
         title="Welcome back"

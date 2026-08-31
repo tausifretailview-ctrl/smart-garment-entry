@@ -52,6 +52,11 @@ jobs:
       - name: Schema migration manifest
         run: npm run check:schema-drift
 
+      # Always-on console.log/info on POS / fetch / dashboard loops freezes
+      # DevTools on the main thread. See docs/console-perf-protections.md.
+      - name: Hot-path console guard
+        run: npm run check:console-guard
+
       # Floating-promise ratchet. Fails only if the count RISES above the
       # baseline in .eslint-floating-promises-baseline.json.
       - name: Lint ratchet

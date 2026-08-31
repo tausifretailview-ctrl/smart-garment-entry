@@ -21,7 +21,7 @@ export const useUserPermissions = () => {
   const orgId = currentOrganization?.id;
 
   // Single shared query across the entire app — deduplicated by react-query
-  const { data: permissions = null, isLoading } = useQuery({
+  const { data: permissions = null, isLoading, isFetching, fetchStatus } = useQuery({
     queryKey: ["user_permissions", userId, orgId],
     enabled: !!userId && !!orgId,
     staleTime: 5 * 60 * 1000, // 5 minutes — permissions rarely change
@@ -111,6 +111,8 @@ export const useUserPermissions = () => {
   return {
     permissions,
     loading,
+    isFetching,
+    fetchStatus,
     isAdmin,
     hasMenuAccess,
     hasMainMenuAccess,

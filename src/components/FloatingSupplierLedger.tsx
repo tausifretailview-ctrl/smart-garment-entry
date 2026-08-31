@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { Printer, MessageCircle, Calendar, FileText, IndianRupee, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
 import {

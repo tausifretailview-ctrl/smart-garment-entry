@@ -6,6 +6,7 @@ import {
   lazyWithRetry,
   scheduleSequentialIdlePrefetch,
   CRITICAL_ENTRY_CHUNK_PATHS,
+  criticalEntryChunkPathsForShell,
   POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
@@ -18,6 +19,7 @@ import {
   ACCOUNTS_TAB_PREFETCH_PATHS,
 } from "@/lib/chunkLoadRetry";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
+import { recordTabChunkLoadEvent } from "@/lib/pwaColdOpenDiagnostics";
 
 export {
   CRITICAL_ENTRY_CHUNK_PATHS,
@@ -349,6 +351,12 @@ export function isTabPageChunkLoaded(path: string): boolean {
   return loadedChunkPaths.has(resolveTabCachePath(path));
 }
 
+/** True when loadTabPageModule has started and has not yet resolved or failed. */
+export function isTabPageChunkInFlight(path: string): boolean {
+  const resolved = resolveTabCachePath(path);
+  return prefetchCache.has(resolved) && !loadedChunkPaths.has(resolved);
+}
+
 export function isTabCachePath(path: string): boolean {
   return Boolean(TAB_PAGE_REGISTRY[path]) || Boolean(TAB_PAGE_REGISTRY[resolveTabCachePath(path)]);
 }
@@ -361,13 +369,16 @@ function loadTabPageModule(path: string): Promise<TabPageModule> | null {
   if (existing) return existing;
 
   prefetchStartedAt.set(resolved, Date.now());
+  recordTabChunkLoadEvent(resolved, "start");
   const promise = importWithRetry(def.loader)
     .then((mod) => {
       loadedChunkPaths.add(resolved);
+      recordTabChunkLoadEvent(resolved, "resolved");
       return mod;
     })
     .catch((err) => {
       prefetchCache.delete(resolved);
+      recordTabChunkLoadEvent(resolved, "failed");
       throw err;
     })
     .finally(() => {
@@ -451,7 +462,10 @@ export function dedupeTabPrefetchPaths(paths: readonly string[]): string[] {
 
 /** Warm purchase/product/POS entry chunks (login idle + after tab wake from idle). */
 export function prefetchCriticalEntryChunks(): void {
-  dedupeTabPrefetchPaths(CRITICAL_ENTRY_CHUNK_PATHS).forEach((p) => prefetchTabPage(p));
+  // Electron: keep the slim wake set. Expanding CRITICAL_ENTRY_CHUNK_PATHS is web/PWA only —
+  // desktop idle prefetch is sequential and memory-capped (see prefetchTabPagesIdle).
+  const list = criticalEntryChunkPathsForShell(isElectronShell());
+  dedupeTabPrefetchPaths(list).forEach((p) => prefetchTabPage(p));
 }
 
 /** Drop cached lazy/prefetch state so the next mount re-fetches the chunk. */

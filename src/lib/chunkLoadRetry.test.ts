@@ -1,6 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import {
   CRITICAL_ENTRY_CHUNK_PATHS,
+  ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS,
+  criticalEntryChunkPathsForShell,
   isChunkLoadError,
   canAttemptSkewRecoveryReload,
   resetSkewReloadCount,
@@ -12,6 +14,7 @@ import {
   POS_CONTEXT_PURCHASE_PREFETCH_PATHS,
   POS_CONTEXT_WARM_TAB_PATH,
 } from "./chunkLoadRetry";
+import { LONG_BUDGET_OUTLET_ENTRY_PATHS } from "./tabCacheReadiness";
 
 describe("isChunkLoadError", () => {
   it("matches real dynamic-import / chunk failures", () => {
@@ -150,15 +153,43 @@ describe("idle / wake entry-chunk prefetch lists", () => {
   });
 
   it("re-warms critical bill-entry chunks after tab becomes visible", () => {
-    expect(CRITICAL_ENTRY_CHUNK_PATHS).toEqual(
-      expect.arrayContaining([
-        "purchase-entry",
-        "product-entry",
-        "pos-sales",
-        "pos-delivery-challan",
-        "sales-invoice",
-      ]),
-    );
+    expect(CRITICAL_ENTRY_CHUNK_PATHS).toEqual([
+      "purchase-entry",
+      "product-entry",
+      "pos-sales",
+      "pos-delivery-challan",
+      "sales-invoice",
+      "sale-return-entry",
+      "quotation-entry",
+      "sale-order-entry",
+      "purchase-return-entry",
+    ]);
+  });
+
+  it("keeps Electron wake/hover on the original slim set", () => {
+    expect(ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS).toEqual([
+      "purchase-entry",
+      "product-entry",
+      "pos-sales",
+      "pos-delivery-challan",
+      "sales-invoice",
+    ]);
+    expect(criticalEntryChunkPathsForShell(true)).toEqual(ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS);
+    expect(criticalEntryChunkPathsForShell(false)).toEqual(CRITICAL_ENTRY_CHUNK_PATHS);
+    expect(criticalEntryChunkPathsForShell(true)).not.toContain("sale-return-entry");
+    expect(criticalEntryChunkPathsForShell(true)).not.toContain("quotation-entry");
+    expect(criticalEntryChunkPathsForShell(true)).not.toContain("sale-order-entry");
+    expect(criticalEntryChunkPathsForShell(true)).not.toContain("purchase-return-entry");
+  });
+
+  it("does not grow the parallel post-login warm list", () => {
+    expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).toEqual(["", "pos-sales"]);
+  });
+
+  it("covers every long-budget Outlet entry (rescue + eager prefetch)", () => {
+    for (const path of LONG_BUDGET_OUTLET_ENTRY_PATHS) {
+      expect(CRITICAL_ENTRY_CHUNK_PATHS, path).toContain(path);
+    }
   });
 
   it("declares POS-context warm for purchase-entry (outlet POS routes)", () => {

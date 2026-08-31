@@ -30,7 +30,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { TableSkeleton } from "@/components/ui/skeletons";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import {
@@ -360,6 +360,7 @@ export default function SaleReturnDashboard() {
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     pageStyle: returnPrintPageStyle,
+    expectedMaxPages: 1,
   });
 
   const handlePrintTable = useReactToPrint({

@@ -22,7 +22,7 @@ import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { format } from "date-fns";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { QuotationPrint } from "@/components/QuotationPrint";
 import { QuotationPrintITCompany } from "@/components/QuotationPrintITCompany";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";

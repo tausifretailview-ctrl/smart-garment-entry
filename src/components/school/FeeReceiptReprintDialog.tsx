@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { Loader2, Printer, X } from "lucide-react";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 
 interface FeeReceiptReprintDialogProps {

@@ -61,7 +61,7 @@ import { format } from "date-fns";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { normalizeGstTaxType, resolvePosDefaultTaxType } from "@/utils/gstRegisterUtils";
 import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
@@ -94,6 +94,13 @@ import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import {
+  POS_BULK_DELETE_CONFIRM_WORD,
+  requiresTypedPosDeleteConfirm,
+  selectionIncludesProtectedPosSale,
+  typedBulkDeleteMatches,
+  typedSaleNumberMatches,
+} from "@/utils/posSaleDeleteGuard";
 import { waitForPrintReady } from "@/utils/printReady";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
@@ -143,6 +150,7 @@ import {
   posThermalPageCss,
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
+  isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -401,7 +409,9 @@ const POSDashboard = () => {
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
+  const [bulkDeleteConfirmText, setBulkDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [showBulkCancelDialog, setShowBulkCancelDialog] = useState(false);
   const [bulkCancelReason, setBulkCancelReason] = useState("");
@@ -970,6 +980,14 @@ const POSDashboard = () => {
   }, [debouncedSearch, paginatedSales]);
 
   const sales = paginatedSales;
+  const selectedSalesForBulkDelete = useMemo(
+    () =>
+      Array.from(selectedSales)
+        .map((sid) => sales.find((x: any) => x.id === sid))
+        .filter(Boolean) as Sale[],
+    [selectedSales, sales],
+  );
+  const bulkDeleteNeedsTypedConfirm = selectionIncludesProtectedPosSale(selectedSalesForBulkDelete);
   const loading = salesQueryLoading && paginatedSales.length === 0;
   const isRefreshing = salesQueryFetching && paginatedSales.length > 0;
 
@@ -1221,6 +1239,7 @@ const POSDashboard = () => {
     }
 
     setItemCountToDelete(null);
+    setDeleteConfirmText("");
     setSaleToDelete(sale);
     // Cancelled invoices have line items removed on cancel — skip stock count.
     if (!isSaleInvoiceCancelled(sale) && currentOrganization?.id) {
@@ -1236,6 +1255,17 @@ const POSDashboard = () => {
 
   const handleDeleteSale = async () => {
     if (!saleToDelete || !hasSpecialPermission('delete_records')) return;
+    if (
+      requiresTypedPosDeleteConfirm(saleToDelete) &&
+      !typedSaleNumberMatches(deleteConfirmText, saleToDelete.sale_number)
+    ) {
+      toast({
+        title: "Type the invoice number to delete",
+        description: `Enter ${saleToDelete.sale_number} to confirm. Completed POS bills are not deleted automatically.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsDeleting(true);
     try {
@@ -1291,6 +1321,18 @@ const POSDashboard = () => {
 
   const handleBulkDelete = async () => {
     if (selectedSales.size === 0 || !hasSpecialPermission('delete_records')) return;
+
+    if (
+      selectionIncludesProtectedPosSale(selectedSalesForBulkDelete) &&
+      !typedBulkDeleteMatches(bulkDeleteConfirmText)
+    ) {
+      toast({
+        title: "Type DELETE to confirm",
+        description: `Completed POS bills need an extra confirm. Type ${POS_BULK_DELETE_CONFIRM_WORD} to continue.`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     // Block bulk delete that includes another user's bills.
     const blocked = Array.from(selectedSales)
@@ -1499,7 +1541,7 @@ const POSDashboard = () => {
     `;
     }
 
-    if (posInvoiceTemplate === "retail-tax-ezzy" || posInvoiceTemplate === "wholesale-a5" || posInvoiceTemplate === "retail-erp" || posInvoiceTemplate === "retail-erp-dc" || posInvoiceTemplate === "zaika") {
+    if (isA5PortraitInvoiceTemplate(posInvoiceTemplate)) {
       return `
       @page {
         size: A5 portrait;
@@ -3008,7 +3050,10 @@ const POSDashboard = () => {
             </Button>
             {selectedSales.size > 0 && hasSpecialPermission('delete_records') && (
               <Button
-                onClick={() => setShowBulkDeleteDialog(true)}
+                onClick={() => {
+                  setBulkDeleteConfirmText("");
+                  setShowBulkDeleteDialog(true);
+                }}
                 disabled={isDeleting}
                 variant="destructive"
                 className="gap-2"
@@ -4329,7 +4374,7 @@ const POSDashboard = () => {
         />
       )}
 
-      <AlertDialog open={!!saleToDelete} onOpenChange={() => { setSaleToDelete(null); setItemCountToDelete(null); }}>
+      <AlertDialog open={!!saleToDelete} onOpenChange={() => { setSaleToDelete(null); setItemCountToDelete(null); setDeleteConfirmText(""); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -4346,13 +4391,38 @@ const POSDashboard = () => {
                 ) : itemCountToDelete !== null ? (
                   <p>This will reverse <strong>{itemCountToDelete} stock movement{itemCountToDelete !== 1 ? 's' : ''}</strong> across {itemCountToDelete} line item{itemCountToDelete !== 1 ? 's' : ''}.</p>
                 ) : null}
+                {requiresTypedPosDeleteConfirm(saleToDelete) && (
+                  <p className="text-destructive font-medium">
+                    This completed POS bill will not be auto-deleted. Type the invoice number to confirm a manual delete.
+                  </p>
+                )}
                 <p className="text-muted-foreground text-sm">You can restore it from Recycle Bin unless permanently purged.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {requiresTypedPosDeleteConfirm(saleToDelete) && (
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-delete-confirm-number">Type {saleToDelete?.sale_number} to confirm</Label>
+              <Input
+                id="pos-delete-confirm-number"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                autoComplete="off"
+                placeholder={saleToDelete?.sale_number || ""}
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSale} className="bg-destructive hover:bg-destructive/90" disabled={isDeleting}>
+            <AlertDialogAction
+              onClick={handleDeleteSale}
+              className="bg-destructive hover:bg-destructive/90"
+              disabled={
+                isDeleting ||
+                (requiresTypedPosDeleteConfirm(saleToDelete) &&
+                  !typedSaleNumberMatches(deleteConfirmText, saleToDelete?.sale_number))
+              }
+            >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Delete
             </AlertDialogAction>
@@ -4360,7 +4430,13 @@ const POSDashboard = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+      <AlertDialog
+        open={showBulkDeleteDialog}
+        onOpenChange={(open) => {
+          setShowBulkDeleteDialog(open);
+          if (!open) setBulkDeleteConfirmText("");
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {selectedSales.size} Sale(s)</AlertDialogTitle>
@@ -4370,16 +4446,36 @@ const POSDashboard = () => {
                 {selectedSales.size >= 5 && (
                   <p className="text-destructive font-medium">⚠️ High Impact: Deleting {selectedSales.size} sales will reverse stock for many products.</p>
                 )}
+                {bulkDeleteNeedsTypedConfirm && (
+                  <p className="text-destructive font-medium">
+                    Selection includes completed POS bills. Type {POS_BULK_DELETE_CONFIRM_WORD} to confirm a manual delete (never automatic).
+                  </p>
+                )}
                 <p className="text-destructive font-medium">This action cannot be undone.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {bulkDeleteNeedsTypedConfirm && (
+            <div className="space-y-1.5">
+              <Label htmlFor="pos-bulk-delete-confirm">Type {POS_BULK_DELETE_CONFIRM_WORD} to confirm</Label>
+              <Input
+                id="pos-bulk-delete-confirm"
+                value={bulkDeleteConfirmText}
+                onChange={(e) => setBulkDeleteConfirmText(e.target.value)}
+                autoComplete="off"
+                placeholder={POS_BULK_DELETE_CONFIRM_WORD}
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleBulkDelete} 
               className="bg-destructive hover:bg-destructive/90"
-              disabled={isDeleting}
+              disabled={
+                isDeleting ||
+                (bulkDeleteNeedsTypedConfirm && !typedBulkDeleteMatches(bulkDeleteConfirmText))
+              }
             >
               {isDeleting ? (
                 <>

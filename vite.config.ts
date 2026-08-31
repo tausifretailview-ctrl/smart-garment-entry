@@ -40,13 +40,17 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'robots.txt'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
-        // Intentionally omit html — index.html must come from network (see vercel.json
-        // no-cache + kill-sw.js). Do NOT set navigateFallback to /index.html while it is
-        // absent from precache: Workbox createHandlerBoundToURL throws
-        // `non-precached-url :: [{"url":"/index.html"}]` and navigation/fallback hangs.
+        // Never precache index.html (stale HTML + hashed chunk 404 after deploy).
+        // Do NOT set navigateFallback to offline.html — Workbox then serves that
+        // page for every SPA route (/, /trendzo, …) and Chrome/PWA show
+        // "Can't reach EzzyERP" while the phone is online.
         globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
         navigateFallback: null,
+        // Take over immediately so clients stuck on the bad offline fallback
+        // get this SW without waiting for React UpdatePrompt (which never loads).
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Navigations must NEVER fall back to a cached HTML shell after deploy.
@@ -112,7 +116,7 @@ export default defineConfig(({ mode }) => ({
         short_name: 'EzzyERP',
         description: 'EzzyERP - Easy Billing, Smart Business for garment & retail businesses',
         theme_color: '#1e40af',
-        background_color: '#ffffff',
+        background_color: '#1e40af',
         display: 'standalone',
         // "any" — portrait-only can block Chrome desktop install prompts on Windows.
         orientation: 'any',

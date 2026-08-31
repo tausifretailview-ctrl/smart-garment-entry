@@ -1,5 +1,5 @@
 /**
- * Phase 0 — Supabase / cloud read diagnostics (dev-only).
+ * Phase 0 — Supabase / cloud read diagnostics (opt-in; never auto-on in DEV).
  *
  * Enable in browser console or via URL:
  *   localStorage.setItem('ezzy_cloud_usage', '1'); location.reload();

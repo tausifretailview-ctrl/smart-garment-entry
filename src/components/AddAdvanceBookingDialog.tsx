@@ -16,7 +16,7 @@ import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { AdvanceBookingReceipt } from "@/components/AdvanceBookingReceipt";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useSettings } from "@/hooks/useSettings";

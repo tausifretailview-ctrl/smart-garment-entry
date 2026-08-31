@@ -47,6 +47,7 @@ import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrin
 import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import type { PosCartItem } from "@/lib/posBilling";
+import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 
 /** Display-only — no arithmetic on money. */
 function formatInr(amount: number): string {
@@ -517,7 +518,10 @@ export default function MobilePosBilling() {
                   onClick={() => setEditIndex(index)}
                   disabled={saving}
                 >
-                  <p className="text-sm font-semibold leading-snug">{item.productName}</p>
+                  <p className="flex items-center gap-1 text-sm font-semibold leading-snug min-w-0">
+                    <span className="truncate">{item.productName}</span>
+                    <PosSchemeAppliedTag applied={item.categoryTierApplied} />
+                  </p>
                   <div className="mt-2 flex items-end justify-between gap-2">
                     <p className="text-xs text-muted-foreground tabular-nums">
                       Qty {item.quantity} · ₹{formatInr(item.unitCost)}

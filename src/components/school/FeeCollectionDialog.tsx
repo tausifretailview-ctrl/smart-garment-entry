@@ -15,7 +15,7 @@ import { AlertTriangle, Loader2, MessageCircle, Printer, Receipt, Search } from 
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SchoolFeeReceipt } from "./SchoolFeeReceipt";
 import {
   buildFeeReceiptWhatsAppMessage,

@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
@@ -28,7 +28,9 @@ import {
   MobileStockReport,
 } from "./MobileInsightsReports";
 import { ReportViewToggle } from "@/components/mobile/ReportViewToggle";
+import { ReportExportButton } from "@/components/mobile/ReportExportButton";
 import { MobileReportTable, type ReportTableColumn } from "@/components/mobile/MobileReportTable";
+import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 
 /* ─── Helpers ─── */
 const fmt = (v: number) =>
@@ -225,6 +227,7 @@ function saleDateBounds(start: string, end: string) {
 /* 1. Daily Sales */
 const DailySalesReport = ({ orgId, start, end }: RProps) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-sales", orgId, start, end],
     enabled: !!orgId,
@@ -250,16 +253,19 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
       header: "Bill No",
       sticky: true,
       minWidth: "min-w-[100px]",
+      csvText: (s) => s.sale_number,
       render: (s) => <span className="font-semibold">{s.sale_number}</span>,
     },
     {
       key: "customer",
       header: "Customer",
+      csvText: (s) => s.customer_name || "Walk-in",
       render: (s) => s.customer_name || "Walk-in",
     },
     {
       key: "status",
       header: "Status",
+      csvText: (s) => s.payment_status || "pending",
       render: (s) => (
         <span
           className={cn(
@@ -279,6 +285,7 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
       key: "amount",
       header: "Amount",
       align: "right",
+      csvText: (s) => fmt(s.net_amount || 0),
       render: (s) => fmt(s.net_amount || 0),
     },
   ];
@@ -289,9 +296,16 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
         <MetricCard label="Total Sale" value={fmt(total)} color="text-emerald-600" />
         <MetricCard label="Bills" value={String(data.length)} />
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`daily-sales-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(salesColumns, data)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       {view === "table" ? (
-        <MobileReportTable columns={salesColumns} rows={data} rowKey={(s) => s.id} />
+        <MobileReportTable ref={tableRef} columns={salesColumns} rows={data} rowKey={(s) => s.id} />
       ) : (
         <div className="space-y-2">
           {data.map((s: any) => (
@@ -321,6 +335,7 @@ const DailySalesReport = ({ orgId, start, end }: RProps) => {
 /* 2. Daily Purchase */
 const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-daily-purchase", orgId, start, end],
     enabled: !!orgId,
@@ -345,11 +360,14 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
       header: "Bill No",
       sticky: true,
       minWidth: "min-w-[100px]",
+      csvText: (b) => b.software_bill_no || "",
       render: (b) => <span className="font-semibold">{b.software_bill_no}</span>,
     },
     {
       key: "supplier",
       header: "Supplier",
+      csvText: (b) =>
+        b.supplier_invoice_no ? `${b.supplier_name} • ${b.supplier_invoice_no}` : b.supplier_name || "",
       render: (b) => (
         <div className="min-w-[120px] max-w-[180px]">
           <p className="truncate">{b.supplier_name}</p>
@@ -363,6 +381,7 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
       key: "amount",
       header: "Amount",
       align: "right",
+      csvText: (b) => fmt(b.net_amount || 0),
       render: (b) => fmt(b.net_amount || 0),
     },
   ];
@@ -373,9 +392,16 @@ const DailyPurchaseReport = ({ orgId, start, end }: RProps) => {
         <MetricCard label="Total Purchase" value={fmt(total)} color="text-orange-600" />
         <MetricCard label="Bills" value={String(data.length)} />
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`daily-purchase-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(purchaseColumns, data)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       {view === "table" ? (
-        <MobileReportTable columns={purchaseColumns} rows={data} rowKey={(b) => b.id} />
+        <MobileReportTable ref={tableRef} columns={purchaseColumns} rows={data} rowKey={(b) => b.id} />
       ) : (
         <div className="space-y-2">
           {data.map((b: any) => (
@@ -434,6 +460,7 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
 /* 4. Stock Summary */
 const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-stock-summary", orgId],
     enabled: !!orgId,
@@ -486,6 +513,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       header: "Product",
       sticky: true,
       minWidth: "min-w-[120px]",
+      csvText: (p) => (p.brand ? `${p.name} — ${p.brand}` : p.name),
       render: (p) => (
         <div className="min-w-[120px] max-w-[160px]">
           <p className="font-semibold truncate">{p.name}</p>
@@ -497,6 +525,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       key: "stock",
       header: "Stock",
       align: "right",
+      csvText: (p) => String(p.totalStock),
       render: (p) => (
         <span
           className={cn(
@@ -512,14 +541,22 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       key: "saleValue",
       header: "Sale Value",
       align: "right",
+      csvText: (p) => fmt(p.saleVal),
       render: (p) => fmt(p.saleVal),
     },
   ];
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-1">
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`stock-summary-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(stockColumns, stockRows)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2">
         <MetricCard label="Products" value={String(stats.totalProducts)} />
@@ -529,6 +566,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       </div>
       {view === "table" ? (
         <MobileReportTable
+          ref={tableRef}
           columns={stockColumns}
           rows={stockRows}
           rowKey={(p) => `${p.name}|${p.brand}|${p.totalStock}|${p.saleVal}|${p.purVal}`}
@@ -559,6 +597,7 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
 /* 7. GST Report */
 const GSTReport = ({ orgId, start, end }: RProps) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-gst", orgId, start, end],
     enabled: !!orgId,
@@ -601,15 +640,17 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
       header: "GST %",
       sticky: true,
       minWidth: "min-w-[64px]",
+      csvText: (g) => `${g.rate}%`,
       render: (g) => <span className="font-semibold">{g.rate}%</span>,
     },
-    { key: "taxable", header: "Taxable", align: "right", render: (g) => fmt(g.taxable) },
-    { key: "cgst", header: "CGST", align: "right", render: (g) => fmt(g.cgst) },
-    { key: "sgst", header: "SGST", align: "right", render: (g) => fmt(g.sgst) },
+    { key: "taxable", header: "Taxable", align: "right", csvText: (g) => fmt(g.taxable), render: (g) => fmt(g.taxable) },
+    { key: "cgst", header: "CGST", align: "right", csvText: (g) => fmt(g.cgst), render: (g) => fmt(g.cgst) },
+    { key: "sgst", header: "SGST", align: "right", csvText: (g) => fmt(g.sgst), render: (g) => fmt(g.sgst) },
     {
       key: "tax",
       header: "Tax",
       align: "right",
+      csvText: (g) => fmt(g.tax),
       render: (g) => <span className="font-bold">{fmt(g.tax)}</span>,
     },
   ];
@@ -619,9 +660,16 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
       <div className="flex gap-2 items-center">
         <MetricCard label="Total Tax" value={fmt(totalTax)} color="text-amber-600" />
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`gst-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(gstColumns, grouped)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       {view === "table" ? (
-        <MobileReportTable columns={gstColumns} rows={grouped} rowKey={(g) => String(g.rate)} />
+        <MobileReportTable ref={tableRef} columns={gstColumns} rows={grouped} rowKey={(g) => String(g.rate)} />
       ) : (
         <div className="space-y-2">
           {grouped.map((g) => (
@@ -645,6 +693,7 @@ const GSTReport = ({ orgId, start, end }: RProps) => {
 /* 8. Brand Sales */
 const BrandSalesReport = ({ orgId, start, end }: RProps) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-brand-sales", orgId, start, end],
     enabled: !!orgId,
@@ -687,19 +736,27 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
       header: "Brand",
       sticky: true,
       minWidth: "min-w-[100px]",
+      csvText: (b) => b.brand,
       render: (b) => <span className="font-semibold">{b.brand}</span>,
     },
-    { key: "qty", header: "Qty", align: "right", render: (b) => b.qty },
-    { key: "amount", header: "Amount", align: "right", render: (b) => fmt(b.total) },
+    { key: "qty", header: "Qty", align: "right", csvText: (b) => String(b.qty), render: (b) => b.qty },
+    { key: "amount", header: "Amount", align: "right", csvText: (b) => fmt(b.total), render: (b) => fmt(b.total) },
   ];
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-1">
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`brand-sales-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(brandColumns, data)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       {view === "table" ? (
-        <MobileReportTable columns={brandColumns} rows={data} rowKey={(b) => b.brand} />
+        <MobileReportTable ref={tableRef} columns={brandColumns} rows={data} rowKey={(b) => b.brand} />
       ) : (
         data.map((b: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">
@@ -718,6 +775,7 @@ const BrandSalesReport = ({ orgId, start, end }: RProps) => {
 /* 9. Size Sales */
 const SizeSalesReport = ({ orgId, start, end }: RProps) => {
   const [view, setView] = useState<"list" | "table">("list");
+  const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["rpt-size-sales", orgId, start, end],
     enabled: !!orgId,
@@ -751,19 +809,27 @@ const SizeSalesReport = ({ orgId, start, end }: RProps) => {
       header: "Size",
       sticky: true,
       minWidth: "min-w-[64px]",
+      csvText: (s) => s.size,
       render: (s) => <span className="font-semibold">{s.size}</span>,
     },
-    { key: "qty", header: "Qty", align: "right", render: (s) => s.qty },
-    { key: "amount", header: "Amount", align: "right", render: (s) => fmt(s.total) },
+    { key: "qty", header: "Qty", align: "right", csvText: (s) => String(s.qty), render: (s) => s.qty },
+    { key: "amount", header: "Amount", align: "right", csvText: (s) => fmt(s.total), render: (s) => fmt(s.total) },
   ];
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-end">
+      <div className="flex justify-end items-center gap-1">
         <ReportViewToggle view={view} onChange={setView} />
+        {view === "table" && (
+          <ReportExportButton
+            fileBaseName={`size-sales-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(sizeColumns, data)}
+            tableRef={tableRef}
+          />
+        )}
       </div>
       {view === "table" ? (
-        <MobileReportTable columns={sizeColumns} rows={data} rowKey={(s) => s.size} />
+        <MobileReportTable ref={tableRef} columns={sizeColumns} rows={data} rowKey={(s) => s.size} />
       ) : (
         data.map((s: any, i: number) => (
           <div key={i} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border/40">

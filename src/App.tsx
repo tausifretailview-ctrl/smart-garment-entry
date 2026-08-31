@@ -14,7 +14,8 @@ import {
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister } from "@/lib/queryPersister";
+import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
+import { markPersistRestoreComplete } from "@/lib/mainThreadViolationProbe";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/contexts/OrganizationContext";
@@ -357,9 +358,10 @@ const App = () => {
 
   useEffect(() => {
     initNavigationPerfDiagnostics();
-    // Only attach fetch-wrapper diagnostics when explicitly enabled — avoids prod overhead.
+    // Fetch-wrapper is flag-only. Never auto-enable in DEV — wrapping every
+    // fetch (and logging it) repeats the console-on-hot-path regression.
+    // Enable: localStorage ezzy_cloud_usage=1 or ?cloudusage=1
     const diagEnabled =
-      import.meta.env.DEV ||
       (typeof localStorage !== "undefined" &&
         localStorage.getItem("ezzy_cloud_usage") === "1") ||
       (typeof window !== "undefined" &&
@@ -443,6 +445,9 @@ const App = () => {
         },
       }}
       onSuccess={() => {
+        void readPersistCacheCharLength().then((chars) => {
+          markPersistRestoreComplete(chars);
+        });
         void queryClient.resumePausedMutations();
       }}
     >

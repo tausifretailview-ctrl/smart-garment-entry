@@ -3,6 +3,7 @@ import {
   findDefaultPresetForMode,
   inferPrecisionPrintMode,
   presetMatchesPrintMode,
+  shouldApplyPurchaseLanding,
 } from "./precisionThermalModes";
 
 describe("inferPrecisionPrintMode", () => {
@@ -42,6 +43,26 @@ describe("inferPrecisionPrintMode", () => {
     expect(inferPrecisionPrintMode({ name: "Precision Pro TSC Box+Pair" })).toBe("footwear");
   });
 
+  it("does not treat stale print_mode=thermal as 1-up when name is 3-up", () => {
+    expect(
+      inferPrecisionPrintMode({
+        name: "32×19mm 3-Up",
+        printMode: "thermal",
+        thermalCols: 3,
+      }),
+    ).toBe("thermal3up");
+  });
+
+  it("does not treat stale print_mode=thermal as 1-up when thermal_cols is 3", () => {
+    expect(
+      inferPrecisionPrintMode({
+        name: "Shop labels",
+        printMode: "thermal",
+        thermalCols: 3,
+      }),
+    ).toBe("thermal3up");
+  });
+
   it("infers a4 from sheet dims only when printMode is missing", () => {
     expect(
       inferPrecisionPrintMode({
@@ -66,5 +87,14 @@ describe("presetMatchesPrintMode / findDefaultPresetForMode", () => {
     expect(presetMatchesPrintMode(bling, "thermal")).toBe(true);
     expect(presetMatchesPrintMode(bling, "a4")).toBe(false);
     expect(findDefaultPresetForMode([bling], "thermal")?.name).toBe("BLING JEWELLERY LABEL");
+  });
+});
+
+describe("shouldApplyPurchaseLanding", () => {
+  it("applies once per purchase navigation and ignores later preset refreshes", () => {
+    expect(shouldApplyPurchaseLanding(null, "nav-1")).toBe(true);
+    expect(shouldApplyPurchaseLanding("nav-1", "nav-1")).toBe(false);
+    expect(shouldApplyPurchaseLanding("nav-1", "nav-2")).toBe(true);
+    expect(shouldApplyPurchaseLanding("nav-1", null)).toBe(false);
   });
 });

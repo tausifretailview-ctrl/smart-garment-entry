@@ -24,7 +24,7 @@ import {
 import { ReportKpiCards, type ReportKpiItem } from "@/components/reports/ReportKpiCards";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { useQuery } from "@tanstack/react-query";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;

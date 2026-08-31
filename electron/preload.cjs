@@ -43,7 +43,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   isElectron: true,
   platform: process.platform,
   /** Packaged app version (hint bar / About). Additive — existing callers unchanged. */
-  appVersion: app.getVersion(),
+  appVersion: (() => {
+    try {
+      return app.getVersion();
+    } catch {
+      return undefined;
+    }
+  })(),
+  rememberOrgSlug: (slug) => ipcRenderer.invoke('remember-org-slug', slug),
 
   // Printer APIs — silent/direct printing for the desktop app.
   getPrinters: () => ipcRenderer.invoke('get-printers'),

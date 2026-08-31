@@ -24,6 +24,7 @@ import {
 } from "@/lib/entryPageLayout";
 import {
   isTabCachePath,
+  isTabPageChunkInFlight,
   isTabPageChunkLoaded,
   prefetchPostLoginCriticalPages,
   prefetchPostLoginIdlePages,
@@ -47,6 +48,10 @@ import {
   recordBlankFrame,
   type RenderOwner,
 } from "@/lib/navigationPerfDiagnostics";
+import {
+  classifySpinnerChrome,
+  recordPwaColdOpenSnapshot,
+} from "@/lib/pwaColdOpenDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
 import {
@@ -55,9 +60,15 @@ import {
 } from "@/lib/tabCacheMountRegistry";
 import {
   hasPaintedWorkspaceContent,
+  isLongBudgetOutletEntryPath,
   isPaintedTabSibling,
+  LONG_BUDGET_STUCK_RESCUE_MS,
+  shouldArmLongBudgetStuckRescue,
+  shouldArmOutletFallbackTimer,
+  shouldFireLongBudgetStuckRescue,
   shouldRemountStuckCacheableEntry,
   usesLongLoadBudget as usesLongLoadBudgetForNav,
+  workspaceHasCommittedEntryUi,
 } from "@/lib/tabCacheReadiness";
 import { prefetchPurchaseDashboardQueries } from "@/utils/purchaseDashboardPrefetch";
 import { prefetchMainDashboardQueries } from "@/utils/mainDashboardPrefetch";
@@ -78,7 +89,7 @@ const BLANK_FRAME_GRACE_MS = 1_200;
 /** Stuck tab-cache Suspense → hand route to <Outlet> (with App DashboardSkeleton). */
 const OUTLET_FALLBACK_MS = 4_000;
 /** Cacheable entry stuck on load shell (POS → purchase-entry) → remount chunk, not Outlet. */
-const CACHEABLE_ENTRY_STUCK_RESCUE_MS = 6_000;
+const CACHEABLE_ENTRY_STUCK_RESCUE_MS = LONG_BUDGET_STUCK_RESCUE_MS;
 
 function getOrgPathSegment(pathname: string, orgSlug?: string): string {
   if (orgSlug && pathname.startsWith(`/${orgSlug}`)) {
@@ -112,6 +123,9 @@ export const OrgLayout = () => {
   /** Bumped to remount a stuck cacheable-entry tab-cache pane (draft-safe — no Outlet). */
   const [cacheableEntryRescueKey, setCacheableEntryRescueKey] = useState(0);
   const cacheableEntryRescuedPathRef = useRef<string | null>(null);
+  /** Bumped to remount a stuck long-budget Outlet entry (POS / bill screens). */
+  const [outletRescueKey, setOutletRescueKey] = useState(0);
+  const outletRescuedPathRef = useRef<string | null>(null);
   /** Paths whose lazy chunk already mounted — skip Outlet flash when switching back. */
   const tabPaneReadyPathsRef = useRef<Set<string>>(new Set());
   /** Workspace container — watched by the blank-frame watchdog. */
@@ -135,7 +149,13 @@ export const OrgLayout = () => {
   const location = useLocation();
   const { openWindows } = useWindowTabs();
   const showDesktopChrome = useShowDesktopChrome();
-  const { hasMenuAccess, permissions, loading: permissionsLoading } = useUserPermissions();
+  const {
+    hasMenuAccess,
+    permissions,
+    loading: permissionsLoading,
+    isFetching: permissionsIsFetching,
+    fetchStatus: permissionsFetchStatus,
+  } = useUserPermissions();
 
   const currentPath = useMemo(
     () => getOrgPathSegment(location.pathname, orgSlug),
@@ -378,6 +398,7 @@ export const OrgLayout = () => {
   useLayoutEffect(() => {
     setForceOutletFallback(false);
     cacheableEntryRescuedPathRef.current = null;
+    outletRescuedPathRef.current = null;
     if (
       isCacheableTabPath(resolvedCurrentPath) &&
       tabPaths.length > 0 &&
@@ -394,17 +415,47 @@ export const OrgLayout = () => {
   // not chunk download. If this warning still appears, the fix is incomplete —
   // do not retune this timer.
   useEffect(() => {
-    if (!wantsTabCache || effectiveTabPaneReady || forceOutletFallback) return;
-    // Cacheable entry must stay on the pane (draft state); only dashboards use Outlet rescue.
-    if (usesLongLoadBudget) return;
-    // 4s: hand off to <Outlet> + App LazyFallback (DashboardSkeleton) before the
-    // "Taking longer than expected" card appears at 6s in TabCachedPages.
+    const workspaceCanLoadChunk = Boolean(user && !orgLoading && isOrgSynced);
+    if (
+      !shouldArmOutletFallbackTimer({
+        wantsTabCache,
+        effectiveTabPaneReady,
+        forceOutletFallback,
+        usesLongLoadBudget,
+        workspaceCanLoadChunk,
+      })
+    ) {
+      return;
+    }
+    // 4s of *workspace* time — not splash. OrgLayout early-returns while
+    // orgLoading / !isOrgSynced, so a timer started then ate the fetch window
+    // (ELLA NOOR 2026-08-30: 4.4s wall, ~2.5s of actual Index import).
     const timeoutMs = OUTLET_FALLBACK_MS;
     const timer = window.setTimeout(() => {
-      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath);
+      // Read chunk flags BEFORE resetTabPageChunk — that delete makes
+      // isTabPageChunkLoaded("") look false even when the module had resolved.
+      const chunkLoadedBeforeReset = isTabPageChunkLoaded(resolvedCurrentPath);
+      const chunkInFlightBeforeReset = isTabPageChunkInFlight(resolvedCurrentPath);
+      console.warn("[OrgLayout] Tab pane not ready — falling back to Outlet for", currentPath, {
+        chunkLoadedBeforeReset,
+        chunkInFlightBeforeReset,
+      });
+      const chrome = classifySpinnerChrome(typeof document !== "undefined" ? document : null);
+      recordPwaColdOpenSnapshot({
+        path: currentPath,
+        forceOutletFallback: true,
+        effectiveTabPaneReady,
+        dashboardChunkLoaded: chunkLoadedBeforeReset,
+        dashboardChunkInFlight: chunkInFlightBeforeReset,
+        orgLoading,
+        permissionsIsFetching,
+        permissionsFetchStatus,
+        spinnerKind: chrome.kind,
+        spinnerText: chrome.text,
+      });
       // Clear poisoned tab-cache bookkeeping so a later switch can remount cleanly.
-      // Outlet uses App.tsx lazyWithRetry (separate promise) and often recovers when
-      // the tab-cache path was stuck on a stale prefetch.
+      // Org index Outlet is MobileOrgIndexRedirect's bare lazy(), not App.tsx
+      // lazyWithRetry — same Vite URL, so the browser may still share a hung import().
       resetTabPageChunk(resolvedCurrentPath);
       setForceOutletFallback(true);
     }, timeoutMs);
@@ -416,6 +467,11 @@ export const OrgLayout = () => {
     usesLongLoadBudget,
     currentPath,
     resolvedCurrentPath,
+    user,
+    orgLoading,
+    isOrgSynced,
+    permissionsIsFetching,
+    permissionsFetchStatus,
   ]);
 
   // Record the render-owner decision for every navigation (always on — field evidence).
@@ -442,6 +498,31 @@ export const OrgLayout = () => {
     forceOutletFallback,
     isCacheableEntryActive,
     tabPaths,
+  ]);
+
+  // PWA cold-open probe — snapshot the stuck-frame fields requested in
+  // docs/pwa-cold-open-blank-dashboard-2026-08.md §8. Evidence only.
+  useEffect(() => {
+    const chrome = classifySpinnerChrome(typeof document !== "undefined" ? document : null);
+    recordPwaColdOpenSnapshot({
+      path: currentPath,
+      forceOutletFallback,
+      effectiveTabPaneReady,
+      dashboardChunkLoaded: isTabPageChunkLoaded(""),
+      dashboardChunkInFlight: isTabPageChunkInFlight(""),
+      orgLoading,
+      permissionsIsFetching,
+      permissionsFetchStatus,
+      spinnerKind: chrome.kind,
+      spinnerText: chrome.text,
+    });
+  }, [
+    currentPath,
+    forceOutletFallback,
+    effectiveTabPaneReady,
+    orgLoading,
+    permissionsIsFetching,
+    permissionsFetchStatus,
   ]);
 
   /**
@@ -502,6 +583,47 @@ export const OrgLayout = () => {
     renderViaTabCache,
     forceOutletFallback,
     effectiveTabPaneReady,
+  ]);
+
+  /**
+   * Long-budget Outlet entries (POS, sales invoice, returns, …): same 6s floor as
+   * purchase-entry. Must never use the 1.2s / 4s timers — those interrupt a
+   * slow-but-working bill load. Remount Outlet once if UI still has not committed.
+   */
+  useEffect(() => {
+    if (!isOrgSynced || !user) return;
+    if (isCacheableEntryActive) return;
+    if (!isLongBudgetOutletEntryPath(resolvedCurrentPath)) return;
+    if (!shouldArmLongBudgetStuckRescue({ usesLongLoadBudget })) return;
+    const startedAt = Date.now();
+    const timer = window.setTimeout(() => {
+      const elapsedMs = Date.now() - startedAt;
+      const ready = workspaceHasCommittedEntryUi(workspaceRef.current);
+      if (
+        !shouldFireLongBudgetStuckRescue({
+          contentReady: ready,
+          alreadyRescuedThisPath: outletRescuedPathRef.current === resolvedCurrentPath,
+          elapsedMs,
+        })
+      ) {
+        return;
+      }
+      outletRescuedPathRef.current = resolvedCurrentPath;
+      console.warn(
+        "[OrgLayout] Long-budget outlet entry stuck — remounting Outlet for",
+        currentPath,
+      );
+      resetTabPageChunk(resolvedCurrentPath);
+      setOutletRescueKey((k) => k + 1);
+    }, LONG_BUDGET_STUCK_RESCUE_MS);
+    return () => window.clearTimeout(timer);
+  }, [
+    isOrgSynced,
+    user,
+    isCacheableEntryActive,
+    resolvedCurrentPath,
+    currentPath,
+    usesLongLoadBudget,
   ]);
 
   /** SEMME flow: warm purchase-entry while the user is on POS (outlet, not tab-cache). */
@@ -736,7 +858,7 @@ export const OrgLayout = () => {
                 : "contents"
           }
         >
-          <Outlet />
+          <Outlet key={outletRescueKey} />
         </div>
       )}
       {/* Never leave a pure white workspace while the active tab chunk is still cold. */}

@@ -66,13 +66,14 @@ import { useToast } from "@/hooks/use-toast";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
 import { EInvoicePrint } from "@/components/EInvoicePrint";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import {
   resolveSaleBillFormat,
   resolveSaleInvoiceTemplate,
   toInvoiceWrapperFormat,
   resolvePosThermalPaper,
   posThermalPageCss,
+  isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -1879,7 +1880,7 @@ export default function SalesInvoiceDashboard() {
     `;
     }
 
-    if (invoiceTemplate === 'retail-tax-ezzy' || invoiceTemplate === 'wholesale-a5' || invoiceTemplate === 'retail-erp' || invoiceTemplate === 'retail-erp-dc' || invoiceTemplate === 'zaika') {
+    if (isA5PortraitInvoiceTemplate(invoiceTemplate)) {
       return `
       @page {
         size: A5 portrait;

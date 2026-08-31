@@ -41,6 +41,7 @@ import {
   resolvePosCustomerName,
   resolveWhatsAppCustomerName,
 } from "@/lib/posBilling/buildSaleData";
+import { decidePosSaveAutoRollback } from "@/utils/posSaleDeleteGuard";
 
 interface CartItem {
   id: string;
@@ -1331,16 +1332,51 @@ export const useSaveSale = () => {
       return { ...sale, pointsAwarded };
     } catch (error: any) {
       if (insertedSaleIdForRollback) {
-        const rollbackAt = new Date().toISOString();
-        await supabase.from('sale_items').delete().eq('sale_id', insertedSaleIdForRollback);
-        await supabase.from('sales').update({
-          deleted_at: rollbackAt,
-          is_cancelled: true,
-          cancelled_at: rollbackAt,
-          cancelled_by: user?.id ?? null,
-          cancelled_reason: 'auto-rollback: sale_items insert failed during save',
-          payment_status: 'cancelled',
-        }).eq('id', insertedSaleIdForRollback);
+        const saleId = insertedSaleIdForRollback;
+        try {
+          const [{ count: itemCount }, { data: header }] = await Promise.all([
+            supabase
+              .from("sale_items")
+              .select("id", { count: "exact", head: true })
+              .eq("sale_id", saleId)
+              .is("deleted_at", null),
+            supabase
+              .from("sales")
+              .select("sale_type, payment_status")
+              .eq("id", saleId)
+              .maybeSingle(),
+          ]);
+          const decision = decidePosSaveAutoRollback({
+            saleType: header?.sale_type,
+            paymentStatus: header?.payment_status,
+            itemCount: itemCount ?? 0,
+          });
+          if (decision.action === "keep_sale") {
+            console.error("[useSaveSale] skipped auto-rollback", decision.reason, saleId);
+            toast({
+              title: "Sale was saved",
+              description:
+                "A follow-up step failed, but the bill was kept and was not auto-deleted. Check POS Dashboard / Last Bill.",
+            });
+          } else {
+            const rollbackAt = new Date().toISOString();
+            await supabase.from("sale_items").delete().eq("sale_id", saleId);
+            await supabase
+              .from("sales")
+              .update({
+                deleted_at: rollbackAt,
+                deleted_by: user?.id ?? null,
+                is_cancelled: true,
+                cancelled_at: rollbackAt,
+                cancelled_by: user?.id ?? null,
+                cancelled_reason: "auto-rollback: sale_items insert failed during save",
+                payment_status: "cancelled",
+              })
+              .eq("id", saleId);
+          }
+        } catch (rollbackErr) {
+          console.error("[useSaveSale] auto-rollback guard failed — sale left in place", rollbackErr);
+        }
       }
       console.error('Error saving sale:', error);
       const isDuplicate = error?.code === '23505' || 

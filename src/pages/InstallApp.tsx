@@ -225,7 +225,14 @@ export default function InstallApp() {
         return;
       }
       setStatus("available");
-      window.location.assign(`${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`);
+      const downloadUrl = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.rel = "noopener";
+      anchor.style.display = "none";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
     } finally {
       setWindowsDownloadBusy(false);
     }
@@ -511,6 +518,7 @@ export default function InstallApp() {
                 <>
                   1. Tap Download above · 2. Open notification or Files app · 3. Tap the APK · 4. Choose{" "}
                   <strong>Install</strong> (do not open in Chrome). Allow <strong>Install unknown apps</strong> if asked.
+                  Then open EzzyERP — if it asks for an organization URL, type <strong>{orgSlug}</strong>.
                 </>
               )}
             </p>
@@ -608,7 +616,15 @@ export default function InstallApp() {
             </div>
             <p className="text-xs text-center text-muted-foreground">
               Windows 10/11 (64-bit) · Version {APP_VERSION}. If Windows shows &quot;Unknown publisher&quot;, click{" "}
-              <strong>More info → Run anyway</strong>.
+              <strong>More info → Run anyway</strong>. After install, open{" "}
+              <a className="text-primary underline" href={`ezzyerp://${orgSlug}`}>
+                this shop in the desktop app
+              </a>{" "}
+              or{" "}
+              <a className="text-primary underline" href={appStartUrl}>
+                {orgSlug} login
+              </a>
+              .
             </p>
             <Card className="p-4 space-y-2 bg-amber-500/5 border-amber-500/30">
               <div className="flex items-start gap-2">

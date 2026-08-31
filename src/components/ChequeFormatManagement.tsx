@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useChequeFormats, ChequeFormat, ChequeFormatInput, bankPresets } from "@/hooks/useChequeFormats";
 import { ChequePrintPreview } from "@/components/ChequePrintPreview";
 import { Plus, Pencil, Trash2, Star, Printer, Eye } from "lucide-react";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { toast } from "sonner";
 
 const defaultFormValues: ChequeFormatInput = {

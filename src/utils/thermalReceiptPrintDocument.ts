@@ -8,6 +8,7 @@ import {
   thermalReceiptBrowserPageSize,
   thermalReceiptRollPageSize,
 } from '@/utils/invoicePrintFormat';
+import { PRINT_NESTED_STYLE_TAG_HIDE_CSS } from '@/utils/printNestedStyleTagSafety';
 
 /** Microns: tall roll height so Electron/Chromium do not paginate at A4 (~297mm). */
 const RECEIPT_ROLL_HEIGHT_MICRONS = 5_000_000;
@@ -57,6 +58,7 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
       opacity: 1 !important;
     }
   }
+  ${PRINT_NESTED_STYLE_TAG_HIDE_CSS}
 `;
 
 /** @deprecated Use INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS */

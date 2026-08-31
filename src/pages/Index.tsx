@@ -442,6 +442,9 @@ const DesktopDashboard = () => {
   const salesData = { total: displayedDashStats?.total_sales || 0, count: displayedDashStats?.invoice_count || 0, soldQty: displayedDashStats?.sold_qty || 0 };
   const purchaseData = { total: displayedDashStats?.total_purchase || 0, count: displayedDashStats?.purchase_count || 0, purchaseQty: displayedDashStats?.purchase_qty || 0 };
   const customersCount = displayedDashStats?.customer_count || 0;
+  // product_count / total_stock_qty are get_erp_dashboard_stats aggregates
+  // (one RPC), not N product rows painted on this page. A 500ms+ main-thread
+  // task after Dashboard load is not explained by these two numbers.
   const productsCount = displayedDashStats?.product_count || 0;
   const suppliersCount = displayedDashStats?.supplier_count || 0;
   const stockData = displayedDashStats?.total_stock_qty || 0;

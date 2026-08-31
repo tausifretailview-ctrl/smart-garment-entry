@@ -137,6 +137,12 @@ export function InvoiceTemplateSelectItems({
             Zaika — Tax Invoice (no Size / Barcode / Qty / Rate / Balances / Terms)
           </span>
         </SelectItem>
+        <SelectItem value="gurukrupa">
+          <span className="flex items-center gap-2">
+            <span className="text-rose-700 font-bold text-xs w-5">GK</span>
+            Gurukrupa — Retail ERP A5 (Sub Total / Discount / S/R Adjust / Bill Total)
+          </span>
+        </SelectItem>
         <SelectItem value="retail-tax-ezzy">
           <span className="flex items-center gap-2">
             <span className="text-slate-700 font-bold text-xs w-5">EZY</span>

@@ -6,6 +6,28 @@
  * sibling produced a white workspace until the 6s rescue timer.
  */
 
+/** Same 6s floor as purchase-entry remount — never 1.2s / 4s on long-budget screens. */
+export const LONG_BUDGET_STUCK_RESCUE_MS = 6_000;
+
+/**
+ * Long-budget Outlet entries that had no rescue after the purchase-entry 6s remount.
+ * Must not be given the 1.2s / 4s timers — those interrupt a slow-but-working bill load.
+ */
+export const LONG_BUDGET_OUTLET_ENTRY_PATHS = [
+  "pos-sales",
+  "pos-delivery-challan",
+  "sales-invoice",
+  "sale-return-entry",
+  "quotation-entry",
+  "sale-order-entry",
+  "purchase-return-entry",
+] as const;
+
+export function isLongBudgetOutletEntryPath(path: string): boolean {
+  const bare = path.replace(/^\/+|\/+$/g, "");
+  return (LONG_BUDGET_OUTLET_ENTRY_PATHS as readonly string[]).includes(bare);
+}
+
 /** Bill-entry / POS screens may show a boot splash longer than dashboard cold-nav. */
 export function usesLongLoadBudget(
   isEntryPage: boolean,
@@ -13,6 +35,69 @@ export function usesLongLoadBudget(
   isPosLikeEntry = false,
 ): boolean {
   return isEntryPage || isCacheableEntryActive || isPosLikeEntry;
+}
+
+/**
+ * Arm the 6s timer on every long-budget landing. Do not skip just because a
+ * previous page's inputs are still in the workspace for a frame — decide at fire.
+ */
+export function shouldArmLongBudgetStuckRescue(opts: {
+  usesLongLoadBudget: boolean;
+}): boolean {
+  return opts.usesLongLoadBudget;
+}
+
+/**
+ * Fire remount only at/after 6s and only if still not ready.
+ * A 1.2s or 4s elapsed time must never remount — that is a slow-but-working load.
+ */
+export function shouldFireLongBudgetStuckRescue(opts: {
+  contentReady: boolean;
+  alreadyRescuedThisPath: boolean;
+  elapsedMs: number;
+  minMs?: number;
+}): boolean {
+  if (opts.alreadyRescuedThisPath) return false;
+  if (opts.contentReady) return false;
+  return opts.elapsedMs >= (opts.minMs ?? LONG_BUDGET_STUCK_RESCUE_MS);
+}
+
+/**
+ * 4s Outlet rescue for the dashboard tab-cache pane.
+ *
+ * Do not arm while OrgLayout still early-returns the org splash
+ * (`orgLoading` or `!isOrgSynced`). Hooks run during that splash, so a timer
+ * started then eats the fetch window. ELLA NOOR live capture 2026-08-30:
+ * timer armed 29.523Z (boot-splash, orgLoading=true); workspace mounted
+ * 31.386Z (load-shell); rescue 33.924Z. The Index chunk had ~2.5s, not 4s.
+ *
+ * Do not retune OUTLET_FALLBACK_MS (4000). Start the clock when TabCachedPages
+ * / Outlet can actually call `import("@/pages/Index")`.
+ */
+export function shouldArmOutletFallbackTimer(opts: {
+  wantsTabCache: boolean;
+  effectiveTabPaneReady: boolean;
+  forceOutletFallback: boolean;
+  usesLongLoadBudget: boolean;
+  workspaceCanLoadChunk: boolean;
+}): boolean {
+  if (!opts.workspaceCanLoadChunk) return false;
+  if (!opts.wantsTabCache) return false;
+  if (opts.effectiveTabPaneReady || opts.forceOutletFallback) return false;
+  if (opts.usesLongLoadBudget) return false;
+  return true;
+}
+
+/** True when the workspace has real entry UI — not an empty pane or load shell alone. */
+export function workspaceHasCommittedEntryUi(el: HTMLElement | null): boolean {
+  if (!el) return false;
+  const hasShell = !!el.querySelector("[data-ezzy-load-shell]");
+  const hasControls = !!el.querySelector(
+    "input, textarea, select, table, canvas, [data-entry-ready]",
+  );
+  if (hasShell && !hasControls) return false;
+  const text = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+  return hasControls || text.length > 0;
 }
 
 /**

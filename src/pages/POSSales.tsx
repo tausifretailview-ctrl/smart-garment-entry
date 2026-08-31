@@ -97,6 +97,7 @@ import {
   shouldCreatePosCommissionOnSave,
 } from "@/utils/posSalesmanRetain";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
+import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -131,6 +132,7 @@ import {
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
   getPosDocumentPrintPageStyle,
+  isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import {
@@ -229,7 +231,7 @@ import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
 import { format } from "date-fns";
-import { useReactToPrint } from "react-to-print";
+import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { DcSaleTransferDialog } from "@/components/DcSaleTransferDialog";
@@ -4923,7 +4925,7 @@ export default function POSSales() {
     `;
     }
 
-    if (posInvoiceTemplate === 'retail-tax-ezzy' || posInvoiceTemplate === 'wholesale-a5' || posInvoiceTemplate === 'retail-erp' || posInvoiceTemplate === 'retail-erp-dc' || posInvoiceTemplate === 'zaika') {
+    if (isA5PortraitInvoiceTemplate(posInvoiceTemplate)) {
       return `
       @page {
         size: A5 portrait;
@@ -5092,6 +5094,7 @@ export default function POSSales() {
     contentRef: creditNotePrintRef,
     documentTitle: creditNoteData?.credit_note_number || "Credit Note",
     pageStyle: getCreditNotePageStyle(),
+    expectedMaxPages: 1,
     onBeforePrint: () =>
       new Promise<void>((resolve) => {
         waitForPrintReady(creditNotePrintRef, resolve, { maxWait: 8000 });
@@ -7441,6 +7444,7 @@ export default function POSSales() {
                               </Tooltip>
                             )}
                             <span className="truncate">{item.productName}</span>
+                            <PosSchemeAppliedTag applied={item.categoryTierApplied} />
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}

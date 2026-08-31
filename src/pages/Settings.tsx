@@ -606,7 +606,7 @@ export default function Settings() {
           xOffset: Number(p.x_offset), yOffset: Number(p.y_offset),
           vGap: Number(p.v_gap), width: Number(p.label_width), height: Number(p.label_height),
           a4Cols: p.a4_cols, a4Rows: p.a4_rows,
-          printMode: (p.print_mode as CalibrationPreset["printMode"]) || "thermal",
+          printMode: (p.print_mode as CalibrationPreset["printMode"]) || undefined,
           thermalCols: Number(p.thermal_cols) || 1,
           labelConfig: p.label_config, isDefault: p.is_default,
         })));
@@ -3333,6 +3333,8 @@ export default function Settings() {
                           ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'
                         : settings.sale_settings?.invoice_template === 'zaika'
                           ? 'Zaika matches Retail ERP tax invoice without Size, Barcode, Qty, Rate columns, and without Received/Balance/Prev Bal or Terms & Conditions (A5).'
+                        : settings.sale_settings?.invoice_template === 'gurukrupa'
+                          ? 'Gurukrupa is A5 Retail ERP tax invoice with Sub Total, Discount, S/R Adjust and Bill Total — no Round Off.'
                         : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
                           ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5).'
                         : settings.sale_settings?.invoice_template === 'real-tast'
