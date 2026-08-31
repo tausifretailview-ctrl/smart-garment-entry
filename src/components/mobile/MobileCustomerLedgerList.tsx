@@ -8,38 +8,28 @@ import { MetricCard } from "@/components/mobile/MobileReportMetricCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
-import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { buildCsvFromReportTable } from "@/utils/reportCsvExport";
 import {
   fetchCustomerPartyBalancesPayload,
-  enrichPartyRowsWithCanonicalBalance,
-  PARTY_BALANCE_CANONICAL_ENRICH_MAX,
-  partyBalanceRowFacets,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
-import {
-  filterPartyBalanceRows,
-  partyBalanceDirection,
-  type PartyDirectionFilter,
-} from "@/utils/customerPartyBalanceDisplay";
-import { formatNetFacetLabel, summarizeAccountFacets } from "@/utils/customerAccountFacets";
+import { matchesPartyBalanceSearch } from "@/utils/customerPartyBalanceDisplay";
 
-const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-function fmtAmt(n: number) {
-  return inr.format(n);
-}
+const fmt = (v: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
 
 const LoadingRows = () => (
   <div className="space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)}</div>
 );
 
-export function MobileCustomerLedgerList({ orgId }: { orgId?: string }) {
-  const { orgNavigate } = useOrgNavigation();
+export function MobileCustomerLedgerList({
+  orgId,
+  onSelectParty,
+}: {
+  orgId?: string;
+  onSelectParty: (row: CustomerPartyBalanceAlignedRow) => void;
+}) {
   const [search, setSearch] = useState("");
-  const [showSettled, setShowSettled] = useState(false);
-  const [directionFilter, setDirectionFilter] = useState<PartyDirectionFilter>("all");
   const tableRef = useRef<HTMLDivElement>(null);
 
   const { data: partyPayload, isLoading, isError, refetch } = useQuery({
@@ -53,48 +43,21 @@ export function MobileCustomerLedgerList({ orgId }: { orgId?: string }) {
   const rows = partyPayload?.rows ?? [];
   const partyBalancesComplete = partyPayload?.partyBalancesComplete !== false;
 
-  const { summary: orgReceivablesSummary } = useOrganizationReceivablesSummary(orgId, {
-    enabled: !!orgId && !partyBalancesComplete,
-  });
+  const visibleRows = useMemo(
+    () => rows.filter((r) => matchesPartyBalanceSearch(r, search)),
+    [rows, search],
+  );
 
-  const orgTotals = useMemo(() => {
-    if (!partyBalancesComplete) {
-      return {
-        totalOutstandingDr: orgReceivablesSummary.grossReceivableDr,
-        totalCreditPoolCr: orgReceivablesSummary.customerCreditPoolCr,
-        netReceivable: orgReceivablesSummary.netReceivable,
-      };
+  const totals = useMemo(() => {
+    let outstanding = 0;
+    let advance = 0;
+    for (const r of visibleRows) {
+      const os = Number(r.gross_outstanding) || 0;
+      if (os > 0) outstanding += os;
+      advance += Number(r.advance_available) || 0;
     }
-    const t = summarizeAccountFacets(rows.map((r) => partyBalanceRowFacets(r)));
-    return {
-      totalOutstandingDr: t.totalOutstandingDr,
-      totalCreditPoolCr: t.totalCreditPoolCr,
-      netReceivable: t.netReceivable,
-    };
-  }, [rows, partyBalancesComplete, orgReceivablesSummary]);
-
-  const filteredRows = useMemo(
-    () => filterPartyBalanceRows(rows, { search, showSettled, directionFilter }),
-    [rows, search, showSettled, directionFilter],
-  );
-
-  const filteredRowKey = useMemo(
-    () => filteredRows.map((r) => r.customer_id).join(","),
-    [filteredRows],
-  );
-
-  const enrichFilteredSubset = filteredRows.length > 0 && filteredRows.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX;
-  const { data: canonicalFilteredRows } = useQuery({
-    queryKey: ["customer-party-balances-canonical-filtered", orgId, filteredRowKey],
-    enabled: Boolean(orgId && enrichFilteredSubset),
-    staleTime: 30_000,
-    queryFn: () => enrichPartyRowsWithCanonicalBalance(orgId!, filteredRows),
-  });
-
-  const listRows = useMemo(() => {
-    const source = enrichFilteredSubset ? (canonicalFilteredRows ?? filteredRows) : filteredRows;
-    return source.slice(0, 400);
-  }, [enrichFilteredSubset, canonicalFilteredRows, filteredRows]);
+    return { outstanding, advance };
+  }, [visibleRows]);
 
   const columns: ReportTableColumn<CustomerPartyBalanceAlignedRow>[] = [
     {
@@ -102,114 +65,52 @@ export function MobileCustomerLedgerList({ orgId }: { orgId?: string }) {
       header: "Name",
       sticky: true,
       minWidth: "min-w-[120px]",
-      csvText: (r) => r.customer_name,
+      csvText: (r) => (r.phone ? `${r.customer_name} — ${r.phone}` : r.customer_name),
       render: (r) => (
         <div className="min-w-[120px] max-w-[160px]">
           <p className="font-semibold truncate">{r.customer_name}</p>
-          {partyBalanceDirection(r) === "Settled" ? (
-            <span className="text-[10px] font-medium text-muted-foreground">Settled</span>
-          ) : null}
+          {r.phone ? <p className="text-[11px] text-muted-foreground truncate">{r.phone}</p> : null}
         </div>
       ),
-    },
-    {
-      key: "phone",
-      header: "Phone",
-      csvText: (r) => r.phone || "",
-      render: (r) => <span className="text-muted-foreground">{r.phone || "—"}</span>,
     },
     {
       key: "outstanding",
       header: "Outstanding",
       align: "right",
-      csvText: (r) => fmtAmt(partyBalanceRowFacets(r).outstanding),
+      csvText: (r) => fmt(Number(r.gross_outstanding) || 0),
       render: (r) => {
-        const f = partyBalanceRowFacets(r);
-        return (
-          <span className={cn(f.outstanding > 0.5 && "text-destructive font-semibold")}>
-            {fmtAmt(f.outstanding)}
-          </span>
-        );
+        const n = Number(r.gross_outstanding) || 0;
+        return <span className={cn(n > 0 && "text-destructive")}>{fmt(n)}</span>;
       },
     },
     {
       key: "advance",
       header: "Advance",
       align: "right",
-      csvText: (r) => fmtAmt(partyBalanceRowFacets(r).unusedAdvance),
+      csvText: (r) => fmt(Number(r.advance_available) || 0),
       render: (r) => {
-        const f = partyBalanceRowFacets(r);
-        return (
-          <span className={cn(f.unusedAdvance > 0.5 && "text-emerald-600 font-semibold")}>
-            {fmtAmt(f.unusedAdvance)}
-          </span>
-        );
+        const n = Number(r.advance_available) || 0;
+        return <span className={cn(n > 0 && "text-emerald-600")}>{fmt(n)}</span>;
       },
     },
     {
       key: "net",
       header: "Net",
       align: "right",
-      csvText: (r) => formatNetFacetLabel(partyBalanceRowFacets(r).netPosition),
-      render: (r) => {
-        const net = partyBalanceRowFacets(r).netPosition;
-        return (
-          <span
-            className={cn(
-              "font-bold",
-              net > 0.5 ? "text-destructive" : net < -0.5 ? "text-emerald-600" : "text-muted-foreground",
-            )}
-          >
-            {formatNetFacetLabel(net)}
-          </span>
-        );
-      },
+      csvText: (r) => fmt(Number(r.net_position) || 0),
+      render: (r) => <span className="font-bold">{fmt(Number(r.net_position) || 0)}</span>,
     },
   ];
 
-  const openLedger = (row: CustomerPartyBalanceAlignedRow) => {
-    orgNavigate(`/customer-ledger-report?customer=${encodeURIComponent(row.customer_id)}`);
-  };
-
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 overflow-x-hidden">
       <MobileReportSearchBar value={search} onChange={setSearch} placeholder="Search name or phone…" />
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1 rounded-lg border border-border/40 p-0.5 w-fit">
-          {([
-            { value: "all" as const, label: "All" },
-            { value: "Dr" as const, label: "Dr" },
-            { value: "Cr" as const, label: "Cr" },
-          ]).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => setDirectionFilter(opt.value)}
-              className={cn(
-                "px-2.5 py-1.5 rounded-md text-xs font-semibold touch-manipulation",
-                directionFilter === opt.value ? "bg-primary/10 text-primary" : "text-muted-foreground",
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 px-1 text-xs text-muted-foreground touch-manipulation">
-          <input
-            type="checkbox"
-            checked={showSettled}
-            onChange={(e) => setShowSettled(e.target.checked)}
-            className="rounded border-border"
-          />
-          Show settled (₹0)
-        </label>
-      </div>
       <div className="flex items-center justify-between">
         <p className="text-sm font-semibold text-sky-700">Summary</p>
-        {listRows.length ? (
+        {visibleRows.length ? (
           <ReportExportButton
             fileBaseName={`customer-balances-${format(new Date(), "ddMMyyyy")}`}
-            buildCsv={() => buildCsvFromReportTable(columns, listRows)}
+            buildCsv={() => buildCsvFromReportTable(columns, visibleRows)}
             tableRef={tableRef}
           />
         ) : null}
@@ -226,28 +127,28 @@ export function MobileCustomerLedgerList({ orgId }: { orgId?: string }) {
       ) : (
         <>
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
-            <MetricCard label="Outstanding" value={`₹${fmtAmt(orgTotals.totalOutstandingDr)}`} color="text-destructive" />
-            <MetricCard label="Advance / Credit" value={`₹${fmtAmt(orgTotals.totalCreditPoolCr)}`} color="text-emerald-600" />
-            <MetricCard label="Net" value={formatNetFacetLabel(orgTotals.netReceivable)} />
+            <MetricCard label="Customers" value={String(visibleRows.length)} />
+            <MetricCard label="Total Outstanding" value={fmt(totals.outstanding)} color="text-destructive" />
+            <MetricCard label="Total Advance" value={fmt(totals.advance)} color="text-emerald-600" />
           </div>
-          {!listRows.length ? (
+          {!partyBalancesComplete ? (
+            <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">
+              Showing directory balances — full totals timed out, try refining your search
+            </p>
+          ) : null}
+          {!visibleRows.length ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground text-sm">No parties match these filters</p>
+              <p className="text-muted-foreground text-sm">No parties match this search</p>
             </div>
           ) : (
-            <>
-              <p className="text-sm font-semibold text-sky-700">
-                Parties ({listRows.length}{filteredRows.length > listRows.length ? ` of ${filteredRows.length}` : ""})
-              </p>
-              <MobileReportTable
-                ref={tableRef}
-                variant="statement"
-                columns={columns}
-                rows={listRows}
-                rowKey={(r) => r.customer_id}
-                onRowClick={openLedger}
-              />
-            </>
+            <MobileReportTable
+              ref={tableRef}
+              variant="statement"
+              columns={columns}
+              rows={visibleRows}
+              rowKey={(r) => r.customer_id}
+              onRowClick={onSelectParty}
+            />
           )}
         </>
       )}

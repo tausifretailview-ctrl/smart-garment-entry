@@ -77,26 +77,6 @@ function fmtAmt(n: number) {
 
 export default function CustomerPartyBalancesPage() {
   const isMobile = useIsMobile();
-  if (isMobile) {
-    return <MobileCustomerPartyBalancesScreen />;
-  }
-  return <CustomerPartyBalancesDesktop />;
-}
-
-function MobileCustomerPartyBalancesScreen() {
-  const { currentOrganization } = useOrganization();
-  return (
-    <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
-      <MobilePageHeader title="Customer Balances" backTo="/" />
-      <div className="px-2 pt-3 flex-1 min-h-0">
-        <MobileCustomerLedgerList orgId={currentOrganization?.id} />
-      </div>
-      <MobileBottomNav />
-    </div>
-  );
-}
-
-function CustomerPartyBalancesDesktop() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { toast } = useToast();
@@ -482,6 +462,18 @@ function CustomerPartyBalancesDesktop() {
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className="flex flex-col min-h-screen bg-muted/30 pb-24 overflow-x-hidden">
+        <MobilePageHeader title="Customer Balances" backTo="/" />
+        <div className="px-2 pt-3 flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <MobileCustomerLedgerList orgId={orgId} onSelectParty={openCustomerLedger} />
+        </div>
+        <MobileBottomNav />
       </div>
     );
   }
