@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { generateOrgSaleNumber } from "@/utils/saleNumber";
+import { generateOrgSaleNumber, trailingSaleSequence } from "@/utils/saleNumber";
 
 /** Postgres unique index: one active (organization_id, sale_number). */
 export function isSaleNumberActiveUniqueViolation(error: unknown): boolean {
@@ -38,6 +38,45 @@ export function formatSaleRestoreNumberNote(plan: {
     return `Restored ${plan.originalNumber}${dateBit}. A newer bill had reused that number and is now ${plan.reassignedNumber}.`;
   }
   return `Restored as ${plan.reassignedNumber}${dateBit} because ${plan.originalNumber} is already used by another bill.`;
+}
+
+/** POS Dashboard defaults to today — tell the cashier how to open a restored bill. */
+export function formatSaleRestoreFindHint(input: {
+  saleNumber?: string | null;
+  saleDate?: string | null;
+}): string {
+  const number = String(input.saleNumber || "").trim();
+  const serial = trailingSaleSequence(number);
+  const ymd = input.saleDate ? String(input.saleDate).slice(0, 10) : "";
+  const dateBit = ymd ? `set Daily to ${ymd}` : "change Daily off Today";
+  const searchBit =
+    serial != null
+      ? `or search ${serial} (serial — not the ₹ amount)`
+      : number
+        ? `or search ${number}`
+        : "or search the sale number";
+  return `Find it on POS Dashboard: ${dateBit}, ${searchBit}.`;
+}
+
+/**
+ * Same SALE/RECEIPT amounts as trg_sales_sync_customer_ledger.
+ * Restore only clears deleted_at, so that trigger skips and POS delete
+ * already removed the statement rows — rebuild only when none exist.
+ */
+export function saleRestoreLedgerAmounts(sale: {
+  net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
+  refund_amount?: number | null;
+}): { saleDebit: number; receiptCredit: number } {
+  const net = Number(sale.net_amount) || 0;
+  const paid = Number(sale.paid_amount) || 0;
+  const sra = Number(sale.sale_return_adjust) || 0;
+  const refund = Number(sale.refund_amount) || 0;
+  const isExchange = sra > 0.005 && refund > 0.005 && net <= 0.005;
+  const saleDebit = Math.round((isExchange ? Math.max(0, net + sra) : net) * 100) / 100;
+  const receiptCredit = !isExchange && paid > 0 ? Math.round(paid * 100) / 100 : 0;
+  return { saleDebit, receiptCredit };
 }
 
 export function friendlySaleNumberRestoreError(originalNumber?: string | null): string {

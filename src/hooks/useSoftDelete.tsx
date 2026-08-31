@@ -1,9 +1,12 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
+import { ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
+import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   recordPurchaseJournalEntry,
   recordPurchaseReturnJournalEntry,
@@ -13,6 +16,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
+  formatSaleRestoreFindHint,
   friendlySaleNumberRestoreError,
   isSaleNumberActiveUniqueViolation,
   withSaleRestoreNumberResolution,
@@ -67,6 +71,7 @@ export function useSoftDelete() {
   const { user } = useAuth();
   const { organizationRole, currentOrganization } = useOrganization();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { checkVariantHasTransactions, checkProductHasTransactions } = useProductProtection();
 
   const softDelete = async (
@@ -281,10 +286,29 @@ export function useSoftDelete() {
           }
           const { data: saleRow } = await supabase
             .from("sales")
-            .select("organization_id, net_amount, paid_amount, payment_method, sale_date")
+            .select(
+              "organization_id, customer_id, sale_number, net_amount, paid_amount, payment_method, sale_date, sale_return_adjust, refund_amount",
+            )
             .eq("id", id)
             .maybeSingle();
           if (saleRow?.organization_id) {
+            try {
+              await ensureCustomerLedgerAfterSaleRestore(saleRow);
+            } catch (ledgerErr) {
+              console.error("Rebuild customer statement after sale restore:", ledgerErr);
+            }
+            invalidateMoneyViewsAfterMutation(
+              queryClient,
+              saleRow.organization_id,
+              saleRow.customer_id,
+            );
+            const findHint = formatSaleRestoreFindHint({
+              saleNumber: saleRow.sale_number,
+              saleDate: saleRow.sale_date,
+            });
+            restoreNote = restoreNote
+              ? `${restoreNote} ${findHint}`
+              : `${saleRow.sale_number || "Sale"} restored. Stock deducted again. ${findHint}`;
             const { data: setS } = await supabase
               .from("settings")
               .select("accounting_engine_enabled")

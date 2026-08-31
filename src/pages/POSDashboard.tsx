@@ -19,7 +19,11 @@ import {
   resolvePosDashboardVoucherLookbackFrom,
   type PosDashboardSummaryStats,
 } from "@/utils/posDashboardSales";
-import { rankPosDashboardSearchResults } from "@/utils/posDashboardSearch";
+import {
+  POS_DASHBOARD_SEARCH_HINT,
+  POS_DASHBOARD_SEARCH_PLACEHOLDER,
+  rankPosDashboardSearchResults,
+} from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
@@ -2762,7 +2766,8 @@ const POSDashboard = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Sale no, customer, barcode..."
+                placeholder={POS_DASHBOARD_SEARCH_PLACEHOLDER}
+                title={POS_DASHBOARD_SEARCH_HINT}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 h-10 bg-card border-border/60 rounded-xl text-sm"
@@ -3161,7 +3166,8 @@ const POSDashboard = () => {
               <div className="relative flex-[2] min-w-[160px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search list..."
+                  placeholder={POS_DASHBOARD_SEARCH_PLACEHOLDER}
+                  title={POS_DASHBOARD_SEARCH_HINT}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 h-9 w-full text-sm border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
