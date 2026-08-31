@@ -24,6 +24,8 @@ import {
 import {
   MobileCashierReport,
   MobileItemWiseSalesReport,
+  MobileCustomerWiseSalesReport,
+  MobileSalesmanWiseSalesReport,
   MobileItemWiseStockReport,
   MobileNetProfitReport,
   MobileStockReport,
@@ -69,6 +71,8 @@ const TITLES: Record<ReportType, string> = {
   "payment-collection": "Payment Collection",
   "daily-cashier": "Cashier Report",
   "item-wise-sales": "Item-wise Sale",
+  "customer-wise-sales": "Customer-wise Sale",
+  "salesman-wise-sales": "Salesman-wise Sale",
   "item-wise-stock": "Item-wise Stock",
   "net-profit": "Net Profit",
   "stock-report": "Stock Report",
@@ -188,6 +192,8 @@ export const OwnerReportDetail = ({ reportType, onBack }: Props) => {
         {reportType === "payment-collection" && <PaymentCollectionReport orgId={orgId} start={start} end={end} />}
         {reportType === "daily-cashier" && <MobileCashierReport orgId={orgId} start={start} end={end} />}
         {reportType === "item-wise-sales" && <MobileItemWiseSalesReport orgId={orgId} start={start} end={end} />}
+        {reportType === "customer-wise-sales" && <MobileCustomerWiseSalesReport orgId={orgId} start={start} end={end} />}
+        {reportType === "salesman-wise-sales" && <MobileSalesmanWiseSalesReport orgId={orgId} start={start} end={end} />}
         {reportType === "item-wise-stock" && <MobileItemWiseStockReport orgId={orgId} />}
         {reportType === "net-profit" && <MobileNetProfitReport orgId={orgId} start={start} end={end} />}
         {reportType === "stock-report" && <MobileStockReport orgId={orgId} />}

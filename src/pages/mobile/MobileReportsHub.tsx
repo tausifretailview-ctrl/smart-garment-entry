@@ -16,13 +16,15 @@ import {
   Building2,
   Receipt,
   TrendingUp,
-  ShieldCheck
+  ShieldCheck,
+  UserCheck
 } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { MobileReportCard } from "@/components/mobile/MobileReportCard";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 
 interface ReportItem {
   icon: React.ElementType;
@@ -69,6 +71,8 @@ export default function MobileReportsHub() {
         { icon: BarChart3, label: "Sales Report", path: "/sales-invoice-dashboard", desc: "All sales invoices" },
         { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", desc: "Cash summary for day" },
         { icon: ShoppingBag, label: "Item-wise Sales", path: "/item-wise-sales", desc: "Sales by product" },
+        { icon: Users, label: "Customer-wise Sale", path: `${MOBILE_REPORTS_PATH}?report=customer-wise-sales`, desc: "Sales by customer" },
+        { icon: UserCheck, label: "Salesman-wise Sale", path: `${MOBILE_REPORTS_PATH}?report=salesman-wise-sales`, desc: "Sales by salesman" },
         { icon: Users, label: "Customer Sales", path: "/sales-report-by-customer", desc: "Sales by customer" },
         { icon: TrendingUp, label: "Hourly Analysis", path: "/hourly-sales-analysis", desc: "Peak hours & trends" },
       ]

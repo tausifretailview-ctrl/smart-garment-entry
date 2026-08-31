@@ -340,6 +340,145 @@ export function MobileItemWiseSalesReport({ orgId, start, end }: DateProps) {
   );
 }
 
+function isExcludedHoldSale(s: { payment_status?: string | null; sale_number?: string | null }) {
+  return s.payment_status === "hold" || (s.payment_status === "pending" && String(s.sale_number || "").startsWith("Hold/"));
+}
+
+function SalesGroupReport({
+  orgId,
+  start,
+  end,
+  groupBy,
+}: DateProps & { groupBy: "customer" | "salesman" }) {
+  const [search, setSearch] = useState("");
+  const tableRef = useRef<HTMLDivElement>(null);
+  const isCustomer = groupBy === "customer";
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: [isCustomer ? "rpt-customer-wise-sales" : "rpt-salesman-wise-sales", orgId, start, end],
+    enabled: !!orgId && !!start && !!end,
+    retry: 1,
+    queryFn: () =>
+      withMobileQueryTimeout(async () => {
+        const { startIso, endIso } = localDayBounds(start!, end!);
+        const { data: sales, error } = await supabase
+          .from("sales")
+          .select("customer_id, customer_name, salesman, net_amount, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, sale_return_adjust, sale_number, payment_status")
+          .eq("organization_id", orgId!)
+          .is("deleted_at", null)
+          .eq("is_cancelled", false)
+          .neq("payment_status", "cancelled")
+          .gte("sale_date", startIso)
+          .lte("sale_date", endIso)
+          .limit(2000);
+        if (error) throw error;
+        return (sales || []).filter((s) => !isExcludedHoldSale(s));
+      }, 25_000),
+  });
+
+  const rows = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; bills: number; amount: number }>();
+    (data || []).forEach((s) => {
+      const key = isCustomer
+        ? s.customer_id || s.customer_name || "walk-in"
+        : (s.salesman || "").trim() || "Unassigned";
+      const name = isCustomer ? s.customer_name || "Walk-in" : (s.salesman || "").trim() || "Unassigned";
+      const ex = map.get(key) || { key, name, bills: 0, amount: 0 };
+      ex.bills += 1;
+      ex.amount += getSaleReportNetAmount(s);
+      map.set(key, ex);
+    });
+    const q = search.trim().toLowerCase();
+    return [...map.values()]
+      .filter((r) => !q || r.name.toLowerCase().includes(q))
+      .sort((a, b) => b.amount - a.amount);
+  }, [data, search, isCustomer]);
+
+  const totals = useMemo(
+    () => rows.reduce((a, r) => ({ bills: a.bills + r.bills, amount: a.amount + r.amount }), { bills: 0, amount: 0 }),
+    [rows],
+  );
+
+  const columns: ReportTableColumn<(typeof rows)[number]>[] = [
+    {
+      key: "name",
+      header: isCustomer ? "Customer" : "Salesman",
+      sticky: true,
+      minWidth: "min-w-[140px]",
+      csvText: (r) => r.name,
+      render: (r) => <span className="font-semibold truncate block max-w-[160px]">{r.name}</span>,
+    },
+    { key: "bills", header: "Bills", align: "right", csvText: (r) => String(r.bills), render: (r) => r.bills },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "right",
+      csvText: (r) => fmt(r.amount),
+      render: (r) => <span className="font-bold">{fmt(r.amount)}</span>,
+    },
+  ];
+
+  const title = isCustomer ? "Customer-wise Sale" : "Salesman-wise Sale";
+  const fileBase = isCustomer ? "customer-wise-sale" : "salesman-wise-sale";
+  const countLabel = isCustomer ? "Customers" : "Salesmen";
+
+  return (
+    <div className="space-y-3">
+      <MobileReportSearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder={isCustomer ? "Search customer…" : "Search salesman…"}
+      />
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-sky-700">Summary</p>
+        {rows.length ? (
+          <ReportExportButton
+            fileBaseName={`${fileBase}-${format(new Date(), "ddMMyyyy")}`}
+            buildCsv={() => buildCsvFromReportTable(columns, rows)}
+            tableRef={tableRef}
+          />
+        ) : null}
+      </div>
+      {isLoading ? (
+        <LoadingRows />
+      ) : isError ? (
+        <div className="text-center py-12 space-y-3">
+          <p className="text-muted-foreground text-sm">Could not load {isCustomer ? "customer-wise" : "salesman-wise"} sales.</p>
+          <button type="button" onClick={() => refetch()} className="text-sm font-semibold text-primary">
+            Try again
+          </button>
+        </div>
+      ) : !rows.length ? (
+        <EmptyState
+          message={
+            search.trim()
+              ? "No rows match this search"
+              : "No sales in this date range. Try Week, Month, or Custom."
+          }
+        />
+      ) : (
+        <>
+          <div className="flex gap-2">
+            <MetricCard label={countLabel} value={String(rows.length)} />
+            <MetricCard label="Bills" value={String(totals.bills)} />
+            <MetricCard label="Amount" value={fmt(totals.amount)} color="text-emerald-600" />
+          </div>
+          <p className="text-sm font-semibold text-sky-700">{title}</p>
+          <MobileReportTable ref={tableRef} variant="statement" columns={columns} rows={rows} rowKey={(r) => r.key} />
+        </>
+      )}
+    </div>
+  );
+}
+
+export function MobileCustomerWiseSalesReport(props: DateProps) {
+  return <SalesGroupReport {...props} groupBy="customer" />;
+}
+
+export function MobileSalesmanWiseSalesReport(props: DateProps) {
+  return <SalesGroupReport {...props} groupBy="salesman" />;
+}
+
 export function MobileItemWiseStockReport({ orgId }: { orgId?: string }) {
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
