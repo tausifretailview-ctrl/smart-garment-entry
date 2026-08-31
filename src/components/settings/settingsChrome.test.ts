@@ -61,6 +61,7 @@ describe("settingsChrome", () => {
         "pos_barcode_price_mode",
         "pos_goods_ask_qty_dialog",
         "pos_category_tier_pricing",
+        "pos_scheme_auto_calculate_discount",
         "pos_bill_format",
         "pos_invoice_template",
       ]),
@@ -78,7 +79,7 @@ describe("settingsChrome", () => {
 
     for (const id of POS_TAB_SETTING_FIELD_IDS) {
       expect(settingsPage).not.toContain(`id="${id}"`);
-      if (id === "pos_category_tier_pricing") {
+      if (id === "pos_category_tier_pricing" || id === "pos_scheme_auto_calculate_discount") {
         expect(posForm).toContain("CategoryTierPricingSettings");
         continue;
       }

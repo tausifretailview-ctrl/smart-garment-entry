@@ -133,7 +133,7 @@ export function updateDiscountPercent(
   return { items: updatedItems, error };
 }
 
-/** Disc ₹ is mapped to Disc % (clears Disc ₹) — same as POSSales.updateDiscountAmount. */
+/** Disc ₹ is mapped to Disc % (clears Disc ₹), except scheme lines keep extra rupees. */
 export function updateDiscountAmount(
   items: PosCartItem[],
   index: number,
@@ -150,15 +150,26 @@ export function updateDiscountAmount(
     return { items, error: { code: "INVALID_DISCOUNT", message: "Line not found" } };
   }
   const switchingFromUnit = item.rateAuthority === "unit";
+  const schemeLine = item.categoryTierApplied === true;
   const baseAmount = Math.max(0, (Number(item.mrp) || 0) * (Number(item.quantity) || 0));
-  const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
-  updatedItems[index] = {
-    ...item,
-    rateAuthority: "discount",
-    unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
-    discountPercent: Number(mappedPercent.toFixed(4)),
-    discountAmount: 0,
-  };
+  // Scheme lines: Disc ₹ is extra rupees off the scheme total (not mapped through MRP%).
+  if (schemeLine) {
+    updatedItems[index] = {
+      ...item,
+      rateAuthority: "discount",
+      discountPercent: 0,
+      discountAmount: Number(discountAmount.toFixed(2)),
+    };
+  } else {
+    const mappedPercent = baseAmount > 0 ? Math.min(100, (discountAmount / baseAmount) * 100) : 0;
+    updatedItems[index] = {
+      ...item,
+      rateAuthority: "discount",
+      unitCost: switchingFromUnit ? Number(item.mrp) || 0 : item.unitCost,
+      discountPercent: Number(mappedPercent.toFixed(4)),
+      discountAmount: 0,
+    };
+  }
   updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
 
   let error: PosBillingError | undefined;
@@ -167,16 +178,28 @@ export function updateDiscountAmount(
   const lineDisc = sumLineDiscount(updatedItems);
   if (lineDisc > maxLine + 0.01) {
     const cappedItem = updatedItems[index];
-    const base = Math.max(0, (Number(cappedItem.mrp) || 0) * (Number(cappedItem.quantity) || 0));
-    const otherLine = lineDisc - (base * (Number(cappedItem.discountPercent) || 0)) / 100;
-    const room = Math.max(0, maxLine - otherLine);
-    updatedItems[index] = {
-      ...cappedItem,
-      rateAuthority: "discount",
-      unitCost: switchingFromUnit ? Number(cappedItem.mrp) || 0 : cappedItem.unitCost,
-      discountPercent: base > 0 ? Number(((room / base) * 100).toFixed(4)) : 0,
-      discountAmount: 0,
-    };
+    if (schemeLine) {
+      const extra = Number(cappedItem.discountAmount) || 0;
+      const otherLine = lineDisc - extra;
+      const room = Math.max(0, maxLine - otherLine);
+      updatedItems[index] = {
+        ...cappedItem,
+        rateAuthority: "discount",
+        discountPercent: 0,
+        discountAmount: Math.min(extra, Number(room.toFixed(2))),
+      };
+    } else {
+      const base = Math.max(0, (Number(cappedItem.mrp) || 0) * (Number(cappedItem.quantity) || 0));
+      const otherLine = lineDisc - (base * (Number(cappedItem.discountPercent) || 0)) / 100;
+      const room = Math.max(0, maxLine - otherLine);
+      updatedItems[index] = {
+        ...cappedItem,
+        rateAuthority: "discount",
+        unitCost: switchingFromUnit ? Number(cappedItem.mrp) || 0 : cappedItem.unitCost,
+        discountPercent: base > 0 ? Number(((room / base) * 100).toFixed(4)) : 0,
+        discountAmount: 0,
+      };
+    }
     updatedItems[index] = applyPosGarmentGstToItem(updatedItems[index], garmentGstSettings);
     error = discountCapError(mrpTotal);
   }

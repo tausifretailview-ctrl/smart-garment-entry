@@ -69,6 +69,7 @@ export const POS_TAB_SETTING_FIELD_IDS = [
   "pos_barcode_price_mode",
   "pos_goods_ask_qty_dialog",
   "pos_category_tier_pricing",
+  "pos_scheme_auto_calculate_discount",
   "pos_bill_format",
   "pos_invoice_template",
 ] as const;

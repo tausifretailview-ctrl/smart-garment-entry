@@ -4,14 +4,22 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { Percent } from "lucide-react";
+import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 
 type Props = {
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
+  autoCalculateDiscount: boolean;
+  onAutoCalculateDiscountChange: (enabled: boolean) => void;
 };
 
 /** POS-tab opt-in — manage rules on Discount Scheme dashboard. */
-export function CategoryTierPricingSettings({ enabled, onEnabledChange }: Props) {
+export function CategoryTierPricingSettings({
+  enabled,
+  onEnabledChange,
+  autoCalculateDiscount,
+  onAutoCalculateDiscountChange,
+}: Props) {
   const { getOrgPath } = useOrgNavigation();
 
   return (
@@ -31,6 +39,31 @@ export function CategoryTierPricingSettings({ enabled, onEnabledChange }: Props)
           id="pos_category_tier_pricing"
           checked={enabled}
           onCheckedChange={onEnabledChange}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-4 rounded-md border border-border/60 px-3 py-2">
+        <div className="min-w-0">
+          <Label htmlFor="pos_scheme_auto_calculate_discount" className="text-sm font-medium">
+            Auto Calculate Discount
+          </Label>
+          <p className="text-xs text-muted-foreground mt-1">
+            Off (default): leftover pieces stay at Single price — 1@₹300 / 4@₹1000 → qty 2 = ₹600.
+            On (festival / discount day): leftover uses the bundle rate → qty 2 = ₹500, qty 5 = ₹1250.
+            Extra Disc ₹ on a scheme line is always allowed.
+          </p>
+          <div className="mt-1.5">
+            <SettingOnOffHint
+              active={autoCalculateDiscount ? "on" : "off"}
+              on="Leftover qty uses scheme rate (2 pcs = ₹500 on a 4@₹1000 scheme)."
+              off="Leftover qty uses Single price (2 pcs = ₹600 on a 4@₹1000 scheme)."
+            />
+          </div>
+        </div>
+        <Switch
+          id="pos_scheme_auto_calculate_discount"
+          checked={autoCalculateDiscount}
+          disabled={!enabled}
+          onCheckedChange={onAutoCalculateDiscountChange}
         />
       </div>
       <Button variant="outline" size="sm" asChild>

@@ -46,7 +46,7 @@ import {
 import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
-import { isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
+import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
 import {
   isPosGoodsAskQtyDialogEnabled,
   resolveGoodsQtyDialogDefaultPrice,
@@ -722,6 +722,9 @@ export default function POSSales() {
   const categoryTierPricingEnabled = isCategoryTierPricingEnabled(
     (settingsData as any)?.sale_settings,
   );
+  const categoryTierAutoCalculate = isCategoryTierAutoCalculateEnabled(
+    (settingsData as any)?.sale_settings,
+  );
   const activeDiscountSchemeId =
     (settingsData as any)?.sale_settings?.active_discount_scheme_id ?? null;
   const { data: categoryTierRules = [] } = useCategoryTierPricingRules(
@@ -738,6 +741,7 @@ export default function POSSales() {
     categoryTierPricing: {
       enabled: categoryTierPricingEnabled,
       rules: categoryTierRules,
+      autoCalculateDiscount: categoryTierAutoCalculate,
     },
   });
 

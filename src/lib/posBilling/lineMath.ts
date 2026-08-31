@@ -1,6 +1,23 @@
 import { resolveGarmentGstForLine, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import type { PosCartItem } from "./types";
 
+const SCHEME_EXTRA_EPS = 0.005;
+
+/** Extra cashier discount on top of the scheme line total (₹). Disc ₹ wins over Disc%. */
+export function extraDiscountOnSchemeLine(
+  item: Pick<PosCartItem, "discountPercent" | "discountAmount">,
+  schemeLineTotal: number,
+): number {
+  const cap = Math.max(0, Number(schemeLineTotal) || 0);
+  const amount = Math.max(0, Number(item.discountAmount) || 0);
+  if (amount > SCHEME_EXTRA_EPS) {
+    return Math.min(cap, Math.round(amount * 100) / 100);
+  }
+  const pct = Math.max(0, Math.min(100, Number(item.discountPercent) || 0));
+  if (pct <= SCHEME_EXTRA_EPS) return 0;
+  return Math.min(cap, Math.round(((cap * pct) / 100) * 100) / 100);
+}
+
 /** Line net: MRP×qty minus Disc%, Disc Rs, and any gap when unit price is below MRP. */
 export function calculatePosCartLineNet(item: PosCartItem): number {
   const baseAmount = item.mrp * item.quantity;
@@ -34,6 +51,16 @@ export function applyPosGarmentGstToItem(
 
 export function sumLineDiscount(rows: PosCartItem[]): number {
   return rows.reduce((sum, item) => {
+    if (item.categoryTierApplied) {
+      const qty = Number(item.quantity) || 0;
+      const schemeLine = (Number(item.unitCost) || 0) * qty;
+      const extra = extraDiscountOnSchemeLine(item, schemeLine);
+      const implicitRateDiscount = Math.max(
+        0,
+        ((Number(item.mrp) || 0) - (Number(item.unitCost) || 0)) * qty,
+      );
+      return sum + extra + implicitRateDiscount;
+    }
     const baseAmount = (Number(item.mrp) || 0) * (Number(item.quantity) || 0);
     const percentDiscount = (baseAmount * (Number(item.discountPercent) || 0)) / 100;
     const implicitRateDiscount = Math.max(

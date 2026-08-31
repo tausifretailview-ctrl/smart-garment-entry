@@ -206,6 +206,8 @@ interface SaleSettings {
   default_discount_in_rupees?: boolean;
   /** When true, POS applies category quantity-tier bundle pricing (Trendzo Discount Scheme). */
   pos_category_tier_pricing?: boolean;
+  /** Festival leftover pricing. Default false: leftover pieces at Single (₹). */
+  pos_scheme_auto_calculate_discount?: boolean;
   /** Active discount scheme for POS tier rules; falls back to org default scheme. */
   active_discount_scheme_id?: string | null;
   /** When true, POS asks qty/discount in a dialog when picking regular goods from search dropdown. */
