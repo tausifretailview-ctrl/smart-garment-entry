@@ -58,7 +58,7 @@ export default function MobileReportsHub() {
   const reportCategories: ReportCategory[] = [
     {
       title: "Stock Reports",
-      color: "text-amber-500",
+      color: "text-sky-600",
       reports: [
         { icon: Package, label: "Stock Report", path: "/stock-report", desc: "Current inventory levels" },
         { icon: Grid3X3, label: "Size-wise Stock", path: "/stock-report?tab=sizewise", desc: "Stock by product + size" },
@@ -69,7 +69,7 @@ export default function MobileReportsHub() {
     },
     {
       title: "Sales Reports",
-      color: "text-green-500",
+      color: "text-blue-700",
       reports: [
         { icon: BarChart3, label: "Sales Report", path: "/sales-invoice-dashboard", desc: "All sales invoices" },
         { icon: Calendar, label: "Daily Cashier", path: "/daily-cashier-report", desc: "Cash summary for day" },
@@ -83,7 +83,7 @@ export default function MobileReportsHub() {
     },
     {
       title: "Purchase Reports",
-      color: "text-blue-500",
+      color: "text-orange-600",
       reports: [
         { icon: FileText, label: "Purchase Report", path: "/purchase-bills", desc: "All purchase bills" },
         { icon: Building2, label: "Supplier Report", path: "/purchase-report-by-supplier", desc: "Purchases by supplier" },
@@ -91,7 +91,7 @@ export default function MobileReportsHub() {
     },
     {
       title: "Financial Reports",
-      color: "text-purple-500",
+      color: "text-indigo-600",
       reports: [
         { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", desc: "Gross/Net profit" },
         { icon: FileText, label: "Account statement (audit)", path: "/customer-account-statement-audit", desc: "Audit register for comparison" },

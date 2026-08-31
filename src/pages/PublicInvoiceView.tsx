@@ -274,6 +274,7 @@ export default function PublicInvoiceView() {
         sr: index + 1,
         particulars: item.product_name,
         barcode: item.barcode || '',
+        hsn: item.hsn_code || item.hsn || '',
         qty: item.quantity,
         rate: item.unit_price,
         total: item.line_total,

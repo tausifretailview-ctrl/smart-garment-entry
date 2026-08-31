@@ -39,27 +39,28 @@ interface ReportCard {
   color: string;
 }
 
+/** Brand-aligned report chip colors (icon blue #1857A6 → blue/sky/indigo family). */
 const REPORTS: ReportCard[] = [
-  { id: "daily-cashier", icon: Calculator, label: "Cashier Report", description: "Bills with cash, UPI, card & net", color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40" },
-  { id: "item-wise-sales", icon: BarChart3, label: "Item-wise Sale", description: "Qty, rate and amount by product", color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
-  { id: "customer-wise-sales", icon: Users, label: "Customer-wise Sale", description: "Bills and amount by customer", color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
-  { id: "salesman-wise-sales", icon: UserCheck, label: "Salesman-wise Sale", description: "Bills and amount by salesman", color: "text-fuchsia-600 bg-fuchsia-50 dark:bg-fuchsia-950/40" },
+  { id: "daily-cashier", icon: Calculator, label: "Cashier Report", description: "Bills with cash, UPI, card & net", color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "item-wise-sales", icon: BarChart3, label: "Item-wise Sale", description: "Qty, rate and amount by product", color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40" },
+  { id: "customer-wise-sales", icon: Users, label: "Customer-wise Sale", description: "Bills and amount by customer", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "salesman-wise-sales", icon: UserCheck, label: "Salesman-wise Sale", description: "Bills and amount by salesman", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
   { id: "top-selling-products", icon: Trophy, label: "Top Selling Products", description: "Top 50 by revenue or quantity", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
-  { id: "item-wise-stock", icon: Wallet, label: "Item-wise Stock", description: "Closing qty and stock value", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+  { id: "item-wise-stock", icon: Wallet, label: "Item-wise Stock", description: "Closing qty and stock value", color: "text-sky-600 bg-sky-50 dark:bg-sky-950/40" },
   { id: "dead-stock", icon: PackageX, label: "Dead Stock Analytics", description: "Slow-moving stock by days idle", color: "text-red-700 bg-red-50 dark:bg-red-950/40" },
-  { id: "net-profit", icon: PieChart, label: "Net Profit", description: "Product profit, COGS and margin", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
-  { id: "stock-report", icon: Package, label: "Stock Report", description: "Live stock, size, color and rate", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
-  { id: "size-wise-stock", icon: Grid3X3, label: "Size-wise Stock", description: "Search products & qty by size", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
-  { id: "customer-balance", icon: Users, label: "Customer Balance", description: "Search customers with O/S & advance", color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
-  { id: "supplier-balance", icon: Building2, label: "Supplier Balance", description: "Search suppliers with payables", color: "text-red-600 bg-red-50 dark:bg-red-950/40" },
+  { id: "net-profit", icon: PieChart, label: "Net Profit", description: "Product profit, COGS and margin", color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "stock-report", icon: Package, label: "Stock Report", description: "Live stock, size, color and rate", color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40" },
+  { id: "size-wise-stock", icon: Grid3X3, label: "Size-wise Stock", description: "Search products & qty by size", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+  { id: "customer-balance", icon: Users, label: "Customer Balance", description: "Search customers with O/S & advance", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "supplier-balance", icon: Building2, label: "Supplier Balance", description: "Search suppliers with payables", color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40" },
   { id: "daily-sales", icon: TrendingUp, label: "Daily Sales Report", description: "All sale bills & totals for a period", color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" },
   { id: "daily-purchase", icon: TrendingDown, label: "Daily Purchase Report", description: "All purchase bills & totals for a period", color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40" },
-  { id: "profit-loss", icon: PieChart, label: "Profit & Loss Report", description: "Sale vs purchase cost & gross profit", color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
-  { id: "stock-summary", icon: Package, label: "Stock Summary Report", description: "All products with stock & value", color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
+  { id: "profit-loss", icon: PieChart, label: "Profit & Loss Report", description: "Sale vs purchase cost & gross profit", color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40" },
+  { id: "stock-summary", icon: Package, label: "Stock Summary Report", description: "All products with stock & value", color: "text-sky-600 bg-sky-50 dark:bg-sky-950/40" },
   { id: "gst", icon: Receipt, label: "GST Report", description: "Tax summary grouped by GST rate", color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
-  { id: "brand-sales", icon: Tag, label: "Brand-wise Sales", description: "Sales breakdown by brand", color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40" },
+  { id: "brand-sales", icon: Tag, label: "Brand-wise Sales", description: "Sales breakdown by brand", color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40" },
   { id: "size-sales", icon: Ruler, label: "Size-wise Sales", description: "Which sizes sell the most", color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
-  { id: "payment-collection", icon: CreditCard, label: "Payment Collection", description: "Payments received by mode", color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40" },
+  { id: "payment-collection", icon: CreditCard, label: "Payment Collection", description: "Payments received by mode", color: "text-cyan-700 bg-cyan-50 dark:bg-cyan-950/40" },
 ];
 
 const REPORT_IDS = new Set(REPORTS.map((r) => r.id));
@@ -70,21 +71,21 @@ type QuickLink =
 
 /** One-tap shortcuts — mobile-native reports first; desktop-only shows a prompt. */
 const QUICK_LINKS: QuickLink[] = [
-  { label: "Size Stock", icon: Grid3X3, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "size-wise-stock" },
+  { label: "Size Stock", icon: Grid3X3, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40", report: "size-wise-stock" },
   { label: "Today's Sales", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40", report: "daily-sales" },
-  { label: "Customer Balance", icon: Users, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40", report: "customer-balance" },
+  { label: "Customer Balance", icon: Users, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "customer-balance" },
   { label: "Supplier Balance", icon: Building2, color: "text-orange-600 bg-orange-50 dark:bg-orange-950/40", report: "supplier-balance" },
-  { label: "Stock Report", icon: Package, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40", report: "stock-report" },
-  { label: "Item Stock", icon: Wallet, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40", report: "item-wise-stock" },
-  { label: "Item-wise Sale", icon: BarChart3, color: "text-teal-600 bg-teal-50 dark:bg-teal-950/40", report: "item-wise-sales" },
-  { label: "Net Profit", icon: PieChart, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40", report: "net-profit" },
+  { label: "Stock Report", icon: Package, color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40", report: "stock-report" },
+  { label: "Item Stock", icon: Wallet, color: "text-sky-600 bg-sky-50 dark:bg-sky-950/40", report: "item-wise-stock" },
+  { label: "Item-wise Sale", icon: BarChart3, color: "text-sky-700 bg-sky-50 dark:bg-sky-950/40", report: "item-wise-sales" },
+  { label: "Net Profit", icon: PieChart, color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40", report: "net-profit" },
   {
     label: "Daily Cashier",
     icon: Calculator,
-    color: "text-purple-600 bg-purple-50 dark:bg-purple-950/40",
+    color: "text-blue-700 bg-blue-50 dark:bg-blue-950/40",
     report: "daily-cashier",
   },
-  { label: "Payment Collection", icon: CreditCard, color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950/40", report: "payment-collection" },
+  { label: "Payment Collection", icon: CreditCard, color: "text-cyan-700 bg-cyan-50 dark:bg-cyan-950/40", report: "payment-collection" },
 ];
 
 export const OwnerReportsHub = () => {

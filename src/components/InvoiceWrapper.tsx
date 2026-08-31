@@ -680,6 +680,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               particulars: item.particulars,
               itemNotes: item.itemNotes,
               barcode: item.barcode,
+              hsn: item.hsn,
               qty: item.qty,
               rate: item.rate,
               total: item.total,
@@ -692,6 +693,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             gstBreakdown={{
               cgst: cgstAmount,
               sgst: sgstAmount,
+              igst: igstAmount,
             }}
             gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
             paymentMethod={props.paymentMethod}
@@ -701,7 +703,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             creditPaid={props.creditAmount}
             paidAmount={props.paidAmount}
             refundCash={props.refundCash}
-            documentType="invoice"
+            documentType={props.documentType || 'invoice'}
+            documentTitle={documentTitle}
             termsConditions={filteredTerms.join('\n')}
             notes={mergedNotes}
             pointsRedeemed={props.pointsRedeemed}
@@ -710,6 +713,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             salesman={props.salesman}
             isDcInvoice={props.isDcInvoice}
             showYouSaved={showYouSaved}
+            showHSN={showHSN}
+            showBarcode={showBarcode}
           />
         );
       }
