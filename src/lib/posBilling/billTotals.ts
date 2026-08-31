@@ -1,6 +1,7 @@
 import type { GstTaxType } from "@/utils/gstRegisterUtils";
 import { computePosBillGst, computePosFlatDiscount } from "@/utils/posGstTotals";
 import { maxCombinedDiscountForGross } from "@/utils/saleSettlement";
+import { extraDiscountOnSchemeLine } from "./lineMath";
 import type { PosBillTotals, PosCartItem, PosFlatDiscountMode } from "./types";
 
 export type ComputePosBillTotalsInput = {
@@ -34,6 +35,12 @@ export function computePosBillTotals(input: ComputePosBillTotalsInput): PosBillT
     quantity: items.reduce((sum, item) => sum + item.quantity, 0),
     mrp: items.reduce((sum, item) => sum + item.mrp * item.quantity, 0),
     discount: items.reduce((sum, item) => {
+      if (item.categoryTierApplied) {
+        const schemeLine = (Number(item.unitCost) || 0) * (Number(item.quantity) || 0);
+        const extra = extraDiscountOnSchemeLine(item, schemeLine);
+        const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);
+        return sum + extra + implicitRateDiscount;
+      }
       const baseAmount = item.mrp * item.quantity;
       const percentDiscount = (baseAmount * item.discountPercent) / 100;
       const implicitRateDiscount = Math.max(0, (item.mrp - item.unitCost) * item.quantity);

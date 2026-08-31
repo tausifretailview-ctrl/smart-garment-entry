@@ -55,10 +55,12 @@ export type UsePosBillingParams = {
   initialTaxType?: GstTaxType | string;
   /** Optional cart hydrate (e.g. session snapshot). Read once on mount. */
   initialItems?: PosCartItem[];
-  /** Category quantity-tier bundle pricing — org opt-in from Settings → Sale. */
+  /** Category quantity-tier bundle pricing — org opt-in from Settings → POS. */
   categoryTierPricing?: {
     enabled: boolean;
     rules: CategoryTierRule[];
+    /** Festival leftover pricing (Settings → POS Auto Calculate Discount). Default off. */
+    autoCalculateDiscount?: boolean;
   };
 };
 
@@ -168,9 +170,11 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
   const tierFinalize = useCallback(
     (raw: PosCartItem[]) => {
       if (!categoryTierPricing?.enabled || !categoryTierPricing.rules?.length) return raw;
-      return applyCategoryTierPricingToCart(raw, categoryTierPricing.rules, garmentGstSettings);
+      return applyCategoryTierPricingToCart(raw, categoryTierPricing.rules, garmentGstSettings, {
+        remainderPricing: categoryTierPricing.autoCalculateDiscount ? "scheme_rate" : "leftover_single",
+      });
     },
-    [categoryTierPricing?.enabled, categoryTierPricing?.rules, garmentGstSettings],
+    [categoryTierPricing?.enabled, categoryTierPricing?.rules, categoryTierPricing?.autoCalculateDiscount, garmentGstSettings],
   );
 
   const [items, setItemsState] = useState<PosCartItem[]>(() => {
