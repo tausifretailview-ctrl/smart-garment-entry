@@ -91,13 +91,9 @@ function AmountRow({ label, amount, show = true }: { label: string; amount: numb
   );
 }
 
-function itemCodeLine(item: TrendzoPosThermalItem): string | null {
+function itemBarcodeLine(item: TrendzoPosThermalItem): string | null {
   const barcode = (item.barcode || "").trim();
-  const hsn = (item.hsn || "").trim();
-  if (barcode && hsn) return `${barcode} · HSN ${hsn}`;
-  if (barcode) return barcode;
-  if (hsn) return `HSN ${hsn}`;
-  return null;
+  return barcode || null;
 }
 
 export const TrendzoPosThermalReceipt80mm = React.forwardRef<
@@ -285,34 +281,28 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
       <div className="tz-sep-solid" />
 
-      <table className="tz-table">
-        <thead>
-          <tr>
-            <th className="tz-col-sr">SR</th>
-            <th className="tz-col-item">ITEM</th>
-            <th className="tz-col-qty">QTY</th>
-            <th className="tz-col-rate">RATE</th>
-            <th className="tz-col-amt">AMT</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => {
-            const codeLine = itemCodeLine(item);
-            return (
-              <tr key={`${item.sr}-${item.particulars}`}>
-                <td className="tz-col-sr">{item.sr}</td>
-                <td className="tz-col-item">
-                  <div className="tz-item-name">{item.particulars}</div>
-                  {codeLine ? <div className="tz-item-sub">{codeLine}</div> : null}
-                </td>
-                <td className="tz-col-qty">{item.qty}</td>
-                <td className="tz-col-rate">{fmtDec(item.rate)}</td>
-                <td className="tz-col-amt">{fmtDec(item.total)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="tz-items">
+        <div className="tz-items-head">
+          <span className="tz-items-item-col">ITEM</span>
+          <span className="tz-items-qty-col">QTY</span>
+          <span className="tz-items-num-col">RATE</span>
+          <span className="tz-items-num-col">AMT</span>
+        </div>
+        {items.map((item) => {
+          const barcodeLine = itemBarcodeLine(item);
+          return (
+            <div className="tz-items-row" key={`${item.sr}-${item.particulars}`}>
+              <div className="tz-items-item-col">
+                <div className="tz-item-name">{item.particulars}</div>
+                {barcodeLine ? <div className="tz-item-barcode">{barcodeLine}</div> : null}
+              </div>
+              <span className="tz-items-qty-col tz-items-num">{item.qty}</span>
+              <span className="tz-items-num-col tz-items-num">{fmtDec(item.rate)}</span>
+              <span className="tz-items-num-col tz-items-num">{fmtDec(item.total)}</span>
+            </div>
+          );
+        })}
+      </div>
 
       <div className="tz-sep-dashed" />
 
