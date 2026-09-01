@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, FileDown, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Clock, Scale, BookOpen } from "lucide-react";
+import { Search, ArrowLeft, Download, FileDown, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, AlertTriangle, Clock, Scale, BookOpen, Loader2 } from "lucide-react";
 import type jsPDFType from "jspdf";
 /** Lazily loaded on export — keeps jsPDF/html2canvas off this page's initial chunk. */
 let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
@@ -46,11 +46,22 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBusinessInfo } from "@/hooks/useSettings";
+import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 
 interface SupplierLedgerProps {
   organizationId: string;
   visitedTabs?: ReadonlySet<string>;
   supplierBalanceMap?: SupplierBalanceMapForOrg;
+  preSelectedSupplierId?: string | null;
+  /** When embedMode — show ledger immediately without loading the full supplier list. */
+  preSelectedSupplierName?: string | null;
+  preSelectedSupplierPhone?: string | null;
+  /** Embedded in Supplier Balances — hide supplier picker; back returns to balances list. */
+  embedMode?: boolean;
+  embeddedBackLabel?: string;
+  onEmbeddedBack?: () => void;
+  /** Do not write supplier id into URL search params (embedded views). */
+  skipUrlSync?: boolean;
 }
 
 interface Supplier {
@@ -68,6 +79,26 @@ interface Supplier {
 
 type LedgerTab = 'all' | 'payments' | 'cn-adjusted' | 'cn-pending';
 
+function buildEmbeddedSupplierStub(
+  id: string,
+  name: string,
+  phone?: string | null,
+  extra?: Partial<Supplier>,
+): Supplier {
+  return {
+    id,
+    supplier_name: name,
+    phone: phone ?? null,
+    email: extra?.email ?? null,
+    address: extra?.address ?? null,
+    opening_balance: extra?.opening_balance ?? 0,
+    totalPurchases: extra?.totalPurchases ?? 0,
+    totalPaid: extra?.totalPaid ?? 0,
+    totalCreditNotes: extra?.totalCreditNotes ?? 0,
+    balance: extra?.balance ?? extra?.opening_balance ?? 0,
+  };
+}
+
 interface Transaction {
   id: string;
   date: string;
@@ -81,8 +112,19 @@ interface Transaction {
   category?: Exclude<LedgerTab, 'all'>;
 }
 
-export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap }: SupplierLedgerProps) {
+export function SupplierLedger({
+  organizationId,
+  visitedTabs,
+  supplierBalanceMap,
+  preSelectedSupplierId,
+  preSelectedSupplierName,
+  preSelectedSupplierPhone,
+  embedMode = false,
+  embeddedBackLabel,
+  onEmbeddedBack,
+}: SupplierLedgerProps) {
   const tabActive = visitedTabs?.has("supplier-ledger") ?? true;
+  const embeddedSingleSupplier = embedMode && Boolean(preSelectedSupplierId);
   const businessInfo = useBusinessInfo();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -129,7 +171,33 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     queryKey: ["supplier-directory", organizationId],
     queryFn: () => fetchSupplierDirectory(organizationId),
     select: (data) => coerceToArray(data),
-    enabled: !!organizationId && tabActive,
+    enabled: !!organizationId && tabActive && !embeddedSingleSupplier,
+  });
+
+  const { data: embeddedSupplierProfile } = useQuery({
+    queryKey: ["supplier-ledger-profile", organizationId, preSelectedSupplierId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, supplier_name, phone, email, address, opening_balance")
+        .eq("organization_id", organizationId)
+        .eq("id", preSelectedSupplierId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: embeddedSingleSupplier && !!organizationId && !!preSelectedSupplierId,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: embeddedSupplierSnapshot } = useQuery({
+    queryKey: ["supplier-ledger-embed-snapshot", organizationId, preSelectedSupplierId],
+    queryFn: () => fetchSupplierBalanceSnapshot(supabase, organizationId, preSelectedSupplierId!),
+    enabled: embeddedSingleSupplier && !!organizationId && !!preSelectedSupplierId,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
   });
 
   const balanceSnapshotError = supplierBalanceMap?.degraded
@@ -153,18 +221,53 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     });
   }, [suppliersData, supplierBalanceMap]);
 
-  const isLoading =
-    suppliersLoading || (!!organizationId && tabActive && supplierBalanceMap === undefined);
+  const isLoading = embeddedSingleSupplier
+    ? !embeddedSupplierProfile
+    : suppliersLoading || (!!organizationId && tabActive && supplierBalanceMap === undefined);
 
   useEffect(() => {
-    const idToSelect = pendingRestoredSupplierIdRef.current;
+    const idToSelect = preSelectedSupplierId || pendingRestoredSupplierIdRef.current;
     if (!idToSelect || !suppliers?.length || selectedSupplier) return;
     const found = suppliers.find((s) => s.id === idToSelect);
     if (found) {
       setSelectedSupplier(found);
       pendingRestoredSupplierIdRef.current = null;
     }
-  }, [suppliers, selectedSupplier]);
+  }, [suppliers, selectedSupplier, preSelectedSupplierId]);
+
+  useEffect(() => {
+    if (!embeddedSingleSupplier || selectedSupplier || !embeddedSupplierProfile || !preSelectedSupplierId) {
+      return;
+    }
+    const snap = embeddedSupplierSnapshot;
+    const openingBalance = snap?.openingBalance ?? Number(embeddedSupplierProfile.opening_balance ?? 0);
+    setSelectedSupplier(
+      buildEmbeddedSupplierStub(
+        preSelectedSupplierId,
+        embeddedSupplierProfile.supplier_name ||
+          preSelectedSupplierName?.trim() ||
+          "Supplier",
+        preSelectedSupplierPhone ?? embeddedSupplierProfile.phone,
+        {
+          email: embeddedSupplierProfile.email,
+          address: embeddedSupplierProfile.address,
+          opening_balance: openingBalance,
+          totalPurchases: snap?.totalPurchases ?? 0,
+          totalPaid: snap?.totalPaid ?? 0,
+          totalCreditNotes: (snap?.totalCreditNotesNet ?? 0) + (snap?.unreflectedReturns ?? 0),
+          balance: snap?.balance ?? openingBalance,
+        },
+      ),
+    );
+  }, [
+    embeddedSingleSupplier,
+    embeddedSupplierProfile,
+    embeddedSupplierSnapshot,
+    preSelectedSupplierId,
+    preSelectedSupplierName,
+    preSelectedSupplierPhone,
+    selectedSupplier,
+  ]);
 
   const { data: selectedSupplierSnapshot } = useQuery({
     queryKey: ["supplier-balance-snapshot", organizationId, selectedSupplier?.id],
@@ -926,6 +1029,15 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
     toast.success("Supplier ledger exported to PDF");
   };
 
+  if (selectedSupplier && transactions === undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm">Loading supplier ledger…</span>
+      </div>
+    );
+  }
+
   if (selectedSupplier && transactions) {
     return (
       <div className="space-y-3">
@@ -958,14 +1070,16 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
           </Alert>
         )}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSelectedSupplier(null)}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Suppliers
-          </Button>
+          {!embedMode && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedSupplier(null)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Suppliers
+            </Button>
+          )}
           
           <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto">
             <Popover>
@@ -1383,6 +1497,15 @@ export function SupplierLedger({ organizationId, visitedTabs, supplierBalanceMap
             })()}
           </CardContent>
         </Card>
+      </div>
+    );
+  }
+
+  if (embedMode && !selectedSupplier) {
+    return (
+      <div className="flex flex-col items-center justify-center flex-1 min-h-[12rem] text-muted-foreground gap-2 py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="text-sm">Loading supplier details…</span>
       </div>
     );
   }

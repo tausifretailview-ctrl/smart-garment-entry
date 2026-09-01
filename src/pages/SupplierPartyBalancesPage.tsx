@@ -25,6 +25,9 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
+import { SupplierLedger } from "@/components/SupplierLedger";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -32,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportSkeleton } from "@/components/ui/skeletons";
+import { ListPageSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import { fetchSupplierPartyBalancesAligned, type SupplierPartyBalanceAlignedRow } from "@/utils/supplierPartyBalanceSnapshot";
@@ -63,8 +67,36 @@ export default function SupplierPartyBalancesPage() {
   const [showSettled, setShowSettled] = useState(false);
   const [directionFilter, setDirectionFilter] = useState<SupplierPartyDirectionFilter>("all");
   const [page, setPage] = useState(1);
+  const [ledgerSupplierId, setLedgerSupplierId] = useState<string | null>(null);
+  const [ledgerSupplierName, setLedgerSupplierName] = useState("");
+  const [ledgerSupplierPhone, setLedgerSupplierPhone] = useState<string | undefined>();
 
   const orgId = currentOrganization?.id;
+
+  const {
+    data: ledgerSupplierProfile,
+    isLoading: ledgerProfileLoading,
+    error: ledgerProfileError,
+  } = useQuery({
+    queryKey: ["party-balances-ledger-supplier", orgId, ledgerSupplierId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("id, supplier_name, phone, email, address, opening_balance")
+        .eq("organization_id", orgId!)
+        .eq("id", ledgerSupplierId!)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orgId && !!ledgerSupplierId,
+    staleTime: STALE_REFERENCE,
+    refetchOnWindowFocus: false,
+  });
+
+  const ledgerOpeningBalance = Number(ledgerSupplierProfile?.opening_balance ?? 0);
+  const deferLedgerSupplierStub = ledgerOpeningBalance !== 0;
 
   const { data: rows = [], isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ["supplier-party-balances", orgId],
@@ -110,9 +142,28 @@ export default function SupplierPartyBalancesPage() {
     filteredRows.length === 0 ? 0 : (currentPage - 1) * SUPPLIER_PARTY_BALANCES_PAGE_SIZE + 1;
   const pageEnd = Math.min(currentPage * SUPPLIER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);
 
-  const openSupplierLedger = () => {
-    orgNavigate("/accounts?tab=supplier-ledger");
+  const openSupplierLedger = (row: SupplierPartyBalanceRow) => {
+    setLedgerSupplierId(row.supplier_id);
+    setLedgerSupplierName(row.supplier_name);
+    setLedgerSupplierPhone(row.phone);
   };
+
+  const closeSupplierLedger = () => {
+    setLedgerSupplierId(null);
+    setLedgerSupplierName("");
+    setLedgerSupplierPhone(undefined);
+  };
+
+  useEffect(() => {
+    if (!ledgerSupplierId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      e.preventDefault();
+      closeSupplierLedger();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [ledgerSupplierId]);
 
   const exportToExcel = useCallback(async () => {
     if (filteredRows.length === 0) {
@@ -267,6 +318,74 @@ export default function SupplierPartyBalancesPage() {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
         Select an organization to view supplier balances.
+      </div>
+    );
+  }
+
+  if (ledgerSupplierId) {
+    const ledgerDisplayName =
+      ledgerSupplierProfile?.supplier_name?.trim() || ledgerSupplierName || "Supplier";
+
+    return (
+      <div
+        className={cn(
+          "supplier-party-balances-workspace supplier-party-balances-dashboard flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full",
+        )}
+      >
+        <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 px-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={closeSupplierLedger}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back to Balances
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-amber-700 tracking-tight truncate flex items-center gap-2">
+                <Truck className="h-5 w-5 shrink-0" />
+                {ledgerDisplayName}
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Supplier ledger</p>
+            </div>
+          </div>
+          <div className="supplier-party-balances-ledger-panel flex-1 min-h-0 flex flex-col overflow-hidden w-full">
+            {ledgerProfileLoading ? (
+              <ListPageSkeleton
+                rows={6}
+                columns={4}
+                showToolbar={false}
+                className="flex-1 min-h-[12rem]"
+              />
+            ) : ledgerProfileError ? (
+              <div className="m-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-4 text-sm text-destructive">
+                Failed to load supplier: {(ledgerProfileError as Error).message}
+              </div>
+            ) : (
+              <SupplierLedger
+                key={`${ledgerSupplierId}-${deferLedgerSupplierStub ? "ob" : "std"}`}
+                organizationId={orgId}
+                preSelectedSupplierId={ledgerSupplierId}
+                preSelectedSupplierName={
+                  deferLedgerSupplierStub
+                    ? undefined
+                    : ledgerSupplierProfile?.supplier_name?.trim() || ledgerSupplierName
+                }
+                preSelectedSupplierPhone={
+                  deferLedgerSupplierStub
+                    ? undefined
+                    : ledgerSupplierProfile?.phone ?? ledgerSupplierPhone
+                }
+                embedMode
+                skipUrlSync
+                embeddedBackLabel="Back to Balances"
+                onEmbeddedBack={closeSupplierLedger}
+              />
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -458,7 +577,7 @@ export default function SupplierPartyBalancesPage() {
                           <TableRow
                             key={row.supplier_id}
                             className="h-11 cursor-pointer hover:bg-amber-50/80 dark:hover:bg-amber-950/20 active:bg-amber-100/80 dark:active:bg-amber-950/40"
-                            onClick={openSupplierLedger}
+                            onClick={() => openSupplierLedger(row)}
                             title="Open Supplier Ledger"
                           >
                             <TableCell className="py-2.5 text-sm tabular-nums text-muted-foreground font-medium">

@@ -201,7 +201,6 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     const invoiceBarcodeValue = useMemo(() => {
       const raw = String(billNo || "").trim();
       if (!raw || /^DRAFT$/i.test(raw) || /^ESTIMATE$/i.test(raw)) return "";
-      // CODE128-friendly: keep letters/digits; strip slash/space noise for denser bars.
       return raw.replace(/[^A-Za-z0-9]/g, "").slice(0, 32);
     }, [billNo]);
 
