@@ -33,15 +33,57 @@ export function buildWhatsAppStatusUpdate(
   return updatePayload;
 }
 
+function collectMetaGraphStatusErrors(source: Record<string, unknown>): unknown[] {
+  const extra: unknown[] = [];
+  const pushStatusErrors = (statuses: unknown) => {
+    if (!Array.isArray(statuses)) return;
+    for (const st of statuses) {
+      if (!st || typeof st !== "object") continue;
+      const rec = st as Record<string, unknown>;
+      if (Array.isArray(rec.errors)) extra.push(...rec.errors);
+      if (rec.error) extra.push(rec.error);
+    }
+  };
+
+  pushStatusErrors(source.statuses);
+  const value = source.value;
+  if (value && typeof value === "object") {
+    pushStatusErrors((value as Record<string, unknown>).statuses);
+  }
+
+  const entries = source.entry;
+  if (Array.isArray(entries)) {
+    for (const entry of entries) {
+      if (!entry || typeof entry !== "object") continue;
+      const changes = (entry as Record<string, unknown>).changes;
+      if (!Array.isArray(changes)) continue;
+      for (const change of changes) {
+        if (!change || typeof change !== "object") continue;
+        const chVal = (change as Record<string, unknown>).value;
+        if (chVal && typeof chVal === "object") {
+          pushStatusErrors((chVal as Record<string, unknown>).statuses);
+        }
+      }
+    }
+  }
+  return extra;
+}
+
 /** Pull a human-readable delivery error from Meta / third-party BSP webhook bodies. */
 export function extractWhatsAppDeliveryError(source: Record<string, unknown>): string {
   const msg = source.message as Record<string, unknown> | undefined;
   const statusObj = source.status as Record<string, unknown> | undefined;
+  const nestedCallback =
+    source.delivery_callback && typeof source.delivery_callback === "object"
+      ? (source.delivery_callback as Record<string, unknown>)
+      : undefined;
   const candidates: unknown[] = [
     msg?.error_message,
     msg?.error,
     source.error_message,
     source.error,
+    ...collectMetaGraphStatusErrors(source),
+    ...(nestedCallback ? collectMetaGraphStatusErrors(nestedCallback) : []),
   ];
 
   const statusErrors = statusObj?.errors;
@@ -59,8 +101,18 @@ export function extractWhatsAppDeliveryError(source: Record<string, unknown>): s
     }
     if (candidate && typeof candidate === "object") {
       const obj = candidate as Record<string, unknown>;
+      const errData =
+        obj.error_data && typeof obj.error_data === "object"
+          ? (obj.error_data as Record<string, unknown>)
+          : undefined;
       const text = String(
-        obj.message ?? obj.title ?? obj.error_user_msg ?? obj.details ?? obj.reason ?? "",
+        obj.message ??
+          obj.title ??
+          obj.error_user_msg ??
+          obj.details ??
+          obj.reason ??
+          errData?.details ??
+          "",
       ).trim();
       if (text) {
         const code = obj.code != null ? ` (${obj.code})` : "";

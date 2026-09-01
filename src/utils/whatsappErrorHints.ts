@@ -1,3 +1,5 @@
+import { extractWhatsAppDeliveryError } from "../../supabase/functions/_shared/whatsappStatusWebhook";
+
 export type WhatsAppErrorHint = {
   title: string;
   reason: string;
@@ -170,6 +172,34 @@ export function getWhatsAppErrorHint(
     };
   }
 
+  const deliveryErrorText = pr
+    ? extractWhatsAppDeliveryError(pr) ||
+      (pr.delivery_callback && typeof pr.delivery_callback === "object"
+        ? extractWhatsAppDeliveryError(pr.delivery_callback as Record<string, unknown>)
+        : "")
+    : "";
+
+  const templateMissing =
+    errCode === 132001 ||
+    errCode === "TEMPLATE_NOT_SYNCED" ||
+    errObj?.code === "TEMPLATE_NOT_SYNCED" ||
+    raw.includes("template_not_synced") ||
+    raw.includes("does not exist in the translation") ||
+    raw.includes("template name does not exist") ||
+    /template ["'].+["'] was not found on this business account/.test(raw) ||
+    (raw.includes("invoice_1") && raw.includes("not found"));
+
+  if (templateMissing && isMetaOnlyProvider(provider)) {
+    return {
+      title: "Invoice WhatsApp template not found on Meta",
+      reason:
+        deliveryErrorText ||
+        "WhatsApp rejected the send because the configured template name/language is not on this Business Account (often invoice_1 + English US).",
+      action:
+        "Settings → WhatsApp: click Sync Templates, then choose an Approved invoice template from the dropdown. Create or approve that template in Meta Business Manager if it is missing.",
+    };
+  }
+
   if (
     (typeof errCode === "number" && errCode >= 132000 && errCode <= 132099) ||
     (raw.includes("template") && (raw.includes("does not exist") || raw.includes("not found")))
@@ -215,48 +245,24 @@ export function getWhatsAppErrorHint(
     };
   }
 
-  const deliveryCallback =
-    pr?.delivery_callback && typeof pr.delivery_callback === "object"
-      ? (pr.delivery_callback as Record<string, unknown>)
-      : undefined;
   const queuedAck =
     pr?.message &&
     typeof pr.message === "object" &&
     !!(pr.message as Record<string, unknown>).queue_id;
   if (
     (errorMessage || "").trim().toLowerCase() === "delivery failed" &&
-    (deliveryCallback || queuedAck)
+    (pr?.delivery_callback || queuedAck)
   ) {
-    const nestedError = deliveryCallback
-      ? extractDeliveryErrorFromWebhookBody(deliveryCallback)
-      : "";
     return {
       title: "Queued by provider, delivery failed at WhatsApp",
-      reason: nestedError
-        ? `The message was accepted (queued) but WhatsApp rejected delivery: ${nestedError}`
+      reason: deliveryErrorText
+        ? `The message was accepted (queued) but WhatsApp rejected delivery: ${deliveryErrorText}`
         : "The message was accepted by your Meta/BSP provider (queued) but WhatsApp reported a delivery failure. This is not a missing customer name — check token, template approval, and recipient number.",
       action:
-        "Settings → WhatsApp API: refresh the access token, confirm the invoice template is Approved in Meta, and verify the customer number is on WhatsApp. Expand API Response → delivery_callback for the exact Meta error code.",
+        "Settings → WhatsApp: click Sync Templates and confirm the invoice template is Approved in Meta. Refresh the access token if it expired, and verify the customer number is on WhatsApp.",
     };
   }
 
   return null;
-}
-
-function extractDeliveryErrorFromWebhookBody(body: Record<string, unknown>): string {
-  const msg = body.message as Record<string, unknown> | undefined;
-  const candidates: unknown[] = [msg?.error_message, msg?.error, body.error_message, body.error];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
-    if (candidate && typeof candidate === "object") {
-      const obj = candidate as Record<string, unknown>;
-      const text = String(obj.message ?? obj.title ?? obj.error_user_msg ?? "").trim();
-      if (text) {
-        const code = obj.code != null ? ` (${obj.code})` : "";
-        return `${text}${code}`;
-      }
-    }
-  }
-  return "";
 }
 

@@ -421,6 +421,12 @@ export const MetaTemplateSelector = ({
     return true;
   });
 
+  const selectedTemplateMissing =
+    !!selectedTemplateName &&
+    !templatesLoading &&
+    Array.isArray(templates) &&
+    !templates.some((t) => t.template_name === selectedTemplateName);
+
   const handlePresetSelect = (preset: { name: string; params: TemplateParam[] }) => {
     onParamsChange([...preset.params]);
     toast.success(`Applied preset: ${preset.name}`);
@@ -490,6 +496,15 @@ export const MetaTemplateSelector = ({
         {/* Template Selection Dropdown */}
         <div className="space-y-2">
           <Label>Select Approved Template</Label>
+          {selectedTemplateMissing && (
+            <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                Saved template <strong>{selectedTemplateName}</strong> is not in the Approved list for this WhatsApp Business Account.
+                Click <strong>Sync Templates</strong>, then pick an Approved template. Sending with a missing name (for example invoice_1 / English US) is rejected by Meta.
+              </span>
+            </div>
+          )}
           <Select
             value={selectedTemplateId || selectedTemplateName || ''}
             onValueChange={handleTemplateSelect}

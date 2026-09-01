@@ -27,7 +27,9 @@
     "useDefineForClassFields": true
   },
   "include": [
-    "src"
+    "src",
+    "supabase/functions/_shared/whatsappStatusWebhook.ts",
+    "supabase/functions/_shared/whatsappMetaTemplateResolve.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",
