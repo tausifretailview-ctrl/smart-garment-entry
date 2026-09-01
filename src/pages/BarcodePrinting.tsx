@@ -204,6 +204,9 @@ import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
+/** Same ceiling as mobile PDF share — recover from hung fetches without a full reload. */
+const BARCODE_SETTINGS_LOAD_TIMEOUT_MS = 8_000;
+
 function mapPrinterPresetFromRow(p: Record<string, unknown>): CalibrationPreset {
   return {
     id: p.id != null ? String(p.id) : undefined,
@@ -1792,6 +1795,16 @@ export default function BarcodePrinting() {
   const settingsFullyLoadedRef = useRef(false);
   const settingsOrgLoadedRef = useRef<string | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsLoadStale, setSettingsLoadStale] = useState(false);
+  const [settingsLoadRetryToken, setSettingsLoadRetryToken] = useState(0);
+
+  const retryBarcodeSettingsLoad = useCallback(() => {
+    settingsOrgLoadedRef.current = null;
+    settingsFullyLoadedRef.current = false;
+    setSettingsLoadStale(false);
+    setSettingsLoading(true);
+    setSettingsLoadRetryToken((n) => n + 1);
+  }, []);
 
   const savePrecisionConfigToSettings = useCallback(async (configToSave: LabelDesignConfig, orgId: string) => {
     const { data: existing, error: fetchError } = await supabase
@@ -2172,9 +2185,11 @@ export default function BarcodePrinting() {
     settingsFullyLoadedRef.current = false;
     settingsOrgLoadedRef.current = null;
     setSettingsLoading(true);
+    setSettingsLoadStale(false);
     setActivePrecisionTemplateNameRaw(null);
     if (!currentOrganization?.id) {
       activePrecisionTemplateNameRef.current = null;
+      setSettingsLoading(false);
       return;
     }
     try {
@@ -2576,17 +2591,49 @@ export default function BarcodePrinting() {
 
     settingsFullyLoadedRef.current = false;
     setSettingsLoading(true);
+    setSettingsLoadStale(false);
     const loadAllMountN = nextBarcodeLoadAllMountSeq();
     console.info(`[BarcodePrinting] loadAll mount #${loadAllMountN} for org ${orgId}`);
-    const loadAll = async () => {
-      await fetchBusinessName();
-      await fetchDbPresets();
-      settingsFullyLoadedRef.current = true;
-      settingsOrgLoadedRef.current = orgId;
+    let cancelled = false;
+    let loadSettled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (cancelled || loadSettled) return;
+      console.warn(
+        `[BarcodePrinting] settings load timed out after ${BARCODE_SETTINGS_LOAD_TIMEOUT_MS}ms (org ${orgId})`,
+      );
+      settingsFullyLoadedRef.current = false;
+      setSettingsLoadStale(true);
       setSettingsLoading(false);
+    }, BARCODE_SETTINGS_LOAD_TIMEOUT_MS);
+    const loadAll = async () => {
+      try {
+        await fetchBusinessName();
+        await fetchDbPresets();
+        if (cancelled) return;
+        loadSettled = true;
+        window.clearTimeout(timeoutId);
+        settingsFullyLoadedRef.current = true;
+        settingsOrgLoadedRef.current = orgId;
+        setSettingsLoadStale(false);
+      } catch (error) {
+        if (cancelled) return;
+        loadSettled = true;
+        window.clearTimeout(timeoutId);
+        console.error("[BarcodePrinting] settings load failed:", error);
+        settingsFullyLoadedRef.current = false;
+        setSettingsLoadStale(true);
+      } finally {
+        if (!cancelled) {
+          setSettingsLoading(false);
+        }
+      }
     };
-    loadAll();
-  }, [currentOrganization?.id]);
+    void loadAll();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [currentOrganization?.id, settingsLoadRetryToken]);
 
   const refreshDbPresetsFromServer = useCallback(async () => {
     if (!currentOrganization?.id) return;
@@ -8226,7 +8273,13 @@ export default function BarcodePrinting() {
           size="sm"
           className="barcode-print-footer-btn h-9 font-bold bg-emerald-600 hover:bg-emerald-500 text-white min-w-[108px] shadow-sm"
           disabled={settingsLoading || isLoadingSettings || isPrecisionPrintRunning || labelItems.every((i) => !i.qty)}
-          title={settingsLoading ? "Loading print settings…" : "Print labels"}
+          title={
+            settingsLoading
+              ? "Loading print settings…"
+              : settingsLoadStale
+                ? "Print settings may be incomplete — use Retry if labels look wrong"
+                : "Print labels"
+          }
         >
           {settingsLoading || isPrecisionPrintRunning ? (
             <>
@@ -8240,6 +8293,19 @@ export default function BarcodePrinting() {
             </>
           )}
         </Button>
+        {settingsLoadStale ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="barcode-print-footer-btn-outline h-9 border-amber-400/70 text-amber-100 bg-amber-950/40 hover:bg-amber-900/60 hover:text-amber-50"
+            onClick={retryBarcodeSettingsLoad}
+            title="Printer presets or barcode settings did not finish loading"
+          >
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+            Retry settings
+          </Button>
+        ) : null}
         {(precisionSettings.enabled || activeBarTab === "precision" || activeBarTab === "designer") &&
           !isPrecisionFootwearMode(precisionSettings.printMode) && (
           <Button
