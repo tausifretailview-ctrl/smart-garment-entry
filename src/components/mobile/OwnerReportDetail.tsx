@@ -4,6 +4,11 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicator";
 import { invalidateOwnerReportQueries } from "@/lib/mobileHubRefresh";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchItemWiseStockPage, fetchItemWiseStockTotals } from "@/utils/itemWiseStockQueries";
+import { fetchWebStockReportTotals } from "@/utils/mobileStockReportQuery";
+import { STOCK_REPORT_LOW_THRESHOLD } from "@/utils/stockReportWebParity";
+import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { CalendarIcon } from "lucide-react";
@@ -440,50 +445,33 @@ const ProfitLossReport = ({ orgId, start, end }: RProps) => {
   );
 };
 
-/* 4. Stock Summary */
+/* 4. Stock Summary — same RPCs as web Stock Report / Item-wise Stock */
 const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
   const tableRef = useRef<HTMLDivElement>(null);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["rpt-stock-summary", orgId],
     enabled: !!orgId,
-    queryFn: async () => {
-      const { data: variants } = await supabase.from("product_variants")
-        .select("id, size, color, stock_qty, pur_price, sale_price, product_id, products!inner(product_name, brand)")
-        .eq("organization_id", orgId!);
-      return variants || [];
-    },
+    staleTime: STALE_FREQUENT,
+    queryFn: () =>
+      withMobileQueryTimeout(async () => {
+        const filters = {
+          groupBy: "product_name" as const,
+          searchQuery: "",
+          brandFilter: "__all__",
+          categoryFilter: "__all__",
+          departmentFilter: "__all__",
+          supplierFilter: "__all__",
+          barcodeFilter: "",
+          closingStockFilter: "all" as const,
+        };
+        const [totals, productTotals, page] = await Promise.all([
+          fetchWebStockReportTotals(orgId!),
+          fetchItemWiseStockTotals(orgId!, filters),
+          fetchItemWiseStockPage(orgId!, filters, 1, 150),
+        ]);
+        return { totals, productTotals, rows: page.rows, totalCount: page.totalCount };
+      }, 25_000),
   });
-
-  const stats = useMemo(() => {
-    if (!data?.length) return { totalProducts: 0, totalVariants: 0, purValue: 0, saleValue: 0, items: [] as any[] };
-    const prodSet = new Set<string>();
-    let purValue = 0, saleValue = 0;
-    const items: any[] = [];
-    data.forEach((v: any) => {
-      prodSet.add(v.product_id);
-      const stock = v.stock_qty || 0;
-      purValue += stock * (v.pur_price || 0);
-      saleValue += stock * (v.sale_price || 0);
-    });
-    // Group by product
-    const prodMap = new Map<string, { name: string; brand: string; totalStock: number; purVal: number; saleVal: number }>();
-    data.forEach((v: any) => {
-      const pid = v.product_id;
-      const prod = (v as any).products;
-      const existing = prodMap.get(pid) || { name: prod?.product_name || "—", brand: prod?.brand || "", totalStock: 0, purVal: 0, saleVal: 0 };
-      const stock = v.stock_qty || 0;
-      existing.totalStock += stock;
-      existing.purVal += stock * (v.pur_price || 0);
-      existing.saleVal += stock * (v.sale_price || 0);
-      prodMap.set(pid, existing);
-    });
-    return {
-      totalProducts: prodSet.size,
-      totalVariants: data.length,
-      purValue, saleValue,
-      items: [...prodMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    };
-  }, [data]);
 
   if (isLoading) return <LoadingRows />;
   if (isError) {
@@ -494,19 +482,19 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       </div>
     );
   }
-  if (!data?.length) return <EmptyState message="No products found" />;
+  if (!data) return <EmptyState message="No products found" />;
 
-  const stockRows = stats.items.slice(0, 100);
+  const stockRows = data.rows;
   const stockColumns: ReportTableColumn<(typeof stockRows)[number]>[] = [
     {
       key: "product",
       header: "Product",
       sticky: true,
       minWidth: "min-w-[120px]",
-      csvText: (p) => (p.brand ? `${p.name} — ${p.brand}` : p.name),
+      csvText: (p) => (p.brand ? `${p.key} — ${p.brand}` : p.key),
       render: (p) => (
         <div className="min-w-[120px] max-w-[160px]">
-          <p className="font-semibold truncate">{p.name}</p>
+          <p className="font-semibold truncate">{p.key}</p>
           {p.brand ? <p className="text-[11px] text-muted-foreground truncate">{p.brand}</p> : null}
         </div>
       ),
@@ -515,15 +503,15 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       key: "stock",
       header: "Stock",
       align: "right",
-      csvText: (p) => String(p.totalStock),
+      csvText: (p) => String(p.total_qty),
       render: (p) => (
         <span
           className={cn(
             "font-bold",
-            p.totalStock <= 0 ? "text-destructive" : p.totalStock <= 10 ? "text-orange-600" : "text-emerald-600",
+            p.total_qty <= 0 ? "text-destructive" : p.total_qty <= STOCK_REPORT_LOW_THRESHOLD ? "text-orange-600" : "text-emerald-600",
           )}
         >
-          {p.totalStock}
+          {p.total_qty}
         </span>
       ),
     },
@@ -531,8 +519,8 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
       key: "saleValue",
       header: "Sale Value",
       align: "right",
-      csvText: (p) => fmt(p.saleVal),
-      render: (p) => fmt(p.saleVal),
+      csvText: (p) => fmt(p.sale_value),
+      render: (p) => fmt(p.sale_value),
     },
   ];
 
@@ -547,18 +535,23 @@ const StockSummaryReport = ({ orgId }: { orgId?: string }) => {
         />
       </div>
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
-        <MetricCard label="Products" value={String(stats.totalProducts)} />
-        <MetricCard label="Variants" value={String(stats.totalVariants)} />
-        <MetricCard label="Stock Value" value={fmt(stats.purValue)} color="text-orange-600" />
-        <MetricCard label="Sale Value" value={fmt(stats.saleValue)} color="text-emerald-600" />
+        <MetricCard label="Total Qty" value={data.totals.totalStock.toLocaleString("en-IN")} />
+        <MetricCard label="Variants" value={data.totals.variantCount.toLocaleString("en-IN")} />
+        <MetricCard label="Stock Value" value={fmt(data.totals.stockValue)} color="text-orange-600" />
+        <MetricCard label="Sale Value" value={fmt(data.totals.saleValue)} color="text-emerald-600" />
       </div>
-      <p className="text-sm font-semibold text-sky-700">Stock Summary</p>
+      <p className="text-sm font-semibold text-sky-700">
+        Stock Summary
+        {data.productTotals.group_count > stockRows.length
+          ? ` · showing ${stockRows.length} of ${data.productTotals.group_count} products`
+          : ""}
+      </p>
       <MobileReportTable
         ref={tableRef}
         variant="statement"
         columns={stockColumns}
         rows={stockRows}
-        rowKey={(p) => `${p.name}|${p.brand}|${p.totalStock}|${p.saleVal}|${p.purVal}`}
+        rowKey={(p) => p.product_id || `${p.key}|${p.brand}|${p.total_qty}`}
       />
     </div>
   );

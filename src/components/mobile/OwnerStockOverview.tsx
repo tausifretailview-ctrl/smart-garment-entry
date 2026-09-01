@@ -1,6 +1,5 @@
-import { useState, useMemo, useCallback, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -11,6 +10,24 @@ import { Button } from "@/components/ui/button";
 import { useMobileScan } from "@/contexts/MobileScanContext";
 import { cn } from "@/lib/utils";
 import { MOBILE_BOTTOM_NAV_HEIGHT } from "@/lib/mobileShell";
+import { STALE_LIVE, STALE_PAGINATED, STALE_FREQUENT } from "@/lib/queryStaleTimes";
+import {
+  fetchItemWiseStockPage,
+  fetchItemWiseStockTotals,
+  type ItemWiseStockFilters,
+} from "@/utils/itemWiseStockQueries";
+import {
+  fetchStockReportStatusVariantCounts,
+  fetchWebStockReportTotals,
+} from "@/utils/mobileStockReportQuery";
+import {
+  ownerStockSearchToRpc,
+  productClosingFilterForStatus,
+  productRowMatchesStatus,
+  STOCK_REPORT_LOW_THRESHOLD,
+  stockQtyStatus,
+  type StockReportStatusFilter,
+} from "@/utils/stockReportWebParity";
 
 const fmtShort = (v: number) =>
   v >= 10000000 ? `₹${(v / 10000000).toFixed(1)}Cr` :
@@ -27,12 +44,20 @@ interface Props {
 
 const PAGE_SIZE = 30;
 
+const BASE_ITEM_FILTERS: Omit<ItemWiseStockFilters, "searchQuery" | "barcodeFilter" | "closingStockFilter"> = {
+  groupBy: "product_name",
+  brandFilter: "__all__",
+  categoryFilter: "__all__",
+  departmentFilter: "__all__",
+  supplierFilter: "__all__",
+};
+
 export const OwnerStockOverview = ({ onViewProduct }: Props) => {
   const { currentOrganization } = useOrganization();
   const { openScan } = useMobileScan();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [stockFilter, setStockFilter] = useState<"all" | "in" | "low" | "out">("all");
+  const [stockFilter, setStockFilter] = useState<StockReportStatusFilter>("all");
   const [sortBy, setSortBy] = useState<"name" | "stock_low" | "stock_high" | "brand">("name");
   const [showSort, setShowSort] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -44,106 +69,122 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
     timerRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   }, []);
 
-  const { data: products, isLoading } = useQuery({
-    queryKey: ["owner-stock-products", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return [];
-      const { data } = await supabase
-        .from("products")
-        .select("id, product_name, brand, product_type, style, hsn_code, gst_per")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .neq("product_type", "service")
-        .order("product_name")
-        .limit(1000);
-      return data || [];
-    },
-    enabled: !!currentOrganization,
-    staleTime: 60000,
+  const orgId = currentOrganization?.id;
+  const searchRpc = ownerStockSearchToRpc(debouncedSearch);
+  const listFilters: ItemWiseStockFilters = {
+    ...BASE_ITEM_FILTERS,
+    searchQuery: searchRpc.searchQuery,
+    barcodeFilter: searchRpc.barcodeFilter,
+    closingStockFilter: productClosingFilterForStatus(stockFilter),
+  };
+  const listStale = debouncedSearch.trim() ? STALE_LIVE : STALE_PAGINATED;
+
+  const { data: webTotals, isLoading: totalsLoading } = useQuery({
+    queryKey: ["stock-report-global-totals", orgId],
+    queryFn: () => fetchWebStockReportTotals(orgId!),
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
   });
 
-  const { data: variants } = useQuery({
-    queryKey: ["owner-stock-variants", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization) return [];
-      const { data } = await supabase
-        .from("product_variants")
-        .select("id, product_id, size, color, barcode, stock_qty, pur_price, sale_price")
-        .eq("organization_id", currentOrganization.id)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .limit(5000);
-      return data || [];
-    },
-    enabled: !!currentOrganization,
-    staleTime: 60000,
+  const { data: productTotals } = useQuery({
+    queryKey: ["owner-stock-product-totals", orgId],
+    queryFn: () =>
+      fetchItemWiseStockTotals(orgId!, {
+        ...BASE_ITEM_FILTERS,
+        searchQuery: "",
+        barcodeFilter: "",
+        closingStockFilter: "all",
+      }),
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
   });
 
-  const productData = useMemo(() => {
-    if (!products?.length || !variants?.length) return [];
-    const variantMap = new Map<string, { totalStock: number; variantCount: number; purchaseValue: number; saleValue: number; salePrice: number }>();
-    variants.forEach((v) => {
-      const ex = variantMap.get(v.product_id) || { totalStock: 0, variantCount: 0, purchaseValue: 0, saleValue: 0, salePrice: 0 };
-      const stock = Number(v.stock_qty) || 0;
-      ex.totalStock += stock;
-      ex.variantCount++;
-      ex.purchaseValue += stock * (Number(v.pur_price) || 0);
-      ex.saleValue += stock * (Number(v.sale_price) || 0);
-      if (Number(v.sale_price) > ex.salePrice) ex.salePrice = Number(v.sale_price);
-      variantMap.set(v.product_id, ex);
-    });
-    return products.map((p) => {
-      const agg = variantMap.get(p.id) || { totalStock: 0, variantCount: 0, purchaseValue: 0, saleValue: 0, salePrice: 0 };
-      return { ...p, ...agg };
-    });
-  }, [products, variants]);
+  const { data: statusCounts } = useQuery({
+    queryKey: ["owner-stock-status-counts", orgId],
+    queryFn: () => fetchStockReportStatusVariantCounts(orgId!),
+    enabled: !!orgId,
+    staleTime: STALE_FREQUENT,
+  });
 
-  const summary = useMemo(() => {
-    const totalProducts = productData.length;
-    const totalVariants = variants?.length || 0;
-    let purchaseValue = 0, saleValue = 0, inStock = 0, lowStock = 0, outOfStock = 0;
-    productData.forEach((p) => {
-      purchaseValue += p.purchaseValue;
-      saleValue += p.saleValue;
-      if (p.totalStock <= 0) outOfStock++;
-      else if (p.totalStock <= 5) lowStock++;
-      else inStock++;
-    });
-    return { totalProducts, totalVariants, purchaseValue, saleValue, inStock, lowStock, outOfStock };
-  }, [productData, variants]);
+  const {
+    data: productPages,
+    isLoading: listLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["owner-stock-product-pages", orgId, debouncedSearch, stockFilter],
+    queryFn: ({ pageParam }) => fetchItemWiseStockPage(orgId!, listFilters, pageParam, PAGE_SIZE),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.rows.length, 0);
+      if (lastPage.rows.length === 0) return undefined;
+      return loaded < lastPage.totalCount ? pages.length + 1 : undefined;
+    },
+    enabled: !!orgId,
+    staleTime: listStale,
+  });
+
+  const loadedRows = useMemo(
+    () => (productPages?.pages ?? []).flatMap((p) => p.rows),
+    [productPages],
+  );
 
   const filteredList = useMemo(() => {
-    let list = productData;
-    if (stockFilter === "in") list = list.filter((p) => p.totalStock > 5);
-    else if (stockFilter === "low") list = list.filter((p) => p.totalStock > 0 && p.totalStock <= 5);
-    else if (stockFilter === "out") list = list.filter((p) => p.totalStock <= 0);
-
-    if (debouncedSearch.trim()) {
-      const q = debouncedSearch.toLowerCase();
-      list = list.filter(
-        (p) =>
-          p.product_name?.toLowerCase().includes(q) ||
-          p.brand?.toLowerCase().includes(q) ||
-          p.product_type?.toLowerCase().includes(q) ||
-          p.style?.toLowerCase().includes(q)
-      );
-    }
-
+    let list = loadedRows.filter((row) =>
+      productRowMatchesStatus(row.total_qty, stockFilter, STOCK_REPORT_LOW_THRESHOLD),
+    );
     switch (sortBy) {
-      case "stock_low": list = [...list].sort((a, b) => a.totalStock - b.totalStock); break;
-      case "stock_high": list = [...list].sort((a, b) => b.totalStock - a.totalStock); break;
-      case "brand": list = [...list].sort((a, b) => (a.brand || "").localeCompare(b.brand || "")); break;
-      default: list = [...list].sort((a, b) => (a.product_name || "").localeCompare(b.product_name || "")); break;
+      case "stock_low":
+        list = [...list].sort((a, b) => a.total_qty - b.total_qty);
+        break;
+      case "stock_high":
+        list = [...list].sort((a, b) => b.total_qty - a.total_qty);
+        break;
+      case "brand":
+        list = [...list].sort((a, b) => (a.brand || "").localeCompare(b.brand || ""));
+        break;
+      default:
+        list = [...list].sort((a, b) => (a.key || "").localeCompare(b.key || ""));
+        break;
     }
     return list;
-  }, [productData, stockFilter, debouncedSearch, sortBy]);
+  }, [loadedRows, stockFilter, sortBy]);
+
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage) return;
+    if (filteredList.length >= visibleCount) return;
+    void fetchNextPage();
+  }, [hasNextPage, isFetchingNextPage, filteredList.length, visibleCount, fetchNextPage]);
 
   const visibleProducts = filteredList.slice(0, visibleCount);
+  const serverProductCount = productPages?.pages[0]?.totalCount;
+  const listCountLabel =
+    stockFilter === "in" || stockFilter === "low"
+      ? filteredList.length + (hasNextPage ? "+" : "")
+      : (serverProductCount ?? filteredList.length);
 
-  const stockColor = (qty: number) =>
-    qty <= 0 ? "text-destructive" : qty <= 5 ? "text-warning" : "text-success";
-  const stockBg = (qty: number) =>
-    qty <= 0 ? "bg-destructive" : qty <= 5 ? "bg-warning" : "bg-success";
+  const summary = {
+    totalProducts: productTotals?.group_count ?? 0,
+    totalQty: webTotals?.totalStock ?? 0,
+    totalVariants: webTotals?.variantCount ?? 0,
+    purchaseValue: webTotals?.stockValue ?? 0,
+    saleValue: webTotals?.saleValue ?? 0,
+    inStock: statusCounts?.inStock ?? 0,
+    lowStock: statusCounts?.low ?? 0,
+    outOfStock: statusCounts?.out ?? 0,
+  };
+
+  const isLoading = totalsLoading || listLoading;
+
+  const stockColor = (qty: number) => {
+    const s = stockQtyStatus(qty);
+    return s === "out" ? "text-destructive" : s === "low" ? "text-warning" : "text-success";
+  };
+  const stockBg = (qty: number) => {
+    const s = stockQtyStatus(qty);
+    return s === "out" ? "bg-destructive" : s === "low" ? "bg-warning" : "bg-success";
+  };
 
   return (
     <div className="bg-muted/30 -mx-3 sm:-mx-4 pb-6">
@@ -177,7 +218,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
       <div className="shrink-0 px-4 pt-4">
         <div className="grid grid-cols-2 gap-2.5">
           {[
-            { label: "Products", value: summary.totalProducts.toLocaleString("en-IN"), icon: Package, tint: "bg-primary/10", color: "text-primary" },
+            { label: "Total Qty", value: summary.totalQty.toLocaleString("en-IN"), icon: Package, tint: "bg-primary/10", color: "text-primary" },
             { label: "Variants", value: summary.totalVariants.toLocaleString("en-IN"), icon: Layers, tint: "bg-info/10", color: "text-info" },
             { label: "Purchase Value", value: fmtShort(summary.purchaseValue), icon: IndianRupee, tint: "bg-warning/10", color: "text-warning" },
             { label: "Sale Value", value: fmtShort(summary.saleValue), icon: IndianRupee, tint: "bg-success/10", color: "text-success" },
@@ -191,7 +232,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
                   </div>
                   <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider leading-tight">{c.label}</span>
                 </div>
-                {isLoading ? <Skeleton className="h-6 w-16 mt-auto" /> : (
+                {totalsLoading ? <Skeleton className="h-6 w-16 mt-auto" /> : (
                   <p className="text-lg font-bold text-foreground tabular-nums mt-auto leading-tight break-all">{c.value}</p>
                 )}
               </div>
@@ -201,7 +242,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
 
         <div className="mt-4 grid grid-cols-4 gap-2">
           {[
-            { key: "all" as const, label: "All", count: summary.totalProducts, icon: Package, color: "text-foreground" },
+            { key: "all" as const, label: "All", count: summary.totalVariants, icon: Package, color: "text-foreground" },
             { key: "in" as const, label: "In Stock", count: summary.inStock, icon: CheckCircle, color: "text-success" },
             { key: "low" as const, label: "Low", count: summary.lowStock, icon: AlertTriangle, color: "text-warning" },
             { key: "out" as const, label: "Out", count: summary.outOfStock, icon: XCircle, color: "text-destructive" },
@@ -218,7 +259,7 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
                 )}
               >
                 <Icon className={cn("h-4 w-4 mb-0.5 shrink-0", stockFilter === chip.key ? "text-primary-foreground" : chip.color)} />
-                <span className="tabular-nums leading-none">{chip.count}</span>
+                <span className="tabular-nums leading-none">{chip.count.toLocaleString("en-IN")}</span>
                 <span className="text-[9px] opacity-80 leading-tight text-center whitespace-nowrap">{chip.label}</span>
               </button>
             );
@@ -226,7 +267,12 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
         </div>
 
         <div className="mt-3 flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">{filteredList.length} products</p>
+          <p className="text-xs text-muted-foreground">
+            {listCountLabel} products
+            {summary.totalProducts > 0 && stockFilter === "all" && !debouncedSearch.trim()
+              ? ` · ${summary.totalProducts.toLocaleString("en-IN")} total`
+              : ""}
+          </p>
           <button type="button" onClick={() => setShowSort(!showSort)} className="flex items-center gap-1 text-xs text-primary font-medium touch-manipulation">
             <ArrowUpDown className="h-4 w-4" /> Sort
           </button>
@@ -269,41 +315,50 @@ export const OwnerStockOverview = ({ onViewProduct }: Props) => {
           </div>
         ) : visibleProducts.length > 0 ? (
           <div className="space-y-2">
-            {visibleProducts.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onViewProduct(p.id)}
-                className="w-full bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.98] transition-all touch-manipulation text-left"
-              >
-                <div className="flex justify-between items-center">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-foreground truncate">{p.product_name}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
-                      {[p.brand, p.product_type].filter(Boolean).join(" • ") || "—"}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 ml-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span className={cn("w-2 h-2 rounded-full", stockBg(p.totalStock))} />
-                      <span className={cn("text-base font-bold tabular-nums", stockColor(p.totalStock))}>
-                        {p.totalStock}
-                      </span>
+            {visibleProducts.map((p, idx) => {
+              const qty = p.total_qty;
+              const unitSale = qty > 0 ? p.sale_value / qty : 0;
+              const productId = p.product_id;
+              return (
+                <button
+                  key={productId || `${p.key}-${idx}`}
+                  type="button"
+                  onClick={() => { if (productId) onViewProduct(productId); }}
+                  disabled={!productId}
+                  className="w-full bg-card rounded-2xl p-3.5 border border-border/40 shadow-sm active:scale-[0.98] transition-all touch-manipulation text-left disabled:opacity-60"
+                >
+                  <div className="flex justify-between items-center">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-foreground truncate">{p.key}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                        {[p.brand, p.category].filter(Boolean).join(" • ") || "—"}
+                      </p>
                     </div>
-                    {p.salePrice > 0 && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">₹{p.salePrice.toLocaleString("en-IN")}</p>
-                    )}
+                    <div className="text-right shrink-0 ml-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className={cn("w-2 h-2 rounded-full", stockBg(qty))} />
+                        <span className={cn("text-base font-bold tabular-nums", stockColor(qty))}>
+                          {qty}
+                        </span>
+                      </div>
+                      {unitSale > 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5">₹{Math.round(unitSale).toLocaleString("en-IN")}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
-            ))}
-            {visibleCount < filteredList.length && (
+                </button>
+              );
+            })}
+            {(visibleCount < filteredList.length || hasNextPage) && (
               <button
                 type="button"
-                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                onClick={() => {
+                  setVisibleCount((c) => c + PAGE_SIZE);
+                  if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
+                }}
                 className="w-full text-center text-xs font-semibold text-primary py-3 active:opacity-70 touch-manipulation"
               >
-                Load More ({filteredList.length - visibleCount} remaining)
+                {isFetchingNextPage ? "Loading…" : `Load More${hasNextPage ? "" : ` (${filteredList.length - visibleCount} remaining)`}`}
               </button>
             )}
           </div>

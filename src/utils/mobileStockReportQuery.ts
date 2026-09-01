@@ -1,4 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import {
+  parseStockReportTotalsPayload,
+  stockStatusToRpcArgs,
+  STOCK_REPORT_LOW_THRESHOLD,
+  type StockReportStatusFilter,
+  type WebStockReportTotals,
+} from "@/utils/stockReportWebParity";
 
 export type MobileStockReportRow = {
   variant_id: string;
@@ -19,16 +26,68 @@ export type MobileStockReportRow = {
   pur_price: number | null;
 };
 
-export type MobileStockReportStatus = "all" | "in_stock" | "zero_stock";
+export type MobileStockReportStatus = "all" | "in_stock" | "zero_stock" | "low";
+
+export type MobileStockReportFilterOpts = {
+  search?: string;
+  supplier?: string;
+  brand?: string;
+  category?: string;
+  /** @deprecated use `status` — true = in stock, false = out of stock */
+  inStock?: boolean;
+  status?: StockReportStatusFilter;
+};
+
+function rpcBrand(value?: string) {
+  return value?.trim() && value !== "__all__" ? value.trim() : null;
+}
+
+function statusFromFilterOpts(opts?: MobileStockReportFilterOpts): StockReportStatusFilter {
+  if (opts?.status) return opts.status;
+  if (opts?.inStock === true) return "in";
+  if (opts?.inStock === false) return "out";
+  return "all";
+}
+
+export async function fetchWebStockReportTotals(orgId: string): Promise<WebStockReportTotals> {
+  const { data, error } = await supabase.rpc("get_stock_report_totals", {
+    p_organization_id: orgId,
+  });
+  if (error) throw error;
+  return parseStockReportTotalsPayload(data);
+}
+
+export async function fetchStockReportStatusVariantCounts(
+  orgId: string,
+  threshold = STOCK_REPORT_LOW_THRESHOLD,
+) {
+  const [inRes, lowRes, outRes] = await Promise.all([
+    supabase.rpc("get_stock_report_filtered_totals", {
+      p_org_id: orgId,
+      ...stockStatusToRpcArgs("in", threshold),
+    }),
+    supabase.rpc("get_stock_report_filtered_totals", {
+      p_org_id: orgId,
+      ...stockStatusToRpcArgs("low", threshold),
+    }),
+    supabase.rpc("get_stock_report_filtered_totals", {
+      p_org_id: orgId,
+      ...stockStatusToRpcArgs("out", threshold),
+    }),
+  ]);
+  if (inRes.error) throw inRes.error;
+  if (lowRes.error) throw lowRes.error;
+  if (outRes.error) throw outRes.error;
+  return {
+    inStock: parseStockReportTotalsPayload(inRes.data).variantCount,
+    low: parseStockReportTotalsPayload(lowRes.data).variantCount,
+    out: parseStockReportTotalsPayload(outRes.data).variantCount,
+  };
+}
 
 export async function fetchMobileStockReportPages(
   orgId: string,
-  opts?: {
-    search?: string;
-    supplier?: string;
-    brand?: string;
-    category?: string;
-    inStock?: boolean;
+  opts?: MobileStockReportFilterOpts & {
     maxRows?: number;
     pageSize?: number;
   },
@@ -37,10 +96,9 @@ export async function fetchMobileStockReportPages(
   const maxRows = opts?.maxRows ?? 1500;
   const all: MobileStockReportRow[] = [];
   let offset = 0;
-  const brand = opts?.brand?.trim() && opts.brand !== "__all__" ? opts.brand.trim() : null;
-  const category = opts?.category?.trim() && opts.category !== "__all__" ? opts.category.trim() : null;
-  const inStock = opts?.inStock === true ? true : null;
-  const outOfStock = opts?.inStock === false ? true : null;
+  const brand = rpcBrand(opts?.brand);
+  const category = rpcBrand(opts?.category);
+  const statusArgs = stockStatusToRpcArgs(statusFromFilterOpts(opts));
 
   while (offset < maxRows) {
     const { data, error } = await supabase.rpc("get_stock_report", {
@@ -49,11 +107,9 @@ export async function fetchMobileStockReportPages(
       p_supplier: opts?.supplier?.trim() || null,
       p_brand: brand,
       p_category: category,
-      p_in_stock: inStock,
-      p_low_stock: outOfStock,
       p_limit: Math.min(pageSize, maxRows - offset),
       p_offset: offset,
-      p_low_stock_threshold: 10,
+      ...statusArgs,
     });
     if (error) throw error;
     const rows = (data || []) as MobileStockReportRow[];
@@ -67,33 +123,25 @@ export async function fetchMobileStockReportPages(
 
 export async function fetchMobileStockFilteredTotals(
   orgId: string,
-  opts: {
-    search?: string;
-    supplier?: string;
-    brand?: string;
-    category?: string;
-    inStock?: boolean;
-  },
+  opts: MobileStockReportFilterOpts,
 ) {
-  const brand = opts.brand?.trim() && opts.brand !== "__all__" ? opts.brand.trim() : null;
-  const category = opts.category?.trim() && opts.category !== "__all__" ? opts.category.trim() : null;
+  const brand = rpcBrand(opts.brand);
+  const category = rpcBrand(opts.category);
   const { data, error } = await supabase.rpc("get_stock_report_filtered_totals", {
     p_org_id: orgId,
     p_search: opts.search?.trim() || null,
     p_supplier: opts.supplier?.trim() || null,
     p_brand: brand,
     p_category: category,
-    p_in_stock: opts.inStock === true ? true : null,
-    p_low_stock: opts.inStock === false ? true : null,
-    p_low_stock_threshold: 10,
+    ...stockStatusToRpcArgs(statusFromFilterOpts(opts)),
   });
   if (error) throw error;
-  const row = data as { total_stock?: number; stock_value?: number; sale_value?: number; variant_count?: number } | null;
+  const parsed = parseStockReportTotalsPayload(data);
   return {
-    qty: Number(row?.total_stock ?? 0),
-    pur: Number(row?.stock_value ?? 0),
-    sale: Number(row?.sale_value ?? 0),
-    variants: Number(row?.variant_count ?? 0),
+    qty: parsed.totalStock,
+    pur: parsed.stockValue,
+    sale: parsed.saleValue,
+    variants: parsed.variantCount,
   };
 }
 

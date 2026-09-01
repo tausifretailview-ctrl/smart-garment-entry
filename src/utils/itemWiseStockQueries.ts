@@ -29,6 +29,9 @@ export type ItemWiseStockRow = {
   total_qty: number;
   purchase_value: number;
   sale_value: number;
+  brand: string | null;
+  category: string | null;
+  department: string | null;
 };
 
 export type ItemWiseStockTotals = {
@@ -99,6 +102,9 @@ export async function fetchItemWiseStockPage(
     total_stock?: number | null;
     purchase_value?: number | null;
     sale_value?: number | null;
+    brand?: string | null;
+    category?: string | null;
+    department?: string | null;
     total_rows?: number | null;
   }>;
 
@@ -109,6 +115,9 @@ export async function fetchItemWiseStockPage(
     total_qty: Number(row.total_stock ?? 0),
     purchase_value: Number(row.purchase_value ?? 0),
     sale_value: Number(row.sale_value ?? 0),
+    brand: row.brand ?? null,
+    category: row.category ?? null,
+    department: row.department ?? null,
   }));
 
   // Collapse brand spellings that differ only by case/spaces (same page).

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Package, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STOCK_REPORT_LOW_THRESHOLD, stockQtyStatus } from "@/utils/stockReportWebParity";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -41,6 +42,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
         .eq("product_id", productId)
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null)
+        .eq("active", true)
         .order("size");
       return data || [];
     },
@@ -55,6 +57,7 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
       const { data } = await supabase
         .from("stock_movements")
         .select("id, variant_id, movement_type, quantity, bill_number, created_at")
+        .eq("organization_id", currentOrganization.id)
         .in("variant_id", variantIds.slice(0, 100))
         .order("created_at", { ascending: false })
         .limit(20);
@@ -65,10 +68,14 @@ export const OwnerStockProductDetail = ({ productId, onBack }: Props) => {
 
   const totalStock = variants?.reduce((s, v) => s + (Number(v.stock_qty) || 0), 0) || 0;
 
-  const stockColor = (qty: number) =>
-    qty <= 0 ? "text-destructive" : qty <= 5 ? "text-warning" : "text-success";
-  const stockBadge = (qty: number) =>
-    qty <= 0 ? "bg-destructive/10 text-destructive" : qty <= 5 ? "bg-warning/10 text-warning" : "bg-success/10 text-success";
+  const stockColor = (qty: number) => {
+    const s = stockQtyStatus(qty, STOCK_REPORT_LOW_THRESHOLD);
+    return s === "out" ? "text-destructive" : s === "low" ? "text-warning" : "text-success";
+  };
+  const stockBadge = (qty: number) => {
+    const s = stockQtyStatus(qty, STOCK_REPORT_LOW_THRESHOLD);
+    return s === "out" ? "bg-destructive/10 text-destructive" : s === "low" ? "bg-warning/10 text-warning" : "bg-success/10 text-success";
+  };
 
   const movementLabel = (type: string) => {
     switch (type) {
