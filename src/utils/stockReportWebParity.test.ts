@@ -61,6 +61,7 @@ describe("stockStatusToRpcArgs", () => {
 describe("ownerStockSearchToRpc", () => {
   it("sends numeric tokens to barcode so name ILIKE is not AND-ed", () => {
     expect(ownerStockSearchToRpc("40001067")).toEqual({ searchQuery: "", barcodeFilter: "40001067" });
+    expect(ownerStockSearchToRpc("0040007259")).toEqual({ searchQuery: "", barcodeFilter: "0040007259" });
     expect(ownerStockSearchToRpc("1 PIECE")).toEqual({ searchQuery: "1 PIECE", barcodeFilter: "" });
     expect(ownerStockSearchToRpc("PUL204")).toEqual({ searchQuery: "PUL204", barcodeFilter: "" });
   });

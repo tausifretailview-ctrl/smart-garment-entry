@@ -56,7 +56,7 @@ export function stockStatusToRpcArgs(
 export function ownerStockSearchToRpc(query: string): { searchQuery: string; barcodeFilter: string } {
   const t = query.trim();
   if (!t) return { searchQuery: "", barcodeFilter: "" };
-  const looksLikeBarcode = !/\s/.test(t) && /\d/.test(t) && t.length >= 4;
+  const looksLikeBarcode = !/\s/.test(t) && /^[0-9][0-9A-Za-z-]{3,}$/.test(t);
   if (looksLikeBarcode) return { searchQuery: "", barcodeFilter: t };
   return { searchQuery: t, barcodeFilter: "" };
 }
