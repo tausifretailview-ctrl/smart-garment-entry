@@ -77,6 +77,12 @@ describe('resolvePosBillFormat', () => {
     expect(posInvoiceTemplateForBillFormat('thermal', 'retail-pos-80mm')).toBeUndefined();
   });
 
+  it('forces thermal for Trendzo POS 80mm template', () => {
+    expect(resolvePosBillFormat('trendzo-pos-80mm', 'a4', 'a4')).toBe('thermal');
+    expect(isThermal80mmInvoiceTemplate('trendzo-pos-80mm')).toBe(true);
+    expect(posInvoiceTemplateForBillFormat('thermal', 'trendzo-pos-80mm')).toBeUndefined();
+  });
+
   it('follows POS A5 for preprinted letterhead template', () => {
     expect(resolvePosBillFormat('retail-erp-preprinted', 'a5', 'a4')).toBe('a5');
   });

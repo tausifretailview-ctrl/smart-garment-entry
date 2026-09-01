@@ -31,6 +31,7 @@ import {
 import { NewDesignThermalReceipt80mm } from './NewDesignThermalReceipt80mm';
 import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
+import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
 import QRCode from 'qrcode';
 import {
   calculateGSTBreakup,
@@ -603,6 +604,67 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
+            />
+          );
+        }
+        if (templateForFormat === 'trendzo-pos-80mm') {
+          const rateMap = new Map<number, { taxable: number; tax: number }>();
+          props.items.forEach((item) => {
+            const gstPct = item.gstPercent || 0;
+            if (gstPct <= 0) return;
+            const gstAmt = (item.total * gstPct) / (100 + gstPct);
+            const taxable = item.total - gstAmt;
+            const existing = rateMap.get(gstPct) || { taxable: 0, tax: 0 };
+            rateMap.set(gstPct, { taxable: existing.taxable + taxable, tax: existing.tax + gstAmt });
+          });
+          const gstRateBreakdown = Array.from(rateMap.entries())
+            .sort((a, b) => a[0] - b[0])
+            .map(([rate, { taxable, tax }]) => ({
+              rate,
+              taxableAmount: taxable,
+              cgst: tax / 2,
+              sgst: tax / 2,
+              totalTax: tax,
+            }));
+
+          return (
+            <TrendzoPosThermalReceipt80mm
+              billNo={props.billNo}
+              date={props.date}
+              customerName={props.customerName}
+              customerPhone={props.customerMobile}
+              items={props.items.map((item, idx) => ({
+                sr: idx + 1,
+                particulars: item.particulars,
+                barcode: item.barcode,
+                hsn: item.hsn,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+                mrp: item.mrp ?? item.sp,
+              }))}
+              subTotal={props.subTotal}
+              discount={props.discount}
+              saleReturnAdjust={props.saleReturnAdjust}
+              roundOff={props.roundOff}
+              grandTotal={props.grandTotal}
+              gstBreakdown={{
+                cgst: cgstAmount,
+                sgst: sgstAmount,
+                igst: igstAmount,
+              }}
+              gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
+              paymentMethod={props.paymentMethod}
+              cashPaid={props.cashPaid || props.cashAmount}
+              upiPaid={props.upiPaid || props.upiAmount}
+              cardPaid={props.cardAmount}
+              creditPaid={props.creditAmount}
+              paidAmount={props.paidAmount}
+              refundCash={props.refundCash}
+              documentType={props.documentType || 'pos'}
+              salesman={props.salesman}
+              thermalPaper={thermalPaper}
+              showYouSaved={showYouSaved}
             />
           );
         }
