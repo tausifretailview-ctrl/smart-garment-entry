@@ -9,6 +9,8 @@ export type AvailableStockPrintItem = {
   orderQty: number;
   pendingQty: number;
   sizeStock?: { size: string; qty: number }[];
+  /** Fallback on-hand for this line's size when sizeStock misses it. */
+  onHandQty?: number;
 };
 
 export type AvailableStockCell = {
@@ -37,8 +39,9 @@ function emptyCell(): AvailableStockCell {
 
 /**
  * Article × size pick-list matrix: available = Size-wise Stock on-hand (stock_qty).
- * Columns include every size that has on-hand or ordered qty for products on the order
- * (full size-wise stock for that article/colour, not only ordered sizes).
+ * Columns are only sizes that appear on the order (order qty), so Avl/Ord stays
+ * readable and matches "size-wise stock as per order quantity".
+ * On-hand for those sizes still comes from the full article/colour size run.
  */
 export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   rows: AvailableStockMatrixRow[];
@@ -84,16 +87,33 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
       cur.stock = Number(s.qty) || 0;
       row.cells.set(sz, cur);
     });
+    const lineSz = sizeMatrixKey(item.size);
+    const lineCell = row.cells.get(lineSz);
+    const fallback = Number(item.onHandQty) || 0;
+    if (lineCell && fallback > lineCell.stock) {
+      lineCell.stock = fallback;
+    }
   });
 
+  const sizeSet = new Set<string>();
+  map.forEach((row) => {
+    row.cells.forEach((c, sz) => {
+      if (c.ordered > 0) sizeSet.add(sz);
+    });
+  });
+  const sizes = sortSizes(Array.from(sizeSet));
+
   const rows = Array.from(map.values()).map((row) => {
+    row.cells.forEach((c) => {
+      c.available = c.stock;
+    });
     let totalStock = 0;
     let totalAvailable = 0;
     let totalOrdered = 0;
     let totalPending = 0;
-    row.cells.forEach((c) => {
-      // On-hand from Size-wise Stock — do not cap at order qty.
-      c.available = c.stock;
+    sizes.forEach((sz) => {
+      const c = row.cells.get(sz);
+      if (!c) return;
       totalStock += c.stock;
       totalAvailable += c.available;
       totalOrdered += c.ordered;
@@ -102,16 +122,9 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
     return { ...row, totalStock, totalAvailable, totalOrdered, totalPending };
   });
 
-  const sizeSet = new Set<string>();
-  rows.forEach((r) => {
-    r.cells.forEach((c, sz) => {
-      if (c.ordered > 0 || c.stock > 0) sizeSet.add(sz);
-    });
-  });
-
   return {
     rows,
-    sizes: sortSizes(Array.from(sizeSet)),
+    sizes,
     grandAvailable: rows.reduce((s, r) => s + r.totalAvailable, 0),
     grandOrdered: rows.reduce((s, r) => s + r.totalOrdered, 0),
   };

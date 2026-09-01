@@ -42,7 +42,7 @@ export function SaleOrderStockCheckDialog({
           <DialogTitle>Check size-wise stock before booking</DialogTitle>
           <DialogDescription>
             {customerName ? `${customerName} — ` : ""}
-            Each cell is on-hand / ordered (same on-hand as Size-wise Stock). This does not reserve stock.
+            Each cell is on-hand / ordered for sizes on this order (same on-hand as Size-wise Stock). This does not reserve stock.
           </DialogDescription>
         </DialogHeader>
 

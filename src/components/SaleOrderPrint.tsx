@@ -203,7 +203,22 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
     type MatrixRow = AvailableStockMatrixRow;
 
     const availableStockMatrix = React.useMemo(
-      () => (isAvailableStock ? buildAvailableStockMatrix(items) : null),
+      () =>
+        isAvailableStock
+          ? buildAvailableStockMatrix(
+              items.map((i) => ({
+                particulars: i.particulars,
+                color: i.color,
+                brand: i.brand,
+                style: i.style,
+                size: i.size,
+                orderQty: i.orderQty,
+                pendingQty: i.pendingQty,
+                sizeStock: i.sizeStock,
+                onHandQty: i.stockQty ?? i.availableQty,
+              })),
+            )
+          : null,
       [items, isAvailableStock],
     );
     const matrixRows: MatrixRow[] = availableStockMatrix?.rows ?? [];
@@ -351,7 +366,8 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Each size cell is <strong>on-hand / ordered</strong> (same on-hand as Size-wise Stock Report).
+            {' '}Each size cell is <strong>on-hand / ordered</strong> for sizes on this order
+            {' '}(same on-hand as Size-wise Stock Report).
             {' '}Stock can change before Convert to Sale Bill.
           </div>
         )}
@@ -679,7 +695,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
               borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
             }}>
-              Each cell shows <strong>on-hand / ordered</strong> for that article/colour in that size (Size-wise Stock).
+              Each cell shows <strong>on-hand / ordered</strong> for sizes on this order (Size-wise Stock).
               {' '}Ordered {matrixGrandOrdered} pcs.
               {' '}On-hand {matrixGrandAvailable} pcs.
               {' '}Snapshot only — this document does not reserve stock.
