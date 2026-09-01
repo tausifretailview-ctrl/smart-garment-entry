@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { App as CapApp } from "@capacitor/app";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Camera, Loader2, Minus, Plus, Trash2, X, Share2, CheckCircle2 } from "lucide-react";
+import { Search, Camera, Loader2, Minus, Plus, Trash2, X, Share2, CheckCircle2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -49,6 +49,19 @@ import {
 } from "@/components/ui/drawer";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
+import {
+  AdaptiveCustomerPicker,
+  type CustomerPickerOption,
+} from "@/components/mobile/AdaptiveCustomerPicker";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { buildPublicInvoiceViewUrl, type PublicInvoiceSaleSettings } from "@/utils/publicInvoiceLink";
+import {
+  buildMobilePosWhatsAppMessage,
+  formatMobilePosInvoiceDate,
+  formatMobilePosPaymentLabel,
+  hasMobilePosWhatsAppPhone,
+  type MobilePosPaymentMethod,
+} from "@/utils/mobilePosWhatsAppMessage";
 import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import type { PosCartItem } from "@/lib/posBilling";
@@ -97,13 +110,23 @@ type SearchHit = {
   };
 };
 
-type SaveSuccess = { saleNumber: string; saleId: string; netAmount: number };
+const WALK_IN_CUSTOMER_NAME = "Walk in Customer";
+
+type SaveSuccess = {
+  saleNumber: string;
+  saleId: string;
+  netAmount: number;
+  customerPhone: string | null;
+  paymentLabel: string;
+  invoiceDateLabel: string;
+};
 
 export default function MobilePosBilling() {
   const { currentOrganization } = useOrganization();
   const { data: settingsData } = useSettings();
   const { calculateRedemptionValue } = useCustomerPoints();
   const { saveSale, isSaving } = useSaveSale();
+  const { sendWhatsApp } = useWhatsAppSend();
   const { openScan, registerBillingScanHandler } = useMobileScan();
 
   const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)?.sale_settings || {};
@@ -184,6 +207,10 @@ export default function MobilePosBilling() {
     barcode: string;
     choices: SearchHit[];
   } | null>(null);
+  const [customerPickerOpen, setCustomerPickerOpen] = useState(false);
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerPickerOption | null>(null);
   const saveLockRef = useRef(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -191,6 +218,11 @@ export default function MobilePosBilling() {
     const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 280);
     return () => window.clearTimeout(t);
   }, [searchInput]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedCustomerSearch(customerSearchTerm.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [customerSearchTerm]);
 
   const { data: searchHits = [], isFetching: searchLoading } = useQuery({
     queryKey: ["mobile-pos-product-search", currentOrganization?.id, debouncedSearch],
@@ -218,6 +250,33 @@ export default function MobilePosBilling() {
         }));
     },
     enabled: !!currentOrganization?.id && debouncedSearch.length >= 1,
+    staleTime: STALE_LIVE,
+  });
+
+  const { data: customerOptions = [], isFetching: customersLoading } = useQuery({
+    queryKey: ["mobile-pos-customers", currentOrganization?.id, debouncedCustomerSearch],
+    queryFn: async (): Promise<CustomerPickerOption[]> => {
+      if (!currentOrganization?.id) return [];
+      const escaped = debouncedCustomerSearch.replace(/[%_,]/g, "");
+      let query = supabase
+        .from("customers")
+        .select("id, customer_name, phone")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .order("customer_name")
+        .limit(50);
+      if (escaped.length >= 1) {
+        query = query.or(`customer_name.ilike.%${escaped}%,phone.ilike.%${escaped}%`);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        customer_name: row.customer_name,
+        phone: row.phone,
+      }));
+    },
+    enabled: !!currentOrganization?.id && customerPickerOpen,
     staleTime: STALE_LIVE,
   });
 
@@ -370,23 +429,30 @@ export default function MobilePosBilling() {
     setMixOpen(false);
 
     try {
+      const customerName = selectedCustomer?.customer_name?.trim() || WALK_IN_CUSTOMER_NAME;
       const saleData = buildSaleData({
-        customerName: "Walk in Customer",
-        customerId: null,
-        customerPhone: null,
+        customerName,
+        customerId: selectedCustomer?.id ?? null,
+        customerPhone: selectedCustomer?.phone?.trim() || null,
       });
       const result = await saveSale(saleData, method, breakdown, "pos");
       if (!result) {
         setSaveError("Save did not complete. No automatic retry — tap Pay again when ready.");
         return;
       }
+      const paymentMethod: MobilePosPaymentMethod = method;
       clearCart();
       setPreviewOpen(false);
       setSuccess({
         saleNumber: result.sale_number || "",
         saleId: result.id,
         netAmount: Number(result.net_amount) || totals.finalAmount,
+        customerPhone: selectedCustomer?.phone?.trim() || null,
+        paymentLabel: formatMobilePosPaymentLabel(paymentMethod, breakdown ?? null),
+        invoiceDateLabel: formatMobilePosInvoiceDate(),
       });
+      setSelectedCustomer(null);
+      setCustomerSearchTerm("");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Network or server error";
       setSaveError(`${message}. No automatic retry — you decide when to try again.`);
@@ -398,6 +464,28 @@ export default function MobilePosBilling() {
 
   const editItem: PosCartItem | null =
     editIndex != null && editIndex >= 0 && editIndex < items.length ? items[editIndex] : null;
+
+  const canSendWhatsApp = success != null && hasMobilePosWhatsAppPhone(success.customerPhone);
+
+  const handleSendWhatsApp = () => {
+    if (!success || !canSendWhatsApp || !success.customerPhone) return;
+    const orgSlug = currentOrganization?.slug || "";
+    const publicInvoiceUrl = buildPublicInvoiceViewUrl({
+      orgSlug,
+      saleId: success.saleId,
+      billContext: "pos",
+      saleSettings: saleSettings as PublicInvoiceSaleSettings,
+      baseUrl: window.location.origin,
+    });
+    const message = buildMobilePosWhatsAppMessage({
+      invoiceNo: success.saleNumber,
+      invoiceDateLabel: success.invoiceDateLabel,
+      netAmount: success.netAmount,
+      paymentLabel: success.paymentLabel,
+      publicInvoiceUrl: publicInvoiceUrl || null,
+    });
+    void sendWhatsApp(success.customerPhone, message);
+  };
 
   if (success) {
     return (
@@ -417,11 +505,22 @@ export default function MobilePosBilling() {
               setPreviewOpen(false);
               setSuccess(null);
               setSaveError(null);
+              setSelectedCustomer(null);
               searchInputRef.current?.focus();
             }}
           >
             New Bill
           </Button>
+          {canSendWhatsApp ? (
+            <Button
+              variant="outline"
+              className="h-11 w-full max-w-sm"
+              onClick={handleSendWhatsApp}
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              Send via WhatsApp
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             className="h-11 w-full max-w-sm"
@@ -479,6 +578,37 @@ export default function MobilePosBilling() {
           >
             <Camera className="h-5 w-5" />
           </Button>
+        </div>
+
+        <div className="mt-2">
+          <AdaptiveCustomerPicker
+            open={customerPickerOpen}
+            onOpenChange={setCustomerPickerOpen}
+            selectedId={selectedCustomer?.id ?? null}
+            selectedLabel={
+              selectedCustomer
+                ? selectedCustomer.phone
+                  ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
+                  : selectedCustomer.customer_name
+                : WALK_IN_CUSTOMER_NAME
+            }
+            placeholder={WALK_IN_CUSTOMER_NAME}
+            searchTerm={customerSearchTerm}
+            onSearchTermChange={setCustomerSearchTerm}
+            options={customerOptions}
+            onSelect={(customer) => {
+              setSelectedCustomer(customer);
+              setCustomerPickerOpen(false);
+              setCustomerSearchTerm("");
+            }}
+            emptyMessage="No customer found"
+            sheetTitle="Customer"
+            walkInLabel={WALK_IN_CUSTOMER_NAME}
+            onWalkIn={() => setSelectedCustomer(null)}
+            triggerClassName="h-11"
+            isLoading={customersLoading}
+            loadingMessage="Loading customers..."
+          />
         </div>
 
         {debouncedSearch.length >= 1 && (
