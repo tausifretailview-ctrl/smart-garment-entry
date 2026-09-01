@@ -1,0 +1,16 @@
+{
+  "name": "EzzyERP",
+  "install": "npm ci",
+  "terminals": [
+    {
+      "name": "vite-dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [
+    {
+      "name": "vite",
+      "port": 8080
+    }
+  ]
+}
