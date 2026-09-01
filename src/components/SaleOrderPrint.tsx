@@ -366,7 +366,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
             lineHeight: 1.4,
           }}>
             <strong>Snapshot only — not a stock reservation.</strong>
-            {' '}Each size cell is <strong>on-hand / ordered</strong> for sizes on this order
+            {' '}Each size cell is <strong>on-hand / ordered</strong> only where this article has order qty
             {' '}(same on-hand as Size-wise Stock Report).
             {' '}Stock can change before Convert to Sale Bill.
           </div>
@@ -569,7 +569,10 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
       const sizeColWidth = `${Math.max(isPickListLandscape ? 4.5 : 6, Math.floor((isPickListLandscape ? 68 : 50) / Math.max(1, matrixSizes.length)))}%`;
 
       const colAvail = matrixSizes.map((sz) =>
-        matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0),
+        matrixRows.reduce((s, r) => {
+          const c = r.cells.get(sz);
+          return c && c.ordered > 0 ? s + (c.available ?? 0) : s;
+        }, 0),
       );
       const colOrd = matrixSizes.map((sz) =>
         matrixRows.reduce((s, r) => s + (r.cells.get(sz)?.ordered ?? 0), 0),
@@ -638,7 +641,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
                       const cell = row.cells.get(sz);
                       const available = cell?.available ?? 0;
                       const ordered = cell?.ordered ?? 0;
-                      const hasQty = available > 0 || ordered > 0;
+                      const hasQty = ordered > 0;
                       const short = ordered > 0 && available < ordered;
                       return (
                         <td
@@ -695,7 +698,7 @@ export const SaleOrderPrint = React.forwardRef<HTMLDivElement, SaleOrderPrintPro
               marginTop: isA4 ? '10px' : '6px', fontSize: tinyFont, color: '#555',
               borderTop: `1px solid ${BORDER}`, paddingTop: '6px',
             }}>
-              Each cell shows <strong>on-hand / ordered</strong> for sizes on this order (Size-wise Stock).
+              Each cell shows <strong>on-hand / ordered</strong> only for sizes ordered on that article (Size-wise Stock).
               {' '}Ordered {matrixGrandOrdered} pcs.
               {' '}On-hand {matrixGrandAvailable} pcs.
               {' '}Snapshot only — this document does not reserve stock.

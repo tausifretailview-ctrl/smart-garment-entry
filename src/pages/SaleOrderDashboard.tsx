@@ -1669,7 +1669,7 @@ function PrintSaleOrderDialog({
               )}
               {isAvailableStock && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                  Picking list prints on A4 landscape. Size columns follow the order (Avl / Ord per size). Snapshot of on-hand stock, not a reservation. No prices.
+                  Picking list prints on A4 landscape. Each cell is Avl / Ord only for sizes with order qty. Snapshot of on-hand stock, not a reservation. No prices.
                 </p>
               )}
             </div>
