@@ -43,6 +43,12 @@ export function InvoiceTemplateSelectItems({
           Retail POS — Monospace 80mm (logo + UPI QR)
         </span>
       </SelectItem>
+      <SelectItem value="trendzo-pos-80mm">
+        <span className="flex items-center gap-2">
+          <span className="text-violet-700 font-bold text-xs w-5">TZ</span>
+          Trendzo POS — Professional 80mm retail receipt
+        </span>
+      </SelectItem>
     </SelectGroup>
   );
 
