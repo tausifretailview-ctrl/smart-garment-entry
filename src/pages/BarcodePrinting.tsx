@@ -4043,7 +4043,7 @@ export default function BarcodePrinting() {
     );
   };
 
-  const handleClearAll = () => {
+  const clearBarcodeLabelQueue = useCallback((opts?: { silent?: boolean }) => {
     const billId =
       sourcePurchaseBillId ??
       purchaseBillIdParam ??
@@ -4067,6 +4067,10 @@ export default function BarcodePrinting() {
     setFromPurchaseBill(false);
     setSearchQuery("");
 
+    // Strip purchaseItems out of history.state — this is what
+    // hasPendingBarcodePurchaseItems() / the tab-cache purchase-nav resolver
+    // check to decide whether to auto-switch back to this page. Without this
+    // replace, that marker survives even though the visible queue is empty.
     const st = location.state as { purchaseItems?: unknown[]; openTab?: string } | null;
     if (purchaseBillIdParam || st?.purchaseItems?.length) {
       const preserveState = routeRequestedTab ? { openTab: routeRequestedTab } : {};
@@ -4076,8 +4080,19 @@ export default function BarcodePrinting() {
       });
     }
 
-    toast.success("Cleared all labels");
-  };
+    if (!opts?.silent) {
+      toast.success("Cleared all labels");
+    }
+  }, [
+    sourcePurchaseBillId,
+    purchaseBillIdParam,
+    currentOrganization?.id,
+    location.state,
+    routeRequestedTab,
+    orgNavigate,
+  ]);
+
+  const handleClearAll = () => clearBarcodeLabelQueue();
 
   // Preset management functions
   const handleSavePreset = async () => {
@@ -5704,6 +5719,8 @@ export default function BarcodePrinting() {
       : { width: Math.round(w * 1000), height: Math.round(h * 1000) };
 
     if (await printBarcodeViaDesktop(htmlDoc, electronPageSize)) {
+      clearBarcodeLabelQueue({ silent: true });
+      toast.success("Labels printed");
       return;
     }
 
@@ -5729,6 +5746,7 @@ export default function BarcodePrinting() {
       printWindow.print();
       printWindow.close();
     }, 400);
+    clearBarcodeLabelQueue({ silent: true });
   };
 
   const handleConfirmPrecisionPrint = async () => {
@@ -5824,6 +5842,8 @@ export default function BarcodePrinting() {
             height: Math.round(labelH * 1000),
           })
         ) {
+          clearBarcodeLabelQueue({ silent: true });
+          toast.success("Labels printed");
           return;
         }
       }
@@ -5844,6 +5864,8 @@ export default function BarcodePrinting() {
         }
         window.print();
         document.title = originalTitle;
+        clearBarcodeLabelQueue({ silent: true });
+        toast.success("Labels printed");
         // Fallback in case `afterprint` does not fire (some browsers/dialogs).
         setTimeout(() => setPrintPageActive(false), 1500);
       }, 200);
