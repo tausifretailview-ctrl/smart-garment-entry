@@ -1336,6 +1336,10 @@ export default function BarcodePrinting() {
   const [sourcePurchaseBillId, setSourcePurchaseBillId] = useState<string | null>(null);
   const sourcePurchaseBillIdRef = useRef<string | null>(null);
   const appliedPurchaseNavKeyRef = useRef<string | null>(null);
+  const labelItemsCountRef = useRef(0);
+  useEffect(() => {
+    labelItemsCountRef.current = labelItems.length;
+  }, [labelItems.length]);
   const printModeLockRef = useRef<UserPrintModeLock>(null);
   useEffect(() => {
     sourcePurchaseBillIdRef.current = sourcePurchaseBillId;
@@ -3291,7 +3295,8 @@ export default function BarcodePrinting() {
       // Full-bill DB fetch only when there is no explicit Purchase Entry subset.
       if (!pending?.items?.length && currentOrganization?.id && billIdForFetch) {
         const navKey = `db|${billIdForFetch}`;
-        if (appliedPurchaseNavKeyRef.current !== navKey) {
+        const blockedByClear = appliedPurchaseNavKeyRef.current === navKey;
+        if (!blockedByClear) {
           try {
             const fetched = await fetchBarcodePrintItemsForBill(
               currentOrganization.id,
@@ -3322,8 +3327,12 @@ export default function BarcodePrinting() {
         pending.billId && pending.items.length
           ? barcodePrintSelectionNavKey(pending.billId, pending.items)
           : pending.navKey;
-      if (appliedPurchaseNavKeyRef.current === effectiveNavKey) return;
-      appliedPurchaseNavKeyRef.current = effectiveNavKey;
+      if (
+        appliedPurchaseNavKeyRef.current === effectiveNavKey &&
+        labelItemsCountRef.current > 0
+      ) {
+        return;
+      }
       clearBarcodePurchaseItems();
       let hasPurchasePrices = false;
       let hasStyle = false;
@@ -3458,6 +3467,7 @@ export default function BarcodePrinting() {
 
       // Replace entire print list (do not append to products already on the page)
       setLabelItems(items);
+      appliedPurchaseNavKeyRef.current = effectiveNavKey;
       try {
         localStorage.setItem("barcode_label_items", JSON.stringify(items));
       } catch {

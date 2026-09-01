@@ -96,6 +96,7 @@ import { SkeletonMobileListRows } from "@/components/skeletons/SkeletonTableRows
 import { PURCHASE_BILL_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
+import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -531,6 +532,7 @@ const PurchaseBillDashboard = () => {
               bill_number: bill.software_bill_no || bill.supplier_invoice_no,
               supplier_code: supplierCode,
             }));
+            stashPurchaseBarcodePrintPayload(bill.id, barcodeItems);
             navigate(barcodePrintingPathWithBill(bill.id), { state: { purchaseItems: barcodeItems, billId: bill.id } });
           } catch (err) {
             toast({ title: "Error loading items for barcode print", variant: "destructive" });
@@ -1535,6 +1537,7 @@ const PurchaseBillDashboard = () => {
         supplier_code: supplierCode,
       }));
 
+      stashPurchaseBarcodePrintPayload(billId, barcodeItems);
       navigate(barcodePrintingPathWithBill(billId), { 
         state: { purchaseItems: barcodeItems, billId: billId } 
       });
