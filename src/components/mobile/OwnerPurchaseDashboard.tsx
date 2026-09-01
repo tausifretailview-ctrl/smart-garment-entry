@@ -30,6 +30,7 @@ interface Props {
   setCustomRange: (r: { from: Date; to: Date } | null) => void;
   onViewAllBills: () => void;
   onViewBill: (id: string) => void;
+  onNewBill?: () => void;
 }
 
 function getDateRange(period: string, custom: { from: Date; to: Date } | null) {
@@ -47,7 +48,7 @@ function getDateRange(period: string, custom: { from: Date; to: Date } | null) {
   }
 }
 
-export const OwnerPurchaseDashboard = ({ period, setPeriod, customRange, setCustomRange, onViewAllBills, onViewBill }: Props) => {
+export const OwnerPurchaseDashboard = ({ period, setPeriod, customRange, setCustomRange, onViewAllBills, onViewBill, onNewBill }: Props) => {
   const { currentOrganization } = useOrganization();
   const { start, end } = getDateRange(period, customRange);
   const [showFromCal, setShowFromCal] = useState(false);
@@ -270,7 +271,25 @@ export const OwnerPurchaseDashboard = ({ period, setPeriod, customRange, setCust
       </div>
 
       {/* ── View All Bills ── */}
-      <div className="px-4 mt-4">
+      <div className="px-4 mt-4 space-y-2">
+        {onNewBill ? (
+          <button
+            type="button"
+            onClick={onNewBill}
+            className="w-full flex items-center justify-between bg-primary text-primary-foreground rounded-2xl px-4 py-3 shadow-sm active:scale-[0.98] transition-all touch-manipulation"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center">
+                <ShoppingCart className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-semibold">New Purchase Bill</p>
+                <p className="text-[10px] text-primary-foreground/80">Easy entry · scan products</p>
+              </div>
+            </div>
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        ) : null}
         <button
           onClick={onViewAllBills}
           className="w-full flex items-center justify-between bg-card rounded-2xl px-4 py-3 border border-border/40 shadow-sm active:scale-[0.98] transition-all touch-manipulation"

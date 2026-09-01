@@ -31,6 +31,7 @@ import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import {
   MOBILE_ACCOUNTS_PATH,
   MOBILE_POS_PATH,
+  MOBILE_PURCHASE_ENTRY_PATH,
   MOBILE_REPORTS_PATH,
   MOBILE_SALES_PATH,
 } from "@/lib/mobileShell";
@@ -65,6 +66,7 @@ export default function MobileMoreMenu() {
       title: "Billing",
       items: [
         { icon: ShoppingCart, label: "POS Bill", path: MOBILE_POS_PATH, color: "text-primary" },
+        { icon: ShoppingBag, label: "Purchase Bill", path: MOBILE_PURCHASE_ENTRY_PATH, color: "text-orange-500" },
         { icon: IndianRupee, label: "Sales list", path: MOBILE_SALES_PATH, color: "text-emerald-500" },
       ],
     },

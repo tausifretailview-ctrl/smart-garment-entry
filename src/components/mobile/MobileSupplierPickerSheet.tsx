@@ -22,6 +22,8 @@ interface MobileSupplierPickerSheetProps {
   selectedId?: string | null;
   onSelect: (supplier: SupplierPickerOption) => void;
   emptyMessage?: string;
+  onUseTypedName?: (name: string) => void;
+  useTypedNameLabel?: string;
 }
 
 export function MobileSupplierPickerSheet({
@@ -34,6 +36,8 @@ export function MobileSupplierPickerSheet({
   selectedId,
   onSelect,
   emptyMessage = "No supplier found",
+  onUseTypedName,
+  useTypedNameLabel,
 }: MobileSupplierPickerSheetProps) {
   const filtered = options.filter((s) => {
     if (!searchTerm.trim()) return true;
@@ -63,6 +67,19 @@ export function MobileSupplierPickerSheet({
       </div>
       <ScrollArea className="flex-1 min-h-0 max-h-[min(60dvh,480px)] -mx-1 px-1">
         <div className="space-y-1 pb-2">
+          {onUseTypedName && searchTerm.trim() ? (
+            <button
+              type="button"
+              onClick={() => {
+                onUseTypedName(searchTerm.trim());
+                onOpenChange(false);
+                onSearchTermChange("");
+              }}
+              className="w-full rounded-xl px-3.5 py-3 text-left text-sm font-medium text-primary active:bg-muted/60 touch-manipulation"
+            >
+              {useTypedNameLabel || `Use “${searchTerm.trim()}”`}
+            </button>
+          ) : null}
           {filtered.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-8">{emptyMessage}</p>
           ) : (

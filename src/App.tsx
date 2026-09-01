@@ -164,6 +164,7 @@ const MobileMoreMenu = lazyWithRetry(() => import("./pages/mobile/MobileMoreMenu
 const MobileReportsHub = lazyWithRetry(() => import("./pages/mobile/MobileReportsHub"));
 const MobileSalesHub = lazyWithRetry(() => import("./pages/mobile/MobileSalesHub"));
 const MobilePosBilling = lazyWithRetry(() => import("./pages/mobile/MobilePosBilling"));
+const MobilePurchaseEntry = lazyWithRetry(() => import("./pages/mobile/MobilePurchaseEntry"));
 const MobileDashboardPage = lazyWithRetry(() => import("./pages/mobile/MobileDashboardPage"));
 const MobileAccountsPage = lazyWithRetry(() => import("./pages/mobile/MobileAccountsPage"));
 import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
@@ -1742,6 +1743,21 @@ const App = () => {
                           </Suspense>
                         </FullScreenLayout>
                       </MenuPermissionRoute>
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="mobile-purchase-entry"
+                  element={
+                    <ProtectedRoute>
+                      <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
+                        <FullScreenLayout>
+                          <Suspense fallback={<LazyFallback />}>
+                            <MobilePurchaseEntry />
+                          </Suspense>
+                        </FullScreenLayout>
+                      </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
                 />
