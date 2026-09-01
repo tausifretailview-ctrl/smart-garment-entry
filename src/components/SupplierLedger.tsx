@@ -16,6 +16,8 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
   (jsPdfPromise ??= import("jspdf").then((m) => m.default));
 
 import { toast } from "sonner";
+import { downloadJsPdf } from "@/utils/mobileDocumentDelivery";
+import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -123,6 +125,7 @@ export function SupplierLedger({
   embeddedBackLabel,
   onEmbeddedBack,
 }: SupplierLedgerProps) {
+  const isMobile = useIsNarrowViewport();
   const tabActive = visitedTabs?.has("supplier-ledger") ?? true;
   const embeddedSingleSupplier = embedMode && Boolean(preSelectedSupplierId);
   const businessInfo = useBusinessInfo();
@@ -1025,7 +1028,7 @@ export function SupplierLedger({
     doc.text(`Generated on: ${format(new Date(), "dd MMM yyyy, hh:mm a")}`, margin, yPos);
 
     const safeName = selectedSupplier.supplier_name.replace(/[^\w\s-]/g, "").trim().slice(0, 40);
-    doc.save(`${safeName || "Supplier"}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    await downloadJsPdf(doc, `${safeName || "Supplier"}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
     toast.success("Supplier ledger exported to PDF");
   };
 
@@ -1040,7 +1043,7 @@ export function SupplierLedger({
 
   if (selectedSupplier && transactions) {
     return (
-      <div className="space-y-3">
+      <div className="space-y-3 min-w-0 max-w-full">
         {supplierBillPaymentDrift && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -1069,11 +1072,12 @@ export function SupplierLedger({
             </AlertDescription>
           </Alert>
         )}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2 w-full min-w-0">
           {!embedMode && (
             <Button
               variant="outline"
               size="sm"
+              className="h-9 w-full sm:w-auto shrink-0 justify-center sm:justify-start"
               onClick={() => setSelectedSupplier(null)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -1081,12 +1085,12 @@ export function SupplierLedger({
             </Button>
           )}
           
-          <div className="flex flex-col md:flex-row items-start md:items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2 w-full min-w-0">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
+                <Button variant="outline" className="min-w-0 h-9 justify-start text-left font-normal text-sm px-2 sm:px-3">
+                  <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
+                  <span className="truncate">{startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1101,9 +1105,9 @@ export function SupplierLedger({
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full md:w-[200px] justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
+                <Button variant="outline" className="min-w-0 h-9 justify-start text-left font-normal text-sm px-2 sm:px-3">
+                  <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
+                  <span className="truncate">{endDate ? format(endDate, "dd MMM yyyy") : "End Date"}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1119,6 +1123,7 @@ export function SupplierLedger({
             {(startDate || endDate) && (
               <Button
                 variant="ghost"
+                className="h-9 shrink-0 col-span-2 sm:col-span-1"
                 onClick={() => {
                   setStartDate(undefined);
                   setEndDate(undefined);
@@ -1131,23 +1136,24 @@ export function SupplierLedger({
             <Button
               variant="outline"
               size="sm"
+              className="h-9 min-w-0"
               onClick={handleExportToExcel}
             >
-              <Download className="mr-2 h-4 w-4" />
-              Export to Excel
+              <Download className="mr-1.5 h-4 w-4 shrink-0" />
+              {isMobile ? "Excel" : "Export to Excel"}
             </Button>
-            <Button variant="outline" size="sm" onClick={handleExportToPDF}>
-              <FileDown className="mr-2 h-4 w-4" />
-              Export to PDF
+            <Button variant="outline" size="sm" className="h-9 min-w-0" onClick={handleExportToPDF}>
+              <FileDown className="mr-1.5 h-4 w-4 shrink-0" />
+              {isMobile ? "PDF" : "Export to PDF"}
             </Button>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <CardTitle className="text-2xl">{selectedSupplier.supplier_name}</CardTitle>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+              <div className="space-y-2 min-w-0">
+                <CardTitle className="text-2xl break-words">{selectedSupplier.supplier_name}</CardTitle>
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   {selectedSupplier.phone && (
                     <div className="flex items-center gap-1">
@@ -1169,7 +1175,7 @@ export function SupplierLedger({
                   )}
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right w-full sm:w-auto">
                 <div className="text-sm text-muted-foreground mb-1">
                   {(cardRecon?.balance ?? selectedSupplier.balance) > 0
                     ? "Outstanding Payable (Cr)"
@@ -1305,15 +1311,15 @@ export function SupplierLedger({
             </Tabs>
 
             <div className={accountsHistoryTableWrapClass}>
-              <Table className={accountsHistoryTableClass}>
+              <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0 table-fixed")}>
                 <TableHeader className="!static">
                   <TableRow>
-                    <TableHead className={accountsHistoryThClass}>Date</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, isMobile && "w-[4.75rem]")}>Date</TableHead>
                     <TableHead className={accountsHistoryThClass}>Type</TableHead>
-                    <TableHead className={accountsHistoryThClass}>Reference</TableHead>
-                    <TableHead className={accountsHistoryThClass}>Description</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Debit (Paid)</TableHead>
-                    <TableHead className={cn(accountsHistoryThClass, "text-right")}>Credit (Bill)</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell")}>Reference</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "hidden lg:table-cell")}>Description</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell text-right")}>Debit (Paid)</TableHead>
+                    <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell text-right")}>Credit (Bill)</TableHead>
                     <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1348,29 +1354,61 @@ export function SupplierLedger({
                               B/F
                             </Badge>
                           ) : transaction.type === 'credit_note' ? (
-                            <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400">
+                            <div className="flex flex-col gap-1 min-w-0">
+                            <Badge variant="outline" className="bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 w-fit">
                               <FileText className="h-3 w-3 mr-1" /> Credit Note
                             </Badge>
+                            {isMobile && (
+                              <div className="text-[11px] tabular-nums leading-tight">
+                                {transaction.debit > 0 && (
+                                  <div className="text-green-600 dark:text-green-400">
+                                    Dr ₹{transaction.debit.toLocaleString("en-IN")}
+                                  </div>
+                                )}
+                                {transaction.credit > 0 && (
+                                  <div className="text-red-600 dark:text-red-400">
+                                    Cr ₹{transaction.credit.toLocaleString("en-IN")}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            </div>
                           ) : (
-                            <Badge variant={transaction.type === 'bill' ? 'default' : 'secondary'}>
+                            <div className="flex flex-col gap-1 min-w-0">
+                            <Badge variant={transaction.type === 'bill' ? 'default' : 'secondary'} className="w-fit">
                               {transaction.type === 'bill' ? (
                                 <><FileText className="h-3 w-3 mr-1" /> Bill</>
                               ) : (
                                 <><IndianRupee className="h-3 w-3 mr-1" /> Payment</>
                               )}
                             </Badge>
+                            {isMobile && (
+                              <div className="text-[11px] tabular-nums leading-tight">
+                                {transaction.debit > 0 && (
+                                  <div className="text-green-600 dark:text-green-400">
+                                    Dr ₹{transaction.debit.toLocaleString("en-IN")}
+                                  </div>
+                                )}
+                                {transaction.credit > 0 && (
+                                  <div className="text-red-600 dark:text-red-400">
+                                    Cr ₹{transaction.credit.toLocaleString("en-IN")}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            </div>
                           )}
                         </TableCell>
-                        <TableCell className="font-mono text-sm">{transaction.reference}</TableCell>
-                        <TableCell className="text-muted-foreground">{transaction.description}</TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="hidden md:table-cell font-mono text-sm">{transaction.reference}</TableCell>
+                        <TableCell className="hidden lg:table-cell text-muted-foreground">{transaction.description}</TableCell>
+                        <TableCell className="hidden md:table-cell text-right font-medium">
                           {transaction.debit > 0 && (
                             <span className="text-green-600 dark:text-green-400">
                               ₹{transaction.debit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </span>
                           )}
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="hidden md:table-cell text-right font-medium">
                           {transaction.credit > 0 && (
                             <span className="text-red-600 dark:text-red-400">
                               ₹{transaction.credit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -1396,10 +1434,16 @@ export function SupplierLedger({
                     const finalBalance = visibleTransactions[visibleTransactions.length - 1]?.balance || 0;
                     return (
                       <TableRow className="bg-muted/70 border-t-2 border-primary/20 font-bold">
-                        <TableCell colSpan={4} className="text-right text-base font-bold">
-                          Grand Total
+                        <TableCell colSpan={isMobile ? 2 : 4} className="text-right text-base font-bold">
+                          {isMobile ? (
+                            <span className="text-sm font-semibold tabular-nums">
+                              Dr ₹{totalDebit.toLocaleString("en-IN")} · Cr ₹{totalCredit.toLocaleString("en-IN")}
+                            </span>
+                          ) : (
+                            "Grand Total"
+                          )}
                         </TableCell>
-                        <TableCell className="text-right text-base">
+                        <TableCell className="hidden md:table-cell text-right text-base">
                           <span className="text-green-600 dark:text-green-400">
                             ₹{totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </span>
@@ -1409,7 +1453,7 @@ export function SupplierLedger({
                             </div>
                           )}
                         </TableCell>
-                        <TableCell className="text-right text-base">
+                        <TableCell className="hidden md:table-cell text-right text-base">
                           <span className="text-red-600 dark:text-red-400">
                             ₹{totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </span>
@@ -1511,7 +1555,7 @@ export function SupplierLedger({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0 max-w-full">
       {supplierBillPaymentDrift && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -1621,6 +1665,77 @@ export function SupplierLedger({
             )}
           </div>
 
+          {isMobile ? (
+            <div className="space-y-3">
+              {isLoading ? (
+                <div className="text-center text-muted-foreground py-8">Loading suppliers...</div>
+              ) : filteredSuppliers.length === 0 ? (
+                <div className="text-center text-muted-foreground py-8">No suppliers found</div>
+              ) : (
+                filteredSuppliers.map((supplier) => (
+                  <Card
+                    key={supplier.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => setSelectedSupplier(supplier)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2 min-w-0">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-base break-words">{supplier.supplier_name}</h3>
+                          {supplier.phone && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              {supplier.phone}
+                            </div>
+                          )}
+                        </div>
+                        {supplier.balance > 0 && <Badge variant="destructive" className="shrink-0">Payable</Badge>}
+                        {supplier.balance < 0 && <Badge variant="default" className="bg-green-600 shrink-0">Advance</Badge>}
+                        {supplier.balance === 0 && <Badge variant="outline" className="shrink-0">Settled</Badge>}
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t">
+                        <div className="text-center min-w-0">
+                          <div className="text-xs text-muted-foreground">Purchases</div>
+                          <div className="font-medium text-sm tabular-nums truncate">
+                            ₹{supplier.totalPurchases.toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                        <div className="text-center min-w-0">
+                          <div className="text-xs text-muted-foreground">Paid</div>
+                          <div className="font-medium text-sm tabular-nums text-green-600 dark:text-green-400 truncate">
+                            ₹{supplier.totalPaid.toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                        <div className="text-center min-w-0">
+                          <div className="text-xs text-muted-foreground">Balance</div>
+                          <div className={cn(
+                            "font-bold text-sm tabular-nums truncate",
+                            supplier.balance > 0 ? "text-red-600 dark:text-red-400" :
+                            supplier.balance < 0 ? "text-green-600 dark:text-green-400" :
+                            "text-foreground"
+                          )}>
+                            ₹{Math.abs(supplier.balance).toLocaleString("en-IN")}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex justify-end mt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedSupplier(supplier);
+                          }}
+                        >
+                          View Ledger
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          ) : (
           <div className="rounded-lg border border-slate-200 overflow-x-auto">
             <Table className={accountsHistoryTableClass}>
               <TableHeader className="!static">
@@ -1714,6 +1829,7 @@ export function SupplierLedger({
               </TableBody>
             </Table>
           </div>
+          )}
         </div>
       </div>
     </div>

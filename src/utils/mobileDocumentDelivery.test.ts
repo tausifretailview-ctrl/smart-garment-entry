@@ -6,7 +6,7 @@ vi.mock("@capacitor/core", () => ({
 }));
 
 import { Capacitor } from "@capacitor/core";
-import { deliverFileBlob, deliverPdfBlob } from "./mobileDocumentDelivery";
+import { deliverFileBlob, deliverPdfBlob, downloadJsPdf } from "./mobileDocumentDelivery";
 
 describe("deliverFileBlob / deliverPdfBlob", () => {
   const createObjectURL = vi.fn(() => "blob:mock-url");
@@ -96,11 +96,10 @@ describe("deliverFileBlob / deliverPdfBlob", () => {
     expect(createObjectURL).toHaveBeenCalledWith(blob);
   });
 
-  it("opens a blob URL on native when share is unavailable", async () => {
+  it("downloads via an anchor on native instead of opening a PDF preview tab", async () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.stubGlobal("navigator", { ...navigator, share: undefined, canShare: undefined });
-    const opened = { closed: false };
-    const open = vi.fn(() => opened);
+    const open = vi.fn();
     vi.stubGlobal("open", open);
 
     const result = await deliverFileBlob(
@@ -109,8 +108,45 @@ describe("deliverFileBlob / deliverPdfBlob", () => {
       "application/pdf",
     );
 
-    expect(result).toBe("opened");
-    expect(open).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+    expect(result).toBe("downloaded");
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("downloadJsPdf always prefers a file download over share or preview", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      share,
+      canShare: () => true,
+    });
+    const open = vi.fn();
+    vi.stubGlobal("open", open);
+
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    const result = await downloadJsPdf({ output: () => blob }, "Supplier_Ledger_01-09-2026.pdf");
+
+    expect(result).toBe("downloaded");
+    expect(share).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it("preferDownload skips the share sheet", async () => {
+    const share = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      share,
+      canShare: () => true,
+    });
+
+    const result = await deliverPdfBlob(new Blob(["%PDF"], { type: "application/pdf" }), "Invoice.pdf", {
+      preferDownload: true,
+    });
+
+    expect(result).toBe("downloaded");
+    expect(share).not.toHaveBeenCalled();
+    expect(click).toHaveBeenCalledTimes(1);
   });
 
   it("falls through to download when navigator.share never settles", async () => {

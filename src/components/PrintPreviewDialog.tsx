@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Printer, X, Download, Share2 } from 'lucide-react';
+import { Printer, X, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import { thermalReceiptBrowserPageSize } from '@/utils/invoicePrintFormat';
 import {
@@ -310,13 +310,11 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         mobileOptimized: isNative || window.innerWidth < 768,
       });
       const fileName = `Invoice_${format(new Date(), 'ddMMyyyy_HHmm')}.pdf`;
-      const result = await deliverPdfBlob(blob, fileName);
+      const result = await deliverPdfBlob(blob, fileName, { preferDownload: true });
       if (result === 'shared') {
         toast.success('Invoice shared');
-      } else if (result === 'opened') {
-        toast.success('Invoice PDF opened — use Save or Print from viewer');
       } else {
-        toast.success('Invoice PDF saved');
+        toast.success('Invoice PDF downloaded');
       }
       onOpenChange(false);
       onPrint?.();
@@ -449,8 +447,8 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
               disabled={isLoading || isSavingPdf}
               className="no-print"
             >
-              <Share2 className="mr-2 h-4 w-4" />
-              {isSavingPdf ? 'Preparing…' : 'Save / Share PDF'}
+              <Download className="mr-2 h-4 w-4" />
+              {isSavingPdf ? 'Preparing…' : 'Download PDF'}
             </Button>
           ) : (
             <>
