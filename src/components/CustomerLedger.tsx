@@ -5,6 +5,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { downloadJsPdf } from "@/utils/mobileDocumentDelivery";
 import { useQueryClient, useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_FREQUENT, STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
@@ -51,7 +52,7 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
@@ -393,7 +394,8 @@ export function CustomerLedger({
   
   const { fetchCustomers: fetchLedgerCustomers } = useOrgLedgerReferenceFetcher();
 
-  const isMobile = useIsMobile();
+  /** Phone / APK even when force-desktop makes innerWidth look like a PC. */
+  const isMobile = useIsNarrowViewport();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
   const businessInfo = useBusinessInfo();
@@ -1911,7 +1913,7 @@ export function CustomerLedger({
     doc.setFont("helvetica", "bold");
     doc.text(`Total Sales: ₹${Math.round(summary.totalReceivable).toLocaleString("en-IN")}   |   Total Outstanding: ₹${Math.round(summary.totalOutstanding).toLocaleString("en-IN")}`, 14, y);
 
-    doc.save(`Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    await downloadJsPdf(doc, `Customer_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
     toast.success("Customer ledger exported to PDF");
   }, [customersForExport, summary, salesPaidLeaked]);
 
@@ -2981,7 +2983,7 @@ Please clear your dues at the earliest. Thank you!`;
       doc.text(cnFoot, margin, yPos);
     }
 
-    doc.save(`${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    await downloadJsPdf(doc, `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
   };
 
   const overpaymentRefundDialog = (
@@ -3172,13 +3174,13 @@ Please clear your dues at the earliest. Thank you!`;
     };
 
     const ledgerBody = (
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-3 min-w-0 max-w-full">
+        <div className="flex flex-col gap-2 w-full min-w-0">
           {!embedMode && (
             <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0"
+              className="h-9 w-full sm:w-auto shrink-0 justify-center sm:justify-start"
               onClick={() => {
                 setShowOverpaymentRefundDialog(false);
                 if (onEmbeddedBack) {
@@ -3193,7 +3195,7 @@ Please clear your dues at the earliest. Thank you!`;
             </Button>
           )}
           
-          <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0 justify-end">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2 w-full min-w-0">
             {isSchool && (
               <Select
                 value={selectedAcademicYearId}
@@ -3205,7 +3207,7 @@ Please clear your dues at the earliest. Thank you!`;
                   }
                 }}
               >
-                <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
+                <SelectTrigger className="min-w-0 h-9 text-sm col-span-2 sm:flex-1 sm:min-w-[120px]">
                   <SelectValue placeholder="Academic Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -3221,9 +3223,9 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
-                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                  {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
+                <Button variant="outline" className="min-w-0 h-9 justify-start text-left font-normal text-sm px-2 sm:px-3">
+                  <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
+                  <span className="truncate">{startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -3238,9 +3240,9 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
-                  <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-                  {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
+                <Button variant="outline" className="min-w-0 h-9 justify-start text-left font-normal text-sm px-2 sm:px-3">
+                  <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
+                  <span className="truncate">{endDate ? format(endDate, "dd MMM yyyy") : "End Date"}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -3256,7 +3258,7 @@ Please clear your dues at the earliest. Thank you!`;
             {(startDate || endDate) && (
               <Button
                 variant="ghost"
-                className="h-9 shrink-0"
+                className="h-9 shrink-0 col-span-2 sm:col-span-1"
                 onClick={() => {
                   setStartDate(undefined);
                   setEndDate(undefined);
@@ -3269,29 +3271,20 @@ Please clear your dues at the earliest. Thank you!`;
             <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0"
+              className="h-9 min-w-0"
               onClick={handleExportToExcel}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="mr-1.5 h-4 w-4 shrink-0" />
               {isMobile ? "Excel" : "Export Excel"}
             </Button>
-
-            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0 min-w-[5.5rem] h-4">
-              {isLedgerBackgroundRefresh && (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Updating…
-                </>
-              )}
-            </span>
 
             <Button
               variant="outline"
               size="sm"
               onClick={handleExportToPDF}
-              className={isMobile ? "flex-1" : ""}
+              className="h-9 min-w-0"
             >
-              <FileDown className="mr-2 h-4 w-4" />
+              <FileDown className="mr-1.5 h-4 w-4 shrink-0" />
               {isMobile ? "PDF" : "Export PDF"}
             </Button>
 
@@ -3300,20 +3293,29 @@ Please clear your dues at the earliest. Thank you!`;
                 variant="default"
                 size="sm"
                 onClick={handleSendLedgerWhatsApp}
-                className={cn("bg-green-600 hover:bg-green-700", isMobile ? "flex-1" : "")}
+                className={cn("bg-green-600 hover:bg-green-700 h-9 min-w-0", isMobile && "col-span-2")}
               >
-                <MessageCircle className="mr-2 h-4 w-4" />
+                <MessageCircle className="mr-1.5 h-4 w-4 shrink-0" />
                 {isMobile ? "WhatsApp" : "Send on WhatsApp"}
               </Button>
             )}
+
+            <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0 min-w-[5.5rem] h-4 col-span-2">
+              {isLedgerBackgroundRefresh && (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Updating…
+                </>
+              )}
+            </span>
           </div>
         </div>
 
         <Card className="overflow-hidden border-0 shadow-md">
           <div className="h-1.5 bg-gradient-to-r from-primary via-blue-500 to-accent" />
           <CardHeader className="pb-4">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+              <div className="space-y-2 min-w-0">
                 <CardTitle className="text-2xl">
                   <button
                     className="text-foreground hover:text-primary cursor-pointer bg-transparent border-none p-0 text-2xl font-bold tracking-tight transition-colors"
@@ -3355,7 +3357,7 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
               </div>
               {refundableCreditBalance > 0 ? (
-              <div className="text-right px-5 py-4 rounded-xl min-w-[160px] bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+              <div className="text-right px-5 py-4 rounded-xl w-full sm:min-w-[160px] sm:w-auto bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
                 <div className="text-sm text-muted-foreground mb-1">Credit balance (Cr)</div>
                 <div className="text-3xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
                   ₹{refundableCreditBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -3368,7 +3370,7 @@ Please clear your dues at the earliest. Thank you!`;
               </div>
               ) : (
               <div className={cn(
-                "text-right px-5 py-4 rounded-xl min-w-[160px]",
+                "text-right px-5 py-4 rounded-xl w-full sm:min-w-[160px] sm:w-auto",
                 effectiveBalance > 0
                   ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
                   : effectiveBalance < 0
@@ -3812,15 +3814,15 @@ Please clear your dues at the earliest. Thank you!`;
 
               <TabsContent value="transactions">
                 <div className={accountsHistoryTableWrapClass}>
-                  <Table className={accountsHistoryTableClass}>
+                  <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0 table-fixed")}>
                     <TableHeader className="!static">
                       <TableRow>
-                        <TableHead className={cn(accountsHistoryThClass, "w-[120px]")}>Date</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, isMobile ? "w-[4.75rem]" : "w-[120px]")}>Date</TableHead>
                         <TableHead className={accountsHistoryThClass}>Type</TableHead>
-                        <TableHead className={accountsHistoryThClass}>Reference</TableHead>
-                        <TableHead className={accountsHistoryThClass}>Description</TableHead>
-                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Debit</TableHead>
-                        <TableHead className={cn(accountsHistoryThClass, "text-right")}>Credit</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell")}>Reference</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "hidden lg:table-cell")}>Description</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell text-right")}>Debit</TableHead>
+                        <TableHead className={cn(accountsHistoryThClass, "hidden md:table-cell text-right")}>Credit</TableHead>
                         <TableHead className={cn(accountsHistoryThClass, "text-right")}>Balance</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -3867,7 +3869,7 @@ Please clear your dues at the earliest. Thank you!`;
                                   B/F
                                 </Badge>
                               ) : (
-                                <div className="flex items-center gap-1">
+                                <div className="flex flex-wrap items-center gap-1 min-w-0">
                                   {transaction.type === 'advance' ? (
                                     <Badge className={getBadgeStyle('advance')}>
                                       <Wallet className="h-3 w-3 mr-1" /> ADVANCE
@@ -3943,13 +3945,27 @@ Please clear your dues at the earliest. Thank you!`;
                                   )}
                                 </div>
                               )}
+                              {isMobile && (
+                                <div className="mt-1 space-y-0.5 text-[11px] tabular-nums leading-tight">
+                                  {(transaction.displayDebit ?? transaction.debit) > 0 && (
+                                    <div className="text-red-600 dark:text-red-400">
+                                      Dr ₹{(transaction.displayDebit ?? transaction.debit).toLocaleString("en-IN")}
+                                    </div>
+                                  )}
+                                  {(transaction.displayCredit ?? transaction.credit) > 0 && (
+                                    <div className="text-emerald-700 dark:text-emerald-300">
+                                      Cr ₹{(transaction.displayCredit ?? transaction.credit).toLocaleString("en-IN")}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden md:table-cell">
                               <span className="font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded">
                                 {transaction.reference}
                               </span>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="hidden lg:table-cell">
                               <div className="space-y-1">
                                 {transaction.type === 'return' && transaction.status === 'pending' ? (
                                   <div className="flex items-center gap-2 flex-wrap">
@@ -4023,7 +4039,7 @@ Please clear your dues at the earliest. Thank you!`;
                                 )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-right font-medium">
+                            <TableCell className="hidden md:table-cell text-right font-medium">
                               {(() => {
                                 const dispDebit = transaction.displayDebit ?? transaction.debit;
                                 if (!dispDebit || dispDebit <= 0) return null;
@@ -4049,7 +4065,7 @@ Please clear your dues at the earliest. Thank you!`;
                                 );
                               })()}
                             </TableCell>
-                            <TableCell className="text-right font-medium">
+                            <TableCell className="hidden md:table-cell text-right font-medium">
                               {(() => {
                                 const dispCredit = transaction.displayCredit ?? transaction.credit;
                                 if (!dispCredit || dispCredit <= 0) return null;
@@ -4102,13 +4118,19 @@ Please clear your dues at the earliest. Thank you!`;
                       {!ledgerLoading && ledgerRows.length > 0 && (
                         <>
                           <TableRow className="bg-slate-50 dark:bg-slate-900/40 border-t border-slate-300 dark:border-slate-600">
-                            <TableCell colSpan={4} className="text-right text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
-                              Column totals (Dr / Cr)
+                            <TableCell colSpan={isMobile ? 2 : 4} className="text-right text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
+                              {isMobile ? (
+                                <span className="normal-case tabular-nums">
+                                  Dr ₹{transactionTotals.totalDebit.toLocaleString("en-IN")} · Cr ₹{transactionTotals.totalCredit.toLocaleString("en-IN")}
+                                </span>
+                              ) : (
+                                "Column totals (Dr / Cr)"
+                              )}
                             </TableCell>
-                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                            <TableCell className="hidden md:table-cell text-right text-xs font-medium text-muted-foreground tabular-nums">
                               ₹{transactionTotals.totalDebit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
+                            <TableCell className="hidden md:table-cell text-right text-xs font-medium text-muted-foreground tabular-nums">
                               ₹{transactionTotals.totalCredit.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                             </TableCell>
                             <TableCell className="text-right text-xs font-medium text-muted-foreground tabular-nums">
@@ -4333,7 +4355,7 @@ Please clear your dues at the earliest. Thank you!`;
                 </div>
 
                 <div className={accountsHistoryTableWrapClass}>
-                  <Table className={accountsHistoryTableClass}>
+                  <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                     <TableHeader className="!static">
                       <TableRow>
                         <TableHead className={accountsHistoryThClass}>Date</TableHead>
@@ -4528,7 +4550,7 @@ Please clear your dues at the earliest. Thank you!`;
                       {/* Unapplied opening balance payments */}
                       {unappliedPayments.length > 0 ? (
                         <div className={accountsHistoryTableWrapClass}>
-                          <Table className={accountsHistoryTableClass}>
+                          <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                             <TableHeader className="!static">
                               <TableRow className="bg-muted/40">
                                 <TableHead className="text-xs font-bold uppercase">Date</TableHead>
@@ -4659,7 +4681,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </Card>
                     </div>
                     <div className={accountsHistoryTableWrapClass}>
-                      <Table className={accountsHistoryTableClass}>
+                      <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                         <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
@@ -4761,7 +4783,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </Card>
                     </div>
                     <div className={accountsHistoryTableWrapClass}>
-                      <Table className={accountsHistoryTableClass}>
+                      <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                         <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
@@ -4863,7 +4885,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </Card>
                     </div>
                     <div className={accountsHistoryTableWrapClass}>
-                      <Table className={accountsHistoryTableClass}>
+                      <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                         <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
@@ -4967,7 +4989,7 @@ Please clear your dues at the earliest. Thank you!`;
                       </Card>
                     </div>
                     <div className={accountsHistoryTableWrapClass}>
-                      <Table className={accountsHistoryTableClass}>
+                      <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                         <TableHeader className="!static">
                           <TableRow className="bg-slate-50 dark:bg-slate-900/60 border-b-2">
                             <TableHead className="text-xs font-bold uppercase tracking-wide text-slate-500 w-[110px]">Date</TableHead>
@@ -5100,7 +5122,7 @@ Please clear your dues at the earliest. Thank you!`;
 
   return (
     <>
-    <div className="space-y-3">
+    <div className="space-y-3 min-w-0 max-w-full">
       {/* Summary Cards */}
       <div className={`grid grid-cols-1 sm:grid-cols-3 ${isSchool ? "" : "lg:grid-cols-4"} gap-2`}>
         <Card
@@ -5464,7 +5486,7 @@ Please clear your dues at the earliest. Thank you!`;
           ) : (
             /* Desktop Table View */
             <div className={accountsHistoryTableWrapClass}>
-              <Table className={accountsHistoryTableClass}>
+              <Table className={cn(accountsHistoryTableClass, isMobile && "!min-w-0")}>
                 <TableHeader className="!static">
                   <TableRow>
                     <TableHead className={accountsHistoryThClass}>{isSchool ? "Student Name" : "Customer Name"}</TableHead>

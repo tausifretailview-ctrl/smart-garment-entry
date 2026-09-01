@@ -1084,7 +1084,7 @@ export default function Accounts() {
           {currentOrganization?.id && (
             <>
               {shouldMountTab("customer-ledger") && (
-              <div className={cn(selectedTab !== "customer-ledger" && "hidden")} aria-hidden={selectedTab !== "customer-ledger"}>
+              <div className={cn("min-w-0 max-w-full", selectedTab !== "customer-ledger" && "hidden")} aria-hidden={selectedTab !== "customer-ledger"}>
                 <CustomerLedger
                   organizationId={currentOrganization.id}
                   paymentFilter={paymentCardFilter}
@@ -1094,7 +1094,7 @@ export default function Accounts() {
               </div>
               )}
               {shouldMountTab("supplier-ledger") && (
-              <div className={cn(selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
+              <div className={cn("min-w-0 max-w-full", selectedTab !== "supplier-ledger" && "hidden")} aria-hidden={selectedTab !== "supplier-ledger"}>
                 <SupplierLedger
                   organizationId={currentOrganization.id}
                   visitedTabs={visitedTabs}

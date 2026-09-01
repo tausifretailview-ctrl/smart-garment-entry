@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -34,10 +34,6 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
     },
     enabled: !!billId,
   });
-
-  useEffect(() => {
-    if (bill && !isLoading) setPreviewOpen(true);
-  }, [bill, isLoading]);
 
   const handleShare = () => {
     if (!bill) return;
@@ -158,7 +154,7 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
           className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary text-primary-foreground py-3.5 text-sm font-semibold active:scale-[0.98] touch-manipulation shadow-sm"
         >
           <Eye className="h-4 w-4" />
-          Invoice PDF Preview
+          Invoice PDF
         </button>
       </div>
 
