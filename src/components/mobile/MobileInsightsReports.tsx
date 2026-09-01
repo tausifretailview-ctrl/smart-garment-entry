@@ -22,7 +22,9 @@ import {
   fetchMobileStockFilteredTotals,
   fetchMobileStockReportPages,
   fetchMobileStockSuppliers,
+  fetchWebStockReportTotals,
 } from "@/utils/mobileStockReportQuery";
+import type { StockReportStatusFilter } from "@/utils/stockReportWebParity";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/mobile/MobileReportMetricCard";
@@ -67,10 +69,10 @@ const ITEM_STOCK_FILTERS: ItemWiseStockFilters = {
   closingStockFilter: "all",
 };
 
-function inStockRpcArg(status: FilterValue["stockStatus"]): boolean | undefined {
-  if (status === "in_stock") return true;
-  if (status === "zero_stock") return false;
-  return undefined;
+function filterStatusToStock(status: FilterValue["stockStatus"]): StockReportStatusFilter {
+  if (status === "in_stock") return "in";
+  if (status === "zero_stock") return "out";
+  return "all";
 }
 
 async function fetchSaleItemProductMeta(orgId: string, productIds: string[]) {
@@ -780,7 +782,7 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
   const [filters, setFilters] = useState<FilterValue>(DEFAULT_STOCK_FILTERS);
   const tableRef = useRef<HTMLDivElement>(null);
   const activeCount = countActiveReportFilters(filters);
-  const inStock = inStockRpcArg(filters.stockStatus);
+  const stockStatus = filterStatusToStock(filters.stockStatus);
   const hasRpcFilters = activeCount > 0 || !!search.trim() || !!supplier.trim();
 
   const { data: totals } = useQuery({
@@ -796,20 +798,11 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
             supplier: supplier.trim() || undefined,
             brand: filters.brand,
             category: filters.category,
-            inStock,
+            status: stockStatus,
           });
         }
-        const { data, error } = await supabase.rpc("get_stock_report_totals", {
-          p_organization_id: orgId!,
-        });
-        if (error) throw error;
-        const row = data as { total_stock?: number; stock_value?: number; sale_value?: number; variant_count?: number } | null;
-        return {
-          qty: Number(row?.total_stock ?? 0),
-          pur: Number(row?.stock_value ?? 0),
-          sale: Number(row?.sale_value ?? 0),
-          variants: Number(row?.variant_count ?? 0),
-        };
+        const t = await fetchWebStockReportTotals(orgId!);
+        return { qty: t.totalStock, pur: t.stockValue, sale: t.saleValue, variants: t.variantCount };
       }, 20_000),
   });
 
@@ -841,9 +834,9 @@ export function MobileStockReport({ orgId }: { orgId?: string }) {
           supplier: supplier.trim() || undefined,
           brand: filters.brand,
           category: filters.category,
-          inStock,
-          maxRows: 400,
-          pageSize: 200,
+          status: stockStatus,
+          maxRows: 1500,
+          pageSize: 250,
         });
         return data.map((r) => ({
           id: r.variant_id,
