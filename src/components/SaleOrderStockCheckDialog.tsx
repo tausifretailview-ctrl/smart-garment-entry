@@ -79,7 +79,7 @@ export function SaleOrderStockCheckDialog({
                         const cell = row.cells.get(sz);
                         const available = cell?.available ?? 0;
                         const ordered = cell?.ordered ?? 0;
-                        const hasQty = available > 0 || ordered > 0;
+                        const hasQty = ordered > 0;
                         const short = ordered > 0 && available < ordered;
                         return (
                           <td
@@ -113,7 +113,10 @@ export function SaleOrderStockCheckDialog({
                 <tr className="bg-muted/70 font-semibold">
                   <td className="border px-2 py-1.5 text-right">Total Avl / Ord</td>
                   {sizes.map((sz) => {
-                    const avl = rows.reduce((s, r) => s + (r.cells.get(sz)?.available ?? 0), 0);
+                    const avl = rows.reduce((s, r) => {
+                      const c = r.cells.get(sz);
+                      return c && c.ordered > 0 ? s + (c.available ?? 0) : s;
+                    }, 0);
                     const ord = rows.reduce((s, r) => s + (r.cells.get(sz)?.ordered ?? 0), 0);
                     return (
                       <td key={sz} className="border px-1 py-1.5 text-center tabular-nums">

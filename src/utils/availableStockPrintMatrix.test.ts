@@ -77,21 +77,21 @@ describe("buildAvailableStockMatrix", () => {
     expect(matrix.grandOrdered).toBe(53);
     // Columns are only sizes that appear on the order — not extra warehouse sizes (35).
     expect(matrix.sizes).toEqual(["6", "7", "8", "37", "38"]);
-    // On-hand is still filled for those order-size columns (JT18 size 7 stock counts
-    // because size 7 is ordered on another article).
-    expect(matrix.grandAvailable).toBe(79);
+    // Available is on-hand only on sizes this article ordered (53 pcs order qty).
+    expect(matrix.grandAvailable).toBe(47);
 
     const jt18 = matrix.rows.find((r) => r.productName === "JT18-IN")!;
     expect(jt18.cells.get("6")?.available).toBe(10);
     expect(jt18.cells.get("6")?.ordered).toBe(10);
-    expect(jt18.cells.get("7")?.available).toBe(12);
-    expect(jt18.cells.get("7")?.ordered).toBe(0);
-    expect(jt18.totalAvailable).toBe(22);
+    expect(jt18.cells.get("7")?.ordered ?? 0).toBe(0);
+    expect(jt18.totalAvailable).toBe(10);
     expect(jt18.totalOrdered).toBe(10);
 
     const rr57 = matrix.rows.find((r) => r.productName === "RR57-IN")!;
     expect(rr57.cells.get("7")?.ordered).toBe(9);
     expect(rr57.cells.get("7")?.available).toBe(9);
+    expect(rr57.totalAvailable).toBe(9);
+    expect(rr57.totalOrdered).toBe(9);
 
     const pug = matrix.rows.find((r) => r.productName === "PUG165")!;
     expect(pug.totalOrdered).toBe(18);
@@ -133,5 +133,46 @@ describe("buildAvailableStockMatrix", () => {
     expect(matrix.rows.find((r) => r.productName === "PUL82")!.cells.get("7")?.available).toBe(7);
     expect(matrix.grandOrdered).toBe(5);
     expect(matrix.grandAvailable).toBe(17);
+  });
+
+  it("does not print or total available on sizes with zero order qty on that article", () => {
+    const matrix = buildAvailableStockMatrix([
+      {
+        particulars: "PUL64",
+        color: "BK",
+        size: "5",
+        orderQty: 1,
+        pendingQty: 1,
+        sizeStock: [
+          { size: "4", qty: 12 },
+          { size: "5", qty: 17 },
+          { size: "8", qty: 9 },
+        ],
+      },
+      {
+        particulars: "PUL64",
+        color: "BK",
+        size: "8",
+        orderQty: 2,
+        pendingQty: 2,
+        sizeStock: [
+          { size: "4", qty: 12 },
+          { size: "5", qty: 17 },
+          { size: "8", qty: 9 },
+        ],
+      },
+    ]);
+
+    expect(matrix.sizes).toEqual(["5", "8"]);
+    const row = matrix.rows.find((r) => r.productName === "PUL64")!;
+    expect(row.cells.get("4")).toBeUndefined();
+    expect(row.cells.get("5")?.available).toBe(17);
+    expect(row.cells.get("5")?.ordered).toBe(1);
+    expect(row.cells.get("8")?.available).toBe(9);
+    expect(row.cells.get("8")?.ordered).toBe(2);
+    expect(row.totalOrdered).toBe(3);
+    expect(row.totalAvailable).toBe(26);
+    expect(matrix.grandOrdered).toBe(3);
+    expect(matrix.grandAvailable).toBe(26);
   });
 });

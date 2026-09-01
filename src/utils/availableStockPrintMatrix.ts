@@ -38,10 +38,9 @@ function emptyCell(): AvailableStockCell {
 }
 
 /**
- * Article × size pick-list matrix: available = Size-wise Stock on-hand (stock_qty).
- * Columns are only sizes that appear on the order (order qty), so Avl/Ord stays
- * readable and matches "size-wise stock as per order quantity".
- * On-hand for those sizes still comes from the full article/colour size run.
+ * Article × size pick-list matrix: available = Size-wise Stock on-hand (stock_qty)
+ * only for sizes that have order qty on that article. Extra warehouse sizes are
+ * not printed and are not added into Avl totals.
  */
 export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
   rows: AvailableStockMatrixRow[];
@@ -83,9 +82,9 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
     if (!row) return;
     (item.sizeStock || []).forEach((s) => {
       const sz = sizeMatrixKey(s.size);
-      const cur = row.cells.get(sz) || emptyCell();
+      const cur = row.cells.get(sz);
+      if (!cur || cur.ordered <= 0) return;
       cur.stock = Number(s.qty) || 0;
-      row.cells.set(sz, cur);
     });
     const lineSz = sizeMatrixKey(item.size);
     const lineCell = row.cells.get(lineSz);
@@ -113,7 +112,7 @@ export function buildAvailableStockMatrix(items: AvailableStockPrintItem[]): {
     let totalPending = 0;
     sizes.forEach((sz) => {
       const c = row.cells.get(sz);
-      if (!c) return;
+      if (!c || c.ordered <= 0) return;
       totalStock += c.stock;
       totalAvailable += c.available;
       totalOrdered += c.ordered;
