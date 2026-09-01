@@ -2,8 +2,9 @@ import { useState } from "react";
 import { OwnerPurchaseDashboard } from "./OwnerPurchaseDashboard";
 import { OwnerPurchaseBillList } from "./OwnerPurchaseBillList";
 import { OwnerPurchaseBillDetail } from "./OwnerPurchaseBillDetail";
-import { mobilePageScrollWithNavClass } from "@/lib/mobileShell";
+import { mobilePageScrollWithNavClass, MOBILE_PURCHASE_ENTRY_PATH } from "@/lib/mobileShell";
 import { cn } from "@/lib/utils";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 
 type Screen = "dashboard" | "bills" | "detail";
 
@@ -12,6 +13,7 @@ const PurchaseScroll = ({ children }: { children: React.ReactNode }) => (
 );
 
 export const OwnerPurchaseScreen = () => {
+  const { orgNavigate } = useOrgNavigation();
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
   const [period, setPeriod] = useState<"today" | "week" | "month" | "custom">("today");
@@ -55,6 +57,7 @@ export const OwnerPurchaseScreen = () => {
       setCustomRange={setCustomRange}
       onViewAllBills={() => setScreen("bills")}
       onViewBill={handleViewBill}
+      onNewBill={() => orgNavigate(MOBILE_PURCHASE_ENTRY_PATH)}
     />
     </PurchaseScroll>
   );

@@ -12,6 +12,9 @@ export const MOBILE_SALES_PATH = "/mobile-sales";
 /** Mobile POS billing (create bill via usePosBilling). */
 export const MOBILE_POS_PATH = "/mobile-pos";
 
+/** Mobile purchase bill entry (atomic RPC save). */
+export const MOBILE_PURCHASE_ENTRY_PATH = "/mobile-purchase-entry";
+
 /** Open mobile POS and auto-start camera scan (bottom-nav Scan from other hubs). */
 export function mobilePosPathWithScan(): string {
   return `${MOBILE_POS_PATH}?scan=1`;

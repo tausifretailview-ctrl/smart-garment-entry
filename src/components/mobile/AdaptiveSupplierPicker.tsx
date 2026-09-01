@@ -33,6 +33,8 @@ interface AdaptiveSupplierPickerProps {
   emptyMessage?: string;
   triggerClassName?: string;
   popoverWidth?: string;
+  onUseTypedName?: (name: string) => void;
+  useTypedNameLabel?: string;
 }
 
 export function AdaptiveSupplierPicker({
@@ -49,6 +51,8 @@ export function AdaptiveSupplierPicker({
   emptyMessage,
   triggerClassName,
   popoverWidth = "w-[350px]",
+  onUseTypedName,
+  useTypedNameLabel,
 }: AdaptiveSupplierPickerProps) {
   const isMobile = useIsMobile();
 
@@ -61,7 +65,7 @@ export function AdaptiveSupplierPicker({
       className={cn("w-full justify-between font-normal", triggerClassName)}
       onClick={() => isMobile && onOpenChange(true)}
     >
-      <span className="truncate">{selectedId ? selectedLabel : placeholder}</span>
+      <span className="truncate">{selectedLabel || placeholder}</span>
       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
     </Button>
   );
@@ -81,6 +85,8 @@ export function AdaptiveSupplierPicker({
             selectedId={selectedId}
             onSelect={onSelect}
             emptyMessage={emptyMessage}
+            onUseTypedName={onUseTypedName}
+            useTypedNameLabel={useTypedNameLabel}
           />
         </>
       ) : (
@@ -94,7 +100,23 @@ export function AdaptiveSupplierPicker({
                 onValueChange={onSearchTermChange}
               />
               <CommandList>
-                <CommandEmpty>{emptyMessage ?? "No supplier found"}</CommandEmpty>
+                <CommandEmpty>
+                  {onUseTypedName && searchTerm.trim() ? (
+                    <button
+                      type="button"
+                      className="w-full px-2 py-2 text-left text-sm text-primary"
+                      onClick={() => {
+                        onUseTypedName(searchTerm.trim());
+                        onOpenChange(false);
+                        onSearchTermChange("");
+                      }}
+                    >
+                      {useTypedNameLabel || `Use “${searchTerm.trim()}”`}
+                    </button>
+                  ) : (
+                    (emptyMessage ?? "No supplier found")
+                  )}
+                </CommandEmpty>
                 <CommandGroup>
                   {options
                     .filter((s) => {

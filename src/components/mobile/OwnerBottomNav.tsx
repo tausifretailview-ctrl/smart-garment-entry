@@ -59,6 +59,7 @@ const sideTabs: NavTab[] = [
       "/payments-dashboard",
       "/purchase-bills",
       "/stock-report",
+      "/mobile-purchase-entry",
     ],
   },
 ];
