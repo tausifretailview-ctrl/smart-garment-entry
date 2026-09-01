@@ -10,6 +10,10 @@ import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
+  missingWhatsAppTemplateError,
+  pickSyncedWhatsAppMetaTemplate,
+} from "../_shared/whatsappMetaTemplateResolve.ts";
+import {
   ensureWappConnectPdfUrl,
   redactWappConnectInstanceId,
   resolveWappConnectFileUrl,
@@ -1086,18 +1090,33 @@ serve(async (req) => {
       
       const docTemplateName = documentHeaderTemplateName || orgSettings?.invoice_document_template_name;
       
-      // Fetch template language
-      let docTemplateLanguage = 'en_US';
+      // Fetch template language — never guess en_US if the template is not synced.
       const { data: docMetaTemplates } = await supabase
         .from('whatsapp_meta_templates')
-        .select('template_language')
+        .select('template_language, template_status')
         .eq('organization_id', organizationId)
         .eq('template_name', docTemplateName);
-      
-      if (docMetaTemplates && docMetaTemplates.length > 0) {
-        const enUSTemplate = docMetaTemplates.find((t: any) => t.template_language === 'en_US');
-        docTemplateLanguage = (enUSTemplate || docMetaTemplates[0]).template_language;
+
+      const pickedDoc = pickSyncedWhatsAppMetaTemplate(docMetaTemplates);
+      if (!pickedDoc?.template_language) {
+        const missing = missingWhatsAppTemplateError(String(docTemplateName || ''));
+        if (logEntry) {
+          await supabase
+            .from('whatsapp_logs')
+            .update({
+              status: 'failed',
+              sent_at: new Date().toISOString(),
+              error_message: missing,
+              provider_response: { error: { code: 'TEMPLATE_NOT_SYNCED', templateName: docTemplateName } },
+            })
+            .eq('id', logEntry.id);
+        }
+        return new Response(
+          JSON.stringify({ success: false, error: missing, code: 'TEMPLATE_NOT_SYNCED' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
+      const docTemplateLanguage = pickedDoc.template_language;
       
       // Upload PDF to Meta
       const mediaId = await uploadPdfToMeta(
@@ -1256,28 +1275,42 @@ serve(async (req) => {
       console.log('Template params received:', JSON.stringify(templateParams));
       console.log('SaleData received:', JSON.stringify(saleData));
 
-      // Fetch template info including components from stored meta templates
-      // Prefer en_US over en as it's more common for Meta templates
-      let templateLanguage = 'en_US'; // Default fallback - en_US is more common for Meta
+      // Fetch template info from synced Meta templates. Do not guess en_US —
+      // that is what fails Adeeba/WABA sends when invoice_1 is not on the account.
+      let templateLanguage = '';
       let templateComponents: any[] | null = null;
       
       const { data: metaTemplates } = await supabase
         .from('whatsapp_meta_templates')
-        .select('template_language, components')
+        .select('template_language, template_status, components')
         .eq('organization_id', organizationId)
         .eq('template_name', cleanedTemplateName);
 
-      if (metaTemplates && metaTemplates.length > 0) {
-        // Prefer en_US if multiple languages exist, otherwise use the first one found
-        const enUSTemplate = metaTemplates.find((t: any) => t.template_language === 'en_US');
-        const selectedTemplate = enUSTemplate || metaTemplates[0];
-        templateLanguage = selectedTemplate.template_language;
-        templateComponents = selectedTemplate.components as any[];
-        console.log('Using stored template language:', templateLanguage);
-        console.log('Template components from DB:', JSON.stringify(templateComponents));
-      } else {
-        console.log('Template not found in DB, using default language: en_US');
+      const picked = pickSyncedWhatsAppMetaTemplate(metaTemplates);
+      if (!picked?.template_language) {
+        const missing = missingWhatsAppTemplateError(cleanedTemplateName);
+        console.error(missing);
+        if (logEntry) {
+          await supabase
+            .from('whatsapp_logs')
+            .update({
+              status: 'failed',
+              sent_at: new Date().toISOString(),
+              error_message: missing,
+              provider_response: {
+                error: { code: 'TEMPLATE_NOT_SYNCED', templateName: cleanedTemplateName },
+              },
+            })
+            .eq('id', logEntry.id);
+        }
+        return new Response(
+          JSON.stringify({ success: false, error: missing, code: 'TEMPLATE_NOT_SYNCED' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
       }
+      templateLanguage = picked.template_language;
+      templateComponents = (picked.components as any[]) || null;
+      console.log('Using stored template language:', templateLanguage);
 
       // Check if this template requires a DOCUMENT header - if so, we need PDF
       const headerComponent = templateComponents?.find((c: any) => c?.type?.toUpperCase() === 'HEADER');
