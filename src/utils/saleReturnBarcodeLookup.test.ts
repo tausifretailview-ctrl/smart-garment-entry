@@ -1,5 +1,16 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { isLiveSaleReturnVariant, mapSaleReturnLookupRow } from "./saleReturnBarcodeLookup";
+import {
+  isLiveSaleReturnVariant,
+  mapSaleReturnLookupRow,
+  soldQtyOnLoadedSaleReturnBill,
+  gateSaleReturnAgainstBillSold,
+  gateSaleReturnAgainstHistory,
+} from "./saleReturnBarcodeLookup";
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 describe("isLiveSaleReturnVariant", () => {
   const liveProduct = { id: "p1", status: "active", deleted_at: null };
@@ -50,5 +61,47 @@ describe("mapSaleReturnLookupRow", () => {
     expect(mapped?.variant.barcode).toBe("40003251");
     expect(mapped?.variant.id).toBe("v-live");
     expect(mapped?.resolvedViaSaleLine).toBe(true);
+  });
+});
+
+describe("soldQtyOnLoadedSaleReturnBill", () => {
+  it("sums matching variant_id or barcode on the loaded bill", () => {
+    const items = [
+      { variant_id: "v1", barcode: "A", quantity: 1 },
+      { variant_id: "v2", barcode: "B", quantity: 2 },
+      { variant_id: "v1", barcode: "A", quantity: 1 },
+    ];
+    expect(soldQtyOnLoadedSaleReturnBill(items, "v1", "A")).toBe(2);
+    expect(soldQtyOnLoadedSaleReturnBill(items, "v9", "B")).toBe(2);
+    expect(soldQtyOnLoadedSaleReturnBill(items, "v9", "Z")).toBe(0);
+  });
+});
+
+describe("gateSaleReturnAgainstBillSold", () => {
+  it("blocks barcodes that were not on the bill and caps at sold qty", () => {
+    expect(gateSaleReturnAgainstBillSold(0, 1)).toBe("not-sold");
+    expect(gateSaleReturnAgainstBillSold(1, 1)).toBe("ok");
+    expect(gateSaleReturnAgainstBillSold(1, 2)).toBe("over-limit");
+  });
+});
+
+describe("gateSaleReturnAgainstHistory", () => {
+  it("blocks never-sold and fully-returned items, allows remaining qty", () => {
+    expect(gateSaleReturnAgainstHistory(0, 0, 1)).toBe("not-sold");
+    expect(gateSaleReturnAgainstHistory(3, 0, 1)).toBe("over-limit");
+    expect(gateSaleReturnAgainstHistory(3, 2, 2)).toBe("ok");
+    expect(gateSaleReturnAgainstHistory(3, 2, 3)).toBe("over-limit");
+  });
+});
+
+describe("FloatingSaleReturn add-path wiring", () => {
+  it("blocks adds via bill and sold-history gates instead of a soft warning", () => {
+    const source = readFileSync(resolve(here, "../components/FloatingSaleReturn.tsx"), "utf8");
+    expect(source).toContain("countSoldAndReturnedForSaleReturn");
+    expect(source).toContain("checkVariantAgainstBill");
+    expect(source).toContain("checkVariantAgainstSoldHistory");
+    expect(source).toContain("This barcode or product is not in the selected sale.");
+    expect(source).toContain("This barcode or product has not been sold");
+    expect(source).not.toContain("This item was not found in the specified bill");
   });
 });

@@ -231,3 +231,38 @@ export async function countSoldAndReturnedForSaleReturn(
   const returned = (retRows || []).reduce((sum, r) => sum + (Number(r.quantity) || 0), 0);
   return { sold, returned, maxReturnable: sold - returned };
 }
+
+/** Qty of a variant on a loaded sale, matching sku or line barcode. */
+export function soldQtyOnLoadedSaleReturnBill(
+  billItems: Array<{ variant_id: string; barcode?: string | null; quantity?: number | null }>,
+  variantId: string,
+  barcode: string | null,
+): number {
+  return billItems
+    .filter((bi) => bi.variant_id === variantId || (barcode && bi.barcode === barcode))
+    .reduce((sum, bi) => sum + (Number(bi.quantity) || 0), 0);
+}
+
+export type SaleReturnQtyBlock = "ok" | "not-sold" | "over-limit";
+
+/** Bill-scoped: must have been on this sale, and cart qty cannot exceed that sale's sold qty. */
+export function gateSaleReturnAgainstBillSold(
+  soldQty: number,
+  proposedTotalCartQty: number,
+): SaleReturnQtyBlock {
+  if (soldQty <= 0) return "not-sold";
+  if (proposedTotalCartQty > soldQty) return "over-limit";
+  return "ok";
+}
+
+/** No bill loaded: must have sold > 0 org-wide, and cart qty cannot exceed sold − already returned. */
+export function gateSaleReturnAgainstHistory(
+  sold: number,
+  maxReturnable: number,
+  proposedTotalCartQty: number,
+): SaleReturnQtyBlock {
+  if (sold <= 0) return "not-sold";
+  if (proposedTotalCartQty > maxReturnable) return "over-limit";
+  return "ok";
+}
+

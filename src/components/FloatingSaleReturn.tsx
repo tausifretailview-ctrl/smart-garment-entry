@@ -50,7 +50,13 @@ import {
   type StockIssuePresentation,
 } from "@/utils/stockErrorMessages";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
-import { lookupSoldVariantForSaleReturn } from "@/utils/saleReturnBarcodeLookup";
+import {
+  lookupSoldVariantForSaleReturn,
+  countSoldAndReturnedForSaleReturn,
+  soldQtyOnLoadedSaleReturnBill,
+  gateSaleReturnAgainstBillSold,
+  gateSaleReturnAgainstHistory,
+} from "@/utils/saleReturnBarcodeLookup";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 
 type RefundType = "cash_refund" | "credit_note" | "exchange";
@@ -648,22 +654,114 @@ export const FloatingSaleReturn = ({
     return true;
   };
 
+  /**
+   * When a specific bill is loaded (billSaleId set), every item added to the
+   * return must have actually been sold on that bill, and the total returned
+   * quantity for a variant can never exceed what that bill actually sold.
+   * Returns false (and shows the exact reason) when either check fails —
+   * this BLOCKS the add, it does not just warn and continue.
+   */
+  const checkVariantAgainstBill = (
+    variantId: string,
+    barcode: string | null,
+    proposedTotalCartQty: number,
+  ): boolean => {
+    if (!billSaleId || billItems.length === 0) return true;
+
+    const soldQty = soldQtyOnLoadedSaleReturnBill(billItems, variantId, barcode);
+    const gate = gateSaleReturnAgainstBillSold(soldQty, proposedTotalCartQty);
+
+    if (gate === "not-sold") {
+      toast({
+        title: "Not in this sale",
+        description: "This barcode or product is not in the selected sale.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (gate === "over-limit") {
+      toast({
+        title: "Return limit reached",
+        description:
+          soldQty === 1
+            ? "Only 1 was sold on this bill — it has already been added to the return."
+            : `Only ${soldQty} were sold on this bill — you've already added the maximum to the return.`,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * When NO specific bill is loaded — the common case, scanning a barcode
+   * directly without opening a bill first — checkVariantAgainstBill is a
+   * no-op. This is the actual gate for that flow: the variant must have been
+   * sold at least once (ever, org-wide), and the total added to this return
+   * can never exceed sold-minus-already-returned across ALL prior return
+   * transactions, not just what's in this session's cart.
+   */
+  const checkVariantAgainstSoldHistory = async (
+    variantId: string,
+    barcode: string | null,
+    proposedTotalCartQty: number,
+  ): Promise<boolean> => {
+    if (billSaleId && billItems.length > 0) return true; // bill-scoped check already covers this case
+
+    if (!organizationId) return true;
+
+    try {
+      const { sold, maxReturnable } = await countSoldAndReturnedForSaleReturn(
+        organizationId,
+        variantId,
+        barcode || "",
+      );
+
+      const gate = gateSaleReturnAgainstHistory(sold, maxReturnable, proposedTotalCartQty);
+
+      if (gate === "not-sold") {
+        toast({
+          title: "Not in this sale",
+          description: "This barcode or product has not been sold — it can't be added to a return.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (gate === "over-limit") {
+        toast({
+          title: "Return limit reached",
+          description:
+            maxReturnable <= 0
+              ? "All sold units of this item have already been returned."
+              : `Only ${maxReturnable} more can be returned — the rest of what was sold has already been returned.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (err) {
+      console.error("Sale-return sold-history check failed:", err);
+      // Fail open on a network/query error — don't block a legitimate return
+      // over a transient failure, matching how checkReturnStockCeiling behaves.
+    }
+
+    return true;
+  };
+
   const addProduct = async (productId: string, variantId: string) => {
     const product = products.find(p => p.id === productId);
     const variant = variants.find(v => v.id === variantId);
     if (!product || !variant) return;
 
-    if (billSaleId && billItems.length > 0) {
-      const inBill = billItems.find(bi => bi.variant_id === variantId);
-      if (!inBill) {
-        toast({ title: "Warning", description: "This item was not found in the specified bill", variant: "destructive" });
-      }
-    }
-
     const existingIndex = returnItems.findIndex(item => item.variantId === variantId);
     const proposedTotalCartQty = existingIndex !== -1
       ? returnItems[existingIndex].quantity + 1
       : getReturnCartQtyForVariant(variantId) + 1;
+
+    if (!checkVariantAgainstBill(variantId, variant.barcode, proposedTotalCartQty)) return;
+    if (!(await checkVariantAgainstSoldHistory(variantId, variant.barcode, proposedTotalCartQty))) return;
 
     const ceilingOk = await checkReturnStockCeiling(
       variantId,
@@ -769,17 +867,21 @@ export const FloatingSaleReturn = ({
         return;
       }
 
-      if (billSaleId && billItems.length > 0) {
-        const inBill = billItems.find(
-          (bi) => bi.variant_id === variant!.id || (bi.barcode && bi.barcode === query),
-        );
-        if (!inBill) {
-          toast({ title: "Warning", description: "This item was not found in the specified bill" });
-        }
-      }
-
       const variantId = variant.id;
       const existingIndex = returnItems.findIndex((item) => item.variantId === variantId);
+      const proposedTotalCartQty = existingIndex !== -1
+        ? returnItems[existingIndex].quantity + 1
+        : getReturnCartQtyForVariant(variantId) + 1;
+
+      if (!checkVariantAgainstBill(variantId, variant.barcode, proposedTotalCartQty)) {
+        setBarcodeInput("");
+        return;
+      }
+      if (!(await checkVariantAgainstSoldHistory(variantId, variant.barcode, proposedTotalCartQty))) {
+        setBarcodeInput("");
+        return;
+      }
+
       if (existingIndex !== -1) {
         setReturnItems((prev) =>
           prev.map((item) =>
@@ -862,6 +964,9 @@ export const FloatingSaleReturn = ({
         if (row.variantId !== item.variantId) return sum;
         return sum + (idx === index ? qty : row.quantity);
       }, 0);
+
+      if (!checkVariantAgainstBill(item.variantId, item.barcode, proposedTotalCartQty)) return;
+      if (!(await checkVariantAgainstSoldHistory(item.variantId, item.barcode, proposedTotalCartQty))) return;
 
       const ceilingOk = await checkReturnStockCeiling(
         item.variantId,
