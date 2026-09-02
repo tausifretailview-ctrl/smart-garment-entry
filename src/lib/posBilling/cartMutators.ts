@@ -4,6 +4,7 @@ import { maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
+  findPosGoodsMergeIndex,
   findPosServiceMergeIndex,
   sumLineDiscount,
   sumMrpTotal,
@@ -471,7 +472,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
 
   const prev = input.items;
   if (!isServiceProduct) {
-    const mergeIdx = prev.findIndex((item) => item.barcode === variant.barcode);
+    const mergeIdx = findPosGoodsMergeIndex(prev, variant.id);
     if (mergeIdx >= 0) {
       const updated = [...prev];
       const line = updated[mergeIdx];

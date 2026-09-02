@@ -57,6 +57,7 @@ import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
   findPosServiceMergeIndex,
+  findPosGoodsMergeIndex,
   getPosCartStockIndicator,
   minUnitPriceForDiscountCap,
   normalizeFlatDiscountInput,
@@ -3187,8 +3188,7 @@ export default function POSSales() {
       const isServiceProduct = product.product_type === "service";
 
       if (!isServiceProduct) {
-        const barcode = variant.barcode || "";
-        const beforeIdx = itemsRef.current.findIndex((item) => item.barcode === barcode);
+        const beforeIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id);
         const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
         const targetQty = beforeQty > 0 ? beforeQty + quantity : quantity;
 
@@ -3219,7 +3219,7 @@ export default function POSSales() {
           brandDiscountPercent: brandDiscount,
         });
 
-        const lineIdx = itemsRef.current.findIndex((item) => item.barcode === barcode);
+        const lineIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id);
         if (lineIdx < 0) {
           playErrorBeep();
           return;
@@ -3417,7 +3417,7 @@ export default function POSSales() {
         unitCost: svcUnit,
       });
     } else if (!isServiceProduct) {
-      existingItemIndex = itemsRef.current.findIndex((item) => item.barcode === variant.barcode);
+      existingItemIndex = findPosGoodsMergeIndex(itemsRef.current, variant.id);
     }
 
     if (existingItemIndex >= 0) {
