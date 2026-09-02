@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-08-29",
-  "count": 740,
-  "fileCount": 757,
+  "generatedAt": "2026-09-02",
+  "count": 742,
+  "fileCount": 759,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -743,7 +743,9 @@
     "20261124120000",
     "20261125120000",
     "20261126120000",
-    "20261127120000"
+    "20261127120000",
+    "20261128120000",
+    "20261128120100"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1502,7 +1504,9 @@
     "20261124120000_submit_public_storefront_enquiry_rpc.sql",
     "20261125120000_storefront_slug_hyphen_alias.sql",
     "20261126120000_fix_party_balances_settlement_memo_helper.sql",
-    "20261127120000_fix_snapshot_all_settlement_memo_parity.sql"
+    "20261127120000_fix_snapshot_all_settlement_memo_parity.sql",
+    "20261128120000_get_reorder_analysis.sql",
+    "20261128120100_fix_insights_rpc_fail_open.sql"
   ],
   "duplicateVersions": [
     {
