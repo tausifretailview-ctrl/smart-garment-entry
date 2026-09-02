@@ -41,7 +41,7 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange, saleH
     invoice_paper_format?: string;
   } | undefined;
 
-  const { data: sale, isLoading, isError } = useQuery({
+  const { data: sale, isLoading, isError, refetch } = useQuery({
     queryKey: ["mobile-invoice-preview", currentOrganization?.id, saleId],
     queryFn: () =>
       withMobileQueryTimeout(() =>
@@ -153,6 +153,13 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange, saleH
           return (
             <div className="p-6 text-center space-y-3">
               <p className="text-sm font-medium">Could not load invoice preview</p>
+              <button
+                type="button"
+                className="text-sm text-primary font-semibold touch-manipulation"
+                onClick={() => void refetch()}
+              >
+                Retry
+              </button>
             </div>
           );
         }
