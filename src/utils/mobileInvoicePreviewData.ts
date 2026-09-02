@@ -1,5 +1,38 @@
+import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
+
+type SalesRow = Database["public"]["Tables"]["sales"]["Row"];
+
+/** Columns that exist on `sales`. `credit_amount` is on credit_notes, not here. */
+export const SALE_INVOICE_PREVIEW_FIELDS = [
+  "id",
+  "sale_number",
+  "sale_type",
+  "sale_date",
+  "customer_name",
+  "customer_address",
+  "customer_phone",
+  "gross_amount",
+  "discount_amount",
+  "flat_discount_amount",
+  "sale_return_adjust",
+  "net_amount",
+  "paid_amount",
+  "payment_status",
+  "payment_method",
+  "salesman",
+  "notes",
+  "round_off",
+  "cash_amount",
+  "card_amount",
+  "upi_amount",
+  "credit_applied",
+] as const satisfies readonly (keyof SalesRow)[];
+
+/** Literal so supabase-js can type the query. Do not build this with .join(). */
+export const SALE_INVOICE_PREVIEW_SELECT =
+  "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_applied, customers:customer_id (gst_number)" as const;
 
 export type SaleInvoicePreviewRow = {
   id: string;
@@ -49,9 +82,7 @@ export async function fetchSaleForInvoicePreview(
 ): Promise<SaleInvoicePreviewRow> {
   const { data: sale, error } = await supabase
     .from("sales")
-    .select(
-      "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_applied, customers(gst_number)",
-    )
+    .select(SALE_INVOICE_PREVIEW_SELECT)
     .eq("id", saleId)
     .eq("organization_id", organizationId)
     .single();
@@ -73,6 +104,7 @@ export async function fetchSaleForInvoicePreview(
       const { data: products } = await supabase
         .from("products")
         .select("id, brand, color, style")
+        .eq("organization_id", organizationId)
         .in("id", productIds);
       if (products) {
         const productMap = Object.fromEntries(products.map((p) => [p.id, p]));
