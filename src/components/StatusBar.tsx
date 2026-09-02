@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLocation } from "react-router-dom";
 import { STALE_REFERENCE } from "@/lib/queryStaleTimes";
 import { BackgroundSyncBadge } from "@/components/BackgroundSyncBadge";
+import { fetchDashboardStockSummary } from "@/utils/dashboardSummaryRpcs";
 
 const getCurrentPageName = (path: string): string => {
   const PAGE_NAMES: Record<string, string> = {
@@ -58,12 +59,8 @@ export const StatusBar = () => {
     queryKey: ["statusbar-summary", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
-      const [stockRes, recvRes] = await Promise.all([
-        supabase
-          .from("v_dashboard_stock_summary")
-          .select("total_stock_qty")
-          .eq("organization_id", currentOrganization.id)
-          .maybeSingle(),
+      const [stockRow, recvRes] = await Promise.all([
+        fetchDashboardStockSummary(supabase, currentOrganization.id),
         supabase
           .from("v_dashboard_receivables")
           .select("total_receivables")
@@ -71,13 +68,13 @@ export const StatusBar = () => {
           .maybeSingle(),
       ]);
       return {
-        stockQty: stockRes.data?.total_stock_qty ?? 0,
+        stockQty: stockRow?.total_stock_qty ?? 0,
         dueAmount: recvRes.data?.total_receivables ?? 0,
       };
     },
     enabled: !!currentOrganization?.id,
     // F2 / Phase-0 #7: StatusBar mounts on every page. Was STALE_FREQUENT (~10–30s)
-    // and burned thousands of v_dashboard_stock_summary reads/week. Reference-tier
+    // and burned thousands of stock-summary reads/week. Reference-tier
     // (2 min) exceeds the STALE_FREQUENT floor; save paths invalidate
     // ["statusbar-summary"] so stock/due stay fresh after mutations.
     staleTime: STALE_REFERENCE,
