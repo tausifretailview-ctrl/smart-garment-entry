@@ -689,8 +689,9 @@ async function countFilteredPosSales(
   filters: PosDashboardFilters,
   searchResolution: PosSearchResolution | null = null,
 ): Promise<number> {
+  // Phase 4: estimated = exact on small sets, planner on large.
   let query: any = applyPosDashboardFilters(
-    client.from("sales").select("id", { count: "exact", head: true }),
+    client.from("sales").select("id", { count: "estimated", head: true }),
     filters,
   );
   const resolution =

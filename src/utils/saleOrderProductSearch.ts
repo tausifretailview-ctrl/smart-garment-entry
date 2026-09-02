@@ -1,12 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
   buildProductTextOrFilter,
-  buildProductTokenBoundaryOrFilter,
   compactProductToken,
   expandProductSearchTerms,
   leadingProductToken,
   matchesCompactProductSearch,
   matchesProductSearchFields,
+  matchesProductTokenBoundary,
   scoreProductSearchMatch,
 } from "@/utils/productSearch";
 import { resolveVariantColor } from "@/utils/resolveVariantColor";
@@ -261,19 +261,9 @@ export async function searchSaleOrderVariants(
 
   let productIds: string[] = [];
   const strictProductIds: string[] = [];
-  const tokenBoundaryFilter = buildProductTokenBoundaryOrFilter(rawQuery);
-  if (tokenBoundaryFilter) {
-    const { data: boundaryProducts } = await supabase
-      .from("products")
-      .select("id, product_name, brand, style, category")
-      .is("deleted_at", null)
-      .eq("organization_id", orgId)
-      .eq("status", "active")
-      .or(tokenBoundaryFilter)
-      .limit(80);
-    strictProductIds.push(...(boundaryProducts?.map((p) => p.id) || []));
-  }
 
+  // One 4-field contains ILIKE (trigram-friendly). Token-boundary ranking
+  // is classified client-side — do not fire the 28-OR PostgREST filter.
   const productOrFilter = buildProductTextOrFilter(expandedTerms);
   if (productOrFilter) {
     const { data: matchingProducts } = await supabase
@@ -284,22 +274,21 @@ export async function searchSaleOrderVariants(
       .eq("status", "active")
       .or(productOrFilter)
       .limit(250);
-    const broadIds = (matchingProducts || [])
-      .filter((p) =>
-        matchesProductSearchFields(
-          {
-            product_name: p.product_name,
-            brand: p.brand || "",
-            style: p.style || "",
-            category: p.category || "",
-          },
-          rawQuery,
-        ),
-      )
-      .map((p) => p.id);
-    productIds = [...new Set([...strictProductIds, ...broadIds])];
-  } else {
-    productIds = [...new Set(strictProductIds)];
+    for (const p of matchingProducts || []) {
+      const parts = {
+        product_name: p.product_name,
+        brand: p.brand || "",
+        style: p.style || "",
+        category: p.category || "",
+      };
+      if (matchesProductTokenBoundary(p, rawQuery)) {
+        strictProductIds.push(p.id);
+      }
+      if (matchesProductSearchFields(parts, rawQuery)) {
+        productIds.push(p.id);
+      }
+    }
+    productIds = [...new Set([...strictProductIds, ...productIds])];
   }
 
   if (productIds.length === 0 && compactQuery.length >= 3) {

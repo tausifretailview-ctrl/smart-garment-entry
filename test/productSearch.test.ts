@@ -6,6 +6,7 @@ import {
   leadingProductToken,
   matchesCompactProductSearch,
   matchesProductSearchFields,
+  matchesProductTokenBoundary,
   restrictProductsToExactNameMatches,
   scoreProductSearchMatch,
 } from "../src/utils/productSearch";
@@ -66,6 +67,17 @@ describe("buildSaleOrderProductGroupKey", () => {
     expect(key20).not.toBe(key2067);
     expect(leadingProductToken(fl20.product_name)).toBe("fl20");
     expect(leadingProductToken(fl2067.product_name)).toBe("fl2067");
+  });
+});
+
+describe("matchesProductTokenBoundary", () => {
+  it("matches FL20 as a token but not the FL2067 prefix", () => {
+    expect(
+      matchesProductTokenBoundary({ product_name: "FL20 - FL - RLX - MN - BR" }, "FL20"),
+    ).toBe(true);
+    expect(
+      matchesProductTokenBoundary({ product_name: "FL2067-FL-RLX-LD 3-8" }, "FL20"),
+    ).toBe(false);
   });
 });
 

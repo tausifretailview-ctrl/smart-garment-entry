@@ -1,12 +1,21 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const ITEM_SEARCH_OR = (searchStr: string) =>
-  `product_name.ilike.%${searchStr}%,` +
-  `brand.ilike.%${searchStr}%,` +
-  `barcode.ilike.%${searchStr}%,` +
-  `style.ilike.%${searchStr}%,` +
-  `category.ilike.%${searchStr}%,` +
-  `color.ilike.%${searchStr}%`;
+/** 4+ digits — same barcode-like gate as purchase bill dashboard date skip. */
+export function isPurchaseBarcodeLikeSearch(term: string): boolean {
+  return /^\d{4,}$/.test(term.trim());
+}
+
+/** Product/brand/style text: contains-match (placeholder says "barcode, product, brand"). */
+export function purchaseItemTextSearchOr(searchStr: string): string {
+  return (
+    `product_name.ilike.%${searchStr}%,` +
+    `brand.ilike.%${searchStr}%,` +
+    `barcode.ilike.%${searchStr}%,` +
+    `style.ilike.%${searchStr}%,` +
+    `category.ilike.%${searchStr}%,` +
+    `color.ilike.%${searchStr}%`
+  );
+}
 
 /** Bill IDs in org (+ optional date bounds) — scopes line-item search to tenant + period. */
 export async function fetchPurchaseBillIdsInScope(
@@ -58,19 +67,31 @@ export async function fetchPurchaseBillIdsMatchingLineItems(
     (_, i) => billIdsInScope.slice(i * 200, i * 200 + 200),
   );
 
+  const barcodeLike = isPurchaseBarcodeLikeSearch(t);
+
   for (const batch of batches) {
-    let q = supabase
-      .from("purchase_items")
-      .select("bill_id")
-      .is("deleted_at", null)
-      .in("bill_id", batch)
-      .or(ITEM_SEARCH_OR(t))
-      .limit(itemLimit);
-    const { data, error } = await q;
-    if (error) throw error;
-    (data || []).forEach((row) => {
-      if (row.bill_id) matched.add(row.bill_id);
-    });
+    const base = () =>
+      supabase
+        .from("purchase_items")
+        .select("bill_id")
+        .is("deleted_at", null)
+        .in("bill_id", batch)
+        .limit(itemLimit);
+
+    // Numeric 4+ digits: exact barcode, then prefix. Not %barcode% (410 ms class).
+    // Product text keeps 6-field contains — dashboard placeholder is substring search.
+    const queries = barcodeLike
+      ? [base().eq("barcode", t), base().ilike("barcode", `${t}%`)]
+      : [base().or(purchaseItemTextSearchOr(t))];
+
+    for (const q of queries) {
+      const { data, error } = await q;
+      if (error) throw error;
+      (data || []).forEach((row) => {
+        if (row.bill_id) matched.add(row.bill_id);
+      });
+      if (barcodeLike && matched.size > 0) break;
+    }
     if (matched.size >= itemLimit) break;
   }
 
