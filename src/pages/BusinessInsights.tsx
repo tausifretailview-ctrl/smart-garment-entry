@@ -14,6 +14,7 @@ import { StockHealthTab } from "@/components/business-insights/StockHealthTab";
 import { SupplierAnalysisTab } from "@/components/business-insights/SupplierAnalysisTab";
 import { SalesTrendsTab } from "@/components/business-insights/SalesTrendsTab";
 import { QuietCustomersTab } from "@/components/business-insights/QuietCustomersTab";
+import { ReorderAnalysisTab } from "@/components/business-insights/ReorderAnalysisTab";
 
 type InsightsTabId =
   | "executive-summary"
@@ -21,7 +22,8 @@ type InsightsTabId =
   | "stock-health"
   | "supplier-analysis"
   | "sales-trends"
-  | "quiet-customers";
+  | "quiet-customers"
+  | "reorder-analysis";
 
 const TAB_ITEMS: { id: InsightsTabId; label: string }[] = [
   { id: "executive-summary", label: "Executive Summary" },
@@ -30,6 +32,7 @@ const TAB_ITEMS: { id: InsightsTabId; label: string }[] = [
   { id: "supplier-analysis", label: "Supplier Analysis" },
   { id: "sales-trends", label: "Sales Trends" },
   { id: "quiet-customers", label: "Quiet Customers" },
+  { id: "reorder-analysis", label: "Reorder Analysis" },
 ];
 
 function defaultDateRange(): { startDate: string; endDate: string } {
@@ -61,7 +64,7 @@ export default function BusinessInsights() {
     setVisitedTabs((prev) => (prev.has(id) ? prev : new Set([...prev, id])));
   }, []);
 
-  const showSharedDateRange = selectedTab !== "quiet-customers";
+  const showSharedDateRange = selectedTab !== "quiet-customers" && selectedTab !== "reorder-analysis";
 
   return (
     <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
@@ -85,7 +88,7 @@ export default function BusinessInsights() {
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
                 Executive Summary · Profitability · Stock Health · Supplier · Sales Trends · Quiet
-                Customers
+                Customers · Reorder Analysis
               </p>
             </div>
           </div>
@@ -118,7 +121,9 @@ export default function BusinessInsights() {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground shrink-0 max-w-xs text-right">
-              Quiet Customers is as-of today — the shared From/To range does not apply.
+              {selectedTab === "reorder-analysis"
+                ? "Reorder Analysis uses its own 90/120/180-day lookback — the shared From/To range does not apply."
+                : "Quiet Customers is as-of today — the shared From/To range does not apply."}
             </p>
           )}
         </div>
@@ -173,6 +178,10 @@ export default function BusinessInsights() {
 
           <TabsContent value="quiet-customers" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
             {shouldMountTab("quiet-customers") ? <QuietCustomersTab /> : null}
+          </TabsContent>
+
+          <TabsContent value="reorder-analysis" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("reorder-analysis") ? <ReorderAnalysisTab /> : null}
           </TabsContent>
         </Tabs>
       </div>
