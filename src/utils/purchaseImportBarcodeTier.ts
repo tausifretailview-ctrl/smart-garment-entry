@@ -1,9 +1,10 @@
-import { effectiveBarcodePriceTier } from "@/utils/barcodeValidation";
+import { effectiveBarcodePriceTier, barcodePriceTierKey } from "@/utils/barcodeValidation";
 
 /** Stable price-tier key for purchase import / universal EAN (549 vs 569). */
 export function importPriceTierKey(mrp?: number | null, salePrice?: number | null): string {
   const tier = effectiveBarcodePriceTier({ mrp, salePrice });
-  return tier > 0 ? tier.toFixed(2) : "0";
+  if (tier <= 0) return "0";
+  return barcodePriceTierKey({ mrp, salePrice });
 }
 
 /** Lookup key: same barcode at different MRP tiers must stay separate SKUs. */

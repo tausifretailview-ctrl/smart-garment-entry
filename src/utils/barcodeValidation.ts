@@ -36,9 +36,26 @@ export function effectiveBarcodePriceTier(p: BarcodePriceTier): number {
 }
 
 /**
+ * Compound tier key for TIER-MATCHING decisions (fork/conflict/import-dedupe) —
+ * distinct from effectiveBarcodePriceTier, which is a single display value that
+ * deliberately prefers MRP. That preference is the wrong tool for "are these
+ * the same priced batch": an org with a real, populated MRP that stays fixed
+ * while sale_price changes between purchase batches (or a stale MRP left over
+ * from data entry, never actually maintained) would have effectiveBarcodePriceTier
+ * collapse two genuinely different sale prices into one identical tier value,
+ * since MRP alone decided it. Two rows are the same tier only if BOTH MRP and
+ * sale price match — either one differing is a real price change.
+ */
+export function barcodePriceTierKey(p: BarcodePriceTier): string {
+  const mrp = Math.round((Number(p.mrp) || 0) * 100);
+  const sale = Math.round((Number(p.salePrice) || 0) * 100);
+  return `${mrp}|${sale}`;
+}
+
+/**
  * True when this org-level barcode hit should block create/save.
  * Serialized IMEI units always conflict. Branded EANs conflict only at the same
- * price tier (same MRP / sale); a different MRP is allowed.
+ * price tier (same MRP AND same sale price); either differing is allowed.
  */
 export function isBarcodeOrgConflict(args: {
   existingRequiresImei?: boolean;
@@ -48,12 +65,11 @@ export function isBarcodeOrgConflict(args: {
   tolerance?: number;
 }): boolean {
   if (args.existingRequiresImei || args.incomingRequiresImei) return true;
-  const tolerance = args.tolerance ?? 0.009;
   const existingTier = effectiveBarcodePriceTier(args.existing);
   const incomingTier = effectiveBarcodePriceTier(args.incoming);
   // Until the new line has a price, keep the hard warning (same as legacy).
   if (incomingTier <= 0 || existingTier <= 0) return true;
-  return Math.abs(existingTier - incomingTier) <= tolerance;
+  return barcodePriceTierKey(args.existing) === barcodePriceTierKey(args.incoming);
 }
 
 /**
