@@ -1,5 +1,7 @@
 # Phase 1 — Rollback-storm measurement
 
+**SQL editor: do not paste this file.** It is Markdown. Pasting it fails with `ERROR 42601: syntax error at or near "##"` (captured 2026-09-02). Open `scripts/phase-1-block-0-window.sql` and click Run.
+
 **Date:** 2026-09-02  
 **Scope:** Read-only. No `src/` changes, no migrations, no DDL, no `pg_stat_statements_reset()`.  
 **Trigger figure:** ~**4.53 million** rolled-back transactions “since boot” (operator snapshot; **not present in this repo**).  
@@ -150,9 +152,9 @@ Jobs exist for backups, error-log purge, CN drift, stock alerts, balance reconci
 
 ## How to finish the measurement (human with SQL editor)
 
-Run **`scripts/phase-1-rollback-storm.sql` one numbered block at a time** as the `postgres` role (Supabase Dashboard → SQL). Read-only. Do not `pg_stat_statements_reset()`.
+Do **not** paste this Markdown file into the SQL editor. Open **`scripts/phase-1-block-0-window.sql`**, paste the entire file, Run. Then `scripts/phase-1-block-1-app-errors.sql`. Remaining blocks live in `scripts/phase-1-rollback-storm.sql` — highlight **one** `SELECT` at a time; that index file raises if you Run the whole buffer.
 
-Paste outputs into §Results.
+Read-only. Do not `pg_stat_statements_reset()`. Paste outputs into §Results.
 
 Interpretation cheat-sheet after block 0:
 
@@ -195,7 +197,7 @@ Current view definitions (verified in-repo):
 (date, xact_commit, xact_rollback, rollback_pct, conflicts, deadlocks, stats_reset, postmaster_start, rollbacks_per_sec)
 ```
 
-**Not captured in this PR** — no `postgres` role from the cloud agent.
+**Not captured.** 2026-09-02 attempt pasted this Markdown file into the SQL editor → `ERROR 42601: syntax error at or near "##"`. Use `scripts/phase-1-block-0-window.sql`.
 
 ### Block 1 — `app_error_logs` by operation / SQLSTATE (30 days)
 
