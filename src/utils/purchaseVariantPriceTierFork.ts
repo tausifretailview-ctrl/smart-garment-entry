@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { insertGeneratedProductVariant } from "@/utils/barcodeCollisionGuard";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { effectiveBarcodePriceTier, barcodePriceTierKey } from "@/utils/barcodeValidation";
@@ -453,9 +454,8 @@ async function forkProductAndVariantForTier(args: {
   );
 
   if (!productId) {
-    const { data: createdProduct, error: productError } = await supabase
-      .from("products")
-      .insert({
+    const { data: createdProduct, error: productError } = await insertProductsPreferringPurchaseFlag(
+      [{
         organization_id: organizationId,
         product_name: sourceProduct.product_name,
         brand: sourceProduct.brand,
@@ -472,9 +472,9 @@ async function forkProductAndVariantForTier(args: {
         default_sale_price: incomingSalePrice,
         status: "active",
         created_in_purchase: true,
-      })
-      .select("id")
-      .single();
+      }],
+      { select: "id", single: true },
+    );
     if (productError) throw productError;
     productId = createdProduct.id;
 
