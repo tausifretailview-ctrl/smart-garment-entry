@@ -73,6 +73,11 @@ export function duplicateVersionGroups(rows) {
     .sort((a, b) => a.version.localeCompare(b.version));
 }
 
+/** Leftover `<<<<<<<` / `=======` / `>>>>>>>` or branch-name lines from a bad merge. */
+export function hasMergeConflictRemnants(text) {
+  return /^(?:<<<<<<< |>>>>>>> |=======\s*$|cursor\/\S+\s*$)/m.test(text);
+}
+
 export function manifestPayload(rows, generatedAt = new Date().toISOString().slice(0, 10)) {
   const versions = uniqueSorted(rows.map((r) => r.version));
   const files = rows.map((r) => r.file).sort();
@@ -172,11 +177,30 @@ export async function runSchemaMigrationsDriftCheck({
     log(`Wrote ${MANIFEST_PATH} (${nextManifest.count} versions)`);
   } else if (checkManifest) {
     let current;
+    let raw;
     try {
-      current = JSON.parse(await readFileFn(MANIFEST_PATH, "utf8"));
-    } catch {
+      raw = await readFileFn(MANIFEST_PATH, "utf8");
+    } catch (err) {
+      const why =
+        err && typeof err === "object" && "code" in err && err.code === "ENOENT"
+          ? "is missing"
+          : `could not be read (${err instanceof Error ? err.message : err})`;
       error(
-        `${path.relative(ROOT, MANIFEST_PATH)} is missing. Run:\n  node scripts/check-schema-migrations-drift.mjs --write`,
+        `${path.relative(ROOT, MANIFEST_PATH)} ${why}. Run:\n  node scripts/check-schema-migrations-drift.mjs --write`,
+      );
+      return 1;
+    }
+    if (hasMergeConflictRemnants(raw)) {
+      error(
+        `${path.relative(ROOT, MANIFEST_PATH)} still has merge-conflict remnants. Run:\n  node scripts/check-schema-migrations-drift.mjs --write`,
+      );
+      return 1;
+    }
+    try {
+      current = JSON.parse(raw);
+    } catch (err) {
+      error(
+        `${path.relative(ROOT, MANIFEST_PATH)} is not valid JSON (${err instanceof Error ? err.message : err}). Run:\n  node scripts/check-schema-migrations-drift.mjs --write`,
       );
       return 1;
     }

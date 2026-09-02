@@ -84,6 +84,28 @@ describe("runSchemaMigrationsDriftCheck live compare", () => {
     expect(errors.some((line) => /Schema-migration drift detected/.test(line))).toBe(true);
   });
 
+  it("reports merge-conflict remnants instead of 'is missing'", async () => {
+    const errors: string[] = [];
+    const code = await runSchemaMigrationsDriftCheck({
+      argv: ["--check"],
+      envMap: {},
+      readFileFn: async () => `{
+  "versions": [
+cursor/sale-items-org-search-rpc-4576
+    "20261130120000"
+=======
+    "20261129120000"
+  ]
+}
+`,
+      log: () => {},
+      error: (msg) => errors.push(String(msg)),
+    });
+    expect(code).toBe(1);
+    expect(errors.join("\n")).toMatch(/merge-conflict remnants/);
+    expect(errors.join("\n")).not.toMatch(/is missing/);
+  });
+
   it("skips live compare without credentials unless --require-live", async () => {
     const logs: string[] = [];
     const code = await runSchemaMigrationsDriftCheck({
