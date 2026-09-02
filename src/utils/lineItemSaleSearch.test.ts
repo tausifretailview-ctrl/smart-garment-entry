@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   INVOICE_LINE_ITEM_SALE_TYPES,
   POS_LINE_ITEM_SALE_TYPES,
-  SEARCH_LINE_ITEM_SALE_IDS_RPC,
+  SEARCH_INVOICE_SALE_IDS_RPC,
+  SEARCH_POS_SALE_IDS_RPC,
   buildLineItemSaleSearchArgs,
   fetchLineItemMatchingSaleIds,
   lineItemSearchDateBound,
+  lineItemSearchWrapperRpc,
 } from "./lineItemSaleSearch";
 
 describe("lineItemSaleSearch", () => {
@@ -18,6 +20,13 @@ describe("lineItemSaleSearch", () => {
   it("POS types stay pos + delivery_challan; invoice stays invoice-only", () => {
     expect([...POS_LINE_ITEM_SALE_TYPES]).toEqual(["pos", "delivery_challan"]);
     expect([...INVOICE_LINE_ITEM_SALE_TYPES]).toEqual(["invoice"]);
+  });
+
+  it("routes invoice search to search_invoice_sale_ids and POS to search_pos_sale_ids", () => {
+    expect(lineItemSearchWrapperRpc(INVOICE_LINE_ITEM_SALE_TYPES)).toBe(
+      SEARCH_INVOICE_SALE_IDS_RPC,
+    );
+    expect(lineItemSearchWrapperRpc(POS_LINE_ITEM_SALE_TYPES)).toBe(SEARCH_POS_SALE_IDS_RPC);
   });
 
   it("builds the shared RPC payload without mixing sale types", () => {
@@ -53,8 +62,11 @@ describe("lineItemSaleSearch", () => {
   it("maps RPC rows to sale ids and cap meta (identical to previous dashboard helpers)", async () => {
     const client = {
       rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
-        expect(fn).toBe(SEARCH_LINE_ITEM_SALE_IDS_RPC);
-        expect(args.p_sale_types).toEqual(["invoice"]);
+        expect(fn).toBe(SEARCH_INVOICE_SALE_IDS_RPC);
+        expect(args).not.toHaveProperty("p_sale_types");
+        expect(args.p_org_id).toBe("org-1");
+        expect(args.p_search).toBe("silk");
+        expect(args.p_limit).toBe(1000);
         return {
           data: [{ sale_id: "s1" }, { sale_id: "s2" }, { sale_id: null }],
           error: null,
@@ -78,10 +90,14 @@ describe("lineItemSaleSearch", () => {
 
   it("marks the cap when the RPC returns a full page", async () => {
     const client = {
-      rpc: vi.fn(async () => ({
-        data: [{ sale_id: "a" }, { sale_id: "b" }],
-        error: null,
-      })),
+      rpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
+        expect(fn).toBe(SEARCH_POS_SALE_IDS_RPC);
+        expect(args).not.toHaveProperty("p_sale_types");
+        return {
+          data: [{ sale_id: "a" }, { sale_id: "b" }],
+          error: null,
+        };
+      }),
     } as never;
     const args = buildLineItemSaleSearchArgs({
       organizationId: "org-1",

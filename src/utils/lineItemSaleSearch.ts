@@ -1,7 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** Shared line-item search RPC (POS dashboard + Sales invoice dashboard). */
+/**
+ * Shared RPC from the Phase 3 migration. Production does not have it until
+ * Lovable applies that SQL — PostgREST then returns PGRST202 / schema cache miss
+ * and the Sales dashboard toasts "Sales dashboard load failed".
+ * Call the wrappers that already exist on production (and stay as thin
+ * wrappers after migrate). Command palette already uses the invoice wrapper.
+ */
 export const SEARCH_LINE_ITEM_SALE_IDS_RPC = "search_line_item_sale_ids" as const;
+export const SEARCH_INVOICE_SALE_IDS_RPC = "search_invoice_sale_ids" as const;
+export const SEARCH_POS_SALE_IDS_RPC = "search_pos_sale_ids" as const;
 
 export const POS_LINE_ITEM_SALE_TYPES = ["pos", "delivery_challan"] as const;
 export const INVOICE_LINE_ITEM_SALE_TYPES = ["invoice"] as const;
@@ -45,11 +53,23 @@ export type LineItemSaleSearchMeta = {
   lineItemCount: number;
 };
 
+/** Invoice-only → search_invoice_sale_ids; otherwise POS wrapper (pos + DC). */
+export function lineItemSearchWrapperRpc(
+  saleTypes: readonly string[],
+): typeof SEARCH_INVOICE_SALE_IDS_RPC | typeof SEARCH_POS_SALE_IDS_RPC {
+  if (saleTypes.length === 1 && saleTypes[0] === "invoice") {
+    return SEARCH_INVOICE_SALE_IDS_RPC;
+  }
+  return SEARCH_POS_SALE_IDS_RPC;
+}
+
 export async function fetchLineItemMatchingSaleIds(
   client: SupabaseClient,
   args: LineItemSaleSearchArgs,
 ): Promise<{ saleIds: string[]; meta: LineItemSaleSearchMeta }> {
-  const { data, error } = await client.rpc(SEARCH_LINE_ITEM_SALE_IDS_RPC, args);
+  const { p_sale_types, ...wrapperArgs } = args;
+  const rpcName = lineItemSearchWrapperRpc(p_sale_types);
+  const { data, error } = await client.rpc(rpcName, wrapperArgs);
   if (error) throw error;
   const saleIds = (data ?? [])
     .map((r: { sale_id: string | null }) => r.sale_id)
