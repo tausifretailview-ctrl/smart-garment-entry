@@ -14,7 +14,10 @@ import {
   buildSaleWhatsAppMessage,
   fetchSaleForInvoicePreview,
   fetchSalePaymentHistory,
+  resolveSaleWhatsAppPhone,
 } from "@/utils/mobileInvoicePreviewData";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { toast } from "sonner";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { cn } from "@/lib/utils";
 import { mobileInvoicePaymentBadge } from "@/components/mobile/mobileInvoicePaymentBadge";
@@ -44,6 +47,7 @@ function statusBadgeClass(tone: string) {
 export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { sendWhatsApp } = useWhatsAppSend();
   const orgId = currentOrganization?.id;
   const [printOpen, setPrintOpen] = useState(false);
   const [paymentsExpanded, setPaymentsExpanded] = useState(false);
@@ -78,6 +82,16 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
   const pendingAmount = Math.max(0, (sale?.net_amount ?? 0) - paidAmount - returnAdjust);
   const paymentBadge = mobileInvoicePaymentBadge(sale?.payment_status, pendingAmount, paidAmount);
 
+  const sendInvoiceWhatsApp = () => {
+    if (!sale) return;
+    const phone = resolveSaleWhatsAppPhone(sale);
+    if (!phone) {
+      toast.error("Add a customer mobile number to send on WhatsApp");
+      return;
+    }
+    void sendWhatsApp(phone, buildSaleWhatsAppMessage(sale));
+  };
+
   const handleShare = () => {
     if (!sale) return;
     const url = `https://app.inventoryshop.in/invoice/view/${sale.id}`;
@@ -88,13 +102,12 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
         url,
       }).catch(() => {});
     } else {
-      window.open(`https://wa.me/?text=${buildSaleWhatsAppMessage(sale)}`, "_blank");
+      sendInvoiceWhatsApp();
     }
   };
 
   const handleWhatsApp = () => {
-    if (!sale) return;
-    window.open(`https://wa.me/?text=${buildSaleWhatsAppMessage(sale)}`, "_blank");
+    sendInvoiceWhatsApp();
   };
 
   const handleEdit = () => {

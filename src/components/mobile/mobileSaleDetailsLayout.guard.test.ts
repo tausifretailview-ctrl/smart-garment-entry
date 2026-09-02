@@ -24,3 +24,13 @@ describe("mobile sale details + size-wise regressions", () => {
     expect(src).not.toContain("brand, category, department");
   });
 });
+
+describe("Sales Summary WhatsApp", () => {
+  it("opens wa.me to the customer number via useWhatsAppSend", () => {
+    const src = readFileSync(join(here, "../../pages/mobile/MobileSalesHub.tsx"), "utf8");
+    expect(src).toContain("useWhatsAppSend");
+    expect(src).toContain("resolveSaleWhatsAppPhone");
+    expect(src).toContain("customers(gst_number, phone)");
+    expect(src).not.toMatch(/wa\.me\/\?text=/);
+  });
+});
