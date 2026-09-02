@@ -78,6 +78,7 @@ import { SharedAppShellContext } from "@/contexts/SharedAppShellContext";
 import { useShowDesktopChrome } from "@/hooks/useDesktopViewPreference";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { formatDocumentTitle } from "@/lib/pageTitles";
+import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
@@ -162,6 +163,10 @@ export const OrgLayout = () => {
     [location.pathname, orgSlug],
   );
   const resolvedCurrentPath = resolveTabCachePath(currentPath);
+
+  useEffect(() => {
+    setCloudUsageRoutePath(resolvedCurrentPath || currentPath || "");
+  }, [resolvedCurrentPath, currentPath]);
 
   const isEntryPage = isEntryTabPath(currentPath);
   const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);

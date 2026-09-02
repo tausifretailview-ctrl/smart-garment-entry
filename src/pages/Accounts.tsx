@@ -25,7 +25,6 @@ import { useSettings } from "@/hooks/useSettings";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
-import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
@@ -261,10 +260,6 @@ export default function Accounts() {
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
   useNavPerfPage(PERF_PATH);
-  useEffect(() => {
-    setCloudUsageRoutePath(PERF_PATH);
-    return () => setCloudUsageRoutePath("");
-  }, []);
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get("tab");
   const urlCustomerId = searchParams.get("customer");

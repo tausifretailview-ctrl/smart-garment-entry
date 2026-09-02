@@ -45,8 +45,9 @@ Add `organization_id` to `sale_items`, backfill from the parent sale, keep it in
 **Keep all eight.** Appendix B `idx_scan` (2026-09-02) shows both sides of every partial-vs-unfiltered pair are used. Do not DROP. Decision: `docs/phase-5-index-hygiene-2026-09.md`. Re-sample: `scripts/phase-5-keep-indexes.sql`.
 
 ### Phase 6 — Cloud usage and loading
-- Re-run the cloud-usage baseline (`docs/cloud-usage-baseline.md`) before and after Phases 2–4 and record request counts per route.
-- Re-verify the blank-page path (tab cache fallback + blank-frame watchdog) with the browser harness on a slow-network profile, and confirm no route falls back to a silent empty render.
+**Client + CI done** (`docs/phase-6-cloud-usage-loading-2026-09.md`). OrgLayout attributes every org route; Quick Payments overlays a separate bucket; `copyJson()` is the paste format. Every tab-cache path maps to a named load shell; cold nav never silences Suspense; `destinationsWithNoWatchdog() === []`.
+
+Authenticated Slow-3G request counts still need a signed-in shop capture in `docs/cloud-usage-baseline.md` (no tenant credentials in this environment). Phases 3–4 SQL is not on production yet, so StatusBar RPC names in a live capture may still show the old views until Lovable applies those migrations.
 
 ## Technical notes
 - No money logic, no schema semantics, no RLS relaxation. New RPCs get explicit `search_path = public`, `EXECUTE` granted to `authenticated` only, and are revoked from `PUBLIC`/`anon` per the existing DDL trigger.
