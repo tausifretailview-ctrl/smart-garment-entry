@@ -5,7 +5,7 @@
 **Date:** 2026-09-02  
 **Scope:** Read-only. No `src/` changes, no migrations, no DDL, no `pg_stat_statements_reset()`.  
 **Trigger figure:** **4,530,418** `xact_rollback` on database `postgres` (SQL editor Block 0, 2026-09-02 18:55 UTC).  
-**Status:** **Window classified — not a tight failure loop** (6.38% of xacts). Cause still open until blocks 1–3 (ERROR histogram). Do not drop this follow-up because later performance PRs land.
+**Status:** **Window classified — not a tight failure loop** (6.38% of xacts). `app_error_logs` (Block 1) is **~121 rows / 30 days** and cannot explain 4.53 M. Cause still needs Postgres ERROR logs (block 3). Do not drop this follow-up because later performance PRs land.
 
 This document is the gate before Phase 2 (dashboard summary RPCs). It records what we could and could not sample, classifies likely vs unlikely causes against the actual codebase, and ships a SQL editor playbook so the live counters can be pasted back.
 
@@ -22,10 +22,10 @@ This document is the gate before Phase 2 (dashboard summary RPCs). It records wh
 4. **Window classification: not a tight failure loop.** 6.38% sits just above the 2–5% “often validation/timeout noise” band and far below 30% (failure-loop territory).
    - `postmaster_start` = 2026-06-13 16:38 UTC (~81 days) → **0.647 rollbacks/s** (upper bound: same 4.53 M over the shorter denominator).
    - `db_stats_reset` = 2025-11-04 02:17 UTC (~303 days), *before* postmaster start → **0.173 rollbacks/s**. Counters likely persisted across the June restart; treat 0.173/s as the more honest rate.
-   - Cause of the 4.53 M is still unclassified until blocks 1–3 (`app_error_logs` + Dashboard Postgres ERROR histogram). Buckets unchanged: cluster-wide Auth/Storage/cron, `57014` / `23505` / `23514` / `42501`, PL/pgSQL subxact, autovacuum.
+   - Cause of the 4.53 M is **not** in `app_error_logs` (Block 1: 121 grouped rows / 30 days, no `23505`, eleven `57014` all on `purchase_bill_save`). Still unclassified until Dashboard Postgres ERROR histogram (block 3). Buckets unchanged: cluster-wide Auth/Storage/cron, unlogged `57014`, PL/pgSQL subxact, autovacuum.
    - Separate signal: **`temp_files = 3,961,085`** (sort/hash spills). That is work_mem pressure, not rollbacks.
 
-5. **Phase 2–4 performance work may proceed.** The rollback follow-up stays tracked. Do not close it because the ratio is “only” 6% or because search latency improved. Next paste: `scripts/phase-1-block-1-app-errors.sql`.
+5. **Phase 2–4 performance work may proceed.** The rollback follow-up stays tracked. Do not close it because logged app errors are sparse. Next paste: Dashboard → Logs → Postgres (block 3), then `scripts/phase-1-block-1-app-errors.sql` is done.
 
 ---
 
@@ -216,19 +216,39 @@ Captured 2026-09-02 18:55:08 UTC. Export: `query-results-export-2026-09-03_00-25
 
 ### Block 1 — `app_error_logs` by operation / SQLSTATE (30 days)
 
-```
-(operation, error_code, n)
-```
+Captured 2026-09-02 ~18:31 UTC. Export: `query-results-export-2026-09-03_00-31-19_da27.csv`. `logError` is authenticated + opt-in — **lower bound**. 11 groups, **121 rows** total.
 
-**Not captured.**
+| n | operation | SQLSTATE | Sample |
+|---:|---|---|---|
+| 34 | `entity_hard_delete_purchase_bills` | 21000 | DELETE requires a WHERE clause |
+| 24 | `entity_hard_delete_customers` | 23503 | `sales_customer_id_fkey` — customers still referenced from `sales` |
+| 20 | `purchase_bill_save` | (null) | `getNetSoldQtyByVariantIds is not defined` |
+| 11 | `purchase_bill_save` | **57014** | canceling statement due to statement timeout |
+| 10 | `entity_hard_delete_suppliers` | 23503 | `purchase_bills_supplier_id_fkey` |
+| 8 | `entity_soft_delete_purchase_bills` | P0001 | stock would go negative (BOXER BRIEF XXL) — delete consuming sales first |
+| 8 | `entity_hard_delete_employees` | 23503 | `salesman_commissions_employee_id_fkey` |
+| 2 | `sale_return_save` | P0001 | `sale_return_item_delete` → `stock_not_negative` |
+| 2 | `entity_soft_delete_sale_returns` | **23514** | `stock_not_negative` on `product_variants` |
+| 1 | `customerLedger.insert` | (null) | `window.print` callback no longer runnable |
+| 1 | `entity_hard_delete_sales` | (null) | `TypeError: Failed to fetch` |
+
+**Does not explain 4.53 M rollbacks.** ~4 logged errors/day vs 0.17–0.65 rollbacks/s.
+
+Themes: Recycle Bin hard-delete (68: missing WHERE + FK), purchase save (31: missing JS helper + 11 timeouts), stock floor on delete/return (12). **Zero `23505`.** Uniqueness-retry storm is not visible here.
 
 ### Block 2 — `app_error_logs` 57014 / 23505 / 23514 / 42501
 
-```
-(error_code, n, sample_message)
-```
+Derived from the same Block 1 grouping (dedicated Block 2 query not run).
 
-**Not captured.**
+| SQLSTATE | n (30d) | Where |
+|---|---:|---|
+| 57014 | 11 | `purchase_bill_save` only — not dashboard/search (`logError` never fires there) |
+| 23505 | **0** | — |
+| 23514 | 2 | `entity_soft_delete_sale_returns` / `stock_not_negative` |
+| 42501 | **0** | — |
+| 23503 | 42 | hard-delete FK (customers / suppliers / employees) |
+| 21000 | 34 | `entity_hard_delete_purchase_bills` missing WHERE |
+| P0001 | 10 | stock-negative RAISE on purchase soft-delete + sale-return trigger |
 
 ### Block 3 — Postgres log ERROR histogram (Dashboard, last 24 h)
 
@@ -284,7 +304,7 @@ Do not DROP in Phase 1–4. Phase 5 must re-check Recycle Bin / `deleted_at IS N
 
 | ID | Item | Owner when unblocked | Blocks Phase 2? |
 |---|---|---|---|
-| RS-1 | Paste block 0–5 results into this doc (Block 0 + Appendix B captured 2026-09-02; blocks 1–5 still open) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
+| RS-1 | Paste block 0–5 results into this doc (Blocks 0–2 + Appendix B captured 2026-09-02; blocks 3–5 still open) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
 | RS-2 | If block 3 shows a single repeating `ERROR`, open a dedicated correctness issue | — | **No**, unless it is a money/stock write loop |
 | RS-3 | Re-check `xact_rollback` rate after Phases 2–4 deploy (same script, new window) | Phase 6 | No |
 | RS-4 | Zero new `57014` for a week of production logs — overall programme check | After all phases | No |
