@@ -15,6 +15,7 @@ import {
   recordSaleReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { parsePurchaseBillDeleteResult } from "@/utils/purchaseBillDeleteResult";
 import {
   formatSaleRestoreFindHint,
   friendlySaleNumberRestoreError,
@@ -50,8 +51,10 @@ export interface StockDependency {
 }
 
 export type SoftDeleteOptions = {
-  /** Called after purchase bill delete with zero-stock product count (review hint). */
+  /** Called after purchase bill delete with leftover zero-stock existing products (review hint). */
   onPurchaseBillZeroStock?: (count: number) => void;
+  /** Called after purchase bill delete with count of new product masters recycled. */
+  onPurchaseBillNewProductsDeleted?: (count: number) => void;
   /** Called after sale soft-delete with stock qty restored to product_variants. */
   onSaleStockRestored?: (info: {
     qtyRestored: number;
@@ -92,9 +95,12 @@ export function useSoftDelete() {
             p_user_id: user.id,
           });
           if (pbError) throw pbError;
-          const zeroStock = Number(data ?? 0);
-          if (zeroStock > 0) {
-            options?.onPurchaseBillZeroStock?.(zeroStock);
+          const parsed = parsePurchaseBillDeleteResult(data);
+          if (parsed.autoDeletedProducts > 0) {
+            options?.onPurchaseBillNewProductsDeleted?.(parsed.autoDeletedProducts);
+          }
+          if (parsed.zeroStockRemaining > 0) {
+            options?.onPurchaseBillZeroStock?.(parsed.zeroStockRemaining);
           }
           break;
         }
@@ -208,11 +214,15 @@ export function useSoftDelete() {
   ) => {
     let successCount = 0;
     let totalZeroStockProducts = 0;
+    let totalNewProductsDeleted = 0;
     for (const id of ids) {
       if (entity === "purchase_bills") {
         const ok = await softDelete(entity, id, {
           onPurchaseBillZeroStock: (n) => {
             totalZeroStockProducts += n;
+          },
+          onPurchaseBillNewProductsDeleted: (n) => {
+            totalNewProductsDeleted += n;
           },
         });
         if (ok) successCount++;
@@ -220,6 +230,9 @@ export function useSoftDelete() {
         const success = await softDelete(entity, id);
         if (success) successCount++;
       }
+    }
+    if (entity === "purchase_bills" && totalNewProductsDeleted > 0) {
+      options?.onPurchaseBillNewProductsDeleted?.(totalNewProductsDeleted);
     }
     if (entity === "purchase_bills" && totalZeroStockProducts > 0) {
       options?.onPurchaseBillZeroStock?.(totalZeroStockProducts);

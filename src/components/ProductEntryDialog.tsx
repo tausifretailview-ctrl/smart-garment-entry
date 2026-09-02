@@ -181,6 +181,8 @@ interface ProductEntryDialogProps {
   initialBarcode?: string;
   /** Close dialog and add the existing master product to the bill (PurchaseEntry). */
   onUseExistingProduct?: (payload: UseExistingProductPayload) => void;
+  /** Tag the new master so purchase-bill delete can recycle it when it has no other history. */
+  createdInPurchase?: boolean;
 }
 
 export type { UseExistingProductPayload };
@@ -466,6 +468,7 @@ export const ProductEntryDialog = ({
   mobileERPMode,
   initialBarcode = "",
   onUseExistingProduct,
+  createdInPurchase = false,
 }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2207,6 +2210,7 @@ export const ProductEntryDialog = ({
         sale_discount_value: formData.default_sale_discount || null,
         status: formData.status,
         organization_id: currentOrganization.id,
+        created_in_purchase: createdInPurchase === true,
         requires_imei: mobileERPMode?.enabled ? formData.requires_imei !== false : true,
         // In roll-wise MTR mode, no size group is used — force null to avoid stale FK
         size_group_id: (rollWiseMtrEnabled && formData.uom === 'MTR')

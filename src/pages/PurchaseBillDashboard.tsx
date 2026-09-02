@@ -928,9 +928,13 @@ const PurchaseBillDashboard = () => {
     setDeletingBill(billToDelete.id);
     try {
       let zeroStockProductCount = 0;
+      let newProductsDeleted = 0;
       const success = await softDelete("purchase_bills", billToDelete.id, {
         onPurchaseBillZeroStock: (count) => {
           zeroStockProductCount = count;
+        },
+        onPurchaseBillNewProductsDeleted: (count) => {
+          newProductsDeleted = count;
         },
       });
       if (!success) throw new Error("Failed to delete purchase bill");
@@ -940,10 +944,17 @@ const PurchaseBillDashboard = () => {
         description: "Purchase bill moved to recycle bin",
       });
 
+      if (newProductsDeleted > 0) {
+        toast({
+          title: "New product master removed",
+          description: `${newProductsDeleted} product(s) created only on this bill (no other history) were moved to Recycle Bin with the bill.`,
+        });
+      }
+
       if (zeroStockProductCount > 0) {
         toast({
-          title: "Products at zero stock",
-          description: `${zeroStockProductCount} product(s) from this bill are now at 0 stock. Product master is kept — review Inventory → Orphaned Products before cleaning up.`,
+          title: "Existing products kept",
+          description: `${zeroStockProductCount} existing product(s) from this bill are now at 0 stock. Product master is kept because it has previous history. Review Inventory → Orphaned Products if you still want to clean up.`,
         });
       }
 
@@ -1109,9 +1120,13 @@ const PurchaseBillDashboard = () => {
     try {
       const billsToDelete = Array.from(selectedBills);
       let zeroStockProductCount = 0;
+      let newProductsDeleted = 0;
       const count = await bulkSoftDelete("purchase_bills", billsToDelete, {
         onPurchaseBillZeroStock: (n) => {
           zeroStockProductCount = n;
+        },
+        onPurchaseBillNewProductsDeleted: (n) => {
+          newProductsDeleted = n;
         },
       });
 
@@ -1120,10 +1135,17 @@ const PurchaseBillDashboard = () => {
         description: `${count} purchase bill(s) moved to recycle bin`,
       });
 
+      if (newProductsDeleted > 0) {
+        toast({
+          title: "New product master removed",
+          description: `${newProductsDeleted} product(s) created only on these bills (no other history) were moved to Recycle Bin with the bills.`,
+        });
+      }
+
       if (zeroStockProductCount > 0) {
         toast({
-          title: "Products at zero stock",
-          description: `${zeroStockProductCount} product(s) across deleted bills are now at 0 stock. Product master is kept — review Inventory → Orphaned Products.`,
+          title: "Existing products kept",
+          description: `${zeroStockProductCount} existing product(s) across deleted bills are now at 0 stock. Product master is kept because it has previous history.`,
         });
       }
 

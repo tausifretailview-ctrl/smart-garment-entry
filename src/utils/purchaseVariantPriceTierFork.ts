@@ -471,6 +471,7 @@ async function forkProductAndVariantForTier(args: {
         default_pur_price: incomingPurPrice,
         default_sale_price: incomingSalePrice,
         status: "active",
+        created_in_purchase: true,
       })
       .select("id")
       .single();
