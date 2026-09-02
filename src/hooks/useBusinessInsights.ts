@@ -82,6 +82,24 @@ export type LowStockAlertRow = {
   primary_supplier: string | null;
 };
 
+export type ReorderAnalysisRow = {
+  variant_id: string;
+  product_id: string;
+  product_name: string;
+  brand: string | null;
+  category: string | null;
+  size: string | null;
+  color: string | null;
+  barcode: string | null;
+  current_stock: number;
+  avg_daily_sales: number;
+  days_of_stock_left: number | null;
+  last_purchase_date: string | null;
+  primary_supplier_id: string | null;
+  primary_supplier: string | null;
+  suggested_reorder_qty: number;
+};
+
 export type CategoryPerformanceRow = {
   category: string;
   product_count: number;
@@ -199,6 +217,28 @@ export function useLowStockAlerts(
       });
       if (error) throw error;
       return (data ?? []) as LowStockAlertRow[];
+    },
+    staleTime: INSIGHTS_STALE_TIME,
+    enabled: !!orgId && enabled,
+  });
+}
+
+export function useReorderAnalysis(
+  orgId: string | undefined,
+  periodDays: number,
+  category: string | null,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: ["insights-reorder-analysis", orgId, periodDays, category],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_reorder_analysis", {
+        p_org_id: orgId!,
+        p_period_days: periodDays,
+        p_category: category,
+      });
+      if (error) throw error;
+      return (data ?? []) as ReorderAnalysisRow[];
     },
     staleTime: INSIGHTS_STALE_TIME,
     enabled: !!orgId && enabled,

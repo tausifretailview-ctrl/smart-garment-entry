@@ -10013,6 +10013,26 @@ export type Database = {
         Returns: Json
       }
       get_quotation_summary: { Args: { p_org_id: string }; Returns: Json }
+      get_reorder_analysis: {
+        Args: { p_category?: string; p_org_id: string; p_period_days?: number }
+        Returns: {
+          avg_daily_sales: number
+          barcode: string
+          brand: string
+          category: string
+          color: string
+          current_stock: number
+          days_of_stock_left: number
+          last_purchase_date: string
+          primary_supplier: string
+          primary_supplier_id: string
+          product_id: string
+          product_name: string
+          size: string
+          suggested_reorder_qty: number
+          variant_id: string
+        }[]
+      }
       get_sale_items_gross_batch: {
         Args: { p_sale_ids: string[] }
         Returns: {
