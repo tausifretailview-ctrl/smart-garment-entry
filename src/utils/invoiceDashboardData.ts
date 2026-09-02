@@ -288,8 +288,10 @@ async function countFilteredInvoiceSales(
   filters: InvoiceDashboardFilters,
   searchResolution: InvoiceSearchResolution | null = null,
 ): Promise<number> {
+  // Phase 4: estimated = exact on small sets, planner on large (avoids
+  // pgrst_source_count doubling every search page). UI still shows a number.
   let query: any = applyInvoiceDashboardFilters(
-    client.from("sales").select("id", { count: "exact", head: true }),
+    client.from("sales").select("id", { count: "estimated", head: true }),
     filters,
   );
   const resolution =
