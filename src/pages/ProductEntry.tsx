@@ -28,6 +28,7 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import { ensureFreshGeneratedBarcode, insertGeneratedProductVariant, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
   resolveGarmentGstForLine,
@@ -1444,27 +1445,31 @@ const ProductEntry = () => {
 
               if (updateError) throw updateError;
             } else {
-              // Insert new variant
-              const { error: insertError } = await supabase
-                .from("product_variants")
-                .insert({
-                  product_id: editingProductId,
-                  organization_id: currentOrganization.id,
-                  color: v.color || null,
-                  size: v.size,
-                  pur_price: v.pur_price,
-                  sale_price: v.sale_price,
-                  mrp: v.mrp,
-                  barcode: v.barcode,
-                  barcode_source: classifyBarcodeSource(v.barcode, {
-                    organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
-                  }).source,
-                  active: v.active,
-                  opening_qty: v.opening_qty,
-                  stock_qty: v.opening_qty,
-                });
-
-              if (insertError) throw insertError;
+              const barcodeSource = classifyBarcodeSource(v.barcode, {
+                organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+              }).source;
+              const variantPayload = {
+                product_id: editingProductId,
+                organization_id: currentOrganization.id,
+                color: v.color || null,
+                size: v.size,
+                pur_price: v.pur_price,
+                sale_price: v.sale_price,
+                mrp: v.mrp,
+                barcode: v.barcode,
+                barcode_source: barcodeSource,
+                active: v.active,
+                opening_qty: v.opening_qty,
+                stock_qty: v.opening_qty,
+              };
+              if (barcodeSource === "generated") {
+                await insertGeneratedProductVariant(variantPayload, "id");
+              } else {
+                const { error: insertError } = await supabase
+                  .from("product_variants")
+                  .insert(variantPayload);
+                if (insertError) throw insertError;
+              }
             }
           }
         }
@@ -1549,27 +1554,38 @@ const ProductEntry = () => {
               if (updateError) throw updateError;
               if (updated) insertedVariants.push(updated);
             } else {
-              // Insert new variant
-              const { data: inserted, error: insertError } = await supabase
-                .from("product_variants")
-                .insert({
-                  product_id: productData.id,
-                  organization_id: currentOrganization.id,
-                  color: v.color || null,
-                  size: v.size,
-                  pur_price: v.pur_price,
-                  sale_price: v.sale_price,
-                  mrp: v.mrp,
-                  barcode: v.barcode,
-                  active: v.active,
-                  opening_qty: v.opening_qty,
-                  stock_qty: v.opening_qty,
-                })
-                .select()
-                .single();
+              const barcodeSource = classifyBarcodeSource(v.barcode, {
+                organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,
+              }).source;
+              const variantPayload = {
+                product_id: productData.id,
+                organization_id: currentOrganization.id,
+                color: v.color || null,
+                size: v.size,
+                pur_price: v.pur_price,
+                sale_price: v.sale_price,
+                mrp: v.mrp,
+                barcode: v.barcode,
+                barcode_source: barcodeSource,
+                active: v.active,
+                opening_qty: v.opening_qty,
+                stock_qty: v.opening_qty,
+              };
+              if (barcodeSource === "generated") {
+                const { data: inserted } = await insertGeneratedProductVariant<
+                  typeof variantPayload & { id: string; opening_qty: number }
+                >(variantPayload, "*");
+                if (inserted) insertedVariants.push(inserted);
+              } else {
+                const { data: inserted, error: insertError } = await supabase
+                  .from("product_variants")
+                  .insert(variantPayload)
+                  .select()
+                  .single();
 
-              if (insertError) throw insertError;
-              if (inserted) insertedVariants.push(inserted);
+                if (insertError) throw insertError;
+                if (inserted) insertedVariants.push(inserted);
+              }
             }
           }
 
@@ -1766,7 +1782,8 @@ const ProductEntry = () => {
 
             // Generate barcode if not provided
             let barcode = row.barcode?.toString().trim() || '';
-            if (!barcode) {
+            const barcodeWasGenerated = !barcode;
+            if (barcodeWasGenerated) {
               const { data: barcodeData } = await supabase.rpc(
                 'generate_next_barcode',
                 { p_organization_id: currentOrganization.id }
@@ -1787,6 +1804,7 @@ const ProductEntry = () => {
               stock_qty: openingQty,
               opening_qty: openingQty,
               active: true,
+              ...(barcodeWasGenerated ? { barcode_source: "generated" as const } : {}),
             });
 
             existingSizes.add(size.toLowerCase());
@@ -1794,12 +1812,52 @@ const ProductEntry = () => {
 
           // Batch insert variants
           if (variantsToInsert.length > 0) {
+            const claimedGenerated = new Set<string>();
+            for (const row of variantsToInsert) {
+              if (row.barcode_source !== "generated") continue;
+              row.barcode = await ensureFreshGeneratedBarcode(
+                currentOrganization.id,
+                String(row.barcode || ""),
+                claimedGenerated,
+              );
+            }
             const { data: insertedVariants, error: variantError } = await supabase
               .from('product_variants')
               .insert(variantsToInsert)
               .select('id, opening_qty, size');
 
-            if (variantError) {
+            if (variantError && variantsToInsert.some((r) => r.barcode_source === "generated") && isBarcodeCollisionError(variantError)) {
+              const retryClaimed = new Set<string>();
+              for (const row of variantsToInsert) {
+                if (row.barcode_source !== "generated") continue;
+                row.barcode = await ensureFreshGeneratedBarcode(
+                  currentOrganization.id,
+                  String(row.barcode || ""),
+                  retryClaimed,
+                );
+              }
+              const retry = await supabase
+                .from('product_variants')
+                .insert(variantsToInsert)
+                .select('id, opening_qty, size');
+              if (retry.error) {
+                errorCount += variantsToInsert.length;
+              } else {
+                variantsCreated += retry.data?.length || 0;
+                const stockMovements = (retry.data || [])
+                  .filter(v => v.opening_qty > 0)
+                  .map(v => ({
+                    organization_id: currentOrganization.id,
+                    variant_id: v.id,
+                    movement_type: 'opening',
+                    quantity: v.opening_qty,
+                    notes: `Opening stock from Excel import - ${v.size}`,
+                  }));
+                if (stockMovements.length > 0) {
+                  await supabase.from('stock_movements').insert(stockMovements);
+                }
+              }
+            } else if (variantError) {
               errorCount += variantsToInsert.length;
             } else {
               variantsCreated += insertedVariants?.length || 0;
