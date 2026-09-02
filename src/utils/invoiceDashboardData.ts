@@ -3,6 +3,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { invoiceOutstandingAmount } from "@/utils/recordInvoiceDashboardCashPayment";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
+import {
+  INVOICE_LINE_ITEM_SALE_TYPES,
+  buildLineItemSaleSearchArgs,
+  fetchLineItemMatchingSaleIds,
+} from "@/utils/lineItemSaleSearch";
 
 import {
   fetchSaleReceiptSplitsForInvoices,
@@ -164,33 +169,22 @@ async function fetchSaleIdsMatchingLineItems(
       meta: { lineItemCapped: false, lineItemCap: itemLimit, lineItemCount: 0 },
     };
   }
-  // RPC expects date; saleDateFilter may carry ISO timestamps from the dashboard.
-  const dateFrom = saleDateFilter.start ? saleDateFilter.start.slice(0, 10) : null;
-  const dateTo = saleDateFilter.end ? saleDateFilter.end.slice(0, 10) : null;
-  const { data, error } = await client.rpc("search_invoice_sale_ids", {
-    p_org_id: organizationId,
-    p_search: term,
-    p_date_from: dateFrom,
-    p_date_to: dateTo,
-    p_limit: itemLimit,
-  });
-  if (error) throw error;
-  const saleIds = (data ?? [])
-    .map((r: { sale_id: string | null }) => r.sale_id)
-    .filter((id: string | null): id is string => Boolean(id));
-  return {
-    saleIds,
-    meta: {
-      lineItemCapped: saleIds.length >= itemLimit,
-      lineItemCap: itemLimit,
-      lineItemCount: saleIds.length,
-    },
-  };
+  return fetchLineItemMatchingSaleIds(
+    client,
+    buildLineItemSaleSearchArgs({
+      organizationId,
+      search: term,
+      dateFrom: saleDateFilter.start,
+      dateTo: saleDateFilter.end,
+      limit: itemLimit,
+      saleTypes: INVOICE_LINE_ITEM_SALE_TYPES,
+    }),
+  );
 }
 
 /**
  * Resolved once per dashboard fetch so count + page + stats pages share one
- * search_invoice_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
+ * search_line_item_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
  * line-item search on header hits (item 1 excluded — would drop product matches).
  */
 type InvoiceSearchResolution = {
@@ -989,7 +983,7 @@ export async function fetchInvoiceDashboardPage(
   const to = from + options.pageSize - 1;
   const select = reconcile ? INVOICE_DASHBOARD_SALES_SELECT : INVOICE_DASHBOARD_LIST_SELECT;
 
-  // Resolve search once — count + page previously each ran search_invoice_sale_ids.
+  // Resolve search once — count + page previously each ran the line-item search RPC.
   const searchResolution = await resolveInvoiceSearch(client, filters);
 
   // Match export/unified fetch: range before search filters (not range after .or()).

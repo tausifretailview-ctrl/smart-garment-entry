@@ -5378,6 +5378,7 @@ export type Database = {
           line_total: number
           mrp: number
           net_after_discount: number
+          organization_id: string
           per_qty_net_amount: number
           product_id: string
           product_name: string
@@ -5404,6 +5405,7 @@ export type Database = {
           line_total: number
           mrp: number
           net_after_discount?: number
+          organization_id?: string
           per_qty_net_amount?: number
           product_id: string
           product_name: string
@@ -5430,6 +5432,7 @@ export type Database = {
           line_total?: number
           mrp?: number
           net_after_discount?: number
+          organization_id?: string
           per_qty_net_amount?: number
           product_id?: string
           product_name?: string
@@ -5441,6 +5444,20 @@ export type Database = {
           variant_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "sale_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
           {
             foreignKeyName: "sale_items_sale_id_fkey"
             columns: ["sale_id"]
@@ -10648,6 +10665,19 @@ export type Database = {
           p_date_to?: string
           p_limit?: number
           p_org_id: string
+          p_search: string
+        }
+        Returns: {
+          sale_id: string
+        }[]
+      }
+      search_line_item_sale_ids: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_limit?: number
+          p_org_id: string
+          p_sale_types: string[]
           p_search: string
         }
         Returns: {

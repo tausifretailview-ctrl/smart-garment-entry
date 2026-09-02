@@ -10,6 +10,11 @@ import {
   shouldUnionSaleItemsForPosSearch,
 } from "@/utils/posDashboardSearch";
 import {
+  POS_LINE_ITEM_SALE_TYPES,
+  buildLineItemSaleSearchArgs,
+  fetchLineItemMatchingSaleIds,
+} from "@/utils/lineItemSaleSearch";
+import {
   fetchSaleReceiptVoucherRowsForInvoices,
   buildSaleReceiptModeAmountMap,
   buildSaleReceiptSplitMap,
@@ -714,32 +719,22 @@ async function fetchPosSaleIdsMatchingLineItems(
   const startIso = localDayStartUtcIso(bounded.startDate);
   const endIso = localDayEndUtcIso(bounded.endDate);
 
-  const { data, error } = await (client as any)
-    .rpc("search_pos_sale_ids", {
-      p_org_id: organizationId,
-      p_search: searchStr,
-      p_date_from: startIso ? startIso.slice(0, 10) : null,
-      p_date_to: endIso ? endIso.slice(0, 10) : null,
-      p_limit: POS_LINE_ITEM_SEARCH_CAP,
-    });
-
-  if (error) {
-    console.error("search_pos_sale_ids RPC failed:", error);
+  try {
+    return await fetchLineItemMatchingSaleIds(
+      client,
+      buildLineItemSaleSearchArgs({
+        organizationId,
+        search: searchStr,
+        dateFrom: startIso,
+        dateTo: endIso,
+        limit: POS_LINE_ITEM_SEARCH_CAP,
+        saleTypes: POS_LINE_ITEM_SALE_TYPES,
+      }),
+    );
+  } catch (error) {
+    console.error("search_line_item_sale_ids RPC failed:", error);
     throw error;
   }
-
-  const rows = (data || []) as { sale_id: string }[];
-  const saleIds = rows.map((r) => r.sale_id).filter(Boolean);
-  const capped = saleIds.length >= POS_LINE_ITEM_SEARCH_CAP;
-
-  return {
-    saleIds,
-    meta: {
-      lineItemCapped: capped,
-      lineItemCap: POS_LINE_ITEM_SEARCH_CAP,
-      lineItemCount: saleIds.length,
-    },
-  };
 }
 
 
