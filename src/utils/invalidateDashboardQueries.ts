@@ -17,7 +17,7 @@ export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
 }
 
-/** Status bar stock + receivables tile (v_dashboard_stock_summary / v_dashboard_receivables). */
+/** Status bar stock + receivables tile (get_dashboard_stock_summary / v_dashboard_receivables). */
 export function invalidateStatusBarSummary(queryClient: QueryClient, organizationId?: string) {
   void queryClient.invalidateQueries({
     queryKey: organizationId ? ["statusbar-summary", organizationId] : ["statusbar-summary"],

@@ -22,9 +22,17 @@ describe("Recycle Bin Insights chrome", () => {
     expect(page).not.toContain('variant="destructive" className="ml-1 h-5');
   });
 
-  it("fills the dashboard shell like Insights", () => {
+  it("fills the dashboard shell like Insights and hides top chrome", () => {
     const layout = readFileSync(resolve(repoRoot, "src/lib/entryPageLayout.ts"), "utf8");
     expect(layout).toContain("recycle-bin");
     expect(layout).toMatch(/FILL_HEIGHT_DASHBOARD_PATH[\s\S]*recycle-bin/);
+    expect(layout).toMatch(/SIDEBAR_ONLY_WORKSPACE_PATH[\s\S]*recycle-bin/);
+  });
+
+  it("requires permanent-delete password before hard delete", () => {
+    const page = readFileSync(resolve(repoRoot, "src/pages/RecycleBin.tsx"), "utf8");
+    expect(page).toContain('RECYCLE_BIN_PERMANENT_DELETE_PASSWORD = "admin@123"');
+    expect(page).toContain("Enter password to permanently delete");
+    expect(page).toContain("type=\"password\"");
   });
 });

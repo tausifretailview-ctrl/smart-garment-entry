@@ -9715,6 +9715,28 @@ export type Database = {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
       }
+      get_dashboard_purchase_summary: {
+        Args: { p_from_day?: string; p_org_id: string }
+        Returns: {
+          bill_count: number
+          organization_id: string
+          purchase_day: string
+          total_items_purchased: number
+          total_paid_amount: number
+          total_pending_amount: number
+          total_purchase_amount: number
+        }[]
+      }
+      get_dashboard_stock_summary: {
+        Args: { p_org_id: string }
+        Returns: {
+          organization_id: string
+          total_sale_value: number
+          total_stock_qty: number
+          total_stock_value: number
+          total_variant_count: number
+        }[]
+      }
       get_deleted_cn_adjust_without_sra_digest: { Args: never; Returns: Json }
       get_erp_dashboard_stats: {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
