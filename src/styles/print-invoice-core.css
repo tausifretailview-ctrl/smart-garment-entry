@@ -622,6 +622,11 @@
     font-size: 10px !important;
   }
 
+  .invoice-print-source.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
+  .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm {
+    font-size: 11px !important;
+  }
+
   /* Trendzo POS — sans-serif layout; do not inherit global thermal monospace bold */
   .trendzo-pos-thermal-receipt-80mm.thermal-print-80mm,
   .trendzo-pos-thermal-receipt-80mm.thermal-receipt-container {
@@ -673,6 +678,31 @@
     height: auto !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* Trendzo: keep CODE128 + UPI QR from stretching (global max-height:none / height:auto) */
+  .print-dialog .trendzo-pos-thermal-receipt-80mm .tz-invoice-barcode,
+  .trendzo-pos-thermal-receipt-80mm .tz-invoice-barcode {
+    max-height: 14mm !important;
+    overflow: hidden !important;
+  }
+
+  .print-dialog .trendzo-pos-thermal-receipt-80mm .tz-barcode-svg,
+  .print-dialog .trendzo-pos-thermal-receipt-80mm .tz-invoice-barcode svg,
+  .trendzo-pos-thermal-receipt-80mm .tz-barcode-svg,
+  .trendzo-pos-thermal-receipt-80mm .tz-invoice-barcode svg {
+    height: 28px !important;
+    max-height: 28px !important;
+    width: auto !important;
+    max-width: 68mm !important;
+  }
+
+  .print-dialog .trendzo-pos-thermal-receipt-80mm .tz-upi-qr-img,
+  .trendzo-pos-thermal-receipt-80mm .tz-upi-qr-img {
+    width: 28mm !important;
+    height: 28mm !important;
+    max-width: 28mm !important;
+    max-height: 28mm !important;
   }
 
   /* Credit note / sale return thermal — column headers must stay bold black */
