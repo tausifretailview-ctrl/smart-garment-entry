@@ -1,6 +1,7 @@
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFilters";
+import { hasMobilePosWhatsAppPhone } from "@/utils/mobilePosWhatsAppMessage";
 
 type SalesRow = Database["public"]["Tables"]["sales"]["Row"];
 
@@ -32,7 +33,7 @@ export const SALE_INVOICE_PREVIEW_FIELDS = [
 
 /** Literal so supabase-js can type the query. Do not build this with .join(). */
 export const SALE_INVOICE_PREVIEW_SELECT =
-  "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_applied, customers:customer_id (gst_number)" as const;
+  "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_applied, customers:customer_id (gst_number, phone)" as const;
 
 export type SaleInvoicePreviewRow = {
   id: string;
@@ -57,7 +58,7 @@ export type SaleInvoicePreviewRow = {
   credit_amount?: number | null;
   salesman?: string | null;
   notes?: string | null;
-  customers?: { gst_number?: string | null } | null;
+  customers?: { gst_number?: string | null; phone?: string | null } | null;
   sale_items: Array<{
     product_name: string;
     size?: string | null;
@@ -150,6 +151,27 @@ export async function fetchSalePaymentHistory(
   return (data || []) as SalePaymentHistoryRow[];
 }
 
+export function nestedCustomerPhone(
+  customers:
+    | { phone?: string | null }
+    | { phone?: string | null }[]
+    | null
+    | undefined,
+): string | null {
+  if (!customers) return null;
+  const row = Array.isArray(customers) ? customers[0] : customers;
+  const phone = row?.phone?.trim();
+  return phone || null;
+}
+
+export function resolveSaleWhatsAppPhone(sale: {
+  customer_phone?: string | null;
+  customers?: { phone?: string | null } | { phone?: string | null }[] | null;
+}): string | null {
+  const raw = sale.customer_phone?.trim() || nestedCustomerPhone(sale.customers) || "";
+  return hasMobilePosWhatsAppPhone(raw) ? raw : null;
+}
+
 export function buildSaleWhatsAppMessage(sale: {
   id: string;
   sale_number: string;
@@ -157,5 +179,11 @@ export function buildSaleWhatsAppMessage(sale: {
   customer_name?: string | null;
 }): string {
   const invoiceUrl = `https://app.inventoryshop.in/invoice/view/${sale.id}`;
-  return `Invoice ${sale.sale_number}%0AAmount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}%0ACustomer: ${sale.customer_name || "Walk-in"}%0A%0AView: ${invoiceUrl}`;
+  return [
+    `Invoice ${sale.sale_number}`,
+    `Amount: ₹${(sale.net_amount || 0).toLocaleString("en-IN")}`,
+    `Customer: ${sale.customer_name || "Walk-in"}`,
+    "",
+    `View: ${invoiceUrl}`,
+  ].join("\n");
 }

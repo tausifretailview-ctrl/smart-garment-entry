@@ -10,7 +10,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { MobileModuleNavStrip } from "@/components/mobile/MobileModuleNavStrip";
 import { MobileSalePrintPreviewDialog } from "@/components/mobile/MobileSalePrintPreviewDialog";
 import { MobileInvoiceDetail } from "@/components/mobile/MobileInvoiceDetail";
-import { buildSaleWhatsAppMessage } from "@/utils/mobileInvoicePreviewData";
+import { buildSaleWhatsAppMessage, resolveSaleWhatsAppPhone } from "@/utils/mobileInvoicePreviewData";
 import { MobileDateFilterChips } from "@/components/mobile/MobileDateFilterChips";
 import { MOBILE_HOME_SALE_TYPES, mobileSalesDateBounds } from "@/lib/mobileShell";
 import { formatTimestampIST } from "@/lib/localDayBounds";
@@ -22,12 +22,15 @@ import { Search, TrendingUp, FileText, Eye, MessageCircle, Download, ShoppingCar
 import { format, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
+import { toast } from "sonner";
 import { MOBILE_POS_PATH } from "@/lib/mobileShell";
 import { Button } from "@/components/ui/button";
 
 export default function MobileSalesHub() {
   const { currentOrganization } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
+  const { sendWhatsApp } = useWhatsAppSend();
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateMobileSalesHubQueries(queryClient), [queryClient])
@@ -109,7 +112,7 @@ export default function MobileSalesHub() {
       return withMobileQueryTimeout(async () => {
         let q = supabase
           .from("sales")
-          .select("id, sale_number, sale_date, created_at, customer_name, customer_id, net_amount, paid_amount, payment_status, sale_type, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, payment_method, salesman, notes, customer_address, customer_phone, customers(gst_number)")
+          .select("id, sale_number, sale_date, created_at, customer_name, customer_id, net_amount, paid_amount, payment_status, sale_type, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, payment_method, salesman, notes, customer_address, customer_phone, customers(gst_number, phone)")
           .eq("organization_id", currentOrganization!.id)
           .is("deleted_at", null)
           .eq("is_cancelled", false)
@@ -158,6 +161,22 @@ export default function MobileSalesHub() {
     setPreviewSaleId(sale.id);
     setPreviewHint({ sale_type: sale.sale_type, sale_number: sale.sale_number });
     setPreviewOpen(true);
+  };
+
+  const handleSendWhatsApp = (sale: {
+    id: string;
+    sale_number: string;
+    net_amount: number;
+    customer_name?: string | null;
+    customer_phone?: string | null;
+    customers?: { phone?: string | null } | { phone?: string | null }[] | null;
+  }) => {
+    const phone = resolveSaleWhatsAppPhone(sale);
+    if (!phone) {
+      toast.error("Add a customer mobile number to send on WhatsApp");
+      return;
+    }
+    void sendWhatsApp(phone, buildSaleWhatsAppMessage(sale));
   };
 
   return (
@@ -322,7 +341,7 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    window.open(`https://wa.me/?text=${buildSaleWhatsAppMessage(sale)}`, "_blank");
+                    handleSendWhatsApp(sale);
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-emerald-600 active:bg-emerald-50 transition-colors touch-manipulation"
                 >
