@@ -183,6 +183,7 @@ export const OwnerSalesBillDetail = ({ billId, onBack }: Props) => {
 
       <MobileSalePrintPreviewDialog
         saleId={billId}
+        saleHint={bill ? { sale_type: bill.sale_type, sale_number: bill.sale_number } : null}
         open={previewOpen}
         onOpenChange={setPreviewOpen}
       />

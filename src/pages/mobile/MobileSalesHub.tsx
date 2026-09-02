@@ -40,6 +40,7 @@ export default function MobileSalesHub() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [previewSaleId, setPreviewSaleId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewHint, setPreviewHint] = useState<{ sale_type?: string | null; sale_number?: string | null } | null>(null);
 
   const getDateRange = () => {
     const now = new Date();
@@ -153,8 +154,9 @@ export default function MobileSalesHub() {
     setDetailOpen(true);
   };
 
-  const handleOpenPrint = (saleId: string) => {
-    setPreviewSaleId(saleId);
+  const handleOpenPrint = (sale: { id: string; sale_type?: string | null; sale_number?: string | null }) => {
+    setPreviewSaleId(sale.id);
+    setPreviewHint({ sale_type: sale.sale_type, sale_number: sale.sale_number });
     setPreviewOpen(true);
   };
 
@@ -330,7 +332,7 @@ export default function MobileSalesHub() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleOpenPrint(sale.id);
+                    handleOpenPrint(sale);
                   }}
                   className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-violet-600 active:bg-violet-50 transition-colors touch-manipulation"
                 >
@@ -354,10 +356,14 @@ export default function MobileSalesHub() {
 
       <MobileSalePrintPreviewDialog
         saleId={previewSaleId}
+        saleHint={previewHint}
         open={previewOpen}
         onOpenChange={(open) => {
           setPreviewOpen(open);
-          if (!open) setPreviewSaleId(null);
+          if (!open) {
+            setPreviewSaleId(null);
+            setPreviewHint(null);
+          }
         }}
       />
     </div>

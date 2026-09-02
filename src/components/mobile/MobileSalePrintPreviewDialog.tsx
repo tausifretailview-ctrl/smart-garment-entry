@@ -6,23 +6,40 @@ import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchSaleForInvoicePreview } from "@/utils/mobileInvoicePreviewData";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
+import {
+  resolvePosThermalPaper,
+  resolveSalePreviewPrintConfig,
+  toInvoiceWrapperFormat,
+  type PosBillFormat,
+} from "@/utils/invoicePrintFormat";
+
+type SaleHint = {
+  sale_type?: string | null;
+  sale_number?: string | null;
+};
 
 type Props = {
   saleId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Lets the dialog pick POS vs Sale paper before the sale row finishes loading. */
+  saleHint?: SaleHint | null;
 };
 
-export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Props) {
+export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange, saleHint }: Props) {
   const { currentOrganization } = useOrganization();
   const { data: settings } = useSettings();
-  const [billFormat, setBillFormat] = useState<"a4" | "a5" | "a5-horizontal" | "thermal">("a4");
+  const [billFormat, setBillFormat] = useState<PosBillFormat>("thermal");
 
-  useEffect(() => {
-    const saleSettings = settings?.sale_settings as { bill_format?: string } | undefined;
-    const fmt = saleSettings?.bill_format || "a4";
-    setBillFormat(fmt as typeof billFormat);
-  }, [settings]);
+  const saleSettings = settings?.sale_settings as {
+    invoice_template?: string;
+    pos_invoice_template?: string;
+    show_mrp_column?: boolean;
+    show_hsn_column?: boolean;
+    pos_bill_format?: string;
+    sales_bill_format?: string;
+    invoice_paper_format?: string;
+  } | undefined;
 
   const { data: sale, isLoading, isError } = useQuery({
     queryKey: ["mobile-invoice-preview", currentOrganization?.id, saleId],
@@ -35,40 +52,61 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Pro
     retry: 1,
   });
 
-  const saleSettings = settings?.sale_settings as {
-    invoice_template?: string;
-    show_mrp_column?: boolean;
-    show_hsn_column?: boolean;
-    bill_format?: string;
-  } | undefined;
+  const previewConfig = useMemo(
+    () =>
+      resolveSalePreviewPrintConfig(
+        {
+          sale_type: sale?.sale_type ?? saleHint?.sale_type,
+          sale_number: sale?.sale_number ?? saleHint?.sale_number,
+        },
+        saleSettings,
+      ),
+    [sale?.sale_type, sale?.sale_number, saleHint?.sale_type, saleHint?.sale_number, saleSettings],
+  );
 
-  const invoiceTemplate = saleSettings?.invoice_template || "professional";
-  const wrapperFormat = billFormat === "a5" ? "a5-vertical" : billFormat;
+  useEffect(() => {
+    setBillFormat(previewConfig.paperFormat);
+  }, [previewConfig.paperFormat]);
+
+  const thermalPaper = resolvePosThermalPaper(
+    (settings as { bill_barcode_settings?: { direct_print_pos_paper?: string } } | null)
+      ?.bill_barcode_settings?.direct_print_pos_paper,
+  );
 
   const invoiceProps = useMemo(() => {
     if (!sale) return null;
+    const cashAmount = Number(sale.cash_amount || 0);
+    const upiAmount = Number(sale.upi_amount || 0);
+    const cardAmount = Number(sale.card_amount || 0);
+    const creditAmount = Number(sale.credit_amount || 0);
     return {
-      format: wrapperFormat as "a4" | "a5-vertical" | "a5-horizontal" | "thermal",
+      format: toInvoiceWrapperFormat(billFormat) as
+        | "a4"
+        | "a5-vertical"
+        | "a5-horizontal"
+        | "thermal",
       billNo: sale.sale_number,
       date: new Date(sale.sale_date),
       customerName: sale.customer_name,
       customerAddress: sale.customer_address || "",
       customerMobile: sale.customer_phone || "",
       customerGSTIN: sale.customers?.gst_number || "",
-      template: invoiceTemplate,
+      template: previewConfig.template,
+      thermalPaper,
+      documentType: previewConfig.documentType,
       showMRP: saleSettings?.show_mrp_column ?? false,
       showHSN: saleSettings?.show_hsn_column ?? true,
       items: sale.sale_items.map((item, index) => ({
         sr: index + 1,
         particulars: item.product_name,
-        size: item.size,
+        size: item.size || "",
         barcode: item.barcode || "",
         hsn: item.hsn_code || "",
-        sp: item.mrp,
-        mrp: item.mrp,
-        qty: item.quantity,
-        rate: item.unit_price,
-        total: item.line_total,
+        sp: item.mrp ?? item.unit_price ?? 0,
+        mrp: item.mrp ?? item.unit_price ?? 0,
+        qty: item.quantity || 0,
+        rate: item.unit_price || 0,
+        total: item.line_total || 0,
         color: item.color || item.products?.color || "",
         brand: item.products?.brand || "",
         style: item.products?.style || "",
@@ -80,11 +118,19 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Pro
       discount: (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
       saleReturnAdjust: sale.sale_return_adjust || 0,
       grandTotal: sale.net_amount,
+      roundOff: sale.round_off || 0,
       paymentMethod: sale.payment_method,
+      cashAmount,
+      cardAmount,
+      upiAmount,
+      creditAmount,
+      cashPaid: cashAmount,
+      upiPaid: upiAmount,
+      paidAmount: sale.paid_amount || 0,
       salesman: sale.salesman || "",
       notes: sale.notes || "",
     };
-  }, [sale, wrapperFormat, invoiceTemplate, saleSettings]);
+  }, [sale, billFormat, previewConfig.template, previewConfig.documentType, saleSettings, thermalPaper]);
 
   if (!open || !saleId) return null;
 
@@ -92,7 +138,9 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange }: Pro
     <PrintPreviewDialog
       open={open}
       onOpenChange={onOpenChange}
+      compactLayout
       defaultFormat={billFormat}
+      thermalPaper={thermalPaper}
       renderInvoice={(format) => {
         if (isLoading) {
           return (

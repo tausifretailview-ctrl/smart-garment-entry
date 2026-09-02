@@ -532,6 +532,7 @@ export default function MobilePosBilling() {
         </div>
         <MobileSalePrintPreviewDialog
           saleId={success.saleId}
+          saleHint={{ sale_type: "pos", sale_number: success.saleNumber }}
           open={previewOpen}
           onOpenChange={setPreviewOpen}
         />

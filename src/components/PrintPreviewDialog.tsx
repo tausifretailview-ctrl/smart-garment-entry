@@ -22,6 +22,7 @@ import { captureElementToPdfBlob } from '@/utils/invoiceElementToPdf';
 import { deliverPdfBlob } from '@/utils/mobileDocumentDelivery';
 import { toast } from 'sonner';
 import { waitForPrintReady } from '@/utils/printReady';
+import { cn } from '@/lib/utils';
 
 /** Map InvoiceWrapper format props to preview dialog radio values. */
 function normalizePreviewFormat(format: string): 'a4' | 'a5' | 'a5-horizontal' | 'thermal' {
@@ -29,6 +30,16 @@ function normalizePreviewFormat(format: string): 'a4' | 'a5' | 'a5-horizontal' |
   if (format === 'a5-horizontal') return 'a5-horizontal';
   if (format === 'thermal') return 'thermal';
   return 'a4';
+}
+
+function paperWidthMm(format: string, thermalPaper: '58mm' | '80mm'): number {
+  if (format === 'thermal') return thermalPaper === '58mm' ? 58 : 80;
+  if (format === 'a5') return 148;
+  return 210;
+}
+
+function mmToCssPx(mm: number): number {
+  return (mm / 25.4) * 96;
 }
 
 interface PrintPreviewDialogProps {
@@ -39,6 +50,8 @@ interface PrintPreviewDialogProps {
   /** 58mm vs 80mm when format is thermal (POS-58 vs standard roll). */
   thermalPaper?: '58mm' | '80mm';
   onPrint?: () => void;
+  /** Full-screen sheet + scale-to-width preview (mobile / Electron sale summary). */
+  compactLayout?: boolean;
 }
 
 export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
@@ -48,13 +61,18 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   defaultFormat = 'a4',
   thermalPaper = '80mm',
   onPrint,
+  compactLayout = false,
 }) => {
   const [selectedFormat, setSelectedFormat] = useState<string>(
     normalizePreviewFormat(defaultFormat),
   );
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingPdf, setIsSavingPdf] = useState(false);
+  const [previewScale, setPreviewScale] = useState(compactLayout ? 0.42 : 0.95);
+  const [sheetSize, setSheetSize] = useState({ width: 0, height: 0 });
   const printRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const scaleWrapRef = useRef<HTMLDivElement>(null);
   const isNative = useIsNativeApp();
 
   // Sync selectedFormat with defaultFormat when it changes (async settings load)
@@ -149,6 +167,36 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       if (timerId !== undefined) window.clearTimeout(timerId);
     };
   }, [open, selectedFormat]);
+
+  useEffect(() => {
+    if (!open) return;
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const updateScale = () => {
+      const paperPx = mmToCssPx(paperWidthMm(selectedFormat, thermalPaper));
+      const pad = compactLayout ? 12 : 24;
+      const available = Math.max(120, viewport.clientWidth - pad);
+      const maxScale = compactLayout ? 1 : 0.95;
+      setPreviewScale(Math.max(0.22, Math.min(maxScale, available / paperPx)));
+    };
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(viewport);
+    return () => ro.disconnect();
+  }, [open, selectedFormat, thermalPaper, compactLayout]);
+
+  useEffect(() => {
+    if (!open) return;
+    const el = printRef.current;
+    if (!el) return;
+    const measure = () => {
+      setSheetSize({ width: el.scrollWidth, height: el.scrollHeight });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open, selectedFormat, isLoading]);
 
   const getPageSize = () => {
     switch (selectedFormat) {
@@ -303,11 +351,17 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   const handleSaveOrSharePdf = async () => {
     if (!printRef.current || isLoading || isSavingPdf) return;
     setIsSavingPdf(true);
+    const wrap = scaleWrapRef.current;
+    const prevTransform = wrap?.style.transform ?? '';
     try {
+      if (wrap) wrap.style.transform = 'none';
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => resolve());
+      });
       const blob = await captureElementToPdfBlob(printRef.current, {
         pageFormat: getPdfPageFormat(),
         thermalPaper,
-        mobileOptimized: isNative || window.innerWidth < 768,
+        mobileOptimized: compactLayout || isNative || window.innerWidth < 768,
       });
       const fileName = `Invoice_${format(new Date(), 'ddMMyyyy_HHmm')}.pdf`;
       const result = await deliverPdfBlob(blob, fileName, { preferDownload: true });
@@ -323,38 +377,40 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       console.error('Print preview PDF failed:', error);
       toast.error('Could not save invoice PDF');
     } finally {
+      if (wrap) wrap.style.transform = prevTransform;
       setIsSavingPdf(false);
     }
   };
 
-  const getPreviewStyles = () => {
+  const getPreviewStyles = (): React.CSSProperties => {
     switch (selectedFormat) {
       case 'a5':
         return {
           width: '148mm',
           minHeight: '210mm',
-          maxHeight: '210mm',
-          overflow: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
         };
       case 'a5-horizontal':
         return {
           width: '210mm',
           minHeight: '148mm',
-          maxHeight: '148mm',
-          overflow: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
         };
       case 'thermal':
         return {
-          width: thermalPaper === '58mm' ? '48mm' : '72mm',
+          width: thermalPaper === '58mm' ? '58mm' : '80mm',
           minHeight: 'auto',
           maxHeight: 'none',
+          overflow: 'visible',
         };
-      default: // a4
+      default:
         return {
           width: '210mm',
           minHeight: '297mm',
-          maxHeight: '297mm',
-          overflow: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
         };
     }
   };
@@ -377,94 +433,149 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`print-dialog max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col${selectedFormat === 'thermal' && thermalPaper === '58mm' ? ' thermal-paper-58' : ''}`}
+        className={cn(
+          'print-dialog max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col',
+          selectedFormat === 'thermal' && thermalPaper === '58mm' ? ' thermal-paper-58' : '',
+          compactLayout &&
+            'h-[100dvh] max-h-[100dvh] w-[100vw] max-w-[100vw] gap-2 rounded-none p-3 sm:rounded-lg',
+        )}
       >
-        <DialogHeader>
+        <DialogHeader className={compactLayout ? 'text-left pr-8' : undefined}>
           <DialogTitle>Print Preview</DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-auto bg-muted/30 p-4 rounded-md">
-          {/* Format Selection */}
-          <div className="mb-4 bg-background p-4 rounded-md border">
-            <Label className="text-base font-semibold mb-3 block">Bill Format</Label>
+        <div
+          className={cn(
+            'flex min-h-0 flex-1 flex-col overflow-hidden rounded-md bg-muted/30',
+            compactLayout ? 'p-2' : 'p-4',
+          )}
+        >
+          <div className={cn('shrink-0 rounded-md border bg-background', compactLayout ? 'mb-2 p-3' : 'mb-4 p-4')}>
+            <Label className={cn('mb-3 block font-semibold', compactLayout ? 'text-sm' : 'text-base')}>
+              Bill Format
+            </Label>
             <RadioGroup
               value={selectedFormat}
               onValueChange={(value) => setSelectedFormat(value as 'a4' | 'a5' | 'a5-horizontal' | 'thermal')}
-              className="flex flex-wrap gap-4"
+              className={compactLayout ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-4'}
             >
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="a4" id="a4" />
-                <Label htmlFor="a4" className="cursor-pointer">A4 (210mm × 297mm)</Label>
+                <Label htmlFor="a4" className="cursor-pointer text-sm">
+                  {compactLayout ? 'A4' : 'A4 (210mm × 297mm)'}
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="a5" id="a5" />
-                <Label htmlFor="a5" className="cursor-pointer">A5 Vertical (148mm × 210mm)</Label>
+                <Label htmlFor="a5" className="cursor-pointer text-sm">
+                  {compactLayout ? 'A5 Vertical' : 'A5 Vertical (148mm × 210mm)'}
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="a5-horizontal" id="a5-horizontal" />
-                <Label htmlFor="a5-horizontal" className="cursor-pointer">A5 Horizontal (210mm × 148mm)</Label>
+                <Label htmlFor="a5-horizontal" className="cursor-pointer text-sm">
+                  {compactLayout ? 'A5 Horizontal' : 'A5 Horizontal (210mm × 148mm)'}
+                </Label>
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="thermal" id="thermal" />
-                <Label htmlFor="thermal" className="cursor-pointer">Thermal (80mm)</Label>
+                <Label htmlFor="thermal" className="cursor-pointer text-sm">
+                  {compactLayout ? 'Thermal 80mm' : 'Thermal (80mm)'}
+                </Label>
               </div>
             </RadioGroup>
           </div>
 
-          {/* Preview Container */}
-          <div className="relative flex justify-center min-h-[240px]">
-            {/* Loading overlay */}
+          <div ref={viewportRef} className="relative min-h-0 flex-1 overflow-auto">
             {isLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10 rounded-md">
+              <div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-muted/50">
                 <div className="text-muted-foreground">Loading preview...</div>
               </div>
             )}
-            {/* Always render invoice content so async data can load */}
             <div
-              ref={printRef}
-              className="bg-white shadow-lg print-invoice-container"
-              data-print-format={selectedFormat}
+              className="mx-auto"
               style={{
-                ...getPreviewStyles(),
-                transform: selectedFormat === 'thermal' ? 'scale(0.8)' : 'scale(0.95)',
-                transformOrigin: 'top center',
-                visibility: isLoading ? 'hidden' : 'visible',
+                width: sheetSize.width ? sheetSize.width * previewScale : '100%',
+                height: sheetSize.height ? sheetSize.height * previewScale : undefined,
+                minHeight: 240,
               }}
             >
-              {renderInvoice(getFormatForInvoice() as any)}
+              <div
+                ref={scaleWrapRef}
+                style={{
+                  transform: `scale(${previewScale})`,
+                  transformOrigin: 'top left',
+                }}
+              >
+                <div
+                  ref={printRef}
+                  className="print-invoice-container bg-white shadow-lg"
+                  data-print-format={selectedFormat}
+                  style={{
+                    ...getPreviewStyles(),
+                    visibility: isLoading ? 'hidden' : 'visible',
+                  }}
+                >
+                  {renderInvoice(getFormatForInvoice() as any)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <DialogFooter className="gap-2 no-print flex-wrap sm:flex-nowrap">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print">
-            <X className="mr-2 h-4 w-4" />
-            Cancel
-          </Button>
-          {isNative ? (
-            <Button
-              onClick={handleSaveOrSharePdf}
-              disabled={isLoading || isSavingPdf}
-              className="no-print"
-            >
-              <Download className="mr-2 h-4 w-4" />
-              {isSavingPdf ? 'Preparing…' : 'Download PDF'}
-            </Button>
-          ) : (
+        <DialogFooter
+          className={cn(
+            'no-print gap-2',
+            compactLayout && 'flex flex-col gap-2 space-x-0 sm:flex-col sm:space-x-0',
+          )}
+        >
+          {compactLayout ? (
             <>
               <Button
-                variant="outline"
                 onClick={handleSaveOrSharePdf}
                 disabled={isLoading || isSavingPdf}
-                className="no-print"
+                className="no-print h-11 w-full"
               >
                 <Download className="mr-2 h-4 w-4" />
                 {isSavingPdf ? 'Preparing…' : 'Download PDF'}
               </Button>
-              <Button onClick={handlePrint} disabled={isLoading} className="no-print">
-                <Printer className="mr-2 h-4 w-4" />
-                {isLoading ? 'Loading...' : 'Print'}
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print h-11 w-full">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
               </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print">
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+              {isNative ? (
+                <Button
+                  onClick={handleSaveOrSharePdf}
+                  disabled={isLoading || isSavingPdf}
+                  className="no-print"
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {isSavingPdf ? 'Preparing…' : 'Download PDF'}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleSaveOrSharePdf}
+                    disabled={isLoading || isSavingPdf}
+                    className="no-print"
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {isSavingPdf ? 'Preparing…' : 'Download PDF'}
+                  </Button>
+                  <Button onClick={handlePrint} disabled={isLoading} className="no-print">
+                    <Printer className="mr-2 h-4 w-4" />
+                    {isLoading ? 'Loading...' : 'Print'}
+                  </Button>
+                </>
+              )}
             </>
           )}
         </DialogFooter>

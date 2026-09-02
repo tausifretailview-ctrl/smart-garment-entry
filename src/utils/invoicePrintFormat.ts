@@ -419,6 +419,53 @@ export function resolveSaleReturnPrintFormatFromSettings(
   return resolveSaleBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
 }
 
+/** True for POS bills (sale_type, else POS/ number prefix). */
+export function isPosSaleDocument(sale: {
+  sale_type?: string | null;
+  sale_number?: string | null;
+}): boolean {
+  const type = String(sale.sale_type || "").toLowerCase();
+  if (type === "pos") return true;
+  if (type === "invoice" || type === "sale") return false;
+  return /^POS\//i.test(String(sale.sale_number || ""));
+}
+
+/** Sales Invoice paper from cached settings (Sales Invoice dashboard). */
+export function resolveSaleBillFormatFromSaleSettings(
+  saleSettings?: SaleSettingsBillFormatSlice | null,
+): PosBillFormat {
+  const template = resolveSaleInvoiceTemplate(saleSettings);
+  const raw =
+    saleSettings?.sales_bill_format || saleSettings?.invoice_paper_format || "a4";
+  return resolveSaleBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
+}
+
+/**
+ * Paper + template for mobile / Electron sale-summary PDF preview.
+ * POS bills follow POS invoice template + pos_bill_format; invoices follow Sale settings.
+ */
+export function resolveSalePreviewPrintConfig(
+  sale: { sale_type?: string | null; sale_number?: string | null },
+  saleSettings?: SaleSettingsBillFormatSlice | null,
+): {
+  paperFormat: PosBillFormat;
+  template: string;
+  documentType: "pos" | "invoice";
+} {
+  if (isPosSaleDocument(sale)) {
+    return {
+      paperFormat: resolvePosBillFormatFromSaleSettings(saleSettings),
+      template: resolvePosInvoiceTemplate(saleSettings),
+      documentType: "pos",
+    };
+  }
+  return {
+    paperFormat: resolveSaleBillFormatFromSaleSettings(saleSettings),
+    template: resolveSaleInvoiceTemplate(saleSettings),
+    documentType: "invoice",
+  };
+}
+
 /**
  * @page CSS for POS credit notes and sale-return prints — mirrors POS invoice paper routing.
  * Import `getThermalReceiptPageStyleFragment` at call site when bundling is preferred; inlined via dynamic import path below.
