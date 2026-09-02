@@ -36,6 +36,9 @@ import {
   isRepairTaggedDeletion,
 } from "@/utils/recycleBinDeletionReason";
 
+/** Client-side gate for permanent delete (admin convenience password). */
+export const RECYCLE_BIN_PERMANENT_DELETE_PASSWORD = "admin@123";
+
 const RECYCLE_TAB_TRIGGER = cn(
   "h-9 px-3 text-sm font-semibold rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm",
   "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:border-slate-700",
@@ -244,6 +247,7 @@ export default function RecycleBin() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRestoring, setIsRestoring] = useState<string | null>(null);
   const [isBulkRestoring, setIsBulkRestoring] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
   const [relationDialog, setRelationDialog] = useState<{
@@ -448,6 +452,7 @@ export default function RecycleBin() {
       id: record.id,
       name: record[config.displayField] || "this record",
     });
+    setDeletePassword("");
     setDeleteConfirmText("");
     setDeleteReason("");
     setDeleteDialogOpen(true);
@@ -455,6 +460,14 @@ export default function RecycleBin() {
 
   const handleConfirmDelete = async () => {
     if (!recordToDelete) return;
+    if (deletePassword !== RECYCLE_BIN_PERMANENT_DELETE_PASSWORD) {
+      toast({
+        title: "Incorrect password",
+        description: "Enter the permanent-delete password to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (requiresStrictDeleteConfirm) {
       if (deleteConfirmText.trim() !== requiredDeletePhrase) {
         toast({
@@ -538,6 +551,7 @@ export default function RecycleBin() {
       return;
     }
     if (selectedIds.size === 0) return;
+    setDeletePassword("");
     setDeleteConfirmText("");
     setDeleteReason("");
     setBulkDeleteDialogOpen(true);
@@ -545,6 +559,15 @@ export default function RecycleBin() {
 
   const handleConfirmBulkDelete = async () => {
     if (selectedIds.size === 0) return;
+
+    if (deletePassword !== RECYCLE_BIN_PERMANENT_DELETE_PASSWORD) {
+      toast({
+        title: "Incorrect password",
+        description: "Enter the permanent-delete password to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (bulkStrictDeleteConfirm) {
       if (deleteConfirmText.trim() !== bulkRequiredDeletePhrase) {
@@ -936,35 +959,53 @@ export default function RecycleBin() {
               This action cannot be undone and the record will be completely removed from the system.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {requiresStrictDeleteConfirm && (
-            <div className="space-y-3 py-2">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">
-                  Type <span className="font-mono font-semibold">{requiredDeletePhrase}</span> to confirm.
-                </p>
-                <Input
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder={requiredDeletePhrase}
-                  disabled={isDeleting}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Reason for permanent deletion</p>
-                <Input
-                  value={deleteReason}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="Enter reason"
-                  disabled={isDeleting}
-                />
-              </div>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Enter password to permanently delete
+              </p>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Password"
+                disabled={isDeleting}
+              />
             </div>
-          )}
+            {requiresStrictDeleteConfirm && (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Type <span className="font-mono font-semibold">{requiredDeletePhrase}</span> to confirm.
+                  </p>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={requiredDeletePhrase}
+                    disabled={isDeleting}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Reason for permanent deletion</p>
+                  <Input
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="Enter reason"
+                    disabled={isDeleting}
+                  />
+                </div>
+              </>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmDelete}
-              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmDelete();
+              }}
+              disabled={isDeleting || !deletePassword}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleting ? (
@@ -1028,35 +1069,53 @@ export default function RecycleBin() {
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {bulkStrictDeleteConfirm && (
-            <div className="space-y-3 py-2">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">
-                  Type <span className="font-mono font-semibold">{bulkRequiredDeletePhrase}</span> to confirm.
-                </p>
-                <Input
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value)}
-                  placeholder={bulkRequiredDeletePhrase}
-                  disabled={isDeleting}
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Reason for permanent deletion</p>
-                <Input
-                  value={deleteReason}
-                  onChange={(e) => setDeleteReason(e.target.value)}
-                  placeholder="Enter reason"
-                  disabled={isDeleting}
-                />
-              </div>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                Enter password to permanently delete
+              </p>
+              <Input
+                type="password"
+                autoComplete="off"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="Password"
+                disabled={isDeleting}
+              />
             </div>
-          )}
+            {bulkStrictDeleteConfirm && (
+              <>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    Type <span className="font-mono font-semibold">{bulkRequiredDeletePhrase}</span> to confirm.
+                  </p>
+                  <Input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder={bulkRequiredDeletePhrase}
+                    disabled={isDeleting}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Reason for permanent deletion</p>
+                  <Input
+                    value={deleteReason}
+                    onChange={(e) => setDeleteReason(e.target.value)}
+                    placeholder="Enter reason"
+                    disabled={isDeleting}
+                  />
+                </div>
+              </>
+            )}
+          </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmBulkDelete}
-              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleConfirmBulkDelete();
+              }}
+              disabled={isDeleting || !deletePassword}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleting ? (
