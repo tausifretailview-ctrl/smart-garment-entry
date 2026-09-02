@@ -42,14 +42,6 @@ function mmToCssPx(mm: number): number {
   return (mm / 25.4) * 96;
 }
 
-/** Map InvoiceWrapper format props to preview dialog radio values. */
-function normalizePreviewFormat(format: string): 'a4' | 'a5' | 'a5-horizontal' | 'thermal' {
-  if (format === 'a5-vertical' || format === 'a5') return 'a5';
-  if (format === 'a5-horizontal') return 'a5-horizontal';
-  if (format === 'thermal') return 'thermal';
-  return 'a4';
-}
-
 interface PrintPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

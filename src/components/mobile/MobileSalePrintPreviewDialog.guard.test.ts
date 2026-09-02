@@ -19,6 +19,7 @@ describe("mobile sale PDF preview", () => {
     expect(src).toContain("compactLayout");
     expect(src).toContain("scaleWrapRef");
     expect(src).toContain("wrap.style.transform = 'none'");
+    expect((src.match(/function normalizePreviewFormat/g) || []).length).toBe(1);
     expect(src).not.toMatch(/printRef[\s\S]{0,200}transform: selectedFormat === 'thermal'/);
   });
 });
