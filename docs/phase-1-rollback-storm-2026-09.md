@@ -296,7 +296,7 @@ Source: SQL editor export `query-results-export-2026-09-02_23-31-26_11ef.csv` (`
 - `purchase_items_sku`: partial ~37× hotter (10.4 M vs 282 k); unfiltered still 282 k scans.
 - `product_variants`: partial ~7× hotter (773 k vs 106 k); unfiltered still 106 k scans.
 
-Do not DROP in Phase 1–4. Phase 5 must re-check Recycle Bin / `deleted_at IS NOT NULL` query plans before touching any of these, and the default is **leave them**.
+Do not DROP in Phase 1–4. **Phase 5 closed:** keep all eight (`docs/phase-5-index-hygiene-2026-09.md`). Re-sample with `scripts/phase-5-keep-indexes.sql` after a stats reset; do not treat a post-reset zero as permission to drop.
 
 ---
 

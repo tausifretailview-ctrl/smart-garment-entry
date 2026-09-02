@@ -21,7 +21,7 @@ Confirmed structural causes:
 
 1. **`sale_items` has no `organization_id` column** (verified). Every line-item search must first resolve a list of sale ids, then ILIKE across the whole tenant-shared table. That is why it is both the most-called and most expensive statement.
 2. **The dashboard views aggregate every organization, then filter.** `v_dashboard_stock_summary` groups all variants of all tenants and `v_dashboard_purchase_summary` groups all bills of all tenants; the `organization_id = ?` filter is applied to the grouped output, so one shop's status bar pays for every shop's data. That is the 2.9 s worst case.
-3. **Duplicate indexes** on hot write tables: `idx_sale_items_sale` / `idx_sale_items_saleid`, `idx_purchase_items_bill` / `idx_purchase_items_billid`, `idx_purchase_items_sku` / `idx_purchase_items_sku_id`, `idx_product_variants_org` / `idx_product_variants_organization_id`. Each duplicate slows every insert and adds disk/backup usage.
+3. **Partial vs unfiltered index pairs are both hot** (Appendix B, 2026-09-02). Do **not** drop `idx_sale_items_sale` / `saleid`, `idx_purchase_items_bill` / `billid`, `idx_purchase_items_sku` / `sku_id`, or `idx_product_variants_org` / `organization_id`. Recycle Bin and include-deleted paths use the unfiltered copies. See `docs/phase-5-index-hygiene-2026-09.md`.
 4. **4.53 million rolled-back transactions since boot** — abnormally high. Cause is unknown and must be identified before it is treated as noise.
 5. Exact-count pagination (`pgrst_source_count`) on `sales` search doubles the work of every search page.
 
@@ -42,7 +42,7 @@ Add `organization_id` to `sale_items`, backfill from the parent sale, keep it in
 - `sales` search: switch to planned/estimated count instead of exact count on every page.
 
 ### Phase 5 — Index hygiene
-Drop the four duplicate index pairs listed above; re-check write latency on `sale_items` insert (currently 69 ms mean, 13.8 K calls) after the drop.
+**Keep all eight.** Appendix B `idx_scan` (2026-09-02) shows both sides of every partial-vs-unfiltered pair are used. Do not DROP. Decision: `docs/phase-5-index-hygiene-2026-09.md`. Re-sample: `scripts/phase-5-keep-indexes.sql`.
 
 ### Phase 6 — Cloud usage and loading
 - Re-run the cloud-usage baseline (`docs/cloud-usage-baseline.md`) before and after Phases 2–4 and record request counts per route.
