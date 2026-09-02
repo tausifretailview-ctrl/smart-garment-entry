@@ -6,7 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Check, IndianRupee, Package } from "lucide-react";
 import { posVariantDisplayMrp } from "@/utils/posScanPriceSelection";
@@ -22,6 +21,33 @@ export type MrpTierSelectionChoice = {
   salePrice: number;
   stockQty: number;
 };
+
+/** MRP shown on the card when the org uses MRP; falls back to sale price if MRP is unset. */
+export function mrpTierDisplayMrp(choice: Pick<MrpTierSelectionChoice, "mrp" | "salePrice">): number {
+  return choice.mrp > 0 ? choice.mrp : choice.salePrice;
+}
+
+/**
+ * Big number on the picker card. When enableMrp is off this MUST be salePrice —
+ * never the MRP-preferring fallback. A stale unused MRP (e.g. 200) must not
+ * be labeled "Sale price" while the real 500/600 only appear in subtext.
+ */
+export function mrpTierPrimaryValue(
+  choice: Pick<MrpTierSelectionChoice, "mrp" | "salePrice">,
+  enableMrp: boolean,
+): number {
+  return enableMrp ? mrpTierDisplayMrp(choice) : choice.salePrice;
+}
+
+export function sortMrpTierChoices(
+  choices: MrpTierSelectionChoice[],
+  enableMrp: boolean,
+): MrpTierSelectionChoice[] {
+  const sortValue = (c: MrpTierSelectionChoice) => (enableMrp ? c.mrp : c.salePrice);
+  return [...choices].sort(
+    (a, b) => sortValue(b) - sortValue(a) || a.productName.localeCompare(b.productName),
+  );
+}
 
 interface MrpTierSelectionDialogProps {
   open: boolean;
@@ -50,7 +76,7 @@ export function MrpTierSelectionDialog({
   onSelect,
   enableMrp = true,
 }: MrpTierSelectionDialogProps) {
-  const sortedChoices = [...choices].sort((a, b) => b.mrp - a.mrp || a.productName.localeCompare(b.productName));
+  const sortedChoices = sortMrpTierChoices(choices, enableMrp);
   const priceLabel = enableMrp ? "MRP" : "Sale price";
 
   return (
@@ -67,9 +93,15 @@ export function MrpTierSelectionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 mt-2">
+        <div className="space-y-2 mt-2">
           {sortedChoices.map((choice) => {
-            const displayMrp = choice.mrp > 0 ? choice.mrp : choice.salePrice;
+            const displayMrp = mrpTierDisplayMrp(choice);
+            // When this org doesn't use the MRP field, the number shown and the
+            // "Sale price" label must be the actual sale_price — not the MRP
+            // fallback value. A stale, unused MRP (e.g. 200, never updated)
+            // must never be what's shown here; it isn't what's printed on the
+            // item or what the customer is being charged.
+            const primaryValue = mrpTierPrimaryValue(choice, enableMrp);
             const sizeLabel = [choice.size, choice.color].filter(Boolean).join(" · ");
             const metaBadges = [choice.brand?.trim(), choice.style?.trim()].filter(Boolean) as string[];
 
@@ -79,7 +111,7 @@ export function MrpTierSelectionDialog({
                 className="cursor-pointer hover:border-primary transition-colors"
                 onClick={() => onSelect(choice.id)}
               >
-                <CardContent className="p-4">
+                <CardContent className="p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2 min-w-0">
@@ -102,35 +134,21 @@ export function MrpTierSelectionDialog({
                       ) : null}
                       <p className="text-xs text-muted-foreground tabular-nums">
                         Stock: {choice.stockQty.toLocaleString("en-IN")}
-                        {choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
+                        {enableMrp && choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
                           <> · Sale {formatCurrency(choice.salePrice)}</>
                         ) : null}
                       </p>
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-lg font-bold text-primary tabular-nums">
-                        {formatCurrency(displayMrp)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{priceLabel}</div>
-                      {enableMrp && choice.salePrice > 0 && choice.salePrice !== displayMrp ? (
-                        <div className="text-xs font-medium text-foreground tabular-nums mt-0.5">
-                          Sale {formatCurrency(choice.salePrice)}
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <div>
+                        <div className="text-lg font-bold text-primary tabular-nums">
+                          {formatCurrency(primaryValue)}
                         </div>
-                      ) : null}
+                        <div className="text-xs text-muted-foreground">{priceLabel}</div>
+                      </div>
+                      <Check className="h-4 w-4 text-muted-foreground/40" />
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full mt-3 gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSelect(choice.id);
-                    }}
-                  >
-                    <Check className="h-4 w-4" />
-                    Use {priceLabel} {formatCurrency(displayMrp)}
-                  </Button>
                 </CardContent>
               </Card>
             );
