@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { insertGeneratedProductVariant } from "@/utils/barcodeCollisionGuard";
+import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { effectiveBarcodePriceTier, barcodePriceTierKey } from "@/utils/barcodeValidation";
 import {
   importPriceTierKey,
@@ -21,14 +23,34 @@ export function purchasePriceTierValue(tier: PriceTierLike): number {
   });
 }
 
+function mrpIsUnset(mrp?: number | null): boolean {
+  return mrp == null || !Number.isFinite(Number(mrp)) || Number(mrp) <= 0;
+}
+
+function salePricesMatch(
+  existingSale?: number | null,
+  incomingSale?: number | null,
+): boolean {
+  const existingCents = Math.round((Number(existingSale) || 0) * 100);
+  const incomingCents = Math.round((Number(incomingSale) || 0) * 100);
+  return existingCents === incomingCents;
+}
+
 export function purchasePriceTiersMatch(
   existing: PriceTierLike,
   incoming: PriceTierLike,
-  tolerance = PURCHASE_PRICE_TIER_TOLERANCE,
+  _tolerance = PURCHASE_PRICE_TIER_TOLERANCE,
 ): boolean {
   const existingTier = purchasePriceTierValue(existing);
   const incomingTier = purchasePriceTierValue(incoming);
   if (incomingTier <= 0 || existingTier <= 0) return true;
+  // Filling or omitting MRP on an otherwise identical sale price is master-data
+  // completion, not a new commercial tier. Chirag JEANS 450006800: Add New
+  // Product saved MRP empty / sale 1199, the bill line then sent MRP 1199
+  // (sale-price fallback) and forked a sibling that copied the generated barcode.
+  if (mrpIsUnset(existing.mrp) || mrpIsUnset(incoming.mrp)) {
+    return salePricesMatch(existing.salePrice, incoming.salePrice);
+  }
   // Compound key — mrp alone is not a safe tier match. A stale, unmaintained
   // MRP that never changes between purchase batches would otherwise mask a
   // genuine sale_price change (the org-697c451a JOCKEY BRA case: mrp stuck at
@@ -40,12 +62,31 @@ export function purchasePriceTiersMatch(
   );
 }
 
+/**
+ * Manufacturer EANs (Jockey etc.) must keep the same barcode across price-tier
+ * forks so POS scan still finds every MRP/sale sibling. App-generated barcodes
+ * are unique per SKU — copying them is what produced Chirag's dual 450006800 rows.
+ */
+export function shouldReuseBarcodeOnPriceTierFork(args: {
+  barcode_source?: string | null;
+  barcode?: string | null;
+}): boolean {
+  const source = (args.barcode_source || "").trim().toLowerCase();
+  if (source === "external") return true;
+  if (source === "generated") return false;
+  return classifyBarcodeSource(args.barcode).source === "external";
+}
+
+const VARIANT_PRICE_SELECT =
+  "id, product_id, size, color, barcode, barcode_source, pur_price, sale_price, mrp";
+
 type VariantPriceRow = {
   id: string;
   product_id: string;
   size: string;
   color: string | null;
   barcode: string | null;
+  barcode_source?: string | null;
   pur_price: number | null;
   sale_price: number | null;
   mrp: number | null;
@@ -138,7 +179,7 @@ async function fetchVariantsByIds(
   return fetchInIdChunks(variantIds, async (chunk) => {
     const { data, error } = await supabase
       .from("product_variants")
-      .select("id, product_id, size, color, barcode, pur_price, sale_price, mrp")
+      .select(VARIANT_PRICE_SELECT)
       .eq("organization_id", organizationId)
       .in("id", chunk)
       .is("deleted_at", null);
@@ -154,7 +195,7 @@ async function fetchVariantsByBarcodes(
   return fetchInIdChunks(barcodes, async (chunk) => {
     const { data, error } = await supabase
       .from("product_variants")
-      .select("id, product_id, size, color, barcode, pur_price, sale_price, mrp")
+      .select(VARIANT_PRICE_SELECT)
       .eq("organization_id", organizationId)
       .in("barcode", chunk)
       .is("deleted_at", null);
@@ -458,7 +499,11 @@ async function forkProductAndVariantForTier(args: {
     ctx.productsByName.set(sourceProduct.product_name, nameList);
   }
 
-  const barcode = (sourceVariant.barcode || "").trim();
+  const sourceBarcode = (sourceVariant.barcode || "").trim();
+  const reuseBarcode = shouldReuseBarcodeOnPriceTierFork({
+    barcode_source: sourceVariant.barcode_source,
+    barcode: sourceBarcode,
+  });
   const lastPurchaseDate = parsePurchaseDate(purchaseDate);
   const mrpVal = Number(incomingMrp) || 0;
 
@@ -467,8 +512,6 @@ async function forkProductAndVariantForTier(args: {
     product_id: productId,
     size: sourceVariant.size || "",
     color: sourceVariant.color,
-    barcode,
-    barcode_source: barcode ? "external" : "generated",
     pur_price: incomingPurPrice,
     sale_price: incomingSalePrice,
     stock_qty: 0,
@@ -482,19 +525,36 @@ async function forkProductAndVariantForTier(args: {
     variantInsert.last_purchase_mrp = mrpVal;
   }
 
-  const { data: createdVariant, error: variantError } = await supabase
-    .from("product_variants")
-    .insert(variantInsert as never)
-    .select("id, product_id, size, color, barcode, pur_price, sale_price, mrp")
-    .single();
-  if (variantError) throw variantError;
+  let createdRow: VariantPriceRow;
+  if (reuseBarcode && sourceBarcode) {
+    variantInsert.barcode = sourceBarcode;
+    variantInsert.barcode_source = "external";
+    const { data: createdVariant, error: variantError } = await supabase
+      .from("product_variants")
+      .insert(variantInsert as never)
+      .select(VARIANT_PRICE_SELECT)
+      .single();
+    if (variantError) throw variantError;
+    createdRow = createdVariant as VariantPriceRow;
+  } else {
+    const { data: createdVariant } = await insertGeneratedProductVariant<VariantPriceRow>(
+      {
+        ...variantInsert,
+        organization_id: organizationId,
+        barcode: "",
+        barcode_source: "generated",
+      },
+      VARIANT_PRICE_SELECT,
+    );
+    createdRow = createdVariant;
+  }
 
-  const createdRow = createdVariant as VariantPriceRow;
   ctx.variantById.set(createdRow.id, createdRow);
-  if (barcode) {
-    const siblings = ctx.variantsByBarcode.get(barcode) ?? [];
+  const createdBarcode = (createdRow.barcode || "").trim();
+  if (createdBarcode) {
+    const siblings = ctx.variantsByBarcode.get(createdBarcode) ?? [];
     siblings.push(createdRow);
-    ctx.variantsByBarcode.set(barcode, siblings);
+    ctx.variantsByBarcode.set(createdBarcode, siblings);
   }
 
   return {

@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fromMock = vi.fn();
 const insertMock = vi.fn();
+const rpcMock = vi.fn();
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: (...args: unknown[]) => fromMock(...args),
+    rpc: (...args: unknown[]) => rpcMock(...args),
   },
 }));
 
@@ -17,6 +19,7 @@ type VariantRow = {
   size: string;
   color: string | null;
   barcode: string | null;
+  barcode_source?: string | null;
   pur_price: number | null;
   sale_price: number | null;
   mrp: number | null;
@@ -39,6 +42,7 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     insertMock.mockReset();
+    rpcMock.mockReset();
   });
 
   it("resolves matching tiers without fork using batched reads", async () => {
@@ -167,6 +171,7 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
         size: "M",
         color: null,
         barcode: "8901326331101",
+        barcode_source: "external",
         pur_price: 500,
         sale_price: 729,
         mrp: null,
@@ -257,5 +262,183 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
 
     expect(results.every((r) => r?.variantId === "sku-new-749")).toBe(true);
     expect(insertMock).toHaveBeenCalledTimes(1);
+    const inserted = insertMock.mock.calls[0][0] as { barcode: string; barcode_source: string };
+    expect(inserted.barcode).toBe("8901326331101");
+    expect(inserted.barcode_source).toBe("external");
+  });
+
+  it("does not fork when the bill only fills empty MRP at the same sale price", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-jeans",
+        product_id: "prod-jeans",
+        size: "28",
+        color: null,
+        barcode: "450006800",
+        barcode_source: "generated",
+        pur_price: 750,
+        sale_price: 1199,
+        mrp: null,
+      },
+    ];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "product_variants") return chainSelect(variants);
+      if (table === "products") {
+        return chainSelect([
+          {
+            id: "prod-jeans",
+            product_name: "JEANS - NARROW - HASTY",
+            brand: null,
+            category: null,
+            color: null,
+            style: null,
+            default_sale_price: 1199,
+          },
+        ]);
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const results = await resolveVariantsForIncomingPriceTiers([
+      {
+        organizationId: "org-chirag",
+        variantId: "sku-jeans",
+        barcode: "450006800",
+        incomingPurPrice: 750,
+        incomingSalePrice: 1199,
+        incomingMrp: 1199,
+      },
+    ]);
+
+    expect(results).toEqual([
+      { variantId: "sku-jeans", productId: "prod-jeans", forked: false },
+    ]);
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
+  it("allocates a fresh generated barcode when a generated SKU actually forks on sale price", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-jeans",
+        product_id: "prod-jeans",
+        size: "28",
+        color: null,
+        barcode: "450006800",
+        barcode_source: "generated",
+        pur_price: 750,
+        sale_price: 1199,
+        mrp: null,
+      },
+    ];
+
+    const products = [
+      {
+        id: "prod-jeans",
+        product_name: "JEANS - NARROW - HASTY",
+        brand: null,
+        category: null,
+        color: null,
+        style: null,
+        hsn_code: null,
+        gst_per: 0,
+        purchase_gst_percent: 0,
+        sale_gst_percent: 0,
+        uom: "NOS",
+        requires_imei: false,
+        default_pur_price: 750,
+        default_sale_price: 1199,
+      },
+    ];
+
+    rpcMock.mockResolvedValue({ data: "450006801", error: null });
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "product_variants") {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: () => ({
+                is: () => Promise.resolve({ data: variants, error: null }),
+              }),
+              eq: () => ({
+                is: () => ({
+                  limit: () => Promise.resolve({ data: [], error: null }),
+                }),
+              }),
+            }),
+          }),
+          insert: (...args: unknown[]) => {
+            insertMock(...args);
+            const payload = args[0] as { barcode: string };
+            return {
+              select: () => ({
+                single: () =>
+                  Promise.resolve({
+                    data: {
+                      id: "sku-jeans-new",
+                      product_id: "prod-jeans-new",
+                      size: "28",
+                      color: null,
+                      barcode: payload.barcode,
+                      barcode_source: "generated",
+                      pur_price: 750,
+                      sale_price: 1299,
+                      mrp: 1299,
+                    },
+                    error: null,
+                  }),
+              }),
+            };
+          },
+        };
+      }
+      if (table === "products") {
+        return {
+          select: () => ({
+            eq: () => ({
+              in: () => ({
+                is: () => Promise.resolve({ data: products, error: null }),
+              }),
+            }),
+          }),
+          insert: () => ({
+            select: () => ({
+              single: () =>
+                Promise.resolve({ data: { id: "prod-jeans-new" }, error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const results = await resolveVariantsForIncomingPriceTiers([
+      {
+        organizationId: "org-chirag",
+        variantId: "sku-jeans",
+        barcode: "450006800",
+        incomingPurPrice: 750,
+        incomingSalePrice: 1299,
+        incomingMrp: 1299,
+      },
+    ]);
+
+    expect(results[0]).toEqual({
+      variantId: "sku-jeans-new",
+      productId: "prod-jeans-new",
+      forked: true,
+    });
+    expect(rpcMock).toHaveBeenCalledWith("generate_next_barcode", {
+      p_organization_id: "org-chirag",
+    });
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    const inserted = insertMock.mock.calls[0][0] as {
+      barcode: string;
+      barcode_source: string;
+    };
+    expect(inserted.barcode).toBe("450006801");
+    expect(inserted.barcode_source).toBe("generated");
+    expect(inserted.barcode).not.toBe("450006800");
   });
 });
