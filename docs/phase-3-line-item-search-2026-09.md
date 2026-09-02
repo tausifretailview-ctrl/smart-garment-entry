@@ -1,7 +1,7 @@
 # Phase 3 — Line-item search playbook results
 
 **Date:** 2026-09-02  
-**PR:** sale_items `organization_id` + `search_line_item_sale_ids` ([#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582) merged to GitHub; **migration not on production** — 42883 still).
+**PR:** sale_items `organization_id` + `search_line_item_sale_ids` ([#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582) merged to GitHub; **migration not on production**). Client hotfix [#588](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/588) routes dashboards back to the live wrappers.
 
 Do **not** paste this Markdown file into the SQL editor.
 
@@ -24,6 +24,7 @@ Do **not** paste this Markdown file into the SQL editor.
 | `scripts/phase-3-before-00-ranking.sql` | `query-results-export-2026-09-03_00-25-27_c99f.csv` |
 | `scripts/phase-3-before-E-invoice-join.sql` | `query-results-export-2026-09-03_00-24-35_5531.csv` |
 | `scripts/phase-3-before-F-pos-exists.sql` | `query-results-export-2026-09-03_00-25-40_c968.csv` |
+| `scripts/phase-3-before-0b-rpc-exists.sql` | `query-results-export-2026-09-03_00-31-56_8f13.csv` |
 
 Org: ELLA NOOR `3fdca631-1e0c-4417-9704-421f5129ff67`. Term: `JEANS`. Window: last 30 days. Both EXPLAIN plans returned **0 rows** (no matching sales in that slice) — plans are still valid.
 
@@ -44,7 +45,7 @@ Same `pgss_stats_reset` as the July audit (`2026-07-11 20:07 UTC`). Do **not** r
 | 7 | 12,143 | 28.09 | 510 | 341 | `sale_items` `quantity, variant_id` |
 | 8 | 427 | **753.31** | 2893 | 322 | `sale_items` + `row_to_json(sales)` |
 
-**Headline ILIKE path is unchanged** since the original plan (181,036 calls / ~38 ms / ~113 min). Production frontend is still hitting PostgREST `sale_items` ILIKE; the GitHub client switch is not live until the web app deploys, and the RPC rewrite is not live until the migration applies.
+**Headline ILIKE path is unchanged** since the original plan (181,036 calls / ~38 ms / ~113 min). Production was still hitting PostgREST `sale_items` ILIKE and the live wrappers. [#588](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/588) keeps dashboards on those wrappers until the migration exists.
 
 **Live search RPCs are already expensive:** 17.5k calls, **200 ms mean, 7.0 s max**, 58 min total. That is the wrapper body Phase 3 replaces (invoice JOIN / POS EXISTS). Org-scoped GIN is aimed at this row as much as at the 181k PostgREST ILIKE.
 
@@ -93,6 +94,23 @@ Trigram **does** fire on the EXISTS inner scan, but it is **cluster-wide**: 1,08
 
 ---
 
+## Block 0b — which search RPCs exist on production
+
+Captured 2026-09-02 ~18:31 UTC. Export: `query-results-export-2026-09-03_00-31-56_8f13.csv`.
+
+| `proname` | Args |
+|---|---|
+| `search_invoice_sale_ids` | `p_org_id uuid, p_search text, p_date_from date, p_date_to date, p_limit integer` |
+| `search_pos_sale_ids` | same |
+
+**`search_line_item_sale_ids` is absent.** That is the Invoice Dashboard toast:
+
+> Could not find the function public.search_line_item_sale_ids(...) in the schema cache
+
+[#588](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/588) switched dashboards back to the two wrappers above. Do **not** run `scripts/phase-3-after-*.sql` until this catalog grows a third row.
+
+---
+
 ## What this means for the migration
 
 | Live shape | What Phase 3 changes |
@@ -100,7 +118,7 @@ Trigram **does** fire on the EXISTS inner scan, but it is **cluster-wide**: 1,08
 | Invoice: nested loop `sales` → `idx_sale_items_saleid`, ILIKE residual | `si.organization_id = p_org_id` so org+trigram GIN can drive |
 | POS: unscoped trigram (1,088 rows) hash-semi-joined to 11 sales | Same org predicate; JOIN from `sale_items` like invoice |
 | RPC wrappers 200 ms mean / 7 s max | Same 7 UNION branches, org-scoped |
-| PostgREST 181k ILIKE | Client already switched in [#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582); drops only after **web deploy**. Migration must be on production first. |
+| PostgREST 181k ILIKE | Drops after web deploy of the wrapper client ([#588](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/588) already avoids the missing shared RPC). Org-scoped body still needs the **migration on production**. |
 
 **Do not run** `scripts/phase-3-after-*.sql` until `search_line_item_sale_ids` exists on the live project (re-check with `scripts/phase-3-before-0b-rpc-exists.sql`).
 
@@ -110,7 +128,7 @@ After migrate, re-run E vs G on the same org/term/window and expect Bitmap/GIN o
 
 ## Related
 
-- `scripts/phase-3-before-00-ranking.sql`
+- `scripts/phase-3-before-0b-rpc-exists.sql`
 - `scripts/phase-3-before-E-invoice-join.sql`
 - `scripts/phase-3-before-F-pos-exists.sql`
 - `docs/phase-1-rollback-storm-2026-09.md` Appendix B — keep `idx_sale_items_sale` and `idx_sale_items_saleid`
