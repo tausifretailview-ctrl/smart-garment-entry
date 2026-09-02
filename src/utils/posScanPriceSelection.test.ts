@@ -101,6 +101,24 @@ describe("posBarcodeMatchesNeedMrpPicker", () => {
     ).toBe(true);
   });
 
+  it("detects same-MRP-different-sale-price tiers (Jockey/Enamor old vs new stock, real MRP printed and unchanged)", () => {
+    expect(
+      posBarcodeMatchesNeedMrpPicker([
+        { variant: { mrp: 999, sale_price: 749 } },
+        { variant: { mrp: 999, sale_price: 899 } },
+      ]),
+    ).toBe(true);
+  });
+
+  it("single tier when MRP and sale price both match across duplicate rows", () => {
+    expect(
+      posBarcodeMatchesNeedMrpPicker([
+        { variant: { mrp: 999, sale_price: 749 } },
+        { variant: { mrp: 999, sale_price: 749 } },
+      ]),
+    ).toBe(false);
+  });
+
   it("false for single match", () => {
     expect(posBarcodeMatchesNeedMrpPicker([{ variant: { mrp: 204.5 } }])).toBe(false);
   });
