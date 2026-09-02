@@ -173,7 +173,7 @@ Supabase Dashboard → **Logs → Postgres** (filter `errorSeverity=ERROR`) is t
 While the SQL editor is open, also run the appendix blocks in the script:
 
 - **Phase 2 before:** `EXPLAIN (ANALYZE, BUFFERS)` of `v_dashboard_stock_summary` / `v_dashboard_purchase_summary` for one org (security invoker — run as a member JWT or expect RLS to filter). Goal later: StatusBar `total_stock_qty` / due **byte-identical**.
-- **Phase 5 before:** `pg_stat_user_indexes.idx_scan` for the four partial-vs-full index pairs. Do **not** drop anything in this phase.
+- **Phase 5 before:** `pg_stat_user_indexes.idx_scan` for the four partial-vs-full index pairs. **Captured 2026-09-02** — see §Results / Appendix B. **Do not drop any of the eight indexes.** Both sides of every pair have substantial `idx_scan`.
 
 Client call sites Phase 2 will change (cache tiers stay):
 
@@ -237,13 +237,37 @@ Current view definitions (verified in-repo):
 
 **Not captured.**
 
+### Appendix B — Phase 5 index-scan snapshot (captured 2026-09-02)
+
+Source: SQL editor export `query-results-export-2026-09-02_23-31-26_11ef.csv` (`pg_stat_user_indexes` for the eight names in `scripts/phase-1-rollback-storm.sql` Appendix B). This is **not** the `xact_rollback` window (blocks 0–5 still open).
+
+| Index | Kind | `idx_scan` | `idx_tup_fetch` | `idx_tup_read` | Size |
+|---|---|---:|---:|---:|---|
+| `idx_product_variants_org` | partial (`deleted_at IS NULL`) | 772,764 | 1,997,334,344 | 4,310,987,869 | 2504 kB |
+| `idx_product_variants_organization_id` | unfiltered | 106,141 | 146,630,773 | 398,808,597 | 2592 kB |
+| `idx_purchase_items_bill` | partial | 25,061,606 | 956,960,652 | 1,537,550,574 | 2000 kB |
+| `idx_purchase_items_billid` | unfiltered | 2,758,113 | 577,068,914 | 1,158,945,473 | 2448 kB |
+| `idx_purchase_items_sku` | partial | 10,369,802 | 16,898,288 | 17,603,232 | 4680 kB |
+| `idx_purchase_items_sku_id` | unfiltered | 282,007 | 340,361 | 525,973 | 6496 kB |
+| `idx_sale_items_sale` | partial | 216,117,673 | 1,264,861,913 | 1,385,649,842 | 3440 kB |
+| `idx_sale_items_saleid` | unfiltered | 166,486,927 | 910,386,972 | 951,102,356 | 3448 kB |
+
+**Phase 5 implication — keep all eight.** Both sides of every pair are used. The original plan’s “drop the duplicate” item is **dead** on this evidence:
+
+- Hottest pair is `sale_items`: partial 216 M scans, unfiltered **166 M**. Dropping either would remove a planner-chosen path the live load already takes (matches “planner prefers `sale_id` btree, ILIKE residual”).
+- `purchase_items_bill`: partial ~9× hotter (25.1 M vs 2.8 M) but the unfiltered copy still has 2.8 M scans — Recycle Bin / include-deleted.
+- `purchase_items_sku`: partial ~37× hotter (10.4 M vs 282 k); unfiltered still 282 k scans.
+- `product_variants`: partial ~7× hotter (773 k vs 106 k); unfiltered still 106 k scans.
+
+Do not DROP in Phase 1–4. Phase 5 must re-check Recycle Bin / `deleted_at IS NOT NULL` query plans before touching any of these, and the default is **leave them**.
+
 ---
 
 ## Follow-up tracking (do not close quietly)
 
 | ID | Item | Owner when unblocked | Blocks Phase 2? |
 |---|---|---|---|
-| RS-1 | Paste block 0–5 results into this doc (new commit on a later PR is fine) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
+| RS-1 | Paste block 0–5 results into this doc (Appendix B index scans captured 2026-09-02; rollback window still open) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
 | RS-2 | If block 3 shows a single repeating `ERROR`, open a dedicated correctness issue | — | **No**, unless it is a money/stock write loop |
 | RS-3 | Re-check `xact_rollback` rate after Phases 2–4 deploy (same script, new window) | Phase 6 | No |
 | RS-4 | Zero new `57014` for a week of production logs — overall programme check | After all phases | No |
