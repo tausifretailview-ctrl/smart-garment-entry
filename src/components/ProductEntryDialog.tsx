@@ -9,6 +9,7 @@ import {
   rememberRequiresImeiFormChoice,
 } from "@/utils/productRequiresImei";
 import { supabase } from "@/integrations/supabase/client";
+import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -2218,11 +2219,10 @@ export const ProductEntryDialog = ({
           : (formData.size_group_id && sizeGroups.some(g => g.id === formData.size_group_id) ? formData.size_group_id : null),
       };
       
-      const { data: productData, error: productError } = await supabase
-        .from("products")
-        .insert([productPayload])
-        .select()
-        .single();
+      const { data: productData, error: productError } = await insertProductsPreferringPurchaseFlag(
+        [productPayload as Record<string, unknown>],
+        { select: "*", single: true },
+      );
 
       if (productError) throw productError;
 

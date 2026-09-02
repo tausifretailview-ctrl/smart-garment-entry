@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
@@ -6734,10 +6735,10 @@ const PurchaseEntry = () => {
         { skippedCount },
       );
       const batch = newProductsToInsert.slice(i, i + PRODUCT_BATCH_SIZE);
-      const { data: createdProducts, error: productBatchErr } = await supabase
-        .from('products')
-        .insert(batch.map((p) => p.insertData) as any)
-        .select('id');
+      const { data: createdProducts, error: productBatchErr } = await insertProductsPreferringPurchaseFlag(
+        batch.map((p) => p.insertData as Record<string, unknown>),
+        { select: "id" },
+      );
 
       if (!productBatchErr && createdProducts) {
         createdProducts.forEach((product: { id: string }, idx: number) => {
@@ -6745,13 +6746,12 @@ const PurchaseEntry = () => {
         });
       } else {
         for (const entry of batch) {
-          const { data: single, error: singleErr } = await supabase
-            .from('products')
-            .insert(entry.insertData as any)
-            .select('id')
-            .single();
+          const { data: single, error: singleErr } = await insertProductsPreferringPurchaseFlag(
+            [entry.insertData as Record<string, unknown>],
+            { select: "id", single: true },
+          );
           if (!singleErr && single) {
-            productMap.set(entry.key, (single as { id: string }).id);
+            productMap.set(entry.key, single.id);
           } else if (productMap.has(entry.key)) {
             // already mapped from catalog page fetch
           } else {
