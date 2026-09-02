@@ -732,7 +732,7 @@ async function fetchPosSaleIdsMatchingLineItems(
       }),
     );
   } catch (error) {
-    console.error("search_line_item_sale_ids RPC failed:", error);
+    console.error("search_pos_sale_ids RPC failed:", error);
     throw error;
   }
 }

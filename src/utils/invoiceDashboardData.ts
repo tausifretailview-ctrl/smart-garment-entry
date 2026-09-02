@@ -184,7 +184,7 @@ async function fetchSaleIdsMatchingLineItems(
 
 /**
  * Resolved once per dashboard fetch so count + page + stats pages share one
- * search_line_item_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
+ * search_invoice_sale_ids pass (POS Dashboard #230 pattern). Does NOT gate
  * line-item search on header hits (item 1 excluded — would drop product matches).
  */
 type InvoiceSearchResolution = {
