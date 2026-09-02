@@ -201,6 +201,8 @@ LIMIT 40;
 -- =============================================================================
 -- Appendix B — Phase 5 BEFORE index-scan snapshot (do not DROP here)
 -- Partial (deleted_at IS NULL) vs unfiltered pairs — not byte-identical.
+-- Captured 2026-09-02 (see docs/phase-1-rollback-storm-2026-09.md §Results).
+-- All eight indexes have substantial idx_scan — keep both sides of every pair.
 -- =============================================================================
 SELECT
   indexrelname,
