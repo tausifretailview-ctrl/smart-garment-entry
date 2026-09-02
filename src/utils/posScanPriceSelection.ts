@@ -22,8 +22,26 @@ export function posMrpTierKey(mrp: number): number {
 }
 
 /**
- * When multiple variants share a barcode at different MRP tiers, force the picker
- * even if only one tier is in stock (KS Footwear / shared EAN relabel pattern).
+ * Compound tier key: MRP and sale price rounded to paise, joined.
+ * Two variants can share the exact same statutory MRP (Jockey/Enamor —
+ * the printed MRP never changes between purchase batches) while their
+ * sale_price genuinely differs between an old stock batch and a newly
+ * purchased one. Keying on MRP alone missed this; either field differing
+ * must count as a distinct tier.
+ */
+function posPriceTierKey(
+  variant: { mrp?: number | string | null; sale_price?: number | string | null },
+  product?: { default_sale_price?: number | string | null } | null,
+): string {
+  const mrp = posMrpTierKey(posVariantDisplayMrp(variant, product));
+  const salePrice = Math.round((parseFloat(String(variant.sale_price ?? 0)) || 0) * 100);
+  return `${mrp}|${salePrice}`;
+}
+
+/**
+ * When multiple variants share a barcode at different MRP AND/OR sale price
+ * tiers, force the picker even if only one tier is in stock (KS Footwear /
+ * shared EAN relabel pattern; Jockey/Enamor old-vs-new-stock sale price).
  */
 export function posBarcodeMatchesNeedMrpPicker(
   matches: Array<{
@@ -32,9 +50,7 @@ export function posBarcodeMatchesNeedMrpPicker(
   }>,
 ): boolean {
   if (matches.length <= 1) return false;
-  const tiers = new Set(
-    matches.map((m) => posMrpTierKey(posVariantDisplayMrp(m.variant, m.product))),
-  );
+  const tiers = new Set(matches.map((m) => posPriceTierKey(m.variant, m.product)));
   return tiers.size > 1;
 }
 
