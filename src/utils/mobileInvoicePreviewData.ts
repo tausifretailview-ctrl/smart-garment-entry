@@ -50,12 +50,13 @@ export async function fetchSaleForInvoicePreview(
   const { data: sale, error } = await supabase
     .from("sales")
     .select(
-      "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_amount, customers(gst_number)",
+      "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_applied, customers(gst_number)",
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
     .single();
   if (error) throw error;
+  if (!sale) throw new Error("Sale not found");
 
   const { data: items, error: itemsErr } = await supabase
     .from("sale_items")
@@ -84,7 +85,11 @@ export async function fetchSaleForInvoicePreview(
     }
   }
 
-  return { ...sale, sale_items: saleItems };
+  return {
+    ...(sale as Omit<SaleInvoicePreviewRow, "sale_items" | "credit_amount">),
+    credit_amount: Number((sale as { credit_applied?: number | null }).credit_applied || 0),
+    sale_items: saleItems,
+  };
 }
 
 export type SalePaymentHistoryRow = {
