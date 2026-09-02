@@ -45,11 +45,24 @@ export function resolveBarcodeScanPicker<T extends BarcodeProductVariantMatch<un
   const inStock = matches.filter(isInStock);
 
   if (needMrpPicker) {
+    // Sell-side: hide zero-stock price tiers when any in-stock tier exists
+    // (purchase callers pass isInStock = always true, so they still see every SKU).
+    const mrpDialogChoices = inStock.length > 0 ? inStock : matches;
+    if (mrpDialogChoices.length <= 1) {
+      return {
+        needMrpPicker: true,
+        showMrpDialog: false,
+        showProductPicker: false,
+        mrpDialogChoices: [],
+        productPickerChoices: [],
+        autoPick: mrpDialogChoices[0] ?? null,
+      };
+    }
     return {
       needMrpPicker: true,
       showMrpDialog: true,
       showProductPicker: false,
-      mrpDialogChoices: matches,
+      mrpDialogChoices,
       productPickerChoices: [],
       autoPick: null,
     };

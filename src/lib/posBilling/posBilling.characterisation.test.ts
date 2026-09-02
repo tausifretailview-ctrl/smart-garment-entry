@@ -400,6 +400,72 @@ describe("POS billing characterisation — grossBasis (add price)", () => {
     });
     expect(combo.items[0].stockQty).toBeUndefined();
   });
+
+  it("does not merge shared-EAN goods at different sale prices (425 + 445 = 870)", () => {
+    const product = { id: "p1", product_name: "BRA", product_type: "goods" };
+    const first = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product,
+      variant: {
+        id: "v-445",
+        barcode: "8907937020465",
+        size: "34B",
+        sale_price: 445,
+        mrp: 445,
+        stock_qty: 2,
+      },
+    });
+    const second = addLine({
+      items: first.items,
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product,
+      variant: {
+        id: "v-425",
+        barcode: "8907937020465",
+        size: "34B",
+        sale_price: 425,
+        mrp: 425,
+        stock_qty: 1,
+      },
+    });
+    expect(second.merged).toBeFalsy();
+    expect(second.items).toHaveLength(2);
+    const total = second.items.reduce((sum, item) => sum + item.netAmount, 0);
+    expect(total).toBe(870);
+  });
+
+  it("merges a second scan of the same SKU into qty 2", () => {
+    const product = { id: "p1", product_name: "BRA", product_type: "goods" };
+    const variant = {
+      id: "v-425",
+      barcode: "8907937020465",
+      size: "34B",
+      sale_price: 425,
+      mrp: 425,
+      stock_qty: 2,
+    };
+    const first = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product,
+      variant,
+    });
+    const second = addLine({
+      items: first.items,
+      grossBasis: "sale_price",
+      garmentGstSettings: null,
+      product,
+      variant,
+    });
+    expect(second.merged).toBe(true);
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0].quantity).toBe(2);
+    expect(second.items[0].netAmount).toBe(850);
+  });
 });
 
 describe("POS billing characterisation — round-off boundaries", () => {

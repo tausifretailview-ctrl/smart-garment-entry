@@ -98,7 +98,14 @@ export function posPricesMatch(a: number, b: number): boolean {
   return Math.abs(a - b) < POS_PRICE_MATCH_EPSILON;
 }
 
-/** Same service barcode + variant + price → one cart line (qty sums, same sr no). */
+/** Same SKU (variant) → one cart line. Shared EANs at different sale prices stay separate. */
+export function findPosGoodsMergeIndex(items: PosCartItem[], variantId: string): number {
+  const id = (variantId || "").trim();
+  if (!id) return -1;
+  return items.findIndex(
+    (item) => item.productType !== "service" && item.variantId === id,
+  );
+}
 export function findPosServiceMergeIndex(
   items: PosCartItem[],
   params: { barcode: string; variantId: string; mrp: number; unitCost: number },
