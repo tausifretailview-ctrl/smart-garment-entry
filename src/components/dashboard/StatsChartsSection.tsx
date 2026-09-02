@@ -4,6 +4,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { AnimatedChart } from "./AnimatedChart";
 import { format, subDays, startOfDay } from "date-fns";
 import { DASHBOARD_MANUAL_REFRESH_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { fetchDashboardPurchaseSummary } from "@/utils/dashboardSummaryRpcs";
 
 type StatsChartsSectionProps = {
   /** When false, chart queries do not hit Supabase until the user clicks Refresh. */
@@ -51,7 +52,7 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
-  // Fetch last 7 days purchase data - using aggregation view
+  // Last 7 days purchase — org-scoped RPC (same aggregates as v_dashboard_purchase_summary)
   const { data: purchaseData } = useQuery({
     queryKey: ["purchase-trend", currentOrganization?.id],
     queryFn: async () => {
@@ -65,13 +66,11 @@ export const StatsChartsSection = ({ loadEnabled = false }: StatsChartsSectionPr
         };
       });
 
-      const { data, error } = await supabase
-        .from("v_dashboard_purchase_summary")
-        .select("total_purchase_amount, purchase_day")
-        .eq("organization_id", currentOrganization.id)
-        .gte("purchase_day", format(last7Days[0].date, "yyyy-MM-dd"));
-
-      if (error) throw error;
+      const data = await fetchDashboardPurchaseSummary(
+        supabase,
+        currentOrganization.id,
+        format(last7Days[0].date, "yyyy-MM-dd"),
+      );
 
       const purchaseByDay = last7Days.map(day => {
         const dayPurchases = data?.filter(
