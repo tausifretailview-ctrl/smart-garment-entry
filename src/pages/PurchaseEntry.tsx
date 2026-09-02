@@ -6775,6 +6775,7 @@ const PurchaseEntry = () => {
             default_pur_price: parseLocalizedNumber(row.pur_price),
             default_sale_price: parseLocalizedNumber(row.sale_price),
             status: 'active',
+            created_in_purchase: true,
           },
         });
       }
@@ -7439,6 +7440,7 @@ const PurchaseEntry = () => {
           mobileERPMode={mobileERPSettings || undefined}
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
+          createdInPurchase
         />
         {purchaseMrpTierDialog}
         <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
@@ -8858,6 +8860,7 @@ const PurchaseEntry = () => {
           mobileERPMode={mobileERPSettings || undefined}
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
+          createdInPurchase
         />
 
         {purchaseMrpTierDialog}

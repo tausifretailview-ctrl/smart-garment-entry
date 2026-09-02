@@ -4262,12 +4262,14 @@ export type Database = {
           uom: string
           updated_at: string | null
           user_cancelled_at: string | null
+          created_in_purchase: boolean
         }
         Insert: {
           brand?: string | null
           category?: string | null
           color?: string | null
           created_at?: string | null
+          created_in_purchase?: boolean
           default_pur_price?: number | null
           default_sale_price?: number | null
           deleted_at?: string | null
@@ -4298,6 +4300,7 @@ export type Database = {
           category?: string | null
           color?: string | null
           created_at?: string | null
+          created_in_purchase?: boolean
           default_pur_price?: number | null
           default_sale_price?: number | null
           deleted_at?: string | null
@@ -10635,7 +10638,7 @@ export type Database = {
       }
       soft_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
-        Returns: number
+        Returns: Json
       }
       soft_delete_purchase_return: {
         Args: { p_return_id: string; p_user_id: string }
