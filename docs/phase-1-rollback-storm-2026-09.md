@@ -4,8 +4,8 @@
 
 **Date:** 2026-09-02  
 **Scope:** Read-only. No `src/` changes, no migrations, no DDL, no `pg_stat_statements_reset()`.  
-**Trigger figure:** ~**4.53 million** rolled-back transactions “since boot” (operator snapshot; **not present in this repo**).  
-**Status:** **OPEN follow-up** — not resolved, not silently dropped when later performance PRs land.
+**Trigger figure:** **4,530,418** `xact_rollback` on database `postgres` (SQL editor Block 0, 2026-09-02 18:55 UTC).  
+**Status:** **Window classified — not a tight failure loop** (6.38% of xacts). Cause still open until blocks 1–3 (ERROR histogram). Do not drop this follow-up because later performance PRs land.
 
 This document is the gate before Phase 2 (dashboard summary RPCs). It records what we could and could not sample, classifies likely vs unlikely causes against the actual codebase, and ships a SQL editor playbook so the live counters can be pasted back.
 
@@ -13,18 +13,19 @@ This document is the gate before Phase 2 (dashboard summary RPCs). It records wh
 
 ## Verdict (read this first)
 
-1. **The 4.53 M figure cannot be re-sampled from this checkout.** The committed `.env` has only the Supabase anon/publishable key. `pg_stat_database`, `pg_stat_statements`, Postgres logs, and `app_error_logs` are not reachable as anon. Production REST is up (`get_org_public_info` for slug `demo` returned 200); `app_error_logs` SELECT as anon returned `[]` (RLS); `rpc/pg_stat_statements` returned PostgREST 404 as expected.
+1. **The 4.53 M figure is confirmed.** SQL editor Block 0 (`scripts/phase-1-block-0-window.sql`) at 2026-09-02 18:55 UTC: `xact_rollback = 4,530,418`, `xact_commit = 66,504,232`, **`rollback_pct = 6.38%`**, conflicts 0, deadlocks 0, database `postgres`. The agent still cannot sample this as anon; a human ran the playbook.
 
 2. **This is not explained by `ON CONFLICT` uniqueness probes in our SQL.** Postgres does **not** increment `xact_rollback` for `INSERT … ON CONFLICT DO UPDATE/NOTHING`. A repo-wide grep of `supabase/migrations` found **zero** `EXCEPTION WHEN unique_violation` handlers. Sale/POS numbering (`generate_sale_number_atomic`, `generate_pos_number_atomic`) and barcode sequence init use `ON CONFLICT`. Those paths are the *expected constraint-check pattern* the prompt asked us to rule out — and they are **not** a rollback storm.
 
-3. **Client-side `23505` retries exist but are bounded** (typically 5–8 attempts, only on collision). They *do* produce one top-level rolled-back PostgREST transaction per failed INSERT. They cannot reach millions unless collisions themselves are millions — that would already be a visible correctness incident (duplicate bill/voucher numbers, cashiers seeing “try again”).
+3. **Client-side `23505` retries exist but are bounded** (typically 5–8 attempts, only on collision). They *do* produce one top-level rolled-back PostgREST transaction per failed INSERT. They cannot reach millions unless collisions themselves are millions — that would already be a visible correctness incident (duplicate bill/voucher numbers, cashiers seeing “try again”). A 6.38% ratio on 71 M total xacts does **not** require millions of bill-number collisions.
 
-4. **Until the SQL editor results below are pasted in, treat 4.53 M as unclassified.** The next most likely buckets, in order, are:
-   - **Cluster-wide counter, not our app schema alone.** `pg_stat_database.xact_rollback` is per *database* (`postgres` on Supabase). It includes Auth (`auth.*`), Storage, Realtime, Vault, `pg_cron`, and autovacuum/internal backends — not just PostgREST `public.*`.
-   - **Top-level statement failures** that PostgREST wraps in a transaction: `57014` statement_timeout, `stock_not_negative` CHECK, insufficient-stock `RAISE`, RLS `WITH CHECK` rejects (e.g. `login_attempts` rate-limit policy), unique violations that are **not** caught with `ON CONFLICT`.
-   - **PL/pgSQL `EXCEPTION` subtransactions** (caught errors). This repo uses `EXCEPTION WHEN OTHERS` mainly on cron/schedule setup and a few triggers that **re-raise**. No hot-path “try insert, catch unique, retry” loop in SQL.
+4. **Window classification: not a tight failure loop.** 6.38% sits just above the 2–5% “often validation/timeout noise” band and far below 30% (failure-loop territory).
+   - `postmaster_start` = 2026-06-13 16:38 UTC (~81 days) → **0.647 rollbacks/s** (upper bound: same 4.53 M over the shorter denominator).
+   - `db_stats_reset` = 2025-11-04 02:17 UTC (~303 days), *before* postmaster start → **0.173 rollbacks/s**. Counters likely persisted across the June restart; treat 0.173/s as the more honest rate.
+   - Cause of the 4.53 M is still unclassified until blocks 1–3 (`app_error_logs` + Dashboard Postgres ERROR histogram). Buckets unchanged: cluster-wide Auth/Storage/cron, `57014` / `23505` / `23514` / `42501`, PL/pgSQL subxact, autovacuum.
+   - Separate signal: **`temp_files = 3,961,085`** (sort/hash spills). That is work_mem pressure, not rollbacks.
 
-5. **Phase 2–4 performance work may proceed after this document exists.** The rollback storm stays a **tracked follow-up** (`docs/phase-1-rollback-storm-2026-09.md` + `scripts/phase-1-rollback-storm.sql`). Do not close it because dashboard/search latency improved.
+5. **Phase 2–4 performance work may proceed.** The rollback follow-up stays tracked. Do not close it because the ratio is “only” 6% or because search latency improved. Next paste: `scripts/phase-1-block-1-app-errors.sql`.
 
 ---
 
@@ -41,17 +42,17 @@ This document is the gate before Phase 2 (dashboard summary RPCs). It records wh
 | PL/pgSQL `BEGIN … EXCEPTION WHEN … END` that **catches** an error | **Often yes** (subxact abort) — even if the outer function then succeeds |
 | Autovacuum / some internal backends aborting catalog xacts | **Can be yes** (known noisy source on hosted Postgres) |
 
-Without **`xact_commit` + window length**, 4.53 M is not interpretable:
+Without **`xact_commit` + window length**, 4.53 M is not interpretable. **Captured 2026-09-02:**
 
-| Window | 4.53 M rollbacks ⇒ rate |
-|---|---|
-| 7 days | ~7.5 / s |
-| 30 days | ~1.7 / s |
-| 90 days | ~0.58 / s |
+| Window | Length | Rate |
+|---|---|---|
+| Since `postmaster_start` (2026-06-13) | ~81 days | **0.647 / s** (upper bound) |
+| Since `db_stats_reset` (2025-11-04) | ~303 days | **0.173 / s** (preferred if counters persisted) |
+| Ratio vs commits | — | **6.38%** (independent of window) |
 
-A 2–5% rollback ratio on a busy REST API is often validation/`23505`/timeout noise. A 30%+ ratio, or a sustained multi-rollback-per-second **error** rate in Postgres logs, is a failure loop.
+A 2–5% rollback ratio on a busy REST API is often validation/`23505`/timeout noise. A 30%+ ratio, or a sustained multi-rollback-per-second **error** rate in Postgres logs, is a failure loop. **6.38% is the first band, not the second.** Cause still needs the ERROR histogram (blocks 1–3).
 
-**Required first query (SQL editor / `postgres` role):** block 0 in `scripts/phase-1-rollback-storm.sql`. Paste the row into §Results below.
+**Next query:** `scripts/phase-1-block-1-app-errors.sql`.
 
 ---
 
@@ -63,7 +64,7 @@ A 2–5% rollback ratio on a busy REST API is often validation/`23505`/timeout n
 | `GET /rest/v1/rpc/get_org_public_info` `{"p_slug":"demo"}` | **200** — backend reachable. |
 | `GET /rest/v1/app_error_logs?select=id&limit=1` as anon | **200 `[]`** — RLS hides rows (expected). |
 | `POST /rest/v1/rpc/pg_stat_statements` as anon | **404 PGRST202** — not an RPC (expected). |
-| Service role / DB connection string / SQL editor | **Not in this environment.** Do not invent one. |
+| Service role / DB connection string / SQL editor | Agent: **not in this environment.** Human SQL editor: Block 0 captured 2026-09-02 18:55 UTC. |
 | Repo docs / plans | **No** `xact_rollback` / “4.53” / “rollback storm” string. Prior audits (`docs/phase-0-query-time-audit-2026-06-26.md`, `docs/phase-3-perf-audit-2026-07.md`, `.lovable/plan/speed-search-database-health-improvement-plan-annotated-for-2026-08-09.md`) ranked **successful** `pg_stat_statements` by total time. They never measured rollbacks. |
 | `pg_stat_statements_reset()` | Last in-repo call: `supabase/migrations/20260710020103_*.sql` (2026-07-10). Phase 3 audit saw `stats_reset = 2026-07-11 20:07 UTC`. **Do not reset again** as part of this measurement. |
 
@@ -193,11 +194,25 @@ Current view definitions (verified in-repo):
 
 ### Block 0 — window and ratio
 
-```
-(date, xact_commit, xact_rollback, rollback_pct, conflicts, deadlocks, stats_reset, postmaster_start, rollbacks_per_sec)
-```
+Captured 2026-09-02 18:55:08 UTC. Export: `query-results-export-2026-09-03_00-25-08_bdd4.csv`.
 
-**Not captured.** 2026-09-02 attempt pasted this Markdown file into the SQL editor → `ERROR 42601: syntax error at or near "##"`. Use `scripts/phase-1-block-0-window.sql`.
+| Field | Value |
+|---|---|
+| `datname` | `postgres` |
+| `xact_commit` | 66,504,232 |
+| `xact_rollback` | **4,530,418** |
+| `rollback_pct` | **6.38** |
+| `conflicts` | 0 |
+| `deadlocks` | 0 |
+| `temp_files` | 3,961,085 |
+| `db_stats_reset` | 2025-11-04 02:17:06 UTC |
+| `pgss_stats_reset` | 2026-07-11 20:07:19 UTC |
+| `postmaster_start` | 2026-06-13 16:38:50 UTC |
+| `sampled_at` | 2026-09-02 18:55:08 UTC |
+| `rollbacks_per_sec_since_boot` | 0.647 |
+| `rollbacks_per_sec_since_db_stats_reset` | 0.173 |
+
+`pgss_stats_reset` matches the Phase 3 audit note (do **not** reset). `temp_files` is a spill counter, not rollbacks.
 
 ### Block 1 — `app_error_logs` by operation / SQLSTATE (30 days)
 
@@ -269,7 +284,7 @@ Do not DROP in Phase 1–4. Phase 5 must re-check Recycle Bin / `deleted_at IS N
 
 | ID | Item | Owner when unblocked | Blocks Phase 2? |
 |---|---|---|---|
-| RS-1 | Paste block 0–5 results into this doc (Appendix B index scans captured 2026-09-02; rollback window still open) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
+| RS-1 | Paste block 0–5 results into this doc (Block 0 + Appendix B captured 2026-09-02; blocks 1–5 still open) | Whoever has SQL editor | **No** — Phase 2 is independent read-path work |
 | RS-2 | If block 3 shows a single repeating `ERROR`, open a dedicated correctness issue | — | **No**, unless it is a money/stock write loop |
 | RS-3 | Re-check `xact_rollback` rate after Phases 2–4 deploy (same script, new window) | Phase 6 | No |
 | RS-4 | Zero new `57014` for a week of production logs — overall programme check | After all phases | No |
