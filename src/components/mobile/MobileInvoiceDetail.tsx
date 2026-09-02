@@ -48,7 +48,7 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
   const [printOpen, setPrintOpen] = useState(false);
   const [paymentsExpanded, setPaymentsExpanded] = useState(false);
 
-  const { data: sale, isLoading, isError } = useQuery({
+  const { data: sale, isLoading, isError, refetch } = useQuery({
     queryKey: ["mobile-invoice-detail", orgId, saleId],
     queryFn: () =>
       withMobileQueryTimeout(() => fetchSaleForInvoicePreview(saleId!, orgId!)),
@@ -133,6 +133,13 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
               <button
                 type="button"
                 className="mt-3 text-sm text-primary font-semibold touch-manipulation"
+                onClick={() => void refetch()}
+              >
+                Retry
+              </button>
+              <button
+                type="button"
+                className="mt-2 text-sm text-muted-foreground font-semibold touch-manipulation"
                 onClick={() => handleClose(false)}
               >
                 Close
