@@ -1,37 +1,60 @@
-# CHIRAG MENS WEAR — barcode 450004951 investigation and data fix
+# App speed, query timeouts and cloud usage — remediation plan
 
-## What the data says
+## What the measurements show (read today, live database)
 
-The item is **not** missing and the purchase is **not** deleted. Verified in the live database:
+Backend capacity is fine: database up, memory 66%, connections 35/90, pool 1/400, disk 28%, size 1.18 GB. **No instance resize is needed** — the cost is in query shape and request volume, not hardware.
 
-- Variant `450004951` — SHIRT / D.NO 2.POKET / size M / colour BEIGE, brand DIRECT
-- Stock 1, active, not deleted; parent product active, not deleted
-- Bought on purchase bill **PUR/26-27/67** dated 08-Aug-2026, line not deleted, correctly linked to the variant
-- Sale price ₹1199 (matches the tag), purchase price ₹765
+Top time consumers (total server time since stats reset):
 
-So the barcode resolves fine on an exact scan. Two real data faults explain why the screen can look empty or wrong:
+| Query | Calls | Mean | Total |
+|---|---|---|---|
+| `sale_items` line-item search (ILIKE on barcode/name/size/color + `sale_id IN (...)`) | 181,036 | 38 ms | **113 min** |
+| `sale_items` fetch by sale ids (qty, mrp) | 28,922 | 86 ms | 41 min |
+| `sales` header search (4-column ILIKE + exact count) | 15,088 | 99 ms | 25 min |
+| `customers` search / list | 104,701 | ~22 ms | 38 min |
+| `v_dashboard_stock_summary` (StatusBar tile) | 33,458 | 34 ms | 19 min |
+| `v_dashboard_purchase_summary` | 11,285 | 75 ms (max 2.97 s) | 14 min |
+| `purchase_items` barcode ILIKE + bill join | 2,043 | **410 ms** (max 2.7 s) | 14 min |
+| `products` search with 28 OR'd ILIKEs | 40,334 | 22 ms (max 1.66 s) | 15 min |
 
-1. **MRP is blank.** This variant, and **3,665 of the in-stock variants** in this shop, have no MRP. Every MRP column, MRP-mode price and MRP label field renders blank for them, even though the purchase line carries ₹1199.
-2. **Every product is flagged as an IMEI/serial item** — 848 of 848 products have `requires_imei = true`, inherited from the form's "remember last choice" default. It is dormant today (mobile-ERP IMEI enforcement is off for this shop), but the moment that switch is touched, every 9-digit garment barcode fails the IMEI length check and scanning stops working shop-wide.
+Confirmed structural causes:
+
+1. **`sale_items` has no `organization_id` column** (verified). Every line-item search must first resolve a list of sale ids, then ILIKE across the whole tenant-shared table. That is why it is both the most-called and most expensive statement.
+2. **The dashboard views aggregate every organization, then filter.** `v_dashboard_stock_summary` groups all variants of all tenants and `v_dashboard_purchase_summary` groups all bills of all tenants; the `organization_id = ?` filter is applied to the grouped output, so one shop's status bar pays for every shop's data. That is the 2.9 s worst case.
+3. **Duplicate indexes** on hot write tables: `idx_sale_items_sale` / `idx_sale_items_saleid`, `idx_purchase_items_bill` / `idx_purchase_items_billid`, `idx_purchase_items_sku` / `idx_purchase_items_sku_id`, `idx_product_variants_org` / `idx_product_variants_organization_id`. Each duplicate slows every insert and adds disk/backup usage.
+4. **4.53 million rolled-back transactions since boot** — abnormally high. Cause is unknown and must be identified before it is treated as noise.
+5. Exact-count pagination (`pgrst_source_count`) on `sales` search doubles the work of every search page.
 
 ## Plan
 
-### 1. Backfill missing MRP for this organization
-Use the existing `fix_missing_mrp_for_org` path: for every non-deleted variant with null/zero MRP, set MRP from the most recent purchase line's MRP, falling back to the variant's sale price when the purchase line has none. Run it as a scoped migration for CHIRAG MENS WEAR only, with a snapshot table taken first so it can be rolled back.
+### Phase 1 — Measure the rollback storm (no changes)
+Identify what is rolling back 4.5 M transactions: sample failing statements, constraint violations and retried writes from statement stats and logs, grouped by table. Report findings before touching anything else. If it is a real failure loop it is likely also a correctness bug.
 
-### 2. Clear the wrong IMEI flag for this organization
-Set `requires_imei = false` for all products in this org (garment shop, no serialised units), scoped by `organization_id`, snapshot first.
+### Phase 2 — Dashboard summary views (largest easy win)
+Replace both org-wide aggregate views with organization-scoped `SECURITY DEFINER` RPCs that apply `organization_id = p_org` *inside* the aggregation, backed by existing composite indexes. StatusBar and StatsChartsSection switch to the RPCs; caching tiers stay as they are. Expected: 34 ms → low single-digit ms, and the 2.9 s purchase spike disappears.
 
-### 3. Stop the flag from recurring
-The form default comes from a browser-local "last used" memory that defaults to true. Change the default for `business`-type organizations to false, so a new garment/footwear product is never created as a serial item unless the user ticks it.
+### Phase 3 — Line-item search
+Add `organization_id` to `sale_items`, backfill from the parent sale, keep it in sync via trigger, and add a composite trigram index scoped by org. Replace the ILIKE-over-sale-id-list pattern in POS/Sales dashboard search with a single org-scoped search RPC bounded by date. Expected: the 181 K-call statement collapses to a fraction of its cost and per-keystroke latency drops.
 
-### 4. Make "not found" honest
-When a scan resolves no row, the toast should name what was searched and whether an IMEI-length rule rejected it, instead of a bare "not found". This is the difference between the shop reporting "barcode missing" and seeing the real reason.
+### Phase 4 — Search shapes
+- `products`: replace the 28-way OR ILIKE with one trigram search RPC.
+- `purchase_items` barcode: use exact / prefix match instead of `%barcode%` (410 ms mean today).
+- `sales` search: switch to planned/estimated count instead of exact count on every page.
+
+### Phase 5 — Index hygiene
+Drop the four duplicate index pairs listed above; re-check write latency on `sale_items` insert (currently 69 ms mean, 13.8 K calls) after the drop.
+
+### Phase 6 — Cloud usage and loading
+- Re-run the cloud-usage baseline (`docs/cloud-usage-baseline.md`) before and after Phases 2–4 and record request counts per route.
+- Re-verify the blank-page path (tab cache fallback + blank-frame watchdog) with the browser harness on a slow-network profile, and confirm no route falls back to a silent empty render.
 
 ## Technical notes
+- No money logic, no schema semantics, no RLS relaxation. New RPCs get explicit `search_path = public`, `EXECUTE` granted to `authenticated` only, and are revoked from `PUBLIC`/`anon` per the existing DDL trigger.
+- The `sale_items.organization_id` backfill runs in batches and is validated by comparing counts against the parent `sales` rows before the trigger is trusted.
+- Each phase is verified with `EXPLAIN (ANALYZE, BUFFERS)` before and after, plus a re-run of `slow_queries`.
 
-- Both data changes are `UPDATE ... WHERE organization_id = 'e4e8ddf5-53cc-49c2-b453-739259dc53e2'`, each preceded by a `CREATE TABLE ... AS SELECT` snapshot of the affected rows for rollback.
-- MRP backfill source order: latest `purchase_items.mrp` for the variant → `product_variants.last_purchase_mrp` → `sale_price`. Never overwrite an MRP that is already set.
-- Form default lives in `src/utils/productRequiresImei.ts` (`getRequiresImeiFormDefault`); the change is to seed `false` when there is no stored preference.
-- Scan messaging lives in `src/pages/POSSales.tsx` around the barcode-resolve branch, using the candidates already returned by `lookupVariantRowsByScan`.
-- No change to barcode resolution order, stock maths, or RLS.
+## Verification
+1. Slow-query table re-ranked after each phase; the four headline statements must drop in mean and total time.
+2. POS dashboard search, customer search and barcode scan return identical rows to today.
+3. StatusBar stock/due figures byte-identical before and after Phase 2.
+4. No new statement-timeout (57014) errors in a week of production logs.

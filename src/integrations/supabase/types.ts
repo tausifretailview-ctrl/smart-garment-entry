@@ -443,6 +443,33 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_dispatch_runs: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          http_request_id: number | null
+          id: string
+          status: string
+          ticket_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          http_request_id?: number | null
+          id?: string
+          status: string
+          ticket_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          http_request_id?: number | null
+          id?: string
+          status?: string
+          ticket_id?: string | null
+        }
+        Relationships: []
+      }
       backup_logs: {
         Row: {
           backup_type: string
@@ -4238,6 +4265,7 @@ export type Database = {
           category: string | null
           color: string | null
           created_at: string | null
+          created_in_purchase: boolean
           default_pur_price: number | null
           default_sale_price: number | null
           deleted_at: string | null
@@ -4262,7 +4290,6 @@ export type Database = {
           uom: string
           updated_at: string | null
           user_cancelled_at: string | null
-          created_in_purchase: boolean
         }
         Insert: {
           brand?: string | null
@@ -9134,6 +9161,14 @@ export type Database = {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
       }
+      _product_is_new_without_other_history: {
+        Args: {
+          p_bill_id: string
+          p_organization_id: string
+          p_product_id: string
+        }
+        Returns: boolean
+      }
       _product_is_orphan: {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
@@ -9395,6 +9430,7 @@ export type Database = {
           variant_id: string
         }[]
       }
+      dispatch_nightly_backups: { Args: never; Returns: number }
       fix_missing_mrp_for_org: { Args: { p_org_id: string }; Returns: number }
       fix_stock_discrepancies: {
         Args: { p_organization_id: string }
@@ -10522,6 +10558,14 @@ export type Database = {
         }
         Returns: string
       }
+      resolve_organization_by_public_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          name: string
+          slug: string
+        }[]
+      }
       restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
       restore_purchase_return: {
         Args: { p_return_id: string }
@@ -10720,12 +10764,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -10749,11 +10793,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -10774,11 +10818,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -10799,11 +10843,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -10816,11 +10860,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
