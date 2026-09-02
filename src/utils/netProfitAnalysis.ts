@@ -72,6 +72,10 @@ export interface ProfitAggregateRow {
   marginPercent: number;
   itemsSold: number;
   zeroCostQty: number;
+  /** Units returned in the period (always ≥ 0). Already netted into itemsSold. */
+  qtyReturned: number;
+  /** Absolute ₹ of return lines in the period. Already netted into netSales. */
+  returnAmount: number;
 }
 
 export interface ProfitDataset {
@@ -344,19 +348,7 @@ export async function loadProfitDataset(
     : [];
 
   if (saleItems.length === 0 && returnItems.length === 0) {
-    return {
-      lines: [],
-      totals: {
-        grossSales: 0,
-        totalDiscounts: 0,
-        netSales: 0,
-        totalCOGS: 0,
-        grossProfit: 0,
-        marginPercent: 0,
-        itemsSold: 0,
-        zeroCostQty: 0,
-      },
-    };
+    return { lines: [], totals: sumLines([]) };
   }
 
   const variantIds = [
@@ -556,6 +548,8 @@ function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
     totalCOGS: 0,
     itemsSold: 0,
     zeroCostQty: 0,
+    qtyReturned: 0,
+    returnAmount: 0,
   };
   for (const line of lines) {
     acc.grossSales += line.grossSales;
@@ -564,6 +558,10 @@ function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
     acc.totalCOGS += line.totalCOGS;
     acc.itemsSold += line.qty;
     acc.zeroCostQty += line.zeroCostQty;
+    if (line.sign === -1) {
+      acc.qtyReturned += Math.abs(line.qty);
+      acc.returnAmount += Math.abs(line.netSales);
+    }
   }
   const grossProfit = acc.netSales - acc.totalCOGS;
   return {
@@ -596,6 +594,8 @@ export function aggregateBy(
         marginPercent: 0,
         itemsSold: 0,
         zeroCostQty: 0,
+        qtyReturned: 0,
+        returnAmount: 0,
       };
       map.set(key, row);
     }
@@ -605,6 +605,10 @@ export function aggregateBy(
     row.totalCOGS += line.totalCOGS;
     row.itemsSold += line.qty;
     row.zeroCostQty += line.zeroCostQty;
+    if (line.sign === -1) {
+      row.qtyReturned += Math.abs(line.qty);
+      row.returnAmount += Math.abs(line.netSales);
+    }
   }
 
   const result: ProfitAggregateRow[] = [];
@@ -714,6 +718,8 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
     totalCOGS: 0,
     itemsSold: 0,
     zeroCostQty: 0,
+    qtyReturned: 0,
+    returnAmount: 0,
   };
   for (const row of rows) {
     acc.grossSales += row.grossSales;
@@ -722,6 +728,8 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
     acc.totalCOGS += row.totalCOGS;
     acc.itemsSold += row.itemsSold;
     acc.zeroCostQty += row.zeroCostQty;
+    acc.qtyReturned += row.qtyReturned;
+    acc.returnAmount += row.returnAmount;
   }
   const grossProfit = acc.netSales - acc.totalCOGS;
   return {
@@ -729,6 +737,10 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
     grossProfit,
     marginPercent: acc.netSales !== 0 ? (grossProfit / acc.netSales) * 100 : 0,
   };
+}
+
+export function rowsHaveReturns(rows: { qtyReturned: number }[]): boolean {
+  return rows.some((r) => (Number(r.qtyReturned) || 0) > 0);
 }
 
 export const FIELD_DIMENSION_OPTIONS: {

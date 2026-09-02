@@ -56,6 +56,7 @@ import {
   loadProfitDataset,
   aggregateForTab,
   sumAggregates,
+  rowsHaveReturns,
   FIELD_DIMENSION_OPTIONS,
   type ProfitAggregateRow,
   type NetProfitTab,
@@ -134,7 +135,7 @@ type ColumnDef = {
   header: string;
   align?: "left" | "right";
   money?: boolean;
-  accent?: "orange" | "amber" | "green" | "margin";
+  accent?: "orange" | "amber" | "green" | "red" | "margin";
   get: (row: ProfitAggregateRow) => string | number;
   title?: string;
 };
@@ -186,6 +187,13 @@ function ProfitBreakdownTable({
         </span>
       );
     }
+    if (accent === "red") {
+      return (
+        <span className={cn(tableMoneyClass, "text-red-600 dark:text-red-400")}>
+          {formatCurrency(value)}
+        </span>
+      );
+    }
     if (accent === "green") {
       return (
         <span className={cn(tableMoneyClass, "text-green-600 dark:text-green-400")}>
@@ -220,6 +228,7 @@ function ProfitBreakdownTable({
                   tableHeadClass,
                   col.align === "right" && "text-right net-profit-print-num",
                   col.accent === "orange" && "text-orange-300",
+                  col.accent === "red" && "text-red-200",
                   col.accent === "margin" && "print:hidden",
                 )}
                 title={col.title}
@@ -274,7 +283,9 @@ function ProfitBreakdownTable({
                         tableCellClass,
                         col.align === "right" && "text-right",
                         col.key === "label" && "font-semibold",
-                        (col.key === "items" || col.key === "qty") && "net-profit-print-num",
+                        (col.key === "items" || col.key === "qty" || col.key === "returnedQty") &&
+                          "net-profit-print-num",
+                        col.accent === "red" && "text-red-600 dark:text-red-400",
                       )}
                       title={col.key === "label" ? String(val) : undefined}
                     >
@@ -316,6 +327,19 @@ function ProfitBreakdownTable({
                     </TableCell>
                   );
                 }
+                if (col.key === "returnedQty") {
+                  return (
+                    <TableCell
+                      key={col.key}
+                      className={cn(
+                        tableCellClass,
+                        "text-right font-bold net-profit-print-num text-red-600 dark:text-red-400",
+                      )}
+                    >
+                      {totals.qtyReturned}
+                    </TableCell>
+                  );
+                }
                 if (col.key === "secondary" || col.key === "tertiary" || col.key === "brand") {
                   return (
                     <TableCell key={col.key} className="text-base font-bold">
@@ -328,6 +352,7 @@ function ProfitBreakdownTable({
                     gross: totals.grossSales,
                     discounts: totals.totalDiscounts,
                     net: totals.netSales,
+                    returnAmount: totals.returnAmount,
                     cogs: totals.totalCOGS,
                     profit: totals.grossProfit,
                   };
@@ -412,6 +437,7 @@ export default function NetProfitAnalysis() {
   }, [aggregatedRows, search]);
 
   const activeTotals = useMemo(() => sumAggregates(filteredRows), [filteredRows]);
+  const showReturnColumns = useMemo(() => rowsHaveReturns(filteredRows), [filteredRows]);
 
   const handleFYPresetSelect = (from: string, to: string, key: string) => {
     setFromDate(from);
@@ -454,9 +480,11 @@ export default function NetProfitAnalysis() {
         base["Supplier"] = r.label;
       }
       base["Items / Qty"] = r.itemsSold;
+      if (showReturnColumns) base["Qty Returned"] = r.qtyReturned;
       base["Gross Sales"] = r.grossSales;
       base["Discounts"] = r.totalDiscounts;
       base["Net Sales"] = r.netSales;
+      if (showReturnColumns) base["Return Amount"] = r.returnAmount;
       base["COGS"] = r.totalCOGS;
       base["Gross Profit"] = r.grossProfit;
       base["Margin %"] = Number(r.marginPercent.toFixed(2));
@@ -495,6 +523,16 @@ export default function NetProfitAnalysis() {
         align: "right",
         get: (r) => String(r.itemsSold),
       },
+      ...(showReturnColumns
+        ? [
+            {
+              header: "Qty Ret.",
+              width: 12,
+              align: "right" as const,
+              get: (r: ProfitAggregateRow) => String(r.qtyReturned),
+            },
+          ]
+        : []),
       {
         header: "Gross Sales",
         width: 24,
@@ -516,6 +554,16 @@ export default function NetProfitAnalysis() {
         align: "right",
         get: (r) => formatPdfAmount(r.netSales),
       },
+      ...(showReturnColumns
+        ? [
+            {
+              header: "Return Amt",
+              width: 20,
+              align: "right" as const,
+              get: (r: ProfitAggregateRow) => formatPdfAmount(r.returnAmount),
+            },
+          ]
+        : []),
       {
         header: "COGS",
         width: 22,
@@ -686,12 +734,14 @@ export default function NetProfitAnalysis() {
     const totalsCells: string[] = [
       ...labelCols.map((_, i) => (i === 0 ? "TOTAL" : "")),
       String(activeTotals.itemsSold),
+      ...(showReturnColumns ? [String(activeTotals.qtyReturned)] : []),
       formatPdfAmount(activeTotals.grossSales),
       (() => {
         const d = Math.max(0, activeTotals.totalDiscounts);
         return d > 0 ? `-${formatPdfAmount(d)}` : formatPdfAmount(0);
       })(),
       formatPdfAmount(activeTotals.netSales),
+      ...(showReturnColumns ? [formatPdfAmount(activeTotals.returnAmount)] : []),
       formatPdfAmount(activeTotals.totalCOGS),
       formatPdfAmount(activeTotals.grossProfit),
       `${activeTotals.marginPercent.toFixed(1)}%`,
@@ -723,6 +773,19 @@ export default function NetProfitAnalysis() {
         : "Items Sold";
     const moneyCols: ColumnDef[] = [
       { key: "items", header: qtyHeader, align: "right", get: (r) => r.itemsSold },
+      ...(showReturnColumns
+        ? [
+            {
+              key: "returnedQty",
+              header: "Qty Returned",
+              align: "right" as const,
+              accent: "red" as const,
+              title:
+                "Units returned in this period (already netted into Qty Sold and Net Sales — shown here for clarity)",
+              get: (r: ProfitAggregateRow) => r.qtyReturned,
+            },
+          ]
+        : []),
       { key: "gross", header: "Gross Sales", align: "right", money: true, get: (r) => r.grossSales },
       {
         key: "discounts",
@@ -734,6 +797,20 @@ export default function NetProfitAnalysis() {
         get: (r) => r.totalDiscounts,
       },
       { key: "net", header: "Net Sales", align: "right", money: true, get: (r) => r.netSales },
+      ...(showReturnColumns
+        ? [
+            {
+              key: "returnAmount",
+              header: "Return Amount",
+              align: "right" as const,
+              money: true,
+              accent: "red" as const,
+              title:
+                "₹ value of returns in this period (already netted into Net Sales — shown here for clarity)",
+              get: (r: ProfitAggregateRow) => r.returnAmount,
+            },
+          ]
+        : []),
       {
         key: "cogs",
         header: "COGS",
@@ -792,7 +869,7 @@ export default function NetProfitAnalysis() {
       return [{ key: "label", header: fieldDimensionLabel, get: (r) => r.label }, ...moneyCols];
     }
     return [{ key: "label", header: "Supplier", get: (r) => r.label }, ...moneyCols];
-  }, [activeTab, fieldDimensionLabel]);
+  }, [activeTab, fieldDimensionLabel, showReturnColumns]);
 
   const searchPlaceholder =
     activeTab === "supplier-wise"
