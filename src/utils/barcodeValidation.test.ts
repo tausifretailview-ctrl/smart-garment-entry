@@ -43,6 +43,15 @@ describe("effectiveBarcodePriceTier / isBarcodeOrgConflict", () => {
     ).toBe(true);
   });
 
+  it("allows same branded EAN when MRP is identical but sale price differs (JOCKEY BRA case)", () => {
+    expect(
+      isBarcodeOrgConflict({
+        existing: { salePrice: 400, mrp: 200 },
+        incoming: { salePrice: 500, mrp: 200 },
+      }),
+    ).toBe(false);
+  });
+
   it("always blocks IMEI / serialized units regardless of price", () => {
     expect(
       isBarcodeOrgConflict({

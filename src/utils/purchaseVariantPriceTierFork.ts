@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { effectiveBarcodePriceTier } from "@/utils/barcodeValidation";
+import { effectiveBarcodePriceTier, barcodePriceTierKey } from "@/utils/barcodeValidation";
 import {
   importPriceTierKey,
   makePurchaseImportProductKey,
@@ -29,7 +29,15 @@ export function purchasePriceTiersMatch(
   const existingTier = purchasePriceTierValue(existing);
   const incomingTier = purchasePriceTierValue(incoming);
   if (incomingTier <= 0 || existingTier <= 0) return true;
-  return Math.abs(existingTier - incomingTier) <= tolerance;
+  // Compound key — mrp alone is not a safe tier match. A stale, unmaintained
+  // MRP that never changes between purchase batches would otherwise mask a
+  // genuine sale_price change (the org-697c451a JOCKEY BRA case: mrp stuck at
+  // 200 across batches while sale_price moved 400 -> 500, silently overwrote
+  // the master row instead of forking a sibling SKU for the new price).
+  return (
+    barcodePriceTierKey({ mrp: existing.mrp, salePrice: existing.salePrice }) ===
+    barcodePriceTierKey({ mrp: incoming.mrp, salePrice: incoming.salePrice })
+  );
 }
 
 type VariantPriceRow = {
