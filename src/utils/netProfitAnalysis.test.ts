@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateForTab,
   computeSaleLineRevenue,
+  rowsHaveReturns,
   sumAggregates,
   type ProfitLine,
 } from "./netProfitAnalysis";
@@ -307,5 +308,56 @@ describe("aggregateForTab", () => {
     expect(bill.netSales).toBe(field.netSales);
     expect(field.netSales).toBe(dateWise.netSales);
     expect(supplier.grossProfit).toBe(dateWise.grossProfit);
+  });
+
+  it("keeps net qty/sales/profit byte-identical while surfacing return qty and amount", () => {
+    const product = aggregateForTab(lines, "product-wise")[0];
+    const dateWise = aggregateForTab(lines, "date-wise")[0];
+    expect(product.itemsSold).toBe(0);
+    expect(product.netSales).toBe(300);
+    expect(product.grossProfit).toBe(20);
+    expect(product.marginPercent).toBeCloseTo((20 / 300) * 100);
+    expect(product.qtyReturned).toBe(1);
+    expect(product.returnAmount).toBe(100);
+    expect(dateWise.itemsSold).toBe(product.itemsSold);
+    expect(dateWise.netSales).toBe(product.netSales);
+    expect(dateWise.grossProfit).toBe(product.grossProfit);
+    expect(dateWise.qtyReturned).toBe(1);
+  });
+
+  it("shows 5 returned / 0 sold as net -5 plus Qty Returned 5", () => {
+    const rows = aggregateForTab(
+      [
+        line({
+          qty: -5,
+          sign: -1,
+          netSales: -650,
+          grossSales: -650,
+          totalCOGS: 0,
+          productName: "TSHIRT",
+          brand: "HOSERIY",
+          productId: "tshirt-1",
+        }),
+      ],
+      "product-wise",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].itemsSold).toBe(-5);
+    expect(rows[0].netSales).toBe(-650);
+    expect(rows[0].grossProfit).toBe(-650);
+    expect(rows[0].marginPercent).toBe(100);
+    expect(rows[0].qtyReturned).toBe(5);
+    expect(rows[0].returnAmount).toBe(650);
+    expect(rowsHaveReturns(rows)).toBe(true);
+  });
+
+  it("does not flag returns when every line is a sale", () => {
+    const rows = aggregateForTab(
+      [line({ netSales: 100, totalCOGS: 40, qty: 2, sign: 1 })],
+      "product-wise",
+    );
+    expect(rows[0].qtyReturned).toBe(0);
+    expect(rows[0].returnAmount).toBe(0);
+    expect(rowsHaveReturns(rows)).toBe(false);
   });
 });
