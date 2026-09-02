@@ -1,10 +1,20 @@
--- Phase 1 — Rollback-storm measurement (READ ONLY)
--- Run in Supabase SQL editor as postgres / a role that can read pg_catalog + app_error_logs.
--- One numbered block at a time. Do NOT pg_stat_statements_reset(). Do NOT UPDATE/DELETE.
--- Paste results into docs/phase-1-rollback-storm-2026-09.md §Results.
+-- INDEX / reference copy. Running this WHOLE file is supposed to fail.
+-- Do NOT paste docs/phase-1-rollback-storm-2026-09.md (Markdown; fails on ##).
+-- Paste ONE of these entire files and Run:
+--   scripts/phase-1-block-0-window.sql   ← do this first
+--   scripts/phase-1-block-1-app-errors.sql
+-- Remaining blocks below can be highlighted one SELECT at a time.
+
+DO $$
+BEGIN
+  RAISE EXCEPTION
+    'Do not run this whole file, and do not paste the Markdown doc. Open scripts/phase-1-block-0-window.sql and click Run.';
+END
+$$;
 
 -- =============================================================================
 -- Block 0 — Window, ratio, rate (this is the 4.53 M figure's context)
+-- Prefer scripts/phase-1-block-0-window.sql (same SELECT, no RAISE).
 -- =============================================================================
 SELECT
   current_database() AS datname,
