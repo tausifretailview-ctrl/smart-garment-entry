@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
+import { buildUpiPayLink } from "@/lib/upiPayLink";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import "@/styles/trendzo-pos-thermal-receipt.css";
 
@@ -111,8 +113,6 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     saleReturnAdjust = 0,
     roundOff = 0,
     grandTotal,
-    gstBreakdown,
-    gstRateBreakdown,
     paymentMethod,
     cashPaid = 0,
     upiPaid = 0,
@@ -129,6 +129,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
   const { data: orgSettings } = useSettings();
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
   const invoiceBarcodeRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
@@ -146,21 +147,22 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     try {
       JsBarcode(el, code, {
         format: "CODE128",
-        height: 36,
-        width: 1.2,
+        height: 28,
+        width: 1.1,
         displayValue: false,
         margin: 0,
         background: "transparent",
         lineColor: "#000000",
       });
     } catch {
-      /* keep numeric bill no below */
+      el.replaceChildren();
     }
-  }, [billNo]);
+  }, [billNo, settings]);
 
   const billSettings = (settings?.bill_barcode_settings ?? {}) as {
     logo_url?: string;
     login_display_name?: string;
+    upi_id?: string;
   };
   const saleSettings = (settings?.sale_settings ?? {}) as {
     invoice_document_title?: string;
@@ -200,17 +202,39 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
   const staffLabel = (salesman || cashier || billSettings.login_display_name || "").trim();
   const partyName = (customerName || "").trim();
 
-  const gst = gstBreakdown || { cgst: 0, sgst: 0, igst: 0 };
-  const cgstTotal = gst.cgst || 0;
-  const sgstTotal = gst.sgst || 0;
-  const igstTotal = gst.igst || 0;
-  const hasGst = cgstTotal > 0 || sgstTotal > 0 || igstTotal > 0;
-  const taxableAmount = useMemo(() => {
-    if (gstRateBreakdown && gstRateBreakdown.length > 0) {
-      return gstRateBreakdown.reduce((s, row) => s + row.taxableAmount, 0);
+  const upiId = String(billSettings.upi_id || "").trim();
+
+  useEffect(() => {
+    if (!upiId || grandTotal <= 0) {
+      setQrCodeUrl("");
+      return;
     }
-    return Math.max(0, subTotal - discount - (saleReturnAdjust || 0));
-  }, [gstRateBreakdown, subTotal, discount, saleReturnAdjust]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const url = await QRCode.toDataURL(
+          buildUpiPayLink({
+            upiId,
+            payeeName: businessName,
+            amount: grandTotal,
+            note: billNo,
+          }),
+          {
+            width: 140,
+            margin: 1,
+            errorCorrectionLevel: "M",
+            color: { dark: "#000000", light: "#FFFFFF" },
+          },
+        );
+        if (!cancelled) setQrCodeUrl(url);
+      } catch {
+        if (!cancelled) setQrCodeUrl("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [upiId, grandTotal, businessName, billNo]);
 
   const savedFromMrp = useMemo(() => {
     if (!showYouSaved) return 0;
@@ -250,14 +274,12 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
       className="trendzo-pos-thermal-receipt-80mm thermal-receipt thermal-print-80mm thermal-receipt-container"
       data-thermal-paper={thermalPaper}
     >
-      <div className="tz-logo-row">
+      <div className="tz-header">
         {logoUrl ? <img src={logoUrl} alt="" className="tz-logo" /> : null}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="tz-company-name">{businessName}</div>
-          {address ? <div className="tz-company-meta tz-center">{address}</div> : null}
-          {mobile ? <div className="tz-company-meta tz-center">Mobile: {mobile}</div> : null}
-          {gstNumber ? <div className="tz-company-meta tz-center">GSTIN: {gstNumber}</div> : null}
-        </div>
+        <div className="tz-company-name">{businessName}</div>
+        {address ? <div className="tz-company-meta">{address}</div> : null}
+        {mobile ? <div className="tz-company-meta">Mobile: {mobile}</div> : null}
+        {gstNumber ? <div className="tz-company-meta">GSTIN: {gstNumber}</div> : null}
       </div>
 
       <div className="tz-sep-dashed" />
@@ -314,10 +336,6 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
         <div className="tz-summary-right">
           <AmountRow label="Subtotal" amount={subTotal} show={subTotal > 0} />
           <AmountRow label="Discount" amount={discount} />
-          <AmountRow label="Taxable Amount" amount={taxableAmount} show={hasGst} />
-          <AmountRow label="CGST" amount={cgstTotal} />
-          <AmountRow label="SGST" amount={sgstTotal} />
-          <AmountRow label="IGST" amount={igstTotal} />
           <AmountRow label="S/R Adjust" amount={saleReturnAdjust} />
           <AmountRow label="Round Off" amount={roundOff} show={roundOff !== 0} />
         </div>
@@ -328,18 +346,31 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
         <span>{fmtMoney(grandTotal)}</span>
       </div>
 
-      <div className="tz-payment-grid">
-        <div>
-          <InfoRow label="Payment Mode" value={paymentModeLabel} />
-          <AmountRow label="Paid Amount" amount={totalPaid > 0 ? totalPaid : grandTotal} show />
-          <AmountRow label="Balance / Due" amount={balanceDue} show={balanceDue > 0.5} />
-          <AmountRow label="Return Amount" amount={refundCash} />
-          <AmountRow label="You Saved" amount={youSaved} show={youSaved > 0} />
+      <div className="tz-payment">
+        <InfoRow label="Payment Mode" value={paymentModeLabel} />
+        <AmountRow label="Paid Amount" amount={totalPaid > 0 ? totalPaid : grandTotal} show />
+        <AmountRow label="Balance / Due" amount={balanceDue} show={balanceDue > 0.5} />
+        <AmountRow label="Return Amount" amount={refundCash} />
+        <AmountRow label="You Saved" amount={youSaved} show={youSaved > 0} />
+      </div>
+
+      {qrCodeUrl && upiId ? (
+        <div className="tz-upi-qr">
+          <div className="tz-upi-qr-title">SCAN TO PAY</div>
+          <img src={qrCodeUrl} alt="UPI QR" className="tz-upi-qr-img" />
+          <div className="tz-upi-id">{upiId}</div>
         </div>
-        <div className="tz-invoice-barcode">
-          <svg ref={invoiceBarcodeRef} aria-hidden="true" />
-          <div className="tz-invoice-barcode-no">{billNo}</div>
-        </div>
+      ) : null}
+
+      <div className="tz-invoice-barcode">
+        <svg
+          ref={invoiceBarcodeRef}
+          className="tz-barcode-svg"
+          width={180}
+          height={28}
+          aria-hidden="true"
+        />
+        <div className="tz-invoice-barcode-no">{billNo}</div>
       </div>
 
       <div className="tz-sep-dashed" />
