@@ -64,7 +64,7 @@ A 2–5% rollback ratio on a busy REST API is often validation/`23505`/timeout n
 | `GET /rest/v1/rpc/get_org_public_info` `{"p_slug":"demo"}` | **200** — backend reachable. |
 | `GET /rest/v1/app_error_logs?select=id&limit=1` as anon | **200 `[]`** — RLS hides rows (expected). |
 | `POST /rest/v1/rpc/pg_stat_statements` as anon | **404 PGRST202** — not an RPC (expected). |
-| Service role / DB connection string / SQL editor | **Not in this environment.** Do not invent one. |
+| Service role / DB connection string / SQL editor | Agent: **not in this environment.** Human SQL editor: Block 0 captured 2026-09-02 18:55 UTC. |
 | Repo docs / plans | **No** `xact_rollback` / “4.53” / “rollback storm” string. Prior audits (`docs/phase-0-query-time-audit-2026-06-26.md`, `docs/phase-3-perf-audit-2026-07.md`, `.lovable/plan/speed-search-database-health-improvement-plan-annotated-for-2026-08-09.md`) ranked **successful** `pg_stat_statements` by total time. They never measured rollbacks. |
 | `pg_stat_statements_reset()` | Last in-repo call: `supabase/migrations/20260710020103_*.sql` (2026-07-10). Phase 3 audit saw `stats_reset = 2026-07-11 20:07 UTC`. **Do not reset again** as part of this measurement. |
 
