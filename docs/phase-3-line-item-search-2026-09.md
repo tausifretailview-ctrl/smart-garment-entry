@@ -1,9 +1,9 @@
 # Phase 3 — Line-item search playbook results
 
 **Date:** 2026-09-02  
-**PR:** sale_items `organization_id` + `search_line_item_sale_ids`
+**PR:** sale_items `organization_id` + `search_line_item_sale_ids` ([#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582) merged to GitHub; **migration not on production** — 42883 still).
 
-Do **not** paste this Markdown file into the SQL editor. Open a `scripts/phase-3-before-*.sql` file.
+Do **not** paste this Markdown file into the SQL editor.
 
 ---
 
@@ -11,58 +11,100 @@ Do **not** paste this Markdown file into the SQL editor. Open a `scripts/phase-3
 
 ### 1) Dummy UUID + live wrapper → `42501 Authentication required`
 
-`assert_org_member` inside live `search_invoice_sale_ids`. SQL editor has no JWT. Expected. Not a Phase 3 defect.
+`assert_org_member` inside live `search_invoice_sale_ids`. SQL editor has no JWT. Expected.
 
 ### 2) Whole playbook (including AFTER RPC) → `42883 function does not exist`
 
-```
-ERROR: 42883: function public.search_line_item_sale_ids(uuid, unknown, date, date, integer, text[]) does not exist
-LINE 122: SELECT * FROM public.search_line_item_sale_ids(
-```
+`search_line_item_sale_ids` is created by the Phase 3 migration. Merging the GitHub PR does not apply it to production Supabase.
 
-Expected. That RPC is created by this PR’s migration. It is **not on production**. The SQL editor ran the whole buffer, so it hit AFTER block C (line 122) even though the visible cursor was on AFTER block G (`si.organization_id`). Block G would have failed next with `42703 column si.organization_id does not exist`.
+### 3) Single-statement files — captured
 
-Ranking / body-only EXPLAIN still not captured because they were in the same buffer.
+| File | Export |
+|---|---|
+| `scripts/phase-3-before-00-ranking.sql` | `query-results-export-2026-09-03_00-25-27_c99f.csv` |
+| `scripts/phase-3-before-E-invoice-join.sql` | `query-results-export-2026-09-03_00-24-35_5531.csv` |
+| `scripts/phase-3-before-F-pos-exists.sql` | `query-results-export-2026-09-03_00-25-40_c968.csv` |
 
----
-
-## What to run now (one file per Run)
-
-Each file is a **single statement**. Paste the entire file. Do not open `phase-3-line-item-search-explain.sql` (that index file now raises on purpose).
-
-**Before migrate (do these three, in order):**
-
-1. `scripts/phase-3-before-00-ranking.sql` — `pg_stat_statements`. No JWT. Export CSV.
-2. `scripts/phase-3-before-E-invoice-join.sql` — live invoice JOIN EXPLAIN. Copy the QUERY PLAN.
-3. `scripts/phase-3-before-F-pos-exists.sql` — live POS EXISTS EXPLAIN. Copy the QUERY PLAN.
-
-Optional: `scripts/phase-3-before-0b-rpc-exists.sql` — confirm `search_line_item_sale_ids` is absent (0 rows for that name).
-
-**After migrate only:** `scripts/phase-3-after-C-shared-rpc.sql` and `scripts/phase-3-after-G-org-column.sql`.
+Org: ELLA NOOR `3fdca631-1e0c-4417-9704-421f5129ff67`. Term: `JEANS`. Window: last 30 days. Both EXPLAIN plans returned **0 rows** (no matching sales in that slice) — plans are still valid.
 
 ---
 
-## Results (paste live rows here)
+## Block 0 — `pg_stat_statements` ranking
 
-### Block 0 — `pg_stat_statements` ranking
+Same `pgss_stats_reset` as the July audit (`2026-07-11 20:07 UTC`). Do **not** reset.
+
+| Rank | Calls | Mean ms | Max ms | Total s | Shape |
+|---:|---:|---:|---:|---:|---|
+| 1 | 181,036 | 37.65 | 941 | **6815** | PostgREST `sale_items` barcode/name ILIKE (`pgrst_source`) |
+| 2 | 17,500 | **199.94** | **7032** | **3499** | RPC `p_org_id, p_search, p_date_from, p_date_to` (live `search_invoice_sale_ids` / `search_pos_sale_ids`) |
+| 3 | 28,991 | 85.63 | 1160 | 2483 | `sale_items` fetch `sale_id, quantity, mrp` |
+| 4 | 13,840 | 69.07 | 1233 | 956 | `INSERT sale_items` |
+| 5 | 5,557 | 97.94 | 1537 | 544 | `INSERT sale_items` (narrower column list) |
+| 6 | 2,956 | 135.19 | 1748 | 400 | `sales` + nested `sale_items` |
+| 7 | 12,143 | 28.09 | 510 | 341 | `sale_items` `quantity, variant_id` |
+| 8 | 427 | **753.31** | 2893 | 322 | `sale_items` + `row_to_json(sales)` |
+
+**Headline ILIKE path is unchanged** since the original plan (181,036 calls / ~38 ms / ~113 min). Production frontend is still hitting PostgREST `sale_items` ILIKE; the GitHub client switch is not live until the web app deploys, and the RPC rewrite is not live until the migration applies.
+
+**Live search RPCs are already expensive:** 17.5k calls, **200 ms mean, 7.0 s max**, 58 min total. That is the wrapper body Phase 3 replaces (invoice JOIN / POS EXISTS). Org-scoped GIN is aimed at this row as much as at the 181k PostgREST ILIKE.
+
+---
+
+## Block E — live invoice JOIN (BEFORE)
+
+`JEANS` / last 30 days / ELLA NOOR. **8.061 ms**, 0 rows, 2,786 shared hits.
 
 ```
-(query_preview, calls, mean_ms, max_ms, total_s)
+Limit
+  -> Nested Loop
+       -> Index Scan using idx_sales_org_type_date_active on sales s
+            Index Cond: org + sale_type='invoice' + last 30 days
+            actual rows=565
+       -> Index Scan using idx_sale_items_saleid on sale_items si
+            Index Cond: (sale_id = s.id)
+            Filter: deleted_at IS NULL AND product_name ~~* '%JEANS%'
+            loops=565
 ```
 
-**Not captured** — aborted by 42501 then 42883 in the same buffer.
+**Phase 3 premise confirmed.** Planner drives from `sales` then `idx_sale_items_saleid`; `ILIKE` is a **residual filter**. Unscoped trigram `idx_sale_items_trgm_product_name` is **not used**. Matches Appendix B: `idx_sale_items_saleid` has 166 M scans.
 
-### Block E — invoice JOIN EXPLAIN
+565 invoice headers in 30 days for this org is a small slice — 8 ms here. The 200 ms / 7 s RPC means (row 2) is the same shape on hotter orgs / broader dates / all 7 UNION branches.
 
-**Not captured.**
+---
 
-### Block F — POS EXISTS EXPLAIN
+## Block F — live POS EXISTS (BEFORE)
 
-**Not captured.**
+`JEANS` / last 30 days / ELLA NOOR. **9.853 ms**, 0 rows, 1,107 shared hits.
 
-### After-migrate C / G
+```
+Limit
+  -> Hash Semi Join  (s.id = si.sale_id)
+       -> Bitmap Heap Scan on sales s
+            Bitmap Index Scan on idx_sales_org_type_date_active
+            actual rows=11  (pos + delivery_challan, 30 days)
+       -> Hash
+            -> Bitmap Heap Scan on sale_items si
+                 Recheck: product_name ~~* '%JEANS%' AND deleted_at IS NULL
+                 Bitmap Index Scan on idx_sale_items_trgm_product_name
+                 actual rows=1088
+```
 
-**Do not run yet.** 42883 on 2026-09-02 confirms the RPC is not deployed.
+Trigram **does** fire on the EXISTS inner scan, but it is **cluster-wide**: 1,088 `%JEANS%` line items hashed, then semi-joined to **11** local POS/DC sales → 0 rows. That is why `si.organization_id = p_org_id` plus org-scoped GIN matters — the 1,088 hits are not tenant-filtered.
+
+---
+
+## What this means for the migration
+
+| Live shape | What Phase 3 changes |
+|---|---|
+| Invoice: nested loop `sales` → `idx_sale_items_saleid`, ILIKE residual | `si.organization_id = p_org_id` so org+trigram GIN can drive |
+| POS: unscoped trigram (1,088 rows) hash-semi-joined to 11 sales | Same org predicate; JOIN from `sale_items` like invoice |
+| RPC wrappers 200 ms mean / 7 s max | Same 7 UNION branches, org-scoped |
+| PostgREST 181k ILIKE | Client already switched in [#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582); drops only after **web deploy**. Migration must be on production first. |
+
+**Do not run** `scripts/phase-3-after-*.sql` until `search_line_item_sale_ids` exists on the live project (re-check with `scripts/phase-3-before-0b-rpc-exists.sql`).
+
+After migrate, re-run E vs G on the same org/term/window and expect Bitmap/GIN on `idx_sale_items_org_*_trgm` instead of `idx_sale_items_saleid` residual ILIKE.
 
 ---
 
@@ -71,5 +113,4 @@ Optional: `scripts/phase-3-before-0b-rpc-exists.sql` — confirm `search_line_it
 - `scripts/phase-3-before-00-ranking.sql`
 - `scripts/phase-3-before-E-invoice-join.sql`
 - `scripts/phase-3-before-F-pos-exists.sql`
-- `scripts/invoice-dashboard-search-invoice-sale-ids-verify.sql` — AUTH 0c if you later want wrapper EXPLAIN
-- `docs/phase-1-rollback-storm-2026-09.md` Appendix B — both `idx_sale_items_sale` and `idx_sale_items_saleid` are hot
+- `docs/phase-1-rollback-storm-2026-09.md` Appendix B — keep `idx_sale_items_sale` and `idx_sale_items_saleid`
