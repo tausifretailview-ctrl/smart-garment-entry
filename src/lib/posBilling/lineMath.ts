@@ -38,6 +38,16 @@ export function applyPosGarmentGstToItem(
 ): PosCartItem {
   const netAmount = calculatePosCartLineNet(item);
   const withNet = { ...item, netAmount };
+  // The garment/apparel GST-by-price-threshold rule is an India-specific
+  // regulation for physical garments only. Service line items are not
+  // garments and must keep whatever GST% was explicitly set for them —
+  // running them through this rule was silently reverting a manually-set
+  // 18% back down to the org's below-threshold rate (e.g. 5%) whenever the
+  // service was priced at or below the garment threshold. Combo items are
+  // still bundles of physical garments, so they stay subject to this rule.
+  if (item.productType === "service") {
+    return withNet;
+  }
   const effectiveUnit = posLineNetUnitPrice(withNet);
   const purchaseGst = item.purchaseGstPer ?? item.gstPer;
   const gstPer = resolveGarmentGstForLine(
