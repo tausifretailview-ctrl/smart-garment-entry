@@ -354,6 +354,7 @@ export function MobileInvoiceDetail({ saleId, open, onOpenChange }: Props) {
 
       <MobileSalePrintPreviewDialog
         saleId={saleId}
+        saleHint={sale ? { sale_type: sale.sale_type, sale_number: sale.sale_number } : null}
         open={printOpen}
         onOpenChange={setPrintOpen}
       />

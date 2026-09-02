@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getRealTastA4PrintPageStyle,
+  isPosSaleDocument,
   isPosThermalBillFormat,
   isThermal80mmInvoiceTemplate,
   posInvoiceTemplateForBillFormat,
@@ -9,6 +10,7 @@ import {
   resolvePosInvoiceTemplate,
   resolveSaleBillFormat,
   resolveSaleInvoiceTemplate,
+  resolveSalePreviewPrintConfig,
   resolveSaleReturnPrintFormatFromSettings,
   toInvoiceWrapperFormat,
   isA5PortraitInvoiceTemplate,
@@ -176,5 +178,42 @@ describe('getRealTastA4PrintPageStyle', () => {
     expect(css).toMatch(/\.retail-erp-all-pages \{[\s\S]*?max-height: none !important/);
     expect(css).toContain('page-break-after: always');
     expect(css).toContain('break-after: page');
+  });
+});
+
+describe('resolveSalePreviewPrintConfig', () => {
+  it('routes POS bills to POS template and thermal paper', () => {
+    const cfg = resolveSalePreviewPrintConfig(
+      { sale_type: 'pos', sale_number: 'POS/26-27/285' },
+      {
+        pos_bill_format: 'thermal',
+        pos_invoice_template: 'trendzo-pos-80mm',
+        invoice_template: 'professional',
+        sales_bill_format: 'a4',
+      },
+    );
+    expect(cfg.documentType).toBe('pos');
+    expect(cfg.paperFormat).toBe('thermal');
+    expect(cfg.template).toBe('trendzo-pos-80mm');
+  });
+
+  it('routes invoices to sale template and A4 paper', () => {
+    const cfg = resolveSalePreviewPrintConfig(
+      { sale_type: 'invoice', sale_number: 'INV/26-27/10' },
+      {
+        pos_bill_format: 'thermal',
+        pos_invoice_template: 'trendzo-pos-80mm',
+        invoice_template: 'professional',
+        sales_bill_format: 'a4',
+      },
+    );
+    expect(cfg.documentType).toBe('invoice');
+    expect(cfg.paperFormat).toBe('a4');
+    expect(cfg.template).toBe('professional');
+  });
+
+  it('treats POS/ numbers as POS when sale_type is missing', () => {
+    expect(isPosSaleDocument({ sale_number: 'POS/26-27/285' })).toBe(true);
+    expect(isPosSaleDocument({ sale_type: 'invoice', sale_number: 'POS/26-27/285' })).toBe(false);
   });
 });

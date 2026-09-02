@@ -4,6 +4,7 @@ import { CUSTOMER_RECEIPT_REFERENCE_TYPE_VALUES } from "@/utils/paymentVoucherFi
 export type SaleInvoicePreviewRow = {
   id: string;
   sale_number: string;
+  sale_type?: string | null;
   sale_date: string;
   customer_name: string;
   customer_address?: string | null;
@@ -16,6 +17,11 @@ export type SaleInvoicePreviewRow = {
   paid_amount?: number | null;
   payment_status?: string | null;
   payment_method?: string | null;
+  round_off?: number | null;
+  cash_amount?: number | null;
+  card_amount?: number | null;
+  upi_amount?: number | null;
+  credit_amount?: number | null;
   salesman?: string | null;
   notes?: string | null;
   customers?: { gst_number?: string | null } | null;
@@ -44,7 +50,7 @@ export async function fetchSaleForInvoicePreview(
   const { data: sale, error } = await supabase
     .from("sales")
     .select(
-      "id, sale_number, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, customers(gst_number)",
+      "id, sale_number, sale_type, sale_date, customer_name, customer_address, customer_phone, gross_amount, discount_amount, flat_discount_amount, sale_return_adjust, net_amount, paid_amount, payment_status, payment_method, salesman, notes, round_off, cash_amount, card_amount, upi_amount, credit_amount, customers(gst_number)",
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
