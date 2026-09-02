@@ -3,6 +3,7 @@ import {
   importPriceTierKey,
   purchasePriceTierValue,
   purchasePriceTiersMatch,
+  shouldReuseBarcodeOnPriceTierFork,
 } from "@/utils/purchaseVariantPriceTierFork";
 
 describe("purchasePriceTiersMatch", () => {
@@ -48,5 +49,67 @@ describe("purchasePriceTiersMatch", () => {
         { mrp: 200, salePrice: 400 },
       ),
     ).toBe(true);
+  });
+
+  it("treats filling empty MRP at the same sale price as the same SKU (Chirag JEANS 450006800)", () => {
+    expect(
+      purchasePriceTiersMatch(
+        { mrp: null, salePrice: 1199 },
+        { mrp: 1199, salePrice: 1199 },
+      ),
+    ).toBe(true);
+    expect(
+      purchasePriceTiersMatch(
+        { mrp: 0, salePrice: 1199 },
+        { mrp: 1199, salePrice: 1199 },
+      ),
+    ).toBe(true);
+    expect(
+      purchasePriceTiersMatch(
+        { mrp: 1199, salePrice: 1199 },
+        { mrp: 0, salePrice: 1199 },
+      ),
+    ).toBe(true);
+  });
+
+  it("still forks when sale price changes even if one side has no MRP", () => {
+    expect(
+      purchasePriceTiersMatch(
+        { mrp: null, salePrice: 1199 },
+        { mrp: 1299, salePrice: 1299 },
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("shouldReuseBarcodeOnPriceTierFork", () => {
+  it("copies manufacturer EANs so Jockey-style scan still finds every price sibling", () => {
+    expect(
+      shouldReuseBarcodeOnPriceTierFork({
+        barcode_source: "external",
+        barcode: "8901326331101",
+      }),
+    ).toBe(true);
+    expect(
+      shouldReuseBarcodeOnPriceTierFork({
+        barcode_source: null,
+        barcode: "8901326331101",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not copy app-generated barcodes (Chirag 450006800 dual SKU)", () => {
+    expect(
+      shouldReuseBarcodeOnPriceTierFork({
+        barcode_source: "generated",
+        barcode: "450006800",
+      }),
+    ).toBe(false);
+    expect(
+      shouldReuseBarcodeOnPriceTierFork({
+        barcode_source: null,
+        barcode: "450006800",
+      }),
+    ).toBe(false);
   });
 });

@@ -943,7 +943,7 @@ const PurchaseBillDashboard = () => {
       if (zeroStockProductCount > 0) {
         toast({
           title: "Products at zero stock",
-          description: `${zeroStockProductCount} product(s) from this bill are now at 0 stock. Review in Inventory → Orphaned Products before cleaning up.`,
+          description: `${zeroStockProductCount} product(s) from this bill are now at 0 stock. Product master is kept — review Inventory → Orphaned Products before cleaning up.`,
         });
       }
 
@@ -1123,7 +1123,7 @@ const PurchaseBillDashboard = () => {
       if (zeroStockProductCount > 0) {
         toast({
           title: "Products at zero stock",
-          description: `${zeroStockProductCount} product(s) across deleted bills are now at 0 stock. Review in Inventory → Orphaned Products.`,
+          description: `${zeroStockProductCount} product(s) across deleted bills are now at 0 stock. Product master is kept — review Inventory → Orphaned Products.`,
         });
       }
 
