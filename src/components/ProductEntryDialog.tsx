@@ -67,6 +67,7 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
 import type { UseExistingProductPayload } from "@/utils/purchaseUseExistingProduct";
 import {
@@ -2224,26 +2225,61 @@ export const ProductEntryDialog = ({
       // Insert variants — prepared and validated before product insert
       let insertedVariants: any[] = [];
       if (variantsToCreate.length > 0) {
-        const variantsToInsert = variantsToCreate.map((v) => ({
-          product_id: productData.id,
-          organization_id: currentOrganization.id,
-          color: v.color || null,
-          size: v.size,
-          pur_price: v.pur_price,
-          sale_price: v.sale_price,
-          mrp: v.mrp,
-          barcode: v.barcode.trim(),
-          barcode_source: v.barcode_source === "generated" ? "generated" : "external",
-          active: v.active,
-          opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
-          // Service products have unlimited/virtual stock — no physical stock tracking
-          stock_qty: formData.product_type === 'service' ? 999999 : v.opening_qty,
-        }));
+        const claimedGenerated = new Set<string>();
+        const variantsToInsert = [];
+        for (const v of variantsToCreate) {
+          const isGenerated = v.barcode_source === "generated";
+          let barcode = v.barcode.trim();
+          // Generated values may have sat in dialog state (auto-generate button,
+          // unsaved-draft restore, or the variants-created effect) while another
+          // tab saved. Re-check immediately before insert; skip external EANs.
+          if (isGenerated) {
+            barcode = await ensureFreshGeneratedBarcode(
+              currentOrganization.id,
+              barcode,
+              claimedGenerated,
+            );
+            v.barcode = barcode;
+          }
+          variantsToInsert.push({
+            product_id: productData.id,
+            organization_id: currentOrganization.id,
+            color: v.color || null,
+            size: v.size,
+            pur_price: v.pur_price,
+            sale_price: v.sale_price,
+            mrp: v.mrp,
+            barcode,
+            barcode_source: isGenerated ? "generated" : "external",
+            active: v.active,
+            opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
+            // Service products have unlimited/virtual stock — no physical stock tracking
+            stock_qty: formData.product_type === 'service' ? 999999 : v.opening_qty,
+          });
+        }
 
-        const { data: variantsData, error: variantsError } = await supabase
-          .from("product_variants")
-          .insert(variantsToInsert)
-          .select();
+        const insertVariantRows = () =>
+          supabase.from("product_variants").insert(variantsToInsert).select();
+
+        let { data: variantsData, error: variantsError } = await insertVariantRows();
+        if (
+          variantsError &&
+          variantsToInsert.some((row) => row.barcode_source === "generated") &&
+          isBarcodeCollisionError(variantsError)
+        ) {
+          const retryClaimed = new Set<string>();
+          for (const row of variantsToInsert) {
+            if (row.barcode_source !== "generated") continue;
+            row.barcode = await ensureFreshGeneratedBarcode(
+              currentOrganization.id,
+              row.barcode,
+              retryClaimed,
+            );
+          }
+          const retry = await insertVariantRows();
+          variantsData = retry.data;
+          variantsError = retry.error;
+        }
 
         if (variantsError) throw variantsError;
         insertedVariants = variantsData || [];

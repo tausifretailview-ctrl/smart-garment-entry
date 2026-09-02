@@ -116,6 +116,11 @@ import {
   shouldReuseCommittedPurchaseCreate,
 } from "@/utils/purchaseSaveIdempotency";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
+import {
+  ensureFreshGeneratedBarcode,
+  insertGeneratedProductVariant,
+  isBarcodeCollisionError,
+} from "@/utils/barcodeCollisionGuard";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
 import { groupPurchaseSearchByProductMaster } from "@/utils/purchaseProductSearchGroup";
@@ -2019,25 +2024,44 @@ const PurchaseEntry = () => {
   }): Promise<{ id: string; barcode: string } | null> => {
     try {
       const reusedBarcode = source.barcode?.trim() || "";
-      const newBarcode = reusedBarcode || (await generateCentralizedBarcode());
-      const { data: newVariant, error } = await supabase
-        .from("product_variants")
-        .insert({
-          organization_id: currentOrganization!.id,
-          product_id: source.product_id,
-          size: source.size || "",
-          color: source.color || "",
-          barcode: newBarcode,
-          barcode_source: reusedBarcode ? "external" : "generated",
-          pur_price: source.pur_price || 0,
-          sale_price: source.sale_price || 0,
-          mrp: source.mrp || 0,
-          stock_qty: 0,
-          active: true,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
+      if (reusedBarcode) {
+        const { data: newVariant, error } = await supabase
+          .from("product_variants")
+          .insert({
+            organization_id: currentOrganization!.id,
+            product_id: source.product_id,
+            size: source.size || "",
+            color: source.color || "",
+            barcode: reusedBarcode,
+            barcode_source: "external",
+            pur_price: source.pur_price || 0,
+            sale_price: source.sale_price || 0,
+            mrp: source.mrp || 0,
+            stock_qty: 0,
+            active: true,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        return { id: newVariant.id, barcode: reusedBarcode };
+      }
+
+      const generated = await generateCentralizedBarcode();
+      const { data: newVariant, barcode: newBarcode } = await insertGeneratedProductVariant<{
+        id: string;
+      }>({
+        organization_id: currentOrganization!.id,
+        product_id: source.product_id,
+        size: source.size || "",
+        color: source.color || "",
+        barcode: generated,
+        barcode_source: "generated",
+        pur_price: source.pur_price || 0,
+        sale_price: source.sale_price || 0,
+        mrp: source.mrp || 0,
+        stock_qty: 0,
+        active: true,
+      });
       return { id: newVariant.id, barcode: newBarcode };
     } catch (error: any) {
       console.error("Failed to create new variant:", error);
@@ -2995,12 +3019,20 @@ const PurchaseEntry = () => {
     if (plan === "displayed") return shown;
     if (plan === "database") return saved;
     if (!isAutoBarcode) return shown;
-    const newBarcode = await generateCentralizedBarcode();
-    const { error } = await supabase
-      .from("product_variants")
-      .update({ barcode: newBarcode })
-      .eq("id", skuId)
-      .eq("organization_id", currentOrganization.id);
+    const generated = await generateCentralizedBarcode();
+    let newBarcode = await ensureFreshGeneratedBarcode(currentOrganization.id, generated);
+    const runUpdate = (barcode: string) =>
+      supabase
+        .from("product_variants")
+        .update({ barcode, barcode_source: "generated" })
+        .eq("id", skuId)
+        .eq("organization_id", currentOrganization.id);
+    let { error } = await runUpdate(newBarcode);
+    if (error && isBarcodeCollisionError(error)) {
+      newBarcode = await ensureFreshGeneratedBarcode(currentOrganization.id, newBarcode);
+      const retry = await runUpdate(newBarcode);
+      error = retry.error;
+    }
     if (error) throw error;
     return newBarcode;
   };
@@ -4094,27 +4126,45 @@ const PurchaseEntry = () => {
           // Generate barcode for new variant
           barcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
           
-          // Create new product variant
-          const { data: newVariant, error: createError } = await supabase
-            .from("product_variants")
-            .insert({
+          if (isAutoBarcode && currentOrganization?.id) {
+            const { data: created, barcode: freshBarcode } = await insertGeneratedProductVariant<{
+              id: string;
+            }>({
               product_id: selectedProduct.id,
-              organization_id: currentOrganization?.id,
+              organization_id: currentOrganization.id,
               size: variant.size,
               color: newColor || variant.color || selectedProduct.color || null,
               pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
               sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
               mrp: variant.mrp || variant.sale_price || selectedProduct.default_sale_price || 0,
-              barcode: barcode,
+              barcode,
+              barcode_source: "generated",
               stock_qty: 0,
               active: true,
-            })
-            .select("id")
-            .single();
+            });
+            barcode = freshBarcode;
+            skuId = created.id;
+          } else {
+            const { data: newVariant, error: createError } = await supabase
+              .from("product_variants")
+              .insert({
+                product_id: selectedProduct.id,
+                organization_id: currentOrganization?.id,
+                size: variant.size,
+                color: newColor || variant.color || selectedProduct.color || null,
+                pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
+                sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
+                mrp: variant.mrp || variant.sale_price || selectedProduct.default_sale_price || 0,
+                barcode: barcode,
+                stock_qty: 0,
+                active: true,
+              })
+              .select("id")
+              .single();
           
-          if (createError) throw createError;
-          
-          skuId = newVariant.id;
+            if (createError) throw createError;
+            skuId = newVariant.id;
+          }
           
           toast({
             title: newColor ? "Color Variant Created" : "Size Created",
@@ -4608,6 +4658,49 @@ const PurchaseEntry = () => {
       for (let idx = 0; idx < rolls.length; idx++) {
         const roll = rolls[idx];
         const rollBarcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
+
+        if (isAutoBarcode) {
+          const { data: newVariant, barcode: freshBarcode } = await insertGeneratedProductVariant<{
+            id: string;
+          }>({
+            organization_id: currentOrganization.id,
+            product_id: product.id,
+            size: roll.meters.toString(),
+            color: roll.color || null,
+            barcode: rollBarcode,
+            barcode_source: "generated",
+            pur_price: product.default_pur_price || 0,
+            sale_price: product.default_sale_price || 0,
+            mrp: 0,
+            stock_qty: 0,
+            active: true,
+          });
+          const purPrice = product.default_pur_price || 0;
+          const subTotal = roll.meters * purPrice;
+          const discAmount = subTotal * (discountPercent / 100);
+          newRows.push({
+            temp_id: Date.now().toString() + Math.random() + idx,
+            product_id: product.id,
+            sku_id: newVariant.id,
+            product_name: product.product_name,
+            size: roll.meters.toString(),
+            qty: 1,
+            pur_price: purPrice,
+            sale_price: product.default_sale_price || 0,
+            mrp: 0,
+            gst_per: product.purchase_gst_percent || product.gst_per || 0,
+            hsn_code: product.hsn_code || "",
+            barcode: freshBarcode,
+            discount_percent: discountPercent,
+            line_total: subTotal - discAmount,
+            brand: product.brand || "",
+            category: product.category || "",
+            color: roll.color || "",
+            style: product.style || "",
+            uom: 'MTR',
+          });
+          continue;
+        }
 
         // Create a new product_variant for this roll
         const { data: newVariant, error: varError } = await supabase
@@ -6659,6 +6752,8 @@ const PurchaseEntry = () => {
       });
     }
 
+    const generatedBarcodeRowIndexes = new Set(rowsNeedingGeneratedBarcode);
+
     // ── Phase 3: Batch-create missing products (200 per insert) ───────────
     const newProductsToInsert: { key: string; insertData: Record<string, unknown> }[] = [];
     const seenNewProductKeys = new Set<string>();
@@ -6728,6 +6823,7 @@ const PurchaseEntry = () => {
     const variantRowsToInsert: VariantRow[] = [];
     const insertedVariantMap = new Map<number, string>();
 
+    const claimedGeneratedImport = new Set<string>();
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
       const productId = productMap.get(makeProductKey(row));
@@ -6735,7 +6831,15 @@ const PurchaseEntry = () => {
         errorCount++;
         continue;
       }
-      const barcode = barcodePool[i] || `IMP${Date.now()}${i}`;
+      let barcode = barcodePool[i] || `IMP${Date.now()}${i}`;
+      if (generatedBarcodeRowIndexes.has(i)) {
+        barcode = await ensureFreshGeneratedBarcode(
+          currentOrganization.id,
+          barcode,
+          claimedGeneratedImport,
+        );
+        barcodePool[i] = barcode;
+      }
       const rowMrp = parseLocalizedNumber(row.mrp);
       const rowSale = parseLocalizedNumber(row.sale_price);
       const existingSku = existingVariantByBarcodeTier.get(
