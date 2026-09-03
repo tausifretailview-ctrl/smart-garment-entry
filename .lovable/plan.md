@@ -49,6 +49,9 @@ Add `organization_id` to `sale_items`, backfill from the parent sale, keep it in
 
 Authenticated Slow-3G request counts still need a signed-in shop capture in `docs/cloud-usage-baseline.md` (no tenant credentials in this environment). Phases 3–4 SQL is not on production yet, so StatusBar RPC names in a live capture may still show the old views until Lovable applies those migrations.
 
+### Phase 7 — StatusBar stock_qty
+Replace `get_dashboard_stock_summary` aggregates of legacy `product_variants.current_stock` with authoritative `stock_qty`. StatusBar already reads `total_stock_qty` from the RPC; output columns stay the same. Client barcode stock lookup prefers `stock_qty` (zero is a real quantity). See `docs/phase-7-stock-qty-statusbar-2026-09.md`.
+
 ## Technical notes
 - No money logic, no schema semantics, no RLS relaxation. New RPCs get explicit `search_path = public`, `EXECUTE` granted to `authenticated` only, and are revoked from `PUBLIC`/`anon` per the existing DDL trigger.
 - The `sale_items.organization_id` backfill runs in batches and is validated by comparing counts against the parent `sales` rows before the trigger is trusted.

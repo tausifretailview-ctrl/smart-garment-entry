@@ -23,6 +23,7 @@ export type DashboardPurchaseSummaryRow = {
 /**
  * StatusBar stock tile. Same numbers as `v_dashboard_stock_summary`
  * (maybeSingle): empty org → null, caller uses `?? 0`.
+ * On-hand qty is `product_variants.stock_qty` after Phase 7 migrate.
  */
 export async function fetchDashboardStockSummary(
   client: SupabaseClient,
