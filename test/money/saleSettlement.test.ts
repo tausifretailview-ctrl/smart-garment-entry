@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  advanceApplicationRoomCap,
   computeExchangeRefundDue,
   derivePaidAndStatus,
   isPosExchangeRefundPaymentVoucher,
@@ -294,5 +295,48 @@ describe("receipt voucher number collision helpers", () => {
     expect(voucherNumberWithRegeneratedBase("RCP/26-27/100-OB", "RCP/26-27/105")).toBe(
       "RCP/26-27/105-OB",
     );
+  });
+});
+
+describe("advanceApplicationRoomCap — UZMA KUDIA cash+advance over-settle", () => {
+  it("caps room at net − cash − existing advance (INV/2841 case)", () => {
+    // net 19149, cash 4149, advance already 0 → room 15000 (not 19149)
+    expect(
+      advanceApplicationRoomCap({
+        netAmount: 19149,
+        alreadyAppliedAdvance: 0,
+        cashLikeSettled: 4149,
+      }),
+    ).toBe(15000);
+  });
+
+  it("blocks a requested 17101 when only 15000 residual remains", () => {
+    const room = advanceApplicationRoomCap({
+      netAmount: 19149,
+      alreadyAppliedAdvance: 0,
+      cashLikeSettled: 4149,
+    });
+    expect(17101).toBeGreaterThan(room + 1);
+    expect(room + 4149).toBe(19149);
+  });
+
+  it("after reallocation, 2896 residual for advance is 13000 − 10899 = 2101", () => {
+    expect(
+      advanceApplicationRoomCap({
+        netAmount: 17300,
+        alreadyAppliedAdvance: 10899,
+        cashLikeSettled: 4300,
+      }),
+    ).toBe(2101);
+  });
+
+  it("returns 0 when cash + advance already cover net", () => {
+    expect(
+      advanceApplicationRoomCap({
+        netAmount: 19149,
+        alreadyAppliedAdvance: 15000,
+        cashLikeSettled: 4149,
+      }),
+    ).toBe(0);
   });
 });

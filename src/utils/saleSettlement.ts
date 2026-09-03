@@ -246,8 +246,35 @@ export type ConsumeAdvanceFIFOParams = {
 };
 
 /**
+ * How much more advance may be applied to a sale without over-settling.
+ *
+ * The DB guard only blocks Σ advance_adjustment > net. That still allows
+ * cash + advance > net (UZMA KUDIA INV/2841: cash ₹4,149 + advance ₹17,101
+ * against net ₹19,149 → ₹2,101 over-apply, sibling invoice left short).
+ */
+export function advanceApplicationRoomCap(params: {
+  netAmount: number;
+  alreadyAppliedAdvance: number;
+  cashLikeSettled: number;
+  saleReturnAdjust?: number;
+}): number {
+  const net = Math.max(0, Number(params.netAmount) || 0);
+  const sr = Math.max(0, Number(params.saleReturnAdjust) || 0);
+  const already = Math.max(0, Number(params.alreadyAppliedAdvance) || 0);
+  const cashLike = Math.max(0, Number(params.cashLikeSettled) || 0);
+  const payable = Math.max(0, net - sr);
+  return Math.max(0, Math.round((payable - already - cashLike) * 100) / 100);
+}
+
+function isAdvanceOrCnAdjustmentMethod(paymentMethod: string | null | undefined): boolean {
+  const pm = String(paymentMethod || "").toLowerCase();
+  return pm === "advance_adjustment" || pm === "credit_note_adjustment";
+}
+
+/**
  * FIFO-consume advance balance; updates customer_advances.used_amount with each receipt voucher.
- * Sale target: caps so Σ live advance_adjustment on the sale cannot exceed net_amount (+1).
+ * Sale target: caps so Σ live advance_adjustment on the sale cannot exceed remaining
+ * receivable after cash-like receipts (and never exceeds net_amount (+1)).
  * Opening-balance target: caps so application cannot exceed remaining OB (floored at 0).
  *
  * OB voucher description must never include an invoice number — sync_sale_payment_status_from_receipts
@@ -288,7 +315,7 @@ export async function consumeAdvanceFIFO(
     const saleId = params.saleId!;
     const { data: saleRow, error: saleErr } = await supabase
       .from("sales")
-      .select("id, net_amount, organization_id")
+      .select("id, net_amount, sale_return_adjust, organization_id, cash_amount, card_amount, upi_amount")
       .eq("id", saleId)
       .eq("organization_id", params.organizationId)
       .is("deleted_at", null)
@@ -296,25 +323,52 @@ export async function consumeAdvanceFIFO(
     if (saleErr) throw saleErr;
     if (!saleRow) throw new Error("Sale not found for advance application");
 
-    const { data: existingAdvRows, error: existingErr } = await supabase
+    const { data: existingReceiptRows, error: existingErr } = await supabase
       .from("voucher_entries")
-      .select("total_amount")
+      .select("total_amount, discount_amount, payment_method")
       .eq("organization_id", params.organizationId)
       .eq("reference_id", saleId)
       .eq("voucher_type", "receipt")
-      .eq("payment_method", "advance_adjustment")
       .is("deleted_at", null);
     if (existingErr) throw existingErr;
 
-    const alreadyApplied = (existingAdvRows || []).reduce(
-      (s, r) => s + (Number(r.total_amount) || 0),
-      0,
-    );
+    let alreadyApplied = 0;
+    let cashLikeFromReceipts = 0;
+    for (const r of existingReceiptRows || []) {
+      const amt = (Number(r.total_amount) || 0) + (Number(r.discount_amount) || 0);
+      if (isAdvanceOrCnAdjustmentMethod(r.payment_method)) {
+        if (String(r.payment_method || "").toLowerCase() === "advance_adjustment") {
+          alreadyApplied += Number(r.total_amount) || 0;
+        }
+        continue;
+      }
+      cashLikeFromReceipts += amt;
+    }
+
+    const tenderOnSale =
+      (Number(saleRow.cash_amount) || 0) +
+      (Number(saleRow.card_amount) || 0) +
+      (Number(saleRow.upi_amount) || 0);
+    // Prefer receipt cash; fall back to at-sale tender when no cash-like receipt yet.
+    const cashLikeSettled =
+      cashLikeFromReceipts > 0.009 ? cashLikeFromReceipts : tenderOnSale;
+
     const net = Number(saleRow.net_amount) || 0;
-    if (alreadyApplied + params.requestedAmount > net + 1) {
+    const roomCap = advanceApplicationRoomCap({
+      netAmount: net,
+      alreadyAppliedAdvance: alreadyApplied,
+      cashLikeSettled,
+      saleReturnAdjust: Number(saleRow.sale_return_adjust) || 0,
+    });
+
+    if (params.requestedAmount > roomCap + 1) {
       throw new Error(
-        `Advance over-application blocked. Invoice already has ₹${alreadyApplied.toLocaleString("en-IN")} advance against net ₹${net.toLocaleString("en-IN")}; requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
+        `Advance over-application blocked. Invoice remaining for advance ₹${roomCap.toLocaleString("en-IN")} (net ₹${net.toLocaleString("en-IN")}, cash settled ₹${cashLikeSettled.toLocaleString("en-IN")}, advance already ₹${alreadyApplied.toLocaleString("en-IN")}); requested ₹${params.requestedAmount.toLocaleString("en-IN")}.`,
       );
+    }
+    room = Math.max(0, Math.min(room, roomCap));
+    if (room <= 0) {
+      throw new Error("No remaining balance on this invoice for advance application");
     }
   }
 
