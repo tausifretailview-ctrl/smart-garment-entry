@@ -106,6 +106,16 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(src).toMatch(/softRetryTabLoad[\s\S]*?\[retryTabLoad, path\]/);
   });
 
+  it("TabCachedPages dims only the immediate predecessor during load", () => {
+    const src = readFileSync(join(here, "../components/TabCachedPages.tsx"), "utf8");
+    expect(src).toMatch(
+      /dimOutgoing=\{\s*!isActive && dimOutgoingDuringLoad && path === prevActivePathRef\.current\s*\}/,
+    );
+    expect(src).toMatch(/const dimOutgoingDuringLoad = !activeChunkReady;/);
+    expect(src).toMatch(/uniquePaths\.filter\(\(path\) => mounted\.has\(path\)\)/);
+    expect(src).not.toMatch(/dimOutgoing=\{\s*!isActive && dimOutgoingDuringLoad\s*\}/);
+  });
+
   it("OrgLayout watchdog and 6s rescue both import the same helper", () => {
     const src = readFileSync(join(here, "../components/OrgLayout.tsx"), "utf8");
     expect(src).toMatch(/usesLongLoadBudget/);
