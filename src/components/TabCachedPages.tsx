@@ -5,6 +5,7 @@ import {
   TAB_PAGE_REGISTRY,
   isTabCachePath,
   isTabPageChunkLoaded,
+  isTabPageChunkInFlight,
   prefetchCriticalEntryChunks,
   prefetchTabPage,
   prefetchTabPagesIdle,
@@ -511,8 +512,11 @@ function CachedTabPane({
     softRetriedRef.current = true;
     // Yield bandwidth to this remount — idle admin prefetch must not keep starving Settings.
     pauseBackgroundPrefetch(60_000);
+    // Soft hint at 3s is not a hang. A live import (~135KB purchase-entry) was
+    // being reset here, then OrgLayout's 4s Outlet fallback fired on the remount.
+    if (isTabPageChunkInFlight(path)) return;
     retryTabLoad();
-  }, [retryTabLoad]);
+  }, [retryTabLoad, path]);
 
   const LazyPage = getLazyTabPage(path);
   if (!LazyPage) return null;

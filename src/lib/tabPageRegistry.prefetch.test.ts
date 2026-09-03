@@ -6,7 +6,10 @@ import {
   SALES_TAB_PREFETCH_PATHS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
+  isTabPageChunkInFlight,
+  isTabPageChunkLoaded,
   prefetchTabPage,
+  resetTabPageChunk,
   resolveTabCachePath,
   shouldAllowSpeculativeChunkPrefetch,
 } from "./tabPageRegistry";
@@ -142,5 +145,54 @@ describe("speculative vs intent prefetch", () => {
     // Must not throw; silent catch on failure.
     expect(() => prefetchTabPage("user-rights", { intent: true })).not.toThrow();
     expect(() => prefetchTabPage("settings")).not.toThrow();
+  });
+});
+
+describe("in-flight chunk bookkeeping (soft-retry must not remount)", () => {
+  afterEach(() => {
+    resetTabPageChunk("purchase-entry");
+    resetTabPageChunk("purchase-bills");
+  });
+
+  it("isTabPageChunkInFlight is true while the import is still downloading", () => {
+    const hanging = new Promise<{ default: () => null }>(() => {
+      /* never resolve — Slow 3G cold chunk */
+    });
+    const original = TAB_PAGE_REGISTRY["purchase-entry"];
+    TAB_PAGE_REGISTRY["purchase-entry"] = { ...original, loader: () => hanging };
+
+    try {
+      resetTabPageChunk("purchase-entry");
+      expect(isTabPageChunkInFlight("purchase-entry")).toBe(false);
+      expect(isTabPageChunkLoaded("purchase-entry")).toBe(false);
+
+      prefetchTabPage("purchase-entry", { intent: true });
+      // Soft-retry at 3s must see this and skip resetTabPageChunk / remount.
+      expect(isTabPageChunkInFlight("purchase-entry")).toBe(true);
+      expect(isTabPageChunkLoaded("purchase-entry")).toBe(false);
+    } finally {
+      TAB_PAGE_REGISTRY["purchase-entry"] = original;
+      resetTabPageChunk("purchase-entry");
+    }
+  });
+
+  it("purchase-bills alias shares the same in-flight key as the dashboard slug", () => {
+    const hanging = new Promise<{ default: () => null }>(() => {
+      /* never resolve */
+    });
+    const original = TAB_PAGE_REGISTRY["purchase-bills"];
+    TAB_PAGE_REGISTRY["purchase-bills"] = { ...original, loader: () => hanging };
+    TAB_PAGE_REGISTRY["purchase-bill-dashboard"] = TAB_PAGE_REGISTRY["purchase-bills"];
+
+    try {
+      resetTabPageChunk("purchase-bills");
+      prefetchTabPage("purchase-bill-dashboard", { intent: true });
+      expect(isTabPageChunkInFlight("purchase-bills")).toBe(true);
+      expect(isTabPageChunkInFlight("purchase-bill-dashboard")).toBe(true);
+    } finally {
+      TAB_PAGE_REGISTRY["purchase-bills"] = original;
+      TAB_PAGE_REGISTRY["purchase-bill-dashboard"] = original;
+      resetTabPageChunk("purchase-bills");
+    }
   });
 });
