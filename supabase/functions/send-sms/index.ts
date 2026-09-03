@@ -87,6 +87,20 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Verify the caller belongs to the target organization
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!membership) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`Processing SMS request for org: ${organizationId}, type: ${templateType}`);
 
     // Get SMS settings for the organization
