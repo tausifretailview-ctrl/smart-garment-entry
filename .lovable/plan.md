@@ -1,67 +1,57 @@
-# App speed, query timeouts and cloud usage — remediation plan
+# Cloud usage reduction and speed plan
 
-## What the measurements show (read today, live database)
+## What I checked today (live backend, read-only)
 
-Backend capacity is fine: database up, memory 66%, connections 35/90, pool 1/400, disk 28%, size 1.18 GB. **No instance resize is needed** — the cost is in query shape and request volume, not hardware.
+- `sale_items.organization_id` now exists and is **100% backfilled** (156,430 / 156,430 rows), with org-scoped trigram indexes (`idx_sale_items_org_product_name_trgm`, `_barcode_`, `_size_`, `_color_`).
+- The org-scoped RPCs are deployed: `get_dashboard_stock_summary`, `get_dashboard_purchase_summary`, `search_line_item_sale_ids`, `search_invoice_sale_ids`, `search_pos_sale_ids` — and the client already calls them (`src/utils/dashboardSummaryRpcs.ts`, `src/utils/lineItemSaleSearch.ts`).
+- Log analytics (`edge_logs`) returned **no rows** for the last 7 days, so per-day HTTP request counts cannot be read from here. Statement statistics are the only usable signal, and they are **cumulative since the last stats reset** — they include traffic from before Phases 2–4 shipped.
 
-Top time consumers (total server time since stats reset):
+Cumulative top statements (total server time):
 
-| Query | Calls | Mean | Total |
+| Statement | Calls | Mean | Total |
 |---|---|---|---|
-| `sale_items` line-item search (ILIKE on barcode/name/size/color + `sale_id IN (...)`) | 181,036 | 38 ms | **113 min** |
-| `sale_items` fetch by sale ids (qty, mrp) | 28,922 | 86 ms | 41 min |
-| `sales` header search (4-column ILIKE + exact count) | 15,088 | 99 ms | 25 min |
-| `customers` search / list | 104,701 | ~22 ms | 38 min |
-| `v_dashboard_stock_summary` (StatusBar tile) | 33,458 | 34 ms | 19 min |
-| `v_dashboard_purchase_summary` | 11,285 | 75 ms (max 2.97 s) | 14 min |
-| `purchase_items` barcode ILIKE + bill join | 2,043 | **410 ms** (max 2.7 s) | 14 min |
-| `products` search with 28 OR'd ILIKEs | 40,334 | 22 ms (max 1.66 s) | 15 min |
+| `sale_items` ILIKE + `sale_id = ANY(...)` (pre-RPC pattern) | 181,080 | 38 ms | 114 min |
+| `sale_items` by sale ids (qty, mrp) | 30,147 | 88 ms | 44 min |
+| `sales` header search with **exact count** | 15,109 | 99 ms | 25 min |
+| `customers` **full org list**, no search filter, name-ordered | 50,246 | 24 ms | 20 min |
+| `customers` search (name/phone/email ILIKE) | 58,283 | 21 ms | 20 min |
+| `v_dashboard_stock_summary` (old view) | 33,509 | 34 ms | 19 min |
+| `products` 28-way OR ILIKE | 40,464 | 22 ms | 15 min |
+| `v_dashboard_purchase_summary` (old view, max 2.97 s) | 11,290 | 74 ms | 14 min |
+| `purchase_items` barcode `%...%` + bill join | 2,043 | **410 ms** | 14 min |
 
-Confirmed structural causes:
-
-1. **`sale_items` has no `organization_id` column** (verified). Every line-item search must first resolve a list of sale ids, then ILIKE across the whole tenant-shared table. That is why it is both the most-called and most expensive statement.
-2. **The dashboard views aggregate every organization, then filter.** `v_dashboard_stock_summary` groups all variants of all tenants and `v_dashboard_purchase_summary` groups all bills of all tenants; the `organization_id = ?` filter is applied to the grouped output, so one shop's status bar pays for every shop's data. That is the 2.9 s worst case.
-3. **Partial vs unfiltered index pairs are both hot** (Appendix B, 2026-09-02). Do **not** drop `idx_sale_items_sale` / `saleid`, `idx_purchase_items_bill` / `billid`, `idx_purchase_items_sku` / `sku_id`, or `idx_product_variants_org` / `organization_id`. Recycle Bin and include-deleted paths use the unfiltered copies. See `docs/phase-5-index-hygiene-2026-09.md`.
-4. **4.53 million rolled-back transactions since boot** — abnormally high. Cause is unknown and must be identified before it is treated as noise.
-5. Exact-count pagination (`pgrst_source_count`) on `sales` search doubles the work of every search page.
+Because these counters are cumulative, **the first step is to establish whether the top rows are still happening today** rather than assuming they are.
 
 ## Plan
 
-### Phase 1 — Measure the rollback storm (no changes)
-Identify what is rolling back 4.5 M transactions: sample failing statements, constraint violations and retried writes from statement stats and logs, grouped by table. Report findings before touching anything else. If it is a real failure loop it is likely also a correctness bug.
+### Step 1 — Establish a real daily baseline (measurement only)
+Take two statement snapshots ~24 h apart and diff them, so we get calls/day per statement instead of lifetime totals. Same for a signed-in browser capture on the busiest shop using the existing `window.__ezzyCloudUsage` tooling and the journey in `docs/cloud-usage-baseline.md`, pasted into the Phase 6 capture slot. Output: a one-page "requests per shop per day, by route" table. Everything after this is prioritised by that table, not by lifetime totals.
 
-### Phase 2 — Dashboard summary views (largest easy win)
-Replace both org-wide aggregate views with organization-scoped `SECURITY DEFINER` RPCs that apply `organization_id = p_org` *inside* the aggregation, backed by existing composite indexes. StatusBar and StatsChartsSection switch to the RPCs; caching tiers stay as they are. Expected: 34 ms → low single-digit ms, and the 2.9 s purchase spike disappears.
+### Step 2 — Kill the remaining full-table list reads
+The `customers` full-list read (50k calls, no filter, ordered by name across the whole org) is the clearest avoidable cost: it is a list fetch where a search would do. Replace remaining "load all customers / all variants then filter in JS" call sites with the existing server-side search paths, and cache the picker result per org for the session instead of per dialog open.
 
-### Phase 3 — Line-item search
-Add `organization_id` to `sale_items`, backfill from the parent sale, keep it in sync via trigger, and add a composite trigram index scoped by org. Replace the ILIKE-over-sale-id-list pattern in POS/Sales dashboard search with a single org-scoped search RPC bounded by date. Expected: the 181 K-call statement collapses to a fraction of its cost and per-keystroke latency drops.
+### Step 3 — Cheaper search shapes
+- `products`: collapse the 28-way OR ILIKE into one trigram search RPC.
+- `purchase_items` barcode: exact / prefix match instead of `%barcode%` (410 ms mean today).
+- Replace `count: "exact"` with planned/estimated counts on the large paginated dashboards (47 call sites exist; only the big-table ones matter — school/settings counts stay).
 
-### Phase 4 — Search shapes
-- `products`: replace the 28-way OR ILIKE with one trigram search RPC.
-- `purchase_items` barcode: use exact / prefix match instead of `%barcode%` (410 ms mean today).
-- `sales` search: switch to planned/estimated count instead of exact count on every page.
+### Step 4 — Fewer requests per screen
+- Audit React Query tiers so every reference/settings query uses `STALE_REFERENCE` / `STALE_SETTINGS` and no dashboard refetches on mount or focus (most already do — this closes the stragglers).
+- Confirm background polling stays off for hidden tabs and for the `free` tier (`useTierBasedRefresh` already returns `false`), and lengthen `fast` polling where a manual refresh is enough.
+- Trim wide `select("*")` payloads on list screens to the columns the table renders — this is egress, which is billed separately from query time.
 
-### Phase 5 — Index hygiene
-**Keep all eight.** Appendix B `idx_scan` (2026-09-02) shows both sides of every partial-vs-unfiltered pair are used. Do not DROP. Decision: `docs/phase-5-index-hygiene-2026-09.md`. Re-sample: `scripts/phase-5-keep-indexes.sql`.
+### Step 5 — Retire the old dashboard views
+Once Step 1 confirms no client still hits `v_dashboard_stock_summary` / `v_dashboard_purchase_summary`, drop the view reads from the codebase and leave the RPCs as the only path, so a stale bundle cannot reintroduce the 2.97 s query.
 
-### Phase 6 — Cloud usage and loading
-**Client + CI done** (`docs/phase-6-cloud-usage-loading-2026-09.md`). OrgLayout attributes every org route; Quick Payments overlays a separate bucket; `copyJson()` is the paste format. Every tab-cache path maps to a named load shell; cold nav never silences Suspense; `destinationsWithNoWatchdog() === []`.
-
-Authenticated Slow-3G request counts still need a signed-in shop capture in `docs/cloud-usage-baseline.md` (no tenant credentials in this environment). Phases 3–4 SQL is not on production yet, so StatusBar RPC names in a live capture may still show the old views until Lovable applies those migrations.
-
-### Phase 7 — StatusBar stock_qty
-Replace `get_dashboard_stock_summary` aggregates of legacy `product_variants.current_stock` with authoritative `stock_qty`. StatusBar already reads `total_stock_qty` from the RPC; output columns stay the same. Client barcode stock lookup prefers `stock_qty` (zero is a real quantity). See `docs/phase-7-stock-qty-statusbar-2026-09.md`.
-
-### Phase 8 — Daily Sale Analysis stock_qty
-Daily Sale Analysis variant fetch selects `stock_qty` (via `canonicalOnHandQty`) and filters `organization_id` + `deleted_at`. See `docs/phase-8-dailysale-stock-qty-2026-09.md`.
+### Step 6 — Guardrails so it stays cheap
+A CI check that fails when a new `select("*")` on a large table, a new unfiltered full-list fetch, or a new `count: "exact"` on `sales` / `customers` / `product_variants` is added. Plus a short "cloud budget" note in `docs/cloud-usage-baseline.md` with the per-day numbers from Step 1 as the reference to compare each release against.
 
 ## Technical notes
-- No money logic, no schema semantics, no RLS relaxation. New RPCs get explicit `search_path = public`, `EXECUTE` granted to `authenticated` only, and are revoked from `PUBLIC`/`anon` per the existing DDL trigger.
-- The `sale_items.organization_id` backfill runs in batches and is validated by comparing counts against the parent `sales` rows before the trigger is trusted.
-- Each phase is verified with `EXPLAIN (ANALYZE, BUFFERS)` before and after, plus a re-run of `slow_queries`.
+- No money logic, no RLS changes, no schema semantics change. New RPCs use `search_path = public`, `EXECUTE` to `authenticated` only, revoked from `PUBLIC`/`anon` per the existing DDL trigger.
+- Statement statistics will **not** be reset — snapshots are diffed instead, so other audits keep their history.
+- Each step is verified with `EXPLAIN (ANALYZE, BUFFERS)` before/after and a re-diff of the statement snapshot.
 
 ## Verification
-1. Slow-query table re-ranked after each phase; the four headline statements must drop in mean and total time.
-2. POS dashboard search, customer search and barcode scan return identical rows to today.
-3. StatusBar stock/due figures byte-identical before and after Phase 2.
-4. No new statement-timeout (57014) errors in a week of production logs.
+1. Requests per shop per day drop measurably against the Step 1 baseline.
+2. POS search, customer picker, barcode scan and dashboards return identical rows to today.
+3. No new statement timeouts (57014) in the following week.
