@@ -39,7 +39,26 @@ Definitions (in-repo):
 - Unfiltered copies are not idle: 166 M / 2.8 M / 282 k / 106 k scans. Recycle Bin reads `deleted_at.not.is.null` (`src/pages/RecycleBin.tsx`) — the partial index cannot serve those rows.
 - Combined extra disk is ~11 MB. Write cost of the unfiltered btree is real but ** dwarfed by breaking Recycle Bin / sale-id nested loops**.
 
-Phase 4 added *new* indexes (`idx_products_org_name_trgm`, `idx_purchase_items_barcode*`). Those are additive and out of this pair list.
+Phase 4 added *new* indexes (`idx_products_org_name_trgm`, `idx_purchase_items_barcode*`). Those are additive and out of this pair list. **Not on production yet** (Phase 4 index-exists query 2026-09-02 ~18:44 UTC returned only brand/style/category).
+
+---
+
+## Re-sample (2026-09-02 ~18:47 UTC)
+
+Export: `query-results-export-2026-09-03_00-47-47_0126.csv`. Same eight names, still all present, both sides still climbing.
+
+| Index | First sample | Re-sample | Δ scans |
+|---|---:|---:|---:|
+| `idx_sale_items_sale` | 216,117,673 | **216,582,368** | +464,695 |
+| `idx_sale_items_saleid` | 166,486,927 | **166,570,592** | +83,665 |
+| `idx_purchase_items_bill` | 25,061,606 | 25,064,843 | +3,237 |
+| `idx_purchase_items_billid` | 2,758,113 | 2,758,142 | +29 |
+| `idx_purchase_items_sku` | 10,369,802 | 10,369,802 | 0 |
+| `idx_purchase_items_sku_id` | 282,007 | 282,074 | +67 |
+| `idx_product_variants_org` | 772,764 | 772,831 | +67 |
+| `idx_product_variants_organization_id` | 106,141 | 106,144 | +3 |
+
+Both `sale_items` indexes gained scans in the same window. Keep-all-eight holds; a second sample does not license a DROP.
 
 ---
 

@@ -36,3 +36,15 @@ No new `SECURITY DEFINER` RPC in this phase.
 ## After migrate
 
 Run `scripts/phase-4-index-exists.sql`. Expect three new names plus the existing org brand/style/category trigrams.
+
+**Captured 2026-09-02 ~18:44 UTC** (`query-results-export-2026-09-03_00-44-48_1dab.csv`):
+
+| `indexrelname` | Size | Status |
+|---|---|---|
+| `idx_products_org_brand_trgm` | 1320 kB | pre-existing |
+| `idx_products_org_category_trgm` | 1248 kB | pre-existing |
+| `idx_products_org_style_trgm` | 1136 kB | pre-existing |
+
+**Missing:** `idx_products_org_name_trgm`, `idx_purchase_items_barcode`, `idx_purchase_items_barcode_trgm`.
+
+Same pattern as Phase 3: GitHub merge does not apply SQL on production. Client Phase 4 (28-OR drop, barcode exact/prefix, estimated count) does **not** need these indexes. Re-run the same file after Lovable applies `20261201120000_phase4_search_shape_indexes.sql`.

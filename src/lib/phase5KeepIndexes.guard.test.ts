@@ -33,5 +33,7 @@ describe("Phase 5 keep-all-eight", () => {
     expect(doc).toMatch(/Keep all eight/i);
     expect(doc).toMatch(/216,117,673/);
     expect(doc).toMatch(/166,486,927/);
+    expect(doc).toMatch(/216,582,368/);
+    expect(doc).toMatch(/166,570,592/);
   });
 });
