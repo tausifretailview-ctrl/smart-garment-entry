@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import QRCode from "qrcode";
-import { buildUpiPayLink } from "@/lib/upiPayLink";
 import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
 import { submitStorefrontEnquiry } from "./storefrontClient";
+import { EllaUpiPayBlock } from "./EllaUpiPayBlock";
 import { ellaCopy } from "./storefrontTheme";
 import {
   ellaCartCount,
@@ -39,12 +38,9 @@ export function EllaCartSheet({
   const [customerPhone, setCustomerPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [qrUrl, setQrUrl] = useState("");
 
   const total = useMemo(() => ellaCartTotal(cart), [cart]);
   const totalLabel = formatStorefrontPrice(total);
-  const payee = (upiBusinessName || shopName).trim();
-  const upiLink = upiId && total > 0 ? buildUpiPayLink({ upiId, payeeName: payee, amount: total, note: "Ella store order" }) : "";
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,16 +49,6 @@ export function EllaCartSheet({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
-  useEffect(() => {
-    if (step !== "checkout" || !upiLink) {
-      setQrUrl("");
-      return;
-    }
-    QRCode.toDataURL(upiLink, { width: 220, margin: 1, errorCorrectionLevel: "M" })
-      .then(setQrUrl)
-      .catch(() => setQrUrl(""));
-  }, [step, upiLink]);
 
   const proceedCheckout = () => {
     if (cart.length === 0) return;
@@ -214,22 +200,12 @@ export function EllaCartSheet({
                 </label>
                 {error ? <p className="ella-error">{error}</p> : null}
 
-                {upiId && upiLink ? (
-                  <div className="ella-upi-block">
-                    {qrUrl ? (
-                      <img className="ella-upi-qr" src={qrUrl} alt="UPI payment QR code" width={220} height={220} />
-                    ) : null}
-                    <div className="ella-upi-id">{upiId}</div>
-                    <a className="ella-btn" href={upiLink}>
-                      Pay {totalLabel} via UPI
-                    </a>
-                    <p className="ella-form-note">
-                      Scan the QR or tap Pay — then confirm below so the studio can verify your payment.
-                    </p>
-                  </div>
-                ) : (
-                  <p className="ella-form-note">UPI is not configured for this store. Please use Enquire or WhatsApp.</p>
-                )}
+                <EllaUpiPayBlock
+                  upiId={upiId}
+                  upiBusinessName={upiBusinessName || shopName}
+                  amount={total}
+                  note="Ella store order"
+                />
 
                 <div className="ella-form-actions">
                   <button type="submit" className="ella-btn" disabled={submitting}>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
+import { whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { toEllaStorefrontProduct, type EllaStorefrontProduct } from "./ellaProduct";
 import { isEllaProductPurchasable } from "./ellaStock";
@@ -113,12 +114,20 @@ export function EllaStorefront({
           slug={orgSlug}
           shopWhatsApp={shop.whatsapp_number}
           product={selected}
+          upiId={shop.upi_id}
+          upiBusinessName={shop.upi_business_name || shopName}
           onClose={closeSheet}
         />
       ) : null}
 
       {generalOpen && !selected && !cartOpen ? (
-        <GeneralEnquireSheet slug={orgSlug} onClose={closeSheet} />
+        <GeneralEnquireSheet
+          slug={orgSlug}
+          shopWhatsApp={shop.whatsapp_number}
+          upiId={shop.upi_id}
+          upiBusinessName={shop.upi_business_name || shopName}
+          onClose={closeSheet}
+        />
       ) : null}
 
       {cartOpen ? (
@@ -136,7 +145,19 @@ export function EllaStorefront({
   );
 }
 
-function GeneralEnquireSheet({ slug, onClose }: { slug: string; onClose: () => void }) {
+function GeneralEnquireSheet({
+  slug,
+  shopWhatsApp,
+  upiId,
+  upiBusinessName,
+  onClose,
+}: {
+  slug: string;
+  shopWhatsApp?: string | null;
+  upiId?: string | null;
+  upiBusinessName?: string | null;
+  onClose: () => void;
+}) {
   useLockBodyScroll(true);
 
   useEffect(() => {
@@ -163,7 +184,13 @@ function GeneralEnquireSheet({ slug, onClose }: { slug: string; onClose: () => v
               ×
             </button>
           </div>
-          <EllaEnquiryForm slug={slug} product={null} />
+          <EllaEnquiryForm
+            slug={slug}
+            product={null}
+            whatsAppHref={whatsappShareUrl("Hi, I would like to book a studio visit.", shopWhatsApp)}
+            upiId={upiId}
+            upiBusinessName={upiBusinessName}
+          />
         </div>
       </section>
     </>

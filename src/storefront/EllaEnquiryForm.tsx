@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
+import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import { submitStorefrontEnquiry } from "./storefrontClient";
+import { EllaUpiPayBlock } from "./EllaUpiPayBlock";
 import { ellaCopy } from "./storefrontTheme";
 import type { EllaStorefrontProduct } from "./ellaProduct";
 
@@ -8,10 +10,14 @@ export function EllaEnquiryForm({
   slug,
   product,
   whatsAppHref,
+  upiId,
+  upiBusinessName,
 }: {
   slug: string;
   product: EllaStorefrontProduct | null;
   whatsAppHref?: string | null;
+  upiId?: string | null;
+  upiBusinessName?: string | null;
 }) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -31,9 +37,13 @@ export function EllaEnquiryForm({
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const composed = product
-      ? [product.code ? `[${product.code}]` : "", message].filter(Boolean).join(" ").trim()
-      : message;
+    const bookingBits = [
+      product ? (product.code ? `[${product.code}]` : product.name) : "",
+      upiId ? `UPI ${upiId}` : "",
+      product?.price ? `Booking ${formatStorefrontPrice(product.price)}` : "",
+      message,
+    ].filter(Boolean);
+    const composed = bookingBits.join(" · ");
     const checked = validateEnquiryInput({
       customerName,
       customerPhone,
@@ -86,9 +96,17 @@ export function EllaEnquiryForm({
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={3} />
       </label>
       {error ? <p className="ella-error">{error}</p> : null}
+      {upiId ? (
+        <EllaUpiPayBlock
+          upiId={upiId}
+          upiBusinessName={upiBusinessName}
+          amount={product?.price}
+          note={product ? `Ella booking ${product.code}` : "Ella studio booking"}
+        />
+      ) : null}
       <div className="ella-form-actions">
         <button type="submit" className="ella-btn" disabled={submitting}>
-          {submitting ? "Sending" : "Send enquiry"}
+          {submitting ? "Sending" : upiId ? "I have paid — book" : "Send enquiry"}
         </button>
         {whatsAppHref ? (
           <a

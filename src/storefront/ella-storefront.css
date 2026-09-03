@@ -315,6 +315,17 @@ body.ella-root {
   white-space: nowrap;
 }
 
+.ella-social-icon {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold);
+  display: inline-flex;
+  height: 48px;
+  justify-content: center;
+  min-width: 48px;
+  width: 48px;
+}
+
 .ella-search {
   background: #ffffff;
   border: 1px solid var(--ella-hairline);
@@ -920,6 +931,18 @@ body.ella-root {
 .ella-unavailable-inner {
   max-width: 320px;
   text-align: center;
+}
+
+@media (max-width: 720px) {
+  .ella-wa-pill span {
+    display: none;
+  }
+
+  .ella-wa-pill {
+    justify-content: center;
+    padding: 0;
+    width: 48px;
+  }
 }
 
 @media (min-width: 640px) {

@@ -121,10 +121,23 @@ export function EllaStorefrontHome({
               placeholder="Search styles"
               aria-label="Search styles"
             />
-            <a className="ella-wa-pill" href={studioWa} target="_blank" rel="noreferrer">
-              <WhatsAppGlyph />
-              WhatsApp
-            </a>
+            {whatsapp ? (
+              <a className="ella-wa-pill" href={studioWa} target="_blank" rel="noreferrer">
+                <WhatsAppGlyph />
+                <span>WhatsApp</span>
+              </a>
+            ) : null}
+            {instagramUrl ? (
+              <a
+                className="ella-social-icon"
+                href={instagramUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Instagram"
+              >
+                <InstagramIcon />
+              </a>
+            ) : null}
             {cartCount > 0 && onOpenCart ? (
               <button type="button" className="ella-header-btn ella-header-btn-ghost" onClick={onOpenCart}>
                 Cart ({cartCount})
@@ -224,9 +237,11 @@ export function EllaStorefrontHome({
           </div>
           <div className="ella-footer-col">
             <div className="ella-footer-label">Connect</div>
-            <a className="ella-footer-link" href={studioWa} target="_blank" rel="noreferrer">
-              WhatsApp
-            </a>
+            {whatsapp ? (
+              <a className="ella-footer-link ella-footer-social" href={studioWa} target="_blank" rel="noreferrer">
+                <WhatsAppGlyph /> WhatsApp
+              </a>
+            ) : null}
             {instagramUrl ? (
               <a className="ella-footer-link ella-footer-social" href={instagramUrl} target="_blank" rel="noreferrer">
                 <InstagramIcon /> Instagram
@@ -251,9 +266,16 @@ export function EllaStorefrontHome({
         <button type="button" className="ella-btn" onClick={onOpenGeneralEnquire}>
           Enquire
         </button>
-        <a className="ella-btn ella-btn-square ella-btn-outline" href={studioWa} target="_blank" rel="noreferrer" aria-label="WhatsApp">
-          <WhatsAppGlyph />
-        </a>
+        {whatsapp ? (
+          <a className="ella-btn ella-btn-square ella-btn-outline" href={studioWa} target="_blank" rel="noreferrer" aria-label="WhatsApp">
+            <WhatsAppGlyph />
+          </a>
+        ) : null}
+        {instagramUrl ? (
+          <a className="ella-btn ella-btn-square ella-btn-outline" href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram">
+            <InstagramIcon />
+          </a>
+        ) : null}
       </div>
     </>
   );

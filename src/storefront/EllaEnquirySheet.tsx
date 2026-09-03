@@ -10,11 +10,15 @@ export function EllaEnquirySheet({
   shopWhatsApp,
   product,
   onClose,
+  upiId,
+  upiBusinessName,
 }: {
   slug: string;
   shopWhatsApp?: string | null;
   product: EllaStorefrontProduct;
   onClose: () => void;
+  upiId?: string | null;
+  upiBusinessName?: string | null;
 }) {
   useLockBodyScroll(true);
 
@@ -78,7 +82,13 @@ export function EllaEnquirySheet({
             </div>
           </dl>
 
-          <EllaEnquiryForm slug={slug} product={product} whatsAppHref={waHref} />
+          <EllaEnquiryForm
+            slug={slug}
+            product={product}
+            whatsAppHref={waHref}
+            upiId={upiId}
+            upiBusinessName={upiBusinessName}
+          />
         </div>
       </section>
     </>

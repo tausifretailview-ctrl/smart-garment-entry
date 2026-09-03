@@ -30,6 +30,19 @@ export function whatsappShareUrl(text: string, phone?: string | null): string {
   return `https://wa.me/?text=${encoded}`;
 }
 
+/** Accept a full URL, instagram.com/handle, or @handle. */
+export function normalizeInstagramUrl(raw: string | null | undefined): string | null {
+  const v = String(raw || "").trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v
+    .replace(/^@/, "")
+    .replace(/^(www\.)?instagram\.com\//i, "")
+    .replace(/\/+$/, "");
+  if (!handle) return null;
+  return `https://instagram.com/${handle}`;
+}
+
 export function storefrontWhatsAppShareText(shopName: string, storeUrl: string): string {
   const name = shopName.trim() || "our shop";
   return `See products from ${name}: ${storeUrl}`;

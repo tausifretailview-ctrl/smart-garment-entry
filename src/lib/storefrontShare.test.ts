@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  normalizeInstagramUrl,
   normalizeWhatsAppPhone,
   productEnquiryWhatsAppText,
   publicStorefrontProductUrl,
@@ -31,6 +32,13 @@ describe("storefrontShare", () => {
       "https://wa.me/9876543210?text=Hello",
     );
     expect(whatsappShareUrl("See our products: https://x/y")).toContain("https://wa.me/?text=");
+  });
+
+  it("normalizes Instagram handles and URLs", () => {
+    expect(normalizeInstagramUrl("@ella.noor")).toBe("https://instagram.com/ella.noor");
+    expect(normalizeInstagramUrl("instagram.com/ella.noor/")).toBe("https://instagram.com/ella.noor");
+    expect(normalizeInstagramUrl("https://instagram.com/ella.noor")).toBe("https://instagram.com/ella.noor");
+    expect(normalizeInstagramUrl("")).toBeNull();
   });
 
   it("builds share and enquiry text", () => {
