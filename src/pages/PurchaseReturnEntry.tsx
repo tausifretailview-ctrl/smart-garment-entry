@@ -31,6 +31,7 @@ import {
   buildPurchaseReturnItemPayload,
   calculatePurchaseReturnTotals,
 } from "@/utils/purchaseReturnDc";
+import { inferPurchaseLineDiscount } from "@/utils/inferPurchaseLineDiscount";
 import {
   deleteJournalEntryByReference,
   recordPurchaseReturnJournalEntry,
@@ -940,7 +941,7 @@ const PurchaseReturnEntry = () => {
     setOriginalBillId('');
     try {
       const searchTerm = returnData.original_bill_number.trim();
-      const billSelect = `id, supplier_id, supplier_name, is_dc_purchase, bill_date, supplier_invoice_no, software_bill_no, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand, discount_percent, discount_amount)`;
+      const billSelect = `id, supplier_id, supplier_name, is_dc_purchase, bill_date, supplier_invoice_no, software_bill_no, purchase_items(id, sku_id, product_id, product_name, size, color, qty, pur_price, gst_per, hsn_code, barcode, line_total, brand)`;
 
       const baseQuery = () =>
         supabase
@@ -1058,15 +1059,12 @@ const PurchaseReturnEntry = () => {
         }
 
         const pur_price = Number(item.pur_price) || 0;
-        const baseAmount = returnQty * pur_price;
-        const discount_percent = Number(item.discount_percent) || 0;
-        let discount_amount = 0;
-        if (discount_percent > 0) {
-          discount_amount = baseAmount * (discount_percent / 100);
-        } else if (purchasedQty > 0 && Number(item.discount_amount)) {
-          discount_amount = (Number(item.discount_amount) * returnQty) / purchasedQty;
-        }
-        const line_total = baseAmount - discount_amount;
+        const { discount_percent, discount_amount, line_total } = inferPurchaseLineDiscount({
+          purchasedQty,
+          returnQty,
+          purPrice: pur_price,
+          storedLineTotal: Number(item.line_total) || 0,
+        });
 
         items.push({
           temp_id: `${Date.now()}-${rowIdx}-${Math.random().toString(36).slice(2, 9)}`,
