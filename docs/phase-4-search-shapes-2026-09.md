@@ -47,6 +47,12 @@ Run `scripts/phase-4-index-exists.sql`. Expect three new names plus the existing
 
 **Missing:** `idx_products_org_name_trgm`, `idx_purchase_items_barcode`, `idx_purchase_items_barcode_trgm`.
 
+ cursor/catalog-2026-09-03-pending-ddl-4576
 **Catalog 2026-09-03 11:21** (`query-results-export-2026-09-03_11-21-32_6120.csv`): all three `phase4_*` flags still `false`. Check `SELECT`s succeeding is not the same as the indexes existing. Still paste `supabase/migrations/20261201120000_phase4_search_shape_indexes.sql`.
 
 Same pattern as Phase 3: GitHub merge does not apply SQL on production. Client Phase 4 (28-OR drop, barcode exact/prefix, estimated count) does **not** need these indexes. Re-run `scripts/pending-speed-programme-catalog.sql` after Lovable applies the index file.
+=======
+**Catalog 2026-09-03 11:26** (`query-results-export-2026-09-03_11-26-53_ed38.csv`): all three `phase4_*` flags **true**. Indexes are on production.
+
+Same pattern as Phase 3: GitHub merge does not apply SQL on production. Client Phase 4 (28-OR drop, barcode exact/prefix, estimated count) does **not** need these indexes.
+ main

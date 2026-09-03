@@ -52,6 +52,9 @@ Authenticated Slow-3G request counts still need a signed-in shop capture in `doc
 ### Phase 7 — StatusBar stock_qty
 Replace `get_dashboard_stock_summary` aggregates of legacy `product_variants.current_stock` with authoritative `stock_qty`. StatusBar already reads `total_stock_qty` from the RPC; output columns stay the same. Client barcode stock lookup prefers `stock_qty` (zero is a real quantity). See `docs/phase-7-stock-qty-statusbar-2026-09.md`.
 
+### Phase 8 — Daily Sale Analysis stock_qty
+Daily Sale Analysis variant fetch selects `stock_qty` (via `canonicalOnHandQty`) and filters `organization_id` + `deleted_at`. See `docs/phase-8-dailysale-stock-qty-2026-09.md`.
+
 ## Technical notes
 - No money logic, no schema semantics, no RLS relaxation. New RPCs get explicit `search_path = public`, `EXECUTE` granted to `authenticated` only, and are revoked from `PUBLIC`/`anon` per the existing DDL trigger.
 - The `sale_items.organization_id` backfill runs in batches and is validated by comparing counts against the parent `sales` rows before the trigger is trusted.

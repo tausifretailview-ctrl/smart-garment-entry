@@ -9,6 +9,31 @@ Do **not** paste this Markdown file into the SQL editor.
 
 ---
 
+## Finish line (2026-09-03)
+
+| Step | Status |
+|---|---|
+| 1. Merge backfill `42P01` fix to `main` | **Done** — [PR #599](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/599) / `a2fe66347` |
+| 2. Deploy corrected migration to live Supabase | **Manual** — paste whole `supabase/migrations/20261130120000_sale_items_org_search_rpc.sql` |
+| 3. Verify `search_line_item_sale_ids` exists | `scripts/phase-3-deploy-checklist.sql` §C |
+| 4. Smoke search + ranking | Checklist §E–F; `scripts/phase-3-before-00-ranking.sql` after traffic |
+
+Deploy checklist SQL: `scripts/phase-3-deploy-checklist.sql` (preflight → paste migration → post checks).
+
+---
+
+## 2026-09-03 SQL editor
+
+**Catalog 11:26** (`query-results-export-2026-09-03_11-26-53_ed38.csv`): Phase 2 purchase RPC, Phase 4 indexes, and Phase 7 `stock_qty` body are **true**. Phase 3 still **false** (`phase3_sale_items_org_col`, `phase3_search_rpc`).
+
+Pasting the original Phase 3 file failed with **`42P01`**: `invalid reference to FROM-clause entry for table "si"` on
+
+`UPDATE sale_items si ... FROM picked p INNER JOIN sales s ON s.id = si.sale_id`.
+
+Postgres does not allow the UPDATE target alias in a FROM-clause JOIN `ON`. The backfill now selects `organization_id` inside `picked` and does `UPDATE ... FROM picked p WHERE si.id = p.id`. Catalog showed the column absent, so the failed run rolled back — paste the **whole** updated `supabase/migrations/20261130120000_sale_items_org_search_rpc.sql` (not from the UNION at line 282).
+
+---
+
 ## 2026-09-02 SQL editor attempts
 
 ### 1) Dummy UUID + live wrapper → `42501 Authentication required`
