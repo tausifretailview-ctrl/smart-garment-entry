@@ -233,10 +233,8 @@ async function processOTPSend(
     success: true,
     message: otpSent
       ? 'OTP sent on WhatsApp'
-      : 'OTP generated (WhatsApp not configured - check settings)',
+      : 'Could not deliver the OTP. Please contact your supplier.',
     customerName: customer.customer_name,
     otpSent,
-    // Include OTP when WhatsApp fails so testing is possible
-    ...(!otpSent ? { devOtp: otpCode, devNote: `WhatsApp error: ${sendError}` } : {}),
   });
 }
