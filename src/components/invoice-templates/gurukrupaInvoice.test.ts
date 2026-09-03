@@ -22,4 +22,20 @@ describe("Gurukrupa POS A5 invoice", () => {
     expect(picker).toContain('value="gurukrupa"');
     expect(picker).toContain("Gurukrupa");
   });
+
+  it("shows Prev Bal and Total Due from customer account (not Zaika-hidden)", () => {
+    const template = readFileSync(resolve(here, "./RetailERPTemplate.tsx"), "utf8");
+    expect(template).toContain("invoiceTotalDue");
+    expect(template).toContain("<strong>Prev Bal:</strong>");
+    expect(template).toContain("<strong>Total Due:</strong>");
+    expect(template).toMatch(/!isRealTast && !isZaika/);
+    expect(template).not.toMatch(/!isGurukrupa &&[\s\S]{0,80}Prev Bal/);
+
+    const dashboard = readFileSync(resolve(here, "../../pages/POSDashboard.tsx"), "utf8");
+    expect(dashboard).toContain("invoicePreviousBalanceFromAccount");
+    expect(dashboard).toContain("fetchCustomerAccountStateView");
+    expect(dashboard).not.toMatch(
+      /allSales\.reduce\(\(sum, s\) => sum \+ \(\(s\.net_amount \|\| 0\) - \(s\.paid_amount \|\| 0\)\)/,
+    );
+  });
 });

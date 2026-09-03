@@ -2,6 +2,7 @@ import React from "react";
 import { numberToWords } from "@/lib/utils";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
+import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
 
 interface InvoiceItem {
   sr: number;
@@ -487,8 +488,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     mixAppliedTotal > 0
       ? Math.min(billTotal, mixAppliedTotal)
       : Math.min(billTotal, settledPaid > 0 ? settledPaid : 0);
-  const currentBalance = Math.max(0, Math.round((billTotal - receivedToday) * 100) / 100);
-  const totalDue = currentBalance + previousBalance;
+  const currentBalance = invoiceThisBillBalance(billTotal, receivedToday);
+  const totalDue = invoiceTotalDue(previousBalance, currentBalance);
 
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";

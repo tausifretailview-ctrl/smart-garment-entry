@@ -29,6 +29,11 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { fetchCustomerAccountStateView } from "@/utils/customerAccountStateView";
+import {
+  invoicePreviousBalanceFromAccount,
+  invoiceThisBillBalance,
+} from "@/utils/invoiceAccountDue";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1744,15 +1749,26 @@ const POSDashboard = () => {
           ? supabase.from("customers").select("gst_number, transport_details").eq("id", sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
         (async () => {
-          if (!sale.customer_id) return 0;
-          const { data: allSales } = await supabase
-            .from("sales")
-            .select("id, net_amount, paid_amount")
-            .eq("customer_id", sale.customer_id)
-            .eq("organization_id", currentOrganization!.id)
-            .is("deleted_at", null);
-          if (!allSales) return 0;
-          return allSales.reduce((sum, s) => sum + ((s.net_amount || 0) - (s.paid_amount || 0)), 0);
+          if (!sale.customer_id || !currentOrganization?.id) return 0;
+          try {
+            const view = await fetchCustomerAccountStateView(
+              supabase,
+              currentOrganization.id,
+              sale.customer_id,
+            );
+            const thisBill = invoiceThisBillBalance(
+              Number(sale.net_amount) || 0,
+              Number(sale.paid_amount) || 0,
+            );
+            // Snapshot already includes this sale — Prev Bal is account minus this bill.
+            return invoicePreviousBalanceFromAccount({
+              accountOutstanding: view.netPosition,
+              thisBillBalance: thisBill,
+              accountIncludesThisBill: true,
+            });
+          } catch {
+            return 0;
+          }
         })(),
       ]);
 
