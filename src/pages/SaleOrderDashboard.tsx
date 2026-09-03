@@ -654,6 +654,7 @@ export default function SaleOrderDashboard() {
 
       // Create sale items
       const saleItems = itemsToConvert.map(item => ({
+        organization_id: currentOrganization!.id,
         sale_id: sale.id,
         product_id: item.product_id,
         variant_id: item.variant_id,
