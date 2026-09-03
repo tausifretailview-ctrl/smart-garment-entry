@@ -41,6 +41,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { compressImageFile } from "@/lib/compressImage";
 import { STALE_FREQUENT, STALE_LIVE, STALE_REFERENCE, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import {
+  normalizeInstagramUrl,
   publicStorefrontUrl,
   storefrontWhatsAppShareText,
   whatsappShareUrl,
@@ -222,7 +223,10 @@ export default function WebsiteSettingsPage() {
                 orgId={orgId}
                 orgSlug={orgSlug}
                 settings={settingsQuery.data || null}
-                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] })}
+                onChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] });
+                  queryClient.invalidateQueries({ queryKey: ["website_profile_bill_settings", orgId] });
+                }}
               />
             ) : null}
           </TabsContent>
@@ -293,25 +297,46 @@ function StoreProfile({
   const [whatsapp, setWhatsapp] = useState(settings?.whatsapp_number || "");
   const [instagram, setInstagram] = useState(settings?.instagram_url || "");
   const [facebook, setFacebook] = useState(settings?.facebook_url || "");
+  const [upiId, setUpiId] = useState("");
   const [accent, setAccent] = useState(settings?.theme_accent_color || "#2563EB");
   const [published, setPublished] = useState(!!settings?.is_published);
 
+  const billQuery = useQuery({
+    queryKey: ["website_profile_bill_settings", orgId],
+    enabled: !!orgId,
+    staleTime: STALE_SETTINGS,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("bill_barcode_settings")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.bill_barcode_settings || {}) as {
+        upi_id?: string | null;
+        instagram_link?: string | null;
+      };
+    },
+  });
+
   useEffect(() => {
     setWhatsapp(settings?.whatsapp_number || "");
-    setInstagram(settings?.instagram_url || "");
+    setInstagram(settings?.instagram_url || billQuery.data?.instagram_link || "");
     setFacebook(settings?.facebook_url || "");
+    setUpiId(billQuery.data?.upi_id || "");
     setAccent(settings?.theme_accent_color || "#2563EB");
     setPublished(!!settings?.is_published);
-  }, [settings]);
+  }, [settings, billQuery.data]);
 
   const save = useMutation({
     mutationFn: async () => {
       if (!orgId || !orgSlug) throw new Error("No organization");
+      const instagramUrl = normalizeInstagramUrl(instagram);
       const payload = {
         organization_id: orgId,
         slug: orgSlug,
         whatsapp_number: whatsapp.trim() || null,
-        instagram_url: instagram.trim() || null,
+        instagram_url: instagramUrl,
         facebook_url: facebook.trim() || null,
         theme_accent_color: accent || null,
         is_published: published,
@@ -320,6 +345,25 @@ function StoreProfile({
         onConflict: "organization_id",
       });
       if (error) throw error;
+
+      const { data: existing, error: readErr } = await supabase
+        .from("settings")
+        .select("bill_barcode_settings")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (readErr) throw readErr;
+      const prev = (existing?.bill_barcode_settings || {}) as Record<string, unknown>;
+      const { error: billErr } = await supabase
+        .from("settings")
+        .update({
+          bill_barcode_settings: {
+            ...prev,
+            upi_id: upiId.trim() || null,
+            instagram_link: instagramUrl || prev.instagram_link || null,
+          },
+        })
+        .eq("organization_id", orgId);
+      if (billErr) throw billErr;
     },
     onSuccess: () => {
       toast.success("Store profile saved");
@@ -351,6 +395,20 @@ function StoreProfile({
               placeholder="9198XXXXXXXX"
               className="h-9 text-sm border-slate-200 bg-white"
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              UPI ID (store booking)
+            </Label>
+            <Input
+              value={upiId}
+              onChange={(e) => setUpiId(e.target.value)}
+              placeholder="studio@okaxis"
+              className="h-9 text-sm border-slate-200 bg-white"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on the public store when a customer books or pays. Same UPI as invoice settings.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">

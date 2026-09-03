@@ -15,7 +15,7 @@ import {
   mapEllaStyleCode,
   toEllaStorefrontProduct,
 } from "./ellaProduct";
-import { isEllaNoorSlug } from "./storefrontTheme";
+import { enrichPublicStorefrontShop, isEllaNoorSlug } from "./storefrontTheme";
 import type { PublicStorefrontProduct } from "@/lib/websiteTypes";
 
 function sample(over: Partial<PublicStorefrontProduct> = {}): PublicStorefrontProduct {
@@ -34,6 +34,28 @@ function sample(over: Partial<PublicStorefrontProduct> = {}): PublicStorefrontPr
     ...over,
   };
 }
+
+describe("enrichPublicStorefrontShop", () => {
+  it("fills UPI and Instagram from bill/profile settings", () => {
+    const shop = {
+      name: "Ella",
+      slug: "ella-noor",
+      whatsapp_number: null,
+      instagram_url: null,
+    };
+    const enriched = enrichPublicStorefrontShop(shop, {
+      business_name: "Ella Noor",
+      settings: { mobile_number: "919876543210" },
+      bill_barcode_settings: {
+        upi_id: "studio@okaxis",
+        instagram_link: "@ella.noor",
+      },
+    });
+    expect(enriched.upi_id).toBe("studio@okaxis");
+    expect(enriched.instagram_url).toBe("https://instagram.com/ella.noor");
+    expect(enriched.whatsapp_number).toBe("919876543210");
+  });
+});
 
 describe("isEllaNoorSlug", () => {
   it("matches only the ella-noor org slug", () => {

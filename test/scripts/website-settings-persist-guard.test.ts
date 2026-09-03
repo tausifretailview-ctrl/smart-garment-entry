@@ -13,5 +13,7 @@ describe("WebsiteSettings persist-safe query data", () => {
     expect(src).toMatch(/lookupMap/);
     expect(src).toMatch(/coerceToArray/);
     expect(src).toMatch(/aggregateWebsiteVariantStock/);
+    expect(src).toMatch(/UPI ID \(store booking\)/);
+    expect(src).toMatch(/bill_barcode_settings/);
   });
 });
