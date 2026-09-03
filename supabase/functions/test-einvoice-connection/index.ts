@@ -46,6 +46,28 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!organizationId || !uuidRegex.test(organizationId)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid organizationId format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify the caller belongs to the target organization
+    const { data: membership } = await supabase
+      .from('organization_members')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!membership) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Forbidden' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { data: settingsData } = await supabase
       .from('settings')
       .select('sale_settings, gst_number')
