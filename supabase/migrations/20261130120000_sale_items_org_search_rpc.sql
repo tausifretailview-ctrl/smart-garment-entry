@@ -10,6 +10,8 @@ ALTER TABLE public.sale_items
   ADD COLUMN IF NOT EXISTS organization_id uuid;
 
 -- ── 2. Batched backfill from parent sales ───────────────────────────────────
+-- Postgres forbids referencing the UPDATE target (si) in a FROM-clause JOIN
+-- ON condition (42P01). Join sales inside the CTE; UPDATE ... FROM picked only.
 DO $$
 DECLARE
   v_batch constant int := 5000;
@@ -18,17 +20,16 @@ DECLARE
 BEGIN
   LOOP
     WITH picked AS (
-      SELECT si.id
+      SELECT si.id, s.organization_id
       FROM public.sale_items si
+      INNER JOIN public.sales s ON s.id = si.sale_id
       WHERE si.organization_id IS NULL
-        AND EXISTS (SELECT 1 FROM public.sales s WHERE s.id = si.sale_id)
       ORDER BY si.id
       LIMIT v_batch
     )
     UPDATE public.sale_items si
-    SET organization_id = s.organization_id
+    SET organization_id = p.organization_id
     FROM picked p
-    INNER JOIN public.sales s ON s.id = si.sale_id
     WHERE si.id = p.id;
 
     GET DIAGNOSTICS v_updated = ROW_COUNT;

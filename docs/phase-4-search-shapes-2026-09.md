@@ -47,4 +47,6 @@ Run `scripts/phase-4-index-exists.sql`. Expect three new names plus the existing
 
 **Missing:** `idx_products_org_name_trgm`, `idx_purchase_items_barcode`, `idx_purchase_items_barcode_trgm`.
 
-Same pattern as Phase 3: GitHub merge does not apply SQL on production. Client Phase 4 (28-OR drop, barcode exact/prefix, estimated count) does **not** need these indexes. Re-run the same file after Lovable applies `20261201120000_phase4_search_shape_indexes.sql`.
+**Catalog 2026-09-03 11:26** (`query-results-export-2026-09-03_11-26-53_ed38.csv`): all three `phase4_*` flags **true**. Indexes are on production.
+
+Same pattern as Phase 3: GitHub merge does not apply SQL on production. Client Phase 4 (28-OR drop, barcode exact/prefix, estimated count) does **not** need these indexes.

@@ -28,6 +28,15 @@ describe("sale_items organization_id + search_line_item_sale_ids", () => {
     );
   });
 
+  it("does not join sales in UPDATE FROM ON si (Postgres 42P01)", () => {
+    expect(sql).not.toMatch(
+      /FROM picked p\s+INNER JOIN public\.sales s ON s\.id = si\.sale_id/,
+    );
+    expect(sql).toMatch(
+      /SET organization_id = p\.organization_id\s+FROM picked p\s+WHERE si\.id = p\.id/,
+    );
+  });
+
   it("validates backfill against parent sales before NOT NULL", () => {
     expect(sql).toMatch(/v_matched <> v_items/);
     expect(sql).toMatch(/ALTER COLUMN organization_id SET NOT NULL/);
