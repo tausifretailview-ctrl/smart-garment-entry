@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { canonicalOnHandQty } from "@/utils/canonicalOnHandQty";
 import {
   lookupVariantRowsByScan,
   pickBestVariantScanRow,
@@ -37,7 +38,7 @@ function mapStockRow(row: Record<string, unknown>, organizationId: string): Barc
     size: String(row.size ?? "—"),
     color: row.color != null ? String(row.color) : null,
     barcode: row.barcode != null ? String(row.barcode) : null,
-    currentStock: Number(row.current_stock ?? row.stock_qty) || 0,
+    currentStock: canonicalOnHandQty(row),
     salePrice: Number(row.sale_price) || 0,
     mrp: Number(row.mrp) || 0,
     purPrice: Number(row.pur_price) || 0,
