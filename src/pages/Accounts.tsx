@@ -709,12 +709,14 @@ export default function Accounts() {
 
   const needsSales =
     visitedTabs.has("customer-payment") ||
-    visitedTabs.has("outstanding");
+    visitedTabs.has("outstanding") ||
+    visitedTabs.has("voucher-entry");
   const needsCustomers =
     visitedTabs.has("customer-payment") ||
     visitedTabs.has("reconciliation") ||
     visitedTabs.has("customer-ledger") ||
-    visitedTabs.has("outstanding");
+    visitedTabs.has("outstanding") ||
+    visitedTabs.has("voucher-entry");
 
   const needsSupplierBalanceMap =
     visitedTabs.has("supplier-ledger") || visitedTabs.has("supplier-payment");
@@ -1129,7 +1131,7 @@ export default function Accounts() {
           )}
           {shouldMountTab("voucher-entry") && (
           <div className={cn(selectedTab !== "voucher-entry" && "hidden")} aria-hidden={selectedTab !== "voucher-entry"}>
-            <VoucherEntryTab vouchers={vouchers} />
+            <VoucherEntryTab vouchers={vouchers} sales={sales} customers={customers} />
           </div>
           )}
           {currentOrganization?.id && shouldMountTab("reconciliation") && (
@@ -1315,7 +1317,9 @@ export default function Accounts() {
         </TabsContent>
 
         <TabsContent value="voucher-entry" forceMount={shouldMountTab("voucher-entry") ? true : undefined} className={STICKY_TAB_CONTENT_CLASS}>
-          {shouldMountTab("voucher-entry") && <VoucherEntryTab vouchers={vouchers} />}
+          {shouldMountTab("voucher-entry") && (
+            <VoucherEntryTab vouchers={vouchers} sales={sales} customers={customers} />
+          )}
         </TabsContent>
 
         <TabsContent value="reconciliation" forceMount={shouldMountTab("reconciliation") ? true : undefined} className={STICKY_TAB_CONTENT_CLASS}>
