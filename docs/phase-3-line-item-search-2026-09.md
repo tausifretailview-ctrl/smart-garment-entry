@@ -3,6 +3,8 @@
 **Date:** 2026-09-02  
 **PR:** sale_items `organization_id` + `search_line_item_sale_ids` ([#582](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/582) merged to GitHub; **migration not on production**). Client hotfix [#588](https://github.com/tausifretailview-ctrl/smart-garment-entry/pull/588) routes dashboards back to the live wrappers.
 
+**Catalog 2026-09-03 11:21** (`query-results-export-2026-09-03_11-21-32_6120.csv`): `phase3_sale_items_org_col=false`, `phase3_search_rpc=false`. Still paste `supabase/migrations/20261130120000_sale_items_org_search_rpc.sql`.
+
 Do **not** paste this Markdown file into the SQL editor.
 
 ---
