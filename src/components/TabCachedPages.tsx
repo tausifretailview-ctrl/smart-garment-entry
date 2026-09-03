@@ -847,7 +847,7 @@ export function TabCachedPages({
             key={path === "" ? "__dashboard__" : path}
             path={path}
             active={isActive}
-            dimOutgoing={!isActive && dimOutgoingDuringLoad}
+            dimOutgoing={!isActive && dimOutgoingDuringLoad && path === prevActivePathRef.current}
             silentFallback={isActive && silentColdNav}
             layout={meta.layout}
             roles={meta.roles}
