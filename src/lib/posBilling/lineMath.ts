@@ -38,24 +38,27 @@ export function applyPosGarmentGstToItem(
 ): PosCartItem {
   const netAmount = calculatePosCartLineNet(item);
   const withNet = { ...item, netAmount };
-  // The garment/apparel GST-by-price-threshold rule is an India-specific
-  // regulation for physical garments only. Service line items are not
-  // garments and must keep whatever GST% was explicitly set for them —
-  // running them through this rule was silently reverting a manually-set
-  // 18% back down to the org's below-threshold rate (e.g. 5%) whenever the
-  // service was priced at or below the garment threshold. Combo items are
-  // still bundles of physical garments, so they stay subject to this rule.
-  if (item.productType === "service") {
-    return withNet;
-  }
   const effectiveUnit = posLineNetUnitPrice(withNet);
   const purchaseGst = item.purchaseGstPer ?? item.gstPer;
-  const gstPer = resolveGarmentGstForLine(
+  const resolvedGst = resolveGarmentGstForLine(
     effectiveUnit,
     purchaseGst,
     item.gstPer,
     garmentGstSettings,
   );
+  // The garment/apparel GST-by-price-threshold rule has two independent
+  // directions: bump UP to 18% when price crosses the org's threshold, or
+  // force DOWN to the slab rate when price is at/below threshold but GST is
+  // already 18% (normally from an inherited purchase rate). Only the DOWNWARD
+  // direction is wrong for service line items — that was silently reverting a
+  // manually-chosen 18% on a low-priced service (not a garment) back to 5%.
+  // The UPWARD bump must still apply to services too: some orgs track
+  // garment-equivalent items (e.g. custom-stitched suits, a boutique/tailor's
+  // "SUITS" product) as service products and rely on this rule to auto-bump
+  // them once price crosses the threshold, same as any other garment.
+  const currentGst = Number(item.gstPer) || 0;
+  const isDownwardCorrection = resolvedGst < currentGst;
+  const gstPer = item.productType === "service" && isDownwardCorrection ? item.gstPer : resolvedGst;
   return { ...withNet, gstPer };
 }
 
