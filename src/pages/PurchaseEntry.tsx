@@ -2776,7 +2776,10 @@ const PurchaseEntry = () => {
             qty: variant.purchase_qty,
             pur_price: variant.pur_price || 0,
             sale_price: variant.sale_price || 0,
-            mrp: variant.mrp || variant.sale_price || 0,
+            // Existing variant — do not fall back to sale_price (see handleSizeGridConfirm
+            // for why: a genuinely 0/unset mrp must stay 0, not get silently written back
+            // to the master record as a copy of sale_price on next re-purchase).
+            mrp: variant.mrp || 0,
             gst_per: product.purchase_gst_percent || product.gst_per || 0,
             hsn_code: product.hsn_code || "",
             barcode: variant.barcode || "",
@@ -2817,7 +2820,7 @@ const PurchaseEntry = () => {
               size: v.size,
               sale_price: v.sale_price,
               pur_price: v.pur_price,
-              mrp: v.mrp || v.sale_price || 0,
+              mrp: v.mrp || 0,
               barcode: v.barcode,
               barcode_source: v.barcode_source || "generated",
               color: v.color || product.color || "",
@@ -4153,7 +4156,13 @@ const PurchaseEntry = () => {
         qty: qty,
         pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
         sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
-        mrp: variant.mrp || variant.sale_price || 0,
+        // Do NOT fall back to sale_price here — this is an existing variant's
+        // actual current mrp (possibly genuinely 0/unset, which is valid).
+        // syncVariantPriceFromPurchase only writes mrp back to the master
+        // record when the incoming value is > 0, so substituting sale_price
+        // as a placeholder would get silently saved as if it were a real,
+        // deliberately-set MRP the next time this item is re-purchased.
+        mrp: variant.mrp || 0,
         gst_per: selectedProduct.purchase_gst_percent || selectedProduct.gst_per || 0,
         hsn_code: selectedProduct.hsn_code || "",
         barcode: barcode,
