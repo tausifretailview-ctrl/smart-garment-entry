@@ -99,6 +99,13 @@ describe("usesLongLoadBudget is shared by watchdog and rescue timer", () => {
     expect(src).toMatch(/if \(silent && !showSoftHint\) return null/);
   });
 
+  it("TabCachedPages soft-retry does not remount an in-flight chunk", () => {
+    const src = readFileSync(join(here, "../components/TabCachedPages.tsx"), "utf8");
+    expect(src).toMatch(/isTabPageChunkInFlight/);
+    expect(src).toMatch(/if \(isTabPageChunkInFlight\(path\)\) return;/);
+    expect(src).toMatch(/softRetryTabLoad[\s\S]*?\[retryTabLoad, path\]/);
+  });
+
   it("OrgLayout watchdog and 6s rescue both import the same helper", () => {
     const src = readFileSync(join(here, "../components/OrgLayout.tsx"), "utf8");
     expect(src).toMatch(/usesLongLoadBudget/);
