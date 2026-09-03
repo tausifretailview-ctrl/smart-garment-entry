@@ -5405,7 +5405,7 @@ export type Database = {
           line_total: number
           mrp: number
           net_after_discount?: number
-          organization_id?: string
+          organization_id: string
           per_qty_net_amount?: number
           product_id: string
           product_name: string
@@ -10677,7 +10677,7 @@ export type Database = {
           p_date_to?: string
           p_limit?: number
           p_org_id: string
-          p_sale_types: string[]
+          p_sale_types?: string[]
           p_search: string
         }
         Returns: {
