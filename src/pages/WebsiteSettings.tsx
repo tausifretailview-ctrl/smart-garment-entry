@@ -352,7 +352,10 @@ function StoreProfile({
         .eq("organization_id", orgId)
         .maybeSingle();
       if (readErr) throw readErr;
-      const prev = (existing?.bill_barcode_settings || {}) as Record<string, unknown>;
+      const prev = (existing?.bill_barcode_settings || {}) as {
+        upi_id?: string | null;
+        instagram_link?: string | null;
+      };
       const { error: billErr } = await supabase
         .from("settings")
         .update({
