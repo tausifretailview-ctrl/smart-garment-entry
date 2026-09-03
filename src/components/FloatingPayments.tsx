@@ -39,7 +39,7 @@ import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
-import { setCloudUsageRoutePath } from "@/lib/cloudUsageDiagnostics";
+import { setCloudUsageRouteOverlay } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
@@ -187,8 +187,9 @@ function CustomerPaymentForm({
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (dialogOpen) setCloudUsageRoutePath("pos-sales:quick-payments");
-    return () => setCloudUsageRoutePath("");
+    if (!dialogOpen) return;
+    setCloudUsageRouteOverlay("pos-sales:quick-payments");
+    return () => setCloudUsageRouteOverlay(null);
   }, [dialogOpen]);
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [referenceId, setReferenceId] = useState("");

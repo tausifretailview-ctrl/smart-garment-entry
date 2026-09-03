@@ -1,4 +1,5 @@
 import { resolveTabCachePath } from "@/lib/tabPageRegistry";
+import type { TabLoadShell } from "@/lib/tabLoadShell";
 
 /** User-facing “Opening …” copy while a tab chunk downloads. */
 const TAB_LOAD_LABELS: Record<string, string> = {
@@ -41,10 +42,7 @@ const TAB_LOAD_LABELS: Record<string, string> = {
   "purchase-return-dashboard": "Opening Purchase Returns…",
 };
 
-export function tabLoadMessage(
-  path: string,
-  shell: "entry" | "dashboard" | "page",
-): string {
+export function tabLoadMessage(path: string, shell: TabLoadShell): string {
   const resolved = resolveTabCachePath(path);
   const named = TAB_LOAD_LABELS[resolved];
   if (named) return named;

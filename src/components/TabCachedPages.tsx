@@ -32,6 +32,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { tabLoadMessage } from "@/lib/tabLoadLabels";
+import { resolveTabLoadShell } from "@/lib/tabLoadShell";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import {
@@ -43,7 +44,6 @@ import {
 } from "@/lib/tabCacheMountRegistry";
 import {
   isPaintedTabSibling,
-  resolveTabPageFallbackKind,
   shouldSilentTabSuspenseFallback,
 } from "@/lib/tabCacheReadiness";
 import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
@@ -212,7 +212,6 @@ function getMinKeepTabs(): number {
   return isElectronShell() ? ELECTRON_MIN_KEEP_TABS : MIN_KEEP_TABS;
 }
 
-const DASHBOARD_TAB_PATHS = new Set(["", "dashboard"]);
 /** Time before showing the "Retry tab / Refresh app" card. */
 const TAB_LOAD_TIMEOUT_MS = 6_000;
 /**
@@ -224,51 +223,6 @@ const HEAVY_TAB_LOAD_TIMEOUT_MS = 6_000;
 const SOFT_LOADING_HINT_MS = 3_000;
 /** Drop a background prefetch that never settled before remounting the active tab. */
 const STALE_IN_FLIGHT_MS = 4_000;
-
-type TabLoadShell = "entry" | "dashboard" | "page";
-
-/**
- * Map every tab-cache route to an existing shell (no new skeleton system).
- * - entry → AppBootSplash "Loading bill screen…"
- * - dashboard → DashboardSkeleton (web) / splash (Electron)
- * - page → AppBootSplash "Loading page…" (immediate — never bare spinner for 8s)
- */
-function resolveTabLoadShell(path: string): TabLoadShell {
-  const resolved = resolveTabCachePath(path);
-  const def = TAB_PAGE_REGISTRY[resolved];
-  if (DASHBOARD_TAB_PATHS.has(resolved)) return "dashboard";
-  if (!def) return "page";
-  if (def.layout === "pos" || def.layout === "pos-dc") return "entry";
-  // Bill/product entry screens — not voucher pages that merely end in "-entry"
-  // (e.g. third-party-entry is an accounts form, not a bill screen).
-  if (
-    resolved === "sales-invoice" ||
-    (resolved.endsWith("-entry") &&
-      resolved !== "third-party-entry" &&
-      !resolved.startsWith("third-party"))
-  ) {
-    return "entry";
-  }
-  if (
-    def.layout === "layout" ||
-    resolved.includes("dashboard") ||
-    resolved.endsWith("-report") ||
-    resolved.endsWith("-reports") ||
-    resolved === "reports" ||
-    resolved === "accounts" ||
-    resolved === "settings" ||
-    resolved === "barcode-printing" ||
-    resolved === "stock-report" ||
-    resolved === "stock-adjustment" ||
-    resolved === "stock-settlement" ||
-    resolved === "stock-analysis" ||
-    resolved === "stock-ageing"
-  ) {
-    return "dashboard";
-  }
-  // Remaining fullscreen modules (masters, commission, etc.)
-  return "dashboard";
-}
 
 const HEAVY_TAB_PATHS = new Set([
   "settings",
