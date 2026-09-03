@@ -37,6 +37,7 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
   (jsPdfPromise ??= import("jspdf").then((m) => m.default));
 
 import { multiTokenMatch } from "@/utils/multiTokenSearch";
+import { canonicalOnHandQty } from "@/utils/canonicalOnHandQty";
 
 type QuickPeriod = "today" | "yesterday" | "last7" | "last30" | "thisMonth";
 
@@ -260,7 +261,9 @@ export default function DailySaleAnalysis() {
         const batch = variantIds.slice(i, i + 50);
         const { data } = await supabase
           .from("product_variants")
-          .select("id, current_stock, sale_price, pur_price, product_id, products(product_name, brand, category, style)")
+          .select("id, stock_qty, current_stock, sale_price, pur_price, product_id, products(product_name, brand, category, style)")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
           .in("id", batch);
         if (data) data.forEach(v => variantDetails.set(v.id, v));
       }
@@ -325,7 +328,7 @@ export default function DailySaleAnalysis() {
         const pur = purchaseMap.get(vid);
         const product = vd?.products;
 
-        const currentStock = vd?.current_stock ?? 0;
+        const currentStock = canonicalOnHandQty(vd ?? {});
         const avgDailySale = vel.last30 / 30;
         const daysLeft = avgDailySale > 0 ? Math.round(currentStock / avgDailySale) : (currentStock > 0 ? null : 0);
         const saleRate = agg.totalAmount / agg.totalQty;
