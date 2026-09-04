@@ -25,6 +25,13 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
     expect(payments).not.toContain("setCloudUsageRoutePath(\"\")");
   });
 
+  it("Quick Payments supplier list uses paginated fetchAllSuppliers", () => {
+    const payments = src("src/components/FloatingPayments.tsx");
+    expect(payments).toContain("fetchAllSuppliers");
+    expect(payments).not.toMatch(/\.from\("suppliers"\)/);
+    expect(payments).toContain("loadSupplierBalanceMapForOrg");
+  });
+
   it("Accounts no longer owns route attribution", () => {
     const accounts = src("src/pages/Accounts.tsx");
     expect(accounts).not.toContain("setCloudUsageRoutePath");

@@ -42,6 +42,7 @@ import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions"
 import { setCloudUsageRouteOverlay } from "@/lib/cloudUsageDiagnostics";
 import { safeMapGet } from "@/lib/coerceToMap";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
   assertCustomerPaymentWithinOutstandingCap,
@@ -825,12 +826,7 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
   const { data: suppliersWithBalance } = useQuery({
     queryKey: ["suppliers-with-balance", organizationId],
     queryFn: async () => {
-      const { data: allSuppliers } = await supabase
-        .from("suppliers")
-        .select("id, supplier_name, opening_balance, phone")
-        .eq("organization_id", organizationId)
-        .is("deleted_at", null)
-        .order("supplier_name");
+      const allSuppliers = await fetchAllSuppliers(organizationId);
       const { balanceMap } = await loadSupplierBalanceMapForOrg(supabase, organizationId);
       return (
         allSuppliers

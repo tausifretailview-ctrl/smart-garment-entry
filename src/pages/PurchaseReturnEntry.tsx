@@ -37,6 +37,7 @@ import {
   recordPurchaseReturnJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { coerceToMap } from "@/lib/coerceToMap";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
 import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "@/utils/barcodeScanResolve";
@@ -549,13 +550,8 @@ const PurchaseReturnEntry = () => {
   const { data: suppliers = [] } = useQuery({
     queryKey: ["suppliers", currentOrganization?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("*")
-        .eq("organization_id", currentOrganization?.id)
-        .order("supplier_name");
-      if (error) throw error;
-      return data;
+      if (!currentOrganization?.id) return [];
+      return fetchAllSuppliers(currentOrganization.id);
     },
     enabled: !!currentOrganization?.id,
   });
