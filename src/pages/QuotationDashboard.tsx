@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -14,7 +14,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 
-import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw } from "lucide-react";
+import { Search, Printer, Edit, ChevronDown, ChevronUp, Trash2, Loader2, FileText, ArrowRight, Plus, MessageCircle, CalendarIcon, Download, FilePenLine, Home, RefreshCw, CheckCircle, PauseCircle, XCircle } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  getQuotationStatusConfig,
+  getQuotationStatusLabel,
+  QUOTATION_UPDATABLE_STATUSES,
+} from "@/utils/quotationStatus";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
@@ -67,6 +73,64 @@ export default function QuotationDashboard() {
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
 
+  const updateQuotationStatus = useMutation({
+    mutationFn: async (vars: { quotationId: string; newStatus: string; quotationNumber?: string }) => {
+      if (!currentOrganization?.id) throw new Error("No organization selected");
+      const { error } = await supabase
+        .from("quotations")
+        .update({ status: vars.newStatus })
+        .eq("id", vars.quotationId)
+        .eq("organization_id", currentOrganization.id);
+      if (error) throw error;
+      return vars;
+    },
+    onMutate: async (vars) => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return { previous: undefined as any[] | undefined };
+
+      const queryKey = ["quotations", orgId] as const;
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<any[]>(queryKey);
+
+      queryClient.setQueryData<any[]>(queryKey, (old) =>
+        old?.map((q) => (q.id === vars.quotationId ? { ...q, status: vars.newStatus } : q)) ?? [],
+      );
+
+      return { previous };
+    },
+    onError: (error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["quotations", currentOrganization?.id], context.previous);
+      }
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update quotation status",
+        variant: "destructive",
+      });
+    },
+    onSuccess: (vars) => {
+      toast({
+        title: "Status updated",
+        description: `${vars.quotationNumber ?? "Quotation"} marked as ${getQuotationStatusLabel(vars.newStatus)}`,
+      });
+    },
+    onSettled: () => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return;
+      void queryClient.invalidateQueries({ queryKey: ["quotations", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
+    },
+  });
+
+  const handleUpdateStatus = (quotation: any, newStatus: string) => {
+    if (quotation.status === newStatus || updateQuotationStatus.isPending) return;
+    updateQuotationStatus.mutate({
+      quotationId: quotation.id,
+      newStatus,
+      quotationNumber: quotation.quotation_number,
+    });
+  };
+
   const getQuotationContextMenuItems = (quotation: any): ContextMenuItem[] => [
     {
       label: "Print / PDF",
@@ -83,6 +147,26 @@ export default function QuotationDashboard() {
       icon: ArrowRight,
       onClick: () => handleConvertToSaleOrder(quotation),
       hidden: quotation.status === "confirmed",
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Confirm",
+      icon: CheckCircle,
+      onClick: () => handleUpdateStatus(quotation, "confirmed"),
+      hidden: quotation.status === "confirmed",
+    },
+    {
+      label: "Hold",
+      icon: PauseCircle,
+      onClick: () => handleUpdateStatus(quotation, "hold"),
+      hidden: quotation.status === "hold",
+    },
+    {
+      label: "Cancel",
+      icon: XCircle,
+      onClick: () => handleUpdateStatus(quotation, "cancelled"),
+      hidden: quotation.status === "cancelled",
+      destructive: true,
     },
     { label: "", separator: true, onClick: () => {} },
     {
@@ -302,17 +386,46 @@ export default function QuotationDashboard() {
     currentPage * itemsPerPage
   );
 
-  const getStatusBadge = (status: string) => {
-    const variants: Record<string, { className: string, label: string }> = {
-      draft: { className: "min-w-[80px] justify-center bg-gray-400 hover:bg-gray-500 text-white", label: "Draft" },
-      sent: { className: "min-w-[80px] justify-center bg-blue-500 hover:bg-blue-600 text-white", label: "Sent" },
-      confirmed: { className: "min-w-[80px] justify-center bg-green-500 hover:bg-green-600 text-white", label: "Confirmed" },
-      expired: { className: "min-w-[80px] justify-center bg-red-500 hover:bg-red-600 text-white", label: "Expired" },
-      cancelled: { className: "min-w-[80px] justify-center bg-pink-400 hover:bg-pink-500 text-white", label: "Cancelled" },
-    };
-    const config = variants[status] || { className: "min-w-[80px] justify-center bg-gray-400 text-white", label: status };
-    return <Badge className={config.className}>{config.label}</Badge>;
+  const getStatusBadge = (status: string, interactive = false) => {
+    const config = getQuotationStatusConfig(status);
+    return (
+      <Badge className={cn(config.className, interactive && "cursor-pointer ring-offset-1 hover:ring-2 hover:ring-white/40")}>
+        {config.label}
+      </Badge>
+    );
   };
+
+  const renderStatusCell = (quotation: any) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          disabled={updateQuotationStatus.isPending}
+          title="Change status"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {getStatusBadge(quotation.status, true)}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[160px]">
+        {QUOTATION_UPDATABLE_STATUSES.map((status) => {
+          const config = getQuotationStatusConfig(status);
+          return (
+            <DropdownMenuItem
+              key={status}
+              disabled={quotation.status === status}
+              onClick={() => handleUpdateStatus(quotation, status)}
+              className="gap-2"
+            >
+              <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", config.dotClassName)} />
+              {config.label}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   // Server-side summary stats via RPC
   const { data: quotationSummaryData } = useQuery({
@@ -510,6 +623,7 @@ export default function QuotationDashboard() {
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
+              <SelectItem value="hold">Hold</SelectItem>
               <SelectItem value="expired">Expired</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
@@ -573,7 +687,7 @@ export default function QuotationDashboard() {
                       <div className="text-sm text-muted-foreground">{quotation.customer_phone}</div>
                     </TableCell>
                     <TableCell className="font-semibold tabular-nums">₹{quotation.net_amount?.toFixed(2)}</TableCell>
-                    <TableCell>{getStatusBadge(quotation.status)}</TableCell>
+                    <TableCell>{renderStatusCell(quotation)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(quotation)} title="WhatsApp">
