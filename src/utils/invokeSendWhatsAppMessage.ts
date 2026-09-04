@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import type { SendMessageParams, WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 
 /** Invoke send-whatsapp with the same client-side PDF upload path as useWhatsAppAPI. */
 export async function invokeSendWhatsAppMessage(
@@ -44,7 +45,9 @@ export async function invokeSendWhatsAppMessage(
     },
   });
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(await getEdgeFunctionErrorMessage(error, data, "Failed to send message"));
+  }
   if (!data?.success) throw new Error(data?.error || "Failed to send message");
   return data;
 }

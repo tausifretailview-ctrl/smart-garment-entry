@@ -286,9 +286,11 @@ export async function sendViaWappConnect(
       // WappConnect docs require `message` (not `caption`) for URL-based file sends.
       url.searchParams.set("link", cleanFileUrl);
       url.searchParams.set("message", message);
-    } else if ((mode === "multipart" || mode === "text") && message) {
+    } else if (mode === "text" && message) {
       url.searchParams.set("message", message);
     }
+    // multipart POST: caption travels in FormData only — long invoice text in the query
+    // string has caused WappConnect 500 "Internal server error" responses.
   };
 
   const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
