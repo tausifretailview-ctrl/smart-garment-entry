@@ -26,6 +26,8 @@ import { PullToRefreshIndicator } from "@/components/mobile/PullToRefreshIndicat
 import { invalidateActiveHubQueries } from "@/lib/mobileHubRefresh";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { cn } from "@/lib/utils";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
 import {
@@ -52,6 +54,9 @@ interface MenuSection {
 export default function MobileMoreMenu() {
   const { orgNavigate } = useOrgNavigation();
   const { signOut } = useAuth();
+  const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
+  const { isAdmin } = useUserRoles();
+  const canAccessWebsite = isAdmin || isAdminPermissions || hasMenuAccess("website_settings");
   const queryClient = useQueryClient();
   const { scrollRef, isRefreshing, pullHandlers } = usePullToRefresh(
     useCallback(() => invalidateActiveHubQueries(queryClient), [queryClient]),
@@ -98,7 +103,9 @@ export default function MobileMoreMenu() {
       title: "Settings",
       items: [
         { icon: Settings, label: "App Settings", path: "/settings", color: "text-slate-500" },
-        { icon: Store, label: "Website", path: "/website", color: "text-sky-500" },
+        ...(canAccessWebsite
+          ? [{ icon: Store, label: "Website", path: "/website", color: "text-sky-500" } satisfies MenuItem]
+          : []),
         { icon: Database, label: "Backup", path: "/backup", color: "text-emerald-500" },
         { icon: User, label: "Profile", path: "/profile", color: "text-blue-500" },
         { icon: HelpCircle, label: "Help & Support", path: "/settings", color: "text-teal-500" },

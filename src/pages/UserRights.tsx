@@ -288,7 +288,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   payments_dashboard: true,
   payment_recording: true,
   settings_view: true,
-  website_settings: true,
+  website_settings: false,
   recycle_bin: true,
   user_rights: true,
   stock_adjustment: true,

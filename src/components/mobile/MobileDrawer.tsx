@@ -3,6 +3,8 @@ import { Settings, HelpCircle, LogOut, User, Building, ChevronRight, Store, Data
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { useNavigate } from "react-router-dom";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import {
@@ -25,7 +27,10 @@ export const MobileDrawer = ({ trigger }: MobileDrawerProps) => {
   const { user, signOut } = useAuth();
   const { currentOrganization } = useOrganization();
   const { orgNavigate, orgSlug } = useOrgNavigation();
+  const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
+  const { isAdmin } = useUserRoles();
   const navigate = useNavigate();
+  const canAccessWebsite = isAdmin || isAdminPermissions || hasMenuAccess("website_settings");
 
   const handleNavigate = (path: string) => {
     setOpen(false);
@@ -41,7 +46,7 @@ export const MobileDrawer = ({ trigger }: MobileDrawerProps) => {
   const menuItems = [
     { icon: User, label: "Profile", path: "/profile" },
     { icon: Settings, label: "Settings", path: "/settings" },
-    { icon: Store, label: "Website", path: "/website" },
+    ...(canAccessWebsite ? [{ icon: Store, label: "Website", path: "/website" }] : []),
     { icon: Database, label: "Backup", path: "/backup" },
     { icon: HelpCircle, label: "Help & Support", path: "/settings" },
   ];
