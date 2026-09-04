@@ -766,9 +766,11 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin", "manager"]}>
-                        <Layout>
-                          <WebsiteSettings />
-                        </Layout>
+                        <MenuPermissionRoute permission="website_settings">
+                          <Layout>
+                            <WebsiteSettings />
+                          </Layout>
+                        </MenuPermissionRoute>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
                   }
