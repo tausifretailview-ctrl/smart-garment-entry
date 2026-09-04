@@ -7,6 +7,7 @@ import {
   isWappConnectSendProvider,
 } from "@/constants/whatsappSendProvider";
 import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { resolveWhatsAppCustomerName } from "@/lib/posBilling/buildSaleData";
 
 export interface TemplateParam {
@@ -375,7 +376,9 @@ export const useWhatsAppAPI = () => {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw new Error(await getEdgeFunctionErrorMessage(error, data, "Failed to send message"));
+      }
       if (!data.success) throw new Error(data.error || 'Failed to send message');
       
       return data;

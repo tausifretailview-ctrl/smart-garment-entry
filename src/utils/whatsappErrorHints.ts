@@ -93,6 +93,15 @@ export function getWhatsAppErrorHint(
         action: "Settings → WhatsApp API → enter Instance id → Save → Send test.",
       };
     }
+    if (raw.includes("internal server error")) {
+      return {
+        title: "WappConnect server error",
+        reason:
+          "WappConnect's API returned an internal error while sending the PDF. Common causes: WhatsApp session disconnected on WappConnect, instance not linked, or caption/PDF too large for their server.",
+        action:
+          "Open the WappConnect dashboard → confirm the instance shows Connected/Online → scan QR if needed → retry. If it persists after reconnecting, try a shorter invoice message template in Settings → WhatsApp → Message Templates.",
+      };
+    }
     if (isTextOnlySend && raw.includes("invalid message")) {
       return {
         title: "Message rejected by WhatsApp",
