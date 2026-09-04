@@ -138,6 +138,7 @@ import {
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -3833,7 +3834,10 @@ export default function POSSales() {
       try {
         const props = {
           format: posInvoiceWrapperFormat,
-          template: posInvoiceTemplate,
+          template: resolveWappConnectPdfInvoiceTemplate(
+            posInvoiceTemplate,
+            waSettings?.wappconnect_pdf_invoice_template,
+          ),
           billNo: meta.saleNumber,
           date: meta.saleDate,
           customerName,
@@ -3892,6 +3896,7 @@ export default function POSSales() {
     },
     [
       posInvoiceTemplate,
+      waSettings?.wappconnect_pdf_invoice_template,
       posInvoiceWrapperFormat,
       posBillFormat,
       customerName,

@@ -67,6 +67,8 @@ import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
+import { resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
@@ -563,6 +565,7 @@ export default function SalesInvoice() {
   const [taxType, setTaxType] = useState<"exclusive" | "inclusive">("inclusive");
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any>(null);
+  const [whatsappCaptureTemplate, setWhatsappCaptureTemplate] = useState<string | null>(null);
   const [salesman, setSalesman] = useState<string>("");
   const [flatDiscountPercent, setFlatDiscountPercent] = useState<number>(0);
   const [flatDiscountRupees, setFlatDiscountRupees] = useState<number>(0);
@@ -899,6 +902,14 @@ export default function SalesInvoice() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData } = useSettings();
+  const saleInvoicePrintTemplate = useMemo(
+    () =>
+      resolveSaleInvoiceTemplate(
+        settingsData?.sale_settings as { invoice_template?: string | null } | undefined,
+      ),
+    [settingsData?.sale_settings],
+  );
+  const effectiveInvoicePrintTemplate = whatsappCaptureTemplate ?? saleInvoicePrintTemplate;
   const accountingEngineOn = isAccountingEngineEnabled(settingsData as { accounting_engine_enabled?: boolean } | null);
 
   // Garment / Footwear GST auto-bump rule (from purchase_settings)
@@ -3533,6 +3544,14 @@ Thank you for choosing us!`;
                 "Our Company";
               const saleSettings = (settingsData as { sale_settings?: Record<string, unknown> } | null)
                 ?.sale_settings || {};
+              const saleInvoiceTemplate = resolveSaleInvoiceTemplate(
+                saleSettings as { invoice_template?: string | null },
+              );
+              const pdfTemplateForWhatsApp = resolveWappConnectPdfInvoiceTemplate(
+                saleInvoiceTemplate,
+                (whatsappSettings as { wappconnect_pdf_invoice_template?: string | null })
+                  .wappconnect_pdf_invoice_template,
+              );
               const totalQty = filledItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
               const saleDataForWhatsApp = {
                 sale_id: saleData.id,
@@ -3559,10 +3578,12 @@ Thank you for choosing us!`;
               };
 
               flushSync(() => {
+                setWhatsappCaptureTemplate(pdfTemplateForWhatsApp);
                 setSavedInvoiceData(invoiceDataForPrint);
               });
               await new Promise((resolve) => setTimeout(resolve, 400));
 
+              try {
               await resendSaleInvoiceWhatsApp({
                 phone: selectedCustomer.phone!,
                 saleId: saleData.id,
@@ -3591,6 +3612,9 @@ Thank you for choosing us!`;
                   );
                 },
               });
+              } finally {
+                setWhatsappCaptureTemplate(null);
+              }
 
               queryClient.invalidateQueries({ queryKey: ["whatsapp-logs"] });
               queryClient.invalidateQueries({ queryKey: ["whatsapp-recent-wappconnect-logs"] });
@@ -4098,7 +4122,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -5625,6 +5649,7 @@ Thank you for choosing us!`;
         {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
           <InvoiceWrapper
             ref={printRef}
+            template={effectiveInvoicePrintTemplate}
             billNo={savedInvoiceData.invoiceNumber}
           date={invoiceDate}
           customerName={savedInvoiceData?.customer.customer_name || selectedCustomer?.customer_name || ""}

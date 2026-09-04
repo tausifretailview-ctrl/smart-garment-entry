@@ -87,6 +87,7 @@ export interface WhatsAppSettings {
   invoice_document_template_params: TemplateParam[] | null;
   send_provider: WhatsAppSendProvider;
   wappconnect_connected_number: string | null;
+  wappconnect_pdf_invoice_template: string | null;
   created_at: string;
   updated_at: string;
 }

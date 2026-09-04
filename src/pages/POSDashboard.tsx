@@ -162,6 +162,7 @@ import {
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -1833,7 +1834,16 @@ const POSDashboard = () => {
     async (sale: Sale, items: SaleItem[]) => {
       try {
         const invoiceData = await buildPrintDataFromSale(sale, items);
-        flushSync(() => setPrintData(invoiceData));
+        const wappConnectTemplate = resolveWappConnectPdfInvoiceTemplate(
+          posInvoiceTemplate,
+          whatsAppAPISettings?.wappconnect_pdf_invoice_template,
+        );
+        flushSync(() =>
+          setPrintData({
+            ...invoiceData,
+            wappConnectTemplate,
+          }),
+        );
         await new Promise<void>((resolve) => {
           waitForPrintReady(invoicePrintRef, resolve, { maxWait: 8000 });
         });
@@ -1861,6 +1871,8 @@ const POSDashboard = () => {
       effectivePosBillFormat,
       posThermalPaper,
       whatsAppAPISettings?.send_provider,
+      whatsAppAPISettings?.wappconnect_pdf_invoice_template,
+      posInvoiceTemplate,
     ],
   );
 
@@ -4598,7 +4610,7 @@ const POSDashboard = () => {
             )}
             financerDetails={printData.financerDetails || null}
                   format={posInvoiceWrapperFormat}
-                  template={posInvoiceTemplate}
+                  template={printData.wappConnectTemplate ?? posInvoiceTemplate}
                   thermalPaper={posThermalPaper}
                 />
               )}
