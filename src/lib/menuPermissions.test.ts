@@ -53,10 +53,16 @@ describe("menuPermissions", () => {
     ).toBe(false);
   });
 
-  it("enables discount_scheme_dashboard by default when the key was never saved", () => {
+  it("requires explicit discount_scheme_dashboard grant (not implied by other sales rights)", () => {
     expect(
       isMenuPermissionGranted(
         { menu: { pos_sales: true }, mainMenu: { sales: true } },
+        "discount_scheme_dashboard",
+      ),
+    ).toBe(false);
+    expect(
+      isMenuPermissionGranted(
+        { menu: { discount_scheme_dashboard: true }, mainMenu: { sales: true } },
         "discount_scheme_dashboard",
       ),
     ).toBe(true);

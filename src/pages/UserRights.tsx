@@ -216,7 +216,7 @@ const defaultBasicPermissions: Record<string, boolean> = {
   pos_dashboard: true,
   reports_hub: true,
   business_insights: true,
-  discount_scheme_dashboard: true,
+  discount_scheme_dashboard: false,
 };
 
 // Default permissions for managers - more comprehensive access
@@ -250,7 +250,7 @@ const defaultManagerPermissions: Record<string, boolean> = {
   delivery_challan_entry: true,
   delivery_challan_dashboard: true,
   advance_booking_dashboard: true,
-  discount_scheme_dashboard: true,
+  discount_scheme_dashboard: false,
   reports_hub: true,
   business_insights: true,
   orphaned_products: true,
