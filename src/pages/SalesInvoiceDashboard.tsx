@@ -76,6 +76,7 @@ import {
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -432,6 +433,7 @@ export default function SalesInvoiceDashboard() {
   };
 
   const [invoiceToPrint, setInvoiceToPrint] = useState<any>(null);
+  const [wappConnectCaptureTemplate, setWappConnectCaptureTemplate] = useState<string | null>(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [previewHydrating, setPreviewHydrating] = useState(false);
   const [billFormat, setBillFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal' | null>(null);
@@ -2266,18 +2268,35 @@ export default function SalesInvoiceDashboard() {
   const captureInvoicePdfForWhatsApp = useCallback(
     async (invoice: any): Promise<string | null> => {
       const invoiceWithItems = await ensureSaleItems(invoice);
-      setInvoiceToPrint(invoiceWithItems);
-      await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
-      const el = await waitForInvoicePrintDom();
-      if (!el) return null;
-      return (
-        (await captureElementToPdfBase64(el, {
-          extraSettleMs: 300,
-          wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
-        })) || null
+      const pdfTemplate = resolveWappConnectPdfInvoiceTemplate(
+        invoiceTemplate,
+        whatsAppAPISettings?.wappconnect_pdf_invoice_template,
       );
+      setWappConnectCaptureTemplate(pdfTemplate);
+      setInvoiceToPrint(invoiceWithItems);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, isMobile ? 600 : 200));
+        const el = await waitForInvoicePrintDom();
+        if (!el) return null;
+        return (
+          (await captureElementToPdfBase64(el, {
+            extraSettleMs: 300,
+            wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
+          })) || null
+        );
+      } finally {
+        setWappConnectCaptureTemplate(null);
+        setInvoiceToPrint(null);
+      }
     },
-    [ensureSaleItems, isMobile, waitForInvoicePrintDom, whatsAppAPISettings?.send_provider],
+    [
+      ensureSaleItems,
+      invoiceTemplate,
+      isMobile,
+      waitForInvoicePrintDom,
+      whatsAppAPISettings?.send_provider,
+      whatsAppAPISettings?.wappconnect_pdf_invoice_template,
+    ],
   );
 
   const handleDownloadPDF = async (invoice: any) => {
@@ -3608,7 +3627,7 @@ export default function SalesInvoiceDashboard() {
               customerAddress={invoiceToPrint.customer_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
               customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
-              template={invoiceTemplate}
+              template={wappConnectCaptureTemplate ?? invoiceTemplate}
               showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
               showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
@@ -5329,7 +5348,7 @@ export default function SalesInvoiceDashboard() {
               customerAddress={invoiceToPrint.customer_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
               customerGSTIN={invoiceToPrint.customers?.gst_number || ""}
-              template={invoiceTemplate}
+              template={wappConnectCaptureTemplate ?? invoiceTemplate}
               showMRP={(settings?.sale_settings as any)?.show_mrp_column ?? false}
               showHSN={(settings?.sale_settings as any)?.show_hsn_column ?? true}
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({

@@ -28,6 +28,7 @@ import { getEffectiveWhatsAppLogStatus, getWappConnectRequestUrl } from "@/utils
 import { isWappConnectSignedStorageUrl } from "@/utils/wappConnectPdfUrl";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
 import { WHATSAPP_WEBHOOK_URL, WHATSAPP_WEBHOOK_VERIFY_TOKEN } from "@/constants/whatsappWebhook";
+import { InvoiceTemplateSelectItems } from "@/components/settings/InvoiceTemplateSelectItems";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   MessageSquare, 
@@ -226,6 +227,7 @@ export const WhatsAppAPISettings = () => {
     // Invoice PDF attachment settings
     send_invoice_pdf: false,
     invoice_pdf_template: "professional",
+    wappconnect_pdf_invoice_template: "",
     // Document header template (PDF embedded in template - bypasses 24h window)
     use_document_header_template: false,
     invoice_document_template_name: "",
@@ -303,6 +305,8 @@ export const WhatsAppAPISettings = () => {
         // Invoice PDF attachment settings
         send_invoice_pdf: (settings as any).send_invoice_pdf || false,
         invoice_pdf_template: (settings as any).invoice_pdf_template || "professional",
+        wappconnect_pdf_invoice_template:
+          (settings as any).wappconnect_pdf_invoice_template?.trim() || "",
         // Document header template
         use_document_header_template: (settings as any).use_document_header_template || false,
         invoice_document_template_name: (settings as any).invoice_document_template_name || "",
@@ -385,6 +389,9 @@ export const WhatsAppAPISettings = () => {
       
       const { wappconnect_instance_id: _instanceDraft, ...rest } = formData;
       const payload = { ...rest, api_provider: "third_party" as const };
+      if (!payload.wappconnect_pdf_invoice_template?.trim()) {
+        payload.wappconnect_pdf_invoice_template = null;
+      }
       const businessId = payload.business_id?.trim();
       const wabaId = payload.waba_id?.trim();
       if (businessId && !wabaId) payload.waba_id = businessId;
@@ -1374,6 +1381,7 @@ export const WhatsAppAPISettings = () => {
               <Separator />
 
               {isWappConnect ? (
+                <>
                 <Alert className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
                   <CheckCircle className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                   <AlertTitle className="text-emerald-900 dark:text-emerald-100 font-semibold">
@@ -1385,6 +1393,36 @@ export const WhatsAppAPISettings = () => {
                     <strong>no Meta 24-hour reply window</strong>.
                   </AlertDescription>
                 </Alert>
+
+                <div className="space-y-2">
+                  <Label htmlFor="wappconnect_pdf_invoice_template">WhatsApp PDF template</Label>
+                  <Select
+                    value={formData.wappconnect_pdf_invoice_template || "__same_as_print__"}
+                    onValueChange={(value) =>
+                      handleInputChange(
+                        "wappconnect_pdf_invoice_template",
+                        value === "__same_as_print__" ? "" : value,
+                      )
+                    }
+                  >
+                    <SelectTrigger id="wappconnect_pdf_invoice_template">
+                      <SelectValue placeholder="Same as POS / print template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__same_as_print__">
+                        Same as POS / print template (default)
+                      </SelectItem>
+                      <InvoiceTemplateSelectItems
+                        currentValue={formData.wappconnect_pdf_invoice_template}
+                      />
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Optional. Use a branded template for WhatsApp PDFs only — physical preprinted bills
+                    and normal printing stay unchanged unless you change POS/Sale settings.
+                  </p>
+                </div>
+                </>
               ) : (
               <>
               {/* Method Selection */}
