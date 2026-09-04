@@ -86,6 +86,15 @@ export function getWhatsAppErrorHint(
           "Check Settings → WhatsApp → Message Templates → Sales Invoice / POS Billing Message is saved. Hard refresh (↻) and retry.",
       };
     }
+    if (raw.includes("instance not found")) {
+      return {
+        title: "WappConnect instance not found",
+        reason:
+          "The saved instance id is not recognized by WappConnect. Common causes: login email/password was pasted instead of the instance id, the instance was deleted on WappConnect, or WhatsApp was disconnected and a new instance was created.",
+        action:
+          "WappConnect dashboard → confirm the instance is Connected → copy Instance id → Settings → WhatsApp API → Clear saved id → paste the correct id → Save Settings → Send test.",
+      };
+    }
     if (raw.includes("instance id") || raw.includes("not configured")) {
       return {
         title: "WappConnect not configured",

@@ -24,6 +24,7 @@ import {
 } from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
+import { validateWappConnectInstanceId } from "@/utils/wappConnectInstanceIdValidation";
 import { getEffectiveWhatsAppLogStatus, getWappConnectRequestUrl } from "@/utils/whatsappLogStatus";
 import { isWappConnectSignedStorageUrl } from "@/utils/wappConnectPdfUrl";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "@/lib/whatsappApiUrl";
@@ -364,6 +365,13 @@ export const WhatsAppAPISettings = () => {
           return;
         }
         if (hasNewInstance) {
+          const instanceValidationError = validateWappConnectInstanceId(
+            formData.wappconnect_instance_id,
+          );
+          if (instanceValidationError) {
+            toast.error(instanceValidationError);
+            return;
+          }
           await saveWappConnectInstanceAsync(formData.wappconnect_instance_id.trim());
           setFormData((prev) => ({ ...prev, wappconnect_instance_id: "" }));
         }
@@ -663,7 +671,14 @@ export const WhatsAppAPISettings = () => {
                   );
                   if (hint) {
                     return (
-                      <p className="text-xs text-destructive font-medium">{hint.title}</p>
+                      <Alert className="mt-2 border-destructive/40 bg-destructive/5">
+                        <AlertCircle className="h-4 w-4 text-destructive" />
+                        <AlertTitle className="text-sm text-destructive">{hint.title}</AlertTitle>
+                        <AlertDescription className="text-xs space-y-1">
+                          <p>{hint.reason}</p>
+                          <p className="font-medium">{hint.action}</p>
+                        </AlertDescription>
+                      </Alert>
                     );
                   }
                   return lastSendStatus.error_message ? (
