@@ -3263,6 +3263,7 @@ export default function POSSales() {
         netAmount: quantity * mrp,
         productId: product.id,
         variantId: variant.id,
+        purPrice: Number(variant.pur_price) || 0,
         hsnCode: product.hsn_code || '',
         productType: 'service',
         itemNotes: description || null,
@@ -3276,6 +3277,7 @@ export default function POSSales() {
     let productId = '';
     let variantId = '';
     let matchedServiceGst = 0;
+    let matchedPurPrice = 0;
     if (currentOrganization?.id) {
       try {
         const match = await fetchPosVariantByBarcode(currentOrganization.id, code);
@@ -3284,6 +3286,7 @@ export default function POSSales() {
           productId = match.product.id as string;
           variantId = match.variant.id as string;
           matchedServiceGst = Number(match.product.sale_gst_percent || match.product.gst_per || 0);
+          matchedPurPrice = Number(match.variant.pur_price) || 0;
         }
       } catch (error) {
         console.error('Quick service lookup failed:', error);
@@ -3321,6 +3324,7 @@ export default function POSSales() {
       netAmount: quantity * mrp,
       productId,
       variantId,
+      purPrice: matchedPurPrice,
       hsnCode: '',
       productType: 'service',
       itemNotes: description || null,
@@ -3593,6 +3597,19 @@ export default function POSSales() {
   };
   /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
   const maxSrFromBill = billingMaxSrFromBill;
+
+  const liveMargin = useMemo(() => {
+    let totalCost = 0;
+    let totalSale = 0;
+    for (const item of items) {
+      const qty = Number(item.quantity) || 0;
+      totalCost += (Number(item.purPrice) || 0) * qty;
+      totalSale += Number(item.netAmount) || 0;
+    }
+    const profit = totalSale - totalCost;
+    const marginPercent = totalSale > 0 ? (profit / totalSale) * 100 : 0;
+    return { profit, marginPercent, totalCost, totalSale };
+  }, [items]);
 
   const removeItem = (index: number) => {
     billingRemoveLine(index);
@@ -7223,8 +7240,21 @@ export default function POSSales() {
           </div>
           
           {/* Running Total Display */}
-          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
-            <div className="text-white font-bold text-base tracking-tight">
+          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center gap-2 min-w-[120px] shadow-sm shrink-0">
+            {hasSpecialPermission("pos_margin_indicator") && liveMargin.totalSale > 0 && (
+              <div className="flex items-center gap-1.5 text-xs font-medium text-white/90 border-r border-white/25 pr-2 mr-0.5">
+                <span
+                  className={cn(
+                    liveMargin.marginPercent < 0 ? "text-red-200" : "text-emerald-100",
+                    "font-semibold tabular-nums",
+                  )}
+                >
+                  {liveMargin.marginPercent.toFixed(1)}%
+                </span>
+                <span className="tabular-nums">{formatINR2(liveMargin.profit)}</span>
+              </div>
+            )}
+            <div className="text-white font-bold text-base tracking-tight tabular-nums">
               ₹{formatINR2(finalAmount)}
             </div>
           </div>
