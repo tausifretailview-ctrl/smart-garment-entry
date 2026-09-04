@@ -3,6 +3,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { useUserRoles } from "@/hooks/useUserRoles";
 import { Percent } from "lucide-react";
 import { SettingOnOffHint } from "@/components/settings/SettingOnOffHint";
 
@@ -21,6 +23,9 @@ export function CategoryTierPricingSettings({
   onAutoCalculateDiscountChange,
 }: Props) {
   const { getOrgPath } = useOrgNavigation();
+  const { hasMenuAccess, isAdmin: isAdminPermissions } = useUserPermissions();
+  const { isAdmin } = useUserRoles();
+  const canAccessDiscountScheme = isAdmin || isAdminPermissions || hasMenuAccess("discount_scheme_dashboard");
 
   return (
     <div className="space-y-3">
@@ -66,12 +71,14 @@ export function CategoryTierPricingSettings({
           onCheckedChange={onAutoCalculateDiscountChange}
         />
       </div>
-      <Button variant="outline" size="sm" asChild>
-        <Link to={getOrgPath("/discount-scheme-dashboard")} className="gap-2">
-          <Percent className="h-4 w-4" />
-          Open Discount Scheme manager
-        </Link>
-      </Button>
+      {canAccessDiscountScheme ? (
+        <Button variant="outline" size="sm" asChild>
+          <Link to={getOrgPath("/discount-scheme-dashboard")} className="gap-2">
+            <Percent className="h-4 w-4" />
+            Open Discount Scheme manager
+          </Link>
+        </Button>
+      ) : null}
     </div>
   );
 }
