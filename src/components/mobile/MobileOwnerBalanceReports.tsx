@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import { fetchAllCustomers, fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { sortSizes } from "@/utils/sizeSort";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
@@ -403,14 +404,8 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
-        const { data: customers, error } = await supabase
-          .from("customers")
-          .select("id, customer_name, phone, opening_balance, gst_number, address")
-          .eq("organization_id", orgId!)
-          .is("deleted_at", null)
-          .order("customer_name");
-        if (error) throw error;
-        if (!customers?.length) return [] as CustomerBalanceRow[];
+        const customers = await fetchAllCustomers(orgId!);
+        if (!customers.length) return [] as CustomerBalanceRow[];
 
         const snapMap = await fetchCustomerFinancialSnapshotMap(
           orgId!,
@@ -425,8 +420,8 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
           outstanding: snapMap.get(c.id)?.outstandingDr ?? 0,
           advance: snapMap.get(c.id)?.advanceAvailable ?? 0,
           cnAvailable: snapMap.get(c.id)?.cnAvailableTotal ?? 0,
-          gst_number: (c as { gst_number?: string }).gst_number,
-          address: (c as { address?: string }).address,
+          gst_number: c.gst_number,
+          address: c.address,
         }));
       }),
   });
@@ -545,19 +540,13 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
-        const [{ data: suppliers, error: supErr }, balanceResult] = await Promise.all([
-          supabase
-            .from("suppliers")
-            .select("id, supplier_name, phone, opening_balance, gst_number, address")
-            .eq("organization_id", orgId!)
-            .is("deleted_at", null)
-            .order("supplier_name"),
+        const [suppliers, balanceResult] = await Promise.all([
+          fetchAllSuppliers(orgId!),
           loadSupplierBalanceMapForOrg(supabase, orgId!),
         ]);
-        if (supErr) throw supErr;
         const balanceMap = balanceResult.balanceMap;
 
-        return (suppliers || []).map((s) => {
+        return suppliers.map((s) => {
           const snap = balanceMap.get(s.id);
           return {
             id: s.id,
@@ -568,8 +557,8 @@ export function SupplierBalanceReport({ orgId }: { orgId?: string }) {
             totalPurchases: snap?.totalPurchases ?? 0,
             totalPaid: snap?.totalPaid ?? 0,
             unappliedCreditNotes: snap?.unappliedCreditNotes ?? 0,
-            gst_number: (s as { gst_number?: string }).gst_number,
-            address: (s as { address?: string }).address,
+            gst_number: s.gst_number,
+            address: s.address,
           } satisfies SupplierBalanceRow & { gst_number?: string; address?: string };
         });
       }),
