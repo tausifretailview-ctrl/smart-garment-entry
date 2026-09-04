@@ -23,6 +23,23 @@ describe("mobile sale details + size-wise regressions", () => {
     expect(src).toContain("brand, category, style");
     expect(src).not.toContain("brand, category, department");
   });
+
+  it("customer/supplier balance reports use paginated fetchAll* utilities", () => {
+    const src = readFileSync(join(here, "MobileOwnerBalanceReports.tsx"), "utf8");
+    expect(src).toContain("fetchAllCustomers");
+    expect(src).toContain("fetchAllSuppliers");
+    expect(src).not.toMatch(/\.from\("customers"\)/);
+    expect(src).not.toMatch(/\.from\("suppliers"\)/);
+
+    const util = readFileSync(join(here, "../../utils/fetchAllRows.ts"), "utf8");
+    expect(util).toMatch(/\.from\("customers"\)[\s\S]*?\.range\(offset, offset \+ pageSize - 1\)/);
+    expect(util).toMatch(/\.from\("suppliers"\)[\s\S]*?\.range\(offset, offset \+ pageSize - 1\)/);
+    expect(util).toContain("pageSize = 1000");
+    expect(util).toContain(
+      "id, customer_name, phone, email, gst_number, address, opening_balance, points_balance, discount_percent",
+    );
+    expect(util).toContain("id, supplier_name, phone, email, gst_number, address, opening_balance");
+  });
 });
 
 describe("Sales Summary WhatsApp", () => {
