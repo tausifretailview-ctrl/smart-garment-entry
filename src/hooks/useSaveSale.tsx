@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
-import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
+import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
@@ -97,6 +97,39 @@ interface SaleData {
    * standard behavior. Format must match `saleDateIsoIst()`.
    */
   saleDate?: string;
+}
+
+function buildPosWhatsAppCaptureMeta(
+  saleNumber: string,
+  saleId: string,
+  saleDate: Date,
+  saleData: SaleData,
+  finalPaymentMethod: string,
+  paidAmt: number,
+): PosWhatsAppPdfCaptureMeta {
+  return {
+    saleNumber,
+    saleId,
+    saleDate,
+    snapshot: {
+      customerName: saleData.customerName,
+      customerPhone: saleData.customerPhone || "",
+      customerId: saleData.customerId,
+      items: saleData.items,
+      subTotal: saleData.grossAmount,
+      discount: saleData.discountAmount + saleData.flatDiscountAmount,
+      saleReturnAdjust: saleData.saleReturnAdjust,
+      grandTotal: saleData.netAmount,
+      paymentMethod: finalPaymentMethod,
+      paidAmount: paidAmt,
+      previousBalance: 0,
+      roundOff: saleData.roundOff,
+      salesman: saleData.salesman || "",
+      taxType: saleData.taxType || "inclusive",
+      notes: saleData.notes,
+      enableMrp: true,
+    },
+  };
 }
 
 export const useSaveSale = () => {
@@ -1067,7 +1100,7 @@ export const useSaveSale = () => {
 
       // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
       // This runs in the background so it doesn't delay the print dialog
-      if (saleData.customerPhone && currentOrganization?.id) {
+      if (saleData.customerPhone && currentOrganization?.id && !runtimeOptions?.skipWhatsAppAutoSend) {
         const whatsAppPromise = (async () => { try {
           // Check WhatsApp settings
           const { data: whatsappSettings } = await supabase
@@ -1168,11 +1201,16 @@ export const useSaveSale = () => {
                   };
                   try {
                     pdfBase64 = runtimeOptions?.capturePdfBase64
-                      ? await runtimeOptions.capturePdfBase64({
-                          saleNumber,
-                          saleId: sale.id,
-                          saleDate: new Date(sale.sale_date || sale.created_at || Date.now()),
-                        })
+                      ? await runtimeOptions.capturePdfBase64(
+                          buildPosWhatsAppCaptureMeta(
+                            saleNumber,
+                            sale.id,
+                            new Date(sale.sale_date || sale.created_at || Date.now()),
+                            saleData,
+                            finalPaymentMethod,
+                            paidAmt,
+                          ),
+                        )
                       : await generateInvoicePdfBase64(pdfData);
                   } catch (captureErr) {
                     console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);
@@ -1298,11 +1336,16 @@ export const useSaveSale = () => {
                 let pdfBase64: string | null = null;
                 try {
                   pdfBase64 = runtimeOptions?.capturePdfBase64
-                    ? await runtimeOptions.capturePdfBase64({
-                        saleNumber,
-                        saleId: sale.id,
-                        saleDate: new Date(sale.sale_date || sale.created_at || Date.now()),
-                      })
+                    ? await runtimeOptions.capturePdfBase64(
+                        buildPosWhatsAppCaptureMeta(
+                          saleNumber,
+                          sale.id,
+                          new Date(sale.sale_date || sale.created_at || Date.now()),
+                          saleData,
+                          finalPaymentMethod,
+                          paidAmt,
+                        ),
+                      )
                     : await generateInvoicePdfBase64(pdfData);
                 } catch (captureErr) {
                   console.error('WhatsApp invoice PDF capture failed, falling back to basic PDF:', captureErr);

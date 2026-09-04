@@ -161,7 +161,7 @@ import {
   type PosCartSnapshot,
 } from "@/lib/posCartPersistence";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
-import { POS_DEFERRED_INVALIDATION_OPTS } from "@/utils/saveSaleRuntimeOptions";
+import { POS_DEFERRED_INVALIDATION_OPTS, type PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, saleFormatToLikePattern } from "@/utils/saleNumber";
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
@@ -3795,34 +3795,50 @@ export default function POSSales() {
   useEffect(() => {
     if (!whatsappPdfSnapshot) return;
     let cancelled = false;
-    (async () => {
+    const runCapture = async () => {
       try {
-        if (!whatsappPdfRef.current) {
-          whatsappPdfResolverRef.current?.resolve(null);
-          return;
-        }
         const waPageFormat =
           posBillFormat === "thermal"
             ? "thermal"
             : posBillFormat === "a5" || posBillFormat === "a5-horizontal"
               ? "a5"
               : "a4";
-        const base64 = await captureElementToPdfBase64(whatsappPdfRef.current, {
-          extraSettleMs: 700,
-          pageFormat: waPageFormat,
-          thermalPaper: posThermalPaper,
-          wappConnectPdf: true,
+        const base64 = await new Promise<string | null>((resolve) => {
+          waitForPrintReady(
+            whatsappPdfRef,
+            async () => {
+              if (cancelled || !whatsappPdfRef.current) {
+                resolve(null);
+                return;
+              }
+              try {
+                const captured =
+                  (await captureElementToPdfBase64(whatsappPdfRef.current, {
+                    extraSettleMs: 300,
+                    pageFormat: waPageFormat,
+                    thermalPaper: posThermalPaper,
+                    wappConnectPdf: true,
+                  })) || null;
+                resolve(captured);
+              } catch (err) {
+                console.error("WhatsApp PDF capture failed:", err);
+                resolve(null);
+              }
+            },
+            { maxWait: 8000 },
+          );
         });
         if (cancelled) return;
-        whatsappPdfResolverRef.current?.resolve(base64 || null);
+        whatsappPdfResolverRef.current?.resolve(base64);
       } catch (err) {
-        console.error('WhatsApp PDF capture failed:', err);
+        console.error("WhatsApp PDF capture failed:", err);
         whatsappPdfResolverRef.current?.resolve(null);
       } finally {
         whatsappPdfResolverRef.current = null;
         if (!cancelled) setWhatsappPdfSnapshot(null);
       }
-    })();
+    };
+    void runCapture();
     return () => {
       cancelled = true;
     };
@@ -3830,8 +3846,28 @@ export default function POSSales() {
   }, [whatsappPdfSnapshot]);
 
   const captureWhatsAppPdf = useCallback(
-    (meta: { saleNumber: string; saleId: string; saleDate: Date }): Promise<string | null> => {
+    (meta: PosWhatsAppPdfCaptureMeta): Promise<string | null> => {
       try {
+        const snap = meta.snapshot;
+        const lineItems = snap?.items ?? items;
+        const snapCustomerName = snap?.customerName ?? customerName;
+        const snapCustomerId = snap?.customerId ?? customerId;
+        const snapCustomerPhone = snap?.customerPhone ?? customerPhone;
+        const snapTaxType = snap?.taxType ?? invoiceTaxType;
+        const snapPaymentMethod = snap?.paymentMethod ?? paymentMethod;
+        const snapGrandTotal = snap?.grandTotal ?? finalAmount;
+        const snapSubTotal = snap?.subTotal ?? totals.subtotal;
+        const snapDiscount = snap?.discount ?? totals.discount + flatDiscountAmount;
+        const snapSaleReturnAdjust = snap?.saleReturnAdjust ?? saleReturnAdjust;
+        const snapPaidAmount =
+          snap?.paidAmount ?? (paymentMethod === "pay_later" ? 0 : finalAmount);
+        const snapPreviousBalance = snap?.previousBalance ?? customerBalance ?? 0;
+        const snapRoundOff = snap?.roundOff ?? roundOff;
+        const snapSalesman = snap?.salesman ?? selectedSalesman ?? "";
+        const snapNotes = snap?.notes ?? saleNotes;
+        const snapFinancerDetails = snap?.financerDetails ?? financerDetails;
+        const snapEnableMrp = snap?.enableMrp ?? enableMrp;
+
         const props = {
           format: posInvoiceWrapperFormat,
           template: resolveWappConnectPdfInvoiceTemplate(
@@ -3840,47 +3876,47 @@ export default function POSSales() {
           ),
           billNo: meta.saleNumber,
           date: meta.saleDate,
-          customerName,
-          customerAddress: customers.find((c) => c.id === customerId)?.address || '',
-          customerMobile: customerPhone,
-          customerGSTIN: customers.find((c) => c.id === customerId)?.gst_number || '',
-          items: items.map((item, index) => ({
+          customerName: snapCustomerName,
+          customerAddress: customers.find((c) => c.id === snapCustomerId)?.address || "",
+          customerMobile: snapCustomerPhone,
+          customerGSTIN: customers.find((c) => c.id === snapCustomerId)?.gst_number || "",
+          items: lineItems.map((item, index) => ({
             sr: index + 1,
             particulars: item.productName,
             productNameOnly:
               item.baseProductName || item.productName.split("-")[0] || item.productName,
-            itemNotes: item.itemNotes || '',
+            itemNotes: item.itemNotes || "",
             size: item.size,
             barcode: item.barcode,
-            hsn: item.hsnCode || '',
+            hsn: item.hsnCode || "",
             sp: posLineNetUnitPrice(item),
             mrp: item.originalMrp || item.mrp,
             qty: item.quantity,
             rate: posLineNetUnitPrice(item),
-            total: posLineDisplayTotal(item.netAmount, item.gstPer, invoiceTaxType),
+            total: posLineDisplayTotal(item.netAmount, item.gstPer, snapTaxType),
             gstPercent: item.gstPer || 0,
             discountPercent: item.discountPercent || 0,
           })),
-          subTotal: totals.subtotal,
-          discount: totals.discount + flatDiscountAmount,
-          saleReturnAdjust,
-          grandTotal: finalAmount,
-          cashPaid: paymentMethod === 'cash' ? finalAmount : 0,
-          upiPaid: paymentMethod === 'upi' ? finalAmount : 0,
-          paymentMethod,
-          paidAmount: paymentMethod === 'pay_later' ? 0 : finalAmount,
-          previousBalance: customerBalance || 0,
-          roundOff,
-          salesman: selectedSalesman || '',
-          taxType: invoiceTaxType,
-          financerDetails,
-          notes: saleNotes,
-          showMRP: enableMrp,
-          showYouSaved: enableMrp ? undefined : false,
+          subTotal: snapSubTotal,
+          discount: snapDiscount,
+          saleReturnAdjust: snapSaleReturnAdjust,
+          grandTotal: snapGrandTotal,
+          cashPaid: snapPaymentMethod === "cash" ? snapGrandTotal : 0,
+          upiPaid: snapPaymentMethod === "upi" ? snapGrandTotal : 0,
+          paymentMethod: snapPaymentMethod,
+          paidAmount: snapPaidAmount,
+          previousBalance: snapPreviousBalance,
+          roundOff: snapRoundOff,
+          salesman: snapSalesman,
+          taxType: snapTaxType,
+          financerDetails: snapFinancerDetails,
+          notes: snapNotes,
+          showMRP: snapEnableMrp,
+          showYouSaved: snapEnableMrp ? undefined : false,
         };
         return new Promise<string | null>((resolve) => {
           whatsappPdfResolverRef.current = { resolve };
-          setWhatsappPdfSnapshot(props);
+          flushSync(() => setWhatsappPdfSnapshot(props));
           // Safety: never block save flow more than 15s on PDF capture.
           setTimeout(() => {
             if (whatsappPdfResolverRef.current) {
