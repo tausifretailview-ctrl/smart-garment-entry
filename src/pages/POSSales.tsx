@@ -7239,24 +7239,24 @@ export default function POSSales() {
             />
           </div>
           
-          {/* Running Total Display */}
-          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center gap-2 min-w-[120px] shadow-sm shrink-0">
-            {hasSpecialPermission("pos_margin_indicator") && liveMargin.totalSale > 0 && (
-              <div className="flex items-center gap-1.5 text-xs font-medium text-white/90 border-r border-white/25 pr-2 mr-0.5">
+          {/* Running Total / live margin (opt-in) */}
+          <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
+            {hasSpecialPermission("pos_margin_indicator") && liveMargin.totalSale > 0 ? (
+              <div className="flex items-center gap-2 text-sm font-semibold text-white tabular-nums">
                 <span
                   className={cn(
                     liveMargin.marginPercent < 0 ? "text-red-200" : "text-emerald-100",
-                    "font-semibold tabular-nums",
                   )}
                 >
                   {liveMargin.marginPercent.toFixed(1)}%
                 </span>
-                <span className="tabular-nums">{formatINR2(liveMargin.profit)}</span>
+                <span>₹{formatINR2(liveMargin.profit)}</span>
+              </div>
+            ) : (
+              <div className="text-white font-bold text-base tracking-tight tabular-nums">
+                ₹{formatINR2(finalAmount)}
               </div>
             )}
-            <div className="text-white font-bold text-base tracking-tight tabular-nums">
-              ₹{formatINR2(finalAmount)}
-            </div>
           </div>
               
               <div className="relative h-10 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-md px-2 flex items-center justify-center min-w-[70px] shadow-sm shrink-0">
