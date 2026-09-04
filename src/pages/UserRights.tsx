@@ -168,6 +168,7 @@ const specialRights = [
   { id: "fee_structure_edit", name: "Edit Fee Structure", description: "Allow editing fee amounts and saving fee structure" },
   { id: "reset_data", name: "Reset Organization Data", description: "Allow resetting all organization data" },
   { id: "system_health", name: "System Health", description: "Access System Health diagnostics page (hidden by default)" },
+  { id: "pos_margin_indicator", name: "POS Margin Indicator", description: "See live profit margin % and total profit on the POS billing screen (hidden by default)" },
 ];
 
 // Column visibility config for modules

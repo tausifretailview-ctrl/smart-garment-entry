@@ -381,6 +381,7 @@ export type AddLineVariant = {
   color?: string | null;
   sale_price?: number | string | null;
   mrp?: number | string | null;
+  pur_price?: number | string | null;
   is_dc_product?: boolean | null;
   /** Scan-time stock snapshot; omitted for non-tracked / custom-size lines. */
   stock_qty?: number | null;
@@ -458,6 +459,7 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     discountPercent: priced.discountPercent,
     discountAmount: 0,
     unitCost: priced.unitCost,
+    purPrice: Number(variant.pur_price) || 0,
     netAmount: 0,
     productId: product.id,
     variantId: variant.id,

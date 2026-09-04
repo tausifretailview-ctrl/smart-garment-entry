@@ -81,7 +81,7 @@ export const useUserPermissions = () => {
   };
 
   // Special rights that stay off until explicitly enabled in User Rights (even for org admins).
-  const OPT_IN_SPECIAL_PERMISSIONS = new Set(["system_health"]);
+  const OPT_IN_SPECIAL_PERMISSIONS = new Set(["system_health", "pos_margin_indicator"]);
   // Special rights enabled by default for all users/orgs when the key is missing.
   const DEFAULT_ON_SPECIAL_PERMISSIONS = new Set(["ai_chatbot"]);
 

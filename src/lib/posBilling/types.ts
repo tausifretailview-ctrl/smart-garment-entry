@@ -30,6 +30,11 @@ export interface PosCartItem {
   discountAmount: number;
   unitCost: number;
   /**
+   * Purchase/cost price at scan time — for the owner-only live margin indicator.
+   * Not persisted to the sale.
+   */
+  purPrice?: number;
+  /**
    * Cart-only: who last set the rate on this line.
    * 'unit' = typed unit price (Disc% cleared); 'discount' = Disc% / Disc Rs / scan default.
    */
