@@ -8,6 +8,14 @@ import {
   shouldApplyWhatsAppStatus,
   WHATSAPP_STATUS_RANK,
 } from "../_shared/whatsappStatusWebhook.ts";
+import {
+  buildReviewShoppingListPayload,
+  buildReviewShoppingMessage,
+  isInvoiceTemplateCta,
+  isReviewShoppingCta,
+  isReviewShoppingRatingReply,
+  reviewShoppingThankYou,
+} from "../_shared/whatsappReviewShopping.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -331,7 +339,8 @@ async function handleOwnerCommand(
   settings: any,
   organizationId: string,
   senderPhone: string,
-  messageText: string
+  messageText: string,
+  buttonId = "",
 ): Promise<boolean> {
   const { data: orgSettings } = await supabase
     .from('settings')
@@ -346,6 +355,8 @@ async function handleOwnerCommand(
   const senderNorm = normalizePhone(senderPhone);
 
   if (ownerPhoneNorm !== senderNorm) return false;
+
+  if (isInvoiceTemplateCta(messageText, buttonId)) return false;
 
   const cmd = messageText.trim().toLowerCase();
   const businessName = orgSettings.business_name || 'Store';
@@ -644,6 +655,86 @@ async function sendWhatsAppMessage(
     console.error('WhatsApp send error:', error);
     return null;
   }
+}
+
+async function sendWhatsAppInteractive(
+  settings: any,
+  payload: Record<string, unknown>,
+) {
+  const baseUrl = settings.custom_api_url || 'https://graph.facebook.com';
+  const version = settings.api_version || 'v21.0';
+  const url = `${baseUrl}/${version}/${settings.phone_number_id}/messages`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('WhatsApp interactive send error:', data);
+      return null;
+    }
+    return data.messages?.[0]?.id || null;
+  } catch (error) {
+    console.error('WhatsApp interactive send error:', error);
+    return null;
+  }
+}
+
+async function resolveGoogleReviewLink(
+  supabase: any,
+  organizationId: string,
+  settings: any,
+  cleanPhone: string,
+): Promise<string> {
+  const fromSettings = String(settings.social_links?.google_review || '').trim();
+  const { data: pendingLogs } = await supabase
+    .from('whatsapp_logs')
+    .select('followup_data')
+    .eq('organization_id', organizationId)
+    .ilike('phone_number', `%${cleanPhone}%`)
+    .eq('pending_followup', true)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const fromFollowup = String(
+    (pendingLogs?.[0]?.followup_data as Record<string, string> | null)?.google_review || '',
+  ).trim();
+  return fromFollowup || fromSettings;
+}
+
+async function logOutboundText(
+  supabase: any,
+  organizationId: string,
+  conversationId: string,
+  senderPhone: string,
+  wamid: string,
+  text: string,
+  messageType = 'text',
+) {
+  await supabase.from('whatsapp_messages').insert({
+    organization_id: organizationId,
+    conversation_id: conversationId,
+    wamid,
+    direction: 'outbound',
+    message_type: messageType,
+    message_text: text,
+    status: 'sent',
+    sent_at: new Date().toISOString(),
+  });
+  await supabase.from('whatsapp_logs').insert({
+    organization_id: organizationId,
+    phone_number: senderPhone,
+    message: text,
+    template_type: 'review_shopping',
+    status: 'sent',
+    wamid,
+    sent_at: new Date().toISOString(),
+  });
 }
 
 // Send WhatsApp document (PDF) - only works within the 24-hour customer service window
@@ -1160,17 +1251,85 @@ Deno.serve(async (req) => {
                     console.error('Error updating conversation:', updateError);
                   }
 
+                  const buttonText = message.button?.text ||
+                    message.interactive?.button_reply?.title ||
+                    message.interactive?.list_reply?.title ||
+                    '';
+                  const buttonId = message.interactive?.button_reply?.id ||
+                    message.interactive?.list_reply?.id ||
+                    '';
+                  const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
+
+                  // Invoice template QUICK_REPLY "Review Shopping" — not an owner command.
+                  if (
+                    (messageType === 'button' || messageType === 'interactive') &&
+                    isReviewShoppingCta(buttonText, buttonId)
+                  ) {
+                    const googleReviewLink = await resolveGoogleReviewLink(
+                      supabase,
+                      organizationId,
+                      settings,
+                      cleanPhone,
+                    );
+                    const reviewMessage = buildReviewShoppingMessage({
+                      template: settings.followup_review_message,
+                      googleReviewLink,
+                    });
+                    const wamidReview = await sendWhatsAppMessage(settings, senderPhone, reviewMessage);
+                    if (wamidReview) {
+                      await logOutboundText(
+                        supabase,
+                        organizationId,
+                        conversation.id,
+                        senderPhone,
+                        wamidReview,
+                        reviewMessage,
+                      );
+                    }
+                    const listPayload = buildReviewShoppingListPayload(senderPhone);
+                    const wamidList = await sendWhatsAppInteractive(settings, listPayload);
+                    if (wamidList) {
+                      await logOutboundText(
+                        supabase,
+                        organizationId,
+                        conversation.id,
+                        senderPhone,
+                        wamidList,
+                        listPayload.interactive.body.text,
+                        'interactive',
+                      );
+                    }
+                    continue;
+                  }
+
+                  if (
+                    messageType === 'interactive' &&
+                    isReviewShoppingRatingReply(buttonId)
+                  ) {
+                    const googleReviewLink = await resolveGoogleReviewLink(
+                      supabase,
+                      organizationId,
+                      settings,
+                      cleanPhone,
+                    );
+                    const thanks = reviewShoppingThankYou(buttonId, googleReviewLink);
+                    const wamidThanks = await sendWhatsAppMessage(settings, senderPhone, thanks);
+                    if (wamidThanks) {
+                      await logOutboundText(
+                        supabase,
+                        organizationId,
+                        conversation.id,
+                        senderPhone,
+                        wamidThanks,
+                        thanks,
+                      );
+                    }
+                    continue;
+                  }
+
                   // Check if this is a button click from a template CTA - 24-hour window now open!
                   if (settings.send_followup_on_button_click) {
-                    const buttonText = message.button?.text || 
-                                       message.interactive?.button_reply?.title ||
-                                       message.interactive?.list_reply?.title || '';
-                    const buttonId = message.interactive?.button_reply?.id ||
-                                     message.interactive?.list_reply?.id || '';
-                    
                     console.log(`User interaction: "${buttonText}" (ID: ${buttonId}) from ${senderPhone}`);
-                    
-                    const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
                     
                     // Check if this is a "Feedback" FLOW button click - auto-send invoice link after
                     const isFeedbackButton = buttonText.toLowerCase().includes('feedback') || 
@@ -1574,7 +1733,8 @@ Deno.serve(async (req) => {
                     settings,
                     organizationId,
                     senderPhone,
-                    messageText
+                    messageText,
+                    buttonId,
                   );
 
                   if (isOwnerMessage) {
