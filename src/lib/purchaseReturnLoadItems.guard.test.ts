@@ -26,4 +26,10 @@ describe("Purchase Return Load Items vs purchase_items columns", () => {
   it("still embeds purchase_items line_total for Load Items", () => {
     expect(src).toMatch(/purchase_items\([^)]*line_total/);
   });
+
+  it("loads the supplier picker via paginated fetchAllSuppliers, not select(*)", () => {
+    expect(src).toContain("fetchAllSuppliers");
+    expect(src).not.toMatch(/\.from\("suppliers"\)[\s\S]{0,200}select\("\*"\)/);
+    expect(src).not.toMatch(/\.from\("suppliers"\)/);
+  });
 });
