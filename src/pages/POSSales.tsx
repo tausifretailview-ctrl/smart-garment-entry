@@ -3870,7 +3870,7 @@ export default function POSSales() {
         const snapCustomerName = snap?.customerName ?? customerName;
         const snapCustomerId = snap?.customerId ?? customerId;
         const snapCustomerPhone = snap?.customerPhone ?? customerPhone;
-        const snapTaxType = snap?.taxType ?? invoiceTaxType;
+        const snapTaxType = normalizeGstTaxType(snap?.taxType ?? invoiceTaxType);
         const snapPaymentMethod = snap?.paymentMethod ?? paymentMethod;
         const snapGrandTotal = snap?.grandTotal ?? finalAmount;
         const snapSubTotal = snap?.subTotal ?? totals.subtotal;

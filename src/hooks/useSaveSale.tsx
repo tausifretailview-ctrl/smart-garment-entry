@@ -55,6 +55,7 @@ interface CartItem {
   color?: string;
   quantity: number;
   mrp: number;
+  originalMrp?: number | null;
   gstPer: number;
   discountPercent: number;
   discountAmount: number;
@@ -115,7 +116,11 @@ function buildPosWhatsAppCaptureMeta(
       customerName: saleData.customerName,
       customerPhone: saleData.customerPhone || "",
       customerId: saleData.customerId,
-      items: saleData.items,
+      items: saleData.items.map((item) => ({
+        ...item,
+        color: item.color ?? "",
+        originalMrp: item.originalMrp ?? null,
+      })),
       subTotal: saleData.grossAmount,
       discount: saleData.discountAmount + saleData.flatDiscountAmount,
       saleReturnAdjust: saleData.saleReturnAdjust,
