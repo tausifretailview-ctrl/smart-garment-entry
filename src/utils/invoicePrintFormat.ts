@@ -145,6 +145,21 @@ export function isA5PortraitInvoiceTemplate(template?: string | null): boolean {
  */
 export const PREPRINTED_LETTERHEAD_TEMPLATES = new Set(['retail-erp-preprinted']);
 
+/** Opt-in: print shop logo in the 2" preprinted top gap. Default off — physical letterpad orgs stay blank. */
+export function resolvePrintLogoOnPreprintedLetterhead(
+  saleSettings?: { print_logo_on_preprinted_letterhead?: boolean | null } | null,
+): boolean {
+  return saleSettings?.print_logo_on_preprinted_letterhead === true;
+}
+
+export function shouldPrintPreprintedLetterheadLogo(opts: {
+  isPreprinted: boolean;
+  enabled: boolean;
+  logoUrl?: string | null;
+}): boolean {
+  return opts.isPreprinted === true && opts.enabled === true && Boolean(String(opts.logoUrl || '').trim());
+}
+
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set([
   'kids-80mm',

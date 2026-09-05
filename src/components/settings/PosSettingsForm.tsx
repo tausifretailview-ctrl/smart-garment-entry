@@ -48,6 +48,7 @@ type SaleSlice = {
   pos_scheme_auto_calculate_discount?: boolean;
   pos_bill_format?: "a4" | "a5" | "a5-vertical" | "a5-horizontal" | "thermal";
   pos_invoice_template?: InvoiceTemplateId;
+  print_logo_on_preprinted_letterhead?: boolean;
   thermal_receipt_style?: "classic" | "compact" | "modern" | "tvs" | "new-design";
 };
 
@@ -443,6 +444,22 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               </SelectContent>
             </Select>
           </SettingsFieldBlock>
+          {resolvedPosTemplate === "retail-erp-preprinted" && (
+            <SettingsFieldBlock
+              label="Print shop logo on letterhead"
+              htmlFor="pos_print_logo_on_preprinted_letterhead"
+              description="Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the uploaded Organization Logo full-width in that top space."
+            >
+              <Switch
+                id="pos_print_logo_on_preprinted_letterhead"
+                checked={sale.print_logo_on_preprinted_letterhead === true}
+                onCheckedChange={(checked) => {
+                  onFocusPosPreview();
+                  patchSale({ print_logo_on_preprinted_letterhead: checked });
+                }}
+              />
+            </SettingsFieldBlock>
+          )}
           <SettingsFieldBlock
             label="Thermal Receipt Style"
             htmlFor="thermal_receipt_style"

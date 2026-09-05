@@ -78,7 +78,7 @@ export function EllaStorefront({
 
   const cartCount = ellaCartCount(cart);
   const shopName = shop.display_name || shop.name;
-  const shareUrl = publicStorefrontUrl(orgSlug);
+  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
   const studioWa = shop.whatsapp_number
     ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shop.whatsapp_number)
     : null;
