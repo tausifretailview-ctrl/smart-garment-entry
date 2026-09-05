@@ -42,7 +42,7 @@ export function StorefrontShell({
 }) {
   const displayName = shop.display_name || shop.name;
   const location = storefrontLocationLine(shop.address);
-  const shareUrl = publicStorefrontUrl(orgSlug);
+  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
   const waHref = shop.whatsapp_number
     ? whatsappShareUrl(
         storefrontWhatsAppShareText(displayName, shareUrl),
