@@ -45,6 +45,7 @@ import {
   isA5PortraitInvoiceTemplate,
   isThermal80mmInvoiceTemplate,
   resolvePosThermalPaper,
+  resolvePrintLogoOnPreprintedLetterhead,
   type PosThermalPaper,
 } from '@/utils/invoicePrintFormat';
 import {
@@ -570,6 +571,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       stampPosition: (settings?.bill_barcode_settings as any)?.stamp_position || 'bottom-right',
       stampSize: (settings?.bill_barcode_settings as any)?.stamp_size || 'medium',
       instagramLink: (settings?.bill_barcode_settings as any)?.instagram_link || undefined,
+      printLogoOnPreprintedLetterhead: resolvePrintLogoOnPreprintedLetterhead(
+        settings?.sale_settings,
+      ),
     };
 
     // Select template component based on settings

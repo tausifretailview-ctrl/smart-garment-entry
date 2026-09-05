@@ -3,6 +3,7 @@ import { numberToWords } from "@/lib/utils";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
+import { shouldPrintPreprintedLetterheadLogo } from "@/utils/invoicePrintFormat";
 
 interface InvoiceItem {
   sr: number;
@@ -122,6 +123,11 @@ interface RetailERPTemplateProps {
   stampSize?: string;
   financerDetails?: any;
   instagramLink?: string;
+  /**
+   * Preprinted only. When true, print `logoUrl` in the 2in top gap (full width).
+   * Default false — orgs with physical letterpad paper keep a blank top.
+   */
+  printLogoOnPreprintedLetterhead?: boolean;
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
    *  Preprinted — same tax layout as standard, but 2in top gap for letterhead (no shop name/logo).
    *  DC — Retail ERP layout without HSN, org/customer GSTIN, or GST tax lines (Delivery Challan).
@@ -187,11 +193,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   instagramLink,
   variant = "standard",
   hideBrandOnInvoice = false,
+  printLogoOnPreprintedLetterhead = false,
 }) => {
   const taxType = normalizeGstTaxType(taxTypeProp);
   const isNoGst = taxType === "no_gst";
   const isRealTast = variant === "real-tast";
   const isPreprinted = variant === "preprinted";
+  const showPreprintedLetterheadLogo = shouldPrintPreprintedLetterheadLogo({
+    isPreprinted,
+    enabled: printLogoOnPreprintedLetterhead,
+    logoUrl,
+  });
   const isDc = variant === "dc";
   const isZaika = variant === "zaika";
   const isGurukrupa = variant === "gurukrupa";
@@ -733,6 +745,25 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               overflow: isPreprintedAny || isA5Retail || isRealTast ? "hidden" : "visible",
             }}
           >
+            {showPreprintedLetterheadLogo && (
+              <img
+                data-preprinted-letterhead-logo=""
+                className="retail-erp-preprinted-letterhead-logo"
+                src={logoUrl}
+                alt=""
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: letterheadGap,
+                  objectFit: "contain",
+                  objectPosition: "center center",
+                  printColorAdjust: "exact",
+                  WebkitPrintColorAdjust: "exact",
+                }}
+              />
+            )}
             <div
               className="retail-erp-page-border"
               style={{
@@ -1743,6 +1774,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             height: ${pageH} !important;
             max-height: ${pageH} !important;
             overflow: hidden !important;
+          }
+          .retail-erp-preprinted-letterhead-logo {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: ${letterheadGap} !important;
+            object-fit: contain !important;
+            object-position: center center !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
           }
           .retail-erp-invoice-template[data-invoice-variant="preprinted"] > div {
             flex: 1 1 auto !important;

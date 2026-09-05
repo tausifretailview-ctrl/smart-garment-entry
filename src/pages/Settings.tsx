@@ -263,6 +263,11 @@ interface SaleSettings {
   /** Heading on invoice body — e.g. BILL OF SUPPLY, CATERING SERVICE (Real Tast / A4). */
   invoice_document_title?: string;
   logo_placement?: 'left' | 'center' | 'right';
+  /**
+   * Preprinted Invoice only. When true, print the uploaded shop logo in the 2" top gap.
+   * Default off so orgs with physical letterpad paper stay blank.
+   */
+  print_logo_on_preprinted_letterhead?: boolean;
   font_family?: 'inter' | 'roboto' | 'montserrat' | 'opensans' | 'playfair' | 'merriweather' | 'lora' | 'raleway' | 'poppins';
   // Wholesale Mode Settings
   enable_wholesale_mode?: boolean;
@@ -2936,6 +2941,33 @@ export default function Settings() {
                       </p>
                   </div>
 
+                  {resolveSaleInvoiceTemplate(settings.sale_settings) === "retail-erp-preprinted" && (
+                    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="print_logo_on_preprinted_letterhead" className="text-sm font-medium">
+                          Print shop logo on letterhead
+                        </Label>
+                        <p className="text-xs text-muted-foreground">
+                          Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the
+                          uploaded Organization Logo full-width in that top space (Semme-style banner).
+                        </p>
+                      </div>
+                      <Switch
+                        id="print_logo_on_preprinted_letterhead"
+                        checked={settings.sale_settings?.print_logo_on_preprinted_letterhead === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              print_logo_on_preprinted_letterhead: checked,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="quotation_print_template" className="text-sm font-medium">
                       Quotation Print Layout
@@ -3338,7 +3370,7 @@ export default function Settings() {
                         : settings.sale_settings?.invoice_template === 'gurukrupa'
                           ? 'Gurukrupa is A5 Retail ERP tax invoice with Sub Total, Discount, S/R Adjust and Bill Total — no Round Off.'
                         : settings.sale_settings?.invoice_template === 'retail-erp-preprinted'
-                          ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5).'
+                          ? 'Preprinted Invoice matches Retail ERP tax layout with a 2-inch top letterhead gap. Paper size follows POS Bill Format / Sale Invoice Format (A4 or A5). Leave Print shop logo on letterhead OFF if this shop already uses printed letterpad paper.'
                         : settings.sale_settings?.invoice_template === 'real-tast'
                           ? 'Real Tast prints on A4 — SN, Description, HSN, Qty, Rate, Amount. Set document title and terms in Sale settings below.'
                         : settings.sale_settings?.invoice_template === 'gift_tally'

@@ -17,6 +17,7 @@ export const SALE_INVOICE_FORMAT_KEYS = [
   "invoice_color_scheme",
   "font_family",
   "logo_placement",
+  "print_logo_on_preprinted_letterhead",
   "invoice_document_title",
   "invoice_header_text",
   "invoice_footer_text",

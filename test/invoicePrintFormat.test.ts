@@ -12,6 +12,8 @@ import {
   resolveSaleInvoiceTemplate,
   resolveSalePreviewPrintConfig,
   resolveSaleReturnPrintFormatFromSettings,
+  resolvePrintLogoOnPreprintedLetterhead,
+  shouldPrintPreprintedLetterheadLogo,
   toInvoiceWrapperFormat,
   isA5PortraitInvoiceTemplate,
 } from '@/utils/invoicePrintFormat';
@@ -215,5 +217,57 @@ describe('resolveSalePreviewPrintConfig', () => {
   it('treats POS/ numbers as POS when sale_type is missing', () => {
     expect(isPosSaleDocument({ sale_number: 'POS/26-27/285' })).toBe(true);
     expect(isPosSaleDocument({ sale_type: 'invoice', sale_number: 'POS/26-27/285' })).toBe(false);
+  });
+});
+
+describe('preprinted letterhead logo opt-in', () => {
+  it('stays off for existing letterpad orgs (unset / false / string)', () => {
+    expect(resolvePrintLogoOnPreprintedLetterhead(undefined)).toBe(false);
+    expect(resolvePrintLogoOnPreprintedLetterhead({})).toBe(false);
+    expect(resolvePrintLogoOnPreprintedLetterhead({ print_logo_on_preprinted_letterhead: false })).toBe(
+      false,
+    );
+    expect(
+      resolvePrintLogoOnPreprintedLetterhead({
+        print_logo_on_preprinted_letterhead: 'true' as unknown as boolean,
+      }),
+    ).toBe(false);
+  });
+
+  it('turns on only for the explicit boolean', () => {
+    expect(
+      resolvePrintLogoOnPreprintedLetterhead({ print_logo_on_preprinted_letterhead: true }),
+    ).toBe(true);
+  });
+
+  it('prints the logo only on preprinted + enabled + uploaded logo', () => {
+    expect(
+      shouldPrintPreprintedLetterheadLogo({
+        isPreprinted: true,
+        enabled: true,
+        logoUrl: 'https://example.com/semme.png',
+      }),
+    ).toBe(true);
+    expect(
+      shouldPrintPreprintedLetterheadLogo({
+        isPreprinted: true,
+        enabled: false,
+        logoUrl: 'https://example.com/semme.png',
+      }),
+    ).toBe(false);
+    expect(
+      shouldPrintPreprintedLetterheadLogo({
+        isPreprinted: false,
+        enabled: true,
+        logoUrl: 'https://example.com/semme.png',
+      }),
+    ).toBe(false);
+    expect(
+      shouldPrintPreprintedLetterheadLogo({
+        isPreprinted: true,
+        enabled: true,
+        logoUrl: '  ',
+      }),
+    ).toBe(false);
   });
 });
