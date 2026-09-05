@@ -12,9 +12,11 @@ describe("preprinted letterhead logo wiring", () => {
       "utf8",
     );
     expect(template).toContain("shouldPrintPreprintedLetterheadLogo");
+    expect(template).toContain("preprintedLetterheadLogoBox");
     expect(template).toContain("data-preprinted-letterhead-logo");
     expect(template).toContain("retail-erp-preprinted-letterhead-logo");
     expect(template).toContain("{showPreprintedLetterheadLogo && (");
+    expect(template).toContain("letterheadLogoBox.objectFit");
     expect(template).toContain("{!isPreprinted && (");
   });
 

@@ -14,6 +14,8 @@ import {
   resolveSaleReturnPrintFormatFromSettings,
   resolvePrintLogoOnPreprintedLetterhead,
   shouldPrintPreprintedLetterheadLogo,
+  preprintedLetterheadLogoBox,
+  PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
   toInvoiceWrapperFormat,
   isA5PortraitInvoiceTemplate,
 } from '@/utils/invoicePrintFormat';
@@ -269,5 +271,17 @@ describe('preprinted letterhead logo opt-in', () => {
         logoUrl: '  ',
       }),
     ).toBe(false);
+  });
+
+  it('stretches the banner full width with a small top gap', () => {
+    const box = preprintedLetterheadLogoBox('2in');
+    expect(box.width).toBe('100%');
+    expect(box.left).toBe('0');
+    expect(box.objectFit).toBe('fill');
+    expect(box.top).toBe(PREPRINTED_LETTERHEAD_LOGO_TOP_GAP);
+    expect(box.top).toBe('4mm');
+    expect(box.height).toContain('2in');
+    expect(box.height).toContain('4mm');
+    expect(box.height).toContain('2mm');
   });
 });

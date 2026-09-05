@@ -160,6 +160,28 @@ export function shouldPrintPreprintedLetterheadLogo(opts: {
   return opts.isPreprinted === true && opts.enabled === true && Boolean(String(opts.logoUrl || '').trim());
 }
 
+/** Keep the banner inside the printer safe area (A5 top clip). */
+export const PREPRINTED_LETTERHEAD_LOGO_TOP_GAP = "4mm";
+/** Small air before the TAX INVOICE rule. */
+export const PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP = "2mm";
+
+/** Full-page-width stretch box inside the existing 2in letterhead gap. */
+export function preprintedLetterheadLogoBox(letterheadGap = "2in"): {
+  top: string;
+  left: string;
+  width: string;
+  height: string;
+  objectFit: "fill";
+} {
+  return {
+    top: PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
+    left: "0",
+    width: "100%",
+    height: `calc(${letterheadGap} - ${PREPRINTED_LETTERHEAD_LOGO_TOP_GAP} - ${PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP})`,
+    objectFit: "fill",
+  };
+}
+
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set([
   'kids-80mm',
