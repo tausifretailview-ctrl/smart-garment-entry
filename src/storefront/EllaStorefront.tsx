@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
-import { whatsappShareUrl } from "@/lib/storefrontShare";
+import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
+import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
 import { toEllaStorefrontProduct, type EllaStorefrontProduct } from "./ellaProduct";
 import { isEllaProductPurchasable } from "./ellaStock";
 import { EllaEnquirySheet } from "./EllaEnquirySheet";
@@ -77,6 +78,10 @@ export function EllaStorefront({
 
   const cartCount = ellaCartCount(cart);
   const shopName = shop.display_name || shop.name;
+  const shareUrl = publicStorefrontUrl(orgSlug);
+  const studioWa = shop.whatsapp_number
+    ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shop.whatsapp_number)
+    : null;
 
   return (
     <div className="ella-store">
@@ -141,6 +146,12 @@ export function EllaStorefront({
           onClose={() => setCartOpen(false)}
         />
       ) : null}
+
+      <StorefrontFloatingSocial
+        variant="ella"
+        whatsappHref={studioWa}
+        instagramUrl={shop.instagram_url}
+      />
     </div>
   );
 }

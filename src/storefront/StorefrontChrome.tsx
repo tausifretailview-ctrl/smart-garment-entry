@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { storefrontHomePath } from "@/lib/storefrontPath";
-import { whatsappShareUrl } from "@/lib/storefrontShare";
+import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontShop } from "@/lib/websiteTypes";
+import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
 import { storefrontLocationLine } from "./storefrontTheme";
 
 function WhatsAppIcon() {
@@ -41,8 +42,12 @@ export function StorefrontShell({
 }) {
   const displayName = shop.display_name || shop.name;
   const location = storefrontLocationLine(shop.address);
+  const shareUrl = publicStorefrontUrl(orgSlug);
   const waHref = shop.whatsapp_number
-    ? whatsappShareUrl(`Hi ${displayName}, I found your online catalogue.`, shop.whatsapp_number)
+    ? whatsappShareUrl(
+        storefrontWhatsAppShareText(displayName, shareUrl),
+        shop.whatsapp_number,
+      )
     : null;
 
   return (
@@ -109,6 +114,7 @@ export function StorefrontShell({
           <div className="storefront-credit">Built on Ezzy ERP</div>
         </footer>
       </div>
+      <StorefrontFloatingSocial whatsappHref={waHref} instagramUrl={shop.instagram_url} />
     </div>
   );
 }

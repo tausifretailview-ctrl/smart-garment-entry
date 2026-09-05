@@ -9,6 +9,7 @@ describe("Ella Noor desktop storefront layout", () => {
   it("uses a full-width shell with site header and footer", async () => {
     const css = await readFile(path.join(ROOT, "src/storefront/ella-storefront.css"), "utf8");
     const home = await readFile(path.join(ROOT, "src/storefront/EllaStorefrontHome.tsx"), "utf8");
+    const root = await readFile(path.join(ROOT, "src/storefront/EllaStorefront.tsx"), "utf8");
 
     expect(css).toMatch(/max-width:\s*none/);
     expect(css).not.toMatch(/--ella-max:\s*1200px/);
@@ -25,6 +26,7 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(home).toMatch(/Collections/);
     expect(home).toMatch(/ella-social-icon/);
     expect(home).toMatch(/aria-label="Instagram"/);
+    expect(root).toMatch(/StorefrontFloatingSocial/);
   });
 
   it("does not change the default storefront boxed wrap", async () => {
