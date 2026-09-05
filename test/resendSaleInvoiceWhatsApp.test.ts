@@ -41,7 +41,25 @@ describe("resendSaleInvoiceWhatsApp", () => {
         pdfBlob: "pdf-base64",
         documentFilename: "Invoice_INV-001.pdf",
         message: expect.any(String),
+        manualResend: false,
       }),
+    );
+  });
+
+  it("passes manualResend when requested", async () => {
+    const sendMessageAsync = vi.fn().mockResolvedValue({ success: true });
+    const capturePdfBase64 = vi.fn().mockResolvedValue("pdf-base64");
+
+    await resendSaleInvoiceWhatsApp({
+      ...baseParams,
+      waSettings: { ...baseSettings, send_provider: "wappconnect" },
+      sendMessageAsync,
+      capturePdfBase64,
+      manualResend: true,
+    });
+
+    expect(sendMessageAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ manualResend: true }),
     );
   });
 
@@ -75,6 +93,27 @@ describe("resendSaleInvoiceWhatsApp", () => {
         capturePdfBase64,
       }),
     ).rejects.toThrow("Invoice PDF generation failed");
+
+    expect(sendMessageAsync).not.toHaveBeenCalled();
+  });
+
+  it("throws when no send path matches configuration", async () => {
+    const sendMessageAsync = vi.fn();
+
+    await expect(
+      resendSaleInvoiceWhatsApp({
+        ...baseParams,
+        waSettings: {
+          ...baseSettings,
+          send_provider: "existing",
+          send_invoice_pdf: true,
+          invoice_template_name: null,
+          use_document_header_template: false,
+        } as WhatsAppSettings,
+        sendMessageAsync,
+        capturePdfBase64: async () => null,
+      }),
+    ).rejects.toThrow(/could not start/i);
 
     expect(sendMessageAsync).not.toHaveBeenCalled();
   });

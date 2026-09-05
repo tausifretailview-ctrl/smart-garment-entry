@@ -2456,6 +2456,7 @@ export default function SalesInvoiceDashboard() {
         organizationName: currentOrganization.name || "",
         sendMessageAsync,
         capturePdfBase64: () => captureInvoicePdfForWhatsApp(invoice),
+        manualResend: true,
       });
 
       toast({

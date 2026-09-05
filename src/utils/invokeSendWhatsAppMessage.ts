@@ -42,11 +42,17 @@ export async function invokeSendWhatsAppMessage(
       documentHeaderTemplateName: params.documentHeaderTemplateName,
       pdfBlob,
       useWappConnect,
+      manualResend: params.manualResend === true,
     },
   });
 
   if (error) {
     throw new Error(await getEdgeFunctionErrorMessage(error, data, "Failed to send message"));
+  }
+  if (data?.skipped) {
+    throw new Error(
+      data.reason || data.error || "Message was not sent (duplicate within the last hour)",
+    );
   }
   if (!data?.success) throw new Error(data?.error || "Failed to send message");
   return data;

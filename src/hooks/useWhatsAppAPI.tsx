@@ -142,6 +142,8 @@ export interface SendMessageParams {
   useDocumentHeaderTemplate?: boolean;
   documentHeaderTemplateName?: string;
   pdfBlob?: string; // Base64 encoded PDF
+  /** Manual resend from dashboard/POS — bypasses 60-minute duplicate guard. */
+  manualResend?: boolean;
 }
 
 export const useWhatsAppAPI = () => {
@@ -373,11 +375,17 @@ export const useWhatsAppAPI = () => {
           documentHeaderTemplateName: params.documentHeaderTemplateName,
           pdfBlob,
           useWappConnect,
+          manualResend: params.manualResend === true,
         },
       });
 
       if (error) {
         throw new Error(await getEdgeFunctionErrorMessage(error, data, "Failed to send message"));
+      }
+      if (data?.skipped) {
+        throw new Error(
+          data.reason || data.error || "Message was not sent (duplicate within the last hour)",
+        );
       }
       if (!data.success) throw new Error(data.error || 'Failed to send message');
       
@@ -385,6 +393,9 @@ export const useWhatsAppAPI = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-recent-wappconnect-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-last-send'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-stats'] });
     },
   });
 
