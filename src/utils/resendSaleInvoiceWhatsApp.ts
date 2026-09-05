@@ -14,6 +14,8 @@ export interface ResendSaleInvoiceWhatsAppParams {
   organizationName: string;
   sendMessageAsync: (params: SendMessageParams) => Promise<unknown>;
   capturePdfBase64?: () => Promise<string | null | undefined>;
+  /** Bypass 60-minute duplicate guard (POS/Sale dashboard manual send). */
+  manualResend?: boolean;
 }
 
 /**
@@ -36,6 +38,7 @@ export async function resendSaleInvoiceWhatsApp(
     organizationName,
     sendMessageAsync,
     capturePdfBase64,
+    manualResend,
   } = params;
 
   const documentFilename = `Invoice_${saleNumber.replace(/\//g, "-")}.pdf`;
@@ -71,6 +74,7 @@ export async function resendSaleInvoiceWhatsApp(
         saleData,
         pdfBlob: pdfBase64,
         documentFilename,
+        manualResend: manualResend === true,
       });
       return;
     }
@@ -130,7 +134,13 @@ export async function resendSaleInvoiceWhatsApp(
         documentFilename,
         documentCaption: `Invoice ${saleNumber} — ${customerName}`,
         pdfBlob: pdfBase64,
+        manualResend: manualResend === true,
       });
+      return;
     }
   }
+
+  throw new Error(
+    "WhatsApp send could not start. Check Settings → WhatsApp API (provider, templates, and PDF options).",
+  );
 }

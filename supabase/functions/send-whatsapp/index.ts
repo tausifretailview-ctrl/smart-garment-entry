@@ -57,6 +57,8 @@ interface SendWhatsAppRequest {
   pdfBlob?: string; // Base64 encoded PDF for Meta upload
   /** Client requests WappConnect instance API (api.wappconnect.com) — not Meta BSP. */
   useWappConnect?: boolean;
+  /** Manual resend from POS/Sale dashboard — bypass 60-minute duplicate guard. */
+  manualResend?: boolean;
 }
 
 async function resolveOutboundSendProvider(
@@ -530,6 +532,7 @@ serve(async (req) => {
       documentHeaderTemplateName,
       pdfBlob,
       useWappConnect,
+      manualResend,
     }: SendWhatsAppRequest = await req.json();
 
     // Validate required fields - message is optional for template messages
@@ -654,7 +657,7 @@ serve(async (req) => {
         );
       }
 
-      if (referenceId && referenceType === 'sale') {
+      if (referenceId && referenceType === 'sale' && manualResend !== true) {
         const { data: existingLog } = await supabase
           .from('whatsapp_logs')
           .select('id, status, created_at')
@@ -671,11 +674,12 @@ serve(async (req) => {
           if (hoursSinceLastSend < 1) {
             return new Response(
               JSON.stringify({
-                success: true,
+                success: false,
                 skipped: true,
+                error: 'Message already sent for this invoice within the last 60 minutes',
                 reason: 'Message already sent for this invoice within the last 60 minutes',
               }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
             );
           }
         }
@@ -1006,7 +1010,7 @@ serve(async (req) => {
     // ========== DUPLICATE MESSAGE PREVENTION ==========
     // Atomic: insert a pending log entry with a dedup key, skip if one already exists
     // This prevents race conditions where two near-simultaneous calls both pass the read check
-    if (referenceId && referenceType === 'sale') {
+    if (referenceId && referenceType === 'sale' && manualResend !== true) {
       const { data: existingLog } = await supabase
         .from('whatsapp_logs')
         .select('id, status, created_at')
@@ -1025,11 +1029,12 @@ serve(async (req) => {
           console.log(`Duplicate message blocked for sale ${referenceId} - message already sent ${hoursSinceLastSend.toFixed(2)} hours ago`);
           return new Response(
             JSON.stringify({ 
-              success: true, 
+              success: false,
               skipped: true,
-              reason: 'Message already sent for this invoice within the last 60 minutes'
+              error: 'Message already sent for this invoice within the last 60 minutes',
+              reason: 'Message already sent for this invoice within the last 60 minutes',
             }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
         }
       }

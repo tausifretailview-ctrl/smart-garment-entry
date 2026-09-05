@@ -1923,6 +1923,7 @@ const POSDashboard = () => {
         organizationName: currentOrganization.name || "",
         sendMessageAsync,
         capturePdfBase64: () => capturePosSalePdfForWhatsApp(sale, items),
+        manualResend: true,
       });
     },
     [
