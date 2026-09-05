@@ -12,7 +12,7 @@ import {
   buildReviewShoppingListPayload,
   buildReviewShoppingMessage,
   isInvoiceTemplateCta,
-  isReviewShoppingCta,
+  isReviewShoppingInbound,
   isReviewShoppingRatingReply,
   reviewShoppingThankYou,
 } from "../_shared/whatsappReviewShopping.ts";
@@ -1255,16 +1255,15 @@ Deno.serve(async (req) => {
                     message.interactive?.button_reply?.title ||
                     message.interactive?.list_reply?.title ||
                     '';
-                  const buttonId = message.interactive?.button_reply?.id ||
+                  const buttonId = message.button?.payload ||
+                    message.interactive?.button_reply?.id ||
                     message.interactive?.list_reply?.id ||
                     '';
                   const cleanPhone = senderPhone.replace(/\D/g, '').slice(-10);
 
-                  // Invoice template QUICK_REPLY "Review Shopping" — not an owner command.
-                  if (
-                    (messageType === 'button' || messageType === 'interactive') &&
-                    isReviewShoppingCta(buttonText, buttonId)
-                  ) {
+                  // Invoice "Review Shopping" — button, interactive, or plain text
+                  // (WappConnect / Meta often deliver the tap as type=text).
+                  if (isReviewShoppingInbound(messageText, buttonText, buttonId)) {
                     const googleReviewLink = await resolveGoogleReviewLink(
                       supabase,
                       organizationId,

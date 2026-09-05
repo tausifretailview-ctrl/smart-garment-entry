@@ -5,8 +5,9 @@
 
 export const REVIEW_SHOPPING_LIST_BUTTON = "Select";
 
+/** Same default as WhatsApp settings → Google Review Response. */
 export const DEFAULT_REVIEW_SHOPPING_MESSAGE =
-  "⭐ Thank you for shopping with us!\n\nPlease tap *Select* below and rate your experience.";
+  "⭐ We would love your feedback!\n\nPlease take a moment to rate us:\n{google_review}\n\nYour review helps us serve you better! 🙏";
 
 export const DEFAULT_REVIEW_SHOPPING_LIST_BODY =
   "How was your shopping? Tap Select and choose a rating.";
@@ -20,12 +21,28 @@ export const REVIEW_SHOPPING_RATING_ROWS = [
 ] as const;
 
 export function isReviewShoppingCta(buttonText: string, buttonId = ""): boolean {
-  const t = String(buttonText || "").trim().toLowerCase();
+  const t = String(buttonText || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const id = String(buttonId || "").trim().toLowerCase().replace(/-/g, "_");
   if (!t && !id) return false;
   if (t.includes("review shopping")) return true;
   if (id.includes("review_shopping")) return true;
   return false;
+}
+
+/**
+ * Meta QUICK_REPLY can arrive as type=button, type=interactive, or type=text
+ * ("Review Shopping" in the chat, as WappConnect often forwards it).
+ */
+export function isReviewShoppingInbound(
+  messageText: string,
+  buttonText = "",
+  buttonId = "",
+): boolean {
+  return isReviewShoppingCta(buttonText || messageText, buttonId);
 }
 
 export function isReviewShoppingRatingReply(buttonId: string): boolean {
