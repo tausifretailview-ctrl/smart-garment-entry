@@ -3,7 +3,10 @@ import { numberToWords } from "@/lib/utils";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
-import { shouldPrintPreprintedLetterheadLogo } from "@/utils/invoicePrintFormat";
+import {
+  preprintedLetterheadLogoBox,
+  shouldPrintPreprintedLetterheadLogo,
+} from "@/utils/invoicePrintFormat";
 
 interface InvoiceItem {
   sr: number;
@@ -507,6 +510,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
   const letterheadGap = isPreprinted ? "2in" : pad;
+  const letterheadLogoBox = preprintedLetterheadLogoBox(letterheadGap);
   // Preprinted: extra right/bottom inset so border lines stay inside printer safe area
   const preprintedPadX = isPreprintedA5 ? "5.5mm" : isPreprinted ? "8mm" : pad;
   const preprintedPadRight = isPreprintedA5 ? "7mm" : isPreprinted ? "10mm" : pad;
@@ -753,11 +757,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 alt=""
                 style={{
                   position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: letterheadGap,
-                  objectFit: "contain",
+                  top: letterheadLogoBox.top,
+                  left: letterheadLogoBox.left,
+                  width: letterheadLogoBox.width,
+                  height: letterheadLogoBox.height,
+                  objectFit: letterheadLogoBox.objectFit,
                   objectPosition: "center center",
                   printColorAdjust: "exact",
                   WebkitPrintColorAdjust: "exact",
@@ -1777,11 +1781,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           }
           .retail-erp-preprinted-letterhead-logo {
             position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: ${letterheadGap} !important;
-            object-fit: contain !important;
+            top: ${letterheadLogoBox.top} !important;
+            left: ${letterheadLogoBox.left} !important;
+            width: ${letterheadLogoBox.width} !important;
+            height: ${letterheadLogoBox.height} !important;
+            object-fit: ${letterheadLogoBox.objectFit} !important;
             object-position: center center !important;
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
