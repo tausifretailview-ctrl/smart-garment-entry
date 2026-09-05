@@ -13,6 +13,7 @@ body.ella-root {
   --ella-paper: #12100e;
   --ella-paper-muted: rgba(18, 16, 14, 0.58);
   --ella-paper-faint: rgba(18, 16, 14, 0.42);
+  --ella-label: rgba(18, 16, 14, 0.82);
   --ella-gold: #c9a227;
   --ella-gold-line: rgba(201, 162, 39, 0.35);
   --ella-hairline: rgba(18, 16, 14, 0.12);
@@ -820,6 +821,7 @@ body.ella-root {
 .ella-upi-id {
   color: var(--ella-paper-muted);
   font-size: 12px;
+  font-weight: 500;
   letter-spacing: 0.06em;
   word-break: break-all;
 }
@@ -832,10 +834,11 @@ body.ella-root {
 }
 
 .ella-form label span {
-  color: var(--ella-paper-faint);
+  color: var(--ella-label);
   display: block;
   font-size: 13px;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.12em;
   margin-bottom: 6px;
   text-transform: uppercase;
 }
@@ -1092,4 +1095,57 @@ body.ella-root {
     opacity: 1;
     transform: translateY(-50%);
   }
+}
+
+/* Floating WhatsApp / Instagram (official brand colors) */
+.storefront-floating-social {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 45;
+}
+
+.ella-floating-social {
+  bottom: calc(92px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  .ella-floating-social {
+    bottom: max(24px, env(safe-area-inset-bottom));
+  }
+}
+
+.storefront-floating-social-btn {
+  align-items: center;
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(18, 16, 14, 0.18);
+  display: flex;
+  height: 52px;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  width: 52px;
+}
+
+.storefront-floating-social-btn:hover {
+  box-shadow: 0 8px 24px rgba(18, 16, 14, 0.24);
+  transform: translateY(-2px);
+}
+
+.storefront-floating-social-wa {
+  background: #25d366;
+  color: #ffffff;
+}
+
+.storefront-floating-social-ig {
+  background: linear-gradient(135deg, #f58529 0%, #dd2a7b 45%, #8134af 100%);
+  color: #ffffff;
+}
+
+.storefront-floating-social-icon {
+  height: 28px;
+  width: 28px;
 }

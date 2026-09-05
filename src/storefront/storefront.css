@@ -530,6 +530,49 @@
   height: 14px;
 }
 
+/* Floating WhatsApp / Instagram (official brand colors) */
+.storefront-floating-social {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 45;
+}
+
+.storefront-floating-social-btn {
+  align-items: center;
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(42, 36, 32, 0.18);
+  display: flex;
+  height: 52px;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 160ms ease-out, box-shadow 160ms ease-out;
+  width: 52px;
+}
+
+.storefront-floating-social-btn:hover {
+  box-shadow: 0 8px 24px rgba(42, 36, 32, 0.24);
+  transform: translateY(-2px);
+}
+
+.storefront-floating-social-wa {
+  background: #25d366;
+  color: #ffffff;
+}
+
+.storefront-floating-social-ig {
+  background: linear-gradient(135deg, #f58529 0%, #dd2a7b 45%, #8134af 100%);
+  color: #ffffff;
+}
+
+.storefront-floating-social-icon {
+  height: 28px;
+  width: 28px;
+}
+
 .storefront-credit {
   margin-top: 16px;
   font-size: 10px;
@@ -634,7 +677,7 @@
   display: block;
   font-size: 11px;
   font-weight: 600;
-  color: var(--store-muted);
+  color: color-mix(in srgb, var(--store-charcoal) 82%, transparent);
   margin-bottom: 5px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
