@@ -13,6 +13,7 @@ import {
   ensureFreshGeneratedBarcodes,
   insertGeneratedProductVariant,
   isBarcodeCollisionError,
+  nextGeneratedBarcodeCandidate,
 } from "./barcodeCollisionGuard";
 
 const ORG = "org-1";
@@ -35,6 +36,13 @@ function mockLookup(taken: Set<string>) {
     return chain as never;
   });
 }
+
+describe("nextGeneratedBarcodeCandidate", () => {
+  it("keeps series padding", () => {
+    expect(nextGeneratedBarcodeCandidate("420001730")).toBe("420001731");
+    expect(nextGeneratedBarcodeCandidate("0999")).toBe("1000");
+  });
+});
 
 describe("isBarcodeCollisionError", () => {
   it("detects postgres unique_violation", () => {
@@ -87,11 +95,33 @@ describe("ensureFreshGeneratedBarcode", () => {
     expect(second).toBe("450006790");
   });
 
-  it("throws after 5 failed regenerations", async () => {
-    mockLookup(new Set(["stuck"]));
-    vi.mocked(supabase.rpc).mockResolvedValue({ data: "stuck", error: null } as never);
+  it("walks forward when gap-fill RPC keeps returning the same claimed hole", async () => {
+    mockLookup(new Set());
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
 
-    await expect(ensureFreshGeneratedBarcode(ORG, "stuck")).rejects.toThrow(
+    const claimed = new Set<string>();
+    const first = await ensureFreshGeneratedBarcode(ORG, "", claimed);
+    const second = await ensureFreshGeneratedBarcode(ORG, "", claimed);
+    const third = await ensureFreshGeneratedBarcode(ORG, "", claimed);
+
+    expect(first).toBe("420001730");
+    expect(second).toBe("420001731");
+    expect(third).toBe("420001732");
+    expect(supabase.rpc).toHaveBeenCalledTimes(3);
+  });
+
+  it("throws after 5 failed regenerations when every probe is taken", async () => {
+    vi.mocked(supabase.from).mockImplementation(() => {
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.eq = () => chain;
+      chain.is = () => chain;
+      chain.limit = () => Promise.resolve({ data: [{ id: "existing" }], error: null });
+      return chain as never;
+    });
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
+
+    await expect(ensureFreshGeneratedBarcode(ORG, "420001730")).rejects.toThrow(
       /free generated barcode after 5 attempts/,
     );
   });
