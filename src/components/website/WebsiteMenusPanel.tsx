@@ -70,7 +70,7 @@ export function WebsiteMenusPanel({ orgId }: { orgId?: string }) {
       toast.success(newParentId ? "Submenu added" : "Menu added");
       setNewLabel("");
       setNewCategory("");
-      invalidate();
+      void invalidate();
     },
     onError: (err: Error) => toast.error(err.message || "Could not add menu"),
   });
@@ -97,7 +97,7 @@ export function WebsiteMenusPanel({ orgId }: { orgId?: string }) {
     },
     onSuccess: () => {
       toast.success("Menu removed");
-      invalidate();
+      void invalidate();
     },
     onError: (err: Error) => toast.error(err.message || "Could not delete menu"),
   });

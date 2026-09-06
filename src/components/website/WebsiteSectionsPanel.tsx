@@ -76,7 +76,7 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
     onSuccess: () => {
       toast.success("Section added");
       setNewLabel("");
-      invalidate();
+      void invalidate();
     },
     onError: (err: Error) => toast.error(err.message || "Could not add section"),
   });
@@ -132,7 +132,7 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
     },
     onSuccess: () => {
       toast.success("Section removed");
-      invalidate();
+      void invalidate();
     },
     onError: (err: Error) => toast.error(err.message || "Could not delete section"),
   });
