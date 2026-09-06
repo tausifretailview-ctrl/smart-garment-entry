@@ -119,4 +119,17 @@ describe("generatePrecisionProTSCLabel (config-driven)", () => {
     expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_TOP + 90}`);
     expect(tspl).toContain(`TEXT ${PAIR_X + 8},${PAIR_MID_Y + 90}`);
   });
+
+  it("prints sale price on the MRP field when MRP is 0 (Payal)", () => {
+    const tspl = generatePrecisionProTSCLabel({ ...sample, mrp: 0, salePrice: 1199 }, 1);
+    expect(tspl).toContain('"Rs.1199"');
+    expect(tspl).not.toContain('"Rs.0"');
+    expect(tspl).toContain('TEXT 300,4,"5",0,1,1,"Rs.1199"');
+  });
+
+  it("keeps a real MRP when both MRP and sale price are set", () => {
+    const tspl = generatePrecisionProTSCLabel({ ...sample, mrp: 1299, salePrice: 999 }, 1);
+    expect(tspl).toContain('"Rs.1299"');
+    expect(tspl).not.toContain('"Rs.999"');
+  });
 });

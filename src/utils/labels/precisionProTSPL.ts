@@ -25,6 +25,7 @@ import {
   resolveBoxSizeLayout,
   resolveFootwearFormDesign,
 } from "./precisionProFootwearDesign";
+import { labelPrintMrp } from "./labelPrintPrice";
 
 export {
   PRECISION_PRO_TSC_WIDTH_MM,
@@ -58,7 +59,7 @@ function truncFields(data: PrecisionProTSCLabelData, compact: boolean) {
     category: (data.category || "").slice(0, lim.category),
     barcode: data.barcode || "",
     size: (data.size || "").slice(0, lim.size),
-    mrp: data.mrp ?? data.salePrice ?? 0,
+    mrp: labelPrintMrp(data.mrp, data.salePrice),
   };
 }
 

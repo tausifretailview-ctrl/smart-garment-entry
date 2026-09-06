@@ -19,6 +19,7 @@ import {
   resolveBoxSizeLayout,
   resolveFootwearFormDesign,
 } from "@/utils/labels/precisionProFootwearDesign";
+import { labelPrintMrp } from "@/utils/labels/labelPrintPrice";
 
 export interface PrecisionProTSCPreviewProps {
   item: LabelItem;
@@ -216,7 +217,7 @@ export function PrecisionProTSCPreview({
   const pair2BarcodeRef = useRef<SVGSVGElement>(null);
 
   const barcode = item.barcode || "";
-  const mrp = item.mrp ?? item.sale_price ?? 0;
+  const mrp = labelPrintMrp(item.mrp, item.sale_price);
   const boxNarrow = boxBarcodeNarrowBarWidth(barcode);
   const limBox = TRUNC.box;
   const limPair = TRUNC.pair;

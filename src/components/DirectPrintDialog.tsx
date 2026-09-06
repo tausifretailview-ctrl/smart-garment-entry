@@ -439,7 +439,7 @@ export const DirectPrintDialog = ({
                 color: item.color || '',
                 size: item.size || '',
                 salePrice: item.salePrice ?? 0,
-                mrp: item.mrp ?? item.salePrice ?? 0,
+                mrp: item.mrp,
                 category: item.category,
               },
               item.quantity,
