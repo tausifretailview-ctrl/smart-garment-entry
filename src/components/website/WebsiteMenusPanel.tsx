@@ -19,6 +19,7 @@ import { STALE_FREQUENT } from "@/lib/queryStaleTimes";
 import { coerceToArray } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
 import { cn } from "@/lib/utils";
+import { isReservedStorefrontMenuFilter } from "@/lib/websiteSectionStore";
 import type { WebsiteMenu } from "@/lib/websiteTypes";
 
 export function WebsiteMenusPanel({ orgId }: { orgId?: string }) {
@@ -41,7 +42,9 @@ export function WebsiteMenusPanel({ orgId }: { orgId?: string }) {
     },
   });
 
-  const menus = coerceToArray<WebsiteMenu>(menusQuery.data);
+  const menus = coerceToArray<WebsiteMenu>(menusQuery.data).filter(
+    (menu) => !isReservedStorefrontMenuFilter(menu.category_filter),
+  );
   const topLevel = useMemo(() => menus.filter((m) => !m.parent_id), [menus]);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["website_menus", orgId] });
