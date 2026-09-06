@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { PublicStorefrontProduct } from "@/lib/websiteTypes";
-import { mapEllaVariants } from "./ellaVariants";
+import { toEllaSizeOptions } from "./ellaVariants";
 import { toEllaStorefrontProduct } from "./ellaProduct";
 import { addToEllaCart } from "./ellaCart";
-import { formatEllaOrderMessage, validateEllaCheckout } from "./ellaOrder";
+import { buildEllaOrderMessage, validateEllaOrderDetails } from "./ellaOrder";
 
 const product: PublicStorefrontProduct = {
   id: "listing-1",
@@ -36,10 +36,10 @@ const product: PublicStorefrontProduct = {
   ],
 };
 
-describe("mapEllaVariants", () => {
+describe("toEllaSizeOptions", () => {
   it("marks sold-out sizes and keeps purchasable ones", () => {
-    const sizes = mapEllaVariants(product);
-    expect(sizes.map((s) => [s.size, s.purchasable, s.available])).toEqual([
+    const sizes = toEllaSizeOptions(product);
+    expect(sizes.map((s) => [s.label, s.inStock, s.available])).toEqual([
       ["38", true, 2],
       ["40", false, 0],
     ]);
@@ -50,43 +50,39 @@ describe("addToEllaCart qty cap", () => {
   it("will not exceed units on hand for a size", () => {
     const mapped = toEllaStorefrontProduct(product);
     const size = mapped.sizes[0];
-    const once = addToEllaCart([], mapped, 2, size);
+    const once = addToEllaCart([], mapped, size, 2);
     expect(once[0].qty).toBe(2);
-    const over = addToEllaCart(once, mapped, 4, size);
+    const over = addToEllaCart(once, mapped, size, 4);
     expect(over[0].qty).toBe(2);
   });
 });
 
-describe("validateEllaCheckout", () => {
+describe("validateEllaOrderDetails", () => {
   it("blocks UPI checkout without a reference", () => {
     const mapped = toEllaStorefrontProduct(product);
-    const cart = addToEllaCart([], mapped, 1, mapped.sizes[0]);
-    const missing = validateEllaCheckout(
-      {
-        customerName: "Sheza",
-        customerPhone: "9876543210",
-        address: "12 Atelier Lane, Mumbai",
-        pincode: "400001",
-        paymentMethod: "upi",
-        upiReference: "",
-      },
-      cart,
-    );
+    const cart = addToEllaCart([], mapped, mapped.sizes[0], 1);
+    const customer = {
+      customerName: "Sheza",
+      customerPhone: "9876543210",
+      address: "12 Atelier Lane, Mumbai",
+      pincode: "400001",
+    };
+    const missing = validateEllaOrderDetails(customer, "upi", "");
     expect(missing.ok).toBe(false);
     if (missing.ok === false) expect(missing.error).toMatch(/UPI reference/i);
 
-    const ok = validateEllaCheckout(
-      {
-        customerName: "Sheza",
-        customerPhone: "9876543210",
-        address: "12 Atelier Lane, Mumbai",
-        pincode: "400001",
-        paymentMethod: "upi",
-        upiReference: "AXIS123456",
-      },
-      cart,
-    );
+    const ok = validateEllaOrderDetails(customer, "upi", "AXIS123456");
     expect(ok.ok).toBe(true);
-    if (ok.ok) expect(formatEllaOrderMessage(cart, ok.value)).toContain("UPI ref: AXIS123456");
+    if (ok.ok) {
+      expect(
+        buildEllaOrderMessage({
+          cart,
+          total: 185000,
+          method: "upi",
+          customer,
+          upiReference: "AXIS123456",
+        }),
+      ).toContain("UTR AXIS123456");
+    }
   });
 });

@@ -1,4 +1,11 @@
-@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500&family=Barlow+Condensed:wght@600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap");
+
+/* ==========================================================================
+   Ella'Noor storefront — v2
+   Same class names as v1 (nothing else in the app needs to change), retuned
+   for a shop rather than a lookbook: announcement bar, denser header, editorial
+   hero, size-aware product cards, filter/sort toolbar, checkout sheet.
+   ========================================================================== */
 
 html.ella-root,
 body.ella-root {
@@ -15,10 +22,14 @@ body.ella-root {
   --ella-paper-faint: rgba(18, 16, 14, 0.42);
   --ella-label: rgba(18, 16, 14, 0.82);
   --ella-gold: #c9a227;
+  --ella-gold-deep: #8a6a12;
   --ella-gold-line: rgba(201, 162, 39, 0.35);
+  --ella-gold-tint: rgba(201, 162, 39, 0.1);
   --ella-hairline: rgba(18, 16, 14, 0.12);
+  --ella-live: #4a8f5f;
   --ella-radius: 0px;
   --ella-max: none;
+  --ella-gutter: 20px;
   background: #ffffff;
   color: var(--ella-paper);
   font-family: Barlow, system-ui, sans-serif;
@@ -26,7 +37,6 @@ body.ella-root {
   font-weight: 400;
   line-height: 1.55;
   margin: 0;
-  max-width: none;
   width: 100%;
   min-height: 100dvh;
   overflow-x: clip;
@@ -49,14 +59,22 @@ body.ella-root {
   padding: 0;
 }
 
+.ella-store button:disabled {
+  cursor: default;
+}
+
 .ella-store a {
   color: inherit;
   text-decoration: none;
 }
 
 .ella-store :focus-visible {
-  outline: 1px solid var(--ella-gold);
+  outline: 2px solid var(--ella-gold);
   outline-offset: 2px;
+}
+
+.ella-store ::selection {
+  background: rgba(201, 162, 39, 0.24);
 }
 
 .ella-display {
@@ -69,14 +87,55 @@ body.ella-root {
 
 .ella-eyebrow {
   color: var(--ella-paper-faint);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
+.ella-link-underline {
+  border-bottom: 1px solid var(--ella-gold);
+  color: var(--ella-ink);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  padding-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.ella-live-dot {
+  background: var(--ella-live);
+  border-radius: 50%;
+  display: inline-block;
+  height: 7px;
+  width: 7px;
+}
+
+/* --- announcement bar ---------------------------------------------------- */
+
+.ella-announce {
+  align-items: center;
+  background: var(--ella-panel);
+  border-bottom: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 6px 18px;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  min-height: 38px;
+  padding: 9px var(--ella-gutter);
+  text-align: center;
+}
+
+.ella-announce span[aria-hidden] {
+  color: var(--ella-gold-line);
+}
+
+/* --- header -------------------------------------------------------------- */
+
 .ella-site-header {
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--ella-gold-line);
   position: sticky;
@@ -90,8 +149,9 @@ body.ella-root {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 20px;
-  padding: 14px 20px;
+  padding: 12px var(--ella-gutter);
   width: 100%;
+  box-sizing: border-box;
 }
 
 .ella-site-brand {
@@ -101,38 +161,57 @@ body.ella-root {
   min-width: 0;
 }
 
+.ella-brand-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
 .ella-site-logo {
-  height: 36px;
+  height: 38px;
   object-fit: contain;
-  width: 36px;
+  width: 38px;
 }
 
 .ella-site-wordmark {
   color: var(--ella-ink);
-  font-size: 20px;
-  letter-spacing: 0.14em;
+  font-size: 22px;
+  letter-spacing: 0.18em;
+}
+
+.ella-site-tagline {
+  color: var(--ella-gold-deep);
+  font-size: 10px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
 }
 
 .ella-site-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 2px;
+  min-width: 0;
 }
 
 .ella-nav-link {
-  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
   color: var(--ella-paper-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  height: 44px;
-  letter-spacing: 0.12em;
-  padding: 0 14px;
+  height: 40px;
+  letter-spacing: 0.14em;
+  padding: 0 13px;
   text-transform: uppercase;
+  transition: color 160ms ease-out, border-color 160ms ease-out;
+}
+
+.ella-nav-link:hover {
+  color: var(--ella-ink);
 }
 
 .ella-nav-link-active {
-  background: var(--ella-gold);
-  border-color: var(--ella-gold);
+  border-bottom-color: var(--ella-gold);
   color: var(--ella-ink);
 }
 
@@ -140,36 +219,112 @@ body.ella-root {
   align-items: center;
   display: flex;
   flex: 1 1 220px;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
   min-width: 0;
 }
 
+.ella-search-wrap {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  display: flex;
+  flex: 1 1 200px;
+  gap: 8px;
+  height: 46px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.ella-search-wrap:focus-within {
+  border-color: var(--ella-gold);
+}
+
+.ella-search-icon {
+  color: var(--ella-paper-faint);
+  display: inline-flex;
+  flex: none;
+}
+
+.ella-search {
+  background: transparent;
+  border: none;
+  color: var(--ella-paper);
+  flex: 1;
+  font: inherit;
+  font-size: 16px;
+  min-width: 0;
+  outline: none;
+}
+
+.ella-search::placeholder {
+  color: var(--ella-paper-faint);
+}
+
 .ella-header-btn {
   align-items: center;
-  background: var(--ella-gold);
-  color: var(--ella-ink);
+  background: var(--ella-ink);
+  color: #f4f1ea;
   display: inline-flex;
   font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  height: 48px;
-  letter-spacing: 0.14em;
+  gap: 8px;
+  height: 46px;
+  letter-spacing: 0.16em;
   padding: 0 16px;
   text-transform: uppercase;
   white-space: nowrap;
+  transition: background 160ms ease-out;
+}
+
+.ella-header-btn:hover {
+  background: #241f19;
 }
 
 .ella-header-btn-ghost {
   background: #ffffff;
   border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold);
+  color: var(--ella-gold-deep);
 }
+
+.ella-wa-pill {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold-deep);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+  height: 46px;
+  letter-spacing: 0.14em;
+  min-width: 46px;
+  padding: 0 14px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ella-wa-pill:hover,
+.ella-social-icon:hover {
+  background: var(--ella-gold-tint);
+}
+
+.ella-social-icon {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold-deep);
+  display: inline-flex;
+  height: 46px;
+  justify-content: center;
+  min-width: 46px;
+  width: 46px;
+}
+
+/* --- hero ---------------------------------------------------------------- */
 
 .ella-hero {
   position: relative;
-  height: min(72vh, 720px);
-  min-height: 420px;
+  height: min(72vh, 660px);
+  min-height: 440px;
   overflow: hidden;
   width: 100%;
 }
@@ -179,7 +334,7 @@ body.ella-root {
   display: block;
   height: 100%;
   object-fit: cover;
-  object-position: center 22%;
+  object-position: center 20%;
   width: 100%;
 }
 
@@ -189,39 +344,1487 @@ body.ella-root {
 
 .ella-hero-veil {
   background: linear-gradient(
-    180deg,
-    rgba(18, 16, 14, 0.18) 0%,
-    rgba(18, 16, 14, 0.08) 42%,
-    rgba(18, 16, 14, 0.62) 100%
+    100deg,
+    rgba(18, 16, 14, 0.74) 0%,
+    rgba(18, 16, 14, 0.44) 48%,
+    rgba(18, 16, 14, 0.12) 100%
   );
   inset: 0;
   position: absolute;
 }
 
-.ella-hero-center,
-.ella-hero-foot {
-  left: 0;
-  padding: 0 24px;
+.ella-hero-copy {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  inset: 0;
+  justify-content: center;
+  padding: 0 var(--ella-gutter);
   position: absolute;
-  right: 0;
-  text-align: center;
   z-index: 1;
 }
 
-.ella-hero-center {
-  top: 42%;
-  transform: translateY(-50%);
+.ella-hero-kicker {
+  color: var(--ella-gold);
 }
 
-.ella-hero-foot {
-  bottom: 28px;
+.ella-hero-title {
+  color: #ffffff;
+  font-size: clamp(38px, 8vw, 76px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  margin: 0;
+  max-width: 18ch;
+  text-shadow: 0 2px 18px rgba(18, 16, 14, 0.35);
+}
+
+.ella-hero-lead {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(15px, 1.4vw, 18px);
+  margin: 0;
+  max-width: 44ch;
+}
+
+.ella-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.ella-hero-btn {
+  flex: 0 0 auto;
+  padding: 0 28px;
+}
+
+.ella-hero-trust {
+  align-items: center;
+  color: rgba(255, 255, 255, 0.76);
+  display: flex;
+  font-size: 13px;
+  gap: 9px;
+  letter-spacing: 0.1em;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+.ella-frame {
+  position: relative;
+}
+
+.ella-mark {
+  color: var(--ella-gold);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.ella-mark-tl { left: 14px; top: 14px; }
+.ella-mark-tr { right: 14px; top: 14px; }
+.ella-mark-bl { bottom: 14px; left: 14px; }
+.ella-mark-br { bottom: 14px; right: 14px; }
+
+/* --- assurance strip ----------------------------------------------------- */
+
+.ella-assure-strip {
+  background: var(--ella-gold-line);
+  border-bottom: 1px solid var(--ella-gold-line);
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.ella-assure-strip > div {
+  background: #ffffff;
+  padding: 18px 20px;
+}
+
+.ella-assure-strip p {
+  color: var(--ella-paper-muted);
+  font-size: 14px;
+  margin: 5px 0 0;
+}
+
+.ella-assure-strip-title {
+  color: var(--ella-ink);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+}
+
+/* --- toolbar, filters, sort --------------------------------------------- */
+
+.ella-main {
+  width: 100%;
+}
+
+.ella-toolbar {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+  padding: 26px var(--ella-gutter) 14px;
+}
+
+.ella-toolbar-left {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  min-width: 0;
+}
+
+.ella-toolbar-title {
+  color: var(--ella-ink);
+  font-size: clamp(24px, 3.2vw, 34px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.ella-toolbar-right {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ella-filter-toggle {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 8px;
+  height: 44px;
+  letter-spacing: 0.14em;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.ella-filter-toggle-on {
+  border-color: var(--ella-gold);
+  color: var(--ella-gold-deep);
+}
+
+.ella-filter-dot {
+  background: var(--ella-gold);
+  border-radius: 50%;
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+}
+
+.ella-sort {
+  align-items: center;
+  display: inline-flex;
+  gap: 10px;
+}
+
+.ella-sort-label {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-sort select {
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-ink);
+  font: inherit;
+  font-size: 14px;
+  height: 44px;
+  letter-spacing: 0.06em;
+  padding: 0 12px;
+}
+
+.ella-filters {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: grid;
+  gap: 20px 32px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, auto));
+  padding: 18px var(--ella-gutter) 22px;
+}
+
+.ella-filter-label {
+  color: var(--ella-paper-faint);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.ella-check {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-size: 15px;
+  gap: 10px;
+}
+
+.ella-check input {
+  accent-color: var(--ella-gold);
+  height: 17px;
+  width: 17px;
+}
+
+.ella-filter-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ella-size-chip {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-size: 13px;
+  gap: 6px;
+  height: 40px;
+  letter-spacing: 0.12em;
+  padding: 0 12px;
+  text-transform: uppercase;
+}
+
+.ella-size-chip span {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+}
+
+.ella-size-chip-on {
+  background: var(--ella-ink);
+  border-color: var(--ella-ink);
+  color: #f4f1ea;
+}
+
+.ella-size-chip-on span {
+  color: rgba(244, 241, 234, 0.6);
+}
+
+.ella-range {
+  accent-color: var(--ella-gold);
+  width: min(240px, 100%);
+}
+
+.ella-filter-clear {
+  align-self: end;
+  justify-self: start;
+}
+
+.ella-section {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 24px var(--ella-gutter) 12px;
+}
+
+.ella-section h2 {
+  color: var(--ella-ink);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.ella-section-block + .ella-section-block {
+  margin-top: 6px;
+}
+
+.ella-count {
+  color: var(--ella-paper-faint);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* --- product grid -------------------------------------------------------- */
+
+.ella-grid {
+  display: grid;
+  gap: 30px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 22px var(--ella-gutter) 8px;
+}
+
+.ella-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  text-align: left;
+  width: 100%;
+}
+
+.ella-card-img {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
+  display: block;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.ella-card-img img {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 400ms ease-out;
+  width: 100%;
+}
+
+.ella-card-img:hover img {
+  transform: scale(1.03);
+}
+
+.ella-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ella-card-name {
+  color: var(--ella-ink);
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  min-height: 2.3em;
+  text-align: left;
+}
+
+.ella-card-code {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+}
+
+.ella-card-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.ella-price {
+  color: var(--ella-ink);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ella-price-lg {
+  font-size: 26px;
+  font-weight: 400;
+}
+
+.ella-card-sizes {
+  border-top: 1px solid var(--ella-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 8px;
+}
+
+.ella-card-size {
+  border: 1px solid rgba(18, 16, 14, 0.28);
+  color: var(--ella-paper-muted);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  padding: 3px 7px;
+  text-transform: uppercase;
+}
+
+.ella-card-size-out {
+  border-color: var(--ella-hairline);
+  color: rgba(18, 16, 14, 0.26);
+  text-decoration: line-through;
+}
+
+.ella-card-enquire {
+  border-top: 1px solid var(--ella-hairline);
+  color: var(--ella-gold-deep);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  padding-top: 10px;
+  text-transform: uppercase;
+}
+
+.ella-badge {
+  font-size: 11px;
+  left: 0;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding: 5px 9px;
+  position: absolute;
+  text-transform: uppercase;
+  top: 12px;
+}
+
+.ella-badge-low {
+  background: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-badge-out {
+  background: var(--ella-ink);
+  color: #f4f1ea;
+}
+
+.ella-badge-in {
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--ella-ink);
+}
+
+/* --- studio note + footer ----------------------------------------------- */
+
+.ella-note {
+  background: var(--ella-panel);
+  border-top: 1px solid var(--ella-gold-line);
+  color: var(--ella-paper-muted);
+  font-size: 16px;
+  margin-top: 24px;
+  padding: 30px var(--ella-gutter) 34px;
+}
+
+.ella-note p {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.ella-note-address {
+  margin-top: 12px;
+}
+
+.ella-footer,
+.ella-site-footer {
+  background: #12100e;
+  border-top: 1px solid var(--ella-gold-line);
+  color: rgba(244, 241, 234, 0.78);
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  padding: 38px var(--ella-gutter) 120px;
+}
+
+.ella-site-footer-inner {
+  display: grid;
+  gap: 28px;
+  width: 100%;
+}
+
+.ella-footer-heading {
+  color: #ffffff;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.ella-footer-label {
+  color: var(--ella-gold);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.ella-footer-copy {
+  color: rgba(244, 241, 234, 0.72);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0 0 8px;
+  max-width: 46ch;
+}
+
+.ella-footer-link {
+  color: rgba(244, 241, 234, 0.9);
+  display: block;
+  font-size: 15px;
+  padding: 4px 0;
+  text-align: left;
+}
+
+.ella-footer-link:hover {
+  color: var(--ella-gold);
+}
+
+.ella-footer-social {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* --- buttons + mobile action bar ---------------------------------------- */
+
+.ella-action-bar {
+  backdrop-filter: blur(6px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 38%);
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  left: 0;
+  padding: 14px var(--ella-gutter) 16px;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  box-sizing: border-box;
+  z-index: 30;
+}
+
+.ella-store button.ella-btn,
+.ella-store a.ella-btn,
+.ella-btn {
+  align-items: center;
+  background: var(--ella-gold);
+  border: 1px solid var(--ella-gold);
+  color: var(--ella-ink);
+  display: inline-flex;
+  flex: 1;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  gap: 8px;
+  height: 52px;
+  justify-content: center;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: background 160ms ease-out, color 160ms ease-out;
+}
+
+.ella-store button.ella-btn:hover:not(:disabled),
+.ella-store a.ella-btn:hover {
+  background: #b8901d;
+  border-color: #b8901d;
+}
+
+.ella-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.ella-store button.ella-btn-ink,
+.ella-btn-ink {
+  background: var(--ella-ink);
+  border-color: var(--ella-ink);
+  color: #f4f1ea;
+}
+
+.ella-store button.ella-btn-ink:hover:not(:disabled) {
+  background: #241f19;
+  border-color: #241f19;
+}
+
+.ella-store a.ella-btn-outline,
+.ella-store button.ella-btn-outline,
+.ella-btn-outline {
+  background: #ffffff;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold-deep);
+}
+
+.ella-store button.ella-btn-outline:hover:not(:disabled),
+.ella-store a.ella-btn-outline:hover {
+  background: var(--ella-gold-tint);
+  border-color: var(--ella-gold);
+  color: var(--ella-gold-deep);
+}
+
+.ella-store button.ella-btn-ghost-light,
+.ella-btn-ghost-light {
+  background: transparent;
+  border: 1px solid rgba(244, 241, 234, 0.55);
+  color: #f4f1ea;
+}
+
+.ella-store button.ella-btn-ghost-light:hover {
+  background: rgba(244, 241, 234, 0.12);
+  border-color: #f4f1ea;
+}
+
+.ella-btn-square {
+  flex: none;
+  width: 52px;
+}
+
+.ella-cart-btn {
+  flex: 1 1 auto;
+  min-width: 130px;
+}
+
+/* --- sheets -------------------------------------------------------------- */
+
+.ella-scrim {
+  background: rgba(18, 16, 14, 0.5);
+  inset: 0;
+  position: fixed;
+  z-index: 40;
+}
+
+.ella-sheet {
+  background: #ffffff;
+  border-top: 1px solid var(--ella-gold);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  left: 0;
+  margin: 0 auto;
+  max-height: 88%;
+  max-width: var(--ella-max);
+  overscroll-behavior: contain;
+  position: fixed;
+  right: 0;
+  width: 100%;
+  z-index: 50;
+}
+
+.ella-sheet-tall,
+.ella-sheet-product {
+  max-height: 92%;
+}
+
+.ella-sheet-scroll {
+  min-height: 0;
+  overflow: auto;
+  padding: 20px var(--ella-gutter) 32px;
+}
+
+.ella-sheet-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ella-sheet-name {
+  color: var(--ella-ink);
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 6px 0 0;
+}
+
+.ella-sheet-sub {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+.ella-close {
+  color: var(--ella-paper);
+  font-size: 28px;
+  height: 44px;
+  line-height: 1;
+  width: 44px;
+}
+
+.ella-close-sm {
+  color: var(--ella-paper-muted);
+  font-size: 22px;
+  height: 32px;
+  line-height: 1;
+  width: 32px;
+}
+
+/* --- product sheet ------------------------------------------------------- */
+
+.ella-pdp-gallery {
+  margin-top: 16px;
+}
+
+.ella-sheet-img {
+  aspect-ratio: 4 / 5;
+  background: var(--ella-panel);
+  overflow: hidden;
+  position: relative;
+}
+
+.ella-sheet-img img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ella-pdp-thumbs {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ella-pdp-thumbs::-webkit-scrollbar {
+  display: none;
+}
+
+.ella-pdp-thumb {
+  border: 1px solid var(--ella-hairline);
+  flex: 0 0 62px;
+  height: 80px;
+  overflow: hidden;
+}
+
+.ella-pdp-thumb img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ella-pdp-thumb-active {
+  border-color: var(--ella-gold);
+}
+
+.ella-price-row {
+  align-items: baseline;
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 18px;
+  padding-bottom: 16px;
+}
+
+.ella-tax-note {
+  color: var(--ella-paper-faint);
+  font-size: 13px;
+}
+
+.ella-size-head {
+  align-items: baseline;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.ella-size-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ella-size-btn {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid rgba(18, 16, 14, 0.28);
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-size: 14px;
+  height: 48px;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  min-width: 60px;
+  padding: 0 14px;
+  text-transform: uppercase;
+  transition: background 140ms ease-out, border-color 140ms ease-out;
+}
+
+.ella-size-btn:hover:not(:disabled) {
+  border-color: var(--ella-ink);
+}
+
+.ella-size-btn-active {
+  background: var(--ella-ink);
+  border-color: var(--ella-ink);
+  color: #f4f1ea;
+}
+
+.ella-size-btn-out {
+  border-color: var(--ella-hairline);
+  color: rgba(18, 16, 14, 0.26);
+  text-decoration: line-through;
+}
+
+.ella-stock-note {
+  color: var(--ella-paper-muted);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.ella-stock-note-low {
+  color: var(--ella-gold-deep);
+}
+
+.ella-size-guide {
+  border: 1px solid var(--ella-gold-line);
+  margin-top: 16px;
+}
+
+.ella-size-guide-head {
+  align-items: center;
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  justify-content: space-between;
+  letter-spacing: 0.16em;
+  padding: 10px 14px;
+  text-transform: uppercase;
+}
+
+.ella-size-table {
+  border-collapse: collapse;
+  font-size: 14px;
+  width: 100%;
+}
+
+.ella-size-table th {
+  border-bottom: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-faint);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  padding: 10px 14px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.ella-size-table th:first-child,
+.ella-size-table td:first-child {
+  letter-spacing: 0.1em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.ella-size-table td {
+  border-bottom: 1px solid rgba(18, 16, 14, 0.08);
+  font-variant-numeric: tabular-nums;
+  padding: 10px 14px;
+  text-align: right;
+}
+
+.ella-qty-row {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.ella-qty-controls {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  display: inline-flex;
+}
+
+.ella-qty-controls-inline {
+  margin-top: 0;
+}
+
+.ella-qty-btn {
+  align-items: center;
+  color: var(--ella-ink);
+  display: inline-flex;
+  font-size: 18px;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.ella-qty-btn:disabled {
+  opacity: 0.32;
+}
+
+.ella-qty-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: center;
+}
+
+.ella-pdp-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.ella-pdp-actions .ella-btn {
+  flex: 1 1 180px;
+}
+
+.ella-assure {
+  border: 1px solid var(--ella-hairline);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  margin-top: 20px;
+  padding: 14px 16px;
+}
+
+.ella-assure-label {
+  color: var(--ella-paper-faint);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ella-assure-value {
+  color: var(--ella-ink);
+  font-size: 15px;
+  margin-top: 3px;
+}
+
+.ella-panels {
+  border-top: 1px solid var(--ella-gold-line);
+  margin-top: 22px;
+}
+
+.ella-panel {
+  border-bottom: 1px solid var(--ella-hairline);
+}
+
+.ella-panel-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 15px 0;
+  text-align: left;
+  width: 100%;
+}
+
+.ella-panel-title {
+  color: var(--ella-ink);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+}
+
+.ella-panel-sign {
+  color: var(--ella-gold);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.ella-panel-body {
+  color: var(--ella-paper-muted);
+  font-size: 15px;
+  padding: 0 0 16px;
+}
+
+/* --- checkout ------------------------------------------------------------ */
+
+.ella-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--ella-hairline);
+}
+
+.ella-step {
+  align-items: center;
+  color: var(--ella-paper-faint);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-step-n {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  display: inline-flex;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  height: 22px;
+  justify-content: center;
+  width: 22px;
+}
+
+.ella-step-active {
+  color: var(--ella-ink);
+}
+
+.ella-step-active .ella-step-n {
+  background: var(--ella-gold);
+  border-color: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-step-done {
+  color: var(--ella-gold-deep);
+}
+
+.ella-step-done .ella-step-n {
+  border-color: var(--ella-gold);
+}
+
+.ella-cart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+
+.ella-cart-line {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  gap: 14px;
+  padding-bottom: 16px;
+}
+
+.ella-cart-thumb {
+  flex: none;
+  height: 96px;
+  object-fit: cover;
+  width: 72px;
+}
+
+.ella-cart-thumb-ph {
+  background: var(--ella-panel);
+}
+
+.ella-cart-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.ella-cart-name {
+  font-size: 16px;
+  letter-spacing: 0.1em;
+}
+
+.ella-cart-line-foot {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-top: 10px;
+}
+
+.ella-cart-total {
+  align-items: baseline;
+  border-top: 1px solid var(--ella-gold-line);
+  display: flex;
+  font-size: 13px;
+  justify-content: space-between;
+  letter-spacing: 0.14em;
+  margin-top: 18px;
+  padding-top: 16px;
+  text-transform: uppercase;
+}
+
+.ella-pay-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.ella-pay-option {
+  align-items: flex-start;
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  display: flex;
+  gap: 14px;
+  padding: 15px;
+  text-align: left;
+  width: 100%;
+}
+
+.ella-pay-option:disabled {
+  opacity: 0.45;
+}
+
+.ella-pay-option-active {
+  background: var(--ella-gold-tint);
+  border-color: var(--ella-gold);
+}
+
+.ella-pay-radio {
+  border: 1px solid rgba(18, 16, 14, 0.3);
+  border-radius: 50%;
+  flex: none;
+  height: 18px;
+  margin-top: 3px;
+  position: relative;
+  width: 18px;
+}
+
+.ella-pay-option-active .ella-pay-radio {
+  border-color: var(--ella-gold);
+}
+
+.ella-pay-option-active .ella-pay-radio::after {
+  background: var(--ella-gold);
+  border-radius: 50%;
+  content: "";
+  inset: 4px;
+  position: absolute;
+}
+
+.ella-pay-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.ella-pay-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.ella-pay-title {
+  color: var(--ella-ink);
+  font-size: 15px;
+  letter-spacing: 0.14em;
+}
+
+.ella-pay-amount {
+  color: var(--ella-ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ella-pay-body {
+  color: var(--ella-paper-muted);
+  display: block;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.ella-utr-field {
+  display: block;
+  margin-top: 12px;
+}
+
+.ella-utr-field span {
+  color: var(--ella-label);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.ella-utr-field input {
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper);
+  font: inherit;
+  font-size: 16px;
+  min-height: 48px;
+  padding: 12px 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ella-pay-summary {
+  border-top: 1px solid var(--ella-gold-line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+}
+
+.ella-pay-summary > div {
+  display: flex;
+  font-size: 14px;
+  gap: 12px;
+  justify-content: space-between;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ella-pay-summary > div span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+.ella-upi-block {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  text-align: center;
+}
+
+.ella-upi-qr {
+  display: block;
+  height: auto;
+  max-width: 200px;
+}
+
+.ella-upi-id {
+  color: var(--ella-paper-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+/* --- forms, states ------------------------------------------------------- */
+
+.ella-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.ella-form label span {
+  color: var(--ella-label);
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.ella-form input,
+.ella-form textarea {
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  box-sizing: border-box;
+  color: var(--ella-paper);
+  font: inherit;
+  font-size: 16px;
+  min-height: 48px;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+.ella-form input:focus,
+.ella-form textarea:focus,
+.ella-utr-field input:focus {
+  border-color: var(--ella-gold);
+  outline: none;
+}
+
+.ella-form textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+.ella-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ella-form-note {
+  color: var(--ella-paper-faint);
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.ella-success {
+  border: 1px solid var(--ella-gold);
+  color: var(--ella-ink);
+  font-size: 15px;
+  margin-top: 20px;
+  padding: 18px;
+}
+
+.ella-success-title {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.ella-success p {
+  color: var(--ella-paper-muted);
+  margin: 0;
+}
+
+.ella-track {
+  margin-top: 18px;
+}
+
+.ella-track-row {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.ella-track-dot {
+  border: 1px solid var(--ella-hairline);
+  flex: none;
+  height: 12px;
+  margin-top: 5px;
+  width: 12px;
+}
+
+.ella-track-row-done .ella-track-dot {
+  background: var(--ella-gold);
+  border-color: var(--ella-gold);
+}
+
+.ella-track-title {
+  color: var(--ella-ink);
+  display: block;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+}
+
+.ella-track-body {
+  color: var(--ella-paper-muted);
+  display: block;
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.ella-error {
+  color: #b42318;
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.ella-empty-inline {
+  color: var(--ella-paper-muted);
+  margin-top: 20px;
+  text-align: center;
+}
+
+.ella-empty {
+  color: var(--ella-paper-muted);
+  padding: 48px var(--ella-gutter);
+  text-align: center;
+}
+
+.ella-skel-grid {
+  display: grid;
+  gap: 30px 18px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  padding: 22px var(--ella-gutter);
+}
+
+.ella-skel-card {
+  background: #ffffff;
+}
+
+.ella-skel-img {
+  aspect-ratio: 4 / 5;
+  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
+}
+
+.ella-skel-line {
+  background: var(--ella-hairline);
+  height: 10px;
+  margin: 12px 0 0;
+}
+
+.ella-skel-line.short {
+  width: 40%;
+}
+
+.ella-unavailable {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+}
+
+.ella-unavailable-inner {
+  max-width: 320px;
+  text-align: center;
+}
+
+/* legacy classes kept so the enquiry sheet and old markup keep working */
+
+.ella-sticky-head {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--ella-gold-line);
+  padding: 12px var(--ella-gutter) 14px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.ella-sticky-row {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.ella-chips {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ella-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.ella-chip {
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
+  flex: 0 0 auto;
+  font-size: 14px;
+  height: 44px;
+  letter-spacing: 0.14em;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.ella-chip-active,
+.ella-store button.ella-chip-active {
+  background: var(--ella-gold);
+  border-color: var(--ella-gold);
+  color: var(--ella-ink);
+}
+
+.ella-spec {
+  border-top: 1px solid var(--ella-gold-line);
+  margin-top: 18px;
+}
+
+.ella-spec-row {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  font-size: 16px;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.ella-spec-row dt {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.ella-spec-row dd {
+  color: var(--ella-ink);
+  margin: 0;
+  text-align: right;
 }
 
 .ella-wordmark {
   color: #ffffff;
   font-size: 48px;
   letter-spacing: 0.16em;
-  text-shadow: 0 2px 18px rgba(18, 16, 14, 0.35);
 }
 
 .ella-designer {
@@ -243,702 +1846,7 @@ body.ella-root {
   margin-top: 8px;
 }
 
-.ella-frame {
-  position: relative;
-}
-
-.ella-mark {
-  color: var(--ella-gold);
-  font-size: 11px;
-  line-height: 1;
-  pointer-events: none;
-  position: absolute;
-  z-index: 2;
-}
-
-.ella-mark-tl {
-  left: 10px;
-  top: 10px;
-}
-.ella-mark-tr {
-  right: 10px;
-  top: 10px;
-}
-.ella-mark-bl {
-  bottom: 10px;
-  left: 10px;
-}
-.ella-mark-br {
-  bottom: 10px;
-  right: 10px;
-}
-
-.ella-sticky-head {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(6px);
-  border-bottom: 1px solid var(--ella-gold-line);
-  padding: 12px 20px 14px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-}
-
-.ella-sticky-row {
-  align-items: center;
-  display: flex;
-  gap: 10px;
-}
-
-.ella-sticky-wordmark {
-  color: var(--ella-ink);
-  flex: 0 1 auto;
-  font-size: 15px;
-  letter-spacing: 0.14em;
-  max-width: 38%;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ella-wa-pill {
-  align-items: center;
-  border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold);
-  display: inline-flex;
-  font-size: 13px;
-  gap: 8px;
-  height: 48px;
-  letter-spacing: 0.14em;
-  min-width: 48px;
-  padding: 0 14px;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.ella-social-icon {
-  align-items: center;
-  border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold);
-  display: inline-flex;
-  height: 48px;
-  justify-content: center;
-  min-width: 48px;
-  width: 48px;
-}
-
-.ella-search {
-  background: #ffffff;
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper);
-  flex: 1 1 180px;
-  font-size: 16px;
-  height: 48px;
-  min-width: 0;
-  padding: 0 14px;
-}
-
-.ella-search::placeholder {
-  color: var(--ella-paper-faint);
-}
-
-.ella-chips {
-  display: flex;
-  gap: 8px;
-  margin-top: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.ella-chips::-webkit-scrollbar {
-  display: none;
-}
-
-.ella-chip {
-  background: #ffffff;
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper-muted);
-  flex: 0 0 auto;
-  font-size: 14px;
-  height: 48px;
-  letter-spacing: 0.14em;
-  padding: 0 16px;
-  text-transform: uppercase;
-  transition: background 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out;
-}
-
-.ella-chip-active {
-  background: var(--ella-gold);
-  border-color: var(--ella-gold);
-  color: var(--ella-ink);
-}
-
-.ella-store button.ella-chip-active {
-  background: var(--ella-gold);
-  color: var(--ella-ink);
-}
-
-.ella-section {
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 22px 22px 14px;
-}
-
-.ella-section h2 {
-  color: var(--ella-ink);
-  font-size: 26px;
-}
-
-.ella-section-block + .ella-section-block {
-  margin-top: 8px;
-}
-
-.ella-count {
-  color: var(--ella-paper-faint);
-  font-size: 14px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.ella-grid {
-  background: var(--ella-gold-line);
-  border-top: 1px solid var(--ella-gold-line);
-  display: grid;
-  gap: 1px;
-  grid-template-columns: 1fr 1fr;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.ella-card {
-  background: #ffffff;
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  text-align: left;
-  width: 100%;
-}
-
-.ella-card-img {
-  aspect-ratio: 3 / 4;
-  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
-  overflow: hidden;
-  position: relative;
-}
-
-.ella-card-dense .ella-card-img {
-  aspect-ratio: 4 / 5;
-}
-
-.ella-card-img img {
-  height: 100%;
-  object-fit: cover;
-  width: 100%;
-}
-
-.ella-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 12px 12px 16px;
-}
-
-.ella-card-name {
-  color: var(--ella-ink);
-  font-size: 20px;
-  letter-spacing: 0.1em;
-}
-
-.ella-price {
-  color: var(--ella-gold);
-  font-size: 16px;
-  font-weight: 400;
-}
-
-.ella-card-enquire {
-  border-top: 1px solid var(--ella-hairline);
-  color: var(--ella-gold);
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  padding-top: 10px;
-  text-transform: uppercase;
-}
-
-.ella-badge {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  line-height: 1;
-  padding: 4px 8px;
-  position: absolute;
-  right: 8px;
-  text-transform: uppercase;
-  top: 8px;
-}
-
-.ella-badge-low {
-  background: var(--ella-gold);
-  color: var(--ella-ink);
-}
-
-.ella-badge-out {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper-muted);
-}
-
-.ella-badge-in {
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper-muted);
-}
-
-.ella-main {
-  width: 100%;
-}
-
-.ella-note {
-  background: var(--ella-panel);
-  border-top: 1px solid var(--ella-gold-line);
-  color: var(--ella-paper-muted);
-  font-size: 16px;
-  padding: 28px 22px 32px;
-}
-
-.ella-note-address {
-  margin-top: 12px;
-}
-
-.ella-footer,
-.ella-site-footer {
-  background: #12100e;
-  border-top: 1px solid var(--ella-gold-line);
-  color: rgba(244, 241, 234, 0.78);
-  font-size: 15px;
-  letter-spacing: 0.04em;
-  padding: 36px 22px 120px;
-}
-
-.ella-site-footer-inner {
-  display: grid;
-  gap: 28px;
-  width: 100%;
-}
-
-.ella-footer-heading {
-  color: #ffffff;
-  font-size: 22px;
-  margin-bottom: 10px;
-}
-
-.ella-footer-label {
-  color: var(--ella-gold);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.16em;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-}
-
-.ella-footer-copy {
-  color: rgba(244, 241, 234, 0.72);
-  font-size: 15px;
-  line-height: 1.55;
-  margin: 0 0 8px;
-}
-
-.ella-footer-link {
-  color: rgba(244, 241, 234, 0.9);
-  display: block;
-  font-size: 15px;
-  padding: 4px 0;
-  text-align: left;
-}
-
-.ella-footer-social {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-}
-
-.ella-action-bar {
-  backdrop-filter: blur(6px);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.96) 38%);
-  bottom: 0;
-  display: flex;
-  gap: 8px;
-  left: 0;
-  margin: 0 auto;
-  max-width: none;
-  padding: 16px 20px 18px;
-  position: fixed;
-  right: 0;
-  width: 100%;
-  z-index: 30;
-}
-
-.ella-store button.ella-btn,
-.ella-store a.ella-btn,
-.ella-btn {
-  align-items: center;
-  background: var(--ella-gold);
-  color: var(--ella-ink);
-  display: inline-flex;
-  flex: 1;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  height: 52px;
-  justify-content: center;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.ella-btn:disabled {
-  cursor: wait;
-  opacity: 0.55;
-}
-
-.ella-store a.ella-btn-outline,
-.ella-store button.ella-btn-outline,
-.ella-btn-outline {
-  background: #ffffff;
-  border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold);
-}
-
-.ella-btn-square {
-  flex: none;
-  width: 52px;
-}
-
-.ella-cart-btn {
-  flex: 0 1 auto;
-  min-width: 120px;
-}
-
-.ella-scrim {
-  background: rgba(18, 16, 14, 0.45);
-  inset: 0;
-  position: fixed;
-  z-index: 40;
-}
-
-.ella-sheet {
-  background: #ffffff;
-  border-top: 1px solid var(--ella-gold);
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  left: 0;
-  margin: 0 auto;
-  max-height: 82%;
-  max-width: var(--ella-max);
-  overscroll-behavior: contain;
-  position: fixed;
-  right: 0;
-  width: 100%;
-  z-index: 50;
-}
-
-.ella-sheet-tall {
-  max-height: 90%;
-}
-
-.ella-sheet-scroll {
-  min-height: 0;
-  overflow: auto;
-  padding: 20px 22px 28px;
-}
-
-.ella-sheet-head {
-  align-items: flex-start;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-}
-
-.ella-sheet-name {
-  color: var(--ella-ink);
-  font-size: 22px;
-  margin-top: 6px;
-}
-
-.ella-close {
-  color: var(--ella-paper);
-  font-size: 28px;
-  height: 44px;
-  line-height: 1;
-  width: 44px;
-}
-
-.ella-sheet-img {
-  aspect-ratio: 4 / 5;
-  background: var(--ella-panel);
-  margin-top: 16px;
-  overflow: hidden;
-}
-
-.ella-sheet-img img {
-  height: 100%;
-  object-fit: cover;
-  width: 100%;
-}
-
-.ella-price-row {
-  align-items: center;
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.ella-spec {
-  border-top: 1px solid var(--ella-gold-line);
-  margin-top: 18px;
-}
-
-.ella-spec-row {
-  border-bottom: 1px solid var(--ella-hairline);
-  display: flex;
-  font-size: 16px;
-  gap: 16px;
-  justify-content: space-between;
-  padding: 12px 0;
-}
-
-.ella-spec-row dt {
-  color: var(--ella-paper-faint);
-  font-size: 13px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.ella-spec-row dd {
-  color: var(--ella-ink);
-  text-align: right;
-}
-
-.ella-qty-row {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  margin-top: 18px;
-}
-
-.ella-qty-controls {
-  align-items: center;
-  display: inline-flex;
-  gap: 12px;
-}
-
-.ella-qty-controls-inline {
-  margin-top: 8px;
-}
-
-.ella-qty-btn {
-  align-items: center;
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-ink);
-  display: inline-flex;
-  font-size: 18px;
-  height: 40px;
-  justify-content: center;
-  width: 40px;
-}
-
-.ella-qty-btn:disabled {
-  opacity: 0.35;
-}
-
-.ella-qty-value {
-  font-variant-numeric: tabular-nums;
-  min-width: 24px;
-  text-align: center;
-}
-
-.ella-cart-list {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  list-style: none;
-  margin: 16px 0 0;
-  padding: 0;
-}
-
-.ella-cart-line {
-  border-bottom: 1px solid var(--ella-hairline);
-  display: flex;
-  gap: 12px;
-  padding-bottom: 16px;
-}
-
-.ella-cart-thumb {
-  flex: none;
-  height: 88px;
-  object-fit: cover;
-  width: 66px;
-}
-
-.ella-cart-thumb-ph {
-  background: var(--ella-panel);
-}
-
-.ella-cart-meta {
-  flex: 1;
-  min-width: 0;
-}
-
-.ella-cart-name {
-  font-size: 16px;
-}
-
-.ella-cart-total {
-  align-items: baseline;
-  border-top: 1px solid var(--ella-gold-line);
-  display: flex;
-  font-size: 14px;
-  justify-content: space-between;
-  letter-spacing: 0.12em;
-  margin-top: 18px;
-  padding-top: 16px;
-  text-transform: uppercase;
-}
-
-.ella-upi-block {
-  align-items: center;
-  border: 1px solid var(--ella-gold-line);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 8px;
-  padding: 16px;
-  text-align: center;
-}
-
-.ella-upi-qr {
-  display: block;
-  height: auto;
-  max-width: 220px;
-}
-
-.ella-upi-id {
-  color: var(--ella-paper-muted);
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  word-break: break-all;
-}
-
-.ella-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.ella-form label span {
-  color: var(--ella-label);
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-}
-
-.ella-form input,
-.ella-form textarea {
-  background: #ffffff;
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper);
-  font: inherit;
-  font-size: 16px;
-  min-height: 48px;
-  padding: 12px 14px;
-  width: 100%;
-}
-
-.ella-form textarea {
-  min-height: 88px;
-  resize: vertical;
-}
-
-.ella-form-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.ella-form-note {
-  color: var(--ella-paper-faint);
-  font-size: 14px;
-}
-
-.ella-success {
-  border: 1px solid var(--ella-gold);
-  color: var(--ella-ink);
-  font-size: 14px;
-  margin-top: 20px;
-  padding: 16px;
-}
-
-.ella-error {
-  color: #b42318;
-  font-size: 12px;
-}
-
-.ella-empty-inline {
-  color: var(--ella-paper-muted);
-  margin-top: 20px;
-  text-align: center;
-}
-
-.ella-skel-grid {
-  background: var(--ella-gold-line);
-  display: grid;
-  gap: 1px;
-  grid-template-columns: 1fr 1fr;
-}
-
-.ella-skel-card {
-  background: #ffffff;
-  padding-bottom: 16px;
-}
-
-.ella-skel-img {
-  aspect-ratio: 3 / 4;
-  background: linear-gradient(150deg, var(--ella-panel), #ebe7df);
-}
-
-.ella-skel-line {
-  background: var(--ella-hairline);
-  height: 10px;
-  margin: 12px 12px 0;
-}
-
-.ella-skel-line.short {
-  width: 40%;
-}
-
-.ella-empty {
-  color: var(--ella-paper-muted);
-  padding: 40px 22px;
-  text-align: center;
-}
-
-.ella-unavailable {
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  padding: 32px;
-}
-
-.ella-unavailable-inner {
-  max-width: 320px;
-  text-align: center;
-}
+/* --- breakpoints --------------------------------------------------------- */
 
 @media (max-width: 720px) {
   .ella-wa-pill span {
@@ -948,62 +1856,65 @@ body.ella-root {
   .ella-wa-pill {
     justify-content: center;
     padding: 0;
-    width: 48px;
+    width: 46px;
+  }
+
+  .ella-header-btn-bag span {
+    font-size: 13px;
+  }
+
+  .ella-site-nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    width: 100%;
+  }
+
+  .ella-site-nav::-webkit-scrollbar {
+    display: none;
   }
 }
 
 @media (min-width: 640px) {
   .ella-store {
-    --ella-max: none;
+    --ella-gutter: 32px;
   }
 
   .ella-grid,
   .ella-skel-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .ella-site-header-inner,
-  .ella-section,
-  .ella-note,
-  .ella-site-footer,
-  .ella-footer {
-    padding-left: 32px;
-    padding-right: 32px;
-  }
-
-  .ella-hero-center,
-  .ella-hero-foot {
-    padding-left: 32px;
-    padding-right: 32px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   }
 
   .ella-site-footer-inner {
     grid-template-columns: 1fr 1fr;
   }
+
+  .ella-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ella-form label:nth-child(3),
+  .ella-form .ella-error,
+  .ella-form .ella-form-actions,
+  .ella-form .ella-upi-block {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 1024px) {
   .ella-store {
-    --ella-max: none;
-    width: 100%;
+    --ella-gutter: 40px;
   }
 
   .ella-hero {
-    height: min(82vh, 920px);
+    height: min(80vh, 780px);
     min-height: 560px;
-  }
-
-  .ella-wordmark {
-    font-size: 72px;
-  }
-
-  .ella-collection-title {
-    font-size: 32px;
   }
 
   .ella-site-header-inner {
     flex-wrap: nowrap;
-    padding: 16px 40px;
+    padding: 14px var(--ella-gutter);
   }
 
   .ella-site-nav {
@@ -1012,20 +1923,12 @@ body.ella-root {
   }
 
   .ella-site-tools {
-    flex: 0 1 520px;
+    flex: 0 1 480px;
   }
 
   .ella-grid,
   .ella-skel-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .ella-section,
-  .ella-note,
-  .ella-site-footer,
-  .ella-footer {
-    padding-left: 40px;
-    padding-right: 40px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   }
 
   .ella-site-footer {
@@ -1033,14 +1936,8 @@ body.ella-root {
   }
 
   .ella-site-footer-inner {
-    grid-template-columns: 1.4fr 1fr 1fr 1fr;
     gap: 40px;
-  }
-
-  .ella-hero-center,
-  .ella-hero-foot {
-    padding-left: 40px;
-    padding-right: 40px;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
   }
 
   .ella-action-bar {
@@ -1051,20 +1948,21 @@ body.ella-root {
     border: 1px solid var(--ella-gold-line);
     border-top: 1px solid var(--ella-gold);
     bottom: auto;
-    max-height: min(90vh, 820px);
-    max-width: 520px;
+    max-height: min(90vh, 860px);
+    max-width: 560px;
     top: 50%;
     transform: translateY(-50%);
   }
 
-  .ella-sheet-tall {
-    max-height: min(92vh, 860px);
+  .ella-sheet-product {
+    max-width: 620px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ella-chip,
-  .ella-sheet {
+  .ella-sheet,
+  .ella-card-img img {
     transition: none;
   }
 }
@@ -1082,23 +1980,13 @@ body.ella-root {
 }
 
 @keyframes ella-sheet-in {
-  from {
-    transform: translateY(18px);
-  }
-  to {
-    transform: translateY(0);
-  }
+  from { transform: translateY(18px); }
+  to { transform: translateY(0); }
 }
 
 @keyframes ella-sheet-in-desktop {
-  from {
-    opacity: 0.92;
-    transform: translateY(calc(-50% + 12px));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(-50%);
-  }
+  from { opacity: 0.92; transform: translateY(calc(-50% + 12px)); }
+  to { opacity: 1; transform: translateY(-50%); }
 }
 
 /* Floating WhatsApp / Instagram (official brand colors) */
@@ -1113,7 +2001,7 @@ body.ella-root {
 }
 
 .ella-floating-social {
-  bottom: calc(92px + env(safe-area-inset-bottom));
+  bottom: calc(88px + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 1024px) {
@@ -1152,121 +2040,4 @@ body.ella-root {
 .storefront-floating-social-icon {
   height: 28px;
   width: 28px;
-}
-
-.ella-toolbar {
-  align-items: end;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
-  margin: 0 0 20px;
-}
-
-.ella-toolbar-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 140px;
-}
-
-.ella-toolbar-field span,
-.ella-toolbar-check {
-  color: var(--ella-label);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.ella-toolbar-check {
-  align-items: center;
-  display: inline-flex;
-  gap: 8px;
-  min-height: 48px;
-}
-
-.ella-select,
-.ella-form select.ella-select {
-  background: #ffffff;
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper);
-  font: inherit;
-  font-size: 16px;
-  min-height: 48px;
-  padding: 10px 12px;
-}
-
-.ella-size-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.ella-size-chips-card {
-  margin-top: 8px;
-}
-
-.ella-size-chip {
-  border: 1px solid var(--ella-hairline);
-  color: var(--ella-paper);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  min-width: 2.25rem;
-  padding: 4px 8px;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-button.ella-size-chip {
-  background: #fff;
-  cursor: pointer;
-}
-
-.ella-size-chip-active {
-  background: var(--ella-paper);
-  color: #fff;
-}
-
-.ella-size-chip-sold {
-  color: rgba(18, 16, 14, 0.45);
-  text-decoration: line-through;
-}
-
-.ella-size-picker {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 16px 0 4px;
-}
-
-.ella-size-stock {
-  color: var(--ella-paper-muted);
-  font-size: 13px;
-  margin: 0;
-}
-
-.ella-gallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 10px 0 0;
-}
-
-.ella-gallery-thumb {
-  background: #fff;
-  border: 1px solid var(--ella-hairline);
-  height: 64px;
-  overflow: hidden;
-  padding: 0;
-  width: 52px;
-}
-
-.ella-gallery-thumb img {
-  height: 100%;
-  object-fit: cover;
-  width: 100%;
-}
-
-.ella-gallery-thumb-active {
-  border-color: var(--ella-paper);
 }

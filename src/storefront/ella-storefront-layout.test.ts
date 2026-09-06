@@ -11,12 +11,12 @@ describe("Ella Noor desktop storefront layout", () => {
     const home = await readFile(path.join(ROOT, "src/storefront/EllaStorefrontHome.tsx"), "utf8");
     const root = await readFile(path.join(ROOT, "src/storefront/EllaStorefront.tsx"), "utf8");
 
-    expect(css).toMatch(/max-width:\s*none/);
+    expect(css).toMatch(/--ella-max:\s*none/);
     expect(css).not.toMatch(/--ella-max:\s*1200px/);
     expect(css).toMatch(/\.ella-site-header/);
     expect(css).toMatch(/\.ella-site-footer/);
-    expect(css).toMatch(/height:\s*min\(82vh,\s*920px\)/);
-    expect(css).toMatch(/object-position:\s*center 22%/);
+    expect(css).toMatch(/height:\s*min\(72vh,\s*660px\)/);
+    expect(css).toMatch(/object-position:\s*center 20%/);
     expect(css).toMatch(/font-size:\s*16px/);
 
     expect(home).toMatch(/ella-site-header/);

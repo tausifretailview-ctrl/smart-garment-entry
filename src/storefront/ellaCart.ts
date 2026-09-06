@@ -1,69 +1,62 @@
-import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import type { EllaStorefrontProduct } from "./ellaProduct";
 import type { EllaSizeOption } from "./ellaVariants";
-import { firstPurchasableSize } from "./ellaVariants";
 
 export type EllaCartLine = {
+  /** Unique per product+size, so two sizes of one style are separate lines. */
+  key: string;
   productId: string;
   variantId: string | null;
-  size: string;
   code: string;
   name: string;
+  size: string | null;
   price: number | null;
   priceLabel: string;
   qty: number;
-  maxQty: number;
+  /** Max units the ERP reports for this size; null when the qty is withheld. */
+  maxQty: number | null;
+  madeToOrder?: boolean;
   image?: string;
 };
 
-export function ellaCartLineKey(line: Pick<EllaCartLine, "productId" | "variantId">): string {
-  return line.variantId ? `${line.productId}:${line.variantId}` : line.productId;
-}
-
-function capQty(qty: number, maxQty: number): number {
-  return Math.max(1, Math.min(Math.floor(qty), Math.max(1, maxQty)));
-}
-
-function resolveSize(product: EllaStorefrontProduct, size?: EllaSizeOption | null): EllaSizeOption | null {
-  if (size) return size;
-  return firstPurchasableSize(product.sizes);
+export function ellaCartLineKey(productId: string, size: string | null): string {
+  return size ? `${productId}::${size}` : productId;
 }
 
 export function addToEllaCart(
   cart: EllaCartLine[],
   product: EllaStorefrontProduct,
+  size: EllaSizeOption | null,
   qty = 1,
-  size?: EllaSizeOption | null,
 ): EllaCartLine[] {
-  const resolved = resolveSize(product, size);
-  const variantId = resolved?.id ?? null;
-  const key = ellaCartLineKey({ productId: product.productId, variantId });
-  const maxQty = resolved
-    ? resolved.availableKnown
-      ? Math.max(1, resolved.available)
-      : 99
-    : product.availableKnown
-      ? Math.max(1, product.available)
-      : 99;
-  const nextQty = capQty(qty, maxQty);
-  const existing = cart.find((line) => ellaCartLineKey(line) === key);
+  const sizeLabel = size?.label ?? null;
+  const key = ellaCartLineKey(product.productId, sizeLabel);
+  const addQty = Math.max(1, Math.floor(qty));
+  const maxQty = size && size.availableKnown ? size.available : null;
+  const existing = cart.find((line) => line.key === key);
+
   if (existing) {
+    const nextQty = existing.qty + addQty;
     return cart.map((line) =>
-      ellaCartLineKey(line) === key ? { ...line, qty: capQty(line.qty + nextQty, line.maxQty) } : line,
+      line.key === key
+        ? { ...line, qty: maxQty != null ? Math.min(maxQty, nextQty) : nextQty }
+        : line,
     );
   }
+
   return [
     ...cart,
     {
+      key,
       productId: product.productId,
-      variantId,
-      size: resolved?.size || "",
+      variantId: size?.variantId ?? null,
       code: product.code,
       name: product.name,
-      price: resolved?.price ?? product.price,
-      priceLabel: formatStorefrontPrice(resolved?.price ?? product.price) || product.priceLabel,
-      qty: nextQty,
+      size: sizeLabel,
+      price: size?.price ?? product.price,
+      priceLabel: product.priceLabel,
+      qty: maxQty != null ? Math.min(maxQty, addQty) : addQty,
       maxQty,
+      madeToOrder: product.madeToOrder,
       image: product.images[0],
     },
   ];
@@ -71,9 +64,16 @@ export function addToEllaCart(
 
 export function updateEllaCartQty(cart: EllaCartLine[], key: string, qty: number): EllaCartLine[] {
   const next = Math.floor(qty);
-  const matches = (line: EllaCartLine) => ellaCartLineKey(line) === key || line.productId === key;
-  if (next <= 0) return cart.filter((line) => !matches(line));
-  return cart.map((line) => (matches(line) ? { ...line, qty: capQty(next, line.maxQty) } : line));
+  if (next <= 0) return cart.filter((line) => line.key !== key);
+  return cart.map((line) =>
+    line.key === key
+      ? { ...line, qty: line.maxQty != null ? Math.min(line.maxQty, next) : next }
+      : line,
+  );
+}
+
+export function removeEllaCartLine(cart: EllaCartLine[], key: string): EllaCartLine[] {
+  return cart.filter((line) => line.key !== key);
 }
 
 export function ellaCartTotal(cart: EllaCartLine[]): number {
@@ -87,9 +87,9 @@ export function ellaCartCount(cart: EllaCartLine[]): number {
 export function ellaCartSummaryText(cart: EllaCartLine[]): string {
   return cart
     .map((line) => {
-      const size = line.size ? ` ${line.size}` : "";
+      const size = line.size ? ` · ${line.size}` : "";
       const price = line.priceLabel ? ` — ${line.priceLabel}` : "";
-      return `${line.name} (${line.code})${size} × ${line.qty}${price}`;
+      return `${line.name} (${line.code}${size}) × ${line.qty}${price}`;
     })
     .join("; ");
 }
