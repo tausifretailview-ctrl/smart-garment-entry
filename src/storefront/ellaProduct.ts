@@ -11,6 +11,8 @@ export type EllaStorefrontProduct = {
   code: string;
   name: string;
   category: EllaCategory;
+  sectionSlug: string | null;
+  sectionLabel: string | null;
   price: number | null;
   priceLabel: string;
   images: string[];
@@ -82,6 +84,8 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     code: mapEllaStyleCode(product),
     name: product.name,
     category: mapEllaCategory(product.category),
+    sectionSlug: product.section_slug || null,
+    sectionLabel: product.section_label || null,
     price,
     priceLabel: formatStorefrontPrice(price),
     images: Array.isArray(product.photo_urls) ? product.photo_urls.filter(Boolean) : [],
@@ -102,12 +106,19 @@ export function filterEllaProducts(
 ): EllaStorefrontProduct[] {
   const q = search.trim().toLowerCase();
   return products.filter((p) => {
-    const matchesChip = !chip || chip === "All" || p.category === chip;
+    const matchesChip =
+      !chip ||
+      chip === "All" ||
+      chip === "all" ||
+      p.sectionSlug === chip ||
+      p.sectionLabel === chip ||
+      p.category === chip;
     const matchesSearch =
       !q ||
       p.name.toLowerCase().includes(q) ||
       p.code.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q);
+      p.category.toLowerCase().includes(q) ||
+      (p.sectionLabel || "").toLowerCase().includes(q);
     return matchesChip && matchesSearch;
   });
 }

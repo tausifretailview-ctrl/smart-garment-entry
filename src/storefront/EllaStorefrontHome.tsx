@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { storefrontHomePath } from "@/lib/storefrontPath";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
-import { ellaCopy, ELLA_CATEGORY_CHIPS, type EllaChipCategory } from "./storefrontTheme";
+import { ellaCopy, ELLA_CATEGORY_CHIPS } from "./storefrontTheme";
+import { ellaNavChipsFromSections, groupProductsBySection, type PublicStorefrontSection } from "@/lib/websiteSections";
 import { ellaStockBadgeClass, isEllaProductPurchasable } from "./ellaStock";
 import { filterEllaProducts, type EllaStorefrontProduct } from "./ellaProduct";
 
@@ -59,6 +60,7 @@ export function EllaStorefrontHome({
   instagramUrl,
   facebookUrl,
   products,
+  sections = [],
   cartCount = 0,
   onOpenProduct,
   onOpenGeneralEnquire,
@@ -72,26 +74,62 @@ export function EllaStorefrontHome({
   instagramUrl?: string | null;
   facebookUrl?: string | null;
   products: EllaStorefrontProduct[];
+  sections?: PublicStorefrontSection[];
   cartCount?: number;
   onOpenProduct: (product: EllaStorefrontProduct) => void;
   onOpenGeneralEnquire: () => void;
   onOpenCart?: () => void;
 }) {
-  const [chip, setChip] = useState<EllaChipCategory>("All");
+  const navChips = useMemo(
+    () => ellaNavChipsFromSections(sections, ELLA_CATEGORY_CHIPS),
+    [sections],
+  );
+  const [chip, setChip] = useState("all");
   const [search, setSearch] = useState("");
   const collectionRef = useRef<HTMLElement | null>(null);
   const filtered = useMemo(() => filterEllaProducts(products, chip, search), [products, chip, search]);
-  const dense = Boolean(search.trim()) || chip !== "All";
+  const grouped = useMemo(
+    () => groupProductsBySection(filtered, sections),
+    [filtered, sections],
+  );
+  const showGrouped = sections.length > 0 && (chip === "all" || chip === "All") && !search.trim();
+  const dense = Boolean(search.trim()) || (chip !== "All" && chip !== "all");
   const hero = products.find((p) => p.images[0])?.images[0] || "";
   const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
   const studioWa = whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), whatsapp);
   const visitLine = (address || "").trim() || ellaCopy.address;
   const homeHref = storefrontHomePath(orgSlug);
 
-  const selectChip = (next: EllaChipCategory) => {
+  const selectChip = (next: string) => {
     setChip(next);
     collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  const renderProductCard = (product: EllaStorefrontProduct, index: number) => (
+    <li key={product.id}>
+      <button type="button" className="ella-card" onClick={() => onOpenProduct(product)}>
+        <div className="ella-card-img">
+          {product.images[0] ? (
+            <img
+              src={product.images[0]}
+              alt={product.name}
+              loading={index < 2 ? "eager" : "lazy"}
+              decoding="async"
+            />
+          ) : null}
+          <span className={ellaStockBadgeClass(product.stock.state)}>{product.stock.label}</span>
+        </div>
+        <div className="ella-card-body">
+          <div className="ella-display ella-card-name">{product.name}</div>
+          <div className="ella-eyebrow">{product.sectionLabel || product.category}</div>
+          {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
+          <div className="ella-card-enquire">
+            {isEllaProductPurchasable(product.stock) ? "Add to cart" : "Enquire"}
+          </div>
+        </div>
+      </button>
+    </li>
+  );
 
   return (
     <>
@@ -102,14 +140,14 @@ export function EllaStorefrontHome({
             <span className="ella-display ella-site-wordmark">{ellaCopy.wordmark}</span>
           </a>
           <nav className="ella-site-nav" aria-label="Collections">
-            {ELLA_CATEGORY_CHIPS.map((c) => (
+            {navChips.map((c) => (
               <button
-                key={c}
+                key={c.id}
                 type="button"
-                className={`ella-nav-link${chip === c ? " ella-nav-link-active" : ""}`}
-                onClick={() => selectChip(c)}
+                className={`ella-nav-link${chip === c.id ? " ella-nav-link-active" : ""}`}
+                onClick={() => selectChip(c.id)}
               >
-                {c}
+                {c.label}
               </button>
             ))}
           </nav>
@@ -170,7 +208,11 @@ export function EllaStorefrontHome({
 
       <section ref={collectionRef} className="ella-main" id="collection">
         <div className="ella-section">
-          <h2 className="ella-display">The collection</h2>
+          <h2 className="ella-display">
+            {showGrouped
+              ? "The collection"
+              : navChips.find((c) => c.id === chip)?.label || "The collection"}
+          </h2>
           <div className="ella-count">
             {filtered.length} {filtered.length === 1 ? "piece" : "pieces"}
           </div>
@@ -178,33 +220,23 @@ export function EllaStorefrontHome({
 
         {filtered.length === 0 ? (
           <p className="ella-empty">No pieces match this search.</p>
+        ) : showGrouped ? (
+          grouped.map((group) => (
+            <div key={group.slug || "collection"} className="ella-section-block">
+              <div className="ella-section">
+                <h2 className="ella-display">{group.label}</h2>
+                <div className="ella-count">
+                  {group.products.length} {group.products.length === 1 ? "piece" : "pieces"}
+                </div>
+              </div>
+              <ul className={`ella-grid${dense ? " ella-card-dense" : ""}`}>
+                {group.products.map((product, index) => renderProductCard(product, index))}
+              </ul>
+            </div>
+          ))
         ) : (
           <ul className={`ella-grid${dense ? " ella-card-dense" : ""}`}>
-            {filtered.map((product, index) => (
-              <li key={product.id}>
-                <button type="button" className="ella-card" onClick={() => onOpenProduct(product)}>
-                  <div className="ella-card-img">
-                    {product.images[0] ? (
-                      <img
-                        src={product.images[0]}
-                        alt={product.name}
-                        loading={index < 2 ? "eager" : "lazy"}
-                        decoding="async"
-                      />
-                    ) : null}
-                    <span className={ellaStockBadgeClass(product.stock.state)}>{product.stock.label}</span>
-                  </div>
-                  <div className="ella-card-body">
-                    <div className="ella-display ella-card-name">{product.name}</div>
-                    <div className="ella-eyebrow">{product.category}</div>
-                    {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
-                    <div className="ella-card-enquire">
-                      {isEllaProductPurchasable(product.stock) ? "Add to cart" : "Enquire"}
-                    </div>
-                  </div>
-                </button>
-              </li>
-            ))}
+            {filtered.map((product, index) => renderProductCard(product, index))}
           </ul>
         )}
 
@@ -224,9 +256,9 @@ export function EllaStorefrontHome({
           </div>
           <div className="ella-footer-col">
             <div className="ella-footer-label">Collections</div>
-            {ELLA_CATEGORY_CHIPS.map((c) => (
-              <button key={c} type="button" className="ella-footer-link" onClick={() => selectChip(c)}>
-                {c}
+            {navChips.map((c) => (
+              <button key={c.id} type="button" className="ella-footer-link" onClick={() => selectChip(c.id)}>
+                {c.label}
               </button>
             ))}
           </div>

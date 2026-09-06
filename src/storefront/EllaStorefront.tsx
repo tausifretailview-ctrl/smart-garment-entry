@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
+import type { PublicStorefrontSection } from "@/lib/websiteSections";
 import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
 import { toEllaStorefrontProduct, type EllaStorefrontProduct } from "./ellaProduct";
 import { isEllaProductPurchasable } from "./ellaStock";
@@ -18,11 +19,13 @@ export function EllaStorefront({
   shop,
   orgSlug,
   products,
+  sections = [],
   initialProductId,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
   products: PublicStorefrontProduct[];
+  sections?: PublicStorefrontSection[];
   initialProductId: string | null;
 }) {
   const ellaProducts = useMemo(() => products.map(toEllaStorefrontProduct), [products]);
@@ -94,6 +97,7 @@ export function EllaStorefront({
         instagramUrl={shop.instagram_url}
         facebookUrl={shop.facebook_url}
         products={ellaProducts}
+        sections={sections}
         cartCount={cartCount}
         onOpenProduct={openProduct}
         onOpenGeneralEnquire={() => {

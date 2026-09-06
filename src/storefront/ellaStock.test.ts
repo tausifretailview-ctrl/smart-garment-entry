@@ -138,6 +138,19 @@ describe("filter + WhatsApp", () => {
     ];
     expect(filterEllaProducts(rows, "Bridal", "").map((p) => p.name)).toEqual(["Zardozi lehenga"]);
     expect(filterEllaProducts(rows, "All", "eid")).toHaveLength(1);
+    const sectioned = [
+      toEllaStorefrontProduct(sample({ section_slug: "new-arrival", section_label: "New Arrival" })),
+      toEllaStorefrontProduct(
+        sample({
+          id: "3",
+          product_id: "33333333-3333-4444-5555-666666666666",
+          section_slug: "eid-collection",
+          section_label: "Eid Collection",
+          name: "Eid jacket",
+        }),
+      ),
+    ];
+    expect(filterEllaProducts(sectioned, "new-arrival", "").map((p) => p.name)).toEqual(["Zardozi lehenga"]);
   });
 
   it("WhatsApp text carries style name, code and price", () => {

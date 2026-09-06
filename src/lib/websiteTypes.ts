@@ -22,6 +22,7 @@ export type WebsiteProduct = {
   photo_urls: string[];
   display_order: number;
   is_active: boolean;
+  section_id?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -76,6 +77,9 @@ export type PublicStorefrontProduct = {
   stock_status: WebsiteStockStatus;
   stock_left: number | null;
   variants: PublicStorefrontVariant[];
+  section_id?: string | null;
+  section_slug?: string | null;
+  section_label?: string | null;
 };
 
 export type PublicStorefrontMenu = {
@@ -107,4 +111,10 @@ export type PublicStorefrontPayload = {
   shop?: PublicStorefrontShop;
   products?: PublicStorefrontProduct[];
   menus?: PublicStorefrontMenuFlat[];
+  sections?: {
+    id: string;
+    slug: string;
+    label: string;
+    display_order: number;
+  }[];
 };

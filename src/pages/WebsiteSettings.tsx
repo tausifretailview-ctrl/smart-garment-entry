@@ -51,6 +51,10 @@ import { aggregateVariantRows } from "@/lib/storefrontVariantSummary";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
+import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel";
+import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
+import { useWebsiteSections } from "@/hooks/useWebsiteSections";
+import { activeWebsiteSections, isNewArrivalSlug } from "@/lib/websiteSections";
 import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 
@@ -71,7 +75,7 @@ type VariantRow = {
   color?: string | null;
 };
 
-type WebsiteTabId = "catalogue" | "add" | "menus" | "profile" | "enquiries";
+type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "enquiries";
 
 const ENQUIRY_STATUSES: WebsiteEnquiryStatus[] = ["new", "contacted", "converted", "closed"];
 
@@ -149,7 +153,7 @@ export default function WebsiteSettingsPage() {
                 Website
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Catalogue · Add products · Menus · Store profile · Enquiries
+                Catalogue · Add products · Sections · Menus · Store profile · Enquiries
               </p>
             </div>
           </div>
@@ -177,6 +181,9 @@ export default function WebsiteSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="add" className={WEBSITE_TAB_TRIGGER}>
               Add products
+            </TabsTrigger>
+            <TabsTrigger value="sections" className={WEBSITE_TAB_TRIGGER}>
+              Sections
             </TabsTrigger>
             <TabsTrigger value="menus" className={WEBSITE_TAB_TRIGGER}>
               Menus
@@ -211,6 +218,10 @@ export default function WebsiteSettingsPage() {
                 onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
               />
             ) : null}
+          </TabsContent>
+
+          <TabsContent value="sections" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("sections") ? <WebsiteSectionsPanel orgId={orgId} /> : null}
           </TabsContent>
 
           <TabsContent value="menus" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
@@ -475,7 +486,18 @@ function AddProducts({
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [websitePrices, setWebsitePrices] = useState<Record<string, string>>({});
+  const [rowSections, setRowSections] = useState<Record<string, string>>({});
+  const [publishSectionId, setPublishSectionId] = useState("");
   const publishedIds = useMemo(() => new Set(listings.map((l) => l.product_id)), [listings]);
+  const sectionsQuery = useWebsiteSections(orgId);
+  const sections = activeWebsiteSections(coerceToArray(sectionsQuery.data));
+
+  useEffect(() => {
+    if (!publishSectionId && sections.length > 0) {
+      const preferred = sections.find((s) => isNewArrivalSlug(s.slug)) ?? sections[0];
+      setPublishSectionId(preferred.id);
+    }
+  }, [publishSectionId, sections]);
 
   const productsQuery = useQuery({
     queryKey: ["website_product_picker", orgId, search],
@@ -532,6 +554,7 @@ function AddProducts({
           Number.isFinite(parsed) && parsed >= 0
             ? parsed
             : product?.default_sale_price ?? null;
+        const section_id = rowSections[product_id] || publishSectionId || null;
         return {
           organization_id: orgId,
           product_id,
@@ -539,6 +562,7 @@ function AddProducts({
           display_price,
           display_order: maxOrder + i + 1,
           is_active: true,
+          ...(section_id ? { section_id } : {}),
         };
       });
       const { error } = await websiteFrom("website_products").insert(rowsToInsert);
@@ -548,6 +572,7 @@ function AddProducts({
       toast.success("Products added to the store");
       setSelected(new Set());
       setWebsitePrices({});
+      setRowSections({});
       onChanged();
     },
     onError: (err: Error) => toast.error(err.message || "Could not publish"),
@@ -562,7 +587,7 @@ function AddProducts({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
-        subtitle="Search ERP products, set a website price if needed, and publish to the public catalogue"
+        subtitle="Search ERP products, pick a store section, set a website price if needed, and publish to the public catalogue"
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -575,6 +600,22 @@ function AddProducts({
                 className="h-9 w-56 pl-8 text-sm border-slate-200 bg-white"
               />
             </div>
+            {sections.length > 0 ? (
+              <WebsiteSectionSelect
+                sections={sections}
+                value={publishSectionId}
+                onChange={(id) => {
+                  setPublishSectionId(id);
+                  setRowSections((prev) => {
+                    const next = { ...prev };
+                    for (const productId of selected) next[productId] = id;
+                    return next;
+                  });
+                }}
+                className="h-9"
+                emptyLabel="Section"
+              />
+            ) : null}
             <Button
               type="button"
               className="h-9 text-sm"
@@ -599,6 +640,7 @@ function AddProducts({
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
+            <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
           </InsightsTableHeader>
@@ -634,6 +676,17 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
+                <TableCell className={INSIGHTS_BODY_CELL}>
+                  {sections.length > 0 ? (
+                    <WebsiteSectionSelect
+                      sections={sections}
+                      value={rowSections[p.id] || publishSectionId}
+                      onChange={(id) => setRowSections((prev) => ({ ...prev, [p.id]: id }))}
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL_NUM}>
                   {formatStorefrontPrice(p.default_sale_price) || "—"}
                 </TableCell>
@@ -655,7 +708,7 @@ function AddProducts({
             })}
             {rows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={8} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading ? "Loading…" : "No unpublished products match."}
                 </TableCell>
               </TableRow>
@@ -679,6 +732,8 @@ function PublishedCatalogue({
   onChanged: () => void;
 }) {
   const productIds = listings.map((l) => l.product_id);
+  const sectionsQuery = useWebsiteSections(orgId);
+  const sections = activeWebsiteSections(coerceToArray(sectionsQuery.data));
   const productsQuery = useQuery({
     queryKey: ["website_published_products", orgId, productIds.join(",")],
     enabled: !!orgId && productIds.length > 0,
@@ -771,7 +826,7 @@ function PublishedCatalogue({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Published catalogue"
-        subtitle="Drag rows to reorder · edit display price · toggle visibility"
+        subtitle="Drag rows to reorder · assign a section · edit display price · toggle visibility"
         className="flex-1 min-h-0"
         footer={
           <span className="text-xs text-muted-foreground">
@@ -790,6 +845,7 @@ function PublishedCatalogue({
                 <InsightsStaticTh label="Brand" />
                 <InsightsStaticTh label="Size" />
                 <InsightsStaticTh label="Colour" />
+                <InsightsStaticTh label="Section" className="w-40" />
                 <InsightsStaticTh label="Stock" />
                 <InsightsStaticTh label="Display price" className="text-right" />
                 <InsightsStaticTh label="Upload" className="w-24" />
@@ -821,6 +877,7 @@ function PublishedCatalogue({
                       stockLabel={publicStock.label}
                       salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
                       orgId={orgId!}
+                      sections={sections}
                       onChanged={onChanged}
                     />
                   );
@@ -843,6 +900,7 @@ function SortableListingRow({
   stockLabel,
   salePrice,
   orgId,
+  sections,
   onChanged,
 }: {
   listing: WebsiteProduct;
@@ -853,6 +911,7 @@ function SortableListingRow({
   stockLabel: string;
   salePrice: number | null;
   orgId: string;
+  sections: ReturnType<typeof activeWebsiteSections>;
   onChanged: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: listing.id });
@@ -872,6 +931,18 @@ function SortableListingRow({
     if (error) toast.error(error.message);
     else {
       toast.success("Display price saved");
+      onChanged();
+    }
+  };
+
+  const saveSection = async (section_id: string) => {
+    const { error } = await websiteFrom("website_products")
+      .update({ section_id: section_id || null })
+      .eq("id", listing.id)
+      .eq("organization_id", orgId);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Section saved");
       onChanged();
     }
   };
@@ -947,6 +1018,17 @@ function SortableListingRow({
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{product?.brand || "—"}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{sizesLabel}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{colorsLabel}</TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        {sections.length > 0 ? (
+          <WebsiteSectionSelect
+            sections={sections}
+            value={listing.section_id || ""}
+            onChange={(id) => void saveSection(id)}
+          />
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        )}
+      </TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 whitespace-nowrap")}>{stockLabel}</TableCell>
       <TableCell className={INSIGHTS_BODY_CELL_NUM}>
         <Input

@@ -390,6 +390,10 @@ body.ella-root {
   font-size: 26px;
 }
 
+.ella-section-block + .ella-section-block {
+  margin-top: 8px;
+}
+
 .ella-count {
   color: var(--ella-paper-faint);
   font-size: 14px;
