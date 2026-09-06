@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
 
@@ -69,6 +70,7 @@ const getCachedOrgs = (userId: string): { id: string; slug: string; name: string
 
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [currentOrganization, setCurrentOrganization] = useState<Organization | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [organizationRole, setOrganizationRole] = useState<"admin" | "manager" | "user" | null>(null);
@@ -317,6 +319,16 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     const org = organizations.find((o) => o.id === orgId);
     if (!org) return;
+    // Switching companies must not leave any cached data from the previous
+    // one reachable — a stale cart, stock figure, or balance from the wrong
+    // company showing up after switching is a serious trust problem, not a
+    // cosmetic one. Full clear, not selective invalidation, since we can't
+    // enumerate every query key that might be missing an org-id scope.
+    // Guarded on actually changing org so re-selecting the current one
+    // (e.g. re-clicking it in the picker) doesn't wipe live, in-progress work.
+    if (currentOrganization?.id !== orgId) {
+      queryClient.clear();
+    }
     setCurrentOrganization(org);
     if (org.member_role) {
       setOrganizationRole(org.member_role);
@@ -334,7 +346,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           if (data?.role) setOrganizationRole(data.role as any);
         });
     }
-  }, [user, organizations]);
+  }, [user, organizations, currentOrganization, queryClient]);
 
   const hasFeature = (featureName: string): boolean => {
     if (!currentOrganization) return false;

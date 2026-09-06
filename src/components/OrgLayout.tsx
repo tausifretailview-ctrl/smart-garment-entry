@@ -833,6 +833,7 @@ export const OrgLayout = () => {
           )}
         >
           <TabCachedPages
+            key={currentOrganization?.id}
             paths={tabPaths}
             activePath={tabCacheActivePath}
             cacheableEntryRescueKey={cacheableEntryRescueKey}
