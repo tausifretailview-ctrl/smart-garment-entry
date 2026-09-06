@@ -4,6 +4,7 @@ import {
   purchasePriceTierValue,
   purchasePriceTiersMatch,
   shouldReuseBarcodeOnPriceTierFork,
+  shouldReuseExistingBarcodeOnPurchaseSelect,
 } from "@/utils/purchaseVariantPriceTierFork";
 
 describe("purchasePriceTiersMatch", () => {
@@ -109,6 +110,38 @@ describe("shouldReuseBarcodeOnPriceTierFork", () => {
       shouldReuseBarcodeOnPriceTierFork({
         barcode_source: null,
         barcode: "450006800",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldReuseExistingBarcodeOnPurchaseSelect", () => {
+  it("reuses Jockey-style universal / manufacturer barcodes on search-add", () => {
+    expect(
+      shouldReuseExistingBarcodeOnPurchaseSelect({
+        barcode_source: "external",
+        barcode: "8901326331101",
+      }),
+    ).toBe(true);
+    expect(
+      shouldReuseExistingBarcodeOnPurchaseSelect({
+        barcode_source: null,
+        barcode: "8901326331101",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not reuse generated org-series barcodes (CRIMSON PUNCH 420001739)", () => {
+    expect(
+      shouldReuseExistingBarcodeOnPurchaseSelect({
+        barcode_source: "generated",
+        barcode: "420001739",
+      }),
+    ).toBe(false);
+    expect(
+      shouldReuseExistingBarcodeOnPurchaseSelect({
+        barcode_source: "generated",
+        barcode: "11884089",
       }),
     ).toBe(false);
   });

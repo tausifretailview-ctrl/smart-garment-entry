@@ -312,7 +312,12 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     ]);
 
     expect(results).toEqual([
-      { variantId: "sku-jeans", productId: "prod-jeans", forked: false },
+      {
+        variantId: "sku-jeans",
+        productId: "prod-jeans",
+        forked: false,
+        barcode: "450006800",
+      },
     ]);
     expect(insertMock).not.toHaveBeenCalled();
   });
@@ -354,6 +359,8 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     rpcMock.mockResolvedValue({ data: "450006801", error: null });
 
     fromMock.mockImplementation((table: string) => {
+      if (table === "purchase_items") return chainSelect([{ sku_id: "sku-jeans" }]);
+      if (table === "sale_items") return chainSelect([]);
       if (table === "product_variants") {
         return {
           select: () => ({
@@ -428,6 +435,7 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
       variantId: "sku-jeans-new",
       productId: "prod-jeans-new",
       forked: true,
+      barcode: "450006801",
     });
     expect(rpcMock).toHaveBeenCalledWith("generate_next_barcode", {
       p_organization_id: "org-chirag",
@@ -440,5 +448,61 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     expect(inserted.barcode).toBe("450006801");
     expect(inserted.barcode_source).toBe("generated");
     expect(inserted.barcode).not.toBe("450006800");
+  });
+
+  it("updates an unused generated SKU in place (CRIMSON PUNCH 420001739 sale 550 → 590)", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-739",
+        product_id: "prod-punch",
+        size: "None",
+        color: null,
+        barcode: "420001739",
+        barcode_source: "generated",
+        pur_price: 442.5,
+        sale_price: 550,
+        mrp: 0,
+      },
+    ];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "purchase_items" || table === "sale_items") return chainSelect([]);
+      if (table === "product_variants") return chainSelect(variants);
+      if (table === "products") {
+        return chainSelect([
+          {
+            id: "prod-punch",
+            product_name: "07 CRIMSON PUNCH",
+            brand: "SWISS BEAUTY",
+            category: "COSMETICS",
+            color: null,
+            style: "LIQ. LIPSTICK",
+            default_sale_price: 550,
+          },
+        ]);
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const results = await resolveVariantsForIncomingPriceTiers([
+      {
+        organizationId: "org-1",
+        variantId: "sku-739",
+        barcode: "420001739",
+        incomingPurPrice: 442.5,
+        incomingSalePrice: 590,
+      },
+    ]);
+
+    expect(results).toEqual([
+      {
+        variantId: "sku-739",
+        productId: "prod-punch",
+        forked: false,
+        barcode: "420001739",
+      },
+    ]);
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 });

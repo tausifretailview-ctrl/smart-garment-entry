@@ -134,7 +134,10 @@ import {
   syncLastPurchaseFromBillLines,
   syncVariantPriceFromPurchase,
 } from "@/utils/syncVariantPriceFromPurchase";
-import { resolveVariantForIncomingPriceTier } from "@/utils/purchaseVariantPriceTierFork";
+import {
+  resolveVariantForIncomingPriceTier,
+  shouldReuseExistingBarcodeOnPurchaseSelect,
+} from "@/utils/purchaseVariantPriceTierFork";
 import {
   buildBarcodeDuplicateWarnings,
   shouldFlagPurchaseBarcodeDuplicate,
@@ -908,6 +911,7 @@ const PurchaseEntry = () => {
           purchaseDate: format(billDate, "yyyy-MM-dd"),
         }).then((result) => {
           if (!result?.forked || result.variantId === item.sku_id) return;
+          const nextBarcode = (result.barcode || "").trim();
           setLineItems((prev) =>
             prev.map((row) =>
               row.temp_id === tempId
@@ -915,6 +919,7 @@ const PurchaseEntry = () => {
                     ...row,
                     sku_id: result.variantId,
                     product_id: result.productId,
+                    ...(nextBarcode ? { barcode: nextBarcode } : {}),
                   }
                 : row,
             ),
@@ -3767,8 +3772,11 @@ const PurchaseEntry = () => {
       let barcode = v.barcode || "";
       let skuId = v.id;
       
-      // Smart barcode handling — an external (manufacturer) barcode is never re-generated.
-      if (sameBarcodeSeriesEnabled || v.barcode_source === "external") {
+      // Universal / manufacturer barcode: keep the same code. Generated series: new SKU.
+      if (shouldReuseExistingBarcodeOnPurchaseSelect({
+        barcode_source: v.barcode_source,
+        barcode: v.barcode,
+      })) {
         // Same barcode series: reuse existing variant+barcode
         if (!barcode && isAutoBarcode) {
           barcode = await barcodeForExistingSku(skuId, barcode);
@@ -3979,7 +3987,10 @@ const PurchaseEntry = () => {
         const newMrp = row.newMrp;
         // Provenance decides the fork: our own generated barcode means a new sticker
         // per price change, but a manufacturer EAN/UPC stays on the same SKU.
-        const isExternalBarcode = row.barcodeSource === "external";
+        const isExternalBarcode = shouldReuseExistingBarcodeOnPurchaseSelect({
+          barcode_source: row.barcodeSource,
+          barcode: row.barcode,
+        });
 
         if (!requiresImei && !isExternalBarcode && !repurchasePricesUnchanged(row)) {
           const result = await createNewVariantWithBarcode({
@@ -4128,8 +4139,11 @@ const PurchaseEntry = () => {
           continue;
         }
       } else {
-        // Existing variant - smart barcode handling (external codes stay on their SKU)
-        if (sameBarcodeSeriesEnabled || variant.barcode_source === "external") {
+        // Existing variant — reuse barcode only for universal / manufacturer codes
+        if (shouldReuseExistingBarcodeOnPurchaseSelect({
+          barcode_source: variant.barcode_source,
+          barcode: variant.barcode,
+        })) {
           if (!barcode && isAutoBarcode) {
             barcode = await barcodeForExistingSku(skuId, barcode);
           }
@@ -4298,15 +4312,10 @@ const PurchaseEntry = () => {
   const addInlineRow = async (variant: ProductVariant) => {
     let skuId = variant.id;
     let barcode = variant.barcode;
-    const reuseSharedBarcode =
-      sameBarcodeSeriesEnabled ||
-      // Manufacturer EAN/UPC (barcode_source = 'external'): the code belongs to the
-      // brand, not to our series — keep the SKU so scanning it keeps working.
-      variant.barcode_source === "external" ||
-      !productRequiresImei(
-        { requires_imei: variant.requires_imei },
-        mobileERPSettings,
-      );
+    const reuseSharedBarcode = shouldReuseExistingBarcodeOnPurchaseSelect({
+      barcode_source: variant.barcode_source,
+      barcode: variant.barcode,
+    });
 
     // Smart barcode logic
     if (reuseSharedBarcode) {
@@ -5238,7 +5247,8 @@ const PurchaseEntry = () => {
       const tierRepoined = billLinesForSave.some(
         (row, index) =>
           row.sku_id !== lineItems[index]?.sku_id ||
-          row.product_id !== lineItems[index]?.product_id,
+          row.product_id !== lineItems[index]?.product_id ||
+          (row.barcode || "") !== (lineItems[index]?.barcode || ""),
       );
       if (tierRepoined) {
         setLineItems(billLinesForSave);

@@ -25,6 +25,7 @@ export type SyncVariantPriceResult = {
   variantId: string;
   productId: string;
   forked: boolean;
+  barcode?: string | null;
 } | null;
 
 function parsePurchaseDate(purchaseDate?: string | null): string {
@@ -100,6 +101,7 @@ export async function syncVariantPriceFromPurchase(
     variantId: resolved.variantId,
     productId: resolved.productId,
     forked: resolved.forked,
+    barcode: resolved.barcode,
   };
 }
 
@@ -271,10 +273,12 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
   tierParams.forEach((row, resultIndex) => {
     const forked = tierResults[resultIndex];
     if (!forked || forked.variantId === items[row.index].sku_id) return;
+    const nextBarcode = (forked.barcode || "").trim();
     resolved[row.index] = {
       ...items[row.index],
       sku_id: forked.variantId,
       product_id: forked.productId,
+      ...(nextBarcode ? { barcode: nextBarcode } : {}),
     };
   });
 
