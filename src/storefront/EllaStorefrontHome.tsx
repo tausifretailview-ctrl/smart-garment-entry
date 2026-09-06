@@ -4,7 +4,15 @@ import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } fr
 import { ellaCopy, ELLA_CATEGORY_CHIPS } from "./storefrontTheme";
 import { ellaNavChipsFromSections, groupProductsBySection, type PublicStorefrontSection } from "@/lib/websiteSections";
 import { ellaStockBadgeClass, isEllaProductPurchasable } from "./ellaStock";
-import { filterEllaProducts, type EllaStorefrontProduct } from "./ellaProduct";
+import {
+  filterEllaProducts,
+  filterEllaProductsBySize,
+  filterEllaProductsInStock,
+  sortEllaProducts,
+  type EllaSortKey,
+  type EllaStorefrontProduct,
+} from "./ellaProduct";
+import { uniqueEllaSizes } from "./ellaVariants";
 
 function CornerMarks() {
   return (
@@ -86,8 +94,17 @@ export function EllaStorefrontHome({
   );
   const [chip, setChip] = useState("all");
   const [search, setSearch] = useState("");
+  const [sizeFilter, setSizeFilter] = useState("all");
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [sort, setSort] = useState<EllaSortKey>("featured");
   const collectionRef = useRef<HTMLElement | null>(null);
-  const filtered = useMemo(() => filterEllaProducts(products, chip, search), [products, chip, search]);
+  const sizeOptions = useMemo(() => uniqueEllaSizes(products), [products]);
+  const filtered = useMemo(() => {
+    let rows = filterEllaProducts(products, chip, search);
+    rows = filterEllaProductsBySize(rows, sizeFilter);
+    if (inStockOnly) rows = filterEllaProductsInStock(rows);
+    return sortEllaProducts(rows, sort);
+  }, [products, chip, search, sizeFilter, inStockOnly, sort]);
   const grouped = useMemo(
     () => groupProductsBySection(filtered, sections),
     [filtered, sections],
@@ -123,6 +140,18 @@ export function EllaStorefrontHome({
           <div className="ella-display ella-card-name">{product.name}</div>
           <div className="ella-eyebrow">{product.sectionLabel || product.category}</div>
           {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
+          {product.sizes.length > 0 ? (
+            <div className="ella-size-chips ella-size-chips-card" aria-label="Sizes">
+              {product.sizes.map((size) => (
+                <span
+                  key={size.id}
+                  className={`ella-size-chip${size.purchasable ? "" : " ella-size-chip-sold"}`}
+                >
+                  {size.size}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="ella-card-enquire">
             {isEllaProductPurchasable(product.stock) ? "Add to cart" : "Enquire"}
           </div>
@@ -216,6 +245,34 @@ export function EllaStorefrontHome({
           <div className="ella-count">
             {filtered.length} {filtered.length === 1 ? "piece" : "pieces"}
           </div>
+        </div>
+
+        <div className="ella-toolbar" aria-label="Filter and sort">
+          {sizeOptions.length > 0 ? (
+            <label className="ella-toolbar-field">
+              <span>Size</span>
+              <select className="ella-select" value={sizeFilter} onChange={(e) => setSizeFilter(e.target.value)}>
+                <option value="all">All sizes</option>
+                {sizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label className="ella-toolbar-field">
+            <span>Sort</span>
+            <select className="ella-select" value={sort} onChange={(e) => setSort(e.target.value as EllaSortKey)}>
+              <option value="featured">Featured</option>
+              <option value="price-asc">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
+            </select>
+          </label>
+          <label className="ella-toolbar-check">
+            <input type="checkbox" checked={inStockOnly} onChange={(e) => setInStockOnly(e.target.checked)} />
+            In stock
+          </label>
         </div>
 
         {filtered.length === 0 ? (

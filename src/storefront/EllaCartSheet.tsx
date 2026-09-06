@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { validateEnquiryInput } from "@/lib/storefrontEnquiry";
 import { submitStorefrontEnquiry } from "./storefrontClient";
 import { EllaUpiPayBlock } from "./EllaUpiPayBlock";
 import { ellaCopy } from "./storefrontTheme";
 import {
   ellaCartCount,
-  ellaCartSummaryText,
+  ellaCartLineKey,
   ellaCartTotal,
   updateEllaCartQty,
   type EllaCartLine,
 } from "./ellaCart";
+import { formatEllaOrderMessage, validateEllaCheckout, type EllaPaymentMethod } from "./ellaOrder";
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import { useLockBodyScroll } from "./ellaLockBody";
 
-type Step = "cart" | "checkout" | "done";
+type Step = "cart" | "details" | "payment" | "done";
 
 export function EllaCartSheet({
   slug,
@@ -36,11 +36,16 @@ export function EllaCartSheet({
   const [step, setStep] = useState<Step>("cart");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<EllaPaymentMethod>("upi");
+  const [upiReference, setUpiReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const total = useMemo(() => ellaCartTotal(cart), [cart]);
   const totalLabel = formatStorefrontPrice(total);
+  const details = { customerName, customerPhone, address, pincode, paymentMethod, upiReference };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,37 +55,42 @@ export function EllaCartSheet({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const proceedCheckout = () => {
+  const proceedDetails = () => {
     if (cart.length === 0) return;
     if (total <= 0) {
       setError("Cart total is unavailable — please enquire instead.");
       return;
     }
     setError(null);
-    setStep("checkout");
+    setStep("details");
   };
 
-  const confirmOrder = async () => {
-    setError(null);
-    const message = [`Store order`, ellaCartSummaryText(cart), `Total: ${totalLabel}`].join(" · ");
-    const checked = validateEnquiryInput({
-      customerName,
-      customerPhone,
-      message,
-      productId: cart.length === 1 ? cart[0].productId : null,
-    });
+  const proceedPayment = () => {
+    const checked = validateEllaCheckout({ ...details, paymentMethod: "cod", upiReference: "" }, cart);
     if (checked.ok === false) {
       setError(checked.error);
       return;
     }
+    setError(null);
+    setStep("payment");
+  };
+
+  const placeOrder = async () => {
+    setError(null);
+    const checked = validateEllaCheckout(details, cart);
+    if (checked.ok === false) {
+      setError(checked.error);
+      return;
+    }
+    const message = formatEllaOrderMessage(cart, checked.value);
     setSubmitting(true);
     try {
       const result = await submitStorefrontEnquiry({
         slug,
         customerName: checked.value.customerName,
         customerPhone: checked.value.customerPhone,
-        message: checked.value.message,
-        productId: checked.value.productId,
+        message,
+        productId: cart.length === 1 ? cart[0].productId : null,
       });
       if (!result.ok) {
         setError(result.status === 429 ? "Too many requests. Please try again later." : result.error || "Could not send");
@@ -94,6 +104,9 @@ export function EllaCartSheet({
     }
   };
 
+  const title =
+    step === "details" ? "Your details" : step === "payment" ? "Pay via UPI" : step === "done" ? "Thank you" : "Your cart";
+
   return (
     <>
       <button type="button" className="ella-scrim" aria-label="Close cart" onClick={onClose} />
@@ -103,7 +116,7 @@ export function EllaCartSheet({
             <div>
               <div className="ella-eyebrow">Bag</div>
               <h2 id="ella-cart-title" className="ella-display ella-sheet-name">
-                {step === "checkout" ? "Pay via UPI" : step === "done" ? "Thank you" : "Your cart"}
+                {title}
               </h2>
             </div>
             <button type="button" className="ella-close" onClick={onClose} aria-label="Close">
@@ -118,7 +131,7 @@ export function EllaCartSheet({
               ) : (
                 <ul className="ella-cart-list">
                   {cart.map((line) => (
-                    <li key={line.productId} className="ella-cart-line">
+                    <li key={ellaCartLineKey(line)} className="ella-cart-line">
                       {line.image ? (
                         <img className="ella-cart-thumb" src={line.image} alt="" />
                       ) : (
@@ -126,14 +139,17 @@ export function EllaCartSheet({
                       )}
                       <div className="ella-cart-meta">
                         <div className="ella-display ella-cart-name">{line.name}</div>
-                        <div className="ella-eyebrow">{line.code}</div>
+                        <div className="ella-eyebrow">
+                          {line.code}
+                          {line.size ? ` · ${line.size}` : ""}
+                        </div>
                         {line.priceLabel ? <div className="ella-price">{line.priceLabel}</div> : null}
                         <div className="ella-qty-controls ella-qty-controls-inline">
                           <button
                             type="button"
                             className="ella-qty-btn"
                             aria-label="Decrease quantity"
-                            onClick={() => onCartChange(updateEllaCartQty(cart, line.productId, line.qty - 1))}
+                            onClick={() => onCartChange(updateEllaCartQty(cart, ellaCartLineKey(line), line.qty - 1))}
                           >
                             −
                           </button>
@@ -142,7 +158,8 @@ export function EllaCartSheet({
                             type="button"
                             className="ella-qty-btn"
                             aria-label="Increase quantity"
-                            onClick={() => onCartChange(updateEllaCartQty(cart, line.productId, line.qty + 1))}
+                            disabled={line.qty >= line.maxQty}
+                            onClick={() => onCartChange(updateEllaCartQty(cart, ellaCartLineKey(line), line.qty + 1))}
                           >
                             +
                           </button>
@@ -161,8 +178,8 @@ export function EllaCartSheet({
                   </div>
                   {error ? <p className="ella-error">{error}</p> : null}
                   <div className="ella-form-actions">
-                    <button type="button" className="ella-btn" onClick={proceedCheckout} disabled={total <= 0}>
-                      Proceed to payment
+                    <button type="button" className="ella-btn" onClick={proceedDetails} disabled={total <= 0}>
+                      Continue to details
                     </button>
                   </div>
                 </>
@@ -170,10 +187,60 @@ export function EllaCartSheet({
             </>
           ) : null}
 
-          {step === "checkout" ? (
+          {step === "details" ? (
+            <form
+              className="ella-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                proceedPayment();
+              }}
+            >
+              <label>
+                <span>Name</span>
+                <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required autoComplete="name" />
+              </label>
+              <label>
+                <span>Phone / WhatsApp</span>
+                <input
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  required
+                  inputMode="tel"
+                  autoComplete="tel"
+                />
+              </label>
+              <label>
+                <span>Address</span>
+                <textarea value={address} onChange={(e) => setAddress(e.target.value)} required rows={3} autoComplete="street-address" />
+              </label>
+              <label>
+                <span>Pincode</span>
+                <input
+                  value={pincode}
+                  onChange={(e) => setPincode(e.target.value)}
+                  required
+                  inputMode="numeric"
+                  autoComplete="postal-code"
+                />
+              </label>
+              {error ? <p className="ella-error">{error}</p> : null}
+              <div className="ella-form-actions">
+                <button type="submit" className="ella-btn">
+                  Continue to payment
+                </button>
+                <button type="button" className="ella-btn ella-btn-outline" onClick={() => setStep("cart")}>
+                  Back to bag
+                </button>
+              </div>
+            </form>
+          ) : null}
+
+          {step === "payment" ? (
             <>
               <div className="ella-cart-total">
-                <span>{ellaCartCount(cart)} {ellaCartCount(cart) === 1 ? "piece" : "pieces"}</span>
+                <span>
+                  {ellaCartCount(cart)} {ellaCartCount(cart) === 1 ? "piece" : "pieces"}
+                </span>
                 <span className="ella-price">{totalLabel}</span>
               </div>
 
@@ -181,38 +248,50 @@ export function EllaCartSheet({
                 className="ella-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  void confirmOrder();
+                  void placeOrder();
                 }}
               >
                 <label>
-                  <span>Name</span>
-                  <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required autoComplete="name" />
+                  <span>Payment</span>
+                  <select
+                    className="ella-select"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as EllaPaymentMethod)}
+                  >
+                    <option value="upi">UPI</option>
+                    <option value="cod">Cash on delivery</option>
+                    <option value="advance">Advance / partial</option>
+                  </select>
                 </label>
-                <label>
-                  <span>Phone / WhatsApp</span>
-                  <input
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    required
-                    inputMode="tel"
-                    autoComplete="tel"
-                  />
-                </label>
-                {error ? <p className="ella-error">{error}</p> : null}
 
-                <EllaUpiPayBlock
-                  upiId={upiId}
-                  upiBusinessName={upiBusinessName || shopName}
-                  amount={total}
-                  note="Ella store order"
-                />
+                {paymentMethod === "upi" ? (
+                  <>
+                    <EllaUpiPayBlock
+                      upiId={upiId}
+                      upiBusinessName={upiBusinessName || shopName}
+                      amount={total}
+                      note="Ella store order"
+                    />
+                    <label>
+                      <span>UPI reference</span>
+                      <input
+                        value={upiReference}
+                        onChange={(e) => setUpiReference(e.target.value)}
+                        required
+                        placeholder="UTR / reference after paying"
+                      />
+                    </label>
+                  </>
+                ) : null}
+
+                {error ? <p className="ella-error">{error}</p> : null}
 
                 <div className="ella-form-actions">
                   <button type="submit" className="ella-btn" disabled={submitting}>
-                    {submitting ? "Sending" : "I have paid — confirm order"}
+                    {submitting ? "Sending" : paymentMethod === "upi" ? "I have paid — confirm order" : "Place order"}
                   </button>
-                  <button type="button" className="ella-btn ella-btn-outline" onClick={() => setStep("cart")}>
-                    Back to cart
+                  <button type="button" className="ella-btn ella-btn-outline" onClick={() => setStep("details")}>
+                    Back to details
                   </button>
                 </div>
               </form>
@@ -222,7 +301,7 @@ export function EllaCartSheet({
 
           {step === "done" ? (
             <div className="ella-success" role="status">
-              Thank you. Your order is noted — the studio will confirm once UPI payment is verified.
+              Thank you. Your order is noted — the studio will confirm once payment is verified.
               <div className="ella-form-actions" style={{ marginTop: 16 }}>
                 <button
                   type="button"
