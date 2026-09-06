@@ -139,6 +139,11 @@ import {
   shouldReuseExistingBarcodeOnPurchaseSelect,
 } from "@/utils/purchaseVariantPriceTierFork";
 import {
+  findReusableUnusedGeneratedSku,
+  recycleOrphanGeneratedSkusOnProduct,
+  recycleUnusedGeneratedSku,
+} from "@/utils/recycleUnusedGeneratedBarcode";
+import {
   buildBarcodeDuplicateWarnings,
   shouldFlagPurchaseBarcodeDuplicate,
   type BarcodeDuplicateMatch,
@@ -1969,8 +1974,11 @@ const PurchaseEntry = () => {
     product_id: string; size: string; color?: string;
     pur_price?: number; sale_price?: number; mrp?: number;
     barcode?: string;
-  }): Promise<{ id: string; barcode: string } | null> => {
+  }): Promise<{ id: string; barcode: string; reused?: boolean } | null> => {
     try {
+      const excludeSkuIds = lineItemsRef.current
+        .map((row) => row.sku_id)
+        .filter((id): id is string => Boolean(id));
       const reusedBarcode = source.barcode?.trim() || "";
       if (reusedBarcode) {
         const { data: newVariant, error } = await supabase
@@ -1993,6 +2001,28 @@ const PurchaseEntry = () => {
         if (error) throw error;
         return { id: newVariant.id, barcode: reusedBarcode };
       }
+
+      const reusable = await findReusableUnusedGeneratedSku({
+        organizationId: currentOrganization!.id,
+        productId: source.product_id,
+        size: source.size,
+        color: source.color,
+        excludeSkuIds,
+      });
+      if (reusable) {
+        await recycleOrphanGeneratedSkusOnProduct({
+          organizationId: currentOrganization!.id,
+          productId: source.product_id,
+          excludeSkuIds: [...excludeSkuIds, reusable.id],
+        });
+        return { ...reusable, reused: true };
+      }
+
+      await recycleOrphanGeneratedSkusOnProduct({
+        organizationId: currentOrganization!.id,
+        productId: source.product_id,
+        excludeSkuIds,
+      });
 
       const generated = await generateCentralizedBarcode();
       const { data: newVariant, barcode: newBarcode } = await insertGeneratedProductVariant<{
@@ -2036,8 +2066,10 @@ const PurchaseEntry = () => {
     const result = await createNewVariantWithBarcode(source);
     if (result) {
       toast({
-        title: "New barcode assigned",
-        description: `${result.barcode} — old product barcode/prices unchanged. Edit pur/sale on this line.`,
+        title: result.reused ? "Unused barcode reused" : "New barcode assigned",
+        description: result.reused
+          ? `${result.barcode} — leftover unused SKU, no new series number.`
+          : `${result.barcode} — old product barcode/prices unchanged. Edit pur/sale on this line.`,
         duration: 3500,
       });
     }
@@ -4733,6 +4765,17 @@ const PurchaseEntry = () => {
     const removed = lineItems.find((item) => item.temp_id === temp_id);
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
 
+    if (removed?.sku_id && currentOrganization?.id) {
+      const remainingSkuIds = lineItems
+        .filter((item) => item.temp_id !== temp_id && item.sku_id)
+        .map((item) => item.sku_id as string);
+      void recycleUnusedGeneratedSku({
+        organizationId: currentOrganization.id,
+        skuId: removed.sku_id,
+        excludeSkuIds: remainingSkuIds,
+      });
+    }
+
     // Tag the underlying product as "user cancelled" so it's easy to spot
     // on the Product Dashboard (added but never billed). Only when the
     // product currently has 0 stock and no purchase history.
@@ -7335,7 +7378,7 @@ const PurchaseEntry = () => {
                           placeholder="Price"
                         />
                         <p className="text-xs font-semibold text-foreground mt-1 tabular-nums">= ₹{Math.round((item.pur_price || 0) * getMtrMultiplier(item)).toLocaleString("en-IN")}</p>
-                        <button onClick={() => setLineItems(lineItems.filter((_, i) => i !== realIdx))} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
+                        <button onClick={() => void removeLineItem(item.temp_id)} className="text-[10px] text-destructive font-medium mt-1">Remove</button>
                       </div>
                     </div>
                   );
