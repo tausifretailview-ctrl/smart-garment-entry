@@ -40,6 +40,7 @@ import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { CompactOrgSwitcher } from "@/components/CompactOrgSwitcher";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
