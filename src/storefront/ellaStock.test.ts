@@ -4,6 +4,7 @@ import { classifyEllaStock, isEllaProductPurchasable, ellaMaxPurchaseQty } from 
 import {
   addToEllaCart,
   ellaCartCount,
+  ellaCartLineKey,
   ellaCartTotal,
   updateEllaCartQty,
 } from "./ellaCart";
@@ -164,12 +165,14 @@ describe("filter + WhatsApp", () => {
 describe("ellaCart", () => {
   it("adds lines and computes total", () => {
     const product = toEllaStorefrontProduct(sample());
-    const cart = addToEllaCart([], product, 1);
+    const size = product.defaultSize;
+    const cart = addToEllaCart([], product, size, 1);
     expect(ellaCartCount(cart)).toBe(1);
     expect(ellaCartTotal(cart)).toBe(185000);
-    const merged = addToEllaCart(cart, product, 2);
+    const merged = addToEllaCart(cart, product, size, 2);
     expect(ellaCartCount(merged)).toBe(3);
-    expect(updateEllaCartQty(merged, product.productId, 0)).toHaveLength(0);
+    const key = ellaCartLineKey(product.productId, size?.label ?? null);
+    expect(updateEllaCartQty(merged, key, 0)).toHaveLength(0);
   });
 });
 
