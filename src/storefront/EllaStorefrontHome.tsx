@@ -159,7 +159,6 @@ export function EllaStorefrontHome({
   shopName,
   orgSlug,
   whatsapp,
-  logoUrl,
   address,
   instagramUrl,
   facebookUrl,
@@ -321,6 +320,8 @@ export function EllaStorefrontHome({
   const renderProductCard = (product: EllaStorefrontProduct, index: number, variant: "home" | "collection") => {
     const wished = wishlist.includes(product.id);
     const badge = cardBadge(product);
+    const titleIsCode = product.name.trim().toUpperCase() === product.code.trim().toUpperCase();
+    const homeMeta = titleIsCode ? product.fabric : `${product.code} · ${product.fabric}`;
     return (
       <li key={product.id}>
         <div className={`ella-card${variant === "collection" ? " ella-card-collection" : ""}`}>
@@ -356,9 +357,7 @@ export function EllaStorefrontHome({
                   <HeartIcon filled={wished} />
                 </button>
               </div>
-              <div className="ella-eyebrow ella-card-code">
-                {product.code} · {product.fabric}
-              </div>
+              <div className="ella-eyebrow ella-card-code">{homeMeta}</div>
               <div className="ella-card-foot">
                 {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
                 {product.sizes.length > 0 ? (
@@ -380,7 +379,7 @@ export function EllaStorefrontHome({
               <button type="button" className="ella-display ella-card-name" onClick={() => onOpenProduct(product)}>
                 {product.name}
               </button>
-              <div className="ella-eyebrow ella-card-code">{product.code}</div>
+              {titleIsCode ? null : <div className="ella-eyebrow ella-card-code">{product.code}</div>}
               {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
             </div>
           )}
@@ -409,7 +408,6 @@ export function EllaStorefrontHome({
               goHome();
             }}
           >
-            {logoUrl ? <img src={logoUrl} alt="" className="ella-site-logo" /> : null}
             <span className="ella-brand-stack">
               <span className="ella-display ella-site-wordmark">{ellaCopy.wordmark}</span>
               <span className="ella-site-tagline">{ellaCopy.designer}</span>
