@@ -12,9 +12,10 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { Building2, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff, CheckCircle2, XCircle, Save } from "lucide-react";
+import { Building2, Clock, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff, CheckCircle2, XCircle, Save } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchOrganizationLoginHistory, formatOrgLoginAt } from "@/utils/orgLoginAudit";
 
 const AVAILABLE_FEATURES = [
   { id: "advanced_reports", name: "Advanced Reports", tier: "professional" },
@@ -115,6 +116,15 @@ export default function OrganizationManagement() {
       }
       
       return memberData;
+    },
+    enabled: !!currentOrganization,
+  });
+
+  const { data: loginHistory, isLoading: loginHistoryLoading } = useQuery({
+    queryKey: ["org-login-history", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization) return [];
+      return fetchOrganizationLoginHistory(supabase, currentOrganization.id);
     },
     enabled: !!currentOrganization,
   });
@@ -368,6 +378,7 @@ export default function OrganizationManagement() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="features">Features</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
@@ -725,6 +736,37 @@ export default function OrganizationManagement() {
                     </div>
                   ))}
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="activity" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Recent Logins
+              </CardTitle>
+              <CardDescription>Who signed in, and when — most recent first</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loginHistoryLoading ? (
+                <ListTableSkeleton rows={5} columns={2} />
+              ) : (
+                <>
+                  {loginHistory?.map((entry) => (
+                    <div key={`${entry.user_email}-${entry.logged_in_at}`} className="flex items-center justify-between py-3 border-b last:border-0">
+                      <span className="text-sm">{entry.user_email}</span>
+                      <span className="text-sm text-muted-foreground">
+                        {formatOrgLoginAt(entry.logged_in_at)}
+                      </span>
+                    </div>
+                  ))}
+                  {(!loginHistory || loginHistory.length === 0) && (
+                    <p className="text-sm text-muted-foreground py-4">No login activity recorded yet.</p>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

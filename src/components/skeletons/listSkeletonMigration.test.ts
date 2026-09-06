@@ -69,6 +69,7 @@ describe("LIST skeleton migration — stale-data / isLoading-only rule", () => {
       "isLoading",
       "loading",
       "membersLoading",
+      "loginHistoryLoading",
       "rulesLoading",
       "commissionsLoading",
       "studentsLoading",
