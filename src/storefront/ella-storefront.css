@@ -173,7 +173,7 @@ body.ella-root {
   display: inline-flex;
   flex: 0 0 auto;
   gap: 10px;
-  min-width: 0;
+  overflow: visible;
 }
 
 .ella-brand-stack {
@@ -181,7 +181,8 @@ body.ella-root {
   flex-direction: column;
   flex-shrink: 0;
   gap: 2px;
-  min-width: 0;
+  min-width: 12.5rem;
+  overflow: visible;
 }
 
 .ella-site-logo {
