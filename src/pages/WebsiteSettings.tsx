@@ -55,6 +55,8 @@ import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel"
 import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { activeWebsiteSections, isNewArrivalSlug } from "@/lib/websiteSections";
+import { isMissingWebsiteSectionsSchema, sectionIdForProduct } from "@/lib/websiteSectionStore";
+import { saveProductSectionAssignment } from "@/lib/websiteSectionIo";
 import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
 
@@ -205,7 +207,10 @@ export default function WebsiteSettingsPage() {
                 orgId={orgId}
                 listings={listings}
                 loading={listingsQuery.isLoading}
-                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
+                onChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ["website_products", orgId] });
+                  queryClient.invalidateQueries({ queryKey: ["website_sections", orgId] });
+                }}
               />
             ) : null}
           </TabsContent>
@@ -215,7 +220,10 @@ export default function WebsiteSettingsPage() {
               <AddProducts
                 orgId={orgId}
                 listings={listings}
-                onChanged={() => queryClient.invalidateQueries({ queryKey: ["website_products", orgId] })}
+                onChanged={() => {
+                  queryClient.invalidateQueries({ queryKey: ["website_products", orgId] });
+                  queryClient.invalidateQueries({ queryKey: ["website_sections", orgId] });
+                }}
               />
             ) : null}
           </TabsContent>
@@ -490,7 +498,8 @@ function AddProducts({
   const [publishSectionId, setPublishSectionId] = useState("");
   const publishedIds = useMemo(() => new Set(listings.map((l) => l.product_id)), [listings]);
   const sectionsQuery = useWebsiteSections(orgId);
-  const sections = activeWebsiteSections(coerceToArray(sectionsQuery.data));
+  const sections = activeWebsiteSections(sectionsQuery.data?.sections ?? []);
+  const sectionStorage = sectionsQuery.data?.storage ?? "settings";
 
   useEffect(() => {
     if (!publishSectionId && sections.length > 0) {
@@ -562,11 +571,33 @@ function AddProducts({
           display_price,
           display_order: maxOrder + i + 1,
           is_active: true,
-          ...(section_id ? { section_id } : {}),
+          ...(sectionStorage === "table" && section_id ? { section_id } : {}),
+          assignedSectionId: section_id,
         };
       });
-      const { error } = await websiteFrom("website_products").insert(rowsToInsert);
-      if (error) throw error;
+      const rowsForInsert = rowsToInsert.map((row) => {
+        const { assignedSectionId: _assigned, ...rest } = row;
+        void _assigned;
+        return rest;
+      });
+      const { error } = await websiteFrom("website_products").insert(rowsForInsert);
+      if (error) {
+        if (isMissingWebsiteSectionsSchema(error.message)) {
+          const retry = rowsForInsert.map((row) => {
+            const { section_id: _sid, ...rest } = row as typeof row & { section_id?: string };
+            void _sid;
+            return rest;
+          });
+          const retried = await websiteFrom("website_products").insert(retry);
+          if (retried.error) throw retried.error;
+        } else {
+          throw error;
+        }
+      }
+      for (const row of rowsToInsert) {
+        const section = sections.find((s) => s.id === row.assignedSectionId);
+        if (section) await saveProductSectionAssignment(orgId, row.product_id, section.slug);
+      }
     },
     onSuccess: () => {
       toast.success("Products added to the store");
@@ -733,7 +764,8 @@ function PublishedCatalogue({
 }) {
   const productIds = listings.map((l) => l.product_id);
   const sectionsQuery = useWebsiteSections(orgId);
-  const sections = activeWebsiteSections(coerceToArray(sectionsQuery.data));
+  const sections = activeWebsiteSections(sectionsQuery.data?.sections ?? []);
+  const productSections = sectionsQuery.data?.productSections ?? {};
   const productsQuery = useQuery({
     queryKey: ["website_published_products", orgId, productIds.join(",")],
     enabled: !!orgId && productIds.length > 0,
@@ -878,6 +910,7 @@ function PublishedCatalogue({
                       salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
                       orgId={orgId!}
                       sections={sections}
+                      productSections={productSections}
                       onChanged={onChanged}
                     />
                   );
@@ -901,6 +934,7 @@ function SortableListingRow({
   salePrice,
   orgId,
   sections,
+  productSections,
   onChanged,
 }: {
   listing: WebsiteProduct;
@@ -912,6 +946,7 @@ function SortableListingRow({
   salePrice: number | null;
   orgId: string;
   sections: ReturnType<typeof activeWebsiteSections>;
+  productSections: Record<string, string>;
   onChanged: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: listing.id });
@@ -936,15 +971,25 @@ function SortableListingRow({
   };
 
   const saveSection = async (section_id: string) => {
+    const section = sections.find((s) => s.id === section_id);
     const { error } = await websiteFrom("website_products")
       .update({ section_id: section_id || null })
       .eq("id", listing.id)
       .eq("organization_id", orgId);
-    if (error) toast.error(error.message);
-    else {
-      toast.success("Section saved");
-      onChanged();
+    if (error && !isMissingWebsiteSectionsSchema(error.message)) {
+      toast.error(error.message);
+      return;
     }
+    if (section) {
+      try {
+        await saveProductSectionAssignment(orgId, listing.product_id, section.slug);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not save section");
+        return;
+      }
+    }
+    toast.success("Section saved");
+    onChanged();
   };
 
   const toggleActive = async (is_active: boolean) => {
@@ -1022,7 +1067,7 @@ function SortableListingRow({
         {sections.length > 0 ? (
           <WebsiteSectionSelect
             sections={sections}
-            value={listing.section_id || ""}
+            value={sectionIdForProduct(listing.product_id, listing.section_id, sections, productSections)}
             onChange={(id) => void saveSection(id)}
           />
         ) : (

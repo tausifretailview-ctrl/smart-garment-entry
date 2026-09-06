@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
+import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 
 const storefrontClient = createClient(
@@ -30,7 +31,7 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
     payload.shop = enrichPublicStorefrontShop(payload.shop, orgInfo);
   }
 
-  return payload;
+  return attachSectionsToPublicPayload(payload, orgInfo?.settings);
 }
 
 export async function submitStorefrontEnquiry(payload: {

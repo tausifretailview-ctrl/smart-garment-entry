@@ -16,8 +16,12 @@ import {
   InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
-import { coerceToArray } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
+import {
+  isMissingWebsiteSectionsSchema,
+  buildSettingsSection,
+} from "@/lib/websiteSectionStore";
+import { saveWebsiteSections } from "@/lib/websiteSectionIo";
 import {
   isNewArrivalSlug,
   slugifySectionLabel,
@@ -29,9 +33,16 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
   const queryClient = useQueryClient();
   const [newLabel, setNewLabel] = useState("");
   const sectionsQuery = useWebsiteSections(orgId);
-  const sections = coerceToArray<WebsiteSection>(sectionsQuery.data);
+  const sections = sectionsQuery.data?.sections ?? [];
+  const storage = sectionsQuery.data?.storage ?? "settings";
+  const productSections = sectionsQuery.data?.productSections ?? {};
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["website_sections", orgId] });
+
+  const persistSettings = async (next: WebsiteSection[]) => {
+    if (!orgId) throw new Error("No organization");
+    await saveWebsiteSections(orgId, "settings", next, productSections);
+  };
 
   const addSection = useMutation({
     mutationFn: async () => {
@@ -41,14 +52,26 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
       const slug = slugifySectionLabel(label);
       if (sections.some((s) => s.slug === slug)) throw new Error("That section already exists");
       const maxOrder = sections.reduce((m, row) => Math.max(m, row.display_order || 0), 0);
-      const { error } = await websiteFrom("website_sections").insert({
+      const row = {
         organization_id: orgId,
         slug,
         label,
         display_order: maxOrder + 1,
         is_active: true,
-      });
-      if (error) throw error;
+      };
+      if (storage === "table") {
+        const { error } = await websiteFrom("website_sections").insert(row);
+        if (error) {
+          if (!isMissingWebsiteSectionsSchema(error.message)) throw error;
+          await persistSettings([
+            ...sections,
+            buildSettingsSection(orgId, { ...row, label, slug }),
+          ]);
+          return;
+        }
+        return;
+      }
+      await persistSettings([...sections, buildSettingsSection(orgId, { ...row, label, slug })]);
     },
     onSuccess: () => {
       toast.success("Section added");
@@ -61,12 +84,21 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
   const updateSection = useMutation({
     mutationFn: async (patch: Partial<WebsiteSection> & { id: string }) => {
       if (!orgId) throw new Error("No organization");
-      const { id, ...values } = patch;
-      const { error } = await websiteFrom("website_sections")
-        .update(values)
-        .eq("id", id)
-        .eq("organization_id", orgId);
-      if (error) throw error;
+      if (storage === "table") {
+        const { id, ...values } = patch;
+        const { error } = await websiteFrom("website_sections")
+          .update(values)
+          .eq("id", id)
+          .eq("organization_id", orgId);
+        if (error) {
+          if (!isMissingWebsiteSectionsSchema(error.message)) throw error;
+        } else {
+          return;
+        }
+      }
+      await persistSettings(
+        sections.map((s) => (s.id === patch.id ? { ...s, ...patch } : s)),
+      );
     },
     onSuccess: invalidate,
     onError: (err: Error) => toast.error(err.message || "Could not update section"),
@@ -76,11 +108,27 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
     mutationFn: async (section: WebsiteSection) => {
       if (!orgId) throw new Error("No organization");
       if (isNewArrivalSlug(section.slug)) throw new Error("New Arrival cannot be deleted");
-      const { error } = await websiteFrom("website_sections")
-        .delete()
-        .eq("id", section.id)
-        .eq("organization_id", orgId);
-      if (error) throw error;
+      if (storage === "table") {
+        const { error } = await websiteFrom("website_sections")
+          .delete()
+          .eq("id", section.id)
+          .eq("organization_id", orgId);
+        if (error) {
+          if (!isMissingWebsiteSectionsSchema(error.message)) throw error;
+        } else {
+          return;
+        }
+      }
+      const nextMap = { ...productSections };
+      for (const [productId, slug] of Object.entries(nextMap)) {
+        if (slug === section.slug) delete nextMap[productId];
+      }
+      await saveWebsiteSections(
+        orgId,
+        "settings",
+        sections.filter((s) => s.id !== section.id),
+        nextMap,
+      );
     },
     onSuccess: () => {
       toast.success("Section removed");
@@ -125,9 +173,15 @@ export function WebsiteSectionsPanel({ orgId }: { orgId?: string }) {
       >
         {sectionsQuery.isLoading ? (
           <p className="p-4 text-sm text-muted-foreground">Loading sections…</p>
+        ) : sectionsQuery.isError ? (
+          <p className="p-4 text-sm text-destructive">
+            {sectionsQuery.error instanceof Error
+              ? sectionsQuery.error.message
+              : "Could not load sections"}
+          </p>
         ) : sections.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
-            No sections yet. Apply the storefront sections migration, then refresh this tab.
+            No sections yet. Add New Arrival or a custom collection such as Eid Collection.
           </p>
         ) : (
           <Table className="w-full min-w-max">
