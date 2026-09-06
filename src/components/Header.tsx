@@ -39,12 +39,12 @@ import {
 import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
-import { prefetchTabPage } from "@/lib/tabPageRegistry";
+import { CompactOrgSwitcher } from "@/components/CompactOrgSwitcher";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
   const { open: sidebarOpen, openMobile, useSheetSidebar } = useSidebar();
-  const { currentOrganization, organizationRole } = useOrganization();
+  const { currentOrganization, organizationRole, organizations } = useOrganization();
   const navigate = useNavigate();
   const location = useLocation();
   const { orgNavigate, getOrgPath, orgSlug } = useOrgNavigation();
@@ -342,16 +342,20 @@ export const Header = () => {
 
         <div className="flex-1 min-w-2" />
 
-        <span className="erp-titlebar-meta hidden md:inline truncate max-w-[240px]">
-          {currentOrganization?.name ? (
-            <>
-              <span className="font-semibold text-white">{currentOrganization.name}</span>
-              <span className="text-[var(--erp-chrome-ink-dim)]"> · {fyLabel}</span>
-            </>
-          ) : (
-            fyLabel
-          )}
-        </span>
+        {organizations.length > 1 ? (
+          <CompactOrgSwitcher fyLabel={fyLabel} />
+        ) : (
+          <span className="erp-titlebar-meta hidden md:inline truncate max-w-[240px]">
+            {currentOrganization?.name ? (
+              <>
+                <span className="font-semibold text-white">{currentOrganization.name}</span>
+                <span className="text-[var(--erp-chrome-ink-dim)]"> · {fyLabel}</span>
+              </>
+            ) : (
+              fyLabel
+            )}
+          </span>
+        )}
 
         <div className="erp-no-drag flex items-center gap-0.5">
           {canOfferInstall && (
