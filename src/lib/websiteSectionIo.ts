@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { websiteFrom } from "@/lib/websiteDb";
 import { coerceToArray } from "@/lib/coerceToMap";
 import {
@@ -40,7 +41,10 @@ async function readOrgSettings(orgId: string): Promise<Record<string, unknown> |
 }
 
 async function tryWriteOrgSettings(orgId: string, settings: Record<string, unknown>): Promise<void> {
-  const { error } = await supabase.from("organizations").update({ settings }).eq("id", orgId);
+  const { error } = await supabase
+    .from("organizations")
+    .update({ settings: settings as Json })
+    .eq("id", orgId);
   if (error && !/permission|policy|42501|not authorized|row-level/i.test(error.message)) {
     throw error;
   }
