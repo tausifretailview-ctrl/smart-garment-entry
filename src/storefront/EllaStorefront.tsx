@@ -106,6 +106,12 @@ export function EllaStorefront({
           setGeneralOpen(true);
         }}
         onOpenCart={openCart}
+        onNavigate={() => {
+          setSelected(null);
+          setGeneralOpen(false);
+          setCartOpen(false);
+          window.history.replaceState({}, "", storefrontHomePath(orgSlug));
+        }}
       />
 
       {selected && isEllaProductPurchasable(selected.stock) ? (

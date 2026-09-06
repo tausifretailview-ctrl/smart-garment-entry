@@ -23,9 +23,19 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(css).toMatch(/\.ella-collection-layout/);
     expect(css).toMatch(/\.ella-filter-rail/);
 
+    expect(css).toMatch(/--ella-chrome-h:\s*118px/);
+    expect(css).toMatch(/\.ella-chrome\s*\{[^}]*position:\s*fixed/);
+    expect(css).toMatch(/\.ella-sheet-product\s*\{[\s\S]*?top:\s*var\(--ella-chrome-h\)/);
+    expect(css).toMatch(/\.ella-pdp-gallery-multi/);
+    expect(css).toMatch(/\.ella-site-header\s*\{[^}]*position:\s*relative/);
+    expect(css).not.toMatch(/\.ella-site-header\s*\{[^}]*position:\s*sticky/);
+
+    expect(home).toMatch(/ella-chrome/);
     expect(home).toMatch(/ella-site-header/);
     expect(home).toMatch(/ella-site-nav/);
+    expect(home).toMatch(/ella-nav-sale/);
     expect(home).toMatch(/ella-site-footer/);
+    expect(root).toMatch(/onNavigate/);
     expect(home).toMatch(/Search by style code, colour or fabric/);
     expect(home).toMatch(/New arrivals/);
     expect(home).toMatch(/View all/);

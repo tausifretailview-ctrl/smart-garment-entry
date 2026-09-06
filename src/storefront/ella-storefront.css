@@ -31,6 +31,7 @@ body.ella-root {
   --ella-max: none;
   --ella-page: 1360px;
   --ella-gutter: 20px;
+  --ella-chrome-h: 118px;
   background: #ffffff;
   color: var(--ella-paper);
   font-family: Barlow, system-ui, sans-serif;
@@ -144,15 +145,31 @@ body.ella-root {
   color: var(--ella-gold-line);
 }
 
+/* --- persistent chrome (announce + menu) --------------------------------- */
+
+.ella-chrome {
+  background: #ffffff;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 100%;
+  z-index: 25;
+}
+
+.ella-chrome-spacer {
+  flex: none;
+  height: var(--ella-chrome-h);
+  width: 100%;
+}
+
 /* --- header -------------------------------------------------------------- */
 
 .ella-site-header {
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--ella-gold-line);
-  position: sticky;
-  top: 0;
-  z-index: 25;
+  position: relative;
   width: 100%;
 }
 
@@ -841,7 +858,7 @@ body.ella-root {
 .ella-filter-rail {
   border: 1px solid var(--ella-hairline);
   position: sticky;
-  top: 120px;
+  top: var(--ella-chrome-h);
 }
 
 .ella-filter-rail-head {
@@ -1514,8 +1531,11 @@ body.ella-root {
 
 .ella-scrim {
   background: rgba(18, 16, 14, 0.5);
-  inset: 0;
+  bottom: 0;
+  left: 0;
   position: fixed;
+  right: 0;
+  top: var(--ella-chrome-h);
   z-index: 40;
 }
 
@@ -1538,7 +1558,7 @@ body.ella-root {
 
 .ella-sheet-tall,
 .ella-sheet-product {
-  max-height: 92%;
+  max-height: calc(100dvh - var(--ella-chrome-h));
 }
 
 .ella-sheet-scroll {
@@ -1613,6 +1633,7 @@ body.ella-root {
 }
 
 .ella-sheet-img img {
+  display: block;
   height: 100%;
   object-fit: cover;
   width: 100%;
@@ -2579,10 +2600,10 @@ body.ella-root {
 
   .ella-sheet-product {
     border: none;
-    height: 100vh;
-    max-height: 100vh;
+    height: calc(100vh - var(--ella-chrome-h));
+    max-height: calc(100vh - var(--ella-chrome-h));
     max-width: none;
-    top: 0;
+    top: var(--ella-chrome-h);
     transform: none;
     width: 100%;
   }
@@ -2615,6 +2636,10 @@ body.ella-root {
   .ella-pdp-gallery {
     display: grid;
     gap: 12px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ella-pdp-gallery-multi {
     grid-template-columns: 72px minmax(0, 1fr);
   }
 
