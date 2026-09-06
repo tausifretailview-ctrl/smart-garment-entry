@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { storefrontHomePath } from "@/lib/storefrontPath";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import { isNewArrivalSlug, type PublicStorefrontSection } from "@/lib/websiteSections";
@@ -168,6 +168,7 @@ export function EllaStorefrontHome({
   onOpenProduct,
   onOpenGeneralEnquire,
   onOpenCart,
+  onNavigate,
 }: {
   shopName: string;
   orgSlug: string;
@@ -182,6 +183,7 @@ export function EllaStorefrontHome({
   onOpenProduct: (product: EllaStorefrontProduct) => void;
   onOpenGeneralEnquire: () => void;
   onOpenCart?: () => void;
+  onNavigate?: () => void;
 }) {
   const [view, setView] = useState<SiteView>("home");
   const [filters, setFilters] = useState<EllaFilterState>(ELLA_DEFAULT_FILTERS);
@@ -193,6 +195,23 @@ export function EllaStorefrontHome({
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const collectionRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const chromeRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const chrome = chromeRef.current;
+    const store = chrome?.closest(".ella-store") as HTMLElement | null;
+    if (!chrome || !store) return;
+    const apply = () => {
+      store.style.setProperty("--ella-chrome-h", `${chrome.offsetHeight}px`);
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(chrome);
+    return () => {
+      observer.disconnect();
+      store.style.removeProperty("--ella-chrome-h");
+    };
+  }, []);
 
   const sizeFacets = useMemo(() => catalogueSizeFacets(products), [products]);
   const priceCeiling = useMemo(() => ellaPriceCeiling(products), [products]);
@@ -279,6 +298,7 @@ export function EllaStorefrontHome({
   const patch = (next: Partial<EllaFilterState>) => setFilters((prev) => ({ ...prev, ...next }));
 
   const goHome = () => {
+    onNavigate?.();
     setView("home");
     setLuxuryNav("");
     setAvailability("all");
@@ -287,6 +307,7 @@ export function EllaStorefrontHome({
   };
 
   const goCollection = (item: (typeof LUXURY_NAV)[number], extras: Partial<EllaFilterState> = {}) => {
+    onNavigate?.();
     setLuxuryNav(item.id);
     setView("collection");
     setAvailability(item.id === "mto" ? "made-to-order" : item.id === "ready" ? "in-stock" : "all");
@@ -298,6 +319,9 @@ export function EllaStorefrontHome({
     });
     window.setTimeout(() => collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
+
+  const primaryNav = LUXURY_NAV.filter((item) => item.id !== "sale");
+  const saleNav = LUXURY_NAV.find((item) => item.id === "sale");
 
   const selectLuxury = (item: (typeof LUXURY_NAV)[number]) => goCollection(item);
 
@@ -390,6 +414,7 @@ export function EllaStorefrontHome({
 
   return (
     <>
+      <div className="ella-chrome" ref={chromeRef}>
       <div className="ella-announce">
         <span>Free shipping on prepaid orders across India</span>
         <span aria-hidden>·</span>
@@ -416,7 +441,7 @@ export function EllaStorefrontHome({
 
           <nav className="ella-site-nav" aria-label="Collections">
             <div className="ella-nav-primary">
-              {LUXURY_NAV.map((item) => (
+              {primaryNav.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -427,6 +452,17 @@ export function EllaStorefrontHome({
                 </button>
               ))}
             </div>
+            {saleNav ? (
+              <div className="ella-nav-sale">
+                <button
+                  type="button"
+                  className={`ella-nav-link${view === "collection" && luxuryNav === saleNav.id ? " ella-nav-link-active" : ""}`}
+                  onClick={() => selectLuxury(saleNav)}
+                >
+                  {saleNav.label}
+                </button>
+              </div>
+            ) : null}
           </nav>
 
           <div className="ella-site-tools">
@@ -475,7 +511,10 @@ export function EllaStorefrontHome({
                   value={filters.search}
                   onChange={(e) => {
                     patch({ search: e.target.value });
-                    if (e.target.value.trim()) setView("collection");
+                    if (e.target.value.trim()) {
+                      onNavigate?.();
+                      setView("collection");
+                    }
                   }}
                   placeholder="Search by style code, colour or fabric"
                   aria-label="Search styles"
@@ -493,6 +532,7 @@ export function EllaStorefrontHome({
                       type="button"
                       className="ella-search-suggest"
                       onClick={() => {
+                        onNavigate?.();
                         patch({ search: s.label });
                         setView("collection");
                         setSearchOpen(false);
@@ -523,6 +563,8 @@ export function EllaStorefrontHome({
           </div>
         ) : null}
       </header>
+      </div>
+      <div className="ella-chrome-spacer" aria-hidden="true" />
 
       {view === "home" ? (
         <>
@@ -883,15 +925,18 @@ export function EllaStorefrontHome({
 export function EllaStorefrontSkeleton() {
   return (
     <div className="ella-store" aria-busy="true">
-      <div className="ella-announce" />
-      <div className="ella-site-header">
-        <div className="ella-site-header-inner">
-          <div className="ella-brand-stack">
-            <div className="ella-display ella-site-wordmark">{ellaCopy.wordmark}</div>
-            <div className="ella-site-tagline">{ellaCopy.designer}</div>
+      <div className="ella-chrome">
+        <div className="ella-announce" />
+        <div className="ella-site-header">
+          <div className="ella-site-header-inner">
+            <div className="ella-brand-stack">
+              <div className="ella-display ella-site-wordmark">{ellaCopy.wordmark}</div>
+              <div className="ella-site-tagline">{ellaCopy.designer}</div>
+            </div>
           </div>
         </div>
       </div>
+      <div className="ella-chrome-spacer" aria-hidden="true" />
       <div className="ella-hero ella-hero-ph" />
       <div className="ella-skel-grid">
         {Array.from({ length: 8 }).map((_, i) => (

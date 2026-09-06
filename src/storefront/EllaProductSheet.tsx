@@ -100,7 +100,7 @@ export function EllaProductSheet({
 
           <div className="ella-pdp">
             {activeImage ? (
-              <div className="ella-pdp-gallery">
+              <div className={`ella-pdp-gallery${images.length > 1 ? " ella-pdp-gallery-multi" : ""}`}>
                 {images.length > 1 ? (
                   <div className="ella-pdp-thumbs">
                     {images.slice(0, 6).map((src, i) => (
