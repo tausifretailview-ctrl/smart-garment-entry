@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap");
 
 /* ==========================================================================
    Ella'Noor storefront — v2
@@ -79,9 +79,9 @@ body.ella-root {
 
 .ella-display {
   font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.05;
   text-transform: uppercase;
 }
 
@@ -95,9 +95,10 @@ body.ella-root {
 
 .ella-link-underline {
   border-bottom: 1px solid var(--ella-gold);
-  color: var(--ella-ink);
-  font-size: 12px;
-  letter-spacing: 0.12em;
+  color: var(--ella-gold);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
   padding-bottom: 2px;
   text-transform: uppercase;
 }
@@ -114,18 +115,20 @@ body.ella-root {
 
 .ella-announce {
   align-items: center;
-  background: var(--ella-panel);
-  border-bottom: 1px solid var(--ella-hairline);
-  color: var(--ella-paper-muted);
+  background: #f6f4f0;
+  border-bottom: 1px solid rgba(18, 16, 14, 0.06);
+  color: #8a857c;
   display: flex;
   flex-wrap: wrap;
-  font-size: 13px;
-  gap: 6px 18px;
+  font-size: 11px;
+  font-weight: 500;
+  gap: 6px 14px;
   justify-content: center;
-  letter-spacing: 0.06em;
-  min-height: 38px;
-  padding: 9px var(--ella-gutter);
+  letter-spacing: 0.16em;
+  min-height: 34px;
+  padding: 8px var(--ella-gutter);
   text-align: center;
+  text-transform: uppercase;
 }
 
 .ella-announce span[aria-hidden] {
@@ -135,9 +138,8 @@ body.ella-root {
 /* --- header -------------------------------------------------------------- */
 
 .ella-site-header {
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--ella-gold-line);
+  background: #ffffff;
+  border-bottom: 1px solid rgba(201, 162, 39, 0.28);
   position: sticky;
   top: 0;
   z-index: 25;
@@ -148,8 +150,8 @@ body.ella-root {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 12px 20px;
-  padding: 12px var(--ella-gutter);
+  gap: 10px 24px;
+  padding: 16px var(--ella-gutter) 14px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -175,65 +177,102 @@ body.ella-root {
 }
 
 .ella-site-wordmark {
-  color: var(--ella-ink);
-  font-size: 22px;
-  letter-spacing: 0.18em;
+  color: #000000;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 0.95;
 }
 
 .ella-site-tagline {
-  color: var(--ella-gold-deep);
+  color: var(--ella-gold);
+  font-family: Barlow, system-ui, sans-serif;
   font-size: 10px;
-  letter-spacing: 0.26em;
+  font-weight: 500;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
 }
 
 .ella-site-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
   min-width: 0;
 }
 
+.ella-nav-primary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2px 4px;
+}
+
+.ella-nav-sale {
+  display: flex;
+  justify-content: center;
+}
+
 .ella-nav-link {
-  border-bottom: 2px solid transparent;
-  color: var(--ella-paper-muted);
-  font-size: 13px;
+  border-bottom: 1px solid transparent;
+  color: #5c5852;
+  font-family: Barlow, system-ui, sans-serif;
+  font-size: 12px;
   font-weight: 500;
-  height: 40px;
-  letter-spacing: 0.14em;
-  padding: 0 13px;
+  height: 28px;
+  letter-spacing: 0.18em;
+  padding: 0 12px;
   text-transform: uppercase;
   transition: color 160ms ease-out, border-color 160ms ease-out;
 }
 
 .ella-nav-link:hover {
-  color: var(--ella-ink);
+  color: #000000;
 }
 
 .ella-nav-link-active {
   border-bottom-color: var(--ella-gold);
-  color: var(--ella-ink);
+  color: #000000;
 }
 
 .ella-site-tools {
   align-items: center;
   display: flex;
-  flex: 1 1 220px;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex: 1 1 160px;
+  flex-wrap: nowrap;
+  gap: 4px;
   justify-content: flex-end;
   min-width: 0;
+}
+
+.ella-icon-btn {
+  align-items: center;
+  color: #000000;
+  display: inline-flex;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.ella-icon-btn:hover {
+  color: var(--ella-gold-deep);
+}
+
+.ella-search-drawer {
+  border-top: 1px solid var(--ella-hairline);
+  padding: 10px var(--ella-gutter) 12px;
 }
 
 .ella-search-wrap {
   align-items: center;
   border: 1px solid var(--ella-hairline);
   display: flex;
-  flex: 1 1 200px;
   gap: 8px;
   height: 46px;
   min-width: 0;
   padding: 0 12px;
+  width: 100%;
 }
 
 .ella-search-wrap:focus-within {
@@ -263,15 +302,16 @@ body.ella-root {
 
 .ella-header-btn {
   align-items: center;
-  background: var(--ella-ink);
-  color: #f4f1ea;
+  background: #000000;
+  color: #ffffff;
   display: inline-flex;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-size: 14px;
+  font-family: Barlow, system-ui, sans-serif;
+  font-size: 12px;
   font-weight: 600;
-  gap: 8px;
-  height: 46px;
+  gap: 10px;
+  height: 42px;
   letter-spacing: 0.16em;
+  margin-left: 8px;
   padding: 0 16px;
   text-transform: uppercase;
   white-space: nowrap;
@@ -279,7 +319,7 @@ body.ella-root {
 }
 
 .ella-header-btn:hover {
-  background: #241f19;
+  background: #1a1a1a;
 }
 
 .ella-header-btn-ghost {
@@ -310,13 +350,12 @@ body.ella-root {
 
 .ella-social-icon {
   align-items: center;
-  border: 1px solid var(--ella-gold-line);
-  color: var(--ella-gold-deep);
+  color: #000000;
   display: inline-flex;
-  height: 46px;
+  height: 40px;
   justify-content: center;
-  min-width: 46px;
-  width: 46px;
+  min-width: 40px;
+  width: 40px;
 }
 
 /* --- hero ---------------------------------------------------------------- */
@@ -344,10 +383,10 @@ body.ella-root {
 
 .ella-hero-veil {
   background: linear-gradient(
-    100deg,
-    rgba(18, 16, 14, 0.74) 0%,
-    rgba(18, 16, 14, 0.44) 48%,
-    rgba(18, 16, 14, 0.12) 100%
+    90deg,
+    rgba(18, 16, 14, 0.42) 0%,
+    rgba(18, 16, 14, 0.12) 42%,
+    rgba(18, 16, 14, 0.04) 100%
   );
   inset: 0;
   position: absolute;
@@ -357,7 +396,7 @@ body.ella-root {
   align-items: flex-start;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   inset: 0;
   justify-content: center;
   padding: 0 var(--ella-gutter);
@@ -367,17 +406,26 @@ body.ella-root {
 
 .ella-hero-kicker {
   color: var(--ella-gold);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.22em;
 }
 
 .ella-hero-title {
   color: #ffffff;
-  font-size: clamp(38px, 8vw, 76px);
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  line-height: 1;
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(42px, 7.4vw, 92px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 0.92;
   margin: 0;
-  max-width: 18ch;
-  text-shadow: 0 2px 18px rgba(18, 16, 14, 0.35);
+  max-width: 14ch;
+  text-shadow: 0 2px 22px rgba(18, 16, 14, 0.28);
+}
+
+.ella-hero-title span {
+  display: block;
 }
 
 .ella-hero-lead {
@@ -693,13 +741,38 @@ body.ella-root {
   gap: 5px;
 }
 
+.ella-card-title-row {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
 .ella-card-name {
-  color: var(--ella-ink);
-  font-size: 17px;
-  letter-spacing: 0.1em;
-  line-height: 1.15;
-  min-height: 2.3em;
+  color: #000000;
+  flex: 1;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  min-height: 0;
   text-align: left;
+}
+
+.ella-wish-btn {
+  align-items: center;
+  border: 1px solid var(--ella-hairline);
+  color: #9a958c;
+  display: inline-flex;
+  flex: none;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.ella-wish-btn-on {
+  border-color: var(--ella-gold);
+  color: var(--ella-gold);
 }
 
 .ella-card-code {
@@ -716,38 +789,55 @@ body.ella-root {
 }
 
 .ella-price {
-  color: var(--ella-ink);
+  color: #000000;
   font-size: 16px;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .ella-price-lg {
-  font-size: 26px;
-  font-weight: 400;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .ella-card-sizes {
   border-top: 1px solid var(--ella-hairline);
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  padding-top: 8px;
+  gap: 6px;
+  padding-top: 10px;
 }
 
 .ella-card-size {
+  align-items: center;
   border: 1px solid rgba(18, 16, 14, 0.28);
-  color: var(--ella-paper-muted);
+  color: #000000;
+  display: inline-flex;
   font-size: 11px;
-  letter-spacing: 0.12em;
-  padding: 3px 7px;
+  font-weight: 500;
+  height: 28px;
+  justify-content: center;
+  letter-spacing: 0.08em;
+  min-width: 28px;
+  padding: 0 6px;
+  position: relative;
   text-transform: uppercase;
 }
 
 .ella-card-size-out {
-  border-color: var(--ella-hairline);
-  color: rgba(18, 16, 14, 0.26);
-  text-decoration: line-through;
+  border-color: rgba(18, 16, 14, 0.12);
+  color: rgba(18, 16, 14, 0.28);
+}
+
+.ella-card-size-out::after {
+  background: rgba(18, 16, 14, 0.28);
+  content: "";
+  height: 1px;
+  left: 3px;
+  position: absolute;
+  right: 3px;
+  transform: rotate(-32deg);
 }
 
 .ella-card-enquire {
@@ -760,14 +850,16 @@ body.ella-root {
 }
 
 .ella-badge {
-  font-size: 11px;
-  left: 0;
+  bottom: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  left: 10px;
   letter-spacing: 0.14em;
   line-height: 1;
-  padding: 5px 9px;
+  padding: 6px 8px;
   position: absolute;
   text-transform: uppercase;
-  top: 12px;
+  top: auto;
 }
 
 .ella-badge-low {
@@ -1037,8 +1129,21 @@ body.ella-root {
 
 /* --- product sheet ------------------------------------------------------- */
 
+.ella-pdp {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 8px;
+}
+
 .ella-pdp-gallery {
-  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ella-pdp-close {
+  display: none;
 }
 
 .ella-sheet-img {
@@ -1057,7 +1162,6 @@ body.ella-root {
 .ella-pdp-thumbs {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1080,7 +1184,7 @@ body.ella-root {
 }
 
 .ella-pdp-thumb-active {
-  border-color: var(--ella-gold);
+  border-color: #000000;
 }
 
 .ella-price-row {
@@ -1117,42 +1221,53 @@ body.ella-root {
   align-items: center;
   background: #ffffff;
   border: 1px solid rgba(18, 16, 14, 0.28);
-  color: var(--ella-ink);
+  color: #000000;
   display: inline-flex;
-  font-size: 14px;
-  height: 48px;
+  font-size: 13px;
+  font-weight: 500;
+  height: 44px;
   justify-content: center;
-  letter-spacing: 0.12em;
-  min-width: 60px;
-  padding: 0 14px;
+  letter-spacing: 0.1em;
+  min-width: 44px;
+  padding: 0 10px;
+  position: relative;
   text-transform: uppercase;
   transition: background 140ms ease-out, border-color 140ms ease-out;
 }
 
 .ella-size-btn:hover:not(:disabled) {
-  border-color: var(--ella-ink);
+  border-color: #000000;
 }
 
 .ella-size-btn-active {
-  background: var(--ella-ink);
-  border-color: var(--ella-ink);
-  color: #f4f1ea;
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
 }
 
 .ella-size-btn-out {
-  border-color: var(--ella-hairline);
-  color: rgba(18, 16, 14, 0.26);
-  text-decoration: line-through;
+  border-color: rgba(18, 16, 14, 0.14);
+  color: rgba(18, 16, 14, 0.28);
+}
+
+.ella-size-btn-out::after {
+  background: rgba(18, 16, 14, 0.28);
+  content: "";
+  height: 1px;
+  left: 6px;
+  position: absolute;
+  right: 6px;
+  transform: rotate(-32deg);
 }
 
 .ella-stock-note {
   color: var(--ella-paper-muted);
-  font-size: 14px;
+  font-size: 13px;
   margin-top: 10px;
 }
 
 .ella-stock-note-low {
-  color: var(--ella-gold-deep);
+  color: var(--ella-gold);
 }
 
 .ella-size-guide {
@@ -1216,6 +1331,20 @@ body.ella-root {
   align-items: center;
   border: 1px solid var(--ella-hairline);
   display: inline-flex;
+  width: 100%;
+}
+
+.ella-qty-controls .ella-qty-btn,
+.ella-qty-controls .ella-qty-value {
+  border-right: 1px solid var(--ella-hairline);
+}
+
+.ella-qty-controls .ella-qty-btn:last-child {
+  border-right: none;
+}
+
+.ella-qty-controls .ella-qty-value {
+  flex: 1;
 }
 
 .ella-qty-controls-inline {
@@ -1860,18 +1989,31 @@ body.ella-root {
   }
 
   .ella-header-btn-bag span {
-    font-size: 13px;
+    font-size: 11px;
   }
 
   .ella-site-nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
+    order: 3;
     width: 100%;
   }
 
-  .ella-site-nav::-webkit-scrollbar {
+  .ella-nav-primary {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ella-nav-primary::-webkit-scrollbar {
     display: none;
+  }
+
+  .ella-site-wordmark {
+    font-size: 22px;
+  }
+
+  .ella-hero-title {
+    font-size: clamp(36px, 11vw, 56px);
   }
 }
 
@@ -1904,7 +2046,7 @@ body.ella-root {
 
 @media (min-width: 1024px) {
   .ella-store {
-    --ella-gutter: 40px;
+    --ella-gutter: 48px;
   }
 
   .ella-hero {
@@ -1912,9 +2054,13 @@ body.ella-root {
     min-height: 560px;
   }
 
+  .ella-hero-copy {
+    padding-left: 64px;
+  }
+
   .ella-site-header-inner {
     flex-wrap: nowrap;
-    padding: 14px var(--ella-gutter);
+    padding: 18px var(--ella-gutter) 16px;
   }
 
   .ella-site-nav {
@@ -1923,12 +2069,17 @@ body.ella-root {
   }
 
   .ella-site-tools {
-    flex: 0 1 480px;
+    flex: 0 0 auto;
+  }
+
+  .ella-social-icon {
+    display: none;
   }
 
   .ella-grid,
   .ella-skel-grid {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 36px 28px;
   }
 
   .ella-site-footer {
@@ -1955,7 +2106,69 @@ body.ella-root {
   }
 
   .ella-sheet-product {
-    max-width: 620px;
+    border: none;
+    height: 100vh;
+    max-height: 100vh;
+    max-width: none;
+    top: 0;
+    transform: none;
+    width: 100%;
+  }
+
+  .ella-sheet-product .ella-sheet-scroll {
+    padding: 28px 48px 48px;
+  }
+
+  .ella-pdp-mobile-head {
+    display: none;
+  }
+
+  .ella-pdp-close {
+    display: inline-flex;
+  }
+
+  .ella-pdp-close {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+
+  .ella-pdp {
+    display: grid;
+    gap: 40px;
+    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 420px);
+    align-items: start;
+  }
+
+  .ella-pdp-gallery {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .ella-pdp-thumbs {
+    flex-direction: column;
+    overflow: visible;
+  }
+
+  .ella-pdp-thumb {
+    flex: none;
+    height: 88px;
+    width: 72px;
+  }
+
+  .ella-pdp-info {
+    padding-top: 8px;
+    position: relative;
+  }
+
+  .ella-pdp-actions {
+    flex-direction: column;
+  }
+
+  .ella-pdp-actions .ella-btn {
+    flex: 1 1 auto;
+    width: 100%;
   }
 }
 
@@ -1973,7 +2186,7 @@ body.ella-root {
   }
 
   @media (min-width: 1024px) {
-    .ella-sheet {
+    .ella-sheet:not(.ella-sheet-product) {
       animation: ella-sheet-in-desktop 220ms ease-out;
     }
   }
