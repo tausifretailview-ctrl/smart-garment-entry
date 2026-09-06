@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { BackToDashboard } from "@/components/BackToDashboard";
+import { OrganizationSelector } from "@/components/OrganizationSelector";
 import { Building2, Clock, Crown, Users, Plus, Loader2, UserX, Copy, Eye, EyeOff, CheckCircle2, XCircle, Save } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +28,7 @@ const AVAILABLE_FEATURES = [
 ];
 
 export default function OrganizationManagement() {
-  const { currentOrganization, organizationRole } = useOrganization();
+  const { currentOrganization, organizationRole, organizations } = useOrganization();
   const queryClient = useQueryClient();
   const [orgName, setOrgName] = useState(currentOrganization?.name || "");
   const [selectedTier, setSelectedTier] = useState<string>(currentOrganization?.subscription_tier || "free");
@@ -382,6 +383,20 @@ export default function OrganizationManagement() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
+          {organizations.length > 1 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Switch to another company</CardTitle>
+                <CardDescription>
+                  You have access to multiple organizations. Switch without leaving the dashboard.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <OrganizationSelector />
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle>Organization Details</CardTitle>
