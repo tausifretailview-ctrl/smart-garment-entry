@@ -26,9 +26,10 @@ body.ella-root {
   --ella-gold-line: rgba(201, 162, 39, 0.35);
   --ella-gold-tint: rgba(201, 162, 39, 0.1);
   --ella-hairline: rgba(18, 16, 14, 0.12);
-  --ella-live: #4a8f5f;
+  --ella-live: #4ec97a;
   --ella-radius: 0px;
   --ella-max: none;
+  --ella-page: 1360px;
   --ella-gutter: 20px;
   background: #ffffff;
   color: var(--ella-paper);
@@ -113,22 +114,30 @@ body.ella-root {
 
 /* --- announcement bar ---------------------------------------------------- */
 
+.ella-page {
+  box-sizing: border-box;
+  margin: 0 auto;
+  max-width: var(--ella-page);
+  padding-left: clamp(20px, 4vw, 40px);
+  padding-right: clamp(20px, 4vw, 40px);
+  width: 100%;
+}
+
 .ella-announce {
   align-items: center;
-  background: #f6f4f0;
-  border-bottom: 1px solid rgba(18, 16, 14, 0.06);
-  color: #8a857c;
+  background: #f5f3ef;
+  border-bottom: 1px solid var(--ella-hairline);
+  color: var(--ella-paper-muted);
   display: flex;
   flex-wrap: wrap;
-  font-size: 11px;
-  font-weight: 500;
-  gap: 6px 14px;
+  font-size: 13px;
+  font-weight: 400;
+  gap: 8px 24px;
   justify-content: center;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.08em;
   min-height: 34px;
-  padding: 8px var(--ella-gutter);
+  padding: 9px clamp(20px, 4vw, 40px);
   text-align: center;
-  text-transform: uppercase;
 }
 
 .ella-announce span[aria-hidden] {
@@ -138,8 +147,9 @@ body.ella-root {
 /* --- header -------------------------------------------------------------- */
 
 .ella-site-header {
-  background: #ffffff;
-  border-bottom: 1px solid rgba(201, 162, 39, 0.28);
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ella-gold-line);
   position: sticky;
   top: 0;
   z-index: 25;
@@ -148,12 +158,14 @@ body.ella-root {
 
 .ella-site-header-inner {
   align-items: center;
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 24px;
-  padding: 16px var(--ella-gutter) 14px;
+  gap: 14px 24px;
+  margin: 0 auto;
+  max-width: var(--ella-page);
+  padding: 14px clamp(20px, 4vw, 40px);
   width: 100%;
-  box-sizing: border-box;
 }
 
 .ella-site-brand {
@@ -177,25 +189,26 @@ body.ella-root {
 }
 
 .ella-site-wordmark {
-  color: #000000;
+  color: #12100e;
   font-family: "Barlow Condensed", Barlow, sans-serif;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  line-height: 0.95;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  line-height: 1;
 }
 
 .ella-site-tagline {
-  color: var(--ella-gold);
+  color: rgba(201, 162, 39, 0.95);
   font-family: Barlow, system-ui, sans-serif;
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.22em;
+  font-weight: 400;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
 }
 
 .ella-site-nav {
   display: flex;
+  flex: 1 1 320px;
   flex-direction: column;
   align-items: center;
   gap: 0;
@@ -215,25 +228,25 @@ body.ella-root {
 }
 
 .ella-nav-link {
-  border-bottom: 1px solid transparent;
-  color: #5c5852;
+  border-bottom: 2px solid transparent;
+  color: var(--ella-paper-muted);
   font-family: Barlow, system-ui, sans-serif;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  height: 28px;
-  letter-spacing: 0.18em;
-  padding: 0 12px;
+  height: 40px;
+  letter-spacing: 0.14em;
+  padding: 0 13px;
   text-transform: uppercase;
   transition: color 160ms ease-out, border-color 160ms ease-out;
 }
 
 .ella-nav-link:hover {
-  color: #000000;
+  color: #12100e;
 }
 
 .ella-nav-link-active {
   border-bottom-color: var(--ella-gold);
-  color: #000000;
+  color: #12100e;
 }
 
 .ella-site-tools {
@@ -248,11 +261,11 @@ body.ella-root {
 
 .ella-icon-btn {
   align-items: center;
-  color: #000000;
+  color: #12100e;
   display: inline-flex;
-  height: 40px;
+  height: 44px;
   justify-content: center;
-  width: 40px;
+  width: 44px;
 }
 
 .ella-icon-btn:hover {
@@ -260,18 +273,18 @@ body.ella-root {
 }
 
 .ella-search-drawer {
+  background: #ffffff;
   border-top: 1px solid var(--ella-hairline);
-  padding: 10px var(--ella-gutter) 12px;
+  padding: 20px 0 26px;
 }
 
 .ella-search-wrap {
   align-items: center;
-  border: 1px solid var(--ella-hairline);
+  border-bottom: 1px solid #12100e;
   display: flex;
-  gap: 8px;
-  height: 46px;
+  gap: 12px;
   min-width: 0;
-  padding: 0 12px;
+  padding-bottom: 10px;
   width: 100%;
 }
 
@@ -291,7 +304,7 @@ body.ella-root {
   color: var(--ella-paper);
   flex: 1;
   font: inherit;
-  font-size: 16px;
+  font-size: 20px;
   min-width: 0;
   outline: none;
 }
@@ -300,19 +313,105 @@ body.ella-root {
   color: var(--ella-paper-faint);
 }
 
+.ella-search-close {
+  color: var(--ella-paper-muted);
+  flex: none;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ella-search-panels {
+  display: grid;
+  gap: 32px;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  margin-top: 22px;
+}
+
+.ella-search-kicker {
+  color: rgba(201, 162, 39, 0.95);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.ella-search-suggest {
+  align-items: center;
+  border-bottom: 1px solid var(--ella-hairline);
+  color: #12100e;
+  display: flex;
+  font-size: 15px;
+  justify-content: space-between;
+  padding: 8px 0;
+  text-align: left;
+  width: 100%;
+}
+
+.ella-search-suggest span:last-child {
+  color: var(--ella-paper-faint);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ella-search-hit-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.ella-search-hit {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  text-align: left;
+}
+
+.ella-search-hit img,
+.ella-search-hit-ph {
+  background: var(--ella-panel);
+  flex: none;
+  height: 74px;
+  object-fit: cover;
+  width: 56px;
+}
+
+.ella-search-hit-name {
+  color: #12100e;
+  display: block;
+  font-size: 14px;
+}
+
+.ella-search-hit-code {
+  color: var(--ella-paper-faint);
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  margin-top: 2px;
+  text-transform: uppercase;
+}
+
+.ella-search-hit-price {
+  color: var(--ella-gold);
+  display: block;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
 .ella-header-btn {
   align-items: center;
-  background: #000000;
-  color: #ffffff;
+  background: #12100e;
+  color: #f4f1ea;
   display: inline-flex;
-  font-family: Barlow, system-ui, sans-serif;
-  font-size: 12px;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 14px;
   font-weight: 600;
-  gap: 10px;
-  height: 42px;
+  gap: 8px;
+  height: 44px;
   letter-spacing: 0.16em;
-  margin-left: 8px;
-  padding: 0 16px;
+  margin-left: 4px;
+  padding: 0 14px;
   text-transform: uppercase;
   white-space: nowrap;
   transition: background 160ms ease-out;
@@ -361,10 +460,13 @@ body.ella-root {
 /* --- hero ---------------------------------------------------------------- */
 
 .ella-hero {
-  position: relative;
-  height: min(72vh, 660px);
-  min-height: 440px;
+  align-items: stretch;
+  background: #12100e;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: min(78vh, 680px);
   overflow: hidden;
+  position: relative;
   width: 100%;
 }
 
@@ -372,8 +474,10 @@ body.ella-root {
 .ella-hero-ph {
   display: block;
   height: 100%;
+  inset: 0;
   object-fit: cover;
   object-position: center 20%;
+  position: absolute;
   width: 100%;
 }
 
@@ -383,10 +487,10 @@ body.ella-root {
 
 .ella-hero-veil {
   background: linear-gradient(
-    90deg,
-    rgba(18, 16, 14, 0.42) 0%,
-    rgba(18, 16, 14, 0.12) 42%,
-    rgba(18, 16, 14, 0.04) 100%
+    100deg,
+    rgba(18, 16, 14, 0.72) 0%,
+    rgba(18, 16, 14, 0.42) 46%,
+    rgba(18, 16, 14, 0.12) 100%
   );
   inset: 0;
   position: absolute;
@@ -394,13 +498,16 @@ body.ella-root {
 
 .ella-hero-copy {
   align-items: flex-start;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  inset: 0;
+  gap: 18px;
   justify-content: center;
-  padding: 0 var(--ella-gutter);
-  position: absolute;
+  margin: 0 auto;
+  max-width: var(--ella-page);
+  padding: clamp(48px, 8vw, 96px) clamp(20px, 4vw, 40px);
+  position: relative;
+  width: 100%;
   z-index: 1;
 }
 
@@ -413,19 +520,12 @@ body.ella-root {
 
 .ella-hero-title {
   color: #ffffff;
-  display: flex;
-  flex-direction: column;
-  font-size: clamp(42px, 7.4vw, 92px);
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  line-height: 0.92;
+  font-size: clamp(40px, 7vw, 86px);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 0.98;
   margin: 0;
-  max-width: 14ch;
-  text-shadow: 0 2px 22px rgba(18, 16, 14, 0.28);
-}
-
-.ella-hero-title span {
-  display: block;
+  max-width: 16ch;
 }
 
 .ella-hero-lead {
@@ -444,18 +544,26 @@ body.ella-root {
 
 .ella-hero-btn {
   flex: 0 0 auto;
-  padding: 0 28px;
+  height: 54px;
+  padding: 0 30px;
 }
 
 .ella-hero-trust {
   align-items: center;
-  color: rgba(255, 255, 255, 0.76);
+  color: rgba(255, 255, 255, 0.7);
   display: flex;
+  flex-wrap: wrap;
   font-size: 13px;
-  gap: 9px;
+  gap: 8px 20px;
   letter-spacing: 0.1em;
-  margin-top: 6px;
+  margin-top: 14px;
   text-transform: uppercase;
+}
+
+.ella-hero-live {
+  align-items: center;
+  display: inline-flex;
+  gap: 7px;
 }
 
 .ella-frame {
@@ -471,24 +579,28 @@ body.ella-root {
   z-index: 2;
 }
 
-.ella-mark-tl { left: 14px; top: 14px; }
-.ella-mark-tr { right: 14px; top: 14px; }
-.ella-mark-bl { bottom: 14px; left: 14px; }
-.ella-mark-br { bottom: 14px; right: 14px; }
+.ella-mark-tl { left: 24px; top: 24px; }
+.ella-mark-tr { right: 24px; top: 24px; }
+.ella-mark-bl { bottom: 24px; left: 24px; }
+.ella-mark-br { bottom: 24px; right: 24px; }
 
 /* --- assurance strip ----------------------------------------------------- */
 
+.ella-assure-wrap {
+  padding-top: clamp(40px, 6vw, 72px);
+}
+
 .ella-assure-strip {
   background: var(--ella-gold-line);
-  border-bottom: 1px solid var(--ella-gold-line);
+  border: 1px solid var(--ella-gold-line);
   display: grid;
   gap: 1px;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .ella-assure-strip > div {
   background: #ffffff;
-  padding: 18px 20px;
+  padding: 20px 22px;
 }
 
 .ella-assure-strip p {
@@ -509,6 +621,284 @@ body.ella-root {
   width: 100%;
 }
 
+.ella-arrivals {
+  padding-top: clamp(36px, 5vw, 64px);
+}
+
+.ella-arrivals-head {
+  align-items: flex-end;
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+
+.ella-arrivals-kicker {
+  color: rgba(201, 162, 39, 0.95);
+  letter-spacing: 0.24em;
+}
+
+.ella-arrivals-title {
+  color: #12100e;
+  font-size: clamp(28px, 3.4vw, 40px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 6px 0 0;
+}
+
+.ella-view-all {
+  border-bottom: 1px solid var(--ella-gold);
+  color: #12100e;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  padding-bottom: 3px;
+  text-transform: uppercase;
+}
+
+.ella-tiles {
+  padding-top: clamp(40px, 6vw, 72px);
+}
+
+.ella-tile-grid {
+  display: grid;
+  gap: clamp(14px, 2vw, 24px);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.ella-tile {
+  aspect-ratio: 3 / 2;
+  background: var(--ella-panel);
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.ella-tile img,
+.ella-tile-ph {
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 25%;
+  width: 100%;
+}
+
+.ella-tile-veil {
+  background: linear-gradient(180deg, rgba(18, 16, 14, 0) 40%, rgba(18, 16, 14, 0.7) 100%);
+  inset: 0;
+  position: absolute;
+}
+
+.ella-tile-copy {
+  bottom: 18px;
+  left: 20px;
+  position: absolute;
+  right: 20px;
+  text-align: left;
+}
+
+.ella-tile-label {
+  color: #ffffff;
+  display: block;
+  font-size: 20px;
+  letter-spacing: 0.14em;
+}
+
+.ella-tile-meta {
+  color: var(--ella-gold);
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  margin-top: 3px;
+  text-transform: uppercase;
+}
+
+.ella-mto {
+  margin-top: clamp(40px, 6vw, 72px);
+}
+
+.ella-mto-panel {
+  align-items: start;
+  background: var(--ella-panel);
+  border: 1px solid var(--ella-gold-line);
+  display: grid;
+  gap: clamp(24px, 3vw, 44px);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  padding: clamp(26px, 4vw, 44px);
+}
+
+.ella-mto-title {
+  color: #12100e;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 8px 0 12px;
+}
+
+.ella-mto-panel p {
+  color: var(--ella-paper-muted);
+  margin: 0;
+  max-width: 40ch;
+}
+
+.ella-mto-step {
+  border-bottom: 1px solid var(--ella-hairline);
+  display: grid;
+  gap: 16px;
+  grid-template-columns: auto 1fr;
+  padding: 14px 0;
+}
+
+.ella-mto-n {
+  color: var(--ella-gold);
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+
+.ella-mto-step-title {
+  color: #12100e;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+}
+
+.ella-mto-step-body {
+  color: var(--ella-paper-muted);
+  font-size: 14px;
+  margin-top: 3px;
+}
+
+.ella-collection-page {
+  padding-bottom: clamp(48px, 7vw, 88px);
+}
+
+.ella-crumb {
+  color: var(--ella-paper-faint);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  padding-top: 22px;
+  text-transform: uppercase;
+}
+
+.ella-crumb button,
+.ella-crumb span {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  text-transform: inherit;
+}
+
+.ella-crumb button:hover {
+  color: var(--ella-gold);
+}
+
+.ella-crumb span[aria-hidden] {
+  color: rgba(201, 162, 39, 0.8);
+  margin: 0 8px;
+}
+
+.ella-collection-intro {
+  padding-top: 14px;
+}
+
+.ella-collection-heading {
+  color: #12100e;
+  font-size: clamp(30px, 4vw, 46px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+.ella-collection-intro p {
+  color: var(--ella-paper-muted);
+  margin: 8px 0 0;
+  max-width: 56ch;
+}
+
+.ella-collection-layout {
+  align-items: start;
+  display: grid;
+  gap: clamp(20px, 3vw, 40px);
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  padding-top: clamp(22px, 3vw, 32px);
+}
+
+.ella-filter-rail {
+  border: 1px solid var(--ella-hairline);
+  position: sticky;
+  top: 120px;
+}
+
+.ella-filter-rail-head {
+  align-items: center;
+  border-bottom: 1px solid var(--ella-hairline);
+  display: flex;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+
+.ella-filter-rail-head .ella-display {
+  font-size: 14px;
+  letter-spacing: 0.16em;
+}
+
+.ella-filter-clear-link {
+  color: var(--ella-gold);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ella-filter-rail-block {
+  border-bottom: 1px solid var(--ella-hairline);
+  padding: 16px;
+}
+
+.ella-filter-rail-block:last-child {
+  border-bottom: none;
+}
+
+.ella-filter-rail .ella-check {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.ella-filter-count {
+  color: var(--ella-paper-faint);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ella-range-meta {
+  color: var(--ella-paper-muted);
+  display: flex;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.ella-facet-pill {
+  align-items: center;
+  border: 1px solid var(--ella-gold-line);
+  color: var(--ella-gold-deep);
+  display: inline-flex;
+  font-size: 12px;
+  gap: 8px;
+  letter-spacing: 0.12em;
+  padding: 5px 10px;
+  text-transform: uppercase;
+}
+
 .ella-toolbar {
   align-items: flex-end;
   border-bottom: 1px solid var(--ella-hairline);
@@ -516,7 +906,7 @@ body.ella-root {
   flex-wrap: wrap;
   gap: 12px 20px;
   justify-content: space-between;
-  padding: 26px var(--ella-gutter) 14px;
+  padding: 0 0 14px;
 }
 
 .ella-toolbar-left {
@@ -697,11 +1087,15 @@ body.ella-root {
 
 .ella-grid {
   display: grid;
-  gap: 30px 18px;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr));
+  gap: clamp(18px, 2.4vw, 32px) clamp(14px, 1.8vw, 24px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
   list-style: none;
-  margin: 0;
-  padding: 22px var(--ella-gutter) 8px;
+  margin: clamp(20px, 3vw, 34px) 0 0;
+  padding: 0;
+}
+
+.ella-grid-home {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
 }
 
 .ella-card {
@@ -749,14 +1143,19 @@ body.ella-root {
 }
 
 .ella-card-name {
-  color: #000000;
+  color: #12100e;
   flex: 1;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
   min-height: 0;
   text-align: left;
+}
+
+.ella-card-collection .ella-card-name {
+  font-size: 17px;
+  min-height: 40px;
 }
 
 .ella-wish-btn {
@@ -789,10 +1188,10 @@ body.ella-root {
 }
 
 .ella-price {
-  color: #000000;
-  font-size: 16px;
+  color: #12100e;
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .ella-price-lg {
@@ -850,16 +1249,15 @@ body.ella-root {
 }
 
 .ella-badge {
-  bottom: 10px;
-  font-size: 10px;
-  font-weight: 600;
-  left: 10px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  font-weight: 500;
+  left: 0;
+  letter-spacing: 0.16em;
   line-height: 1;
-  padding: 6px 8px;
+  padding: 5px 10px;
   position: absolute;
   text-transform: uppercase;
-  top: auto;
+  top: 14px;
 }
 
 .ella-badge-low {
@@ -901,22 +1299,77 @@ body.ella-root {
 .ella-site-footer {
   background: #12100e;
   border-top: 1px solid var(--ella-gold-line);
-  color: rgba(244, 241, 234, 0.78);
+  color: rgba(244, 241, 234, 0.72);
   font-size: 15px;
   letter-spacing: 0.04em;
-  padding: 38px var(--ella-gutter) 120px;
+  margin-top: clamp(48px, 7vw, 88px);
+  padding: clamp(36px, 5vw, 64px) clamp(20px, 4vw, 40px) 120px;
 }
 
 .ella-site-footer-inner {
   display: grid;
-  gap: 28px;
+  gap: clamp(24px, 3vw, 44px);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin: 0 auto;
+  max-width: var(--ella-page);
   width: 100%;
+}
+
+.ella-footer-brand {
+  min-width: 0;
 }
 
 .ella-footer-heading {
   color: #ffffff;
-  font-size: 22px;
+  font-size: 24px;
+  letter-spacing: 0.18em;
   margin-bottom: 10px;
+}
+
+.ella-newsletter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  max-width: 420px;
+}
+
+.ella-newsletter input {
+  background: transparent;
+  border: 1px solid rgba(244, 241, 234, 0.28);
+  color: #f4f1ea;
+  flex: 1 1 180px;
+  font: inherit;
+  font-size: 15px;
+  height: 48px;
+  min-width: 0;
+  padding: 0 14px;
+}
+
+.ella-newsletter button {
+  background: var(--ella-gold);
+  color: #12100e;
+  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  height: 48px;
+  letter-spacing: 0.16em;
+  padding: 0 20px;
+  text-transform: uppercase;
+}
+
+.ella-footer-legal {
+  border-top: 1px solid rgba(244, 241, 234, 0.14);
+  color: rgba(244, 241, 234, 0.55);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 10px 24px;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  margin: 32px auto 0;
+  max-width: var(--ella-page);
+  padding-top: 18px;
 }
 
 .ella-footer-label {
@@ -1977,6 +2430,24 @@ body.ella-root {
 
 /* --- breakpoints --------------------------------------------------------- */
 
+@media (max-width: 900px) {
+  .ella-collection-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ella-filter-rail {
+    position: static;
+  }
+
+  .ella-search-panels {
+    grid-template-columns: 1fr;
+  }
+
+  .ella-footer-brand {
+    grid-column: auto;
+  }
+}
+
 @media (max-width: 720px) {
   .ella-wa-pill span {
     display: none;
@@ -2049,13 +2520,8 @@ body.ella-root {
     --ella-gutter: 48px;
   }
 
-  .ella-hero {
-    height: min(80vh, 780px);
-    min-height: 560px;
-  }
-
   .ella-hero-copy {
-    padding-left: 64px;
+    padding-left: clamp(20px, 4vw, 40px);
   }
 
   .ella-site-header-inner {
@@ -2078,17 +2544,17 @@ body.ella-root {
 
   .ella-grid,
   .ella-skel-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 36px 28px;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: clamp(18px, 2.4vw, 32px) clamp(14px, 1.8vw, 24px);
   }
 
   .ella-site-footer {
-    padding-bottom: 48px;
+    padding-bottom: 40px;
   }
 
   .ella-site-footer-inner {
-    gap: 40px;
-    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: clamp(24px, 3vw, 44px);
+    grid-template-columns: minmax(0, 2fr) 1fr 1fr 1fr;
   }
 
   .ella-action-bar {
