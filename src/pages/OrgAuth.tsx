@@ -15,6 +15,7 @@ import { signInWithGoogleOAuth } from "@/lib/googleOAuthSignIn";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { useCompactLoginLayout } from "@/hooks/use-mobile";
 import { OrgLoginShell, OrgLoginTrustBadges } from "@/components/orgLogin/OrgLoginShell";
+import { logSuccessfulOrgLogin } from "@/utils/orgLoginAudit";
 
 interface Organization {
   id: string;
@@ -384,6 +385,15 @@ export default function OrgAuth() {
           return;
         }
       }
+
+      // Fire-and-forget — never block or fail the actual login over a logging
+      // error, same resilience pattern as errorLogger.ts elsewhere in this app.
+      logSuccessfulOrgLogin(supabase, {
+        organizationId: resolvedOrg.id,
+        userId: authData.user.id,
+        userEmail: authData.user.email,
+        userAgent: navigator.userAgent,
+      });
 
       // Check if user has field sales access
       const { data: fieldSalesEmployee } = await supabase

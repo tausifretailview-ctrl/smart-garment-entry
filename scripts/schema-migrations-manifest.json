@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-04",
-  "count": 749,
-  "fileCount": 766,
+  "generatedAt": "2026-09-06",
+  "count": 750,
+  "fileCount": 767,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -667,6 +667,7 @@
     "20260829120000",
     "20260903064327",
     "20260904120000",
+    "20260906120000",
     "20260909120000",
     "20260909120100",
     "20260909120200",
@@ -1433,6 +1434,7 @@
     "20260829120000_category_tier_unique_include_unit_price.sql",
     "20260903064327_4e901fdd-9f00-407f-b78a-c22525196c24.sql",
     "20260904120000_wappconnect_pdf_invoice_template.sql",
+    "20260906120000_get_organization_login_history.sql",
     "20260909120000_get_customer_party_balances.sql",
     "20260909120100_fix_get_customer_party_balances_ambiguity.sql",
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
