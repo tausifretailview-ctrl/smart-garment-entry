@@ -1153,3 +1153,120 @@ body.ella-root {
   height: 28px;
   width: 28px;
 }
+
+.ella-toolbar {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 0 0 20px;
+}
+
+.ella-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.ella-toolbar-field span,
+.ella-toolbar-check {
+  color: var(--ella-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ella-toolbar-check {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.ella-select,
+.ella-form select.ella-select {
+  background: #ffffff;
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper);
+  font: inherit;
+  font-size: 16px;
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.ella-size-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ella-size-chips-card {
+  margin-top: 8px;
+}
+
+.ella-size-chip {
+  border: 1px solid var(--ella-hairline);
+  color: var(--ella-paper);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  min-width: 2.25rem;
+  padding: 4px 8px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+button.ella-size-chip {
+  background: #fff;
+  cursor: pointer;
+}
+
+.ella-size-chip-active {
+  background: var(--ella-paper);
+  color: #fff;
+}
+
+.ella-size-chip-sold {
+  color: rgba(18, 16, 14, 0.45);
+  text-decoration: line-through;
+}
+
+.ella-size-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 4px;
+}
+
+.ella-size-stock {
+  color: var(--ella-paper-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.ella-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.ella-gallery-thumb {
+  background: #fff;
+  border: 1px solid var(--ella-hairline);
+  height: 64px;
+  overflow: hidden;
+  padding: 0;
+  width: 52px;
+}
+
+.ella-gallery-thumb img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.ella-gallery-thumb-active {
+  border-color: var(--ella-paper);
+}

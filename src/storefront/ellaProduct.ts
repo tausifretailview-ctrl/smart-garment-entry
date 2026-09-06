@@ -2,6 +2,7 @@ import type { PublicStorefrontProduct } from "@/lib/websiteTypes";
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import { ellaCopy, type EllaChipCategory } from "./storefrontTheme";
 import { classifyEllaStock, type EllaStockView } from "./ellaStock";
+import { mapEllaVariants, type EllaSizeOption } from "./ellaVariants";
 
 export type EllaCategory = "Bridal" | "Festive" | "Ready";
 
@@ -23,6 +24,7 @@ export type EllaStorefrontProduct = {
   madeToOrder: boolean;
   lowStockThreshold: number;
   stock: EllaStockView;
+  sizes: EllaSizeOption[];
 };
 
 export function mapEllaCategory(raw: string | null | undefined): EllaCategory {
@@ -63,15 +65,34 @@ export function availableFromPublicProduct(product: PublicStorefrontProduct): {
   return { available: 6, availableKnown: false };
 }
 
-export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaStorefrontProduct {
-  const { available, availableKnown } = availableFromPublicProduct(product);
-  const leadTimeWeeks = available <= 0 ? ellaCopy.defaultLeadWeeks : null;
-  const stock = classifyEllaStock({
+function stockFromSizes(sizes: EllaSizeOption[], fallback: EllaStockView): EllaStockView {
+  if (sizes.length === 0) return fallback;
+  const purchasable = sizes.filter((size) => size.purchasable);
+  if (purchasable.length === 0) {
+    return classifyEllaStock({ available: 0, availableKnown: true, lowStockThreshold: ellaCopy.lowStockThreshold });
+  }
+  const known = purchasable.every((size) => size.availableKnown);
+  const available = Math.min(...purchasable.map((size) => size.available));
+  return classifyEllaStock({
     available,
-    availableKnown,
+    availableKnown: known,
+    lowStockThreshold: ellaCopy.lowStockThreshold,
+  });
+}
+
+export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaStorefrontProduct {
+  const header = availableFromPublicProduct(product);
+  const leadTimeWeeks = header.available <= 0 ? ellaCopy.defaultLeadWeeks : null;
+  const headerStock = classifyEllaStock({
+    available: header.available,
+    availableKnown: header.availableKnown,
     leadTimeWeeks,
     lowStockThreshold: ellaCopy.lowStockThreshold,
   });
+  const sizes = mapEllaVariants(product);
+  const stock = stockFromSizes(sizes, headerStock);
+  const available = sizes.length > 0 ? sizes.reduce((sum, size) => sum + size.available, 0) : header.available;
+  const availableKnown = sizes.length > 0 ? sizes.every((size) => size.availableKnown) : header.availableKnown;
   const price =
     product.display_price != null && Number.isFinite(Number(product.display_price))
       ? Number(product.display_price)
@@ -96,6 +117,7 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     madeToOrder: stock.state === "out",
     lowStockThreshold: ellaCopy.lowStockThreshold,
     stock,
+    sizes,
   };
 }
 
@@ -118,9 +140,39 @@ export function filterEllaProducts(
       p.name.toLowerCase().includes(q) ||
       p.code.toLowerCase().includes(q) ||
       p.category.toLowerCase().includes(q) ||
-      (p.sectionLabel || "").toLowerCase().includes(q);
+      (p.sectionLabel || "").toLowerCase().includes(q) ||
+      p.sizes.some((size) => size.size.toLowerCase().includes(q));
     return matchesChip && matchesSearch;
   });
+}
+
+export type EllaSortKey = "featured" | "price-asc" | "price-desc";
+
+export function sortEllaProducts(
+  products: EllaStorefrontProduct[],
+  sort: EllaSortKey,
+): EllaStorefrontProduct[] {
+  const rows = [...products];
+  if (sort === "price-asc") {
+    return rows.sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY));
+  }
+  if (sort === "price-desc") {
+    return rows.sort((a, b) => (b.price ?? -1) - (a.price ?? -1));
+  }
+  return rows;
+}
+
+export function filterEllaProductsBySize(
+  products: EllaStorefrontProduct[],
+  size: string,
+): EllaStorefrontProduct[] {
+  const wanted = size.trim();
+  if (!wanted || wanted === "all") return products;
+  return products.filter((product) => product.sizes.some((row) => row.size === wanted));
+}
+
+export function filterEllaProductsInStock(products: EllaStorefrontProduct[]): EllaStorefrontProduct[] {
+  return products.filter((product) => product.stock.state !== "out");
 }
 
 export function ellaProductWhatsAppText(product: EllaStorefrontProduct): string {

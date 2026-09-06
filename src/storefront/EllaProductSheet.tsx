@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { ellaMaxPurchaseQty, ellaStockBadgeClass } from "./ellaStock";
 import type { EllaStorefrontProduct } from "./ellaProduct";
-import { addToEllaCart, type EllaCartLine } from "./ellaCart";
+import { addToEllaCart, ellaCartLineKey, type EllaCartLine } from "./ellaCart";
+import { firstPurchasableSize, type EllaSizeOption } from "./ellaVariants";
 import { useLockBodyScroll } from "./ellaLockBody";
+import { formatStorefrontPrice } from "@/lib/storefrontStock";
 
 export function EllaProductSheet({
   product,
@@ -18,16 +20,38 @@ export function EllaProductSheet({
   onClose: () => void;
 }) {
   useLockBodyScroll(true);
-  const maxQty = ellaMaxPurchaseQty(product.stock, product.availableKnown);
+  const [photo, setPhoto] = useState(0);
+  const [sizeId, setSizeId] = useState(() => firstPurchasableSize(product.sizes)?.id || product.sizes[0]?.id || "");
+  const selectedSize: EllaSizeOption | null =
+    product.sizes.find((size) => size.id === sizeId) || firstPurchasableSize(product.sizes);
+
+  const stock = selectedSize?.stock ?? product.stock;
+  const availableKnown = selectedSize?.availableKnown ?? product.availableKnown;
+  const rawMax = selectedSize
+    ? selectedSize.availableKnown
+      ? Math.max(0, selectedSize.available)
+      : ellaMaxPurchaseQty(stock, availableKnown)
+    : ellaMaxPurchaseQty(product.stock, product.availableKnown);
+  const inCart = useMemo(() => {
+    const key = ellaCartLineKey({
+      productId: product.productId,
+      variantId: selectedSize?.id ?? null,
+    });
+    return cart.find((line) => ellaCartLineKey(line) === key)?.qty ?? 0;
+  }, [cart, product.productId, selectedSize?.id]);
+  const maxQty = Math.max(0, rawMax - inCart);
   const [qty, setQty] = useState(1);
-  const inCart = useMemo(
-    () => cart.find((line) => line.productId === product.productId)?.qty ?? 0,
-    [cart, product.productId],
-  );
+  const priceLabel = formatStorefrontPrice(selectedSize?.price ?? product.price) || product.priceLabel;
+  const images = product.images.length > 0 ? product.images : [];
 
   useEffect(() => {
-    setQty((current) => Math.min(Math.max(1, current), maxQty));
-  }, [maxQty, product.productId]);
+    setPhoto(0);
+    setSizeId(firstPurchasableSize(product.sizes)?.id || product.sizes[0]?.id || "");
+  }, [product.productId, product.sizes]);
+
+  useEffect(() => {
+    setQty((current) => Math.min(Math.max(1, current), Math.max(1, maxQty)));
+  }, [maxQty, sizeId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,7 +62,8 @@ export function EllaProductSheet({
   }, [onClose]);
 
   const add = () => {
-    onAddToCart(addToEllaCart(cart, product, qty));
+    if (maxQty <= 0) return;
+    onAddToCart(addToEllaCart(cart, product, qty, selectedSize));
     onOpenCart();
   };
 
@@ -59,18 +84,56 @@ export function EllaProductSheet({
             </button>
           </div>
 
-          {product.images[0] ? (
+          {images[photo] ? (
             <div className="ella-sheet-img">
-              <img src={product.images[0]} alt={product.name} decoding="async" />
+              <img src={images[photo]} alt={product.name} decoding="async" />
+            </div>
+          ) : null}
+
+          {images.length > 1 ? (
+            <div className="ella-gallery" role="tablist" aria-label="Product photos">
+              {images.map((src, index) => (
+                <button
+                  key={src}
+                  type="button"
+                  className={`ella-gallery-thumb${photo === index ? " ella-gallery-thumb-active" : ""}`}
+                  onClick={() => setPhoto(index)}
+                  aria-label={`Photo ${index + 1}`}
+                >
+                  <img src={src} alt="" />
+                </button>
+              ))}
             </div>
           ) : null}
 
           <div className="ella-price-row">
-            {product.priceLabel ? <div className="ella-price">{product.priceLabel}</div> : null}
-            <span className={ellaStockBadgeClass(product.stock.state)} style={{ position: "static" }}>
-              {product.stock.label}
+            {priceLabel ? <div className="ella-price">{priceLabel}</div> : null}
+            <span className={ellaStockBadgeClass(stock.state)} style={{ position: "static" }}>
+              {stock.label}
             </span>
           </div>
+
+          {product.sizes.length > 0 ? (
+            <div className="ella-size-picker">
+              <span className="ella-eyebrow">Size</span>
+              <div className="ella-size-chips" role="group" aria-label="Sizes">
+                {product.sizes.map((size) => (
+                  <button
+                    key={size.id}
+                    type="button"
+                    className={`ella-size-chip${sizeId === size.id ? " ella-size-chip-active" : ""}${
+                      size.purchasable ? "" : " ella-size-chip-sold"
+                    }`}
+                    disabled={!size.purchasable}
+                    onClick={() => setSizeId(size.id)}
+                  >
+                    {size.size}
+                  </button>
+                ))}
+              </div>
+              <p className="ella-size-stock">{stock.label}</p>
+            </div>
+          ) : null}
 
           <dl className="ella-spec">
             <div className="ella-spec-row">
@@ -83,9 +146,11 @@ export function EllaProductSheet({
             </div>
             <div className="ella-spec-row">
               <dt>Availability</dt>
-              <dd>{product.stock.label}</dd>
+              <dd>{stock.label}</dd>
             </div>
           </dl>
+
+          <p className="ella-form-note">On-hand for this size is confirmed at checkout from live ERP stock.</p>
 
           <div className="ella-qty-row">
             <span className="ella-eyebrow">Quantity</span>
@@ -113,7 +178,7 @@ export function EllaProductSheet({
           </div>
 
           <div className="ella-form-actions">
-            <button type="button" className="ella-btn" onClick={add}>
+            <button type="button" className="ella-btn" onClick={add} disabled={maxQty <= 0}>
               Add to cart
             </button>
             {inCart > 0 ? (
