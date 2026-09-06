@@ -43,7 +43,7 @@ export const FOOTWEAR_FIELD_LABELS: Record<FootwearFieldKey, string> = {
   businessName: "Business Name",
   barcode: "Barcode (symbol)",
   barcodeText: "Barcode (text)",
-  mrp: "MRP",
+  mrp: "Sale Price",
   productName: "Product",
   style: "Style / Art No",
   brand: "Brand",
@@ -174,8 +174,26 @@ function mergePanel(
     for (const key of FOOTWEAR_FIELD_KEYS) {
       fields[key] = mergeField(base.fields[key], patch.fields[key]);
     }
+    const legacyPrice = takeLegacyPriceLayout(
+      patch.fields as Record<string, Partial<FootwearFieldLayout> | undefined>,
+    );
+    const savedMrp = (patch.fields as Partial<FootwearPanelFields>).mrp;
+    if (legacyPrice && savedMrp == null) {
+      fields.mrp = mergeField(base.fields.mrp, legacyPrice);
+    }
   }
   return { fields };
+}
+
+/** Older Payal saves used price / salePrice instead of mrp. */
+function takeLegacyPriceLayout(
+  fields: Record<string, Partial<FootwearFieldLayout> | undefined>,
+): Partial<FootwearFieldLayout> | null {
+  for (const key of ["salePrice", "sale_price", "price"] as const) {
+    const layout = fields[key];
+    if (layout && typeof layout === "object") return layout;
+  }
+  return null;
 }
 
 /** Deep-merge a partial/saved design onto defaults (safe for older saves). */
