@@ -32,6 +32,7 @@ import {
   dotsToMm,
   mmToDots,
 } from "@/utils/labels/precisionProGeometry";
+import { labelPrintMrp } from "@/utils/labels/labelPrintPrice";
 
 interface FootwearPanelDesignerProps {
   design: FootwearFormDesign;
@@ -389,6 +390,14 @@ export function FootwearPanelDesigner({
                       />
                     </div>
                   </div>
+                )}
+                {key === "mrp" && (
+                  <p className="col-span-3 text-[10px] text-muted-foreground leading-snug">
+                    Same slot as the old Payal sticker (Rs.…/-). Prints sale price when MRP is 0;
+                    otherwise MRP. Now: {f.caption || ""}
+                    {labelPrintMrp(sample.mrp, sample.sale_price)}
+                    {f.suffix || ""}
+                  </p>
                 )}
               </div>
             );
