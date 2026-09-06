@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-09-06",
-  "count": 751,
-  "fileCount": 768,
+  "count": 752,
+  "fileCount": 769,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -669,6 +669,7 @@
     "20260904120000",
     "20260906120000",
     "20260906140000",
+    "20260906180000",
     "20260909120000",
     "20260909120100",
     "20260909120200",
@@ -1437,6 +1438,7 @@
     "20260904120000_wappconnect_pdf_invoice_template.sql",
     "20260906120000_get_organization_login_history.sql",
     "20260906140000_website_storefront_sections.sql",
+    "20260906180000_generate_next_barcode_gap_fill_active.sql",
     "20260909120000_get_customer_party_balances.sql",
     "20260909120100_fix_get_customer_party_balances_ambiguity.sql",
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
