@@ -59,6 +59,7 @@ describe("syncVariantPriceFromPurchase", () => {
       variantId: "sku-1",
       productId: "prod-1",
       forked: false,
+      barcode: undefined,
     });
     expect(updateMock).toHaveBeenCalledWith(
       expect.objectContaining({

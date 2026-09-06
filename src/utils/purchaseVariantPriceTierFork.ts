@@ -78,6 +78,36 @@ export function shouldReuseBarcodeOnPriceTierFork(args: {
   return classifyBarcodeSource(args.barcode).source === "external";
 }
 
+/**
+ * Search / add an existing product: keep the barcode only for manufacturer /
+ * universal codes (Jockey EAN, UPC, brand serial). Generated org-series codes
+ * always allocate a fresh SKU so the old master's sale price is left intact.
+ */
+export function shouldReuseExistingBarcodeOnPurchaseSelect(args: {
+  barcode_source?: string | null;
+  barcode?: string | null;
+}): boolean {
+  return shouldReuseBarcodeOnPriceTierFork(args);
+}
+
+function canUpdateGeneratedSkuPriceInPlace(args: {
+  callerVariantId?: string;
+  sourceVariant: VariantPriceRow;
+  skuIdsWithPostedHistory: Set<string>;
+}): boolean {
+  const { callerVariantId, sourceVariant, skuIdsWithPostedHistory } = args;
+  if (!callerVariantId || callerVariantId !== sourceVariant.id) return false;
+  if (
+    shouldReuseBarcodeOnPriceTierFork({
+      barcode_source: sourceVariant.barcode_source,
+      barcode: sourceVariant.barcode,
+    })
+  ) {
+    return false;
+  }
+  return !skuIdsWithPostedHistory.has(sourceVariant.id);
+}
+
 const VARIANT_PRICE_SELECT =
   "id, product_id, size, color, barcode, barcode_source, pur_price, sale_price, mrp";
 
@@ -125,6 +155,8 @@ export type ResolveVariantForIncomingPriceTierResult = {
   productId: string;
   /** True when a new product+variant row was created for this price tier. */
   forked: boolean;
+  /** Barcode on the resolved (or newly forked) SKU — write this onto the bill line after a fork. */
+  barcode?: string | null;
 };
 
 type TierResolutionContext = {
@@ -138,6 +170,7 @@ type TierResolutionContext = {
 
 type ForkRequest = {
   cacheKey: string;
+  callerVariantId?: string;
   sourceVariant: VariantPriceRow;
   sourceProduct: ProductRow;
   incomingPurPrice: number;
@@ -221,6 +254,55 @@ async function fetchProductsByIds(
     if (error) throw error;
     return (data as ProductRow[]) ?? [];
   });
+}
+
+/**
+ * SKUs that already appeared on a posted purchase or sale. A freshly allocated
+ * generated barcode (stock 0, never billed) is absent — sale/pur edits update
+ * that SKU in place. Historical generated SKUs (Chirag 450006800) still fork.
+ */
+async function fetchSkuIdsWithPostedHistory(
+  organizationId: string,
+  skuIds: string[],
+): Promise<Set<string>> {
+  const unique = [...new Set(skuIds.filter(Boolean))];
+  if (unique.length === 0) return new Set();
+
+  try {
+    const [purchaseRows, saleRows] = await Promise.all([
+      fetchInIdChunks(unique, async (chunk) => {
+        const { data, error } = await supabase
+          .from("purchase_items")
+          .select("sku_id")
+          .in("sku_id", chunk)
+          .is("deleted_at", null);
+        if (error) throw error;
+        return (data as { sku_id: string | null }[]) ?? [];
+      }),
+      fetchInIdChunks(unique, async (chunk) => {
+        const { data, error } = await supabase
+          .from("sale_items")
+          .select("variant_id")
+          .eq("organization_id", organizationId)
+          .in("variant_id", chunk)
+          .is("deleted_at", null);
+        if (error) throw error;
+        return (data as { variant_id: string | null }[]) ?? [];
+      }),
+    ]);
+
+    const found = new Set<string>();
+    for (const row of purchaseRows) {
+      if (row.sku_id) found.add(row.sku_id);
+    }
+    for (const row of saleRows) {
+      if (row.variant_id) found.add(row.variant_id);
+    }
+    return found;
+  } catch {
+    // Fail closed: assume history so we do not overwrite an unknown SKU.
+    return new Set(unique);
+  }
 }
 
 /** Uses (organization_id, product_name) index — filter tier in memory. */
@@ -394,6 +476,7 @@ function resolveWithoutFork(
       variantId: sourceVariant.id,
       productId: sourceVariant.product_id,
       forked: false,
+      barcode: sourceVariant.barcode,
     };
   }
 
@@ -407,6 +490,7 @@ function resolveWithoutFork(
         variantId: tierSibling.id,
         productId: tierSibling.product_id,
         forked: tierSibling.id !== sourceVariant.id,
+        barcode: tierSibling.barcode,
       };
     }
   }
@@ -416,6 +500,7 @@ function resolveWithoutFork(
 
   return {
     cacheKey: forkCacheKey(sourceVariant.id, incomingMrp, incomingSalePrice),
+    callerVariantId: variantId,
     sourceVariant,
     sourceProduct,
     incomingPurPrice,
@@ -562,6 +647,7 @@ async function forkProductAndVariantForTier(args: {
     variantId: createdRow.id,
     productId,
     forked: true,
+    barcode: createdRow.barcode,
   };
 }
 
@@ -647,16 +733,56 @@ export async function resolveVariantsForIncomingPriceTiers(
     }
   }
 
+  const inPlaceCandidates = forkRequests.filter((req) =>
+    canUpdateGeneratedSkuPriceInPlace({
+      callerVariantId: req.callerVariantId,
+      sourceVariant: req.sourceVariant,
+      skuIdsWithPostedHistory: new Set(),
+    }),
+  );
+  const skuIdsWithPostedHistory =
+    inPlaceCandidates.length > 0
+      ? await fetchSkuIdsWithPostedHistory(
+          organizationId,
+          inPlaceCandidates.map((req) => req.sourceVariant.id),
+        )
+      : new Set<string>();
+
+  const stillFork: ForkRequest[] = [];
+  const inPlaceByCacheKey = new Map<string, ResolveVariantForIncomingPriceTierResult>();
+  for (const req of forkRequests) {
+    if (
+      canUpdateGeneratedSkuPriceInPlace({
+        callerVariantId: req.callerVariantId,
+        sourceVariant: req.sourceVariant,
+        skuIdsWithPostedHistory,
+      })
+    ) {
+      inPlaceByCacheKey.set(req.cacheKey, {
+        variantId: req.sourceVariant.id,
+        productId: req.sourceVariant.product_id,
+        forked: false,
+        barcode: req.sourceVariant.barcode,
+      });
+    } else {
+      stillFork.push(req);
+    }
+  }
+
   const forkResults =
-    forkRequests.length > 0
-      ? await executeForkRequests(organizationId, forkRequests, ctx)
+    stillFork.length > 0
+      ? await executeForkRequests(organizationId, stillFork, ctx)
       : new Map<string, ResolveVariantForIncomingPriceTierResult>();
 
   const resolvedEligible: Array<ResolveVariantForIncomingPriceTierResult | null> = prelim.map(
     (outcome) => {
       if (!outcome) return null;
       if ("cacheKey" in outcome) {
-        return forkResults.get(outcome.cacheKey) ?? null;
+        return (
+          inPlaceByCacheKey.get(outcome.cacheKey) ??
+          forkResults.get(outcome.cacheKey) ??
+          null
+        );
       }
       return outcome;
     },
