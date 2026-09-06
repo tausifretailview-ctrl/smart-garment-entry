@@ -126,6 +126,7 @@ export function StorefrontApp() {
         shop={payload.shop!}
         orgSlug={canonicalSlug}
         products={products}
+        sections={payload.sections || []}
         initialProductId={parsed.productId}
       />
     );
