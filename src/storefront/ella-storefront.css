@@ -253,7 +253,7 @@ body.ella-root {
 .ella-store button.ella-nav-link,
 .ella-nav-link {
   border-bottom: 2px solid transparent;
-  color: var(--ella-paper-muted);
+  color: #9a8454;
   font-family: Barlow, system-ui, sans-serif;
   font-size: 13px;
   font-weight: 500;

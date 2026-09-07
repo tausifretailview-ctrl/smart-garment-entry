@@ -10,6 +10,7 @@ describe("Ella Noor desktop storefront layout", () => {
     const css = await readFile(path.join(ROOT, "src/storefront/ella-storefront.css"), "utf8");
     const home = await readFile(path.join(ROOT, "src/storefront/EllaStorefrontHome.tsx"), "utf8");
     const root = await readFile(path.join(ROOT, "src/storefront/EllaStorefront.tsx"), "utf8");
+    const app = await readFile(path.join(ROOT, "src/storefront/StorefrontApp.tsx"), "utf8");
 
     expect(css).toMatch(/--ella-max:\s*none/);
     expect(css).not.toMatch(/--ella-max:\s*1200px/);
@@ -35,8 +36,10 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(home).toMatch(/ella-chrome/);
     expect(home).toMatch(/ella-site-header/);
     expect(home).toMatch(/ella-site-nav/);
-    expect(home).toMatch(/ella-nav-sale/);
+    expect(home).toMatch(/resolveEllaHeaderNav/);
     expect(home).toMatch(/ella-site-footer/);
+    expect(root).toMatch(/menus=\{menus\}/);
+    expect(app).toMatch(/menus=\{menuTree\}/);
     expect(root).toMatch(/onNavigate/);
     expect(home).toMatch(/Search by style code, colour or fabric/);
     expect(home).toMatch(/New arrivals/);
