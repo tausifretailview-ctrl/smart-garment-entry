@@ -1,6 +1,7 @@
 /**
  * Deno copy of src/utils/authAdminListUsersPaging.ts — edge functions cannot
  * import from the Vite app tree. Keep the two files in lockstep.
+ * Redeploy get-users after changing this: `supabase functions deploy get-users`.
  */
 export const AUTH_ADMIN_LIST_USERS_PER_PAGE = 1000;
 

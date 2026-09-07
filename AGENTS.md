@@ -7,7 +7,8 @@ EzzyERP — a single Vite + React + TypeScript web app (multi-tenant retail POS 
 
 ### Backend
 - The sole backend is a **cloud-hosted Supabase project** (Postgres + Auth + RLS + Edge Functions), owned by Lovable. Credentials are already committed in `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`). No local database/backend needs to be started to run or develop the frontend.
-- The Supabase URL in `.env` points at the **live production** instance used by real tenants. Treat it as production: do NOT create test users, organizations, or sample data against it. `supabase/migrations/*` and Edge Function source are NOT in this checkout — they live in the managed cloud project, so a local Supabase cannot be reproduced from this repo.
+- The Supabase URL in `.env` points at the **live production** instance used by real tenants. Treat it as production: do NOT create test users, organizations, or sample data against it. `supabase/migrations/*` live in the managed cloud project; this repo keeps copies for review, but applying them (SQL editor / Lovable pipeline) is a separate step from the Vercel frontend build.
+- Edge function source lives in `supabase/functions/`. Merging to `main` and the Vercel build do **not** deploy Deno functions. After changing one, run `supabase functions deploy <name>` (or the team's edge-function pipeline). Until that happens, production keeps serving the old bundle — e.g. a `get-users` paging fix on main is a no-op until `get-users` is redeployed.
 
 ### Running / building (commands live in `package.json`)
 - Dev server: `npm run dev` → Vite on **port 8080** (host `::`). This is the main way to run the app.

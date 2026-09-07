@@ -35,7 +35,35 @@ describe("accumulateAuthUserPages", () => {
     expect(users).toHaveLength(81);
     expect(users[80]?.id).toBe("u81");
   });
+
+  it("keeps paging at 1000-per-page instead of treating one full page as the whole directory", async () => {
+    const pages = [
+      Array.from({ length: 1000 }, (_, i) => ({ id: `u${i + 1}` })),
+      Array.from({ length: 1000 }, (_, i) => ({ id: `u${i + 1001}` })),
+      Array.from({ length: 1 }, () => ({ id: "u2001" })),
+    ];
+    const seen: number[] = [];
+    const users = await accumulateAuthUserPages(async (page, perPage) => {
+      seen.push(page);
+      expect(perPage).toBe(AUTH_ADMIN_LIST_USERS_PER_PAGE);
+      return pages[page - 1] ?? [];
+    });
+    expect(seen).toEqual([1, 2, 3]);
+    expect(users).toHaveLength(2001);
+    expect(users[2000]?.id).toBe("u2001");
+  });
 });
+
+const GET_USERS_FRONTEND_CONSUMERS = [
+  "src/pages/POSDashboard.tsx",
+  "src/pages/EmployeeMaster.tsx",
+  "src/pages/UserRights.tsx",
+  "src/pages/SalesInvoiceDashboard.tsx",
+  "src/pages/ItemWiseSalesReport.tsx",
+  "src/pages/PlatformAdmin.tsx",
+  "src/pages/OrganizationManagement.tsx",
+  "src/components/UserManagement.tsx",
+] as const;
 
 describe("get-users edge function paging", () => {
   it("pages listUsers instead of the default 50-user call", () => {
@@ -43,6 +71,14 @@ describe("get-users edge function paging", () => {
     expect(fn).toContain("accumulateAuthUserPages");
     expect(fn).toMatch(/listUsers\(\{\s*page,\s*perPage,/);
     expect(fn).not.toMatch(/admin\.listUsers\(\s*\)/);
+  });
+
+  it("is the shared directory for every listed frontend consumer", () => {
+    const root = resolve(here, "../..");
+    for (const rel of GET_USERS_FRONTEND_CONSUMERS) {
+      const src = readFileSync(resolve(root, rel), "utf8");
+      expect(src, rel).toMatch(/get-users/);
+    }
   });
 
   it("keeps the Deno helper in lockstep with the unit-tested paging helper", () => {

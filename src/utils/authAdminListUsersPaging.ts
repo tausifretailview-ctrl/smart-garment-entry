@@ -1,11 +1,16 @@
 /**
  * GoTrue admin listUsers() defaults to 50 users per page when called with no
  * args. Screens that treat the result as "every platform user" silently drop
- * anyone past that cutoff (POS salesman filter, Employee Master, User Rights,
- * sales reports, Platform Admin, Organization Management).
+ * anyone past that cutoff even when organization_members is valid
+ * (mobility@gmail.com with 81 platform users).
  *
- * Loop until a page comes back smaller than requested instead of raising a
- * single-call perPage cap — that only moves the same cliff.
+ * Shared get-users consumers: POS Dashboard salesman filter, Employee Master
+ * user-linking, User Rights, Sales Invoice Dashboard, Item-Wise Sales Report,
+ * Platform Admin, Organization Management, User Management.
+ *
+ * Loop until a page comes back smaller than requested (1000 at a time) instead
+ * of raising a single-call perPage cap — that only moves the same cliff.
+ * Edge function must be redeployed: `supabase functions deploy get-users`.
  */
 export const AUTH_ADMIN_LIST_USERS_PER_PAGE = 1000;
 

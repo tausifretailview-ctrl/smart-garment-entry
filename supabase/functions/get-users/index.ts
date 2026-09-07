@@ -1,3 +1,13 @@
+/**
+ * Shared auth-user directory. Every caller treats the payload as "all platform
+ * users", so a truncated GoTrue page (default 50) hides later accounts from:
+ * POS Dashboard salesman filter, Employee Master user-linking, User Rights,
+ * Sales Invoice Dashboard filters, Item-Wise Sales Report filters, Platform
+ * Admin, Organization Management, User Management.
+ *
+ * Merge to main / Vercel does not ship this. Redeploy the Deno function:
+ *   supabase functions deploy get-users
+ */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { accumulateAuthUserPages } from "../_shared/listAllAuthUsers.ts";
