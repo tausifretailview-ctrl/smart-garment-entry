@@ -163,8 +163,8 @@ import {
   gatePurchaseBarcodePrint,
   hasUnsavedPurchaseLinesForBarcodePrint,
   purchaseBarcodePrintBlockedMessage,
-  purchaseSaveFailedStockHint,
 } from "@/utils/purchaseBarcodePrintGuard";
+import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
@@ -4923,9 +4923,10 @@ const PurchaseEntry = () => {
       await doSave();
     } catch (err: any) {
       console.error("[PurchaseEntry] Unexpected save error (outer guard):", err);
+      const copy = formatPurchaseBillSaveFailedCopy({ error: err, lineItems });
       toast({
-        title: "Bill Save Failed",
-        description: `Unexpected error: ${err?.message || String(err) || "Unknown error"}. Your draft is preserved — please try again.`,
+        title: copy.title,
+        description: copy.message,
         variant: "destructive",
         duration: 12000,
       });
@@ -6277,17 +6278,10 @@ const PurchaseEntry = () => {
         itemCount: lineItems.length,
         isEdit: isEditMode,
       });
-      const info = extractErrorInfo(error);
-      const rawMsg = String(error?.message || info.message || "");
-      const floorMsg = rawMsg.includes("PURCHASE_STOCK_FLOOR:")
-        ? rawMsg.replace(/^.*PURCHASE_STOCK_FLOOR:\s*/i, "").replace(/^Error in purchase_item_\w+ trigger:\s*/i, "")
-        : null;
-      const stockHint = floorMsg ? null : purchaseSaveFailedStockHint(lineItems);
+      const copy = formatPurchaseBillSaveFailedCopy({ error, lineItems });
       toast({
-        title: floorMsg ? "Cannot reduce quantity" : "Bill Save Failed — Draft Preserved",
-        description: floorMsg
-          ? floorMsg
-          : `${info.message}${info.code ? ` (code: ${info.code})` : ''}. Your data is safe in draft. Please try again.${stockHint ? ` ${stockHint}` : ""}`,
+        title: copy.title,
+        description: copy.message,
         variant: "destructive",
         duration: 12000,
       });

@@ -19,6 +19,7 @@ import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { ErrorDialog } from "@/components/ui/error-dialog";
 import {
   Drawer,
   DrawerContent,
@@ -39,11 +40,11 @@ import { computePurchaseBillTotals } from "@/utils/excelImportUtils";
 import {
   buildMobilePurchaseRpcPayload,
   mobilePurchaseLineTotal,
-  parsePurchaseAtomicSaveError,
   prefillPurchasePrice,
   validateMobilePurchaseBeforeSave,
   type MobilePurchaseLine,
 } from "@/utils/mobilePurchaseSave";
+import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy";
 import {
   clearMobilePurchaseDraft,
   draftHasWork,
@@ -136,6 +137,9 @@ export default function MobilePurchaseEntry() {
   const [kpMode, setKpMode] = useState<KeypadMode>("qty");
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveFailedDialog, setSaveFailedDialog] = useState<{ title: string; message: string } | null>(
+    null,
+  );
   const [uiSaving, setUiSaving] = useState(false);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
@@ -424,6 +428,7 @@ export default function MobilePurchaseEntry() {
     setItems([]);
     setSuccess(null);
     setSaveError(null);
+    setSaveFailedDialog(null);
     setEditIndex(null);
   }, []);
 
@@ -485,6 +490,7 @@ export default function MobilePurchaseEntry() {
     saveLockRef.current = true;
     setUiSaving(true);
     setSaveError(null);
+    setSaveFailedDialog(null);
     try {
       const { p_bill, p_items } = buildMobilePurchaseRpcPayload(fields, items);
       const { data, error } = await supabase.rpc("save_purchase_bill_with_items_atomic", {
@@ -520,11 +526,9 @@ export default function MobilePurchaseEntry() {
         itemCount: p_items.length,
       });
     } catch (err) {
-      const message = parsePurchaseAtomicSaveError(
-        err && typeof err === "object" && "message" in err ? (err as { message: string }).message : err,
-      );
-      setSaveError(message);
-      toast.error(message);
+      const copy = formatPurchaseBillSaveFailedCopy({ error: err, lineItems: items });
+      setSaveError(copy.message);
+      setSaveFailedDialog({ title: copy.title, message: copy.message });
     } finally {
       saveLockRef.current = false;
       setUiSaving(false);
@@ -537,6 +541,18 @@ export default function MobilePurchaseEntry() {
     if (editIndex == null) return;
     setItems((prev) => prev.map((row, i) => (i === editIndex ? { ...row, ...patch } : row)));
   };
+
+  const saveFailedModal = (
+    <ErrorDialog
+      open={saveFailedDialog != null}
+      onOpenChange={(open) => {
+        if (!open) setSaveFailedDialog(null);
+      }}
+      title={saveFailedDialog?.title}
+      message={saveFailedDialog?.message || ""}
+      severity="error"
+    />
+  );
 
   if (success) {
     return (
@@ -564,6 +580,7 @@ export default function MobilePurchaseEntry() {
   if (theme === "premium") {
     return (
       <div className="ez flex h-full min-h-0 flex-col bg-[var(--ez-ground)]">
+        {saveFailedModal}
         {saving && (
           <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[var(--ez-ground)]/85 backdrop-blur-sm">
             <Loader2 className="h-10 w-10 animate-spin text-[var(--ez-accent)]" />
@@ -817,6 +834,7 @@ export default function MobilePurchaseEntry() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
+      {saveFailedModal}
       {saving && (
         <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-background/80 backdrop-blur-sm">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
