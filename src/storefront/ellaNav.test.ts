@@ -33,8 +33,10 @@ describe("resolveEllaHeaderNav", () => {
       [{ id: "s1", slug: "new-arrival", label: "New Arrival", display_order: 0 }],
     );
     expect(nav.map((item) => item.label)).toEqual(["Home", "New in", "Ready to wear"]);
+    expect(nav[1]?.sort).toBe("newest");
     expect(nav[2]?.chip).toBe("Ready");
     expect(nav[2]?.availability).toBe("in-stock");
+    expect(nav[2]?.sort).toBe("featured");
   });
 
   it("maps a menu label onto a matching website section slug", () => {

@@ -110,7 +110,7 @@ export function resolveEllaHeaderNav(
     roots.some((menu) => !isHomeOnlyLabel(menu.label));
   if (!hasShopLinks) return fallback;
 
-  const mapped = roots.map((menu) => ({
+  const mapped: EllaHeaderNavItem[] = roots.map((menu) => ({
     id: menu.id,
     label: menu.label.trim(),
     chip: chipFromMenu(menu, sections),
