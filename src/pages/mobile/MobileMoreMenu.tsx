@@ -30,6 +30,7 @@ import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { cn } from "@/lib/utils";
 import { DesktopViewToggle } from "@/components/mobile/DesktopViewToggle";
+import { MobileThemeToggle } from "@/components/mobile/MobileThemeToggle";
 import {
   MOBILE_ACCOUNTS_PATH,
   MOBILE_POS_PATH,
@@ -135,7 +136,8 @@ export default function MobileMoreMenu() {
       </div>
 
       <div className="px-4 py-4 space-y-6">
-        <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden">
+        <div className="bg-card rounded-2xl border border-border/60 shadow-sm overflow-hidden divide-y divide-border/60">
+          <MobileThemeToggle />
           <DesktopViewToggle variant="menu-row" />
         </div>
 

@@ -49,6 +49,10 @@ import {
   readMobilePurchaseDraft,
   writeMobilePurchaseDraft,
 } from "@/utils/mobilePurchaseDraft";
+import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
+import { ShellHeader, ShellButton, SearchBar, SectionHead } from "@/components/mobile/premium";
+import { PosFastPicks, type FastPick } from "@/components/mobile/premium/PosFastPicks";
+import { PosKeypad, type KeypadMode } from "@/components/mobile/premium/PosKeypad";
 
 function formatInr(amount: number): string {
   const n = Number(amount);
@@ -105,6 +109,7 @@ function todayYmd(): string {
 }
 
 export default function MobilePurchaseEntry() {
+  const theme = useMobileUiTheme();
   const { currentOrganization } = useOrganization();
   const { user } = useAuth();
   const { openScan, registerBillingScanHandler } = useMobileScan();
@@ -125,6 +130,9 @@ export default function MobilePurchaseEntry() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [items, setItems] = useState<MobilePurchaseLine[]>([]);
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  // Premium theme only — replaces the line-edit Drawer with an inline keypad.
+  const [selIndex, setSelIndex] = useState<number | null>(null);
+  const [kpMode, setKpMode] = useState<KeypadMode>("qty");
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uiSaving, setUiSaving] = useState(false);
@@ -297,6 +305,21 @@ export default function MobilePurchaseEntry() {
     },
     [isDcPurchase],
   );
+
+  // Premium theme only — search hits as fast-pick tiles (purchase price shown).
+  const purchasePicks: FastPick[] = searchHits.slice(0, 6).map((hit) => ({
+    id: hit.variant.id,
+    name: hit.product.product_name,
+    meta: `${hit.variant.size ?? ""} · ${hit.variant.barcode ?? "—"}`,
+    price: `₹${formatInr(
+      prefillPurchasePrice({
+        pur_price: hit.variant.pur_price,
+        last_purchase_pur_price: hit.variant.last_purchase_pur_price,
+        default_pur_price: hit.product.default_pur_price,
+      }),
+    )}`,
+    onAdd: () => addFromHit(hit),
+  }));
 
   const addByBarcode = useCallback(
     async (barcode: string) => {
@@ -546,6 +569,260 @@ export default function MobilePurchaseEntry() {
             New Bill
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (theme === "premium") {
+    return (
+      <div className="ez flex h-full min-h-0 flex-col bg-[var(--ez-ground)]">
+        {saving && (
+          <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[var(--ez-ground)]/85 backdrop-blur-sm">
+            <Loader2 className="h-10 w-10 animate-spin text-[var(--ez-accent)]" />
+            <p className="text-[13px] font-bold">Saving purchase bill…</p>
+            <p className="text-[11px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
+          </div>
+        )}
+
+        <ShellHeader
+          title="Purchase entry"
+          kicker={items.length ? "Draft saved" : "New bill"}
+          action={<ShellButton onClick={() => setSupplierPickerOpen(true)}>Change</ShellButton>}
+        >
+          <button
+            type="button"
+            onClick={() => setSupplierPickerOpen(true)}
+            className="w-full border-2 border-[var(--ez-shell-line)] px-2.5 py-2.5 text-left"
+          >
+            <p className="text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
+              Supplier
+            </p>
+            <p className="mt-1 truncate text-[12px] font-semibold leading-none">{supplierName || "Select supplier"}</p>
+          </button>
+        </ShellHeader>
+
+        <AdaptiveSupplierPicker
+          open={supplierPickerOpen}
+          onOpenChange={setSupplierPickerOpen}
+          selectedId={supplierId}
+          selectedLabel={supplierName}
+          placeholder="Supplier"
+          searchTerm={supplierSearchTerm}
+          onSearchTermChange={setSupplierSearchTerm}
+          options={supplierOptions}
+          onSelect={(s) => {
+            setSupplierId(s.id);
+            setSupplierName(s.supplier_name);
+            setSupplierPickerOpen(false);
+            setSupplierSearchTerm("");
+          }}
+          onUseTypedName={(name) => {
+            setSupplierId(null);
+            setSupplierName(name);
+          }}
+          emptyMessage="No supplier found"
+          triggerClassName="hidden"
+        />
+
+        {/* ── bill meta: three flush-left cells, DC is a toggle cell not a checkbox ── */}
+        <div className="grid shrink-0 grid-cols-3 border-b-2 border-[var(--ez-rule)]">
+          <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
+            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
+              Bill date
+            </span>
+            <input
+              type="date"
+              value={billDate}
+              disabled={saving}
+              onChange={(e) => setBillDate(e.target.value)}
+              className="num mt-1 w-full border-0 bg-transparent p-0 text-[12px] font-bold leading-none outline-none"
+            />
+          </label>
+          <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
+            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
+              Supp. invoice
+            </span>
+            <input
+              value={supplierInvoiceNo}
+              disabled={saving}
+              placeholder="AUTO"
+              onChange={(e) => setSupplierInvoiceNo(e.target.value)}
+              className="mt-1 w-full border-0 bg-transparent p-0 text-[12px] font-bold leading-none outline-none placeholder:text-[var(--ez-muted)]"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => setIsDcPurchase(!isDcPurchase)}
+            className={cn(
+              "px-2.5 py-2 text-left",
+              isDcPurchase ? "bg-[var(--ez-accent)] text-white" : "bg-[var(--ez-ground)] text-[var(--ez-ink)]",
+            )}
+          >
+            <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] opacity-75">
+              DC · no GST
+            </span>
+            <span className="mt-1 block text-[12px] font-extrabold uppercase leading-none tracking-[0.06em]">
+              {isDcPurchase ? "On" : "Off"}
+            </span>
+          </button>
+        </div>
+
+        <SearchBar
+          value={searchInput}
+          onChange={setSearchInput}
+          onScan={openScan}
+          disabled={saving}
+          inputRef={searchInputRef}
+        />
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          <PosFastPicks items={purchasePicks} searchTerm={debouncedSearch} loading={searchLoading} />
+
+          <div className="border-t-2 border-[var(--ez-rule)]">
+            <SectionHead title={`Lines · ${items.length}`} />
+            {items.length === 0 ? (
+              <p className="border-t border-[var(--ez-rule-thin)] px-3.5 pb-5 pt-4 text-[12px] font-medium leading-[1.5] text-[var(--ez-muted)]">
+                No lines yet. Scan the supplier's carton labels one after another — quantity and cost stay on the keypad.
+              </p>
+            ) : (
+              items.map((item, index) => (
+                <button
+                  key={item.temp_id}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setSelIndex(index);
+                    setKpMode("qty");
+                  }}
+                  className={cn(
+                    "block w-full border-t border-[var(--ez-rule-thin)] px-3.5 pb-2.5 pt-2.5 text-left",
+                    selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
+                  )}
+                >
+                  <div className="flex justify-between gap-2.5">
+                    <p className="truncate text-[12.5px] font-bold leading-[1.3]">{item.product_name}</p>
+                    <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">
+                      ₹{formatInr(mobilePurchaseLineTotal(item))}
+                    </p>
+                  </div>
+                  <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
+                    {item.size ? `Size ${item.size} · ` : ""}Qty {item.qty} × ₹{formatInr(item.pur_price)}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="h-4" />
+        </div>
+
+        {selIndex != null && items[selIndex] ? (
+          <PosKeypad
+            title={items[selIndex].product_name}
+            qty={items[selIndex].qty}
+            price={items[selIndex].pur_price}
+            mode={kpMode === "disc" ? "price" : kpMode}
+            onModeChange={setKpMode}
+            onClose={() => setSelIndex(null)}
+            showDiscount={false}
+            formatMoney={(n) => `₹${formatInr(n)}`}
+            onCommit={(mode, value) => {
+              const i = selIndex;
+              setItems((prev) =>
+                prev.map((row, k) =>
+                  k === i ? { ...row, ...(mode === "qty" ? { qty: Math.max(0, value) } : { pur_price: value }) } : row,
+                ),
+              );
+            }}
+          />
+        ) : null}
+
+        {/* ── discount / other charges + save ── */}
+        <div
+          className="ez shrink-0 border-t-2 border-[var(--ez-ink)] bg-[var(--ez-ground)]"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px))" }}
+        >
+          {saveError ? (
+            <p className="border-b border-[var(--ez-rule-thin)] bg-[#f9ecea] px-3.5 py-2 text-[11px] font-semibold text-[var(--ez-debit)]">
+              {saveError}
+            </p>
+          ) : null}
+          <div className="grid grid-cols-2 border-b border-[var(--ez-rule-thin)]">
+            <label className="border-r border-[var(--ez-rule-thin)] px-2.5 py-2">
+              <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
+                Discount
+              </span>
+              <input
+                inputMode="decimal"
+                value={String(discountAmount || "")}
+                disabled={saving}
+                onFocus={selectOnFocus}
+                onChange={(e) => setDiscountAmount(Number(e.target.value) || 0)}
+                className="num mt-1 w-full border-0 bg-transparent p-0 text-[13px] font-bold leading-none outline-none"
+              />
+            </label>
+            <label className="px-2.5 py-2">
+              <span className="block text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-muted)]">
+                Other charges
+              </span>
+              <input
+                inputMode="decimal"
+                value={String(otherCharges || "")}
+                disabled={saving}
+                onFocus={selectOnFocus}
+                onChange={(e) => setOtherCharges(Number(e.target.value) || 0)}
+                className="num mt-1 w-full border-0 bg-transparent p-0 text-[13px] font-bold leading-none outline-none"
+              />
+            </label>
+          </div>
+          <div className="flex items-end justify-between gap-3 px-3.5 pb-2.5 pt-2.5">
+            <div className="min-w-0">
+              <p className="ez-label">
+                {items.length} line{items.length === 1 ? "" : "s"}
+                {!isDcPurchase && totals.gstAmount > 0 ? ` · GST ₹${formatInr(totals.gstAmount)}` : ""}
+              </p>
+              <p className="ez-money mt-1">₹{formatInr(totals.netAmount)}</p>
+            </div>
+            <button
+              type="button"
+              disabled={items.length === 0 || saving}
+              onClick={() => void runSave()}
+              className="ez-btn-label min-h-[48px] shrink-0 bg-[var(--ez-accent)] px-5 py-3.5 pl-4 text-white active:bg-[var(--ez-accent-600)] disabled:bg-[var(--ez-disabled)] disabled:text-[var(--ez-muted)]"
+            >
+              {saving ? <Loader2 className="h-5 w-5 animate-spin" /> : "Save bill"}
+            </button>
+          </div>
+        </div>
+
+        <MrpTierSelectionDialog
+          open={mrpTierPicker != null}
+          enableMrp
+          onOpenChange={(open) => {
+            if (!open) setMrpTierPicker(null);
+          }}
+          barcode={mrpTierPicker?.barcode ?? ""}
+          choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+          onSelect={(choiceId) => {
+            const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+            setMrpTierPicker(null);
+            if (pick) addFromHit(pick);
+          }}
+        />
+
+        <DraftResumeDialog
+          open={showDraftDialog}
+          onOpenChange={setShowDraftDialog}
+          draftType="purchase"
+          lastSaved={draftSavedAt ? new Date(draftSavedAt) : undefined}
+          onResume={() => {
+            applyDraft();
+            setShowDraftDialog(false);
+          }}
+          onStartFresh={() => {
+            discardDraft();
+            setShowDraftDialog(false);
+          }}
+        />
       </div>
     );
   }
