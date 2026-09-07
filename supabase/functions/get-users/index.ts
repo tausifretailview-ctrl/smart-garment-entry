@@ -1,5 +1,16 @@
+/**
+ * Shared auth-user directory. Every caller treats the payload as "all platform
+ * users", so a truncated GoTrue page (default 50) hides later accounts from:
+ * POS Dashboard salesman filter, Employee Master user-linking, User Rights,
+ * Sales Invoice Dashboard filters, Item-Wise Sales Report filters, Platform
+ * Admin, Organization Management, User Management.
+ *
+ * Merge to main / Vercel does not ship this. Redeploy the Deno function:
+ *   supabase functions deploy get-users
+ */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { accumulateAuthUserPages } from "../_shared/listAllAuthUsers.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,12 +90,20 @@ serve(async (req) => {
       );
     }
 
-    // Get all users from auth
-    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-
-    if (usersError) {
-      throw usersError;
-    }
+    // Get all users from auth. listUsers() defaults to a 50-user page size —
+    // with more than 50 platform users, later-created accounts were silently
+    // missing from every screen that depends on this function (POS Dashboard
+    // salesman filter, Employee Master user-linking, sales report filters,
+    // etc.), even though those users had genuine organization_members rows.
+    // Loop through every page rather than relying on one oversized perPage call.
+    const users = await accumulateAuthUserPages(async (page, perPage) => {
+      const { data, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
+        page,
+        perPage,
+      });
+      if (usersError) throw usersError;
+      return data?.users ?? [];
+    });
 
     // Get all user roles
     const { data: userRoles, error: rolesError } = await supabaseAdmin
