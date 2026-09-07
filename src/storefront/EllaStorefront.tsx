@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
-import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
+import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import type { PublicStorefrontSection } from "@/lib/websiteSections";
 import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
 import { toEllaStorefrontProduct, type EllaStorefrontProduct } from "./ellaProduct";
@@ -20,12 +20,14 @@ export function EllaStorefront({
   orgSlug,
   products,
   sections = [],
+  menus = [],
   initialProductId,
 }: {
   shop: PublicStorefrontShop;
   orgSlug: string;
   products: PublicStorefrontProduct[];
   sections?: PublicStorefrontSection[];
+  menus?: PublicStorefrontMenu[];
   initialProductId: string | null;
 }) {
   const ellaProducts = useMemo(() => products.map(toEllaStorefrontProduct), [products]);
@@ -98,6 +100,7 @@ export function EllaStorefront({
         facebookUrl={shop.facebook_url}
         products={ellaProducts}
         sections={sections}
+        menus={menus}
         cartCount={cartCount}
         onOpenProduct={openProduct}
         onOpenGeneralEnquire={() => {

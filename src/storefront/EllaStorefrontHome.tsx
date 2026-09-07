@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { storefrontHomePath } from "@/lib/storefrontPath";
 import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import { isNewArrivalSlug, type PublicStorefrontSection } from "@/lib/websiteSections";
+import type { PublicStorefrontMenu } from "@/lib/websiteTypes";
 import { ellaCopy } from "./storefrontTheme";
 import { ellaStockBadgeClass } from "./ellaStock";
 import {
@@ -13,6 +14,7 @@ import {
   type EllaSortKey,
   type EllaStorefrontProduct,
 } from "./ellaProduct";
+import { ELLA_LUXURY_NAV, resolveEllaHeaderNav, type EllaHeaderNavItem } from "./ellaNav";
 import { catalogueSizeFacets } from "./ellaVariants";
 
 const SORT_OPTIONS: Array<{ id: EllaSortKey; label: string }> = [
@@ -21,51 +23,6 @@ const SORT_OPTIONS: Array<{ id: EllaSortKey; label: string }> = [
   { id: "in-stock", label: "In stock first" },
   { id: "price-asc", label: "Price: low to high" },
   { id: "price-desc", label: "Price: high to low" },
-];
-
-/** Luxury header nav from the Ella'Noor HTML mock — maps onto existing chips. */
-const LUXURY_NAV: Array<{
-  id: string;
-  label: string;
-  chip: string;
-  title: string;
-  lead: string;
-}> = [
-  {
-    id: "new-in",
-    label: "New in",
-    chip: "all",
-    title: "New in",
-    lead: "The latest studio drop — chikankari and prints just in from the rack.",
-  },
-  {
-    id: "ready",
-    label: "Ready to wear",
-    chip: "Ready",
-    title: "Ready to wear",
-    lead: "Chikankari and printed kurtas held in studio stock — dispatched within 48 hours.",
-  },
-  {
-    id: "formals",
-    label: "Formals",
-    chip: "Festive",
-    title: "Formals",
-    lead: "Occasion pieces cut to your measurements in 3–4 weeks.",
-  },
-  {
-    id: "mto",
-    label: "Made to order",
-    chip: "Bridal",
-    title: "Made to order",
-    lead: "Formals and bridals stitched to your measurements. Pay 30% to start; the balance before dispatch.",
-  },
-  {
-    id: "sale",
-    label: "Sale",
-    chip: "all",
-    title: "Sale",
-    lead: "Selected studio pieces while they last.",
-  },
 ];
 
 const TRUST = [
@@ -164,6 +121,7 @@ export function EllaStorefrontHome({
   facebookUrl,
   products,
   sections = [],
+  menus = [],
   cartCount = 0,
   onOpenProduct,
   onOpenGeneralEnquire,
@@ -179,6 +137,7 @@ export function EllaStorefrontHome({
   facebookUrl?: string | null;
   products: EllaStorefrontProduct[];
   sections?: PublicStorefrontSection[];
+  menus?: PublicStorefrontMenu[];
   cartCount?: number;
   onOpenProduct: (product: EllaStorefrontProduct) => void;
   onOpenGeneralEnquire: () => void;
@@ -196,6 +155,7 @@ export function EllaStorefrontHome({
   const collectionRef = useRef<HTMLElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const chromeRef = useRef<HTMLDivElement | null>(null);
+  const headerNav = useMemo(() => resolveEllaHeaderNav(menus, sections), [menus, sections]);
 
   useLayoutEffect(() => {
     const chrome = chromeRef.current;
@@ -238,7 +198,7 @@ export function EllaStorefrontHome({
   const studioWa = whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), whatsapp);
   const visitLine = (address || "").trim() || ellaCopy.address;
   const homeHref = storefrontHomePath(orgSlug);
-  const activeNav = LUXURY_NAV.find((item) => item.id === luxuryNav) || LUXURY_NAV[1];
+  const activeNav = headerNav.find((item) => item.id === luxuryNav) || headerNav[0] || ELLA_LUXURY_NAV[1];
 
   const searchHits = useMemo(() => {
     const q = filters.search.trim().toLowerCase();
@@ -306,24 +266,23 @@ export function EllaStorefrontHome({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const goCollection = (item: (typeof LUXURY_NAV)[number], extras: Partial<EllaFilterState> = {}) => {
+  const goCollection = (item: EllaHeaderNavItem, extras: Partial<EllaFilterState> = {}) => {
     onNavigate?.();
     setLuxuryNav(item.id);
     setView("collection");
-    setAvailability(item.id === "mto" ? "made-to-order" : item.id === "ready" ? "in-stock" : "all");
+    setAvailability(item.availability);
     setFilters({
       ...ELLA_DEFAULT_FILTERS,
       chip: item.chip,
-      sort: item.id === "new-in" ? "newest" : "featured",
+      sort: item.sort,
       ...extras,
     });
     window.setTimeout(() => collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
-  const primaryNav = LUXURY_NAV.filter((item) => item.id !== "sale");
-  const saleNav = LUXURY_NAV.find((item) => item.id === "sale");
+  const luxuryById = (id: string) => ELLA_LUXURY_NAV.find((item) => item.id === id) || ELLA_LUXURY_NAV[0];
 
-  const selectLuxury = (item: (typeof LUXURY_NAV)[number]) => goCollection(item);
+  const selectLuxury = (item: EllaHeaderNavItem) => goCollection(item);
 
   const toggleSize = (label: string) =>
     patch({
@@ -441,7 +400,7 @@ export function EllaStorefrontHome({
 
           <nav className="ella-site-nav" aria-label="Collections">
             <div className="ella-nav-primary">
-              {primaryNav.map((item) => (
+              {headerNav.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -452,17 +411,6 @@ export function EllaStorefrontHome({
                 </button>
               ))}
             </div>
-            {saleNav ? (
-              <div className="ella-nav-sale">
-                <button
-                  type="button"
-                  className={`ella-nav-link${view === "collection" && luxuryNav === saleNav.id ? " ella-nav-link-active" : ""}`}
-                  onClick={() => selectLuxury(saleNav)}
-                >
-                  {saleNav.label}
-                </button>
-              </div>
-            ) : null}
           </nav>
 
           <div className="ella-site-tools">
@@ -482,7 +430,7 @@ export function EllaStorefrontHome({
               type="button"
               className="ella-icon-btn"
               aria-label="Wishlist"
-              onClick={() => goCollection(LUXURY_NAV[0], { sort: "newest" })}
+              onClick={() => goCollection(luxuryById("new-in"), { sort: "newest" })}
             >
               <HeartIcon />
             </button>
@@ -590,13 +538,13 @@ export function EllaStorefrontHome({
                 Ready-to-wear pieces ship in 48 hours from live studio stock. Formals are cut to order in 3–4 weeks.
               </p>
               <div className="ella-hero-actions">
-                <button type="button" className="ella-btn ella-hero-btn" onClick={() => goCollection(LUXURY_NAV[1])}>
+                <button type="button" className="ella-btn ella-hero-btn" onClick={() => goCollection(luxuryById("ready"))}>
                   Shop ready to wear
                 </button>
                 <button
                   type="button"
                   className="ella-btn ella-btn-ghost-light ella-hero-btn"
-                  onClick={() => goCollection(LUXURY_NAV[3])}
+                  onClick={() => goCollection(luxuryById("mto"))}
                 >
                   Made to order
                 </button>
@@ -631,7 +579,7 @@ export function EllaStorefrontHome({
                 <div className="ella-eyebrow ella-arrivals-kicker">In stock now</div>
                 <h2 className="ella-display ella-arrivals-title">New arrivals</h2>
               </div>
-              <button type="button" className="ella-view-all" onClick={() => goCollection(LUXURY_NAV[0])}>
+              <button type="button" className="ella-view-all" onClick={() => goCollection(luxuryById("new-in"))}>
                 View all {products.length} styles
               </button>
             </div>
@@ -649,7 +597,7 @@ export function EllaStorefrontHome({
                   key={tile.id}
                   type="button"
                   className="ella-tile"
-                  onClick={() => goCollection(LUXURY_NAV.find((n) => n.id === tile.id) || LUXURY_NAV[0])}
+                  onClick={() => goCollection(luxuryById(tile.id))}
                 >
                   {tile.image ? <img src={tile.image} alt="" /> : <span className="ella-tile-ph" />}
                   <span className="ella-tile-veil" />
@@ -844,7 +792,7 @@ export function EllaStorefrontHome({
           </div>
           <div className="ella-footer-col">
             <div className="ella-footer-label">Shop</div>
-            {LUXURY_NAV.map((item) => (
+            {headerNav.map((item) => (
               <button key={item.id} type="button" className="ella-footer-link" onClick={() => selectLuxury(item)}>
                 {item.label}
               </button>

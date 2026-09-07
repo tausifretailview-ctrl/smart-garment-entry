@@ -20,6 +20,8 @@ export type EllaStorefrontProduct = {
   code: string;
   name: string;
   category: EllaCategory;
+  /** Raw ERP / website category — used when Website → Menus sets category_filter. */
+  sourceCategory: string | null;
   sectionSlug: string | null;
   sectionLabel: string | null;
   price: number | null;
@@ -101,6 +103,7 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     code: mapEllaStyleCode(product),
     name: product.name,
     category: mapEllaCategory(product.category),
+    sourceCategory: (product.category || "").trim() || null,
     sectionSlug: product.section_slug || null,
     sectionLabel: product.section_label || null,
     price,
@@ -150,7 +153,8 @@ export function filterEllaProducts(
       chip === "all" ||
       p.sectionSlug === chip ||
       p.sectionLabel === chip ||
-      p.category === chip;
+      p.category === chip ||
+      (p.sourceCategory || "") === chip;
     const matchesSearch =
       !q ||
       p.name.toLowerCase().includes(q) ||
