@@ -45,6 +45,7 @@ describe("missingCritical", () => {
   it("flags the purchase-stock floor when live is missing it", () => {
     const missing = missingCritical([]);
     expect(missing.some((row) => row.version === "20261001140000")).toBe(true);
+    expect(missing.some((row) => row.version === "20261207140000")).toBe(true);
   });
 
   it("is empty when every critical version is live", () => {

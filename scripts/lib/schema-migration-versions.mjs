@@ -8,6 +8,10 @@ export const MIGRATION_VERSION_RE = /^(\d{14})_/;
 /** Critical fixes that must be applied live — called out first in drift reports. */
 export const CRITICAL_SCHEMA_MIGRATIONS = [
   {
+    version: "20261207140000",
+    reason: "stock_movements allows purchase_sku_change_in/out (purchase line sku remap)",
+  },
+  {
     version: "20261001140000",
     reason: "Purchase line-qty edit sold-qty floor (negative stock)",
   },
