@@ -143,6 +143,8 @@ import {
   recycleOrphanGeneratedSkusOnProduct,
   recycleUnusedGeneratedSku,
 } from "@/utils/recycleUnusedGeneratedBarcode";
+import { createPurchaseDraftSkuGuard } from "@/utils/purchaseDraftSkuGuard";
+import { restoreRecycledPurchaseDraftSkus } from "@/utils/restoreRecycledPurchaseDraftSkus";
 import {
   buildBarcodeDuplicateWarnings,
   shouldFlagPurchaseBarcodeDuplicate,
@@ -877,10 +879,14 @@ const PurchaseEntry = () => {
   const isEditModeForBarcodeCheckRef = useRef(isEditMode);
   isEditModeForBarcodeCheckRef.current = isEditMode;
   const lineItemsRef = useRef(lineItems);
+  const draftSkuGuardRef = useRef(createPurchaseDraftSkuGuard());
   const syncDebounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     lineItemsRef.current = lineItems;
+    for (const row of lineItems) {
+      draftSkuGuardRef.current.add(row.sku_id);
+    }
   }, [lineItems]);
 
   useEffect(() => {
@@ -1976,9 +1982,9 @@ const PurchaseEntry = () => {
     barcode?: string;
   }): Promise<{ id: string; barcode: string; reused?: boolean } | null> => {
     try {
-      const excludeSkuIds = lineItemsRef.current
-        .map((row) => row.sku_id)
-        .filter((id): id is string => Boolean(id));
+      const excludeSkuIds = draftSkuGuardRef.current.exclude(
+        lineItemsRef.current.map((row) => row.sku_id),
+      );
       const reusedBarcode = source.barcode?.trim() || "";
       if (reusedBarcode) {
         const { data: newVariant, error } = await supabase
@@ -1999,6 +2005,7 @@ const PurchaseEntry = () => {
           .select("id")
           .single();
         if (error) throw error;
+        draftSkuGuardRef.current.add(newVariant.id);
         return { id: newVariant.id, barcode: reusedBarcode };
       }
 
@@ -2010,10 +2017,13 @@ const PurchaseEntry = () => {
         excludeSkuIds,
       });
       if (reusable) {
+        draftSkuGuardRef.current.add(reusable.id);
         await recycleOrphanGeneratedSkusOnProduct({
           organizationId: currentOrganization!.id,
           productId: source.product_id,
-          excludeSkuIds: [...excludeSkuIds, reusable.id],
+          excludeSkuIds: draftSkuGuardRef.current.exclude(
+            lineItemsRef.current.map((row) => row.sku_id),
+          ),
         });
         return { ...reusable, reused: true };
       }
@@ -2021,7 +2031,9 @@ const PurchaseEntry = () => {
       await recycleOrphanGeneratedSkusOnProduct({
         organizationId: currentOrganization!.id,
         productId: source.product_id,
-        excludeSkuIds,
+        excludeSkuIds: draftSkuGuardRef.current.exclude(
+          lineItemsRef.current.map((row) => row.sku_id),
+        ),
       });
 
       const generated = await generateCentralizedBarcode();
@@ -2040,6 +2052,7 @@ const PurchaseEntry = () => {
         stock_qty: 0,
         active: true,
       });
+      draftSkuGuardRef.current.add(newVariant.id);
       return { id: newVariant.id, barcode: newBarcode };
     } catch (error: any) {
       console.error("Failed to create new variant:", error);
@@ -4133,6 +4146,7 @@ const PurchaseEntry = () => {
             });
             barcode = freshBarcode;
             skuId = created.id;
+            draftSkuGuardRef.current.add(skuId);
           } else {
             const { data: newVariant, error: createError } = await supabase
               .from("product_variants")
@@ -4153,6 +4167,7 @@ const PurchaseEntry = () => {
           
             if (createError) throw createError;
             skuId = newVariant.id;
+            draftSkuGuardRef.current.add(skuId);
           }
           
           toast({
@@ -4766,6 +4781,7 @@ const PurchaseEntry = () => {
     setLineItems((items) => items.filter((item) => item.temp_id !== temp_id));
 
     if (removed?.sku_id && currentOrganization?.id) {
+      draftSkuGuardRef.current.remove(removed.sku_id);
       const remainingSkuIds = lineItems
         .filter((item) => item.temp_id !== temp_id && item.sku_id)
         .map((item) => item.sku_id as string);
@@ -5297,6 +5313,13 @@ const PurchaseEntry = () => {
       if (tierRepoined) {
         setLineItems(billLinesForSave);
       }
+    }
+
+    if (currentOrganization?.id) {
+      await restoreRecycledPurchaseDraftSkus({
+        organizationId: currentOrganization.id,
+        skuIds: billLinesForSave.map((item) => item.sku_id),
+      });
     }
 
     // Force-save draft before attempting bill save (safety net against data loss)
