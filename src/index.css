@@ -4580,3 +4580,75 @@ html.desktop-shell .login-page .login-input,
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.22) !important;
 }
+/* ============================================================
+   EZZY PREMIUM MOBILE — design tokens
+   Add to src/index.css (append near the end, AFTER the existing
+   :root blocks so it wins, or inside the same :root).
+   Values are the design's literals — do not re-derive them.
+   ============================================================ */
+
+:root {
+  /* shell (dark band at the top of every mobile screen) */
+  --ez-shell:        #14161a;
+  --ez-shell-line:   #3a3d44;
+  --ez-shell-text:   #f3f2f2;
+  --ez-shell-muted:  #9b9797;
+  --ez-shell-credit: #7fd1a8;
+  --ez-shell-debit:  #ff9783;
+
+  /* ground + ink */
+  --ez-ground:    #f3f2f2;
+  --ez-surface:   #eae9e9;
+  --ez-ink:       #201e1d;
+  --ez-muted:     #7d7979;
+  --ez-muted-2:   #605d5d;
+  --ez-disabled:  #d7d3d3;
+
+  /* rules — the only separators in the system */
+  --ez-rule:       rgba(32, 30, 29, 0.40); /* 2px, between sections */
+  --ez-rule-thin:  rgba(32, 30, 29, 0.18); /* 1px, between rows/cells */
+
+  /* accent = Ezzy blue */
+  --ez-accent:      #2563eb;
+  --ez-accent-600:  #1d4ed8;
+  --ez-accent-700:  #163fae;
+  --ez-tint:        #eaf1ff;  /* selected row / hover fill */
+  --ez-tint-2:      #cfe0ff;  /* keypad key pressed */
+
+  /* money semantics */
+  --ez-debit:   #ae1800;
+  --ez-credit:  #0f6b45;
+
+  /* geometry — zero radius everywhere, no shadows */
+  --ez-radius: 0px;
+}
+
+/* Mobile shell scope: opt in per screen with class="ez" so the
+   redesign can land screen-by-screen without touching desktop. */
+.ez, .ez * {
+  font-family: "Archivo", system-ui, -apple-system, sans-serif;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.ez { background: var(--ez-ground); color: var(--ez-ink); }
+
+/* numbers are always tabular in this design */
+.ez .num { font-variant-numeric: tabular-nums; }
+
+/* type roles (exact sizes from the design) */
+.ez .ez-money      { font-weight: 900; font-size: 30px; line-height: 1;   letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.ez .ez-money-lg   { font-weight: 900; font-size: 44px; line-height: 1;   letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.ez .ez-title      { font-weight: 800; font-size: 21px; line-height: 1;   letter-spacing: -0.02em; }
+.ez .ez-title-sm   { font-weight: 800; font-size: 17px; line-height: 1;   letter-spacing: -0.01em; }
+.ez .ez-row        { font-weight: 600; font-size: 12.5px; line-height: 1.3; }
+.ez .ez-cell-value { font-weight: 800; font-size: 17px; line-height: 1;   font-variant-numeric: tabular-nums; }
+.ez .ez-label      { font-weight: 600; font-size: 9.5px; line-height: 1;  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ez-muted); }
+.ez .ez-section    { font-weight: 700; font-size: 10px;  line-height: 1;  letter-spacing: 0.12em; text-transform: uppercase; }
+.ez .ez-btn-label  { font-weight: 800; font-size: 11px;  line-height: 1;  letter-spacing: 0.10em; text-transform: uppercase; }
+
+/* every action label is flush left — never centered */
+.ez button { text-align: left; }
+
+/* themed focus, never the browser ring */
+.ez :focus-visible { outline: 2px solid var(--ez-accent); outline-offset: 2px; }

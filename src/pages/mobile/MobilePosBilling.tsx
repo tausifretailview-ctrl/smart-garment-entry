@@ -66,6 +66,11 @@ import { cn } from "@/lib/utils";
 import { adjustQtyByStep, minQtyForUom } from "@/utils/qtyInput";
 import type { PosCartItem } from "@/lib/posBilling";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
+import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
+import { ShellHeader, ShellButton, SearchBar, SectionHead } from "@/components/mobile/premium";
+import { PosFastPicks, type FastPick } from "@/components/mobile/premium/PosFastPicks";
+import { PosKeypad, type KeypadMode } from "@/components/mobile/premium/PosKeypad";
+import { PosPayRow } from "@/components/mobile/premium/PosPayRow";
 
 /** Display-only — no arithmetic on money. */
 function formatInr(amount: number): string {
@@ -122,6 +127,7 @@ type SaveSuccess = {
 };
 
 export default function MobilePosBilling() {
+  const theme = useMobileUiTheme();
   const { currentOrganization } = useOrganization();
   const { data: settingsData } = useSettings();
   const { calculateRedemptionValue } = useCustomerPoints();
@@ -197,6 +203,9 @@ export default function MobilePosBilling() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  // Premium theme only — replaces the line-edit Drawer with an inline keypad.
+  const [selIndex, setSelIndex] = useState<number | null>(null);
+  const [kpMode, setKpMode] = useState<KeypadMode>("qty");
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [mixOpen, setMixOpen] = useState(false);
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
@@ -253,6 +262,31 @@ export default function MobilePosBilling() {
     staleTime: STALE_LIVE,
   });
 
+  // Premium theme only — fills the fast-picks grid from top sellers when search is empty
+  // (same shape the owner dashboard already builds under "owner-top-selling").
+  const { data: topPicks = [] } = useQuery({
+    queryKey: ["mobile-pos-top-sellers", currentOrganization?.id],
+    queryFn: async (): Promise<SearchHit[]> => {
+      if (!currentOrganization?.id) return [];
+      const { data } = await supabase
+        .from("product_variants")
+        .select(VARIANT_SEARCH_SELECT)
+        .eq("organization_id", currentOrganization.id)
+        .eq("products.organization_id", currentOrganization.id)
+        .eq("products.status", "active")
+        .eq("active", true)
+        .is("deleted_at", null)
+        .is("products.deleted_at", null)
+        .order("stock_qty", { ascending: false })
+        .limit(6);
+      return ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
+        .filter((row) => row.products)
+        .map((row) => ({ variant: row, product: row.products }));
+    },
+    enabled: theme === "premium" && !!currentOrganization?.id && debouncedSearch.length === 0,
+    staleTime: 300000,
+  });
+
   const { data: customerOptions = [], isFetching: customersLoading } = useQuery({
     queryKey: ["mobile-pos-customers", currentOrganization?.id, debouncedCustomerSearch],
     queryFn: async (): Promise<CustomerPickerOption[]> => {
@@ -296,6 +330,17 @@ export default function MobilePosBilling() {
     },
     [addLine, clearLastError],
   );
+
+  // Premium theme only — search hits (or top sellers when search is empty) as fast-pick tiles.
+  const fastPicks: FastPick[] = (debouncedSearch.length >= 1 ? searchHits : topPicks)
+    .slice(0, 6)
+    .map((hit) => ({
+      id: hit.variant.id,
+      name: hit.product.product_name,
+      meta: `${hit.variant.size ?? ""} · ${hit.variant.barcode ?? "—"}`,
+      price: `₹${formatInr(Number(hit.variant.sale_price) || 0)}`,
+      onAdd: () => addFromHit(hit),
+    }));
 
   const addByBarcode = useCallback(
     async (barcode: string) => {
@@ -535,6 +580,204 @@ export default function MobilePosBilling() {
           saleHint={{ sale_type: "pos", sale_number: success.saleNumber }}
           open={previewOpen}
           onOpenChange={setPreviewOpen}
+        />
+      </div>
+    );
+  }
+
+  if (theme === "premium") {
+    return (
+      <div className="ez flex h-full min-h-0 flex-col bg-[var(--ez-ground)]">
+        {saving && (
+          <div className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[var(--ez-ground)]/85 backdrop-blur-sm">
+            <Loader2 className="h-10 w-10 animate-spin text-[var(--ez-accent)]" />
+            <p className="text-[13px] font-bold">Saving bill…</p>
+            <p className="text-[11px] font-medium text-[var(--ez-muted)]">Please wait — do not go back</p>
+          </div>
+        )}
+
+        {/* ── SHELL: bill no + customer ── */}
+        <ShellHeader
+          title="New sale"
+          kicker={items.length ? `${items.length} line${items.length === 1 ? "" : "s"} · unsaved` : "New bill"}
+          action={<ShellButton onClick={() => setCustomerPickerOpen(true)}>Change</ShellButton>}
+        >
+          <button
+            type="button"
+            onClick={() => setCustomerPickerOpen(true)}
+            className="w-full border-2 border-[var(--ez-shell-line)] px-2.5 py-2.5 text-left"
+          >
+            <p className="text-[8.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
+              Customer
+            </p>
+            <p className="mt-1 truncate text-[12px] font-semibold leading-none">
+              {selectedCustomer
+                ? selectedCustomer.phone
+                  ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
+                  : selectedCustomer.customer_name
+                : WALK_IN_CUSTOMER_NAME}
+            </p>
+          </button>
+        </ShellHeader>
+
+        <AdaptiveCustomerPicker
+          open={customerPickerOpen}
+          onOpenChange={setCustomerPickerOpen}
+          selectedId={selectedCustomer?.id ?? null}
+          selectedLabel={
+            selectedCustomer
+              ? selectedCustomer.phone
+                ? `${selectedCustomer.customer_name} · ${selectedCustomer.phone}`
+                : selectedCustomer.customer_name
+              : WALK_IN_CUSTOMER_NAME
+          }
+          placeholder={WALK_IN_CUSTOMER_NAME}
+          searchTerm={customerSearchTerm}
+          onSearchTermChange={setCustomerSearchTerm}
+          options={customerOptions}
+          onSelect={(customer) => {
+            setSelectedCustomer(customer);
+            setCustomerPickerOpen(false);
+            setCustomerSearchTerm("");
+          }}
+          emptyMessage="No customer found"
+          sheetTitle="Customer"
+          walkInLabel={WALK_IN_CUSTOMER_NAME}
+          onWalkIn={() => setSelectedCustomer(null)}
+          triggerClassName="hidden"
+          isLoading={customersLoading}
+          loadingMessage="Loading customers..."
+        />
+
+        <SearchBar
+          value={searchInput}
+          onChange={setSearchInput}
+          onScan={openScan}
+          disabled={saving}
+          inputRef={searchInputRef}
+        />
+
+        {/* ── SCROLL: fast picks + bill lines ── */}
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
+          <PosFastPicks items={fastPicks} searchTerm={debouncedSearch} loading={searchLoading} />
+
+          <div className="border-t-2 border-[var(--ez-rule)]">
+            <SectionHead
+              title={`Bill lines · ${items.length}`}
+              right={
+                items.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCart();
+                      setSelIndex(null);
+                    }}
+                    className="ez-btn-label text-[10px] text-[var(--ez-debit)]"
+                  >
+                    Clear
+                  </button>
+                ) : null
+              }
+            />
+            {items.length === 0 ? (
+              <p className="border-t border-[var(--ez-rule-thin)] px-3.5 pb-5 pt-4 text-[12px] font-medium leading-[1.5] text-[var(--ez-muted)]">
+                No lines yet. Scan a barcode or tap a product above — the camera stays armed while this screen is open.
+              </p>
+            ) : (
+              items.map((item, index) => (
+                <button
+                  key={`${item.id}-${index}`}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    setSelIndex(index);
+                    setKpMode("qty");
+                  }}
+                  className={cn(
+                    "block w-full border-t border-[var(--ez-rule-thin)] px-3.5 pb-2.5 pt-2.5 text-left",
+                    selIndex === index ? "bg-[var(--ez-tint)]" : "bg-[var(--ez-ground)]",
+                  )}
+                >
+                  <div className="flex justify-between gap-2.5">
+                    <p className="truncate text-[12.5px] font-bold leading-[1.3]">{item.productName}</p>
+                    <p className="num shrink-0 text-[13px] font-extrabold leading-[1.3]">₹{formatInr(item.netAmount)}</p>
+                  </div>
+                  <p className="num mt-[3px] text-[10.5px] font-medium leading-none text-[var(--ez-muted-2)]">
+                    Qty {item.quantity} × ₹{formatInr(item.unitCost)}
+                    {item.discountPercent ? ` · -${item.discountPercent}%` : ""}
+                  </p>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="h-4" />
+        </div>
+
+        {/* ── KEYPAD (replaces the line-edit drawer) ── */}
+        {selIndex != null && items[selIndex] ? (
+          <PosKeypad
+            title={items[selIndex].productName}
+            qty={items[selIndex].quantity}
+            price={items[selIndex].unitCost}
+            discPercent={items[selIndex].discountPercent}
+            mode={kpMode}
+            onModeChange={setKpMode}
+            onClose={() => setSelIndex(null)}
+            formatMoney={(n) => `₹${formatInr(n)}`}
+            onCommit={(mode, value) => {
+              const i = selIndex;
+              const r =
+                mode === "qty"
+                  ? updateQty(i, Math.max(minQtyForUom(items[i].uom), value))
+                  : mode === "price"
+                    ? updatePrice(i, value)
+                    : updateDiscountPercent(i, value);
+              if (r?.error) toast.warning(r.error.message);
+            }}
+          />
+        ) : null}
+
+        {/* ── TOTAL + ONE-TAP PAYMENT ── */}
+        <PosPayRow
+          itemsLabel={`${totals.quantity} item${totals.quantity === 1 ? "" : "s"}`}
+          gstLabel={`₹${formatInr(totals.totalGst)}`}
+          totalLabel={`₹${formatInr(totals.finalAmount)}`}
+          savingsLabel={totals.savings > 0 ? `₹${formatInr(totals.savings)}` : undefined}
+          disabled={items.length === 0}
+          saving={saving}
+          onPay={(m) => void runSave(m)}
+          onMix={() => setMixOpen(true)}
+        />
+
+        <MixPaymentDialog
+          open={mixOpen}
+          onOpenChange={setMixOpen}
+          billAmount={totals.finalAmount}
+          creditApplied={billing.creditApplied}
+          onSave={(paymentData) => {
+            void runSave("multiple", {
+              cashAmount: paymentData.cashAmount,
+              cardAmount: paymentData.cardAmount,
+              upiAmount: paymentData.upiAmount,
+              totalPaid: paymentData.totalPaid,
+              refundAmount: paymentData.refundAmount,
+            });
+          }}
+        />
+
+        <MrpTierSelectionDialog
+          open={mrpTierPicker != null}
+          enableMrp={enableMrp}
+          onOpenChange={(open) => {
+            if (!open) setMrpTierPicker(null);
+          }}
+          barcode={mrpTierPicker?.barcode ?? ""}
+          choices={toMrpTierSelectionChoices(mrpTierPicker?.choices ?? [])}
+          onSelect={(choiceId) => {
+            const pick = mrpTierPicker?.choices.find((c) => c.variant.id === choiceId);
+            setMrpTierPicker(null);
+            if (pick) addFromHit(pick);
+          }}
         />
       </div>
     );

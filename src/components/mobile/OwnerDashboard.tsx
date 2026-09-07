@@ -28,6 +28,8 @@ import {
 import { useCustomerPartyBalanceOrgWindow } from "@/hooks/useCustomerPartyBalanceOrgWindow";
 import { useSupplierOrgBalanceWindow } from "@/hooks/useSupplierOrgBalanceWindow";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
+import { useMobileUiTheme } from "@/hooks/useMobileUiTheme";
+import { ShellHeader, ShellButton, StatCell, SectionHead, ListRow } from "@/components/mobile/premium";
 
 /* ─── helpers ─── */
 const fmt = (v: number) =>
@@ -86,6 +88,7 @@ const TodayHeroSkeleton = () => (
 
 /* ─── Main Component ─── */
 export const OwnerDashboard = () => {
+  const theme = useMobileUiTheme();
   const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate } = useOrgNavigation();
   const { isOnline } = useNetworkStatus();
@@ -451,6 +454,196 @@ export const OwnerDashboard = () => {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (theme === "premium") {
+    return (
+      <div
+        ref={scrollRef}
+        className="ez h-full min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain bg-[var(--ez-ground)] pb-[calc(4.25rem+env(safe-area-inset-bottom,0px)+1rem)]"
+        {...pullHandlers}
+      >
+        <PullToRefreshIndicator visible={isRefreshing} />
+
+        {/* ── SHELL: greeting + today's four numbers ── */}
+        <ShellHeader
+          title={`${greeting}`}
+          kicker={`${currentOrganization?.name ?? ""} · ${format(new Date(), "EEE, d MMM")}`}
+          action={
+            <ShellButton onClick={handleRefresh} ariaLabel="Refresh dashboard">
+              <span className="flex items-center gap-1.5">
+                <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+                {isRefreshing ? "Syncing" : "Synced"}
+              </span>
+            </ShellButton>
+          }
+        >
+          <div className="grid grid-cols-2 border-t-2 border-[var(--ez-shell-line)]">
+            <div className="border-r-2 border-[var(--ez-shell-line)] py-2.5 pr-3">
+              <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
+                Revenue today
+              </p>
+              <p className="num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]">
+                {dashLoading ? "—" : fmtShort(totalSales)}
+              </p>
+            </div>
+            <div className="py-2.5 pl-3">
+              <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
+                Gross profit
+              </p>
+              <p
+                className={cn(
+                  "num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]",
+                  grossProfit >= 0 ? "text-[var(--ez-shell-credit)]" : "text-[var(--ez-shell-debit)]",
+                )}
+              >
+                {dashLoading ? "—" : fmtShort(grossProfit)}
+              </p>
+            </div>
+          </div>
+          <div className="num flex flex-wrap gap-x-3.5 gap-y-1 border-t border-[var(--ez-shell-line)] pt-2 text-[11px] font-medium leading-[1.4] text-[var(--ez-shell-muted)]">
+            <span>
+              Bills <strong className="font-semibold text-[var(--ez-shell-text)]">{salesCount}</strong> sales ·{" "}
+              <strong className="font-semibold text-[var(--ez-shell-text)]">{purchaseCount}</strong> purchases
+            </span>
+            <span>
+              Collected <strong className="font-semibold text-[var(--ez-shell-credit)]">{fmtShort(cashCollection)}</strong>
+            </span>
+            <span>
+              O/S{" "}
+              <strong className="font-semibold text-[var(--ez-shell-debit)]">
+                {receivablesLoading ? "…" : fmtShort(customerOs)}
+              </strong>
+            </span>
+          </div>
+        </ShellHeader>
+
+        {/* ── KPI GRID — the same six statCards, 3-up, no gradients ── */}
+        <div className="grid grid-cols-3 border-b-2 border-[var(--ez-rule)]">
+          {statCards.map((card) => (
+            <StatCell
+              key={card.label}
+              label={card.label}
+              value={fmtShort(card.value)}
+              sub={card.sub}
+              tone={
+                card.valueClass?.includes("destructive")
+                  ? "debit"
+                  : card.valueClass?.includes("emerald")
+                    ? "credit"
+                    : "ink"
+              }
+              loading={card.loading}
+              onClick={() => orgNavigate(card.path)}
+            />
+          ))}
+        </div>
+
+        {/* ── 7-DAY STRIP (replaces the Recharts card on mobile) ── */}
+        {salesTrend && salesTrend.length > 0 ? (
+          <div className="border-b-2 border-[var(--ez-rule)] px-3.5 pb-3.5 pt-3">
+            <div className="mb-2.5 flex items-baseline justify-between">
+              <p className="ez-section">Sales · last 7 days</p>
+              <p className="text-[10px] font-medium text-[var(--ez-muted)]">
+                avg {fmtShort(salesTrend.reduce((s, d) => s + d.sales, 0) / salesTrend.length)}
+              </p>
+            </div>
+            {(() => {
+              const peak = Math.max(...salesTrend.map((d) => d.sales), 1);
+              return (
+                <>
+                  <div className="grid h-[78px] grid-cols-7 items-end gap-1.5">
+                    {salesTrend.map((d) => (
+                      <div
+                        key={d.name}
+                        style={{ height: `${Math.max(3, (d.sales / peak) * 100)}%` }}
+                        className={d.sales >= peak ? "bg-[var(--ez-accent)]" : "bg-[#a8c6fb]"}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-7 gap-1.5">
+                    {salesTrend.map((d) => (
+                      <p key={d.name} className="text-[9px] font-semibold uppercase leading-none text-[var(--ez-muted)]">
+                        {d.name}
+                      </p>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        ) : null}
+
+        {/* ── RECENT ACTIVITY ── */}
+        <SectionHead title="Recent activity" />
+        <div className="border-b-2 border-[var(--ez-rule)]">
+          {activityLoading ? (
+            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">Loading…</p>
+          ) : recentActivity && recentActivity.length > 0 ? (
+            recentActivity.map((item) => (
+              <ListRow
+                key={item.id}
+                label={item.desc}
+                sub={item.time ? formatDistanceToNow(new Date(item.time), { addSuffix: true }) : undefined}
+                value={item.type === "purchase" ? `-${fmtShort(item.amount)}` : fmtShort(item.amount)}
+                tone={item.type === "purchase" ? "debit" : item.type === "payment" ? "credit" : "ink"}
+                onClick={() => {
+                  if (item.type === "sale") orgNavigate(MOBILE_SALES_PATH);
+                  else if (item.type === "purchase") orgNavigate("/owner-purchases");
+                  else orgNavigate(`${MOBILE_REPORTS_PATH}?report=payment-collection`);
+                }}
+              />
+            ))
+          ) : (
+            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">No activity today</p>
+          )}
+        </div>
+
+        {/* ── NEEDS ATTENTION (low stock + top selling, one list) ── */}
+        <SectionHead title="Needs attention" right={
+          <button type="button" onClick={() => orgNavigate("/owner-stock")} className="ez-btn-label text-[10px] text-[var(--ez-accent-700)]">
+            All stock
+          </button>
+        } />
+        <div className="border-b-2 border-[var(--ez-rule)]">
+          {(lowStock ?? []).map((item) => (
+            <ListRow
+              key={item.id}
+              label={`${item.name}${item.color ? ` (${item.color})` : ""}`}
+              sub={`${item.brand ?? ""} • ${item.size ?? ""}`}
+              value={`${item.qty} pc`}
+              tone="debit"
+              onClick={() => orgNavigate("/owner-stock")}
+            />
+          ))}
+          {(lowStock?.length ?? 0) === 0 ? (
+            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">All stock levels OK</p>
+          ) : null}
+        </div>
+
+        <SectionHead title="Top selling today" />
+        <div className="border-b-2 border-[var(--ez-rule)]">
+          {(topSelling ?? []).map((item, idx) => (
+            <ListRow
+              key={`${item.name}-${item.size}`}
+              label={`${idx + 1}. ${item.name}`}
+              sub={`Size ${item.size} · Qty ${item.qty}`}
+              value={fmtShort(item.revenue)}
+              onClick={() => orgNavigate(`${MOBILE_REPORTS_PATH}?report=item-wise-sales`)}
+            />
+          ))}
+          {(topSelling?.length ?? 0) === 0 ? (
+            <p className="px-3.5 py-4 text-[12px] font-medium text-[var(--ez-muted)]">No sales today yet</p>
+          ) : null}
+        </div>
+
+        {!isOnline && (
+          <p className="border-b-2 border-[var(--ez-rule)] bg-[#f9ecea] px-3.5 py-3 text-[12px] font-semibold text-[var(--ez-debit)]">
+            Offline — showing cached data
+          </p>
+        )}
       </div>
     );
   }
