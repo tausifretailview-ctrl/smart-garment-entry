@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { ELLA_LUXURY_NAV, inferEllaNavAvailability, resolveEllaHeaderNav } from "./ellaNav";
+import { ELLA_HOME_NAV, ELLA_LUXURY_NAV, inferEllaNavAvailability, isEllaHomeNav, resolveEllaHeaderNav } from "./ellaNav";
+
+describe("ELLA_LUXURY_NAV", () => {
+  it("starts with a Home item", () => {
+    expect(ELLA_LUXURY_NAV[0]).toEqual(ELLA_HOME_NAV);
+    expect(ELLA_LUXURY_NAV.map((item) => item.label)[0]).toBe("Home");
+  });
+});
+
+describe("isEllaHomeNav", () => {
+  it("matches the reserved home id or a Home label", () => {
+    expect(isEllaHomeNav(ELLA_HOME_NAV)).toBe(true);
+    expect(isEllaHomeNav({ id: "abc", label: "HOME" })).toBe(true);
+    expect(isEllaHomeNav({ id: "new-in", label: "New in" })).toBe(false);
+  });
+});
 
 describe("resolveEllaHeaderNav", () => {
   it("keeps the HTML-mock nav when Website menus are empty or only Home", () => {
@@ -17,9 +32,9 @@ describe("resolveEllaHeaderNav", () => {
       ],
       [{ id: "s1", slug: "new-arrival", label: "New Arrival", display_order: 0 }],
     );
-    expect(nav.map((item) => item.label)).toEqual(["New in", "Ready to wear"]);
-    expect(nav[1]?.chip).toBe("Ready");
-    expect(nav[1]?.availability).toBe("in-stock");
+    expect(nav.map((item) => item.label)).toEqual(["Home", "New in", "Ready to wear"]);
+    expect(nav[2]?.chip).toBe("Ready");
+    expect(nav[2]?.availability).toBe("in-stock");
   });
 
   it("maps a menu label onto a matching website section slug", () => {
@@ -30,7 +45,17 @@ describe("resolveEllaHeaderNav", () => {
       ],
       [{ id: "s", slug: "eid-collection", label: "Eid Collection", display_order: 1 }],
     );
-    expect(nav[0]?.chip).toBe("eid-collection");
+    expect(nav[0]?.label).toBe("Home");
+    expect(nav[1]?.chip).toBe("eid-collection");
+  });
+
+  it("does not prepend a second Home when Website menus already include one", () => {
+    const nav = resolveEllaHeaderNav([
+      { id: "h", label: "Home", category_filter: null, display_order: 0 },
+      { id: "1", label: "New in", category_filter: null, display_order: 1 },
+    ]);
+    expect(nav.map((item) => item.label)).toEqual(["Home", "New in"]);
+    expect(nav[0]?.id).toBe("h");
   });
 });
 

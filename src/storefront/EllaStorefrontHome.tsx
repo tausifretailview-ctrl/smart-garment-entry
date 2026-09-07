@@ -14,7 +14,7 @@ import {
   type EllaSortKey,
   type EllaStorefrontProduct,
 } from "./ellaProduct";
-import { ELLA_LUXURY_NAV, resolveEllaHeaderNav, type EllaHeaderNavItem } from "./ellaNav";
+import { ELLA_LUXURY_NAV, isEllaHomeNav, resolveEllaHeaderNav, type EllaHeaderNavItem } from "./ellaNav";
 import { catalogueSizeFacets } from "./ellaVariants";
 
 const SORT_OPTIONS: Array<{ id: EllaSortKey; label: string }> = [
@@ -280,7 +280,8 @@ export function EllaStorefrontHome({
     window.setTimeout(() => collectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
-  const luxuryById = (id: string) => ELLA_LUXURY_NAV.find((item) => item.id === id) || ELLA_LUXURY_NAV[0];
+  const luxuryById = (id: string) =>
+    ELLA_LUXURY_NAV.find((item) => item.id === id) || ELLA_LUXURY_NAV.find((item) => item.id === "new-in")!;
 
   const selectLuxury = (item: EllaHeaderNavItem) => goCollection(item);
 
@@ -404,8 +405,16 @@ export function EllaStorefrontHome({
                 <button
                   key={item.id}
                   type="button"
-                  className={`ella-nav-link${view === "collection" && luxuryNav === item.id ? " ella-nav-link-active" : ""}`}
-                  onClick={() => selectLuxury(item)}
+                  className={`ella-nav-link${
+                    isEllaHomeNav(item)
+                      ? view === "home"
+                        ? " ella-nav-link-active"
+                        : ""
+                      : view === "collection" && luxuryNav === item.id
+                        ? " ella-nav-link-active"
+                        : ""
+                  }`}
+                  onClick={() => (isEllaHomeNav(item) ? goHome() : selectLuxury(item))}
                 >
                   {item.label}
                 </button>
@@ -793,7 +802,12 @@ export function EllaStorefrontHome({
           <div className="ella-footer-col">
             <div className="ella-footer-label">Shop</div>
             {headerNav.map((item) => (
-              <button key={item.id} type="button" className="ella-footer-link" onClick={() => selectLuxury(item)}>
+              <button
+                key={item.id}
+                type="button"
+                className="ella-footer-link"
+                onClick={() => (isEllaHomeNav(item) ? goHome() : selectLuxury(item))}
+              >
                 {item.label}
               </button>
             ))}
