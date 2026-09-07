@@ -37,6 +37,10 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(home).toMatch(/ella-site-header/);
     expect(home).toMatch(/ella-site-nav/);
     expect(home).toMatch(/resolveEllaHeaderNav/);
+    expect(home).toMatch(/isEllaHomeNav/);
+    expect(home).toMatch(/goHome\(\)/);
+    expect(css).toMatch(/grid-template-columns:\s*minmax\(240px,\s*380px\)\s*minmax\(320px,\s*480px\)/);
+    expect(css).toMatch(/max-width:\s*380px/);
     expect(home).toMatch(/ella-site-footer/);
     expect(root).toMatch(/menus=\{menus\}/);
     expect(app).toMatch(/menus=\{menuTree\}/);

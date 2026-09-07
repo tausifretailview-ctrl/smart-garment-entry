@@ -15,7 +15,18 @@ export type EllaHeaderNavItem = {
 };
 
 /** HTML-mock header — used when Website → Menus has no public shop links. */
+export const ELLA_HOME_NAV: EllaHeaderNavItem = {
+  id: "home",
+  label: "Home",
+  chip: "all",
+  title: "Home",
+  lead: "Everyday chikankari and festive formals from the studio.",
+  availability: "all",
+  sort: "featured",
+};
+
 export const ELLA_LUXURY_NAV: EllaHeaderNavItem[] = [
+  ELLA_HOME_NAV,
   {
     id: "new-in",
     label: "New in",
@@ -82,6 +93,10 @@ function isHomeOnlyLabel(label: string): boolean {
   return /^home$|^shop$|^all$/i.test(label.trim());
 }
 
+export function isEllaHomeNav(item: { id: string; label: string }): boolean {
+  return item.id === "home" || /^home$/i.test(item.label.trim());
+}
+
 /** Prefer Website → Menus when real shop links exist; otherwise the HTML-mock nav. */
 export function resolveEllaHeaderNav(
   menus: PublicStorefrontMenu[] | undefined,
@@ -95,7 +110,7 @@ export function resolveEllaHeaderNav(
     roots.some((menu) => !isHomeOnlyLabel(menu.label));
   if (!hasShopLinks) return fallback;
 
-  return roots.map((menu) => ({
+  const mapped = roots.map((menu) => ({
     id: menu.id,
     label: menu.label.trim(),
     chip: chipFromMenu(menu, sections),
@@ -104,4 +119,5 @@ export function resolveEllaHeaderNav(
     availability: inferEllaNavAvailability(menu.label, menu.category_filter),
     sort: /new/i.test(menu.label) ? "newest" : "featured",
   }));
+  return mapped.some((item) => isEllaHomeNav(item)) ? mapped : [ELLA_HOME_NAV, ...mapped];
 }

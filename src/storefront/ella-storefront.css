@@ -2633,8 +2633,19 @@ body.ella-root {
   .ella-pdp {
     display: grid;
     gap: 40px;
-    grid-template-columns: minmax(0, 1.15fr) minmax(320px, 420px);
+    grid-template-columns: minmax(240px, 380px) minmax(320px, 480px);
+    justify-content: center;
     align-items: start;
+    margin-inline: auto;
+    max-width: 960px;
+  }
+
+  .ella-sheet-img {
+    aspect-ratio: 4 / 5;
+    margin-inline: auto;
+    max-height: min(56vh, 520px);
+    max-width: 380px;
+    width: min(100%, 380px, calc(min(56vh, 520px) * 4 / 5));
   }
 
   .ella-pdp-gallery {
