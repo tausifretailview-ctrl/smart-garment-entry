@@ -51,6 +51,27 @@ describe("purchase line-qty edit keeps the sold-qty stock floor", () => {
   });
 });
 
+describe("stock_movements allows purchase sku remaps", () => {
+  it("latest movement_type_check includes purchase_sku_change_in/out", async () => {
+    const dir = path.join(ROOT, "supabase/migrations");
+    const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
+    const rewrites: { version: string; file: string; body: string }[] = [];
+    for (const file of files) {
+      const version = parseMigrationVersion(file);
+      if (!version) continue;
+      const body = await readFile(path.join(dir, file), "utf8");
+      if (!/stock_movements_movement_type_check/i.test(body)) continue;
+      if (!/ADD CONSTRAINT stock_movements_movement_type_check/i.test(body)) continue;
+      rewrites.push({ version, file, body });
+    }
+    expect(rewrites.length).toBeGreaterThan(0);
+    const latest = rewrites.reduce((a, b) => (a.version > b.version ? a : b));
+    expect(latest.version).toBe("20261207140000");
+    expect(latest.body).toMatch(/purchase_sku_change_in/);
+    expect(latest.body).toMatch(/purchase_sku_change_out/);
+  });
+});
+
 describe("POS DC does not share the POS Sales tab-cache layout", () => {
   it("pos-delivery-challan uses pos-dc, pos-sales uses pos", () => {
     expect(TAB_PAGE_REGISTRY["pos-delivery-challan"]?.layout).toBe("pos-dc");
