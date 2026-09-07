@@ -33,6 +33,7 @@ import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import { cn } from "@/lib/utils";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import { searchOrgVariantsByNameOrBarcode } from "@/utils/mobileVariantNameSearch";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { computePurchaseBillTotals } from "@/utils/excelImportUtils";
 import {
@@ -232,23 +233,10 @@ export default function MobilePurchaseEntry() {
     queryKey: ["mobile-purchase-product-search", currentOrganization?.id, debouncedSearch],
     queryFn: async (): Promise<SearchHit[]> => {
       if (!currentOrganization?.id || debouncedSearch.length < 1) return [];
-      const term = debouncedSearch.replace(/[%_,]/g, "");
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .eq("products.status", "active")
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%`)
-        .order("stock_qty", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
-        .filter((row) => row.products)
-        .map((row) => ({ variant: row, product: row.products }));
+      const rows = await searchOrgVariantsByNameOrBarcode<
+        SearchHit["variant"] & { products: SearchHit["product"] }
+      >(currentOrganization.id, debouncedSearch, VARIANT_SEARCH_SELECT);
+      return rows.map((row) => ({ variant: row, product: row.products }));
     },
     enabled: !!currentOrganization?.id && debouncedSearch.length >= 1,
     staleTime: STALE_LIVE,

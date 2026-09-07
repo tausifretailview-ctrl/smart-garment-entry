@@ -86,7 +86,8 @@ describe("MobilePosBilling WhatsApp wiring", () => {
     expect(source).toContain("useWhatsAppSend");
     expect(source).toContain("buildMobilePosWhatsAppMessage");
     expect(source).toContain("buildPublicInvoiceViewUrl");
-    expect(source).toContain("Send via WhatsApp");
+    expect(source).toContain("WhatsApp");
+    expect(source).toContain("sendWhatsApp(waPhone, message, false)");
     expect(source).toContain("hasMobilePosWhatsAppPhone");
     expect(source).not.toMatch(
       /customerName:\s*"Walk in Customer",\s*customerId:\s*null,\s*customerPhone:\s*null/,

@@ -4633,6 +4633,14 @@ html.desktop-shell .login-page .login-input,
 
 .ez { background: var(--ez-ground); color: var(--ez-ink); }
 
+/* Dark identity band — beats `.ez { background }` so Home/POS headers stay black. */
+.ez-shell,
+.ez.ez-shell,
+.ez .ez-shell {
+  background: var(--ez-shell) !important;
+  color: var(--ez-shell-text) !important;
+}
+
 /* numbers are always tabular in this design */
 .ez .num { font-variant-numeric: tabular-nums; }
 

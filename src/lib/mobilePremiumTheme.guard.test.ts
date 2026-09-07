@@ -40,4 +40,15 @@ describe("premium mobile theme stays opt-in", () => {
     expect(more).toMatch(/<MobileThemeToggle \/>/);
     expect(more).toMatch(/DesktopViewToggle variant="menu-row"/);
   });
+
+  it("paints the Home header as a dark shell with a Today / This month switch", async () => {
+    const css = await readFile(path.join(ROOT, "src/index.css"), "utf8");
+    const home = await readFile(path.join(ROOT, "src/components/mobile/OwnerDashboard.tsx"), "utf8");
+    const shell = await readFile(path.join(ROOT, "src/components/mobile/premium/index.tsx"), "utf8");
+    expect(css).toMatch(/\.ez-shell[\s\S]*?background:\s*var\(--ez-shell\)\s*!important/);
+    expect(shell).toMatch(/className="ez-shell/);
+    expect(home).toMatch(/setHeroPeriod/);
+    expect(home).toMatch(/This month/);
+    expect(home).toMatch(/p_start_date: statsStart/);
+  });
 });

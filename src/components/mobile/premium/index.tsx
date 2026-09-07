@@ -19,7 +19,7 @@ export function ShellHeader({
   children?: ReactNode;
 }) {
   return (
-    <div className="ez shrink-0 bg-[var(--ez-shell)] px-3.5 pb-3.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] text-[var(--ez-shell-text)]">
+    <div className="ez-shell shrink-0 px-3.5 pb-3.5 pt-[max(0.625rem,env(safe-area-inset-top,0px))] text-[var(--ez-shell-text)]">
       <div className="flex items-end justify-between gap-3 pb-2.5">
         <div className="min-w-0">
           <p className="ez-title truncate">{title}</p>

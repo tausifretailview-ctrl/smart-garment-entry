@@ -149,7 +149,7 @@ export const OwnerBottomNav = () => {
     };
 
     return (
-      <nav className="ez fixed bottom-0 left-0 right-0 z-[40] border-t-2 border-[var(--ez-ink)] bg-[var(--ez-shell)] lg:hidden safe-area-pb">
+      <nav className="ez ez-shell fixed bottom-0 left-0 right-0 z-[40] border-t-2 border-[var(--ez-ink)] lg:hidden safe-area-pb">
         <div className="grid grid-cols-5 max-w-lg mx-auto">
           {leftTabs.map(renderTab)}
 
