@@ -26,7 +26,9 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(css).toMatch(/--ella-chrome-h:\s*118px/);
     expect(css).toMatch(/\.ella-chrome\s*\{[^}]*position:\s*fixed/);
     expect(css).toMatch(/\.ella-sheet-product\s*\{[\s\S]*?top:\s*var\(--ella-chrome-h\)/);
-    expect(css).toMatch(/\.ella-pdp-gallery-multi/);
+    expect(css).toMatch(/\.ella-store button\.ella-size-btn/);
+    expect(css).toMatch(/\.ella-store button\.ella-nav-link/);
+    expect(css).toMatch(/\.ella-store button\.ella-header-btn/);
     expect(css).toMatch(/\.ella-site-header\s*\{[^}]*position:\s*relative/);
     expect(css).not.toMatch(/\.ella-site-header\s*\{[^}]*position:\s*sticky/);
 

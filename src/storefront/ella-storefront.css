@@ -250,6 +250,7 @@ body.ella-root {
   justify-content: center;
 }
 
+.ella-store button.ella-nav-link,
 .ella-nav-link {
   border-bottom: 2px solid transparent;
   color: var(--ella-paper-muted);
@@ -422,6 +423,7 @@ body.ella-root {
   margin-top: 4px;
 }
 
+.ella-store button.ella-header-btn,
 .ella-header-btn {
   align-items: center;
   background: #12100e;
@@ -1697,6 +1699,7 @@ body.ella-root {
   margin-top: 12px;
 }
 
+.ella-store button.ella-size-btn,
 .ella-size-btn {
   align-items: center;
   background: #ffffff;
@@ -1719,6 +1722,7 @@ body.ella-root {
   border-color: #000000;
 }
 
+.ella-store button.ella-size-btn-active,
 .ella-size-btn-active {
   background: #000000;
   border-color: #000000;
