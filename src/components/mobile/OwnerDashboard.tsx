@@ -8,7 +8,7 @@ import {
   IndianRupee, ShoppingCart, Wallet, Users, Building2, ArrowUpRight,
   ArrowDownRight, Clock, Star, AlertCircle,
 } from "lucide-react";
-import { format, subDays, formatDistanceToNow } from "date-fns";
+import { format, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
 import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 import { useEffect, useState } from "react";
@@ -99,6 +99,11 @@ export const OwnerDashboard = () => {
     permissions === null || hasMenuAccess("main_dashboard");
 
   const today = todayLocalYmd();
+  const monthStart = format(startOfMonth(new Date()), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(new Date()), "yyyy-MM-dd");
+  const [heroPeriod, setHeroPeriod] = useState<"today" | "month">("today");
+  const statsStart = theme === "premium" && heroPeriod === "month" ? monthStart : today;
+  const statsEnd = theme === "premium" && heroPeriod === "month" ? monthEnd : today;
   const { startIso: todayStartIso, endIso: todayEndIso } = localDayBounds(today, today);
   const orgId = currentOrganization?.id;
   const kpisEnabled = !!orgId && !permissionsLoading && canAccessMainDashboard;
@@ -113,14 +118,14 @@ export const OwnerDashboard = () => {
 
   /* ── Primary KPI: today's stats (single RPC) ── */
   const { data: dashStats, isLoading: dashLoading, isSuccess: dashReady } = useQuery({
-    queryKey: ["owner-erp-dashboard-stats", orgId, today],
+    queryKey: ["owner-erp-dashboard-stats", orgId, statsStart, statsEnd],
     queryFn: async () => {
       if (!orgId) return null;
       return withMobileQueryTimeout(async () => {
         const { data, error } = await supabase.rpc("get_erp_dashboard_stats", {
           p_org_id: orgId,
-          p_start_date: today,
-          p_end_date: today,
+          p_start_date: statsStart,
+          p_end_date: statsEnd,
         });
         if (error) throw error;
         return data as ErpDashboardStats;
@@ -355,6 +360,12 @@ export const OwnerDashboard = () => {
   const profitMarginPct =
     totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
 
+  const periodIsMonth = theme === "premium" && heroPeriod === "month";
+  const periodSaleLabel = periodIsMonth ? "This Month's Sale" : "Today's Sale";
+  const periodPurchaseLabel = periodIsMonth ? "This Month's Purchase" : "Today's Purchase";
+  const periodProfitLabel = periodIsMonth ? "This Month's Profit" : "Today's Profit";
+  const periodBillsSub = periodIsMonth ? "this month" : "today";
+
   const customerOs = partyReceivablesWindow.netReceivable;
   const supplierOs = supplierOrgWindow.totalPayableCr;
   const suppliersPending = supplierOrgWindow.payableSupplierCount;
@@ -362,9 +373,9 @@ export const OwnerDashboard = () => {
   /* ── Stat cards config ── */
   const statCards: StatCardConfig[] = [
     {
-      label: "Today's Sale",
+      label: periodSaleLabel,
       value: totalSales,
-      sub: `${salesCount} bill${salesCount === 1 ? "" : "s"} today`,
+      sub: `${salesCount} bill${salesCount === 1 ? "" : "s"} ${periodBillsSub}`,
       icon: IndianRupee,
       gradient: "bg-gradient-to-br from-emerald-500/15 via-emerald-500/8 to-card",
       iconBg: "bg-emerald-500/20",
@@ -373,9 +384,9 @@ export const OwnerDashboard = () => {
       path: MOBILE_SALES_PATH,
     },
     {
-      label: "Today's Purchase",
+      label: periodPurchaseLabel,
       value: totalPurchase,
-      sub: `${purchaseCount} bill${purchaseCount === 1 ? "" : "s"} today`,
+      sub: `${purchaseCount} bill${purchaseCount === 1 ? "" : "s"} ${periodBillsSub}`,
       icon: ShoppingCart,
       gradient: "bg-gradient-to-br from-amber-500/15 via-amber-500/8 to-card",
       iconBg: "bg-amber-500/20",
@@ -384,7 +395,7 @@ export const OwnerDashboard = () => {
       path: "/owner-purchases",
     },
     {
-      label: "Today's Profit",
+      label: periodProfitLabel,
       value: grossProfit,
       sub: `${profitMarginPct}% margin`,
       icon: TrendingUp,
@@ -480,10 +491,27 @@ export const OwnerDashboard = () => {
             </ShellButton>
           }
         >
+          <div className="mb-2.5 flex border-2 border-[var(--ez-shell-line)]">
+            {(["today", "month"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setHeroPeriod(p)}
+                className={cn(
+                  "ez-btn-label min-h-[36px] flex-1 px-3 py-2",
+                  heroPeriod === p
+                    ? "bg-[var(--ez-accent)] text-white"
+                    : "bg-transparent text-[var(--ez-shell-text)]",
+                )}
+              >
+                {p === "today" ? "Today" : "This month"}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 border-t-2 border-[var(--ez-shell-line)]">
             <div className="border-r-2 border-[var(--ez-shell-line)] py-2.5 pr-3">
               <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
-                Revenue today
+                {periodIsMonth ? "Revenue this month" : "Revenue today"}
               </p>
               <p className="num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]">
                 {dashLoading ? "—" : fmtShort(totalSales)}

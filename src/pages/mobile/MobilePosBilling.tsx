@@ -28,6 +28,7 @@ import {
 } from "@/utils/gstRegisterUtils";
 import type { PosGrossBasis } from "@/lib/posBilling";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
+import { searchOrgVariantsByNameOrBarcode } from "@/utils/mobileVariantNameSearch";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
@@ -209,6 +210,7 @@ export default function MobilePosBilling() {
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [mixOpen, setMixOpen] = useState(false);
   const [success, setSuccess] = useState<SaveSuccess | null>(null);
+  const [waPhoneDraft, setWaPhoneDraft] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [uiSaving, setUiSaving] = useState(false);
@@ -237,26 +239,13 @@ export default function MobilePosBilling() {
     queryKey: ["mobile-pos-product-search", currentOrganization?.id, debouncedSearch],
     queryFn: async (): Promise<SearchHit[]> => {
       if (!currentOrganization?.id || debouncedSearch.length < 1) return [];
-      const term = debouncedSearch;
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .eq("products.status", "active")
-        .eq("active", true)
-        .is("deleted_at", null)
-        .is("products.deleted_at", null)
-        .or(`barcode.ilike.%${term}%,products.product_name.ilike.%${term}%`)
-        .order("stock_qty", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return ((data || []) as unknown as Array<SearchHit["variant"] & { products: SearchHit["product"] }>)
-        .filter((row) => row.products)
-        .map((row) => ({
-          variant: row,
-          product: row.products,
-        }));
+      const rows = await searchOrgVariantsByNameOrBarcode<
+        SearchHit["variant"] & { products: SearchHit["product"] }
+      >(currentOrganization.id, debouncedSearch, VARIANT_SEARCH_SELECT);
+      return rows.map((row) => ({
+        variant: row,
+        product: row.products,
+      }));
     },
     enabled: !!currentOrganization?.id && debouncedSearch.length >= 1,
     staleTime: STALE_LIVE,
@@ -496,6 +485,7 @@ export default function MobilePosBilling() {
         paymentLabel: formatMobilePosPaymentLabel(paymentMethod, breakdown ?? null),
         invoiceDateLabel: formatMobilePosInvoiceDate(),
       });
+      setWaPhoneDraft(selectedCustomer?.phone?.trim() || "");
       setSelectedCustomer(null);
       setCustomerSearchTerm("");
     } catch (err) {
@@ -510,10 +500,14 @@ export default function MobilePosBilling() {
   const editItem: PosCartItem | null =
     editIndex != null && editIndex >= 0 && editIndex < items.length ? items[editIndex] : null;
 
-  const canSendWhatsApp = success != null && hasMobilePosWhatsAppPhone(success.customerPhone);
+  const waPhone = waPhoneDraft.trim() || success?.customerPhone || "";
 
   const handleSendWhatsApp = () => {
-    if (!success || !canSendWhatsApp || !success.customerPhone) return;
+    if (!success) return;
+    if (!hasMobilePosWhatsAppPhone(waPhone)) {
+      toast.error("Enter the customer's WhatsApp number");
+      return;
+    }
     const orgSlug = currentOrganization?.slug || "";
     const publicInvoiceUrl = buildPublicInvoiceViewUrl({
       orgSlug,
@@ -529,7 +523,8 @@ export default function MobilePosBilling() {
       paymentLabel: success.paymentLabel,
       publicInvoiceUrl: publicInvoiceUrl || null,
     });
-    void sendWhatsApp(success.customerPhone, message);
+    // Mobile POS: open wa.me/<customer-number> in-place so WhatsApp lands on that chat.
+    void sendWhatsApp(waPhone, message, false);
   };
 
   if (success) {
@@ -549,6 +544,7 @@ export default function MobilePosBilling() {
             onClick={() => {
               setPreviewOpen(false);
               setSuccess(null);
+              setWaPhoneDraft("");
               setSaveError(null);
               setSelectedCustomer(null);
               searchInputRef.current?.focus();
@@ -556,16 +552,29 @@ export default function MobilePosBilling() {
           >
             New Bill
           </Button>
-          {canSendWhatsApp ? (
+          <div className="flex w-full max-w-sm flex-col gap-2">
+            {!hasMobilePosWhatsAppPhone(success.customerPhone) ? (
+              <input
+                type="tel"
+                inputMode="tel"
+                value={waPhoneDraft}
+                onChange={(e) => setWaPhoneDraft(e.target.value)}
+                placeholder="Customer WhatsApp number"
+                aria-label="Customer WhatsApp number"
+                className="h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              />
+            ) : (
+              <p className="text-xs text-muted-foreground">WhatsApp {success.customerPhone}</p>
+            )}
             <Button
               variant="outline"
-              className="h-11 w-full max-w-sm"
+              className="h-11 w-full"
               onClick={handleSendWhatsApp}
             >
               <MessageCircle className="mr-2 h-4 w-4" />
-              Send via WhatsApp
+              WhatsApp
             </Button>
-          ) : null}
+          </div>
           <Button
             variant="outline"
             className="h-11 w-full max-w-sm"
