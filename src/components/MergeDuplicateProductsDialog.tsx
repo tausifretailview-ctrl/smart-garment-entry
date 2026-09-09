@@ -47,7 +47,7 @@ export function MergeDuplicateProductsDialog({
     setPreview(null);
     setFinalResult(null);
     setError(null);
-    (async () => {
+    void (async () => {
       try {
         const found = await findDuplicateProductGroups(organizationId);
         if (!cancelled) {
