@@ -160,6 +160,49 @@ async function fetchOrgProductsForMerge(organizationId: string): Promise<Product
   }));
 }
 
+/** All active org products with variant counts, sorted by name — for dropdown pickers. */
+export async function listOrgProductsForMerge(
+  organizationId: string,
+): Promise<ProductPickerResult[]> {
+  const rows = await fetchOrgProductsForMerge(organizationId);
+  return rows
+    .map((r) => ({
+      id: r.id,
+      productName: (r.product_name || "").trim(),
+      variantCount: r.variantCount,
+    }))
+    .filter((p) => p.productName)
+    .sort((a, b) => a.productName.localeCompare(b.productName) || a.id.localeCompare(b.id));
+}
+
+export type ProductNameCollision = {
+  kind: "exact" | "compact";
+  product: ProductPickerResult;
+};
+
+/** Unique index is LOWER(TRIM(name)); compact key catches FLEXI LS/100 vs FLEXI LS100. */
+export function findProductNameCollision(
+  products: ProductPickerResult[],
+  newName: string,
+  excludeId: string,
+): ProductNameCollision | null {
+  const trimmed = newName.trim();
+  if (!trimmed) return null;
+  const exactKey = trimmed.toLowerCase();
+  const compact = compactProductNameKey(trimmed);
+  let compactHit: ProductPickerResult | null = null;
+  for (const p of products) {
+    if (p.id === excludeId) continue;
+    if (p.productName.trim().toLowerCase() === exactKey) {
+      return { kind: "exact", product: p };
+    }
+    if (compact && compactProductNameKey(p.productName) === compact) {
+      compactHit = compactHit || p;
+    }
+  }
+  return compactHit ? { kind: "compact", product: compactHit } : null;
+}
+
 /** Conservative suggestions: exact pairs only (never multi-way mega groups). */
 export async function findSafeMergeSuggestions(
   organizationId: string,

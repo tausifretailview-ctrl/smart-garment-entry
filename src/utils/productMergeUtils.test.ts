@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDuplicateProductGroups,
   compactProductNameKey,
+  findProductNameCollision,
   mapMergeTwoProductsResult,
   pickCanonicalProductIndex,
 } from "./productMergeUtils";
@@ -94,6 +95,43 @@ describe("mapMergeTwoProductsResult", () => {
   });
 });
 
+describe("findProductNameCollision", () => {
+  const products = [
+    { id: "a", productName: "FLEXI LS/100", variantCount: 1 },
+    { id: "b", productName: "FLEXI LS100", variantCount: 2 },
+    { id: "c", productName: "OTHER", variantCount: 1 },
+  ];
+
+  it("blocks rename when another active product already has that name", () => {
+    const hit = findProductNameCollision(products, "flexi ls100", "a");
+    expect(hit?.kind).toBe("exact");
+    expect(hit?.product.id).toBe("b");
+  });
+
+  it("flags FLEXI LS/100 vs FLEXI LS100 as compact duplicates when names differ", () => {
+    const hit = findProductNameCollision(
+      [
+        { id: "a", productName: "FLEXI LS/100", variantCount: 1 },
+        { id: "b", productName: "FLEXI LS 100", variantCount: 1 },
+      ],
+      "FLEXI LS100",
+      "a",
+    );
+    expect(hit?.kind).toBe("compact");
+    expect(hit?.product.id).toBe("b");
+  });
+
+  it("ignores the product being renamed", () => {
+    expect(
+      findProductNameCollision(
+        [{ id: "a", productName: "FLEXI LS/100", variantCount: 1 }],
+        "FLEXI LS/100",
+        "a",
+      ),
+    ).toBeNull();
+  });
+});
+
 describe("source guards", () => {
   it("dialog uses FROM/INTO pickers and mergeTwoProducts", () => {
     const src = readFileSync(
@@ -104,14 +142,31 @@ describe("source guards", () => {
     expect(src).toContain("INTO (kept");
     expect(src).toContain("findSafeMergeSuggestions");
     expect(src).toContain("mergeTwoProducts");
-    expect(src).toContain("void findSafeMergeSuggestions");
+    expect(src).toContain("ProductMergeCombobox");
+    expect(src).toContain("listOrgProductsForMerge");
     expect(src).not.toContain("consolidateDuplicateProducts");
   });
 
-  it("Bulk Product Update still wires the merge dialog", () => {
+  it("Bulk Product Update opens Product & Brand Update window", () => {
     const src = readFileSync(resolve(here, "../pages/BulkProductUpdate.tsx"), "utf8");
+    expect(src).toContain("ProductBrandUpdateDialog");
+    expect(src).toContain("Product & Brand Update");
+    expect(src).not.toContain("consolidateDuplicateProducts");
+  });
+
+  it("Product & Brand window has rename, dropdown merge, and brand tabs", () => {
+    const src = readFileSync(
+      resolve(here, "../components/ProductBrandUpdateDialog.tsx"),
+      "utf8",
+    );
+    expect(src).toContain("Rename product");
+    expect(src).toContain("Merge products");
+    expect(src).toContain("FLEXI LS100");
+    expect(src).toContain("renameOrgProductName");
+    expect(src).toContain("renameOrgBrand");
+    expect(src).toContain("ProductMergeCombobox");
     expect(src).toContain("MergeDuplicateProductsDialog");
-    expect(src).toContain("Merge duplicate products");
+    expect(src).not.toContain("consolidateDuplicateProducts");
   });
 
   it("migration defines fail-closed merge_two_products", () => {

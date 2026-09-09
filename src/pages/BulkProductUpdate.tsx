@@ -9,8 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown, History, Clock, Merge } from "lucide-react";
-import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
-import { MergeDuplicateProductsDialog } from "@/components/MergeDuplicateProductsDialog";
+import { ProductBrandUpdateDialog } from "@/components/ProductBrandUpdateDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -45,8 +44,7 @@ export default function BulkProductUpdate() {
   } = useBulkProductUpdate();
 
   const [updateHistory, setUpdateHistory] = useState<any[]>([]);
-  const [mergeBrandsOpen, setMergeBrandsOpen] = useState(false);
-  const [mergeProductsOpen, setMergeProductsOpen] = useState(false);
+  const [productBrandOpen, setProductBrandOpen] = useState(false);
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
   const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
@@ -159,39 +157,21 @@ export default function BulkProductUpdate() {
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
-            variant="outline"
             className="gap-2"
-            onClick={() => setMergeBrandsOpen(true)}
+            onClick={() => setProductBrandOpen(true)}
           >
             <Merge className="h-4 w-4" />
-            Merge duplicate brands
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="gap-2"
-            onClick={() => setMergeProductsOpen(true)}
-          >
-            <Merge className="h-4 w-4" />
-            Merge duplicate products
+            Product & Brand Update
           </Button>
         </div>
       </div>
 
-      <MergeDuplicateBrandsDialog
-        open={mergeBrandsOpen}
-        onOpenChange={setMergeBrandsOpen}
+      <ProductBrandUpdateDialog
+        open={productBrandOpen}
+        onOpenChange={setProductBrandOpen}
         organizationId={currentOrganization.id}
-        onMergeComplete={() => {
-          loadFilterOptions();
-        }}
-      />
-
-      <MergeDuplicateProductsDialog
-        open={mergeProductsOpen}
-        onOpenChange={setMergeProductsOpen}
-        organizationId={currentOrganization.id}
-        onMergeComplete={() => {
+        brands={filterOptions.brands}
+        onComplete={() => {
           loadFilterOptions();
         }}
       />
