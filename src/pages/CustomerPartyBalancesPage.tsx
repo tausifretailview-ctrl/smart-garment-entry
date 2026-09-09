@@ -88,6 +88,7 @@ export default function CustomerPartyBalancesPage() {
   const [ledgerCustomerId, setLedgerCustomerId] = useState<string | null>(null);
   const [ledgerCustomerName, setLedgerCustomerName] = useState("");
   const [ledgerCustomerPhone, setLedgerCustomerPhone] = useState<string | undefined>();
+  const [isExporting, setIsExporting] = useState(false);
 
   const orgId = currentOrganization?.id;
   const moneyViewVisibilityKeys = useMemo(
@@ -246,6 +247,22 @@ export default function CustomerPartyBalancesPage() {
       return;
     }
 
+    // Exports need every row correct, not just whatever page happens to be
+    // on screen. The on-screen table only ever enriches up to 100 rows at
+    // once (PARTY_BALANCE_CANONICAL_ENRICH_MAX) — fine for browsing, but an
+    // export covering all of filteredRows would silently fall back to the
+    // raw (CN-drift-prone) SQL values for anything beyond that. Exports are
+    // a deliberate, occasional action, so it's worth the extra time to run
+    // the same correction across the full set rather than exporting figures
+    // that don't reconcile with the page's own totals.
+    if (isExporting) return;
+    setIsExporting(true);
+    toast({ title: "Preparing export…", description: "Verifying all party balances, this can take a moment for large lists." });
+    try {
+      const canonicalRows = orgId
+        ? await enrichPartyRowsWithCanonicalBalance(orgId, filteredRows, { allowBeyondCap: true })
+        : filteredRows;
+
     const orgName = currentOrganization?.name || "";
     const exportedAt = format(new Date(), "dd-MM-yyyy HH:mm");
     const filterLabel =
@@ -262,7 +279,7 @@ export default function CustomerPartyBalancesPage() {
       ["Net Receivable", fmtAmt(orgTotals.netReceivable)],
       [],
       ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
-      ...filteredRows.map((row, index) => {
+      ...canonicalRows.map((row, index) => {
         const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
         return [
           index + 1,
@@ -285,9 +302,12 @@ export default function CustomerPartyBalancesPage() {
 
     toast({
       title: "Exported",
-      description: `${filteredRows.length.toLocaleString("en-IN")} parties exported to Excel`,
+      description: `${canonicalRows.length.toLocaleString("en-IN")} parties exported to Excel`,
     });
-  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, toast]);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, orgId, isExporting, toast]);
 
   const exportToPdf = useCallback(async () => {
     if (filteredRows.length === 0) {
@@ -298,6 +318,17 @@ export default function CustomerPartyBalancesPage() {
       });
       return;
     }
+
+    // Same correction as the Excel export — see comment there. Without this,
+    // a large org's PDF export silently uses raw (CN-drift-prone) per-row
+    // values for anything beyond the first 100 parties.
+    if (isExporting) return;
+    setIsExporting(true);
+    toast({ title: "Preparing export…", description: "Verifying all party balances, this can take a moment for large lists." });
+    try {
+      const canonicalRows = orgId
+        ? await enrichPartyRowsWithCanonicalBalance(orgId, filteredRows, { allowBeyondCap: true })
+        : filteredRows;
 
     const jsPDF = await loadJsPdf();
     const doc = new jsPDF("p", "mm", "a4");
@@ -339,7 +370,7 @@ export default function CustomerPartyBalancesPage() {
 
     addPageHeader();
 
-    filteredRows.forEach((row, index) => {
+    canonicalRows.forEach((row, index) => {
       if (y > 275) {
         doc.addPage();
         y = 14;
@@ -381,9 +412,12 @@ export default function CustomerPartyBalancesPage() {
 
     toast({
       title: "Exported",
-      description: `${filteredRows.length.toLocaleString("en-IN")} parties exported to PDF`,
+      description: `${canonicalRows.length.toLocaleString("en-IN")} parties exported to PDF`,
     });
-  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, toast]);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, orgId, isExporting, toast]);
 
   const directionFilterOptions: { value: PartyDirectionFilter; label: string }[] = [
     { value: "all", label: "All" },
@@ -603,7 +637,7 @@ export default function CustomerPartyBalancesPage() {
                 variant="outline"
                 size="sm"
                 onClick={exportToExcel}
-                disabled={isLoading || filteredRows.length === 0}
+                disabled={isLoading || isExporting || filteredRows.length === 0}
                 className="h-9 text-sm gap-1.5 border-slate-200"
               >
                 <FileSpreadsheet className="h-4 w-4" />
@@ -613,7 +647,7 @@ export default function CustomerPartyBalancesPage() {
                 variant="outline"
                 size="sm"
                 onClick={exportToPdf}
-                disabled={isLoading || filteredRows.length === 0}
+                disabled={isLoading || isExporting || filteredRows.length === 0}
                 className="h-9 text-sm gap-1.5 border-slate-200"
               >
                 <FileText className="h-4 w-4" />

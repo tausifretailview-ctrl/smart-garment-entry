@@ -54,7 +54,7 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 |---|---|---|---|
 | **C-JS** | `getCustomerAccountState` in `src/utils/customerBalanceCore.ts` (also `computeCustomerOutstanding` in `src/utils/customerBalanceUtils.ts`, which delegates here) | JS | **-Rs 100 known right** |
 | **C-PARTY** | `get_customer_party_balances` -> `_get_customer_party_balances_rows` | SQL | **Live after `20261126120000`: −Rs 100** (Farhaan query 2026-08-25). Unpatched was −Rs 2,800. |
-| **C-PARTY+JS** | C-PARTY list row, then `enrichPartyRowsWithCanonicalBalance` | SQL+JS-patched | **-Rs 100 only when the slice is <= 100 rows**. Cap: `PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100`. Above that, or on Excel/PDF export of the full filter, it silently falls back to C-PARTY. |
+| **C-PARTY+JS** | C-PARTY list row, then `enrichPartyRowsWithCanonicalBalance` | SQL+JS-patched | **-Rs 100 when the slice is <= 100 rows** (`PARTY_BALANCE_CANONICAL_ENRICH_MAX`). Browse/list above the cap still falls back to C-PARTY with no error. Excel/PDF pass `{ allowBeyondCap: true }` and batch (`PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE = 20`) so a large-org export is not left on unpatched SQL. |
 | **C-SNAP** | `get_customer_financial_snapshot` / `_batch` / `_all` via `src/utils/customerFinancialSnapshot.ts` | SQL | Not the Farhaan -Rs 2,800 RPC. Facet comments say snapshot matches JS after migration `20260822183000`, but `useCustomerBalance` still displays C-JS and only warns if snapshot drifts. Treat as unverified vs Farhaan live; different from C-PARTY. `outstanding_dr` historically netted unused advance (Aafra class) — do not assume it equals C-JS outstanding. |
 | **C-REC** | `reconcile_customer_balance` / `reconcile_customer_balances` via `src/utils/organizationReceivables.ts` | SQL | Same family as `get_customer_true_outstanding` per comments. Unverified vs Farhaan live. Used for org AR cards and salesman list. |
 | **C-TRUE** | `get_customer_true_outstanding` | SQL | Wrapper `fetchCustomerTrueOutstandingMap` has **zero UI callers**. Dead for display. |
@@ -86,8 +86,8 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 |---|---|---|---|---|---|
 | C01 | Customer Balances — visible table row | `src/pages/CustomerPartyBalancesPage.tsx` | C-PARTY+JS (`enrichPartyRowsWithCanonicalBalance` on filtered slice if <=100, else visible page) | SQL+JS-patched | **Right on the visible page** (Farhaan search / current page). Full-org unfiltered list is not enriched. |
 | C02 | Customer Balances — org cards (Outstanding / Credit / Net) | same | C-PARTY (`fetchCustomerPartyBalancesAligned` then `summarizeAccountFacets(rows)` — **not** the enriched slice) | SQL-only | **Right post `20261126120000`** (Farhaan −Rs 100 is in credit pool, not Dr outstanding) |
-| C03 | Customer Balances — Excel export | same `exportToExcel` | C-PARTY (`filteredRows`, never enriched) | SQL-only | **Right post `20261126120000`** |
-| C04 | Customer Balances — PDF export | same `exportToPdf` | C-PARTY (`filteredRows`) | SQL-only | **Right post `20261126120000`** |
+| C03 | Customer Balances — Excel export | same `exportToExcel` | C-PARTY+JS via `enrichPartyRowsWithCanonicalBalance(..., { allowBeyondCap: true })` (batched) | SQL+JS-patched | **Corrected per party** — large-org export no longer skips the enricher |
+| C04 | Customer Balances — PDF export | same `exportToPdf` | same as C03 | SQL+JS-patched | **Corrected per party** — same as Excel |
 | C05 | Customer Ledger — list (Accounts tab + `/customer-ledger-report`) | `src/components/CustomerLedger.tsx` + `src/utils/customerLedgerListFromPartyBalances.ts` | C-PARTY+JS on filtered <=100 or paginated slice; seed is C-PARTY | SQL+JS-patched | **Right on visible slice**; search "Farhaan" (1 row) is patched. Unfiltered Excel of all filtered is not. |
 | C06 | Customer Ledger — list Excel | `CustomerLedger.tsx` `handleExportCustomerListExcel` | C-PARTY+JS when filter ≤100 (`customersForLedgerExport`); else aligned C-PARTY | SQL+JS-patched / SQL | **Right** — enriched export when filtered slice ≤ cap |
 | C07 | Customer Ledger — list PDF | `CustomerLedger.tsx` | same as C06 | same | **Right** |
@@ -198,8 +198,8 @@ Truly local JS recomputes: C09, C10, C11, C22, C23, C37, salesman list fallback 
 
 The enricher (`C-PARTY+JS`) is a temporary patch, not SSOT. It:
 
-1. no-ops when `rows.length > 100`;
-2. is not used by payment pickers, dashboards, AI, invoice FIFO, or exports;
+1. no-ops when `rows.length > 100` unless `{ allowBeyondCap: true }` (Customer Balances Excel/PDF);
+2. is not used by payment pickers, dashboards, AI, or invoice FIFO;
 3. will be unnecessary only after C-PARTY CN handling matches `_is_settlement_memo_receipt` (Phase 1 item 1) **and** a drift check shows zero patched rows.
 
 ---

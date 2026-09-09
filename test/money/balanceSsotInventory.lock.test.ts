@@ -51,7 +51,7 @@ function alignedStub(id: string): CustomerPartyBalanceAlignedRow {
 }
 
 describe("Phase 0 balance SSOT inventory locks", () => {
-  it("enricher cap stays 100 — above it, party SQL is shown unpatched", () => {
+  it("enricher cap stays 100 — browse/list above it shows unpatched party SQL", () => {
     expect(PARTY_BALANCE_CANONICAL_ENRICH_MAX).toBe(100);
   });
 
