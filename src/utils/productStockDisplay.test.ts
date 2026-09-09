@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   displaySaleStockQty,
+  excludeServiceVariants,
   isNonStockTrackedProduct,
   physicalStockQtyForTotals,
   physicalStockValueForTotals,
@@ -57,6 +58,17 @@ describe("physicalStockQtyForTotals", () => {
   });
 });
 
+describe("excludeServiceVariants", () => {
+  it("drops service rows so FLEXI LS 100 MIX never enters Quick Stock results", () => {
+    const rows = [
+      { id: "mix", product: { product_type: "service" }, stock_qty: SERVICE_VIRTUAL_STOCK_QTY },
+      { id: "goods-a", product: { product_type: "goods" }, stock_qty: 4 },
+      { id: "goods-b", product: { product_type: "goods" }, stock_qty: 211 },
+    ];
+    expect(excludeServiceVariants(rows).map((r) => r.id)).toEqual(["goods-a", "goods-b"]);
+  });
+});
+
 describe("sumPhysicalStockTotals", () => {
   it("drops FLEXI LS 100 MIX virtual 999999 from Quick Stock header totals", () => {
     // Screenshot: searching FLEXI LS/100 showed Total Qty 10,00,214 and
@@ -86,7 +98,18 @@ describe("Quick Stock Check source", () => {
     const src = readFileSync(resolve(here, "../components/FloatingPOSReports.tsx"), "utf8");
     expect(src).toContain("sumPhysicalStockTotals");
     expect(src).toContain("displaySaleStockQty");
+    expect(src).toContain("excludeServiceVariants");
     expect(src).toMatch(/product_type/);
+    expect(src).toContain('.neq("products.product_type", "service")');
     expect(src).not.toMatch(/reduce\(\(sum, item\) => sum \+ \(Number\(item\.stock_qty\)/);
+  });
+});
+
+describe("Product Dashboard stats source", () => {
+  it("does not re-subtract service stock after the RPC already zeros it", () => {
+    const src = readFileSync(resolve(here, "../pages/ProductDashboard.tsx"), "utf8");
+    expect(src).toContain("get_product_dashboard_stats");
+    expect(src).not.toContain('eq("products.product_type", "service")');
+    expect(src).not.toMatch(/Until RPC excludes service virtual stock/);
   });
 });

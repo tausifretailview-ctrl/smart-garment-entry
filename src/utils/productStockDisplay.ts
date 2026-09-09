@@ -69,6 +69,11 @@ export type QuickStockTotalRow = {
   product?: { product_type?: string | null } | null;
 };
 
+/** Drop service rows from Quick Stock Check — they are not physical inventory. */
+export function excludeServiceVariants<T extends QuickStockTotalRow>(rows: T[]): T[] {
+  return rows.filter((item) => !isServiceProduct(item.product?.product_type));
+}
+
 /** Quick Stock Check header totals — never include virtual 999999 service/combo units. */
 export function sumPhysicalStockTotals(rows: QuickStockTotalRow[]): { qty: number; value: number } {
   let qty = 0;

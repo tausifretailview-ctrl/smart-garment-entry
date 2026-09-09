@@ -784,26 +784,6 @@ const ProductDashboard = () => {
     retry: 1,
   });
 
-  const statsFiltersAreDefault = useMemo(
-    () =>
-      !debouncedSearch &&
-      selectedCategory === "all" &&
-      selectedProductType === "all" &&
-      selectedSizeGroup === "all" &&
-      selectedStockLevel === "all" &&
-      !minPrice &&
-      !maxPrice,
-    [
-      debouncedSearch,
-      selectedCategory,
-      selectedProductType,
-      selectedSizeGroup,
-      selectedStockLevel,
-      minPrice,
-      maxPrice,
-    ],
-  );
-
   const {
     data: dashboardStats = EMPTY_DASHBOARD_STATS,
     isLoading: statsLoading,
@@ -817,39 +797,14 @@ const ProductDashboard = () => {
         console.warn("get_product_dashboard_stats RPC failed:", error.message);
         return EMPTY_DASHBOARD_STATS;
       }
+      // RPC already zeros service virtual stock (see get_product_dashboard_stats).
+      // Do not re-subtract client-side — that double-floors Remaining Stock to 0.
       const s = (data || {}) as Record<string, number>;
-      let totalStockQty = s.total_stock_qty || 0;
-      let purchaseValue = s.purchase_value || 0;
-      let saleValue = s.sale_value || 0;
-
-      // Until RPC excludes service virtual stock (999999), subtract org-wide skew on default view.
-      if (statsFiltersAreDefault) {
-        const { data: serviceVariants } = await supabase
-          .from("product_variants")
-          .select("stock_qty, pur_price, sale_price, products!inner(product_type)")
-          .eq("organization_id", currentOrganization.id)
-          .eq("products.product_type", "service")
-          .is("deleted_at", null);
-
-        for (const row of serviceVariants ?? []) {
-          const qty = Number(row.stock_qty) || 0;
-          totalStockQty = Math.max(0, totalStockQty - qty);
-          purchaseValue = Math.max(
-            0,
-            purchaseValue - qty * (Number(row.pur_price) || 0),
-          );
-          saleValue = Math.max(
-            0,
-            saleValue - qty * (Number(row.sale_price) || 0),
-          );
-        }
-      }
-
       return {
         total_items: s.total_items || 0,
-        total_stock_qty: totalStockQty,
-        purchase_value: purchaseValue,
-        sale_value: saleValue,
+        total_stock_qty: s.total_stock_qty || 0,
+        purchase_value: s.purchase_value || 0,
+        sale_value: s.sale_value || 0,
       };
     },
     enabled: !!currentOrganization?.id,
