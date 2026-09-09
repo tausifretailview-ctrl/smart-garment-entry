@@ -30,6 +30,26 @@ export function partyBalanceDisplayAmount(signedBalance: number | null | undefin
   return Math.abs(Number(signedBalance ?? 0));
 }
 
+export type PartyBalanceMoneyFacets = {
+  outstanding: number;
+  unusedAdvance: number;
+  netPosition: number;
+};
+
+/**
+ * Excel/PDF row money — unsigned like the on-screen table.
+ * Direction stays in the Dr/Cr column (do not export a leading minus).
+ */
+export function partyBalanceExportRowAmounts(
+  facets: PartyBalanceMoneyFacets,
+): PartyBalanceMoneyFacets {
+  return {
+    outstanding: partyBalanceDisplayAmount(facets.outstanding),
+    unusedAdvance: facets.unusedAdvance,
+    netPosition: partyBalanceDisplayAmount(facets.netPosition),
+  };
+}
+
 export function normalizePartySearchPhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
