@@ -14,7 +14,13 @@ export type ProductDuplicateGroup = {
   canonicalName: string;
 };
 
-export type ConsolidateConflictVariant = {
+export type ProductPickerResult = {
+  id: string;
+  productName: string;
+  variantCount: number;
+};
+
+export type MergeConflictVariant = {
   variantId: string;
   barcode: string | null;
   size: string | null;
@@ -22,18 +28,14 @@ export type ConsolidateConflictVariant = {
   stockQty: number;
 };
 
-export type ConsolidateProductsConflict = {
-  duplicateProductId?: string;
-  canonicalProductId?: string;
-  canonicalName?: string;
-  conflictingVariants: ConsolidateConflictVariant[];
-};
-
-export type ConsolidateProductsResult = {
-  groupsMerged: number;
+export type MergeTwoProductsResult = {
+  sourceProductId: string;
+  targetProductId: string;
+  sourceProductName: string;
+  targetProductName: string;
   variantsMoved: number;
-  productsRetired: number;
-  conflicts: ConsolidateProductsConflict[];
+  sourceRetired: boolean;
+  conflictingVariants: MergeConflictVariant[];
   dryRun?: boolean;
 };
 
@@ -46,7 +48,6 @@ type ProductScanRow = {
 
 /**
  * Pick canonical product: most active variants, then oldest created_at, then id.
- * Exported for unit tests — must match consolidate_duplicate_products SQL.
  */
 export function pickCanonicalProductIndex(rows: ProductScanRow[]): number {
   if (rows.length === 0) return -1;
@@ -70,9 +71,14 @@ export function pickCanonicalProductIndex(rows: ProductScanRow[]): number {
 }
 
 /**
- * Group products by compact name key; only groups with 2+ distinct products.
+ * Group products by compact name key.
+ * @param exactPairsOnly when true, only return groups with exactly 2 products
+ *   (avoids huge collisions like a 155-way "BABA SUIT" name).
  */
-export function buildDuplicateProductGroups(rows: ProductScanRow[]): ProductDuplicateGroup[] {
+export function buildDuplicateProductGroups(
+  rows: ProductScanRow[],
+  exactPairsOnly = false,
+): ProductDuplicateGroup[] {
   const byKey = new Map<string, ProductScanRow[]>();
   for (const row of rows) {
     const name = (row.product_name || "").trim();
@@ -86,7 +92,7 @@ export function buildDuplicateProductGroups(rows: ProductScanRow[]): ProductDupl
 
   const groups: ProductDuplicateGroup[] = [];
   for (const [compactName, list] of byKey) {
-    if (list.length < 2) continue;
+    if (exactPairsOnly ? list.length !== 2 : list.length < 2) continue;
     const canonicalIdx = pickCanonicalProductIndex(list);
     const ordered = [
       list[canonicalIdx],
@@ -103,8 +109,8 @@ export function buildDuplicateProductGroups(rows: ProductScanRow[]): ProductDupl
 
   return groups.sort(
     (a, b) =>
-      b.productIds.length - a.productIds.length ||
-      a.canonicalName.localeCompare(b.canonicalName),
+      a.canonicalName.localeCompare(b.canonicalName) ||
+      b.productIds.length - a.productIds.length,
   );
 }
 
@@ -154,15 +160,52 @@ async function fetchOrgProductsForMerge(organizationId: string): Promise<Product
   }));
 }
 
-/** Client-side scan for the review UI (RPC does the authoritative merge). */
-export async function findDuplicateProductGroups(
+/** Conservative suggestions: exact pairs only (never multi-way mega groups). */
+export async function findSafeMergeSuggestions(
   organizationId: string,
 ): Promise<ProductDuplicateGroup[]> {
   const rows = await fetchOrgProductsForMerge(organizationId);
-  return buildDuplicateProductGroups(rows);
+  return buildDuplicateProductGroups(rows, true);
 }
 
-function mapConflictVariant(raw: Record<string, unknown>): ConsolidateConflictVariant {
+/** Type-ahead search for the FROM / INTO pickers. */
+export async function searchProductsForMerge(
+  organizationId: string,
+  query: string,
+): Promise<ProductPickerResult[]> {
+  const term = query.trim();
+  if (term.length < 2) return [];
+  const safe = term.replace(/[%_,()]/g, " ").trim();
+  if (!safe) return [];
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, product_name, product_variants(id, deleted_at, active)")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .ilike("product_name", `%${safe}%`)
+    .order("product_name")
+    .limit(25);
+  if (error) throw error;
+
+  return (data || []).map((p) => {
+    const variants = (p.product_variants || []) as Array<{
+      id: string;
+      deleted_at: string | null;
+      active: boolean | null;
+    }>;
+    const variantCount = variants.filter(
+      (v) => !v.deleted_at && v.active !== false,
+    ).length;
+    return {
+      id: p.id as string,
+      productName: ((p.product_name as string) || "").trim(),
+      variantCount,
+    };
+  });
+}
+
+function mapConflictVariant(raw: Record<string, unknown>): MergeConflictVariant {
   return {
     variantId: String(raw.variant_id ?? raw.variantId ?? ""),
     barcode: (raw.barcode as string | null) ?? null,
@@ -172,52 +215,43 @@ function mapConflictVariant(raw: Record<string, unknown>): ConsolidateConflictVa
   };
 }
 
-export function mapConsolidateProductsResult(data: unknown): ConsolidateProductsResult {
+export function mapMergeTwoProductsResult(data: unknown): MergeTwoProductsResult {
   const raw = (data || {}) as Record<string, unknown>;
-  const conflictsRaw = Array.isArray(raw.conflicts) ? raw.conflicts : [];
+  const conflictsRaw = Array.isArray(raw.conflicting_variants)
+    ? raw.conflicting_variants
+    : Array.isArray(raw.conflictingVariants)
+      ? raw.conflictingVariants
+      : [];
   return {
-    groupsMerged: Number(raw.groups_merged ?? raw.groupsMerged ?? 0) || 0,
+    sourceProductId: String(raw.source_product_id ?? raw.sourceProductId ?? ""),
+    targetProductId: String(raw.target_product_id ?? raw.targetProductId ?? ""),
+    sourceProductName: String(raw.source_product_name ?? raw.sourceProductName ?? ""),
+    targetProductName: String(raw.target_product_name ?? raw.targetProductName ?? ""),
     variantsMoved: Number(raw.variants_moved ?? raw.variantsMoved ?? 0) || 0,
-    productsRetired: Number(raw.products_retired ?? raw.productsRetired ?? 0) || 0,
+    sourceRetired: Boolean(raw.source_retired ?? raw.sourceRetired),
     dryRun: Boolean(raw.dry_run ?? raw.dryRun),
-    conflicts: conflictsRaw.map((c) => {
-      const row = (c || {}) as Record<string, unknown>;
-      const variants = Array.isArray(row.conflicting_variants)
-        ? row.conflicting_variants
-        : Array.isArray(row.conflictingVariants)
-          ? row.conflictingVariants
-          : [];
-      return {
-        duplicateProductId: (row.duplicate_product_id ?? row.duplicateProductId) as
-          | string
-          | undefined,
-        canonicalProductId: (row.canonical_product_id ?? row.canonicalProductId) as
-          | string
-          | undefined,
-        canonicalName: (row.canonical_name ?? row.canonicalName) as string | undefined,
-        conflictingVariants: variants.map((v) =>
-          mapConflictVariant((v || {}) as Record<string, unknown>),
-        ),
-      };
-    }),
+    conflictingVariants: conflictsRaw.map((v) =>
+      mapConflictVariant((v || {}) as Record<string, unknown>),
+    ),
   };
 }
 
 /**
- * Call consolidate_duplicate_products RPC.
+ * Call merge_two_products RPC.
  * dryRun=true (default) reports planned moves/conflicts with no writes.
  */
-export async function consolidateDuplicateProducts(
+export async function mergeTwoProducts(
   organizationId: string,
+  sourceProductId: string,
+  targetProductId: string,
   dryRun = true,
-): Promise<ConsolidateProductsResult> {
-  const { data, error } = await supabase.rpc(
-    "consolidate_duplicate_products" as never,
-    {
-      p_org_id: organizationId,
-      p_dry_run: dryRun,
-    } as never,
-  );
+): Promise<MergeTwoProductsResult> {
+  const { data, error } = await supabase.rpc("merge_two_products" as never, {
+    p_org_id: organizationId,
+    p_source_product_id: sourceProductId,
+    p_target_product_id: targetProductId,
+    p_dry_run: dryRun,
+  } as never);
   if (error) throw error;
-  return mapConsolidateProductsResult(data);
+  return mapMergeTwoProductsResult(data);
 }
