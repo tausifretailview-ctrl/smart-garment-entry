@@ -27,10 +27,9 @@ import {
 import { format } from "date-fns";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
-import {
-  fetchSaleReceiptSplitsForInvoices,
-  reconcileSaleInvoiceWithSplit,
-} from "@/utils/customerBalanceUtils";
+import { fetchSaleReceiptSplitsForInvoices } from "@/utils/customerBalanceUtils";
+import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
+import { buildOutstandingReminderInvoices } from "@/utils/salesmanOutstandingReminder";
 
 interface CustomerDetails {
   id: string;
@@ -307,10 +306,9 @@ const SalesmanCustomerAccount = () => {
       // Total paid includes both invoice payments AND opening balance payments
       const totalPaid = totalPaidOnSales + openingBalanceVoucherPayments;
       
-      // Per-invoice outstanding must match Sales Dashboard (reconcileSaleInvoiceWithSplit).
-      // Do NOT do net − max(paid, vouchers) − sale_return_adjust: Adjust-CN writes both
-      // sale_return_adjust and a credit_note_adjustment voucher for the same ₹, which
-      // double-subtracts (e.g. INV/119 dashboard ₹3,262 vs WhatsApp ₹1,173 = S/R ₹2,089).
+      // Per-invoice outstanding must match Invoice Dashboard. Paid + S/R rows
+      // (INV/26-27/236) were still listed because reconcile leftover equalled
+      // sale_return_adjust when items_gross / CN split was missing.
       const receiptSplitMap = await fetchSaleReceiptSplitsForInvoices(
         supabase,
         currentOrganization!.id,
@@ -321,49 +319,16 @@ const SalesmanCustomerAccount = () => {
         })),
       );
 
-      const pendingList = (salesData || [])
-        .filter(
-          (sale) =>
-            sale.payment_status !== "cancelled" &&
-            sale.payment_status !== "hold",
-        )
-        .map((sale) => {
-          const split = receiptSplitMap.get(sale.id) ?? {
-            cash: 0,
-            cn: 0,
-            adv: 0,
-            discount: 0,
-          };
-          const rec = reconcileSaleInvoiceWithSplit(
-            {
-              net_amount: sale.net_amount,
-              sale_return_adjust: sale.sale_return_adjust,
-              paid_amount: sale.paid_amount,
-              cash_amount: sale.cash_amount,
-              card_amount: sale.card_amount,
-              upi_amount: sale.upi_amount,
-            },
-            split,
-          );
-          const balance = Math.max(0, Math.round(rec.outstanding));
-          const saleDate = new Date(sale.sale_date);
-          const daysOverdue = Math.floor(
-            (Date.now() - saleDate.getTime()) / (1000 * 60 * 60 * 24),
-          );
-          return {
-            id: sale.id,
-            sale_number: sale.sale_number,
-            sale_date: sale.sale_date,
-            net_amount: sale.net_amount,
-            paid_amount: rec.paid_amount,
-            balance,
-            days_overdue: daysOverdue,
-            discount_amount:
-              (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
-          };
-        })
-        .filter((inv) => inv.balance >= 1)
-        .sort((a, b) => a.days_overdue - b.days_overdue);
+      const saleIdsNeedingGross = (salesData || [])
+        .filter((s) => Number(s.sale_return_adjust || 0) > 0.005)
+        .map((s) => s.id);
+      const itemsGrossBySale = await fetchItemsGrossBySaleId(supabase, saleIdsNeedingGross);
+
+      const pendingList = buildOutstandingReminderInvoices({
+        sales: salesData || [],
+        splitBySale: receiptSplitMap,
+        itemsGrossBySale,
+      });
 
       setPendingInvoices(pendingList);
 
