@@ -11,12 +11,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, AlertTriangle, ArrowRight } from "lucide-react";
 import {
-  findDuplicateProductGroups,
-  consolidateDuplicateProducts,
+  findSafeMergeSuggestions,
+  searchProductsForMerge,
+  mergeTwoProducts,
   type ProductDuplicateGroup,
-  type ConsolidateProductsResult,
+  type ProductPickerResult,
+  type MergeTwoProductsResult,
 } from "@/utils/productMergeUtils";
 
 interface MergeDuplicateProductsDialogProps {
@@ -26,7 +29,114 @@ interface MergeDuplicateProductsDialogProps {
   onMergeComplete: () => void;
 }
 
-type Stage = "scanning" | "review" | "previewing" | "previewed" | "merging" | "done";
+type Stage = "idle" | "previewing" | "previewed" | "merging" | "done";
+
+function ProductPicker({
+  label,
+  organizationId,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  organizationId: string;
+  selected: ProductPickerResult | null;
+  onSelect: (p: ProductPickerResult | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<ProductPickerResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!query || query.trim().length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const r = await searchProductsForMerge(organizationId, query);
+          if (!cancelled) setResults(r);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      })();
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query, organizationId]);
+
+  if (selected) {
+    return (
+      <div>
+        <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+        <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+          <span className="text-sm font-medium">
+            {selected.productName}{" "}
+            <span className="text-muted-foreground font-normal">
+              ({selected.variantCount} variant{selected.variantCount === 1 ? "" : "s"})
+            </span>
+          </span>
+          <Button variant="ghost" size="sm" onClick={() => onSelect(null)}>
+            Change
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative">
+      <p className="text-xs font-medium text-muted-foreground mb-1">{label}</p>
+      <Input
+        value={query}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder="Search product name…"
+      />
+      {open && query.trim().length >= 2 && (
+        <div className="absolute z-50 mt-1 w-full max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
+          {loading && (
+            <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
+            </div>
+          )}
+          {!loading && results.length === 0 && (
+            <div className="p-3 text-sm text-muted-foreground">No products found</div>
+          )}
+          {!loading &&
+            results.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+                onClick={() => {
+                  onSelect(r);
+                  setQuery("");
+                  setResults([]);
+                  setOpen(false);
+                }}
+              >
+                {r.productName}{" "}
+                <span className="text-muted-foreground">
+                  ({r.variantCount} variant{r.variantCount === 1 ? "" : "s"})
+                </span>
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function MergeDuplicateProductsDialog({
   open,
@@ -34,45 +144,33 @@ export function MergeDuplicateProductsDialog({
   organizationId,
   onMergeComplete,
 }: MergeDuplicateProductsDialogProps) {
-  const [stage, setStage] = useState<Stage>("scanning");
-  const [groups, setGroups] = useState<ProductDuplicateGroup[]>([]);
-  const [preview, setPreview] = useState<ConsolidateProductsResult | null>(null);
-  const [finalResult, setFinalResult] = useState<ConsolidateProductsResult | null>(null);
+  const [source, setSource] = useState<ProductPickerResult | null>(null);
+  const [target, setTarget] = useState<ProductPickerResult | null>(null);
+  const [suggestions, setSuggestions] = useState<ProductDuplicateGroup[]>([]);
+  const [stage, setStage] = useState<Stage>("idle");
+  const [preview, setPreview] = useState<MergeTwoProductsResult | null>(null);
+  const [finalResult, setFinalResult] = useState<MergeTwoProductsResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !organizationId) return;
-    let cancelled = false;
-    setStage("scanning");
+    setSource(null);
+    setTarget(null);
+    setStage("idle");
     setPreview(null);
     setFinalResult(null);
     setError(null);
-    void (async () => {
-      try {
-        const found = await findDuplicateProductGroups(organizationId);
-        if (!cancelled) {
-          setGroups(found);
-          setStage("review");
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          console.error(err);
-          setError(err instanceof Error ? err.message : "Failed to scan products");
-          setGroups([]);
-          setStage("review");
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    void findSafeMergeSuggestions(organizationId)
+      .then(setSuggestions)
+      .catch((err) => console.error(err));
   }, [open, organizationId]);
 
   const handlePreview = async () => {
+    if (!source || !target) return;
     setStage("previewing");
     setError(null);
     try {
-      const result = await consolidateDuplicateProducts(organizationId, true);
+      const result = await mergeTwoProducts(organizationId, source.id, target.id, true);
       setPreview(result);
       setStage("previewed");
     } catch (err: unknown) {
@@ -82,19 +180,21 @@ export function MergeDuplicateProductsDialog({
           ? err.message
           : "Preview failed — the merge tool may not be deployed yet",
       );
-      setStage("review");
+      setStage("idle");
     }
   };
 
   const handleConfirmMerge = async () => {
+    if (!source || !target) return;
     setStage("merging");
     setError(null);
     try {
-      const result = await consolidateDuplicateProducts(organizationId, false);
+      const result = await mergeTwoProducts(organizationId, source.id, target.id, false);
       setFinalResult(result);
       setStage("done");
       toast.success(
-        `Merged ${result.groupsMerged} group(s) — ${result.variantsMoved} variant(s) moved, ${result.productsRetired} duplicate product(s) retired`,
+        `Moved ${result.variantsMoved} variant(s) into "${result.targetProductName}"` +
+          (result.sourceRetired ? ` — "${result.sourceProductName}" retired` : ""),
       );
       onMergeComplete();
     } catch (err: unknown) {
@@ -104,25 +204,21 @@ export function MergeDuplicateProductsDialog({
     }
   };
 
-  const handleClose = () => {
-    onOpenChange(false);
-  };
+  const handleClose = () => onOpenChange(false);
 
-  const totalConflictVariants =
-    preview?.conflicts.reduce((s, c) => s + c.conflictingVariants.length, 0) ?? 0;
+  const canPreview = !!source && !!target && source.id !== target.id;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Merge duplicate products</DialogTitle>
           <DialogDescription>
-            Finds products whose names are the same once spacing/punctuation
-            differences are ignored (e.g. "FLEXI NL" / "FLEXI /NL" / "FLEXI / NL"),
-            moves every variant onto one canonical product, and retires the
-            others. Variants that would collide (same size + color already
-            exists on the canonical product) are left untouched and listed
-            for manual review — never silently combined.
+            Pick the product you want to retire (source) and the one to keep
+            (target). Review exactly what would move before anything actually
+            happens. Variants that would collide (same size + color already
+            on the target) are left untouched and reported — never silently
+            combined.
           </DialogDescription>
         </DialogHeader>
 
@@ -133,42 +229,62 @@ export function MergeDuplicateProductsDialog({
           </div>
         )}
 
-        {stage === "scanning" && (
-          <div className="flex items-center justify-center py-10 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Scanning products for duplicates…
-          </div>
-        )}
-
-        {stage === "review" && groups.length === 0 && !error && (
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            No duplicate product names found.
-          </div>
-        )}
-
-        {(stage === "review" || stage === "previewing") && groups.length > 0 && (
+        {stage !== "done" && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Found {groups.length} group(s) of duplicate product names:
+            <ProductPicker
+              label="Merge FROM (will be retired once empty)"
+              organizationId={organizationId}
+              selected={source}
+              onSelect={(p) => {
+                setSource(p);
+                setStage("idle");
+                setPreview(null);
+              }}
+            />
+            <div className="flex justify-center">
+              <ArrowRight className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <ProductPicker
+              label="INTO (kept, canonical product)"
+              organizationId={organizationId}
+              selected={target}
+              onSelect={(p) => {
+                setTarget(p);
+                setStage("idle");
+                setPreview(null);
+              }}
+            />
+          </div>
+        )}
+
+        {stage !== "done" && suggestions.length > 0 && !source && !target && (
+          <div className="space-y-2">
+            <Separator />
+            <p className="text-xs text-muted-foreground">
+              Possible matches (exact pairs only — click to fill both fields
+              for review; nothing merges automatically):
             </p>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {groups.map((g) => (
-                <div key={g.compactName} className="rounded-md border p-3 text-sm">
-                  <div className="flex flex-wrap gap-1.5">
-                    {g.productNames.map((name, i) => (
-                      <Badge
-                        key={g.productIds[i]}
-                        variant={i === 0 ? "default" : "secondary"}
-                      >
-                        {name} ({g.variantCounts[i]} variant
-                        {g.variantCounts[i] === 1 ? "" : "s"})
-                      </Badge>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Canonical (kept): <strong>{g.canonicalName}</strong>
-                  </p>
-                </div>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+              {suggestions.map((g) => (
+                <Badge
+                  key={g.compactName}
+                  variant="outline"
+                  className="cursor-pointer hover:bg-accent"
+                  onClick={() => {
+                    setTarget({
+                      id: g.productIds[0],
+                      productName: g.productNames[0],
+                      variantCount: g.variantCounts[0],
+                    });
+                    setSource({
+                      id: g.productIds[1],
+                      productName: g.productNames[1],
+                      variantCount: g.variantCounts[1],
+                    });
+                  }}
+                >
+                  {g.productNames[0]} ↔ {g.productNames[1]}
+                </Badge>
               ))}
             </div>
           </div>
@@ -178,38 +294,38 @@ export function MergeDuplicateProductsDialog({
           <div className="space-y-3">
             <div className="rounded-md border p-3 text-sm space-y-1">
               <p>
-                <strong>{preview.groupsMerged}</strong> group(s) will be merged
-              </p>
-              <p>
                 <strong>{preview.variantsMoved}</strong> variant(s) will move
-                to their canonical product
+                from "{preview.sourceProductName}" into "
+                {preview.targetProductName}"
               </p>
               <p>
-                <strong>{preview.productsRetired}</strong> duplicate product
-                record(s) will be retired (only once fully empty)
+                Source product will be{" "}
+                <strong>
+                  {preview.variantsMoved > 0 &&
+                  preview.conflictingVariants.length === 0
+                    ? "retired"
+                    : "kept (not fully empty yet)"}
+                </strong>
               </p>
             </div>
-            {totalConflictVariants > 0 && (
+            {preview.conflictingVariants.length > 0 && (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm space-y-2">
                 <p className="flex items-center gap-1.5 font-medium text-amber-800">
                   <AlertTriangle className="h-4 w-4" />
-                  {totalConflictVariants} variant(s) need manual review
+                  {preview.conflictingVariants.length} variant(s) need manual
+                  review
                 </p>
                 <p className="text-xs text-amber-800">
-                  These have the same size + color as an existing variant on
-                  the canonical product, so they won't be auto-merged — their
-                  product record will stay (not retired) until you resolve
-                  these by hand.
+                  Same size + color already exists on the target — these
+                  won't move automatically.
                 </p>
                 <div className="max-h-32 overflow-y-auto space-y-1">
-                  {preview.conflicts.flatMap((c) =>
-                    c.conflictingVariants.map((v) => (
-                      <p key={v.variantId} className="text-xs font-mono text-amber-900">
-                        barcode {v.barcode || "—"} · {v.size || "—"} /{" "}
-                        {v.color || "—"} · stock {v.stockQty}
-                      </p>
-                    )),
-                  )}
+                  {preview.conflictingVariants.map((v) => (
+                    <p key={v.variantId} className="text-xs font-mono text-amber-900">
+                      barcode {v.barcode || "—"} · {v.size || "—"} / {v.color || "—"} ·
+                      stock {v.stockQty}
+                    </p>
+                  ))}
                 </div>
               </div>
             )}
@@ -220,17 +336,14 @@ export function MergeDuplicateProductsDialog({
           <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm space-y-1">
             <p className="font-medium text-green-800">Merge complete</p>
             <p>
-              {finalResult.groupsMerged} group(s) merged ·{" "}
-              {finalResult.variantsMoved} variant(s) moved ·{" "}
-              {finalResult.productsRetired} product(s) retired
+              {finalResult.variantsMoved} variant(s) moved into "
+              {finalResult.targetProductName}"
+              {finalResult.sourceRetired ? ` — "${finalResult.sourceProductName}" retired` : ""}
             </p>
-            {finalResult.conflicts.length > 0 && (
+            {finalResult.conflictingVariants.length > 0 && (
               <p className="text-amber-700">
-                {finalResult.conflicts.reduce(
-                  (s, c) => s + c.conflictingVariants.length,
-                  0,
-                )}{" "}
-                variant(s) still need manual review (see above before closing).
+                {finalResult.conflictingVariants.length} variant(s) still need
+                manual review on "{finalResult.sourceProductName}".
               </p>
             )}
           </div>
@@ -244,8 +357,8 @@ export function MergeDuplicateProductsDialog({
               Cancel
             </Button>
           )}
-          {(stage === "review" || stage === "previewing") && groups.length > 0 && (
-            <Button onClick={handlePreview} disabled={stage === "previewing"}>
+          {(stage === "idle" || stage === "previewing") && (
+            <Button onClick={handlePreview} disabled={!canPreview || stage === "previewing"}>
               {stage === "previewing" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
