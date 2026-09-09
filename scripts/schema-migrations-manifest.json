@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-07",
-  "count": 754,
-  "fileCount": 771,
+  "generatedAt": "2026-09-09",
+  "count": 755,
+  "fileCount": 772,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -676,6 +676,7 @@
     "20260909120200",
     "20260909120300",
     "20260909120400",
+    "20260909190000",
     "20260910120000",
     "20260911120000",
     "20260911130000",
@@ -1447,6 +1448,7 @@
     "20260909120200_fix_get_customer_party_balances_advance_parity.sql",
     "20260909120300_fix_get_customer_party_balances_sql_wrapper.sql",
     "20260909120400_fix_get_customer_party_balances_receipt_parity.sql",
+    "20260909190000_consolidate_duplicate_products.sql",
     "20260910120000_fix_party_balances_cn_receipt_double_count.sql",
     "20260910120000_get_supplier_party_balances.sql",
     "20260911120000_get_orphaned_products.sql",

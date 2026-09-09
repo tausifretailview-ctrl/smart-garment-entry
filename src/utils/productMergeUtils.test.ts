@@ -111,6 +111,7 @@ describe("source guards", () => {
     expect(sql).toContain("normalize_product_name_key");
     expect(sql).toContain("p_dry_run");
     expect(sql).toContain("auth.role() = 'anon'");
+    expect(sql).toContain("DROP FUNCTION IF EXISTS public.consolidate_duplicate_products");
     expect(sql).toContain("REVOKE ALL ON FUNCTION public.consolidate_duplicate_products");
   });
 });
