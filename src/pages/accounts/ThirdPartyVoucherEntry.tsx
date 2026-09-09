@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Plus } from "lucide-react";
+import { ArrowDownLeft, ArrowLeft, ArrowUpRight, Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -13,6 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -22,9 +32,10 @@ import {
   type AccountGroup,
   type SeededAccount,
 } from "@/utils/accounting/seedDefaultAccounts";
-import { postJournalEntry, recordThirdPartyVoucherJournalEntry } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, recordThirdPartyVoucherJournalEntry } from "@/utils/accounting/journalService";
 import {
   paymentMethodFromCashBankAccount,
+  THIRD_PARTY_JOURNAL_REFERENCE_TYPE,
   THIRD_PARTY_VOUCHER_REFERENCE_TYPE,
   voucherTypeForThirdPartyDirection,
 } from "@/utils/accounting/thirdPartyVoucherCash";
@@ -36,6 +47,15 @@ import {
   loadOrgChartAccountsForThirdParty,
   TALLY_GROUPS_BY_ACCOUNT_TYPE,
 } from "@/utils/accounting/thirdPartyAccounts";
+import {
+  buildThirdPartyVoucherDescription,
+  directionFromVoucherType,
+  formatThirdPartyPaymentMethod,
+  loadThirdPartyJournalCashBankAccountId,
+  loadThirdPartyVoucherHistory,
+  parseThirdPartyNarration,
+  type ThirdPartyHistoryVoucher,
+} from "@/utils/accounting/thirdPartyVoucherHistory";
 import { calculateGlAccountLedger } from "@/utils/accountingReportUtils";
 
 type Direction = "paid_out" | "received";
@@ -82,6 +102,11 @@ export default function ThirdPartyVoucherEntry() {
   const [newGroup, setNewGroup] = useState<AccountGroup>("Sundry Creditors");
 
   const [ledgerAccountId, setLedgerAccountId] = useState("");
+  const [activeTab, setActiveTab] = useState("entry");
+  const [editingVoucherId, setEditingVoucherId] = useState<string | null>(null);
+  const [editingVoucherNumber, setEditingVoucherNumber] = useState("");
+  const [historySearch, setHistorySearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<ThirdPartyHistoryVoucher | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: ["third-party-accounts", currentOrganization?.id],
@@ -187,6 +212,80 @@ export default function ThirdPartyVoucherEntry() {
     },
   });
 
+  const invalidateAfterChange = (partyId?: string) => {
+    void queryClient.invalidateQueries({ queryKey: ["third-party-vouchers", currentOrganization?.id] });
+    void queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+    void queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+    void queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
+    void queryClient.invalidateQueries({ queryKey: ["daily-tally-vouchers"] });
+    void queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
+    void queryClient.invalidateQueries({ queryKey: ["cashier-report-third-party"] });
+    void queryClient.invalidateQueries({ queryKey: ["cashier-report-receipts"] });
+    void queryClient.invalidateQueries({ queryKey: ["third-party-balances", currentOrganization?.id] });
+    void queryClient.invalidateQueries({
+      queryKey: ["third-party-ledger", currentOrganization?.id, partyId || partyAccountId || ledgerAccountId],
+    });
+  };
+
+  const resetFormAfterSave = () => {
+    setAmount("");
+    setNarration("");
+    setEditingVoucherId(null);
+    setEditingVoucherNumber("");
+  };
+
+  const cancelEdit = () => {
+    setEditingVoucherId(null);
+    setEditingVoucherNumber("");
+    setAmount("");
+    setNarration("");
+  };
+
+  const startEdit = async (v: ThirdPartyHistoryVoucher) => {
+    setEditingVoucherId(v.id);
+    setEditingVoucherNumber(v.voucher_number);
+    setDirection(directionFromVoucherType(v.voucher_type));
+    setPartyAccountId(v.reference_id || "");
+    if (v.reference_id) setLedgerAccountId(v.reference_id);
+    setEntryDate(v.voucher_date);
+    setAmount(String(v.total_amount ?? ""));
+    setNarration(parseThirdPartyNarration(v.description));
+    setActiveTab("entry");
+    if (currentOrganization?.id && v.reference_id) {
+      try {
+        const cashId = await loadThirdPartyJournalCashBankAccountId(
+          currentOrganization.id,
+          v.id,
+          v.reference_id,
+          supabase,
+        );
+        if (cashId) setCashBankAccountId(cashId);
+      } catch (err: any) {
+        toast.error(err?.message || "Could not load cash/bank for this voucher");
+      }
+    }
+  };
+
+  const historyQuery = useQuery({
+    queryKey: ["third-party-vouchers", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    queryFn: () => loadThirdPartyVoucherHistory(currentOrganization!.id, supabase),
+  });
+
+  const historyRows = useMemo(() => {
+    const rows = historyQuery.data || [];
+    const q = historySearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((v) => {
+      const partyName = partyAccounts.find((a) => a.id === v.reference_id)?.account_name || "";
+      return (
+        (v.voucher_number || "").toLowerCase().includes(q) ||
+        (v.description || "").toLowerCase().includes(q) ||
+        partyName.toLowerCase().includes(q)
+      );
+    });
+  }, [historyQuery.data, historySearch, partyAccounts]);
+
   const postMutation = useMutation({
     mutationFn: async () => {
       if (!currentOrganization?.id) throw new Error("Select an organization");
@@ -195,10 +294,46 @@ export default function ThirdPartyVoucherEntry() {
       if (amountNum <= 0) throw new Error("Amount must be greater than zero");
       if (!narration.trim()) throw new Error("Narration is required");
 
-      const dirLabel = direction === "paid_out" ? "Paid" : "Received";
-      const description = `Third-party ${dirLabel}: ${party.account_name} — ${narration.trim()}`.slice(0, 500);
+      const description = buildThirdPartyVoucherDescription(direction, party.account_name, narration);
       const voucherType = voucherTypeForThirdPartyDirection(direction);
       const paymentMethod = paymentMethodFromCashBankAccount(cashBank);
+
+      if (editingVoucherId) {
+        const { error: voucherError } = await supabase
+          .from("voucher_entries")
+          .update({
+            voucher_type: voucherType,
+            voucher_date: entryDate,
+            reference_id: party.id,
+            description,
+            payment_method: paymentMethod,
+            total_amount: amountNum,
+          })
+          .eq("id", editingVoucherId)
+          .eq("organization_id", currentOrganization.id)
+          .eq("reference_type", THIRD_PARTY_VOUCHER_REFERENCE_TYPE)
+          .is("deleted_at", null);
+        if (voucherError) throw voucherError;
+
+        await deleteJournalEntryByReference(
+          currentOrganization.id,
+          THIRD_PARTY_JOURNAL_REFERENCE_TYPE,
+          editingVoucherId,
+          supabase,
+        );
+        await recordThirdPartyVoucherJournalEntry(
+          editingVoucherId,
+          currentOrganization.id,
+          direction,
+          party.id,
+          cashBank.id,
+          amountNum,
+          entryDate,
+          description,
+          supabase,
+        );
+        return { voucherId: editingVoucherId, updated: true as const };
+      }
 
       const { data: voucherNumber, error: numberError } = await supabase.rpc("generate_voucher_number", {
         p_type: voucherType,
@@ -241,25 +376,44 @@ export default function ThirdPartyVoucherEntry() {
         throw journalErr;
       }
 
-      return { voucherId: inserted.id as string };
+      return { voucherId: inserted.id as string, updated: false as const };
     },
-    onSuccess: () => {
-      toast.success("Third-party voucher posted");
-      setAmount("");
-      setNarration("");
-      void queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      void queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      void queryClient.invalidateQueries({ queryKey: ["accounting-reports"] });
-      void queryClient.invalidateQueries({ queryKey: ["daily-tally-vouchers"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashier-report-third-party"] });
-      void queryClient.invalidateQueries({ queryKey: ["cashier-report-receipts"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["third-party-ledger", currentOrganization?.id, partyAccountId || ledgerAccountId],
-      });
+    onSuccess: (result) => {
+      toast.success(result.updated ? "Third-party voucher updated" : "Third-party voucher posted");
+      resetFormAfterSave();
+      invalidateAfterChange();
     },
     onError: (err: any) => {
-      toast.error(err?.message || "Failed to post voucher");
+      toast.error(err?.message || (editingVoucherId ? "Failed to update voucher" : "Failed to post voucher"));
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (voucher: ThirdPartyHistoryVoucher) => {
+      if (!currentOrganization?.id) throw new Error("Select an organization");
+      await deleteJournalEntryByReference(
+        currentOrganization.id,
+        THIRD_PARTY_JOURNAL_REFERENCE_TYPE,
+        voucher.id,
+        supabase,
+      );
+      const { error } = await supabase
+        .from("voucher_entries")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", voucher.id)
+        .eq("organization_id", currentOrganization.id)
+        .eq("reference_type", THIRD_PARTY_VOUCHER_REFERENCE_TYPE)
+        .is("deleted_at", null);
+      if (error) throw error;
+    },
+    onSuccess: (_void, voucher) => {
+      toast.success(`Deleted ${voucher.voucher_number}`);
+      if (editingVoucherId === voucher.id) cancelEdit();
+      setDeleteTarget(null);
+      invalidateAfterChange(voucher.reference_id || undefined);
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || "Failed to delete voucher");
     },
   });
 
@@ -328,10 +482,17 @@ export default function ThirdPartyVoucherEntry() {
           </div>
         </div>
 
-        <Tabs defaultValue="entry" className="flex flex-1 flex-col min-h-0 overflow-hidden gap-2">
-          <TabsList className="shrink-0 w-full h-auto p-1 bg-white border border-slate-200 rounded-lg grid grid-cols-2 gap-1">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="flex flex-1 flex-col min-h-0 overflow-hidden gap-2"
+        >
+          <TabsList className="shrink-0 w-full h-auto p-1 bg-white border border-slate-200 rounded-lg grid grid-cols-3 gap-1">
             <TabsTrigger value="entry" className={tabTriggerClass}>
               Post entry
+            </TabsTrigger>
+            <TabsTrigger value="history" className={tabTriggerClass}>
+              Transaction history
             </TabsTrigger>
             <TabsTrigger value="ledger" className={tabTriggerClass}>
               Account ledger
@@ -342,10 +503,25 @@ export default function ThirdPartyVoucherEntry() {
             <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 space-y-3">
               <TabsContent value="entry" className="mt-0 outline-none space-y-3 data-[state=inactive]:hidden">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2 className="text-base font-bold text-slate-900">Third-party voucher</h2>
-                  <span className="text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded px-2 py-1">
-                    {direction === "paid_out" ? "Payment (paid out)" : "Receipt (received)"}
-                  </span>
+                  <h2 className="text-base font-bold text-slate-900">
+                    {editingVoucherId ? "Edit third-party voucher" : "Third-party voucher"}
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {editingVoucherId ? (
+                      <>
+                        <span className="text-xs font-semibold text-amber-900 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          Editing {editingVoucherNumber}
+                        </span>
+                        <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={cancelEdit}>
+                          Cancel edit
+                        </Button>
+                      </>
+                    ) : (
+                      <span className="text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded px-2 py-1">
+                        {direction === "paid_out" ? "Payment (paid out)" : "Receipt (received)"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -551,10 +727,162 @@ export default function ThirdPartyVoucherEntry() {
                       onClick={() => postMutation.mutate()}
                       disabled={postMutation.isPending || previewLines.length < 2}
                     >
-                      <Plus className="h-4 w-4 mr-1.5" />
-                      {postMutation.isPending ? "Posting…" : "Post voucher"}
+                      {editingVoucherId ? (
+                        <Pencil className="h-4 w-4 mr-1.5" />
+                      ) : (
+                        <Plus className="h-4 w-4 mr-1.5" />
+                      )}
+                      {postMutation.isPending
+                        ? editingVoucherId
+                          ? "Updating…"
+                          : "Posting…"
+                        : editingVoucherId
+                          ? "Update voucher"
+                          : "Post voucher"}
                     </Button>
                   </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-0 outline-none space-y-3 data-[state=inactive]:hidden">
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm p-3 sm:p-4 space-y-3">
+                  <div className="flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                      <h2 className="text-base font-bold text-slate-900">Transaction history</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Posted third-party pay/receive vouchers — edit or delete from here
+                      </p>
+                    </div>
+                    <div className="w-full sm:w-64">
+                      <Label className={fieldLabelClass}>Search</Label>
+                      <Input
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        placeholder="Voucher, party, or note"
+                        className={cn(fieldControlClass, "mt-1.5")}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden">
+                  {historyQuery.isLoading ? (
+                    <p className="px-3 py-6 text-sm text-slate-500 text-center">Loading…</p>
+                  ) : historyRows.length === 0 ? (
+                    <p className="px-3 py-6 text-sm text-slate-500 text-center">
+                      {historySearch.trim()
+                        ? "No vouchers match this search."
+                        : "No third-party vouchers yet. Post an entry to see it here."}
+                    </p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table className="[&_td]:px-3 [&_th]:px-3">
+                        <TableHeader>
+                          <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Voucher
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Date
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Direction
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Party
+                            </TableHead>
+                            <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white">
+                              Amount
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Method
+                            </TableHead>
+                            <TableHead className="h-9 text-xs font-bold uppercase tracking-wide text-white">
+                              Narration
+                            </TableHead>
+                            <TableHead className="h-9 text-right text-xs font-bold uppercase tracking-wide text-white w-[120px]">
+                              Actions
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {historyRows.map((v) => {
+                            const partyRow = partyAccounts.find((a) => a.id === v.reference_id);
+                            const dir = directionFromVoucherType(v.voucher_type);
+                            return (
+                              <TableRow
+                                key={v.id}
+                                className={cn(
+                                  "border-slate-100",
+                                  editingVoucherId === v.id && "bg-amber-50/70",
+                                )}
+                              >
+                                <TableCell className="py-2.5 text-sm font-semibold text-slate-900 whitespace-nowrap">
+                                  {v.voucher_number}
+                                </TableCell>
+                                <TableCell className="py-2.5 whitespace-nowrap tabular-nums text-sm text-slate-800">
+                                  {v.voucher_date}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-sm">
+                                  <span
+                                    className={cn(
+                                      "text-xs font-semibold rounded px-1.5 py-0.5",
+                                      dir === "paid_out"
+                                        ? "bg-red-50 text-red-700 border border-red-100"
+                                        : "bg-emerald-50 text-emerald-700 border border-emerald-100",
+                                    )}
+                                  >
+                                    {dir === "paid_out" ? "Paid out" : "Received"}
+                                  </span>
+                                </TableCell>
+                                <TableCell
+                                  className="py-2.5 text-sm text-slate-800 max-w-[180px] truncate"
+                                  title={partyRow ? `${partyRow.account_code} — ${partyRow.account_name}` : ""}
+                                >
+                                  {partyRow ? partyRow.account_name : "—"}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-right font-mono tabular-nums text-sm font-semibold text-slate-900">
+                                  {fmt(Number(v.total_amount) || 0)}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-sm text-slate-700">
+                                  {formatThirdPartyPaymentMethod(v.payment_method)}
+                                </TableCell>
+                                <TableCell
+                                  className="py-2.5 max-w-[220px] truncate text-sm text-slate-800"
+                                  title={parseThirdPartyNarration(v.description)}
+                                >
+                                  {parseThirdPartyNarration(v.description) || "—"}
+                                </TableCell>
+                                <TableCell className="py-2.5 text-right">
+                                  <div className="inline-flex items-center gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs"
+                                      onClick={() => void startEdit(v)}
+                                    >
+                                      <Pencil className="h-3.5 w-3.5 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs text-red-700 border-red-200 hover:bg-red-50"
+                                      onClick={() => setDeleteTarget(v)}
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
@@ -723,6 +1051,32 @@ export default function ThirdPartyVoucherEntry() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this voucher?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `${deleteTarget.voucher_number} will be soft-deleted (Recycle Bin) and its journal posting removed.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending || !deleteTarget}
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget);
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
