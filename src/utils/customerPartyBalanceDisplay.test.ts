@@ -11,6 +11,7 @@ import {
   partyBalanceDirection,
   partyBalanceDisplayAmount,
   partyBalanceDirectionToneClass,
+  partyDebitOutstandingAmount,
   partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
@@ -47,18 +48,30 @@ describe("partyBalanceDisplayAmount", () => {
   });
 });
 
+describe("partyDebitOutstandingAmount", () => {
+  it("AARISH credit is not shown as Outstanding — only Net Cr", () => {
+    expect(partyDebitOutstandingAmount(-6550)).toBe(0);
+    expect(partyDebitOutstandingAmount(0)).toBe(0);
+  });
+
+  it("keeps genuine debit outstanding (gross, not netted with advance)", () => {
+    expect(partyDebitOutstandingAmount(25000)).toBe(25000);
+    expect(partyDebitOutstandingAmount(16000)).toBe(16000);
+  });
+});
+
 describe("partyBalanceExportRowAmounts", () => {
-  it("exports unsigned Outstanding and Net like the table, keeping Advance as-is", () => {
+  it("exports debit Outstanding only — credit notes stay on Net Cr", () => {
     expect(
       partyBalanceExportRowAmounts({
-        outstanding: -10300,
+        outstanding: -6550,
         unusedAdvance: 0,
-        netPosition: -10300,
+        netPosition: -6550,
       }),
     ).toEqual({
-      outstanding: 10300,
+      outstanding: 0,
       unusedAdvance: 0,
-      netPosition: 10300,
+      netPosition: 6550,
     });
   });
 
@@ -161,13 +174,35 @@ describe("filterPartyBalanceRows / settled + search", () => {
     expect(filtered[0].customer_name).toBe("Settled Party");
   });
 
-  it("still respects Dr/Cr direction filter while searching", () => {
-    const filtered = filterPartyBalanceRows(rows, {
-      search: "Party",
-      showSettled: false,
-      directionFilter: "Cr",
-    });
-    expect(filtered.map((r) => r.customer_name)).toEqual(["Credit Party"]);
+  it("Dr filter drops parties that canonical enrich flipped to Cr (AARISH)", () => {
+    const enriched = [
+      { customer_name: "AARISH", signed_balance: -6550, direction: "Cr" },
+      { customer_name: "AMINA LAKDAWALA", signed_balance: 1400, direction: "Dr" },
+    ];
+    expect(
+      filterPartyBalanceRows(enriched, {
+        search: "",
+        showSettled: false,
+        directionFilter: "Dr",
+      }).map((r) => r.customer_name),
+    ).toEqual(["AMINA LAKDAWALA"]);
+    expect(
+      filterPartyBalanceRows(enriched, {
+        search: "",
+        showSettled: false,
+        directionFilter: "Cr",
+      }).map((r) => r.customer_name),
+    ).toEqual(["AARISH"]);
+  });
+
+  it("settled toggle hides parties that enrich zeroed", () => {
+    const enriched = [{ customer_name: "AMJAD", signed_balance: 0, direction: "Settled" }];
+    expect(
+      filterPartyBalanceRows(enriched, { search: "", showSettled: false, directionFilter: "all" }),
+    ).toHaveLength(0);
+    expect(
+      filterPartyBalanceRows(enriched, { search: "", showSettled: true, directionFilter: "all" }),
+    ).toHaveLength(1);
   });
 });
 
@@ -190,13 +225,12 @@ describe("client-side pagination helpers", () => {
 });
 
 describe("Customer Balances Outstanding column tone", () => {
-  it("colors Outstanding from Dr/Cr, not hardcoded red", () => {
+  it("shows debit Outstanding only and colors it red, not abs(credit)", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(resolve(here, "../pages/CustomerPartyBalancesPage.tsx"), "utf8");
-    expect(src).toContain("partyBalanceDirectionToneClass(direction)");
-    expect(src).toContain("fmtAmt(Math.abs(f.outstanding))");
-    expect(src).not.toMatch(
-      /text-red-600 dark:text-red-400">\s*\{fmtAmt\(Math\.abs\(f\.outstanding\)\)\}/,
-    );
+    expect(src).toContain("partyDebitOutstandingAmount");
+    expect(src).toContain("partyBalanceDirectionToneClass(\"Dr\")");
+    expect(src).toContain("listAfterCanonical");
+    expect(src).not.toContain("fmtAmt(Math.abs(f.outstanding))");
   });
 });

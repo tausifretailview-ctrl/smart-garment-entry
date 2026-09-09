@@ -57,6 +57,7 @@ import {
   includeSettledInPartyBalanceList,
   partyBalanceDirection,
   partyBalanceDirectionToneClass,
+  partyDebitOutstandingAmount,
   partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
@@ -169,9 +170,6 @@ export default function CustomerPartyBalancesPage() {
   const searchIncludesSettled =
     !showSettled && includeSettledInPartyBalanceList(showSettled, search);
 
-  const totalPages = partyBalanceTotalPages(filteredRows.length);
-  const currentPage = clampPartyBalancePage(page, totalPages);
-
   useEffect(() => {
     setPage(1);
   }, [search, showSettled, directionFilter]);
@@ -192,9 +190,24 @@ export default function CustomerPartyBalancesPage() {
 
   const rowsForList = enrichFilteredSubset ? (canonicalFilteredRows ?? filteredRows) : filteredRows;
 
+  /** Canonical JS can flip RPC Dr→Cr (AARISH CN) or non-zero→settled — re-apply filters. */
+  const listAfterCanonical = useMemo(
+    () =>
+      filterPartyBalanceRows(rowsForList, {
+        search,
+        showSettled,
+        directionFilter,
+      }),
+    [rowsForList, search, showSettled, directionFilter],
+  );
+
+  const matchingCount = enrichFilteredSubset ? listAfterCanonical.length : filteredRows.length;
+  const totalPages = partyBalanceTotalPages(matchingCount);
+  const currentPage = clampPartyBalancePage(page, totalPages);
+
   const paginatedRows = useMemo(
-    () => slicePartyBalancePage(rowsForList, currentPage),
-    [rowsForList, currentPage],
+    () => slicePartyBalancePage(enrichFilteredSubset ? listAfterCanonical : filteredRows, currentPage),
+    [enrichFilteredSubset, listAfterCanonical, filteredRows, currentPage],
   );
 
   const paginatedRowKey = useMemo(
@@ -210,10 +223,17 @@ export default function CustomerPartyBalancesPage() {
     queryFn: () => enrichPartyRowsWithCanonicalBalance(orgId!, paginatedRows),
   });
 
-  const tableRows = enrichFilteredSubset ? paginatedRows : (displayPaginatedRows ?? paginatedRows);
+  const tableRows = useMemo(() => {
+    const raw = enrichFilteredSubset ? paginatedRows : (displayPaginatedRows ?? paginatedRows);
+    return filterPartyBalanceRows(raw, {
+      search,
+      showSettled,
+      directionFilter,
+    });
+  }, [enrichFilteredSubset, paginatedRows, displayPaginatedRows, search, showSettled, directionFilter]);
 
-  const pageStart = filteredRows.length === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
-  const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, filteredRows.length);
+  const pageStart = matchingCount === 0 ? 0 : (currentPage - 1) * CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1;
+  const pageEnd = Math.min(currentPage * CUSTOMER_PARTY_BALANCES_PAGE_SIZE, matchingCount);
 
   const openCustomerLedger = (row: CustomerPartyBalanceRow) => {
     setLedgerCustomerId(row.customer_id);
@@ -263,6 +283,11 @@ export default function CustomerPartyBalancesPage() {
       const canonicalRows = orgId
         ? await enrichPartyRowsWithCanonicalBalance(orgId, filteredRows, { allowBeyondCap: true })
         : filteredRows;
+      const exportRows = filterPartyBalanceRows(canonicalRows, {
+        search,
+        showSettled,
+        directionFilter,
+      });
 
     const orgName = currentOrganization?.name || "";
     const exportedAt = format(new Date(), "dd-MM-yyyy HH:mm");
@@ -280,7 +305,7 @@ export default function CustomerPartyBalancesPage() {
       ["Net Receivable", fmtAmt(orgTotals.netReceivable)],
       [],
       ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
-      ...canonicalRows.map((row, index) => {
+      ...exportRows.map((row, index) => {
         const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
         return [
           index + 1,
@@ -303,12 +328,12 @@ export default function CustomerPartyBalancesPage() {
 
     toast({
       title: "Exported",
-      description: `${canonicalRows.length.toLocaleString("en-IN")} parties exported to Excel`,
+      description: `${exportRows.length.toLocaleString("en-IN")} parties exported to Excel`,
     });
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, orgId, isExporting, toast]);
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, search, orgTotals, orgId, isExporting, toast]);
 
   const exportToPdf = useCallback(async () => {
     if (filteredRows.length === 0) {
@@ -330,6 +355,11 @@ export default function CustomerPartyBalancesPage() {
       const canonicalRows = orgId
         ? await enrichPartyRowsWithCanonicalBalance(orgId, filteredRows, { allowBeyondCap: true })
         : filteredRows;
+      const exportRows = filterPartyBalanceRows(canonicalRows, {
+        search,
+        showSettled,
+        directionFilter,
+      });
 
     const jsPDF = await loadJsPdf();
     const doc = new jsPDF("p", "mm", "a4");
@@ -349,7 +379,7 @@ export default function CustomerPartyBalancesPage() {
       const filterLabel =
         directionFilter === "all" ? "All" : directionFilter === "Dr" ? "Debit only" : "Credit only";
       doc.text(
-        `Filter: ${filterLabel}${showSettled ? "" : " · settled hidden"} · ${filteredRows.length.toLocaleString("en-IN")} parties`,
+        `Filter: ${filterLabel}${showSettled ? "" : " · settled hidden"} · ${exportRows.length.toLocaleString("en-IN")} parties`,
         margin,
         y,
       );
@@ -371,7 +401,7 @@ export default function CustomerPartyBalancesPage() {
 
     addPageHeader();
 
-    canonicalRows.forEach((row, index) => {
+    exportRows.forEach((row, index) => {
       if (y > 275) {
         doc.addPage();
         y = 14;
@@ -413,12 +443,12 @@ export default function CustomerPartyBalancesPage() {
 
     toast({
       title: "Exported",
-      description: `${canonicalRows.length.toLocaleString("en-IN")} parties exported to PDF`,
+      description: `${exportRows.length.toLocaleString("en-IN")} parties exported to PDF`,
     });
     } finally {
       setIsExporting(false);
     }
-  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, orgTotals, orgId, isExporting, toast]);
+  }, [filteredRows, currentOrganization?.name, directionFilter, showSettled, search, orgTotals, orgId, isExporting, toast]);
 
   const directionFilterOptions: { value: PartyDirectionFilter; label: string }[] = [
     { value: "all", label: "All" },
@@ -655,7 +685,7 @@ export default function CustomerPartyBalancesPage() {
                 Export PDF
               </Button>
               <span className="text-sm text-muted-foreground tabular-nums pl-1">
-                {filteredRows.length.toLocaleString("en-IN")} matching
+                {matchingCount.toLocaleString("en-IN")} matching
               </span>
             </div>
           </div>
@@ -702,7 +732,7 @@ export default function CustomerPartyBalancesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRows.length === 0 ? (
+                    {matchingCount === 0 ? (
                       <TableRow>
                         <TableCell colSpan={6} className="h-20 text-center text-base text-muted-foreground">
                           {rows.length === 0 ? "No customers found." : "No matching customers."}
@@ -716,7 +746,8 @@ export default function CustomerPartyBalancesPage() {
                         const isCr = direction === "Cr";
                         const srNo = pageStart + index;
 
-                        return (
+                            const debitOut = partyDebitOutstandingAmount(f.outstanding);
+                            return (
                           <TableRow
                             key={row.customer_id}
                             className="h-11 cursor-pointer hover:bg-teal-50/80 dark:hover:bg-teal-950/20 active:bg-teal-100/80 dark:active:bg-teal-950/40"
@@ -732,10 +763,12 @@ export default function CustomerPartyBalancesPage() {
                             <TableCell
                               className={cn(
                                 "py-2.5 text-right tabular-nums text-sm font-medium",
-                                partyBalanceDirectionToneClass(direction),
+                                debitOut > 0
+                                  ? partyBalanceDirectionToneClass("Dr")
+                                  : "text-muted-foreground",
                               )}
                             >
-                              {fmtAmt(Math.abs(f.outstanding))}
+                              {fmtAmt(debitOut)}
                             </TableCell>
                             <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-600 dark:text-emerald-400">
                               {fmtAmt(f.unusedAdvance)}
@@ -768,11 +801,11 @@ export default function CustomerPartyBalancesPage() {
                 </Table>
               </div>
 
-              {filteredRows.length > 0 && (
+              {matchingCount > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-slate-100 bg-white shrink-0">
                   <p className="text-sm text-slate-600 tabular-nums">
                     Showing {pageStart.toLocaleString("en-IN")}–{pageEnd.toLocaleString("en-IN")} of{" "}
-                    {filteredRows.length.toLocaleString("en-IN")}
+                    {matchingCount.toLocaleString("en-IN")}
                     <span className="hidden sm:inline text-slate-400">
                       {" "}
                       · {CUSTOMER_PARTY_BALANCES_PAGE_SIZE} per page

@@ -31,6 +31,15 @@ export function partyBalanceDisplayAmount(signedBalance: number | null | undefin
 }
 
 /**
+ * Outstanding column = what the party owes (Dr), never a credit note / overpay.
+ * AARISH ₹6,550 Cr has gross_outstanding −6550 — show ₹0 here, ₹6,550 on Net Cr.
+ */
+export function partyDebitOutstandingAmount(outstanding: number | null | undefined): number {
+  const n = Number(outstanding) || 0;
+  return n > PARTY_BALANCE_SETTLED_THRESHOLD ? Math.round(n) : 0;
+}
+
+/**
  * List money color follows net Dr/Cr, not “any Outstanding figure is a debt”.
  * Gross Outstanding can be a pending credit note (AARISH ₹6,550 Cr) — alarm-red there is wrong.
  */
@@ -54,7 +63,7 @@ export function partyBalanceExportRowAmounts(
   facets: PartyBalanceMoneyFacets,
 ): PartyBalanceMoneyFacets {
   return {
-    outstanding: partyBalanceDisplayAmount(facets.outstanding),
+    outstanding: partyDebitOutstandingAmount(facets.outstanding),
     unusedAdvance: facets.unusedAdvance,
     netPosition: partyBalanceDisplayAmount(facets.netPosition),
   };
