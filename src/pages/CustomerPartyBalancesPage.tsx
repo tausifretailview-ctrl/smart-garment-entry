@@ -56,6 +56,7 @@ import {
   filterPartyBalanceRows,
   includeSettledInPartyBalanceList,
   partyBalanceDirection,
+  partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
   type PartyDirectionFilter,
@@ -262,7 +263,7 @@ export default function CustomerPartyBalancesPage() {
       [],
       ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
       ...filteredRows.map((row, index) => {
-        const f = partyBalanceRowFacets(row);
+        const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
         return [
           index + 1,
           row.customer_name,
@@ -346,7 +347,7 @@ export default function CustomerPartyBalancesPage() {
       }
 
       const direction = partyBalanceDirection(row);
-      const f = partyBalanceRowFacets(row);
+      const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
       const name = row.customer_name.length > 28 ? `${row.customer_name.slice(0, 28)}…` : row.customer_name;
 
       doc.setFontSize(7);
@@ -354,7 +355,7 @@ export default function CustomerPartyBalancesPage() {
       doc.text(name, margin + 8, y);
       doc.text(fmtAmt(f.outstanding), pageWidth - 72, y, { align: "right" });
       doc.text(fmtAmt(f.unusedAdvance), pageWidth - 50, y, { align: "right" });
-      doc.text(fmtAmt(Math.abs(f.netPosition)), pageWidth - 28, y, { align: "right" });
+      doc.text(fmtAmt(f.netPosition), pageWidth - 28, y, { align: "right" });
       doc.text(direction, pageWidth - margin, y, { align: "right" });
       y += 5;
     });

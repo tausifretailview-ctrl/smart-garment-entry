@@ -7,6 +7,7 @@ import {
   matchesPartyDirectionFilter,
   partyBalanceDirection,
   partyBalanceDisplayAmount,
+  partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
 } from "./customerPartyBalanceDisplay";
@@ -39,6 +40,36 @@ describe("partyBalanceDisplayAmount", () => {
   it("shows absolute value for Dr and Cr rows", () => {
     expect(partyBalanceDisplayAmount(20600)).toBe(20600);
     expect(partyBalanceDisplayAmount(-12850)).toBe(12850);
+  });
+});
+
+describe("partyBalanceExportRowAmounts", () => {
+  it("exports unsigned Outstanding and Net like the table, keeping Advance as-is", () => {
+    expect(
+      partyBalanceExportRowAmounts({
+        outstanding: -10300,
+        unusedAdvance: 0,
+        netPosition: -10300,
+      }),
+    ).toEqual({
+      outstanding: 10300,
+      unusedAdvance: 0,
+      netPosition: 10300,
+    });
+  });
+
+  it("leaves already-positive Dr amounts unchanged", () => {
+    expect(
+      partyBalanceExportRowAmounts({
+        outstanding: 61950,
+        unusedAdvance: 0,
+        netPosition: 61950,
+      }),
+    ).toEqual({
+      outstanding: 61950,
+      unusedAdvance: 0,
+      netPosition: 61950,
+    });
   });
 });
 
