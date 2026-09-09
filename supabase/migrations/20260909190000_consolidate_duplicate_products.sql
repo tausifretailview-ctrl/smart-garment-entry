@@ -23,6 +23,10 @@ REVOKE ALL ON FUNCTION public.normalize_product_name_key(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.normalize_product_name_key(text) FROM anon;
 GRANT EXECUTE ON FUNCTION public.normalize_product_name_key(text) TO authenticated, service_role;
 
+-- CREATE OR REPLACE cannot change return type (42P13). Drop any prior signature first.
+DROP FUNCTION IF EXISTS public.consolidate_duplicate_products(uuid, boolean);
+DROP FUNCTION IF EXISTS public.consolidate_duplicate_products(uuid);
+
 CREATE OR REPLACE FUNCTION public.consolidate_duplicate_products(
   p_org_id uuid,
   p_dry_run boolean DEFAULT true
