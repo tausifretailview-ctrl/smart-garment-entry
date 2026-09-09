@@ -13,7 +13,11 @@ import {
   fetchCustomerPartyBalancesPayload,
   type CustomerPartyBalanceAlignedRow,
 } from "@/utils/customerPartyBalanceSnapshot";
-import { matchesPartyBalanceSearch } from "@/utils/customerPartyBalanceDisplay";
+import {
+  matchesPartyBalanceSearch,
+  partyCreditNoteAmount,
+  partyDebitOutstandingAmount,
+} from "@/utils/customerPartyBalanceDisplay";
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(v);
@@ -51,12 +55,13 @@ export function MobileCustomerLedgerList({
   const totals = useMemo(() => {
     let outstanding = 0;
     let advance = 0;
+    let cn = 0;
     for (const r of visibleRows) {
-      const os = Number(r.gross_outstanding) || 0;
-      if (os > 0) outstanding += os;
+      outstanding += partyDebitOutstandingAmount(r.gross_outstanding);
       advance += Number(r.advance_available) || 0;
+      cn += partyCreditNoteAmount(r.cn_available);
     }
-    return { outstanding, advance };
+    return { outstanding, advance, cn };
   }, [visibleRows]);
 
   const columns: ReportTableColumn<CustomerPartyBalanceAlignedRow>[] = [
@@ -77,9 +82,9 @@ export function MobileCustomerLedgerList({
       key: "outstanding",
       header: "Outstanding",
       align: "right",
-      csvText: (r) => fmt(Number(r.gross_outstanding) || 0),
+      csvText: (r) => fmt(partyDebitOutstandingAmount(r.gross_outstanding)),
       render: (r) => {
-        const n = Number(r.gross_outstanding) || 0;
+        const n = partyDebitOutstandingAmount(r.gross_outstanding);
         return <span className={cn(n > 0 && "text-destructive")}>{fmt(n)}</span>;
       },
     },
@@ -90,6 +95,16 @@ export function MobileCustomerLedgerList({
       csvText: (r) => fmt(Number(r.advance_available) || 0),
       render: (r) => {
         const n = Number(r.advance_available) || 0;
+        return <span className={cn(n > 0 && "text-emerald-600")}>{fmt(n)}</span>;
+      },
+    },
+    {
+      key: "cn",
+      header: "CN",
+      align: "right",
+      csvText: (r) => fmt(partyCreditNoteAmount(r.cn_available)),
+      render: (r) => {
+        const n = partyCreditNoteAmount(r.cn_available);
         return <span className={cn(n > 0 && "text-emerald-600")}>{fmt(n)}</span>;
       },
     },
@@ -128,8 +143,9 @@ export function MobileCustomerLedgerList({
         <>
           <div className="flex gap-2 overflow-x-auto no-scrollbar">
             <MetricCard label="Customers" value={String(visibleRows.length)} />
-            <MetricCard label="Total Outstanding" value={fmt(totals.outstanding)} color="text-destructive" />
+            <MetricCard label="Total Outstanding" value={fmt(totals.outstanding)} color="text-muted-foreground" />
             <MetricCard label="Total Advance" value={fmt(totals.advance)} color="text-emerald-600" />
+            <MetricCard label="Total CN" value={fmt(totals.cn)} color="text-emerald-600" />
           </div>
           {!partyBalancesComplete ? (
             <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200/80 rounded-lg px-3 py-2">

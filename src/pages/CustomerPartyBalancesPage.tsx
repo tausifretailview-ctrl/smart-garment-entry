@@ -58,7 +58,9 @@ import {
   partyBalanceDirection,
   partyBalanceDirectionToneClass,
   partyDebitOutstandingAmount,
+  partyCreditNoteAmount,
   partyBalanceExportRowAmounts,
+  partyBalanceMoneyFacetsFromAccount,
   partyBalanceTotalPages,
   slicePartyBalancePage,
   type PartyDirectionFilter,
@@ -304,15 +306,18 @@ export default function CustomerPartyBalancesPage() {
       ["Total Credit / Advances (Cr)", fmtAmt(orgTotals.totalCreditPoolCr)],
       ["Net Receivable", fmtAmt(orgTotals.netReceivable)],
       [],
-      ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "Net", "Dr/Cr"],
+      ["Sr No", "Party Name", "Phone", "Outstanding", "Advance", "CN", "Net", "Dr/Cr"],
       ...exportRows.map((row, index) => {
-        const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
+        const f = partyBalanceExportRowAmounts(
+          partyBalanceMoneyFacetsFromAccount(partyBalanceRowFacets(row)),
+        );
         return [
           index + 1,
           row.customer_name,
           row.phone || "",
           f.outstanding,
           f.unusedAdvance,
+          f.cnAvailable,
           f.netPosition,
           partyBalanceDirection(row),
         ];
@@ -321,7 +326,7 @@ export default function CustomerPartyBalancesPage() {
 
     const XLSX = await loadXlsx();
     const ws = XLSX.utils.aoa_to_sheet(sheetRows);
-    ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 8 }];
+    ws["!cols"] = [{ wch: 8 }, { wch: 36 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 8 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Customer Balances");
     XLSX.writeFile(wb, `Customer_Balances_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
@@ -389,8 +394,9 @@ export default function CustomerPartyBalancesPage() {
       doc.setFont("helvetica", "bold");
       doc.text("Sr.", margin, y);
       doc.text("Party", margin + 8, y);
-      doc.text("Outst.", pageWidth - 72, y, { align: "right" });
-      doc.text("Adv.", pageWidth - 50, y, { align: "right" });
+      doc.text("Outst.", pageWidth - 88, y, { align: "right" });
+      doc.text("Adv.", pageWidth - 68, y, { align: "right" });
+      doc.text("CN", pageWidth - 50, y, { align: "right" });
       doc.text("Net", pageWidth - 28, y, { align: "right" });
       doc.text("Dr/Cr", pageWidth - margin, y, { align: "right" });
       y += 1;
@@ -409,14 +415,17 @@ export default function CustomerPartyBalancesPage() {
       }
 
       const direction = partyBalanceDirection(row);
-      const f = partyBalanceExportRowAmounts(partyBalanceRowFacets(row));
-      const name = row.customer_name.length > 28 ? `${row.customer_name.slice(0, 28)}…` : row.customer_name;
+      const f = partyBalanceExportRowAmounts(
+        partyBalanceMoneyFacetsFromAccount(partyBalanceRowFacets(row)),
+      );
+      const name = row.customer_name.length > 28 ? `${row.customer_name.slice(0, 26)}…` : row.customer_name;
 
       doc.setFontSize(7);
       doc.text(String(index + 1), margin, y);
       doc.text(name, margin + 8, y);
-      doc.text(fmtAmt(f.outstanding), pageWidth - 72, y, { align: "right" });
-      doc.text(fmtAmt(f.unusedAdvance), pageWidth - 50, y, { align: "right" });
+      doc.text(fmtAmt(f.outstanding), pageWidth - 88, y, { align: "right" });
+      doc.text(fmtAmt(f.unusedAdvance), pageWidth - 68, y, { align: "right" });
+      doc.text(fmtAmt(f.cnAvailable), pageWidth - 50, y, { align: "right" });
       doc.text(fmtAmt(f.netPosition), pageWidth - 28, y, { align: "right" });
       doc.text(direction, pageWidth - margin, y, { align: "right" });
       y += 5;
@@ -599,21 +608,21 @@ export default function CustomerPartyBalancesPage() {
 
         {/* Org totals — compact strip */}
         <div className="grid grid-cols-3 gap-2 w-full shrink-0">
-          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-3 py-2 min-w-0 shadow-sm">
+          <div className="rounded-lg bg-gradient-to-br from-slate-500 to-slate-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Total Outstanding (Dr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(orgTotals.totalOutstandingDr)}
             </p>
-            <p className="text-[10px] text-white/70 mt-0.5 truncate">Gross — advance on the same party is not netted</p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Gross debit — Advance and CN are not netted here</p>
           </div>
           <div className="rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Total Credit (Cr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(orgTotals.totalCreditPoolCr)}
             </p>
-            <p className="text-[10px] text-white/70 mt-0.5 truncate">Unused advances + invoice credits (CN / overpay)</p>
+            <p className="text-[10px] text-white/70 mt-0.5 truncate">Unused Advance + pending CN — split in the table</p>
           </div>
-          <div className="rounded-lg bg-gradient-to-br from-slate-600 to-slate-700 px-3 py-2 min-w-0 shadow-sm">
+          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Net Receivable</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               {formatNetFacetLabel(orgTotals.netReceivable)}
@@ -717,13 +726,16 @@ export default function CustomerPartyBalancesPage() {
                       <TableHead className="h-10 text-xs font-bold uppercase tracking-wide text-white">
                         Party Name
                       </TableHead>
-                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[120px]">
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[110px]">
                         Outstanding
                       </TableHead>
-                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[110px]">
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[96px]">
                         Advance
                       </TableHead>
-                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[130px]">
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[96px]">
+                        CN
+                      </TableHead>
+                      <TableHead className="h-10 text-right text-xs font-bold uppercase tracking-wide text-white w-[120px]">
                         Net
                       </TableHead>
                       <TableHead className="h-10 text-center text-xs font-bold uppercase tracking-wide text-white w-[72px]">
@@ -734,7 +746,7 @@ export default function CustomerPartyBalancesPage() {
                   <TableBody>
                     {matchingCount === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="h-20 text-center text-base text-muted-foreground">
+                        <TableCell colSpan={7} className="h-20 text-center text-base text-muted-foreground">
                           {rows.length === 0 ? "No customers found." : "No matching customers."}
                         </TableCell>
                       </TableRow>
@@ -747,6 +759,7 @@ export default function CustomerPartyBalancesPage() {
                         const srNo = pageStart + index;
 
                             const debitOut = partyDebitOutstandingAmount(f.outstanding);
+                            const cnAmt = partyCreditNoteAmount(f.cnAvailable);
                             return (
                           <TableRow
                             key={row.customer_id}
@@ -772,6 +785,9 @@ export default function CustomerPartyBalancesPage() {
                             </TableCell>
                             <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-600 dark:text-emerald-400">
                               {fmtAmt(f.unusedAdvance)}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                              {fmtAmt(cnAmt)}
                             </TableCell>
                             <TableCell
                               className={cn(

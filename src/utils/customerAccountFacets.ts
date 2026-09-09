@@ -12,6 +12,11 @@ export type CustomerAccountFacets = {
   unusedAdvance: number;
   /** outstanding − unusedAdvance (economic net). */
   netPosition: number;
+  /**
+   * Unused sale-return credit-note pool (display). Already inside outstanding / net —
+   * do not subtract again (AARISH / Zohra double-count).
+   */
+  cnAvailable?: number;
 };
 
 export type CustomerAccountFacetTotals = {

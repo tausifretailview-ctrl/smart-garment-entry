@@ -12,6 +12,7 @@ import {
   partyBalanceDisplayAmount,
   partyBalanceDirectionToneClass,
   partyDebitOutstandingAmount,
+  partyCreditNoteAmount,
   partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
@@ -60,19 +61,40 @@ describe("partyDebitOutstandingAmount", () => {
   });
 });
 
+describe("partyCreditNoteAmount", () => {
+  it("AARISH pending CN is the unused sale-return pool, not a debit", () => {
+    expect(partyCreditNoteAmount(6550)).toBe(6550);
+    expect(partyCreditNoteAmount(0)).toBe(0);
+    expect(partyCreditNoteAmount(-100)).toBe(0);
+  });
+});
+
 describe("partyBalanceExportRowAmounts", () => {
-  it("exports debit Outstanding only — credit notes stay on Net Cr", () => {
+  it("exports debit Outstanding only — credit notes stay on Net Cr and CN", () => {
     expect(
       partyBalanceExportRowAmounts({
         outstanding: -6550,
         unusedAdvance: 0,
         netPosition: -6550,
+        cnAvailable: 6550,
       }),
     ).toEqual({
       outstanding: 0,
       unusedAdvance: 0,
       netPosition: 6550,
+      cnAvailable: 6550,
     });
+  });
+
+  it("does not subtract CN from Net (CN is already inside signed balance)", () => {
+    const exported = partyBalanceExportRowAmounts({
+      outstanding: -6550,
+      unusedAdvance: 0,
+      netPosition: -6550,
+      cnAvailable: 6550,
+    });
+    expect(exported.netPosition).toBe(6550);
+    expect(exported.netPosition).not.toBe(0);
   });
 
   it("leaves already-positive Dr amounts unchanged", () => {
@@ -81,11 +103,13 @@ describe("partyBalanceExportRowAmounts", () => {
         outstanding: 61950,
         unusedAdvance: 0,
         netPosition: 61950,
+        cnAvailable: 0,
       }),
     ).toEqual({
       outstanding: 61950,
       unusedAdvance: 0,
       netPosition: 61950,
+      cnAvailable: 0,
     });
   });
 });
@@ -232,5 +256,20 @@ describe("Customer Balances Outstanding column tone", () => {
     expect(src).toContain("partyBalanceDirectionToneClass(\"Dr\")");
     expect(src).toContain("listAfterCanonical");
     expect(src).not.toContain("fmtAmt(Math.abs(f.outstanding))");
+  });
+
+  it("splits Advance and CN as green credit columns; Net card is red, Outstanding card is gray", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(resolve(here, "../pages/CustomerPartyBalancesPage.tsx"), "utf8");
+    expect(src).toContain("partyCreditNoteAmount");
+    expect(src).toMatch(/>\s*CN\s*</);
+    expect(src).toContain("[\"Sr No\", \"Party Name\", \"Phone\", \"Outstanding\", \"Advance\", \"CN\", \"Net\", \"Dr/Cr\"]");
+    const cards = src.slice(src.indexOf("{/* Org totals"), src.indexOf("{/* Party list"));
+    expect(cards).toContain("from-slate-500 to-slate-600");
+    expect(cards).toContain("from-emerald-500 to-emerald-600");
+    expect(cards).toContain("from-red-500 to-red-600");
+    expect(cards.indexOf("from-slate-500")).toBeLessThan(cards.indexOf("Total Outstanding (Dr)"));
+    expect(cards.indexOf("from-red-500")).toBeGreaterThan(cards.indexOf("Total Credit (Cr)"));
+    expect(cards.indexOf("Net Receivable")).toBeGreaterThan(cards.indexOf("from-red-500"));
   });
 });

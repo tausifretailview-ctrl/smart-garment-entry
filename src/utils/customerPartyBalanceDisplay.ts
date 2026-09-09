@@ -49,15 +49,37 @@ export function partyBalanceDirectionToneClass(direction: "Dr" | "Cr" | "Settled
   return "text-muted-foreground";
 }
 
+/** Pending credit-note pool for the CN column — never a debit, never subtracted from Net. */
+export function partyCreditNoteAmount(cnAvailable: number | null | undefined): number {
+  const n = Number(cnAvailable) || 0;
+  return n > PARTY_BALANCE_SETTLED_THRESHOLD ? Math.round(n) : 0;
+}
+
 export type PartyBalanceMoneyFacets = {
   outstanding: number;
   unusedAdvance: number;
   netPosition: number;
+  cnAvailable: number;
 };
+
+/** Fill CN when facets omit it (RPC path hardcodes 0 until enrich). */
+export function partyBalanceMoneyFacetsFromAccount(
+  facets: Pick<PartyBalanceMoneyFacets, "outstanding" | "unusedAdvance" | "netPosition"> & {
+    cnAvailable?: number;
+  },
+): PartyBalanceMoneyFacets {
+  return {
+    outstanding: facets.outstanding,
+    unusedAdvance: facets.unusedAdvance,
+    netPosition: facets.netPosition,
+    cnAvailable: facets.cnAvailable ?? 0,
+  };
+}
 
 /**
  * Excel/PDF row money — unsigned like the on-screen table.
  * Direction stays in the Dr/Cr column (do not export a leading minus).
+ * CN is the unused sale-return pool; Net is still |signed| (CN already inside).
  */
 export function partyBalanceExportRowAmounts(
   facets: PartyBalanceMoneyFacets,
@@ -66,6 +88,7 @@ export function partyBalanceExportRowAmounts(
     outstanding: partyDebitOutstandingAmount(facets.outstanding),
     unusedAdvance: facets.unusedAdvance,
     netPosition: partyBalanceDisplayAmount(facets.netPosition),
+    cnAvailable: partyCreditNoteAmount(facets.cnAvailable),
   };
 }
 
