@@ -219,65 +219,95 @@ export async function fetchCustomerPartyBalanceOrgWindow(
 /** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
 export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
 
+/** Concurrent enrich requests per batch when `allowBeyondCap` is set (exports). */
+export const PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE = 20;
+
+export type EnrichPartyRowsOptions = {
+  /**
+   * Browse/list callers must omit this — slices above the cap silently return
+   * unpatched SQL. Exports pass true so a 759-party org is not left uncorrected.
+   */
+  allowBeyondCap?: boolean;
+};
+
 /**
  * Patch party list rows with canonical JS balance when SQL signed_balance drifts.
  * Used for the visible Customer Balances page slice and the Customer Ledger list
  * slice until party RPC CN-handling matches `_is_settlement_memo_receipt`.
+ *
+ * Default: no-ops when `rows.length > PARTY_BALANCE_CANONICAL_ENRICH_MAX` (no
+ * error) so browsing a large org does not fire hundreds of audit-bundle fetches.
+ * Pass `{ allowBeyondCap: true }` for Excel/PDF; those runs are chunked by
+ * `PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE` instead of one giant Promise.all.
  */
 export async function enrichPartyRowsWithCanonicalBalance(
   organizationId: string,
   rows: CustomerPartyBalanceAlignedRow[],
+  options?: EnrichPartyRowsOptions,
 ): Promise<CustomerPartyBalanceAlignedRow[]> {
-  if (!organizationId || rows.length === 0 || rows.length > PARTY_BALANCE_CANONICAL_ENRICH_MAX) {
+  if (!organizationId || rows.length === 0) {
+    return rows;
+  }
+  if (rows.length > PARTY_BALANCE_CANONICAL_ENRICH_MAX && !options?.allowBeyondCap) {
     return rows;
   }
 
-  return Promise.all(
-    rows.map(async (row) => {
-      try {
-        const bundle = await fetchCustomerAuditBundle(
-          supabase,
-          organizationId,
-          row.customer_id,
-        );
-        const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
-          (sum: number, a: { outstanding_difference?: number | null }) =>
-            sum + Number(a.outstanding_difference || 0),
-          0,
-        );
-        const state = getCustomerAccountState({
-          openingBalance: Number(bundle.customer.opening_balance || 0),
-          customerId: row.customer_id,
-          sales: bundle.allSales,
-          voucherEntries: bundle.vouchersMerged,
-          customerAdvances: bundle.advances,
-          advanceRefunds: bundle.refunds,
-          adjustmentTotal,
-          saleReturns: bundle.saleReturns,
-          options: { ledgerAlignedApplicationReceipts: true },
-        });
-        const signedNet = Math.round(state.netPosition);
-        const lifetime = {
-          lifetime_total_sales: Math.round(state.totalInvoicedGross),
-          lifetime_total_paid: Math.round(state.totalRealPayments),
-        };
-        if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
-          return { ...row, ...lifetime };
-        }
-        return {
-          ...alignPartyRowFromRpc(
-            {
-              ...row,
-              signed_balance: signedNet,
-              advance_available: state.unusedAdvancePool,
-            },
-            row.phone ?? "",
-          ),
-          ...lifetime,
-        };
-      } catch {
-        return row;
+  const enrichOne = async (row: CustomerPartyBalanceAlignedRow) => {
+    try {
+      const bundle = await fetchCustomerAuditBundle(
+        supabase,
+        organizationId,
+        row.customer_id,
+      );
+      const adjustmentTotal = (bundle.balanceAdjustments || []).reduce(
+        (sum: number, a: { outstanding_difference?: number | null }) =>
+          sum + Number(a.outstanding_difference || 0),
+        0,
+      );
+      const state = getCustomerAccountState({
+        openingBalance: Number(bundle.customer.opening_balance || 0),
+        customerId: row.customer_id,
+        sales: bundle.allSales,
+        voucherEntries: bundle.vouchersMerged,
+        customerAdvances: bundle.advances,
+        advanceRefunds: bundle.refunds,
+        adjustmentTotal,
+        saleReturns: bundle.saleReturns,
+        options: { ledgerAlignedApplicationReceipts: true },
+      });
+      const signedNet = Math.round(state.netPosition);
+      const lifetime = {
+        lifetime_total_sales: Math.round(state.totalInvoicedGross),
+        lifetime_total_paid: Math.round(state.totalRealPayments),
+      };
+      if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
+        return { ...row, ...lifetime };
       }
-    }),
-  );
+      return {
+        ...alignPartyRowFromRpc(
+          {
+            ...row,
+            signed_balance: signedNet,
+            advance_available: state.unusedAdvancePool,
+          },
+          row.phone ?? "",
+        ),
+        ...lifetime,
+      };
+    } catch {
+      return row;
+    }
+  };
+
+  if (rows.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX) {
+    return Promise.all(rows.map(enrichOne));
+  }
+
+  const results: CustomerPartyBalanceAlignedRow[] = [];
+  for (let i = 0; i < rows.length; i += PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE) {
+    const batch = rows.slice(i, i + PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE);
+    const batchResults = await Promise.all(batch.map(enrichOne));
+    results.push(...batchResults);
+  }
+  return results;
 }
