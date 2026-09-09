@@ -2135,8 +2135,8 @@ export default function StockReport() {
         )}
 
         {/* Always visible multi-field filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-          <div className="space-y-0.5 relative">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2 min-w-0">
+          <div className="space-y-0.5 relative min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Product Name</label>
             <SearchableSelect
               value={productNameFilter || "all"}
@@ -2166,34 +2166,34 @@ export default function StockReport() {
             />
           </div>
           {showBrand && (
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.brand}</label>
             <SearchableSelect value={brandFilter} onValueChange={setBrandFilter} options={derivedFilterOptions.brands} allLabel={`All ${fieldLabels.brand}`} placeholder={`All ${fieldLabels.brand}`} />
           </div>
           )}
           {showCategory && (
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.category}</label>
             <SearchableSelect value={categoryFilter} onValueChange={setCategoryFilter} options={derivedFilterOptions.categories} allLabel={`All ${fieldLabels.category}`} placeholder={`All ${fieldLabels.category}`} />
           </div>
           )}
           {showStyle && (
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.style}</label>
             <SearchableSelect value={departmentFilter} onValueChange={setDepartmentFilter} options={derivedFilterOptions.departments} allLabel={`All ${fieldLabels.style}`} placeholder={`All ${fieldLabels.style}`} />
           </div>
           )}
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Size</label>
             <SearchableSelect value={sizeFilter} onValueChange={setSizeFilter} options={derivedFilterOptions.sizes} allLabel="All Sizes" placeholder="All Sizes" />
           </div>
           {showColor && (
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{fieldLabels.color}</label>
             <SearchableSelect value={colorFilter} onValueChange={setColorFilter} options={derivedFilterOptions.colors} allLabel={`All ${fieldLabels.color}`} placeholder={`All ${fieldLabels.color}`} />
           </div>
           )}
-          <div className="space-y-1">
+          <div className="space-y-1 min-w-0">
             <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Stock Status</label>
             <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
               <SelectTrigger className="h-8 !bg-white !text-gray-900 text-sm">
@@ -2219,12 +2219,12 @@ export default function StockReport() {
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent className="pt-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div className="space-y-1">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 min-w-0">
+              <div className="space-y-1 min-w-0">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</label>
                 <SearchableSelect value={supplierFilter} onValueChange={setSupplierFilter} options={derivedFilterOptions.suppliers} allLabel="All Suppliers" placeholder="All Suppliers" />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier Invoice</label>
                 <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={derivedFilterOptions.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />
               </div>
