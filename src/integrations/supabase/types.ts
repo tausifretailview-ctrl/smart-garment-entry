@@ -9377,6 +9377,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      consolidate_duplicate_products: {
+        Args: { p_dry_run?: boolean; p_org_id: string }
+        Returns: Json
+      }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
@@ -10434,6 +10438,15 @@ export type Database = {
         Args: { p_source_supplier_id: string; p_target_supplier_id: string }
         Returns: Json
       }
+      merge_two_products: {
+        Args: {
+          p_dry_run?: boolean
+          p_org_id: string
+          p_source_product_id: string
+          p_target_product_id: string
+        }
+        Returns: Json
+      }
       net_sold_qty_for_variant: {
         Args: { p_variant_id: string }
         Returns: number
@@ -10442,6 +10455,7 @@ export type Database = {
         Args: { p_brand: string }
         Returns: string
       }
+      normalize_product_name_key: { Args: { p_name: string }; Returns: string }
       peek_fee_receipt_number: {
         Args: {
           p_fy_end_year?: number
