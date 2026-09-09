@@ -66,7 +66,7 @@ export const AdvanceBookingReceipt = forwardRef<HTMLDivElement, AdvanceBookingRe
     const isA5 = paperSize === "A5";
 
     return (
-      <div ref={ref} style={{ display: "none" }}>
+      <div ref={ref} className="invoice-print-source-screen">
         <div
           style={{
             width: isA5 ? "148mm" : "210mm",

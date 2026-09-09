@@ -272,6 +272,37 @@ function isHoldLikeSale(sale: CashierSaleRow): boolean {
   return isHoldSaleNumber(sale.sale_number);
 }
 
+export type CashierAdvanceRow = {
+  amount?: number | null;
+  payment_method?: string | null;
+};
+
+/**
+ * Split customer_advances into cashier tender buckets.
+ * Matches POS F8 Cashier Report: UPI / card split out; cash, cheque, and
+ * bank_transfer count as cash-in.
+ */
+export function sumCustomerAdvanceTenders(advances: CashierAdvanceRow[]): {
+  advanceReceived: number;
+  advanceCash: number;
+  advanceUpi: number;
+  advanceCard: number;
+} {
+  let advanceReceived = 0;
+  let advanceCash = 0;
+  let advanceUpi = 0;
+  let advanceCard = 0;
+  for (const a of advances) {
+    const amt = Number(a.amount) || 0;
+    const pm = String(a.payment_method || "cash").toLowerCase();
+    advanceReceived += amt;
+    if (pm === "upi") advanceUpi += amt;
+    else if (pm === "card") advanceCard += amt;
+    else advanceCash += amt;
+  }
+  return { advanceReceived, advanceCash, advanceUpi, advanceCard };
+}
+
 /** Mirrors FloatingPOSReports cash legs with same-day sale-RCP overlap stripped. */
 export function reduceCashierCashIn(params: {
   sales: CashierSaleRow[];

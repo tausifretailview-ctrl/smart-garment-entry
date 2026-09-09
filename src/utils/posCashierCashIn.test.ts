@@ -4,6 +4,7 @@ import {
   computeCashierActualNetReceivable,
   createSameDaySaleReceiptOverlapTracker,
   reduceCashierCashIn,
+  sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
 
 const SALE_ID = "sale-1248";
@@ -247,5 +248,28 @@ describe("Cashier Report Actual Net Receivable", () => {
     expect(result.oldBalanceReceiptTotal).toBe(3_500);
     expect(result.oldBalanceReceiptCount).toBe(2);
     expect(result.actualNetReceivable).toBe(5_000 + 3_500 + 200);
+  });
+});
+
+describe("POS advance booking cashier cash-in", () => {
+  it("cash and bank_transfer advances add to cash-in; UPI splits out", () => {
+    const tenders = sumCustomerAdvanceTenders([
+      { amount: 5_000, payment_method: "cash" },
+      { amount: 1_000, payment_method: "upi" },
+      { amount: 500, payment_method: "bank_transfer" },
+    ]);
+    expect(tenders.advanceReceived).toBe(6_500);
+    expect(tenders.advanceCash).toBe(5_500);
+    expect(tenders.advanceUpi).toBe(1_000);
+    expect(tenders.advanceCard).toBe(0);
+
+    const { totalCashIn, cashSale, receiptCash } = reduceCashierCashIn({
+      sales: [],
+      receipts: [],
+      advanceCash: tenders.advanceCash,
+    });
+    expect(cashSale).toBe(0);
+    expect(receiptCash).toBe(0);
+    expect(totalCashIn).toBe(5_500);
   });
 });
