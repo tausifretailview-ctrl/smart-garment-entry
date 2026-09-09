@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { displaySaleStockQty, sumPhysicalStockTotals } from "@/utils/productStockDisplay";
+import {
+  displaySaleStockQty,
+  excludeServiceVariants,
+  sumPhysicalStockTotals,
+} from "@/utils/productStockDisplay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -599,7 +603,7 @@ async function searchQuickStockByBarcodeScan(orgId: string, term: string): Promi
   const scan = await lookupVariantRowsByScan(orgId, term, QUICK_STOCK_SCAN_SELECT.trim());
   if (!scan.rows.length) return [];
 
-  return mapQuickStockScanRows(scan.rows);
+  return excludeServiceVariants(mapQuickStockScanRows(scan.rows));
 }
 
 async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
@@ -621,6 +625,7 @@ async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
         .is("products.deleted_at", null)
         .is("deleted_at", null)
         .eq("active", true)
+        .neq("products.product_type", "service")
         .in("product_id", chunk)
         .order("stock_qty", { ascending: false })
         .range(offset, offset + PAGE - 1);
@@ -644,7 +649,7 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
 
   // 0) Canonical scan resolution — purchase-label barcode + doubled scan (same as POS)
   const scanMatches = await searchQuickStockByBarcodeScan(orgId, term);
-  if (scanMatches.length > 0) return scanMatches;
+  if (scanMatches.length > 0) return excludeServiceVariants(scanMatches);
 
   // 1) Exact barcode (scanner / numeric paste)
   const exact = await supabase
@@ -655,9 +660,10 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     .is("products.deleted_at", null)
     .is("deleted_at", null)
     .eq("active", true)
+    .neq("products.product_type", "service")
     .eq("barcode", term)
     .limit(50);
-  if (exact.data && exact.data.length > 0) return exact.data;
+  if (exact.data && exact.data.length > 0) return excludeServiceVariants(exact.data);
 
   // 2) Numeric partial barcode
   if (/^\d{4,}$/.test(term)) {
@@ -669,9 +675,12 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
       .is("products.deleted_at", null)
       .is("deleted_at", null)
       .eq("active", true)
+      .neq("products.product_type", "service")
       .ilike("barcode", `%${safeTerm}%`)
       .limit(200);
-    if (barcodeQ.data && barcodeQ.data.length > 0) return barcodeQ.data;
+    if (barcodeQ.data && barcodeQ.data.length > 0) {
+      return excludeServiceVariants(barcodeQ.data);
+    }
   }
 
   // 3) Product-level match → all variants (paginated). Prefer this over size/color
@@ -699,6 +708,7 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
       .select("id, product_name, brand, category, style")
       .eq("organization_id", orgId)
       .is("deleted_at", null)
+      .neq("product_type", "service")
       .or(productOr)
       .limit(100);
     products = prodQ.data || [];
@@ -740,7 +750,7 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     // size abbreviation, as in "PUL194-BR") is applied. Don't stop here —
     // fall through to the variant-level barcode/size/colour search below,
     // which covers this exact case ("style-colour" barcode formats).
-    if (filtered.length > 0) return filtered;
+    if (filtered.length > 0) return excludeServiceVariants(filtered);
   }
 
   // 4) Variant-level size / color / barcode when no product matched.
@@ -759,9 +769,10 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     .is("products.deleted_at", null)
     .is("deleted_at", null)
     .eq("active", true)
+    .neq("products.product_type", "service")
     .or(`barcode.ilike.%${primaryEsc}%,size.ilike.%${primaryEsc}%,color.ilike.%${primaryEsc}%`)
     .limit(200);
-  const variantCandidates = variantQ.data || [];
+  const variantCandidates = excludeServiceVariants(variantQ.data || []);
   if (tokens.length <= 1) return variantCandidates;
   return variantCandidates.filter((item: any) =>
     matchesProductSearchFields(
@@ -840,11 +851,14 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         .is("products.deleted_at", null)
         .is("deleted_at", null)
         .eq("active", true)
+        .neq("products.product_type", "service")
         .order("stock_qty", { ascending: false })
         .limit(1000);
 
       if (error) throw error;
-      return data || [];
+      // Service variants carry virtual 999999 stock — exclude from Quick Stock
+      // (same convention as Stock Report / Closing Stock RPCs).
+      return excludeServiceVariants(data || []);
     },
     enabled: !!currentOrganization?.id && open,
     staleTime: STALE_LIVE,
@@ -853,7 +867,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   const localPreview = useMemo(() => {
     const q = searchQuery.trim();
     if (q.length < 1) return [];
-    return (allProducts || [])
+    return excludeServiceVariants(allProducts || [])
       .filter((item: any) =>
         matchesProductSearchFields(
           {
