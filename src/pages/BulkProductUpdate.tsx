@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Search, RefreshCw, Check, ArrowRight, ChevronsUpDown, History, Clock, Merge } from "lucide-react";
 import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
+import { MergeDuplicateProductsDialog } from "@/components/MergeDuplicateProductsDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -45,6 +46,7 @@ export default function BulkProductUpdate() {
 
   const [updateHistory, setUpdateHistory] = useState<any[]>([]);
   const [mergeBrandsOpen, setMergeBrandsOpen] = useState(false);
+  const [mergeProductsOpen, setMergeProductsOpen] = useState(false);
   // Filter state
   const [filters, setFilters] = useState<FilterCriteria>({});
   const [filterOptions, setFilterOptions] = useState<{ productNames: string[]; categories: string[]; brands: string[]; styles: string[] }>({ productNames: [], categories: [], brands: [], styles: [] });
@@ -154,20 +156,40 @@ export default function BulkProductUpdate() {
           <h1 className="text-2xl font-bold mt-2">Bulk Product Update</h1>
           <p className="text-muted-foreground">Update multiple products or variants at once</p>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          className="gap-2"
-          onClick={() => setMergeBrandsOpen(true)}
-        >
-          <Merge className="h-4 w-4" />
-          Merge duplicate brands
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            onClick={() => setMergeBrandsOpen(true)}
+          >
+            <Merge className="h-4 w-4" />
+            Merge duplicate brands
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="gap-2"
+            onClick={() => setMergeProductsOpen(true)}
+          >
+            <Merge className="h-4 w-4" />
+            Merge duplicate products
+          </Button>
+        </div>
       </div>
 
       <MergeDuplicateBrandsDialog
         open={mergeBrandsOpen}
         onOpenChange={setMergeBrandsOpen}
+        organizationId={currentOrganization.id}
+        onMergeComplete={() => {
+          loadFilterOptions();
+        }}
+      />
+
+      <MergeDuplicateProductsDialog
+        open={mergeProductsOpen}
+        onOpenChange={setMergeProductsOpen}
         organizationId={currentOrganization.id}
         onMergeComplete={() => {
           loadFilterOptions();
