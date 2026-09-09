@@ -43,6 +43,7 @@ import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
   createSameDaySaleReceiptOverlapTracker,
+  sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
 import {
   Table,
@@ -158,6 +159,23 @@ const DailyCashierReport = () => {
       });
       
       return allReceipts;
+    },
+    enabled: !!currentOrganization?.id,
+  });
+
+  // POS / Accounts advance bookings — not voucher_entries, so RCP queries miss them
+  const { data: advancesData, isLoading: advancesLoading } = useQuery({
+    queryKey: ["cashier-report-advances-range", currentOrganization?.id, rangeStartYmd, rangeEndYmd, period],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from("customer_advances")
+        .select("id, amount, payment_method, advance_date")
+        .eq("organization_id", currentOrganization.id)
+        .gte("advance_date", rangeStartYmd)
+        .lte("advance_date", rangeEndYmd);
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!currentOrganization?.id,
   });
@@ -305,13 +323,16 @@ const DailyCashierReport = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const isLoading = salesLoading || receiptsLoading || refundsLoading || customerRefundsLoading || feesLoading || expensesLoading || thirdPartyOutflowLoading;
+  const isLoading = salesLoading || receiptsLoading || refundsLoading || customerRefundsLoading || feesLoading || expensesLoading || thirdPartyOutflowLoading || advancesLoading;
 
   const { data: settings } = useSettings();
 
   // Calculate totals including payment receipts
   const calculateTotals = () => {
-    const hasNoData = (!salesData || salesData.length === 0) && (!receiptData || receiptData.length === 0);
+    const hasNoData =
+      (!salesData || salesData.length === 0) &&
+      (!receiptData || receiptData.length === 0) &&
+      (!advancesData || advancesData.length === 0);
     
     if (hasNoData) {
       return {
@@ -353,6 +374,11 @@ const DailyCashierReport = () => {
         customerRefundOther: 0,
         customerRefundTotal: 0,
         customerRefundCount: 0,
+        advanceReceived: 0,
+        advanceCash: 0,
+        advanceUpi: 0,
+        advanceCard: 0,
+        advanceCount: 0,
       };
     }
 
@@ -638,6 +664,8 @@ const DailyCashierReport = () => {
       feeTotal: feeTotalCollection,
     });
 
+    const advanceTenders = sumCustomerAdvanceTenders(advancesData || []);
+
     return {
       grossSale,
       totalDiscount,
@@ -703,6 +731,11 @@ const DailyCashierReport = () => {
       thirdPartyOutflowOther,
       thirdPartyOutflowTotal,
       thirdPartyOutflowCount: thirdPartyOutflowData?.length || 0,
+      advanceReceived: advanceTenders.advanceReceived,
+      advanceCash: advanceTenders.advanceCash,
+      advanceUpi: advanceTenders.advanceUpi,
+      advanceCard: advanceTenders.advanceCard,
+      advanceCount: advancesData?.length || 0,
     };
   };
 
@@ -731,10 +764,10 @@ const DailyCashierReport = () => {
 
   const handleExportExcel = async () => {
     // Calculate grand totals with RCP
-    const grandCashCollection = totals.cashSale + totals.rcpCashCollection;
-    const grandCardCollection = totals.cardSale + totals.rcpCardCollection;
-    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection;
-    const grandTotalCollection = totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection;
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0);
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0);
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0);
+    const grandTotalCollection = totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection + (totals.advanceReceived || 0);
     
     const data = [
       ["Cashier Report - " + getPeriodLabel()],
@@ -764,8 +797,15 @@ const DailyCashierReport = () => {
       ["RCP Other (Cheque/Bank)", "-", totals.rcpOtherCollection],
       ["Total RCP", totals.rcpCount, totals.rcpTotalCollection],
       [],
+      ["Advance Bookings (POS / Accounts)"],
+      ["Type", "Entries", "Amount"],
+      ["Advance Cash", totals.advanceCount || 0, totals.advanceCash || 0],
+      ["Advance UPI", "-", totals.advanceUpi || 0],
+      ["Advance Card", "-", totals.advanceCard || 0],
+      ["Total Advance", totals.advanceCount || 0, totals.advanceReceived || 0],
+      [],
       ["TOTAL COLLECTION SUMMARY"],
-      ["Cash (Sales + RCP)", grandCashCollection],
+      ["Cash (Sales + RCP + Advance)", grandCashCollection],
       ["Card (Sales + RCP)", grandCardCollection],
       ["UPI (Sales + RCP)", grandUpiCollection],
       ["S/R Adjusted", totals.totalSRAdjusted],
@@ -796,9 +836,9 @@ const DailyCashierReport = () => {
     const pageWidth = doc.internal.pageSize.getWidth();
     
     // Calculate grand totals with RCP
-    const grandCashCollection = totals.cashSale + totals.rcpCashCollection;
-    const grandCardCollection = totals.cardSale + totals.rcpCardCollection;
-    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection;
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0);
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0);
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0);
     
     // Header
     doc.setFontSize(16);
@@ -859,13 +899,30 @@ const DailyCashierReport = () => {
       doc.text("RCP Other: " + formatCurrency(totals.rcpOtherCollection), 20, y);
     }
 
+    if ((totals.advanceReceived || 0) > 0) {
+      y += 15;
+      doc.setFont("helvetica", "bold");
+      doc.text(`Advance Bookings - ${totals.advanceCount} entries`, 20, y);
+      doc.setFont("helvetica", "normal");
+      y += 10;
+      doc.text("Advance Cash: " + formatCurrency(totals.advanceCash || 0), 20, y);
+      y += 7;
+      doc.text("Advance UPI: " + formatCurrency(totals.advanceUpi || 0), 20, y);
+      y += 7;
+      doc.text("Advance Card: " + formatCurrency(totals.advanceCard || 0), 20, y);
+      y += 7;
+      doc.setFont("helvetica", "bold");
+      doc.text("Total Advance: " + formatCurrency(totals.advanceReceived || 0), 20, y);
+      doc.setFont("helvetica", "normal");
+    }
+
     // Grand Total Collection
     y += 15;
     doc.setFont("helvetica", "bold");
     doc.text("TOTAL COLLECTION", 20, y);
     doc.setFont("helvetica", "normal");
     y += 10;
-    doc.text("Cash (Sales + RCP): " + formatCurrency(grandCashCollection), 20, y);
+    doc.text("Cash (Sales + RCP + Advance): " + formatCurrency(grandCashCollection), 20, y);
     y += 7;
     doc.text("Card (Sales + RCP): " + formatCurrency(grandCardCollection), 20, y);
     y += 7;
@@ -1002,6 +1059,7 @@ const DailyCashierReport = () => {
                 {label:"Balance Pending", value: totals.totalBalance, color:"text-amber-600"},
                 {label:"Credit Sales", value: totals.creditSale, color:"text-rose-600"},
                 {label:"Receipt Collection", value: totals.rcpTotalCollection, color:"text-emerald-600"},
+                {label:"Advance Booking", value: totals.advanceReceived || 0, color:"text-teal-600"},
               ].map((r) => (
                 <div key={r.label} className="flex justify-between items-center">
                   <p className="text-xs text-muted-foreground">{r.label}</p>
@@ -1056,6 +1114,7 @@ const DailyCashierReport = () => {
           ["cashier-report-customer-refunds"],
           ["cashier-report-expenses"],
           ["cashier-report-third-party"],
+          ["cashier-report-advances-range"],
         ]}
       />
       {/* Header */}
@@ -1360,8 +1419,40 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                      <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale - totals.cashRefundTotal)}</TableCell>
+                      <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale + (totals.advanceCash || 0) - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
+                  {/* Advance bookings — customer_advances, not RCP */}
+                  {(totals.advanceReceived || 0) > 0 && (
+                    <>
+                      <TableRow className="bg-emerald-50 dark:bg-emerald-950">
+                        <TableCell colSpan={2} className="font-semibold text-emerald-700 dark:text-emerald-300">
+                          Advance Bookings — {totals.advanceCount} entries
+                        </TableCell>
+                      </TableRow>
+                      {(totals.advanceCash || 0) > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8">Advance Cash</TableCell>
+                          <TableCell className="text-right">{formatCurrency(totals.advanceCash)}</TableCell>
+                        </TableRow>
+                      )}
+                      {(totals.advanceUpi || 0) > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8">Advance UPI</TableCell>
+                          <TableCell className="text-right">{formatCurrency(totals.advanceUpi)}</TableCell>
+                        </TableRow>
+                      )}
+                      {(totals.advanceCard || 0) > 0 && (
+                        <TableRow>
+                          <TableCell className="pl-8">Advance Card</TableCell>
+                          <TableCell className="text-right">{formatCurrency(totals.advanceCard)}</TableCell>
+                        </TableRow>
+                      )}
+                      <TableRow className="bg-emerald-100 dark:bg-emerald-900">
+                        <TableCell className="font-bold">Total Advance Received</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(totals.advanceReceived)}</TableCell>
+                      </TableRow>
+                    </>
+                  )}
                   {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
                     <>
@@ -1464,9 +1555,9 @@ const DailyCashierReport = () => {
                     </>
                   )}
                   <TableRow className="bg-primary/10">
-                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Fees - Outflows)</TableCell>
+                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Advance + Fees - Outflows)</TableCell>
                     <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}
+                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + (totals.advanceReceived || 0) + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}
                     </TableCell>
                   </TableRow>
                   <TableRow>
@@ -1549,6 +1640,12 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">Cash Collection</span>
                     <span>{formatCurrency(totals.cashSale)}</span>
                   </div>
+                  {(totals.advanceReceived || 0) > 0 && (
+                    <div className="flex justify-between text-teal-700">
+                      <span className="text-muted-foreground">Advance Booking ({totals.advanceCount})</span>
+                      <span>{formatCurrency(totals.advanceReceived)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Card Collection</span>
                     <span>{formatCurrency(totals.cardSale)}</span>
@@ -1605,7 +1702,7 @@ const DailyCashierReport = () => {
                 )}
                 <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}</span>
+                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection + (totals.advanceReceived || 0) + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}</span>
                 </div>
                 <div className="pt-2 space-y-1 border-t mt-2">
                   <div className="flex justify-between">

@@ -22,7 +22,7 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
-import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import { createSameDaySaleReceiptOverlapTracker, sumCustomerAdvanceTenders } from "@/utils/posCashierCashIn";
 import {
   buildProductTextOrFilter,
   expandProductSearchTerms,
@@ -178,7 +178,11 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     let grossSale = 0, totalDiscount = 0, totalSale = 0, totalRoundOff = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
     let totalRefund = 0, totalSRAdjusted = 0;
-    let advanceReceived = 0, advanceCash = 0, advanceUpi = 0, advanceCard = 0;
+    const advanceTenders = sumCustomerAdvanceTenders(advancesData || []);
+    let advanceReceived = advanceTenders.advanceReceived;
+    let advanceCash = advanceTenders.advanceCash;
+    let advanceUpi = advanceTenders.advanceUpi;
+    let advanceCard = advanceTenders.advanceCard;
     let receiptCash = 0, receiptUpi = 0, receiptCard = 0, receiptTotal = 0;
     let supplierPaid = 0, expensePaid = 0, employeePaid = 0;
     let advanceRefundTotal = 0, advanceRefundCash = 0;
@@ -224,15 +228,6 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
           default: cashSale += net;
         }
       }
-    });
-
-    (advancesData || []).forEach((a: any) => {
-      const amt = Number(a.amount) || 0;
-      const pm = (a.payment_method || 'cash').toLowerCase();
-      advanceReceived += amt;
-      if (pm === 'upi') advanceUpi += amt;
-      else if (pm === 'card') advanceCard += amt;
-      else advanceCash += amt;
     });
 
     // Strip same-day sale RCP already covered by tenders (historical POS Dashboard dual-write).
