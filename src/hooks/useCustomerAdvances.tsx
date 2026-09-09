@@ -126,11 +126,11 @@ export function useCustomerAdvances(organizationId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["customer-ledger"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["cashier-report-advances"] });
-      queryClient.invalidateQueries({ queryKey: ["cashier-report-advance-refunds"] });
-      queryClient.invalidateQueries({ queryKey: ["cashier-report-advances-range"] });
-      queryClient.invalidateQueries({ queryKey: ["daily-tally-advances"] });
-      queryClient.invalidateQueries({ queryKey: ["floating-cashier-report-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-advances"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-advance-refunds"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-advances-range"] });
+      void queryClient.invalidateQueries({ queryKey: ["daily-tally-advances"] });
+      void queryClient.invalidateQueries({ queryKey: ["floating-cashier-report-sales"] });
       invalidateMoneyViewsAfterMutation(queryClient, organizationId!, variables.customerId);
       toast.success("Advance booking recorded successfully");
     },
