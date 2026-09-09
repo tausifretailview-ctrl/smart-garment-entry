@@ -45,12 +45,12 @@ export function displayVariantDashboardStock(
   return rawStock;
 }
 
-/** KPI / inventory totals — services contribute 0 qty and 0 value. */
+/** KPI / inventory totals — service and combo contribute 0 qty and 0 value. */
 export function physicalStockQtyForTotals(
   productType: string | undefined | null,
   rawStock: number,
 ): number {
-  if (isServiceProduct(productType)) return 0;
+  if (isNonStockTrackedProduct(productType)) return 0;
   return rawStock;
 }
 
@@ -59,6 +59,26 @@ export function physicalStockValueForTotals(
   rawStock: number,
   unitPrice: number,
 ): number {
-  if (isServiceProduct(productType)) return 0;
+  if (isNonStockTrackedProduct(productType)) return 0;
   return rawStock * unitPrice;
+}
+
+export type QuickStockTotalRow = {
+  stock_qty?: number | null;
+  sale_price?: number | null;
+  product?: { product_type?: string | null } | null;
+};
+
+/** Quick Stock Check header totals — never include virtual 999999 service/combo units. */
+export function sumPhysicalStockTotals(rows: QuickStockTotalRow[]): { qty: number; value: number } {
+  let qty = 0;
+  let value = 0;
+  for (const item of rows) {
+    const productType = item.product?.product_type;
+    const raw = Number(item.stock_qty) || 0;
+    const price = Number(item.sale_price) || 0;
+    qty += physicalStockQtyForTotals(productType, raw);
+    value += physicalStockValueForTotals(productType, raw, price);
+  }
+  return { qty, value };
 }

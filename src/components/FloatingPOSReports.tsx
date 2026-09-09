@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { displaySaleStockQty, sumPhysicalStockTotals } from "@/utils/productStockDisplay";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -573,13 +574,13 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
 const QUICK_STOCK_VARIANT_SELECT = `
   id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-  product:products!inner(id, product_name, brand, category, style, deleted_at, organization_id)
+  product:products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id)
 `;
 
 /** Same join shape as QUICK_STOCK but for lookupVariantRowsByScan (products alias). */
 const QUICK_STOCK_SCAN_SELECT = `
   id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id,
-  products!inner(id, product_name, brand, category, style, deleted_at, organization_id)
+  products!inner(id, product_name, brand, category, style, product_type, deleted_at, organization_id)
 `;
 
 function mapQuickStockScanRows(rows: Record<string, unknown>[]): any[] {
@@ -830,6 +831,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
             brand,
             category,
             style,
+            product_type,
             deleted_at
           )
         `)
@@ -922,12 +924,9 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     })();
   }, [currentOrganization?.id, displayIdsKey]);
 
-  // Total stock value
-  const totalStockValue = displayData?.reduce((sum, item) => {
-    return sum + (Number(item.stock_qty) || 0) * (Number(item.sale_price) || 0);
-  }, 0) || 0;
-
-  const totalQty = displayData?.reduce((sum, item) => sum + (Number(item.stock_qty) || 0), 0) || 0;
+  // Service/combo virtual stock (999999) must not inflate these — those aren't
+  // physically-held units (FLEXI LS 100 MIX turned 215 real pcs into 10,00,214).
+  const { qty: totalQty, value: totalStockValue } = sumPhysicalStockTotals(displayData || []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1005,8 +1004,11 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayData.map((item: any) => (
-                    <TableRow key={item.id}>
+                  {displayData.map((item: any) => {
+                    const productType = item.product?.product_type;
+                    const displayStock = displaySaleStockQty(productType, item.stock_qty);
+                    return (
+                      <TableRow key={item.id}>
                       <TableCell>
                         <p className="font-medium">
                           {[
@@ -1021,8 +1023,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                       <TableCell className="font-mono text-xs">{item.barcode || '-'}</TableCell>
                       <TableCell>{item.size}</TableCell>
                       <TableCell className="text-right">
-                        <span className={`font-semibold ${item.stock_qty <= 0 ? 'text-red-600' : item.stock_qty < 5 ? 'text-yellow-600' : 'text-green-600'}`}>
-                          {item.stock_qty}
+                        <span className={`font-semibold ${displayStock <= 0 ? 'text-red-600' : displayStock < 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                          {displayStock}
                         </span>
                       </TableCell>
                       <TableCell className="text-xs">{supplierMap[item.id] || '-'}</TableCell>
@@ -1030,7 +1032,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                       <TableCell className="text-right">₹{item.mrp?.toLocaleString('en-IN')}</TableCell>
                       <TableCell className="text-right font-medium">₹{item.sale_price?.toLocaleString('en-IN')}</TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
