@@ -68,11 +68,16 @@ export function expandProductSearchTerms(raw: string): string[] {
   const spaced = cleaned
     .replace(/([a-z])(\d)/gi, "$1 $2")
     .replace(/(\d)([a-z])/gi, "$1 $2")
-    .replace(/-/g, " ")
+    .replace(/[/\-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (spaced && spaced !== cleaned) {
     terms.add(spaced);
+  }
+
+  const slashAsSpace = cleaned.replace(/\//g, " ").replace(/\s+/g, " ").trim();
+  if (slashAsSpace) {
+    terms.add(slashAsSpace);
   }
 
   return Array.from(terms).filter(Boolean);

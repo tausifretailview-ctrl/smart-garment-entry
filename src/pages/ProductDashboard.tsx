@@ -58,8 +58,10 @@ import { ProductImageUploader } from "@/components/ProductImageUploader";
 import { MergeProductsDialog } from "@/components/MergeProductsDialog";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import {
+  catalogSearchIlikeTerm,
   fetchCatalogRowsForProductIds,
   fetchProductIdsByBarcodeSearch,
+  fetchProductIdsByCatalogTextSearch,
   looksLikeBarcodeSearch,
   normalizeProductSearchTerm,
 } from "@/utils/productDashboardBarcodeSearch";
@@ -612,10 +614,10 @@ const ProductDashboard = () => {
   );
 
   const buildRpcParams = useCallback(() => {
-    const term = normalizeProductSearchTerm(debouncedSearch) || undefined;
+    const term = catalogSearchIlikeTerm(debouncedSearch);
     return {
       p_org_id: currentOrganization!.id,
-      p_search: term || null,
+      p_search: term,
       p_category: selectedCategory !== "all" ? selectedCategory : null,
       p_product_type: selectedProductType !== "all" ? selectedProductType : null,
       p_size_group_id: selectedSizeGroup !== "all" ? selectedSizeGroup : null,
@@ -723,37 +725,48 @@ const ProductDashboard = () => {
 
       let rows: ProductRow[] = (data || []).map(mapRpcRow);
 
-      // Barcode supplement: direct variant lookup so barcode / IMEI search always resolves
+      const mergeSupplementalIds = async (productIds: string[]) => {
+        const existingIds = new Set(rows.map((r) => r.product_id));
+        const missingIds = productIds.filter((id) => !existingIds.has(id));
+        if (missingIds.length === 0) return;
+
+        const supplemental = await fetchCatalogRowsForProductIds(
+          currentOrganization.id,
+          missingIds,
+        );
+        const passesFilters = (row: (typeof supplemental)[number]) => {
+          if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
+          if (selectedProductType !== "all" && row.product_type !== selectedProductType) return false;
+          if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
+          if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
+          if (selectedStockLevel === "low_stock") {
+            if (row.total_stock < 1 || row.total_stock > lowStockThreshold) return false;
+          }
+          return true;
+        };
+
+        for (const row of supplemental.filter(passesFilters)) {
+          rows.push({
+            ...row,
+            variants: [],
+          });
+        }
+      };
+
+      // Barcode + slash/space name supplement so catalog matches Quick Stock
       if (searchTerm.length >= 3) {
         const barcodeProductIds = await fetchProductIdsByBarcodeSearch(
           currentOrganization.id,
           searchTerm,
         );
-        const existingIds = new Set(rows.map((r) => r.product_id));
-        const missingIds = barcodeProductIds.filter((id) => !existingIds.has(id));
+        await mergeSupplementalIds(barcodeProductIds);
 
-        if (missingIds.length > 0) {
-          const supplemental = await fetchCatalogRowsForProductIds(
+        if (searchTerm.includes("/")) {
+          const textProductIds = await fetchProductIdsByCatalogTextSearch(
             currentOrganization.id,
-            missingIds,
+            searchTerm,
           );
-          const passesFilters = (row: (typeof supplemental)[number]) => {
-            if (selectedCategory !== "all" && row.category !== selectedCategory) return false;
-            if (selectedProductType !== "all" && row.product_type !== selectedProductType) return false;
-            if (selectedStockLevel === "in_stock" && row.total_stock <= 0) return false;
-            if (selectedStockLevel === "out_of_stock" && row.total_stock > 0) return false;
-            if (selectedStockLevel === "low_stock") {
-              if (row.total_stock < 1 || row.total_stock > lowStockThreshold) return false;
-            }
-            return true;
-          };
-
-          for (const row of supplemental.filter(passesFilters)) {
-            rows.push({
-              ...row,
-              variants: [],
-            });
-          }
+          await mergeSupplementalIds(textProductIds);
         }
 
         // Exact barcode match: show matching product first
@@ -1642,7 +1655,7 @@ const ProductDashboard = () => {
                 placeholder="Search name, brand, or barcode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
+                className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
               />
               {searchQuery && (
                 <button

@@ -1,11 +1,27 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  buildProductTextOrFilter,
+  expandProductSearchTerms,
+  matchesProductSearchFields,
+} from "@/utils/productSearch";
+import {
   displayProductDashboardStock,
   physicalStockQtyForTotals,
 } from "@/utils/productStockDisplay";
 
 export function normalizeProductSearchTerm(raw: string): string {
   return raw.replace(/[\r\n\t]/g, "").trim();
+}
+
+/**
+ * Catalog RPC uses `ilike '%' || p_search || '%'`. Treat `/` as a LIKE
+ * wildcard so "FLEXI LS/100" matches both "FLEXI LS/100 - RED" and
+ * "FLEXI LS 100 MIX" (Quick Stock compact matching).
+ */
+export function catalogSearchIlikeTerm(raw: string): string | null {
+  const normalized = normalizeProductSearchTerm(raw);
+  if (!normalized) return null;
+  return normalized.replace(/\/+/g, "%");
 }
 
 /** True when the term is likely a barcode / IMEI (not plain product words). */
@@ -60,6 +76,46 @@ export async function fetchProductIdsByBarcodeSearch(
   }
 
   return [...ids];
+}
+
+/** Product ids whose name/brand/style/category match Quick Stock text search. */
+export async function fetchProductIdsByCatalogTextSearch(
+  organizationId: string,
+  term: string,
+): Promise<string[]> {
+  const normalized = normalizeProductSearchTerm(term);
+  if (!normalized) return [];
+
+  const expanded = expandProductSearchTerms(normalized);
+  const orFilter = buildProductTextOrFilter(expanded);
+  if (!orFilter) return [];
+
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, product_name, brand, category, style")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .or(orFilter)
+    .limit(200);
+
+  if (error) {
+    console.warn("[productDashboardBarcodeSearch] catalog text search failed", error.message);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row) =>
+      matchesProductSearchFields(
+        {
+          product_name: row.product_name ?? "",
+          brand: row.brand ?? "",
+          category: row.category ?? "",
+          style: row.style ?? "",
+        },
+        normalized,
+      ),
+    )
+    .map((row) => row.id);
 }
 
 export type ProductCatalogRowPayload = {
