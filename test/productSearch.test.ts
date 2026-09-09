@@ -18,6 +18,12 @@ describe("expandProductSearchTerms", () => {
       expect.arrayContaining(["pul204", "pul 204", "pul-204"]),
     );
   });
+
+  it("treats slash as a space so FLEXI LS/100 matches FLEXI LS 100 MIX", () => {
+    expect(expandProductSearchTerms("FLEXI LS/100")).toEqual(
+      expect.arrayContaining(["flexi ls/100", "flexi ls 100"]),
+    );
+  });
 });
 
 describe("compactProductToken", () => {
@@ -88,6 +94,15 @@ describe("matchesProductSearchFields", () => {
     ).toBe(true);
     expect(
       matchesProductSearchFields({ product_name: "FL2067-FL-RLX-LD 3-8" }, "FL20"),
+    ).toBe(true);
+  });
+
+  it("matches FLEXI LS/100 against slash and space product names", () => {
+    expect(
+      matchesProductSearchFields({ product_name: "FLEXI LS/100 - RED" }, "FLEXI LS/100"),
+    ).toBe(true);
+    expect(
+      matchesProductSearchFields({ product_name: "FLEXI LS 100 MIX" }, "FLEXI LS/100"),
     ).toBe(true);
   });
 });
