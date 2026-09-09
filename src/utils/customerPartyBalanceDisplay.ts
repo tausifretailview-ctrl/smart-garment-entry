@@ -30,6 +30,16 @@ export function partyBalanceDisplayAmount(signedBalance: number | null | undefin
   return Math.abs(Number(signedBalance ?? 0));
 }
 
+/**
+ * List money color follows net Dr/Cr, not “any Outstanding figure is a debt”.
+ * Gross Outstanding can be a pending credit note (AARISH ₹6,550 Cr) — alarm-red there is wrong.
+ */
+export function partyBalanceDirectionToneClass(direction: "Dr" | "Cr" | "Settled"): string {
+  if (direction === "Dr") return "text-red-600 dark:text-red-400";
+  if (direction === "Cr") return "text-emerald-600 dark:text-emerald-400";
+  return "text-muted-foreground";
+}
+
 export type PartyBalanceMoneyFacets = {
   outstanding: number;
   unusedAdvance: number;

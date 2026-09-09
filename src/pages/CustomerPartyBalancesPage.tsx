@@ -56,6 +56,7 @@ import {
   filterPartyBalanceRows,
   includeSettledInPartyBalanceList,
   partyBalanceDirection,
+  partyBalanceDirectionToneClass,
   partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
@@ -728,7 +729,12 @@ export default function CustomerPartyBalancesPage() {
                             <TableCell className="py-2.5 text-base font-medium">
                               {row.customer_name}
                             </TableCell>
-                            <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-red-600 dark:text-red-400">
+                            <TableCell
+                              className={cn(
+                                "py-2.5 text-right tabular-nums text-sm font-medium",
+                                partyBalanceDirectionToneClass(direction),
+                              )}
+                            >
                               {fmtAmt(Math.abs(f.outstanding))}
                             </TableCell>
                             <TableCell className="py-2.5 text-right tabular-nums text-sm font-medium text-emerald-600 dark:text-emerald-400">
@@ -737,8 +743,7 @@ export default function CustomerPartyBalancesPage() {
                             <TableCell
                               className={cn(
                                 "py-2.5 text-right tabular-nums text-base font-semibold",
-                                isDr && "text-red-600 dark:text-red-400",
-                                isCr && "text-emerald-600 dark:text-emerald-400",
+                                partyBalanceDirectionToneClass(direction),
                               )}
                             >
                               ₹{fmtAmt(Math.abs(f.netPosition))}

@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
@@ -7,6 +10,7 @@ import {
   matchesPartyDirectionFilter,
   partyBalanceDirection,
   partyBalanceDisplayAmount,
+  partyBalanceDirectionToneClass,
   partyBalanceExportRowAmounts,
   partyBalanceTotalPages,
   slicePartyBalancePage,
@@ -70,6 +74,20 @@ describe("partyBalanceExportRowAmounts", () => {
       unusedAdvance: 0,
       netPosition: 61950,
     });
+  });
+});
+
+describe("partyBalanceDirectionToneClass", () => {
+  it("AARISH-style Cr outstanding is emerald, not alarm red", () => {
+    const direction = partyBalanceDirection({ direction: "Cr", signed_balance: -6550 });
+    expect(direction).toBe("Cr");
+    expect(partyBalanceDirectionToneClass(direction)).toContain("text-emerald-600");
+    expect(partyBalanceDirectionToneClass(direction)).not.toContain("text-red-600");
+  });
+
+  it("Dr outstanding stays red; settled is muted", () => {
+    expect(partyBalanceDirectionToneClass("Dr")).toContain("text-red-600");
+    expect(partyBalanceDirectionToneClass("Settled")).toContain("text-muted-foreground");
   });
 });
 
@@ -168,5 +186,17 @@ describe("client-side pagination helpers", () => {
     expect(partyBalanceTotalPages(CUSTOMER_PARTY_BALANCES_PAGE_SIZE)).toBe(1);
     expect(partyBalanceTotalPages(CUSTOMER_PARTY_BALANCES_PAGE_SIZE + 1)).toBe(2);
     expect(partyBalanceTotalPages(0)).toBe(1);
+  });
+});
+
+describe("Customer Balances Outstanding column tone", () => {
+  it("colors Outstanding from Dr/Cr, not hardcoded red", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const src = readFileSync(resolve(here, "../pages/CustomerPartyBalancesPage.tsx"), "utf8");
+    expect(src).toContain("partyBalanceDirectionToneClass(direction)");
+    expect(src).toContain("fmtAmt(Math.abs(f.outstanding))");
+    expect(src).not.toMatch(
+      /text-red-600 dark:text-red-400">\s*\{fmtAmt\(Math\.abs\(f\.outstanding\)\)\}/,
+    );
   });
 });
