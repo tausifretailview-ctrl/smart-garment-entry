@@ -402,7 +402,8 @@ export default function ThirdPartyVoucherEntry() {
         .update({ deleted_at: new Date().toISOString() })
         .eq("id", voucher.id)
         .eq("organization_id", currentOrganization.id)
-        .eq("reference_type", THIRD_PARTY_VOUCHER_REFERENCE_TYPE);
+        .eq("reference_type", THIRD_PARTY_VOUCHER_REFERENCE_TYPE)
+        .is("deleted_at", null);
       if (error) throw error;
     },
     onSuccess: (_void, voucher) => {
