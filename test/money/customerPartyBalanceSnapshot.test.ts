@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   alignPartyRowFromRpc,
   alignPartyRowWithSnapshot,
+  applyCanonicalStateToPartyRow,
   fetchCustomerPartyBalancesPayload,
   partyBalanceOrgWindowFromRpcRow,
   partyBalanceRowFacets,
@@ -28,11 +29,13 @@ describe("partyBalanceRowFacets", () => {
         gross_outstanding: 14_800,
         advance_available: 10_000,
         net_position: 4_800,
+        cn_available: 0,
       }),
     ).toEqual({
       outstanding: 14_800,
       unusedAdvance: 10_000,
       netPosition: 4_800,
+      cnAvailable: 0,
     });
   });
 });
@@ -60,6 +63,7 @@ describe("alignPartyRowFromRpc", () => {
       outstanding: 14_800,
       unusedAdvance: 10_000,
       netPosition: 4_800,
+      cnAvailable: 0,
     });
   });
 
@@ -106,6 +110,7 @@ describe("alignPartyRowWithSnapshot", () => {
       outstanding: 14_800,
       unusedAdvance: 10_000,
       netPosition: 4_800,
+      cnAvailable: 0,
     });
   });
 
@@ -178,6 +183,82 @@ describe("fetchCustomerPartyBalancesPayload", () => {
     expect(payload.partyBalancesComplete).toBe(true);
     expect(payload.rows).toHaveLength(1);
     expect(payload.rows[0].net_position).toBe(4_800);
+  });
+});
+
+describe("applyCanonicalStateToPartyRow", () => {
+  const aarish: CustomerPartyBalanceAlignedRow = {
+    customer_id: "aarish",
+    customer_name: "AARISH",
+    signed_balance: -6550,
+    advance_available: 0,
+    direction: "Cr",
+    net_position: -6550,
+    total_dr: 0,
+    total_cr: 0,
+    net_receivable: 0,
+    phone: "",
+    gross_outstanding: -6550,
+    cn_available: 0,
+  };
+
+  it("writes pending CN even when signed net already matches SQL", () => {
+    const patched = applyCanonicalStateToPartyRow(aarish, {
+      netPosition: -6550,
+      unusedAdvancePool: 0,
+      unclaimedSaleReturnCredit: 6550,
+      totalInvoicedGross: 0,
+      totalRealPayments: 0,
+    });
+    expect(patched.signed_balance).toBe(-6550);
+    expect(patched.advance_available).toBe(0);
+    expect(patched.cn_available).toBe(6550);
+    expect(patched.net_position).toBe(-6550);
+    expect(partyBalanceRowFacets(patched)).toEqual({
+      outstanding: -6550,
+      unusedAdvance: 0,
+      netPosition: -6550,
+      cnAvailable: 6550,
+    });
+  });
+
+  it("does not subtract CN from Net when flipping a drifted Dr row to Cr", () => {
+    const drifted = { ...aarish, signed_balance: 6550, direction: "Dr", gross_outstanding: 6550, net_position: 6550 };
+    const patched = applyCanonicalStateToPartyRow(drifted, {
+      netPosition: -6550,
+      unusedAdvancePool: 0,
+      unclaimedSaleReturnCredit: 6550,
+      totalInvoicedGross: 0,
+      totalRealPayments: 0,
+    });
+    expect(patched.signed_balance).toBe(-6550);
+    expect(patched.direction).toBe("Cr");
+    expect(patched.cn_available).toBe(6550);
+    expect(patched.net_position).toBe(-6550);
+    expect(patched.net_position).not.toBe(0);
+  });
+
+  it("keeps unused Advance separate from CN", () => {
+    const row: CustomerPartyBalanceAlignedRow = {
+      ...aarish,
+      customer_id: "aafra",
+      customer_name: "AAFRA",
+      signed_balance: 4800,
+      direction: "Dr",
+      gross_outstanding: 14800,
+      net_position: 4800,
+    };
+    const patched = applyCanonicalStateToPartyRow(row, {
+      netPosition: 4800,
+      unusedAdvancePool: 10_000,
+      unclaimedSaleReturnCredit: 2_000,
+      totalInvoicedGross: 20_000,
+      totalRealPayments: 8_000,
+    });
+    expect(patched.advance_available).toBe(10_000);
+    expect(patched.cn_available).toBe(2_000);
+    expect(patched.net_position).toBe(4_800);
+    expect(patched.gross_outstanding).toBe(14_800);
   });
 });
 

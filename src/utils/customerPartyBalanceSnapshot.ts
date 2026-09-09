@@ -35,13 +35,64 @@ export type CustomerPartyBalanceAlignedRow = CustomerPartyBalanceRpcRow & {
 export function partyBalanceRowFacets(
   row: Pick<
     CustomerPartyBalanceAlignedRow,
-    "gross_outstanding" | "advance_available" | "net_position"
+    "gross_outstanding" | "advance_available" | "net_position" | "cn_available"
   >,
 ): CustomerAccountFacets {
   return {
     outstanding: row.gross_outstanding,
     unusedAdvance: row.advance_available,
     netPosition: row.net_position,
+    cnAvailable: Math.max(0, Math.round(Number(row.cn_available) || 0)),
+  };
+}
+
+/** Fields from getCustomerAccountState needed to patch a party-list row. */
+export type PartyRowCanonicalState = {
+  netPosition: number;
+  unusedAdvancePool: number;
+  unclaimedSaleReturnCredit: number;
+  totalInvoicedGross: number;
+  totalRealPayments: number;
+};
+
+/**
+ * Write Advance + CN from canonical state. Net stays signed (CN already inside).
+ * When signed already matches SQL, still fill `cn_available` — RPC hardcodes 0.
+ */
+export function applyCanonicalStateToPartyRow(
+  row: CustomerPartyBalanceAlignedRow,
+  state: PartyRowCanonicalState,
+): CustomerPartyBalanceAlignedRow {
+  const signedNet = Math.round(state.netPosition);
+  const unusedAdvance = Math.max(0, Math.round(state.unusedAdvancePool));
+  const cnAvailable = Math.max(0, Math.round(state.unclaimedSaleReturnCredit || 0));
+  const lifetime = {
+    lifetime_total_sales: Math.round(state.totalInvoicedGross),
+    lifetime_total_paid: Math.round(state.totalRealPayments),
+  };
+  const rowSigned = Math.round(Number(row.signed_balance) || 0);
+  if (Math.abs(signedNet - rowSigned) <= 1) {
+    const facets = facetsFromPartySignedBalance(rowSigned, unusedAdvance);
+    return {
+      ...row,
+      advance_available: unusedAdvance,
+      cn_available: cnAvailable,
+      gross_outstanding: facets.outstanding,
+      net_position: facets.netPosition,
+      ...lifetime,
+    };
+  }
+  return {
+    ...alignPartyRowFromRpc(
+      {
+        ...row,
+        signed_balance: signedNet,
+        advance_available: unusedAdvance,
+      },
+      row.phone ?? "",
+    ),
+    cn_available: cnAvailable,
+    ...lifetime,
   };
 }
 
@@ -275,25 +326,7 @@ export async function enrichPartyRowsWithCanonicalBalance(
         saleReturns: bundle.saleReturns,
         options: { ledgerAlignedApplicationReceipts: true },
       });
-      const signedNet = Math.round(state.netPosition);
-      const lifetime = {
-        lifetime_total_sales: Math.round(state.totalInvoicedGross),
-        lifetime_total_paid: Math.round(state.totalRealPayments),
-      };
-      if (Math.abs(signedNet - Math.round(Number(row.signed_balance) || 0)) <= 1) {
-        return { ...row, ...lifetime };
-      }
-      return {
-        ...alignPartyRowFromRpc(
-          {
-            ...row,
-            signed_balance: signedNet,
-            advance_available: state.unusedAdvancePool,
-          },
-          row.phone ?? "",
-        ),
-        ...lifetime,
-      };
+      return applyCanonicalStateToPartyRow(row, state);
     } catch {
       return row;
     }
