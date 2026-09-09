@@ -22,6 +22,7 @@ interface MergeDuplicateBrandsDialogProps {
   onOpenChange: (open: boolean) => void;
   organizationId: string;
   onMergeComplete: () => void;
+  embedded?: boolean;
 }
 
 export function MergeDuplicateBrandsDialog({
@@ -29,6 +30,7 @@ export function MergeDuplicateBrandsDialog({
   onOpenChange,
   organizationId,
   onMergeComplete,
+  embedded,
 }: MergeDuplicateBrandsDialogProps) {
   const [loading, setLoading] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -71,7 +73,7 @@ export function MergeDuplicateBrandsDialog({
       toast.success(
         `Merged ${result.groups_merged ?? groups.length} brand group(s) — ${result.products_updated ?? 0} products updated`,
       );
-      onOpenChange(false);
+      if (!embedded) onOpenChange(false);
       onMergeComplete();
     } catch (err: unknown) {
       // Fallback if RPC not deployed yet
@@ -81,7 +83,7 @@ export function MergeDuplicateBrandsDialog({
         toast.success(
           `Merged ${result.groupsMerged} brand group(s) — ${result.productsUpdated} products updated`,
         );
-        onOpenChange(false);
+        if (!embedded) onOpenChange(false);
         onMergeComplete();
       } catch (fallbackErr: unknown) {
         console.error(fallbackErr);
@@ -98,6 +100,64 @@ export function MergeDuplicateBrandsDialog({
     }
   };
 
+  const list = (
+    <div className="max-h-[40vh] space-y-2 overflow-y-auto py-2">
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Scanning brands…
+        </div>
+      ) : groups.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No duplicate brand spellings found.
+        </p>
+      ) : (
+        groups.map((g) => (
+          <div key={g.key} className="rounded-lg border p-3 text-sm">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="font-semibold">{g.canonical}</span>
+              <Badge variant="secondary">{g.productCount} products</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Merge: {g.variants.join(" · ")} → {g.canonical}
+            </p>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  const mergeButton = (
+    <Button
+      type="button"
+      onClick={() => void handleMerge()}
+      disabled={merging || loading || groups.length === 0}
+    >
+      {merging ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Merging…
+        </>
+      ) : (
+        `Merge ${groups.length} group(s)`
+      )}
+    </Button>
+  );
+
+  if (embedded) {
+    if (!open) return null;
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          Brands that differ only by spaces or letter case (e.g. BIN HANIF twice) are merged into one
+          name. Stock reports then show a single combined total.
+        </p>
+        {list}
+        <div className="flex justify-end">{mergeButton}</div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
@@ -108,50 +168,12 @@ export function MergeDuplicateBrandsDialog({
             name. Stock reports then show a single combined total.
           </DialogDescription>
         </DialogHeader>
-
-        <div className="max-h-[40vh] space-y-2 overflow-y-auto py-2">
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Scanning brands…
-            </div>
-          ) : groups.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No duplicate brand spellings found.
-            </p>
-          ) : (
-            groups.map((g) => (
-              <div key={g.key} className="rounded-lg border p-3 text-sm">
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="font-semibold">{g.canonical}</span>
-                  <Badge variant="secondary">{g.productCount} products</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Merge: {g.variants.join(" · ")} → {g.canonical}
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-
+        {list}
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={merging}>
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={handleMerge}
-            disabled={merging || loading || groups.length === 0}
-          >
-            {merging ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Merging…
-              </>
-            ) : (
-              `Merge ${groups.length} group(s)`
-            )}
-          </Button>
+          {mergeButton}
         </DialogFooter>
       </DialogContent>
     </Dialog>
