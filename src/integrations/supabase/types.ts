@@ -10622,6 +10622,21 @@ export type Database = {
           slug: string
         }[]
       }
+      resolve_purchase_line_existing_barcode: {
+        Args: {
+          p_barcode: string
+          p_line_number?: number
+          p_organization_id: string
+          p_product_id: string
+          p_size?: string
+          p_sku_id: string
+        }
+        Returns: {
+          product_id: string
+          rematched: boolean
+          sku_id: string
+        }[]
+      }
       restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
       restore_purchase_return: {
         Args: { p_return_id: string }
