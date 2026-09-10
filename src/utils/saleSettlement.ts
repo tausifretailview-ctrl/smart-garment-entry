@@ -246,6 +246,24 @@ export async function createReceiptVoucher(
   const referenceType = params.referenceType ?? "sale";
   const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
 
+  // Keep counter cash/card/UPI on the bill from being dropped by the recompute
+  // when the balance is collected later as a receipt.
+  if (referenceType === "sale" && !params.skipAtSaleTenderBackfill) {
+    try {
+      await ensureAtSaleTenderReceipt(supabase, {
+        organizationId: params.organizationId,
+        saleId: params.referenceId,
+        incomingAmount: Number(params.amount) || 0,
+        voucherDate,
+        createdBy: params.createdBy ?? null,
+      });
+    } catch {
+      // Never block the payment the user is actually recording.
+    }
+  }
+
+
+
   let lastError: unknown;
   for (let attempt = 0; attempt < RECEIPT_VOUCHER_NUMBER_MAX_ATTEMPTS; attempt++) {
     let voucherNumber = params.voucherNumber;
