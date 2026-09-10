@@ -44,7 +44,7 @@ describe("alignPartyRowFromRpc", () => {
   const baseRow: CustomerPartyBalanceRpcRow = {
     customer_id: "c1",
     customer_name: "AAFRA TEST",
-    signed_balance: 4_800,
+    signed_balance: 14_800,
     advance_available: 10_000,
     direction: "Dr",
     net_position: -5_200,
@@ -53,10 +53,11 @@ describe("alignPartyRowFromRpc", () => {
     net_receivable: 0,
   };
 
-  it("derives Aafra facets from signed_balance + advance (ignores legacy net_position)", () => {
+  it("nets unused Advance on live unnetted signed (Aafra leftover ₹14,800)", () => {
     const aligned = alignPartyRowFromRpc(baseRow, "9999999999");
     expect(aligned.gross_outstanding).toBe(14_800);
     expect(aligned.net_position).toBe(4_800);
+    expect(aligned.signed_balance).toBe(4_800);
     expect(aligned.advance_available).toBe(10_000);
     expect(aligned.net_position).not.toBe(-5_200);
     expect(partyBalanceRowFacets(aligned)).toEqual({
@@ -65,6 +66,16 @@ describe("alignPartyRowFromRpc", () => {
       netPosition: 4_800,
       cnAvailable: 0,
     });
+  });
+
+  it("Sana-class: signed ₹0 + Advance ₹1,70,000 is Net ₹1,70,000 Cr, not fake Dr", () => {
+    const aligned = alignPartyRowFromRpc(
+      { ...baseRow, customer_name: "Sana Nasir", signed_balance: 0, advance_available: 170_000 },
+      "",
+    );
+    expect(aligned.gross_outstanding).toBe(0);
+    expect(aligned.net_position).toBe(-170_000);
+    expect(aligned.direction).toBe("Cr");
   });
 
   it("pure advance credit shows Cr direction from signed net", () => {

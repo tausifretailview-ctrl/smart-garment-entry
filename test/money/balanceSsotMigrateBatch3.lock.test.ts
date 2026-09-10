@@ -56,7 +56,8 @@ describe("Step 3 batch 3 — ledger list lifetime totals (C06)", () => {
     const money = partyLedgerListMoneyFields(aligned, "");
     expect(money.totalSales).toBe(95_000);
     expect(money.totalPaid).toBe(87_000);
-    expect(money.balance).toBe(8500);
+    // Raw party signed is invoice leftover; unused Advance is not added again.
+    expect(money.balance).toBe(8000);
     expect(money.unusedAdvanceTotal).toBe(500);
   });
 });
