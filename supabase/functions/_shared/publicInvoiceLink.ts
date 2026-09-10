@@ -1,10 +1,10 @@
 export type PublicInvoiceBillContext = "sale" | "pos";
 
 export type PublicInvoiceSaleSettings = {
-  invoice_paper_format?: string | null;
-  sales_bill_format?: string | null;
-  pos_bill_format?: string | null;
-  invoice_template?: string | null;
+  invoice_paper_format?: unknown;
+  sales_bill_format?: unknown;
+  pos_bill_format?: unknown;
+  invoice_template?: unknown;
 };
 
 export type BuildPublicInvoiceViewUrlInput = {
