@@ -1,5 +1,8 @@
 import type { CustomerAccountFacets } from "@/utils/customerAccountFacets";
-import { facetsFromPartySignedBalance } from "@/utils/customerAccountFacets";
+import {
+  facetsFromPartyRpcRow,
+  facetsFromPartySignedBalance,
+} from "@/utils/customerAccountFacets";
 import {
   fetchAllCustomerPartyBalances,
   fetchAllCustomers,
@@ -70,42 +73,32 @@ export function applyCanonicalStateToPartyRow(
     lifetime_total_sales: Math.round(state.totalInvoicedGross),
     lifetime_total_paid: Math.round(state.totalRealPayments),
   };
-  const rowSigned = Math.round(Number(row.signed_balance) || 0);
-  if (Math.abs(signedNet - rowSigned) <= 1) {
-    const facets = facetsFromPartySignedBalance(rowSigned, unusedAdvance);
-    return {
-      ...row,
-      advance_available: unusedAdvance,
-      cn_available: cnAvailable,
-      gross_outstanding: facets.outstanding,
-      net_position: facets.netPosition,
-      ...lifetime,
-    };
-  }
+  const facets = facetsFromPartySignedBalance(signedNet, unusedAdvance);
   return {
-    ...alignPartyRowFromRpc(
-      {
-        ...row,
-        signed_balance: signedNet,
-        advance_available: unusedAdvance,
-      },
-      row.phone ?? "",
-    ),
+    ...row,
+    signed_balance: signedNet,
+    advance_available: unusedAdvance,
     cn_available: cnAvailable,
+    gross_outstanding: facets.outstanding,
+    net_position: facets.netPosition,
+    direction: partyBalanceDirection({ signed_balance: signedNet }),
     ...lifetime,
   };
 }
 
 /**
- * Derive unified-balance facets from party RPC row (single RPC — no snapshot_all).
- * Uses signed_balance as canonical net; ignores legacy net_position = signed − advance.
+ * Derive unified-balance facets from a party RPC row (single RPC — no snapshot_all).
+ * Live signed_balance is invoice leftover; unused Advance is netted here.
+ * Pass `signedIsEconomicNet` when the caller already has JS/enrich netPosition.
+ * Ignores legacy RPC `net_position` (double-subtracts Advance when signed is netted).
  */
 export function alignPartyRowFromRpc(
   row: CustomerPartyBalanceRpcRow,
   phone: string,
+  opts?: { signedIsEconomicNet?: boolean },
 ): CustomerPartyBalanceAlignedRow {
-  const signedNet = Math.round(Number(row.signed_balance) || 0);
-  const facets = facetsFromPartySignedBalance(signedNet, row.advance_available);
+  const rawSigned = Math.round(Number(row.signed_balance) || 0);
+  const facets = facetsFromPartyRpcRow(rawSigned, row.advance_available, opts);
 
   return {
     ...row,
@@ -114,8 +107,8 @@ export function alignPartyRowFromRpc(
     net_position: facets.netPosition,
     advance_available: facets.unusedAdvance,
     cn_available: 0,
-    signed_balance: signedNet,
-    direction: partyBalanceDirection({ signed_balance: signedNet }),
+    signed_balance: facets.netPosition,
+    direction: partyBalanceDirection({ signed_balance: facets.netPosition }),
   };
 }
 

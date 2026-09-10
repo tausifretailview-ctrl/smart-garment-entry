@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountFacetStatus,
   facetsFromInvoiceOutstanding,
+  facetsFromPartyRpcRow,
   facetsFromPartySignedBalance,
   partyDebtorNetFromRpcRow,
   partyNetPositionFromRpcRow,
@@ -46,6 +47,45 @@ describe("customerAccountFacets", () => {
     expect(t.totalOutstandingDr).toBe(14_800 + 5_000);
     expect(t.totalCreditPoolCr).toBe(10_000 + 2_000);
     expect(t.netReceivable).toBe(4_800 + 5_000 - 2_000);
+  });
+
+  it("raw party RPC: unused Advance is not inside signed (ELLA 551-class)", () => {
+    expect(facetsFromPartyRpcRow(0, 170_000)).toEqual({
+      outstanding: 0,
+      unusedAdvance: 170_000,
+      netPosition: -170_000,
+    });
+    expect(facetsFromPartyRpcRow(39_000, 38_100)).toEqual({
+      outstanding: 39_000,
+      unusedAdvance: 38_100,
+      netPosition: 900,
+    });
+    expect(facetsFromPartyRpcRow(14_800, 10_000)).toEqual({
+      outstanding: 14_800,
+      unusedAdvance: 10_000,
+      netPosition: 4_800,
+    });
+  });
+
+  it("already-netted pure Advance credit is not subtracted twice", () => {
+    expect(facetsFromPartyRpcRow(-10_000, 10_000)).toEqual({
+      outstanding: 0,
+      unusedAdvance: 10_000,
+      netPosition: -10_000,
+    });
+  });
+
+  it("JS/enrich economic net uses signed + unused recovery", () => {
+    expect(facetsFromPartyRpcRow(4_800, 10_000, { signedIsEconomicNet: true })).toEqual({
+      outstanding: 14_800,
+      unusedAdvance: 10_000,
+      netPosition: 4_800,
+    });
+  });
+
+  it("AARISH / Farhaan unused=0 rows stay signed net", () => {
+    expect(facetsFromPartyRpcRow(-6_550, 0).netPosition).toBe(-6_550);
+    expect(facetsFromPartyRpcRow(-100, 0).netPosition).toBe(-100);
   });
 
   it("partyDebtorNetFromRpcRow — Farhaan Cr nets to 0 Dr for Khata FIFO gate", () => {

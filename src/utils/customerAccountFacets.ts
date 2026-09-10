@@ -65,6 +65,37 @@ export function facetsFromPartySignedBalance(
   };
 }
 
+/**
+ * Live `get_customer_party_balances` on ELLA NOOR (2026-09-10): `signed_balance`
+ * is invoice leftover (JS `balance`) — unused Advance is NOT inside it. 551 parties
+ * had snapshot net = signed − unused (Sana ₹0 + ₹1,70,000 Advance → ₹1,70,000 Cr).
+ *
+ * The page used {@link facetsFromPartySignedBalance}, which assumes signed is
+ * already economic net and adds Advance again (fake Dr + Net too high).
+ *
+ * Raw RPC: treat signed as invoice leftover unless it is already a netted
+ * pure-advance credit (signed ≈ −unused).
+ * JS / enrich already pass economic net — set `signedIsEconomicNet`.
+ */
+export function facetsFromPartyRpcRow(
+  signedBalance: number,
+  advanceAvailable: number,
+  opts?: { signedIsEconomicNet?: boolean },
+): CustomerAccountFacets {
+  const unused = Math.max(0, roundRupee(advanceAvailable));
+  const signed = roundRupee(signedBalance);
+  if (opts?.signedIsEconomicNet) {
+    return facetsFromPartySignedBalance(signed, unused);
+  }
+  if (unused > SETTLED && signed < -SETTLED && Math.abs(signed + unused) <= 1) {
+    return facetsFromPartySignedBalance(signed, unused);
+  }
+  if (unused > SETTLED) {
+    return facetsFromInvoiceOutstanding(signed, unused);
+  }
+  return facetsFromPartySignedBalance(signed, unused);
+}
+
 export function summarizeAccountFacets(
   rows: CustomerAccountFacets[],
 ): CustomerAccountFacetTotals {

@@ -74,6 +74,7 @@ export function ledgerListRowToAlignedParty(
       net_receivable: 0,
     },
     row.phone ?? "",
+    { signedIsEconomicNet: true },
   );
 }
 
