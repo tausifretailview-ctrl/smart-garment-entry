@@ -608,7 +608,7 @@ export default function CustomerPartyBalancesPage() {
 
         {/* Org totals — compact strip */}
         <div className="grid grid-cols-3 gap-2 w-full shrink-0">
-          <div className="rounded-lg bg-gradient-to-br from-slate-500 to-slate-600 px-3 py-2 min-w-0 shadow-sm">
+          <div className="rounded-lg bg-gradient-to-br from-red-500 to-red-600 px-3 py-2 min-w-0 shadow-sm">
             <p className="text-xs font-medium text-white/80 leading-none">Total Outstanding (Dr)</p>
             <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
               ₹{fmtAmt(orgTotals.totalOutstandingDr)}

@@ -258,18 +258,16 @@ describe("Customer Balances Outstanding column tone", () => {
     expect(src).not.toContain("fmtAmt(Math.abs(f.outstanding))");
   });
 
-  it("splits Advance and CN as green credit columns; Net card is red, Outstanding card is gray", () => {
+  it("splits Advance and CN as green credit columns; Outstanding and Net cards are red", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(resolve(here, "../pages/CustomerPartyBalancesPage.tsx"), "utf8");
     expect(src).toContain("partyCreditNoteAmount");
     expect(src).toMatch(/>\s*CN\s*</);
     expect(src).toContain("[\"Sr No\", \"Party Name\", \"Phone\", \"Outstanding\", \"Advance\", \"CN\", \"Net\", \"Dr/Cr\"]");
     const cards = src.slice(src.indexOf("{/* Org totals"), src.indexOf("{/* Party list"));
-    expect(cards).toContain("from-slate-500 to-slate-600");
-    expect(cards).toContain("from-emerald-500 to-emerald-600");
-    expect(cards).toContain("from-red-500 to-red-600");
-    expect(cards.indexOf("from-slate-500")).toBeLessThan(cards.indexOf("Total Outstanding (Dr)"));
-    expect(cards.indexOf("from-red-500")).toBeGreaterThan(cards.indexOf("Total Credit (Cr)"));
-    expect(cards.indexOf("Net Receivable")).toBeGreaterThan(cards.indexOf("from-red-500"));
+    expect(cards).toMatch(/from-red-500 to-red-600[\s\S]*Total Outstanding \(Dr\)/);
+    expect(cards).toMatch(/from-emerald-500 to-emerald-600[\s\S]*Total Credit \(Cr\)/);
+    expect(cards).toMatch(/Total Credit \(Cr\)[\s\S]*from-red-500 to-red-600[\s\S]*Net Receivable/);
+    expect(cards).not.toContain("from-slate-500 to-slate-600");
   });
 });
