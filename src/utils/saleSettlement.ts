@@ -92,7 +92,88 @@ export type CreateReceiptVoucherParams = {
   createdBy?: string | null;
   /** Default `sale` — invoice-linked receipts must use `sale` to avoid mis-tagged customer rows. */
   referenceType?: "sale" | "customer";
+  /**
+   * Internal: skip {@link ensureAtSaleTenderReceipt}. Set only by the backfill itself
+   * (and by callers that are recording the at-sale tender as this very receipt).
+   */
+  skipAtSaleTenderBackfill?: boolean;
 };
+
+/**
+ * Materialise a bill's at-sale tender (cash/card/upi columns) as a real receipt
+ * before the first later receipt lands on it.
+ *
+ * `compute_sale_settlement` uses `GREATEST(receipt_total, tender)` — the max, not the
+ * sum — so once any receipt exists the counter tender is discarded and the bill looks
+ * part-paid forever (ELLA NOOR POS/26-27/93: ₹4,000 counter cash + ₹16,900 UPI receipt
+ * on a ₹20,900 bill recomputed to ₹16,900 / partial).
+ *
+ * Deliberately narrow so nothing can be double-counted:
+ * - only when the sale has NO live receipt yet (dual-written POS bills are untouched),
+ * - only when tender + the incoming receipt still fit inside the bill value,
+ * - never for hold / cancelled / deleted bills.
+ */
+export async function ensureAtSaleTenderReceipt(
+  supabase: SupabaseClient,
+  params: {
+    organizationId: string;
+    saleId: string;
+    incomingAmount: number;
+    voucherDate?: string;
+    createdBy?: string | null;
+  },
+): Promise<{ created: boolean; amount: number }> {
+  const { data: sale, error: saleErr } = await supabase
+    .from("sales")
+    .select(
+      "id, sale_number, net_amount, cash_amount, card_amount, upi_amount, payment_status, is_cancelled, deleted_at",
+    )
+    .eq("id", params.saleId)
+    .eq("organization_id", params.organizationId)
+    .maybeSingle();
+  if (saleErr || !sale) return { created: false, amount: 0 };
+
+  const row = sale as Record<string, unknown>;
+  if (row.deleted_at || row.is_cancelled === true) return { created: false, amount: 0 };
+  const status = String(row.payment_status || "").toLowerCase();
+  if (status === "hold" || status === "cancelled") return { created: false, amount: 0 };
+
+  const cash = Number(row.cash_amount) || 0;
+  const card = Number(row.card_amount) || 0;
+  const upi = Number(row.upi_amount) || 0;
+  const tender = Math.round((cash + card + upi) * 100) / 100;
+  if (tender <= 0.5) return { created: false, amount: 0 };
+
+  const net = Math.round((Number(row.net_amount) || 0) * 100) / 100;
+  const incoming = Math.max(0, Number(params.incomingAmount) || 0);
+  if (tender + incoming > net + 1) return { created: false, amount: 0 };
+
+  const { count, error: countErr } = await supabase
+    .from("voucher_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", params.organizationId)
+    .eq("voucher_type", "receipt")
+    .eq("reference_id", params.saleId)
+    .is("deleted_at", null);
+  if (countErr) return { created: false, amount: 0 };
+  if ((count ?? 0) > 0) return { created: false, amount: 0 };
+
+  const method = cash >= card && cash >= upi ? "cash" : card >= upi ? "card" : "upi";
+  await createReceiptVoucher(supabase, {
+    organizationId: params.organizationId,
+    referenceId: params.saleId,
+    referenceType: "sale",
+    amount: tender,
+    paymentMethod: method,
+    voucherDate: params.voucherDate,
+    createdBy: params.createdBy ?? null,
+    description: `Counter payment received for sale ${String(row.sale_number || "")}`.trim(),
+    skipAtSaleTenderBackfill: true,
+  });
+
+  return { created: true, amount: tender };
+}
+
 
 /** Files allowed to reference `credit_note_adjustment` (see scripts/check-cn-adjust-literals.sh). */
 export const CN_ADJUST_ALLOWED_CALLERS = [
