@@ -157,3 +157,62 @@ export function liveBarcodesForStockReportRetry(
   if (out.every((b) => b.toLowerCase() === searched)) return [];
   return out;
 }
+
+export type StockReportPurchaseMissHint = {
+  title: string;
+  description: string;
+};
+
+/**
+ * Shop-facing copy when a barcode is on a purchase bill but Stock Report
+ * still has no row. Returns null when a toast would not help (eligible SKU,
+ * same live barcode as the search — the empty table is enough).
+ */
+export function stockReportPurchaseMissHint(
+  resolutions: PurchaseBarcodeStockResolution[],
+): StockReportPurchaseMissHint | null {
+  const blocked = resolutions.find((r) => r.excludeReason);
+  if (!blocked?.excludeReason) return null;
+
+  const barcode = blocked.purchaseBarcode.trim();
+  const name = blocked.productName?.trim();
+  const named = name ? ` (${name})` : "";
+  const label = barcode ? `Barcode ${barcode}${named}` : `This item${named}`;
+  const reason = blocked.excludeReason;
+
+  if (reason.includes("inactive")) {
+    return {
+      title: "Product is inactive",
+      description: `${label} is on a purchase bill, but the product is inactive so Stock Report hides it.`,
+    };
+  }
+  if (reason.includes("Variant is soft-deleted")) {
+    return {
+      title: "Product was deleted",
+      description: `${label} is on a purchase bill, but this SKU is in Recycle Bin.`,
+    };
+  }
+  if (reason.includes("Product master is soft-deleted")) {
+    return {
+      title: "Product was deleted",
+      description: `${label} is on a purchase bill, but the product master is in Recycle Bin.`,
+    };
+  }
+  if (reason.includes("service")) {
+    return {
+      title: "Service item",
+      description: `${label} is a service, so it is not listed in Stock Report.`,
+    };
+  }
+  if (reason.includes("no product_variants")) {
+    return {
+      title: "Product missing from master",
+      description: `${label} is on a purchase bill, but the linked product is gone from master.`,
+    };
+  }
+
+  return {
+    title: "Not shown in Stock Report",
+    description: `${label} is on a purchase bill, but Stock Report cannot show it.`,
+  };
+}
