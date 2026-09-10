@@ -57,6 +57,7 @@ import {
   isStockReportBarcodeLikeSearch,
   liveBarcodesForStockReportRetry,
   resolvePurchaseBarcodesForStockReport,
+  stockReportPurchaseMissHint,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 import {
@@ -986,12 +987,10 @@ export default function StockReport() {
                 });
               }
             } else if (resolutions.length > 0) {
-              const reason =
-                resolutions.find((r) => r.excludeReason)?.excludeReason ||
-                "No active stock-report row for this purchase barcode.";
-              toast.error("On purchase bill, not in Stock Report", {
-                description: reason,
-              });
+              const miss = stockReportPurchaseMissHint(resolutions);
+              if (miss) {
+                toast.warning(miss.title, { description: miss.description });
+              }
             }
           } catch (resolveErr) {
             console.error("Purchase barcode resolve failed", resolveErr);
