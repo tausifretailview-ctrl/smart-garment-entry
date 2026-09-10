@@ -9,6 +9,7 @@
 --
 -- Signed-off Phase 0 hand-check 10 Sep 2026:
 --   line 23  0040011724  qty 3  sku 16bd823b… → f5ca4a2f…
+--   purchase_items.product_id is already canonical aec276e7 (not the fork 19e6e93a)
 --   empty shells 1000000690–0693  purchase=0 sale=0 movements=0 stock=0
 -- =============================================================================
 
@@ -83,13 +84,18 @@ BEGIN
   WHERE pi.id = v_item_id
     AND pi.bill_id = v_bill_id
     AND pi.deleted_at IS NULL;
+  -- sku is the duplicate variant; product_id may already be the canonical
+  -- master (aec276e7) even though sku.product_id is the fork (19e6e93a).
   IF r.sku_id IS DISTINCT FROM v_dup_sku
-     OR r.product_id IS DISTINCT FROM v_dup_product
      OR r.barcode IS DISTINCT FROM '0040011724'
      OR r.qty IS DISTINCT FROM 3 THEN
     RAISE EXCEPTION
       'Line 23 not in signed-off state: sku=% product=% barcode=% qty=%',
       r.sku_id, r.product_id, r.barcode, r.qty;
+  END IF;
+  IF r.product_id IS DISTINCT FROM v_correct_prod
+     AND r.product_id IS DISTINCT FROM v_dup_product THEN
+    RAISE EXCEPTION 'Line 23 unexpected product_id %', r.product_id;
   END IF;
 
   SELECT pv.barcode, pv.stock_qty, pv.deleted_at
