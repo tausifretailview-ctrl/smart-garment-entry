@@ -1,55 +1,36 @@
-# ELLA NOOR — Customer Balances: verify Dr/Cr and the three cards
+# KS Footwear — barcode 0040011724 shows in purchase but stock 0
 
-## What the screenshot shows
+## What the data shows (verified)
 
-On the live site, rows like AAISHA (₹3,650 Outstanding, ₹0 Advance, Net ₹3,650 **Cr**) and
-Anjuman Memon (₹3,750 + ₹16,200 advance = Net ₹19,950 **Cr**) look self-contradictory, and
-the list is filtered to **Dr** yet shows **Cr** badges.
+Barcode `0040011724` (KC71 / A WALK / size 42 / BR) does exist as a live item, but its stock is 0.
 
-Two separate things are behind that:
+The purchase line on bill PUR/26-27/207 (7 Sep 2026, qty 3) still *displays* barcode `0040011724`, but it is no longer linked to that item. Stock history for the line:
 
-1. **The screenshot is from an older build.** A fix landed in the code earlier the same
-   evening (Outstanding column now shows only what a party actually owes, and the Dr/Cr
-   filter is re-applied after the accurate recalculation). The live site was still serving
-   the previous build when the screenshot was taken. Nothing to re-fix there — it needs to
-   go live and be re-checked.
-2. **Two figures on the page still come from different sources.** The rows on screen are
-   re-computed with the accurate customer-by-customer logic, but the three cards at the top
-   and the "119 matching" count are still taken straight from the raw database summary.
-   When the two disagree, the cards and the row list can tell different stories.
+```text
+07 Sep 13:14  +3  added to item 0040011724
+07 Sep 14:01  -3  reversed from item 0040011724
+07 Sep 14:01  +3  added to a NEW item, auto barcode 1000000694
+```
+
+So the 3 pieces went to a newly created duplicate KC71 record, not to the barcode printed on the tag.
+
+This happened repeatedly on that day: five extra KC71 product records were created between 13:15 and 14:01, each holding a single auto-numbered item. Across the whole 7 Sep session, 8 new product records with 31 items were created. The bill's 40 lines now point at 5 different KC71 records.
+
+## Cause
+
+When the user picks an existing product from the purchase search bar and then re-saves the bill (draft resume / edit), the line is re-pointed to a freshly created product + item with a generated barcode instead of matching back to the existing item that already carries `0040011724`. The line keeps the old barcode text, so the bill looks right while the stock lands elsewhere.
 
 ## Plan
 
-1. **Publish and re-verify.** Get the current code live, then reload Customer Balances for
-   ELLA NOOR and confirm: no Cr badge under the Dr filter, and no credit amount sitting in
-   the Outstanding column.
-2. **Audit the numbers themselves (read-only).** Compare, for every ELLA NOOR party, the
-   database balance against the accurate recalculation. Produce a report listing any party
-   where the two differ by more than ₹1, grouped by cause (unused advance, part-used credit
-   note, manual adjustment). This tells us whether the remaining complaint is a display
-   issue or real data drift.
-3. **Make the cards agree with the list.** Total Outstanding (Dr), Total Credit (Cr) and
-   Net Receivable should be summed from the same corrected figures the rows use. Where the
-   full-org recalculation is too heavy to run live, keep the database totals but label the
-   card as the database figure and show the drift found in step 2 instead of silently
-   mixing the two.
-4. **Fix the "matching" count and paging.** Count and page after the correction is applied,
-   so "119 matching" always equals the rows a person can actually page through.
-5. **Lock it with tests.** Extend the existing balance tests with the ELLA NOOR cases from
-   the screenshot (AAISHA, AARISH, Anjuman Memon, AMJAD settled) so the Cr/Dr direction and
-   the card totals can't drift apart again.
+1. Confirm the exact save path that re-creates the product on edit (purchase save/atomic RPC + the search-selection barcode fill), and identify why the existing item was not matched by barcode.
+2. Fix the matching rule: when a purchase line carries a barcode that already exists in the organization, always attach the line to that existing item — never create a new product/item, and never overwrite its barcode with a generated one.
+3. Add a guard so a saved purchase line can never end with a line barcode that differs from the item it updated.
+4. Repair the KS Footwear data: move the 7 Sep stock from the duplicate KC71 records back onto the correct barcoded items, merge/soft-delete the 5 empty duplicate KC71 records, and reconcile the stock column drift on `0040011724` (it shows 0 in the report but 6 in the legacy column).
+5. Re-check Stock Report, Item-Wise Stock and Quick Stock for `0040011724` and for the full bill PUR/26-27/207 after the repair.
 
 ## Technical notes
 
-- Page: `src/pages/CustomerPartyBalancesPage.tsx`; helpers `customerPartyBalanceDisplay.ts`,
-  `customerPartyBalanceSnapshot.ts`, `customerAccountFacets.ts`.
-- Cards use `summarizeAccountFacets(rows)` over raw `get_customer_party_balances` rows;
-  displayed rows use `enrichPartyRowsWithCanonicalBalance` (audit bundle +
-  `getCustomerAccountState`). That asymmetry is the card/list divergence.
-- `matchingCount` is derived from `filteredRows` (pre-enrich) while `tableRows` re-filters
-  post-enrich — hence count vs visible-rows mismatch.
-- Step 2 runs through the existing parity scripts
-  (`scripts/audit-balance-formula-parity.sql`, `docs/customer-balance-verification-recipe.md`).
-  Note the party RPCs are no longer executable from the SQL tool after the recent security
-  revokes, so the audit runs from an authenticated app-side script.
-- No money-write logic, no RLS changes, no migration edits in steps 1, 3, 4, 5.
+- Org `4bc73037-e877-4123-9261-eb6e3876698c`; correct variant `f5ca4a2f…` (product `aec276e7…`, 49 variants, stock 57); duplicate variant `16bd823b…` (product `19e6e93a…`, barcode `1000000694`, stock 3).
+- Movements `purchase_sku_change_out` / `purchase_sku_change_in` at 14:01:05 record the re-point.
+- 605 live items org-wide carry a generated `1xxxxxxxxx` barcode with stock, so the repair scope beyond this bill should be measured before any bulk action.
+- Repair runs as scoped migrations/updates with `organization_id` filters and soft deletes only.
