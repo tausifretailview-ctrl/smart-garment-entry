@@ -901,7 +901,8 @@ Deno.serve(async (req) => {
 
       const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
+      // deno-lint-ignore no-explicit-any
+      const supabase: any = createClient(supabaseUrl, supabaseKey);
 
       const applyStatusToLog = async (
         messageId: string,
