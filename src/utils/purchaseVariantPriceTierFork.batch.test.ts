@@ -12,6 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { resolveVariantsForIncomingPriceTiers } from "./purchaseVariantPriceTierFork";
+import { resolvePurchaseLineItemsForPriceTiers } from "./syncVariantPriceFromPurchase";
 
 type VariantRow = {
   id: string;
@@ -23,6 +24,7 @@ type VariantRow = {
   pur_price: number | null;
   sale_price: number | null;
   mrp: number | null;
+  created_at?: string | null;
 };
 
 function chainSelect(rows: unknown[]) {
@@ -322,7 +324,63 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
-  it("allocates a fresh generated barcode when a generated SKU actually forks on sale price", async () => {
+  it("attaches a draft/edit line that already carries an existing generated barcode instead of forking a new product", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-jeans",
+        product_id: "prod-jeans",
+        size: "28",
+        color: null,
+        barcode: "450006800",
+        barcode_source: "generated",
+        pur_price: 750,
+        sale_price: 1199,
+        mrp: null,
+      },
+    ];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "purchase_items") return chainSelect([{ sku_id: "sku-jeans" }]);
+      if (table === "sale_items") return chainSelect([]);
+      if (table === "product_variants") return chainSelect(variants);
+      if (table === "products") {
+        return chainSelect([
+          {
+            id: "prod-jeans",
+            product_name: "JEANS - NARROW - HASTY",
+            brand: null,
+            category: null,
+            color: null,
+            style: null,
+            default_sale_price: 1199,
+          },
+        ]);
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const results = await resolveVariantsForIncomingPriceTiers([
+      {
+        organizationId: "org-chirag",
+        variantId: "sku-jeans",
+        barcode: "450006800",
+        incomingPurPrice: 750,
+        incomingSalePrice: 1299,
+        incomingMrp: 1299,
+      },
+    ]);
+
+    expect(results[0]).toEqual({
+      variantId: "sku-jeans",
+      productId: "prod-jeans",
+      forked: false,
+      barcode: "450006800",
+    });
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("still forks a generated sibling when the line barcode is empty and the SKU has posted history", async () => {
     const variants: VariantRow[] = [
       {
         id: "sku-jeans",
@@ -424,7 +482,7 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
       {
         organizationId: "org-chirag",
         variantId: "sku-jeans",
-        barcode: "450006800",
+        barcode: "",
         incomingPurPrice: 750,
         incomingSalePrice: 1299,
         incomingMrp: 1299,
@@ -502,6 +560,81 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
         barcode: "420001739",
       },
     ]);
+    expect(insertMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("edit/resave of a draft line carrying an existing barcode stocks the pre-existing item, not a new product", async () => {
+    const variants: VariantRow[] = [
+      {
+        id: "sku-existing",
+        product_id: "prod-existing",
+        size: "7",
+        color: "BK",
+        barcode: "0040017398",
+        barcode_source: "generated",
+        pur_price: 80,
+        sale_price: 150,
+        mrp: 164.5,
+        created_at: "2026-01-15T00:00:00.000Z",
+      },
+      {
+        id: "sku-new",
+        product_id: "prod-new",
+        size: "7",
+        color: "BK",
+        barcode: "0040019999",
+        barcode_source: "generated",
+        pur_price: 100,
+        sale_price: 200,
+        mrp: 200,
+        created_at: "2026-09-10T00:00:00.000Z",
+      },
+    ];
+
+    fromMock.mockImplementation((table: string) => {
+      if (table === "product_variants") return chainSelect(variants);
+      if (table === "products") {
+        return chainSelect([
+          {
+            id: "prod-existing",
+            product_name: "PUG42",
+            brand: "PUG",
+            category: "FOOTWEAR",
+            color: "BK",
+            style: "RLX",
+            default_sale_price: 150,
+          },
+          {
+            id: "prod-new",
+            product_name: "PUG42",
+            brand: "PUG",
+            category: "FOOTWEAR",
+            color: "BK",
+            style: "RLX",
+            default_sale_price: 200,
+          },
+        ]);
+      }
+      throw new Error(`unexpected table ${table}`);
+    });
+
+    const resolved = await resolvePurchaseLineItemsForPriceTiers("org-ks-footwear", [
+      {
+        sku_id: "sku-new",
+        product_id: "prod-new",
+        barcode: "0040017398",
+        size: "7",
+        pur_price: 100,
+        sale_price: 200,
+        mrp: 200,
+      },
+    ]);
+
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].sku_id).toBe("sku-existing");
+    expect(resolved[0].product_id).toBe("prod-existing");
+    expect(resolved[0].barcode).toBe("0040017398");
     expect(insertMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
   });
