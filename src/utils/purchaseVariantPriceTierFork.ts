@@ -7,6 +7,11 @@ import {
   importPriceTierKey,
   makePurchaseImportProductKey,
 } from "@/utils/purchaseImportBarcodeTier";
+import {
+  pickLiveVariantForExistingLineBarcode,
+  shouldAttachPurchaseLineToExistingBarcode,
+  type PurchaseLineBarcodeHit,
+} from "@/utils/purchaseLineBarcodeMatch";
 
 export const PURCHASE_PRICE_TIER_TOLERANCE = 0.009;
 
@@ -109,7 +114,7 @@ function canUpdateGeneratedSkuPriceInPlace(args: {
 }
 
 const VARIANT_PRICE_SELECT =
-  "id, product_id, size, color, barcode, barcode_source, pur_price, sale_price, mrp";
+  "id, product_id, size, color, barcode, barcode_source, pur_price, sale_price, mrp, created_at";
 
 type VariantPriceRow = {
   id: string;
@@ -121,6 +126,7 @@ type VariantPriceRow = {
   pur_price: number | null;
   sale_price: number | null;
   mrp: number | null;
+  created_at?: string | null;
 };
 
 type ProductRow = {
@@ -144,6 +150,7 @@ export type ResolveVariantForIncomingPriceTierParams = {
   organizationId: string;
   variantId?: string;
   barcode?: string;
+  size?: string;
   incomingPurPrice: number;
   incomingSalePrice: number;
   incomingMrp?: number;
@@ -438,6 +445,10 @@ function findProductIdForTierInContext(
   return null;
 }
 
+function asBarcodeHits(rows: VariantPriceRow[]): PurchaseLineBarcodeHit[] {
+  return rows;
+}
+
 function resolveWithoutFork(
   params: ResolveVariantForIncomingPriceTierParams,
   ctx: TierResolutionContext,
@@ -445,6 +456,7 @@ function resolveWithoutFork(
   const {
     variantId,
     barcode,
+    size,
     incomingPurPrice,
     incomingSalePrice,
     incomingMrp,
@@ -454,12 +466,65 @@ function resolveWithoutFork(
   if (incomingPurPrice <= 0 || incomingSalePrice <= 0) return null;
 
   const incomingTier = { mrp: incomingMrp, salePrice: incomingSalePrice };
+  const lineBarcode = (barcode || "").trim();
 
   let sourceVariant: VariantPriceRow | null = null;
   if (variantId) {
     sourceVariant = ctx.variantById.get(variantId) ?? null;
   }
-  const lookupBarcode = (barcode || sourceVariant?.barcode || "").trim();
+
+  // Line barcode X already live in the org: attach to that item. Do not use a
+  // sku_id whose barcode differs (draft/edit used to fork a generated SKU).
+  if (lineBarcode) {
+    const hits = ctx.variantsByBarcode.get(lineBarcode) ?? [];
+    if (hits.length > 0) {
+      const skuHoldsLineBarcode =
+        !!sourceVariant && (sourceVariant.barcode || "").trim() === lineBarcode;
+      if (!skuHoldsLineBarcode) {
+        const tierMatchIds = new Set(
+          hits
+            .filter((row) =>
+              purchasePriceTiersMatch(
+                { mrp: row.mrp, salePrice: row.sale_price },
+                incomingTier,
+              ),
+            )
+            .map((row) => row.id),
+        );
+        const picked = pickLiveVariantForExistingLineBarcode(asBarcodeHits(hits), {
+          lineSize: size,
+          tierMatchIds,
+        });
+        if (picked) {
+          sourceVariant = hits.find((row) => row.id === picked.id) ?? sourceVariant;
+        }
+      }
+
+      const attachFrom = sourceVariant && (sourceVariant.barcode || "").trim() === lineBarcode
+        ? sourceVariant
+        : hits[0];
+      if (
+        attachFrom &&
+        shouldAttachPurchaseLineToExistingBarcode({
+          lineBarcode,
+          liveHits: asBarcodeHits(hits),
+          reuseBarcodeOnFork: shouldReuseBarcodeOnPriceTierFork({
+            barcode_source: attachFrom.barcode_source,
+            barcode: lineBarcode,
+          }),
+        })
+      ) {
+        return {
+          variantId: attachFrom.id,
+          productId: attachFrom.product_id,
+          forked: false,
+          barcode: attachFrom.barcode,
+        };
+      }
+    }
+  }
+
+  const lookupBarcode = lineBarcode || (sourceVariant?.barcode || "").trim();
   if (!sourceVariant && lookupBarcode) {
     const siblings = ctx.variantsByBarcode.get(lookupBarcode) ?? [];
     sourceVariant = siblings[0] ?? null;

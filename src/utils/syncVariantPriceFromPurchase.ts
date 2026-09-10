@@ -231,6 +231,7 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
   sku_id: string;
   product_id: string;
   barcode?: string;
+  size?: string;
   pur_price: number;
   sale_price: number;
   mrp?: number;
@@ -248,13 +249,16 @@ export async function resolvePurchaseLineItemsForPriceTiers<T extends {
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     if (item.linkExistingSku) continue;
-    if (!item.sku_id || item.sale_price <= 0 || item.pur_price <= 0) continue;
+    if (item.sale_price <= 0 || item.pur_price <= 0) continue;
+    const lineBarcode = (item.barcode || "").trim();
+    if (!item.sku_id && !lineBarcode) continue;
     tierParams.push({
       index,
       params: {
         organizationId,
-        variantId: item.sku_id,
+        variantId: item.sku_id || undefined,
         barcode: item.barcode,
+        size: item.size,
         incomingPurPrice: item.pur_price,
         incomingSalePrice: item.sale_price,
         incomingMrp: item.mrp,

@@ -46,6 +46,7 @@ describe("missingCritical", () => {
     const missing = missingCritical([]);
     expect(missing.some((row) => row.version === "20261001140000")).toBe(true);
     expect(missing.some((row) => row.version === "20261207140000")).toBe(true);
+    expect(missing.some((row) => row.version === "20261208120000")).toBe(true);
   });
 
   it("is empty when every critical version is live", () => {
