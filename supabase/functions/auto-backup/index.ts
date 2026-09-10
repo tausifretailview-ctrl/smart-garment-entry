@@ -111,7 +111,8 @@ Deno.serve(async (req) => {
   }
 
   let backupLogId: string | null = null;
-  let supabase: ReturnType<typeof createClient> | null = null;
+  // deno-lint-ignore no-explicit-any
+  let supabase: any = null;
   let organizationId: string | null = null;
 
   try {

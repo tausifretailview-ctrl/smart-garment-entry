@@ -81,7 +81,7 @@ async function resolveOutboundSendProvider(
       .eq('organization_id', organizationId)
       .maybeSingle();
 
-    if (String(secret?.instance_id ?? '').trim()) {
+    if (String((secret as { instance_id?: string } | null)?.instance_id ?? '').trim()) {
       return 'wappconnect';
     }
   }
@@ -510,7 +510,8 @@ serve(async (req) => {
       );
     }
     
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // deno-lint-ignore no-explicit-any
+    const supabase: any = createClient(supabaseUrl, supabaseServiceKey);
 
     const { 
       organizationId, 

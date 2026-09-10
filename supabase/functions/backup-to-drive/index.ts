@@ -100,8 +100,9 @@ async function uploadToGoogleDrive(accessToken: string, fileName: string, conten
 }
 
 async function markBackupFailed(
-  supabase: ReturnType<typeof createClient>,
-  backupLogId: string,
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  backupLogId: string | null,
   organizationId: string,
   errorMessage: string,
 ): Promise<void> {
@@ -124,7 +125,8 @@ Deno.serve(async (req) => {
   }
 
   let backupLogId: string | null = null;
-  let supabase: ReturnType<typeof createClient> | null = null;
+  // deno-lint-ignore no-explicit-any
+  let supabase: any = null;
   let organizationId: string | null = null;
 
   try {
@@ -325,7 +327,7 @@ Deno.serve(async (req) => {
         records_count: recordsCounts,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', backupLogId);
+      .eq('id', backupLogId as string);
 
     return new Response(
       JSON.stringify({
