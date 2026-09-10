@@ -50,7 +50,9 @@ const STABLE_TAB_OPTIONS = {
   staleTime: 5 * 60 * 1000,
   gcTime: 30 * 60 * 1000,
   refetchOnWindowFocus: false as const,
-  refetchOnMount: false as const,
+  // Stock can change while this cached tab is hidden (sales, purchases, or
+  // product merges). Always reconcile this report when the panel reopens.
+  refetchOnMount: "always" as const,
   refetchOnReconnect: false as const,
 };
 
