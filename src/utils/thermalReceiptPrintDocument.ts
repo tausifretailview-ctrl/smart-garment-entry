@@ -163,6 +163,13 @@ export function buildThermalReceiptPrintCss(
   .kids-thermal-receipt-80mm * {
     box-sizing: border-box !important;
   }
+  .kids-thermal-receipt-80mm .kids-thermal-particulars {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
   .thermal-print-80mm table {
     width: 100% !important;
     max-width: 100% !important;
