@@ -1,11 +1,13 @@
-import { Navigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useUserRoles } from "@/hooks/useUserRoles";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
-import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useTabCacheLayout, useTabCachePanePath } from "@/contexts/TabCacheLayoutContext";
+import { panePathFromLocation, recordPaneTimelineEvent } from "@/lib/pwaColdOpenDiagnostics";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useRef } from "react";
 
 type AppRole = "admin" | "manager" | "user" | "platform_admin";
 
@@ -21,8 +23,11 @@ export const RoleProtectedRoute = ({
   redirectTo
 }: RoleProtectedRouteProps) => {
   const { orgSlug } = useParams<{ orgSlug: string }>();
+  const location = useLocation();
   const { currentOrganization, loading: orgLoading } = useOrganization();
   const inTabCachePane = useTabCacheLayout();
+  const tabCachePath = useTabCachePanePath();
+  const recordedRolesPassRef = useRef(false);
   const loadingShellClass = cn(
     "flex items-center justify-center",
     inTabCachePane ? "h-full min-h-0 w-full" : "min-h-screen",
@@ -77,6 +82,14 @@ export const RoleProtectedRoute = ({
     const slug = orgSlug || currentOrganization?.slug || localStorage.getItem("selectedOrgSlug");
     const redirectPath = redirectTo || (slug ? `/${slug}` : "/");
     return <Navigate to={redirectPath} replace />;
+  }
+
+  if (!recordedRolesPassRef.current) {
+    recordedRolesPassRef.current = true;
+    recordPaneTimelineEvent(
+      tabCachePath ?? panePathFromLocation(location.pathname, orgSlug),
+      "roles-children-mounted",
+    );
   }
 
   return <>{children}</>;

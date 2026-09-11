@@ -36,6 +36,7 @@ import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { resolveTabLoadShell } from "@/lib/tabLoadShell";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
+import { recordPaneTimelineEvent } from "@/lib/pwaColdOpenDiagnostics";
 import {
   isTabCachePaneContentReady,
   isTabCachePaneMounted,
@@ -47,7 +48,7 @@ import {
   isPaintedTabSibling,
   shouldSilentTabSuspenseFallback,
 } from "@/lib/tabCacheReadiness";
-import { TabCacheLayoutContext } from "@/contexts/TabCacheLayoutContext";
+import { TabCacheLayoutContext, TabCachePanePathContext } from "@/contexts/TabCacheLayoutContext";
 import {
   isNavigationPerfEnabled,
   recordChunkLoadEnd,
@@ -456,6 +457,7 @@ function CachedTabPane({
   const handlePaneReady = useCallback(() => {
     hasPaneMountedRef.current = true;
     markTabCachePaneContentReady(path);
+    recordPaneTimelineEvent(path, "onReady");
     onActivePaneReady?.(path);
   }, [onActivePaneReady, path]);
 
@@ -568,7 +570,9 @@ function CachedTabPane({
       data-tab-cache-dimmed={dimOutgoing ? "true" : undefined}
     >
       <TabCacheLayoutContext.Provider value>
-        {withRole}
+        <TabCachePanePathContext.Provider value={path}>
+          {withRole}
+        </TabCachePanePathContext.Provider>
       </TabCacheLayoutContext.Provider>
     </div>
   );
