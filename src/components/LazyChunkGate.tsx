@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { isChunkLoadError, lazyWithRetry } from "@/lib/chunkLoadRetry";
 
 /** Show Retry before importWithRetry's 60s module timeout (deploy-skew / hung import). */
@@ -99,7 +100,14 @@ function ErrorBody({
           Retry
         </Button>
         {chunkError && (
-          <Button type="button" size="sm" variant="secondary" onClick={() => window.location.reload()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void reloadAppWithUpdateCheck();
+            }}
+          >
             Refresh app
           </Button>
         )}
