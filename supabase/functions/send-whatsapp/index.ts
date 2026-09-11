@@ -764,9 +764,8 @@ serve(async (req) => {
         }
       }
 
-      // PDF + description: WappConnect drops captions on documents, so send-whatsapp
-      // still builds invoice text here; sendViaWappConnect then POSTs the PDF and
-      // sendTexts the description separately.
+      // PDF + description: WappConnect drops captions on documents. sendViaWappConnect
+      // POSTs sendText (description in the body, not the query string) then the PDF.
       if (resolvedFileUrl && !resolvedMessage) {
         const { data: companySettings } = await supabase
           .from('settings')

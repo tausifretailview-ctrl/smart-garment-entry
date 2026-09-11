@@ -77,28 +77,50 @@ export function truncateWappConnectMessage(
 }
 
 /**
- * WappConnect drops captions on PDF/documents ("only document will deliver not caption").
- * Invoice description must go as a separate sendText after the file.
+ * PDF/document captions are dropped by WappConnect. Put the invoice description on
+ * sendText first (POST body — GET query strings 500 on long templates), then the file
+ * with only a short placeholder caption.
  */
+export const WAPPCONNECT_PDF_PLACEHOLDER_CAPTION = "Invoice attached.";
+export const WAPPCONNECT_STEP_GAP_MS = 400;
+const WAPPCONNECT_GET_MESSAGE_MAX_ENCODED = 900;
+
 export function planWappConnectSendSteps(opts: {
   hasFile: boolean;
   message: string;
 }): WappConnectSendStep[] {
   const message = truncateWappConnectMessage(String(opts.message ?? "").trim());
   if (opts.hasFile) {
-    const fileMessage = message || "Please find your document attached.";
-    const steps: WappConnectSendStep[] = [
-      { endpoint: "/api/sendFileWithCaption", role: "file", message: fileMessage },
-    ];
+    const steps: WappConnectSendStep[] = [];
     if (message) {
       steps.push({ endpoint: "/api/sendText", role: "text", message });
     }
+    steps.push({
+      endpoint: "/api/sendFileWithCaption",
+      role: "file",
+      message: message ? WAPPCONNECT_PDF_PLACEHOLDER_CAPTION : "Please find your document attached.",
+    });
     return steps;
   }
   if (message) {
     return [{ endpoint: "/api/sendText", role: "text", message }];
   }
   return [];
+}
+
+function encodedQueryLength(text: string): number {
+  try {
+    return encodeURIComponent(text).length;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+}
+
+async function waitWappConnectStepGap(): Promise<void> {
+  const vitest = typeof process !== "undefined" && Boolean(process.env?.VITEST);
+  const ms = vitest ? 0 : WAPPCONNECT_STEP_GAP_MS;
+  if (ms <= 0) return;
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Some WappConnect builds read `message`; others look for `caption` / `description`. */
@@ -341,11 +363,7 @@ export async function sendViaWappConnect(
     if (mode === "link" && cleanFileUrl) {
       url.searchParams.set("link", cleanFileUrl);
       applyWappConnectCaptionFields((key, value) => url.searchParams.set(key, value), stepMessage);
-    } else if (mode === "text" && stepMessage) {
-      url.searchParams.set("message", stepMessage);
     }
-    // multipart POST: caption/description travel in FormData only — long invoice text in the
-    // query string has caused WappConnect 500 "Internal server error" responses.
   };
 
   type StepRun = {
@@ -374,6 +392,10 @@ export async function sendViaWappConnect(
       if (isFile && downloadedPdf) {
         const form = new FormData();
         form.append("file", downloadedPdf, filename);
+        applyWappConnectCaptionFields((key, value) => form.append(key, value), step.message);
+        response = await fetch(url.toString(), { method: "POST", body: form });
+      } else if (!isFile) {
+        const form = new FormData();
         applyWappConnectCaptionFields((key, value) => form.append(key, value), step.message);
         response = await fetch(url.toString(), { method: "POST", body: form });
       } else {
@@ -427,6 +449,63 @@ export async function sendViaWappConnect(
       }
     }
 
+    const stepFailed = () => !classifyWappConnectResponse(response.status, responseObject).success;
+
+    // sendText POST FormData failed: try urlencoded body, then GET only if the
+    // encoded message is short (long GET captions 500).
+    if (!isFile && stepFailed()) {
+      try {
+        const formUrl = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
+        applyParams(formUrl, "text", step.message);
+        const body = new URLSearchParams();
+        applyWappConnectCaptionFields((key, value) => body.set(key, value), step.message);
+        const encodedResponse = await fetch(formUrl.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        rawBody = await encodedResponse.text();
+        responseData = parseWappConnectResponseBody(rawBody);
+        responseObject = typeof responseData === "object" && responseData !== null
+          ? responseData as Record<string, unknown>
+          : { raw: responseData };
+        providerError = extractWappConnectErrorMessage(responseObject);
+        response = encodedResponse;
+        requestUrlRedacted = redactWappConnectInstanceId(
+          redactApiKeyInUrl(formUrl.toString()),
+          token,
+        ) as string;
+      } catch {
+        // keep FormData error
+      }
+    }
+
+    if (
+      !isFile &&
+      stepFailed() &&
+      encodedQueryLength(step.message) <= WAPPCONNECT_GET_MESSAGE_MAX_ENCODED
+    ) {
+      try {
+        const getUrl = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
+        applyParams(getUrl, "text", step.message);
+        getUrl.searchParams.set("message", step.message);
+        const getResponse = await fetch(getUrl.toString(), { method: "GET" });
+        rawBody = await getResponse.text();
+        responseData = parseWappConnectResponseBody(rawBody);
+        responseObject = typeof responseData === "object" && responseData !== null
+          ? responseData as Record<string, unknown>
+          : { raw: responseData };
+        providerError = extractWappConnectErrorMessage(responseObject);
+        response = getResponse;
+        requestUrlRedacted = redactWappConnectInstanceId(
+          redactApiKeyInUrl(getUrl.toString()),
+          token,
+        ) as string;
+      } catch {
+        // keep POST error
+      }
+    }
+
     const outcome = classifyWappConnectResponse(response.status, responseObject);
     return {
       role: step.role,
@@ -441,7 +520,17 @@ export async function sendViaWappConnect(
 
   const stepRuns: StepRun[] = [];
   for (const step of steps) {
+    if (stepRuns.length > 0) await waitWappConnectStepGap();
     stepRuns.push(await runStep(step));
+  }
+
+  const textStep = steps.find((step) => step.role === "text");
+  const textFailed = stepRuns.find((run) => run.role === "text" && !run.success);
+  if (textStep && textFailed) {
+    await waitWappConnectStepGap();
+    const retry = await runStep(textStep);
+    const idx = stepRuns.findIndex((run) => run.role === "text");
+    if (idx >= 0) stepRuns[idx] = retry;
   }
 
   const failed = stepRuns.find((run) => !run.success);
