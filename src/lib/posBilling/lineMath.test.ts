@@ -39,7 +39,7 @@ describe("applyPosGarmentGstToItem — garment/footwear GST threshold rule", () 
     expect(result.gstPer).toBe(18);
   });
 
-  it("does NOT force a SERVICE item's manually-set 18% back down when price is at/below threshold (the original bug)", () => {
+  it("applies the below-threshold slab to a SERVICE when sale price is entered at billing (18% → 5%)", () => {
     const item = baseItem({
       productType: "service",
       mrp: 500,
@@ -47,7 +47,7 @@ describe("applyPosGarmentGstToItem — garment/footwear GST threshold rule", () 
       gstPer: 18,
     });
     const result = applyPosGarmentGstToItem(item, SETTINGS_ON);
-    expect(result.gstPer).toBe(18);
+    expect(result.gstPer).toBe(5);
   });
 
   it("still bumps a GOODS item up to 18% above threshold (unaffected by the service carve-out)", () => {

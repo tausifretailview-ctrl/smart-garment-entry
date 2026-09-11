@@ -46,20 +46,10 @@ export function applyPosGarmentGstToItem(
     item.gstPer,
     garmentGstSettings,
   );
-  // The garment/apparel GST-by-price-threshold rule has two independent
-  // directions: bump UP to 18% when price crosses the org's threshold, or
-  // force DOWN to the slab rate when price is at/below threshold but GST is
-  // already 18% (normally from an inherited purchase rate). Only the DOWNWARD
-  // direction is wrong for service line items — that was silently reverting a
-  // manually-chosen 18% on a low-priced service (not a garment) back to 5%.
-  // The UPWARD bump must still apply to services too: some orgs track
-  // garment-equivalent items (e.g. custom-stitched suits, a boutique/tailor's
-  // "SUITS" product) as service products and rely on this rule to auto-bump
-  // them once price crosses the threshold, same as any other garment.
-  const currentGst = Number(item.gstPer) || 0;
-  const isDownwardCorrection = resolvedGst < currentGst;
-  const gstPer = item.productType === "service" && isDownwardCorrection ? item.gstPer : resolvedGst;
-  return { ...withNet, gstPer };
+  // Same sale-price slab as goods when the org setting is on: above threshold
+  // → 18%, at/below → configured slab (e.g. 5%). Services use the price entered
+  // at POS / sale time, so they must follow this too — not keep a master 18%.
+  return { ...withNet, gstPer: resolvedGst };
 }
 
 export function sumLineDiscount(rows: PosCartItem[]): number {

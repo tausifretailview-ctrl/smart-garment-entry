@@ -1960,8 +1960,8 @@ export default function Settings() {
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         When sale price exceeds the threshold below, Sale GST % auto-changes to 18%.
-                        Below or equal to the threshold, an 18% rate falls back to the slab rate below (e.g. 5%),
-                        so a wrong 18% entered during purchase does not carry into POS billing.
+                        Below or equal to the threshold, an 18% rate falls back to the slab rate below (e.g. 5%).
+                        Applies to goods and service lines on POS and Sale bills, using the sale price entered at billing.
                       </p>
                     </div>
                     <Switch

@@ -34,13 +34,21 @@ function cartLine(partial: Partial<PosCartItem> & Pick<PosCartItem, "gstPer" | "
 }
 
 describe("applyPosGarmentGstToItem — service vs garment", () => {
-  it("keeps an explicit 18% GST on a service priced at or below the garment threshold", () => {
+  it("uses the sale-price GST slab on a service at or below the threshold (18% → 5%)", () => {
     const next = applyPosGarmentGstToItem(
       cartLine({ productType: "service", gstPer: 18, mrp: 500, unitCost: 500 }),
       garmentSettings,
     );
-    expect(next.gstPer).toBe(18);
+    expect(next.gstPer).toBe(5);
     expect(next.netAmount).toBe(500);
+  });
+
+  it("bumps a service above the threshold to 18%", () => {
+    const next = applyPosGarmentGstToItem(
+      cartLine({ productType: "service", gstPer: 5, mrp: 1500, unitCost: 1500 }),
+      garmentSettings,
+    );
+    expect(next.gstPer).toBe(18);
   });
 
   it("still forces a garment at/below threshold from 18% down to the slab rate", () => {
@@ -68,8 +76,8 @@ describe("applyPosGarmentGstToItem — service vs garment", () => {
   });
 });
 
-describe("POS cart recompute does not revert service GST", () => {
-  it("add and a later line recompute keep service 18% under the garment threshold", () => {
+describe("POS cart recompute applies sale-price GST slab to services", () => {
+  it("add and a later line recompute set service GST from entered sale price", () => {
     const added = addLine({
       items: [],
       grossBasis: "sale_price",
@@ -85,10 +93,28 @@ describe("POS cart recompute does not revert service GST", () => {
       variant: { id: "v1", barcode: "S1", size: "", sale_price: 400, mrp: 400 },
       makeLineId: () => "svc-1",
     });
-    expect(added.items[0].gstPer).toBe(18);
+    expect(added.items[0].gstPer).toBe(5);
 
     const afterDisc = updateDiscountPercent(added.items, 0, 0, 0, garmentSettings);
     expect(afterDisc.error).toBeUndefined();
-    expect(afterDisc.items[0].gstPer).toBe(18);
+    expect(afterDisc.items[0].gstPer).toBe(5);
+
+    const expensive = addLine({
+      items: [],
+      grossBasis: "sale_price",
+      garmentGstSettings: garmentSettings,
+      product: {
+        id: "p2",
+        product_name: "Stitching",
+        gst_per: 5,
+        sale_gst_percent: 5,
+        purchase_gst_percent: 5,
+        product_type: "service",
+      },
+      variant: { id: "v2", barcode: "S2", size: "", sale_price: 2500, mrp: 2500 },
+      overridePrice: { sale_price: 2500, mrp: 2500 },
+      makeLineId: () => "svc-2",
+    });
+    expect(expensive.items[0].gstPer).toBe(18);
   });
 });
