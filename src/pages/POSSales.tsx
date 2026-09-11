@@ -87,6 +87,7 @@ import {
   posAdvanceApplyBlockReason,
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
+  unusedAdvanceFromBookings,
 } from "@/utils/posApplyAdvance";
 import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
 import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
@@ -2304,11 +2305,7 @@ export default function POSSales() {
           ),
         ]);
         if (cancelled) return;
-        const unused = (advRows || []).reduce((sum, row) => {
-          const available = (Number(row.amount) || 0) - (Number(row.used_amount) || 0);
-          return sum + Math.max(0, available);
-        }, 0);
-        setAvailableAdvanceBalance(unused);
+        setAvailableAdvanceBalance(unusedAdvanceFromBookings(advRows || []));
         setOpeningBalanceRemaining(obRemaining);
         setAdvanceApplied(0);
       } catch {

@@ -304,6 +304,21 @@ export function sumCustomerAdvanceTenders(advances: CashierAdvanceRow[]): {
 }
 
 /**
+ * Tender stored on the sale row.
+ * Explicit 0 means no drawer money (bill settled by advance apply) — do not
+ * treat 0 as missing and fall back to net. Null/undefined keeps the legacy
+ * net fallback for old cash rows that never stored a tender split.
+ */
+export function cashierSaleTenderAmount(
+  stored: number | null | undefined,
+  fallbackNet: number,
+): number {
+  if (stored == null) return Number(fallbackNet) || 0;
+  const n = Number(stored);
+  return Number.isFinite(n) ? n : Number(fallbackNet) || 0;
+}
+
+/**
  * Payment Collection rows: sale tenders plus same-day advance bookings by mode.
  * Cash advance belongs in Cash collection (and analogously UPI/card), not only
  * in Other Money In / Advance Received.
@@ -366,7 +381,7 @@ export function reduceCashierCashIn(params: {
     } else {
       switch (sale.payment_method) {
         case "cash":
-          cashSale += Number(sale.cash_amount) || net;
+          cashSale += cashierSaleTenderAmount(sale.cash_amount, net);
           break;
         case "card":
         case "upi":

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { reconcileSaleInvoiceWithSplit } from "@/utils/customerBalanceUtils";
 import {
   cashierSaleAndAdvanceCollection,
+  cashierSaleTenderAmount,
   computeCashierActualNetReceivable,
   createSameDaySaleReceiptOverlapTracker,
   reduceCashierCashIn,
@@ -303,5 +304,38 @@ describe("POS advance booking cashier cash-in", () => {
     expect(collection.cashCollection).toBe(0);
     expect(collection.upiCollection).toBe(1_000);
     expect(collection.netCashCollection).toBe(0);
+  });
+
+  it("advance-redeemed bill (cash_amount 0) does not add to Cash collection", () => {
+    expect(cashierSaleTenderAmount(0, 600)).toBe(0);
+    expect(cashierSaleTenderAmount(null, 600)).toBe(600);
+    expect(cashierSaleTenderAmount(undefined, 600)).toBe(600);
+    expect(cashierSaleTenderAmount(250, 600)).toBe(250);
+
+    const { cashSale, totalCashIn } = reduceCashierCashIn({
+      sales: [
+        {
+          id: "sale-adv-600",
+          payment_method: "cash",
+          payment_status: "completed",
+          sale_number: "POS/26-27/1",
+          net_amount: 600,
+          cash_amount: 0,
+        },
+      ],
+      receipts: [],
+      advanceCash: 1_000,
+    });
+    expect(cashSale).toBe(0);
+    expect(totalCashIn).toBe(1_000);
+
+    const collection = cashierSaleAndAdvanceCollection({
+      cashSale,
+      cardSale: 0,
+      upiSale: 0,
+      advanceCash: 1_000,
+    });
+    expect(collection.cashCollection).toBe(1_000);
+    expect(collection.netCashCollection).toBe(1_000);
   });
 });
