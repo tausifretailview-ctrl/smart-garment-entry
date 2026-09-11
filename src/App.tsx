@@ -168,10 +168,18 @@ const MobilePurchaseEntry = lazyWithRetry(() => import("./pages/mobile/MobilePur
 const MobileDashboardPage = lazyWithRetry(() => import("./pages/mobile/MobileDashboardPage"));
 const MobileAccountsPage = lazyWithRetry(() => import("./pages/mobile/MobileAccountsPage"));
 import { OwnerPlaceholderScreen } from "@/components/mobile/OwnerPlaceholderScreen";
-import { OwnerSalesScreen } from "@/components/mobile/OwnerSalesScreen";
-import { OwnerPurchaseScreen } from "@/components/mobile/OwnerPurchaseScreen";
-import { OwnerStockScreen } from "@/components/mobile/OwnerStockScreen";
-import { OwnerReportsHub } from "@/components/mobile/OwnerReportsHub";
+const OwnerSalesScreen = lazyWithRetry(() =>
+  import("@/components/mobile/OwnerSalesScreen").then((m) => ({ default: m.OwnerSalesScreen })),
+);
+const OwnerPurchaseScreen = lazyWithRetry(() =>
+  import("@/components/mobile/OwnerPurchaseScreen").then((m) => ({ default: m.OwnerPurchaseScreen })),
+);
+const OwnerStockScreen = lazyWithRetry(() =>
+  import("@/components/mobile/OwnerStockScreen").then((m) => ({ default: m.OwnerStockScreen })),
+);
+const OwnerReportsHub = lazyWithRetry(() =>
+  import("@/components/mobile/OwnerReportsHub").then((m) => ({ default: m.OwnerReportsHub })),
+);
 const StudentMaster = lazyWithRetry(() => import("./pages/school/StudentMaster"));
 const StudentEntry = lazyWithRetry(() => import("./pages/school/StudentEntry"));
 const AcademicYearSetup = lazyWithRetry(() => import("./pages/school/AcademicYearSetup"));
@@ -1784,7 +1792,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <FullScreenLayout>
-                        <OwnerSalesScreen />
+                        <Suspense fallback={<LazyFallback />}>
+                          <OwnerSalesScreen />
+                        </Suspense>
                       </FullScreenLayout>
                     </ProtectedRoute>
                   }
@@ -1794,7 +1804,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <FullScreenLayout>
-                        <OwnerPurchaseScreen />
+                        <Suspense fallback={<LazyFallback />}>
+                          <OwnerPurchaseScreen />
+                        </Suspense>
                       </FullScreenLayout>
                     </ProtectedRoute>
                   }
@@ -1804,7 +1816,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <FullScreenLayout>
-                        <OwnerStockScreen />
+                        <Suspense fallback={<LazyFallback />}>
+                          <OwnerStockScreen />
+                        </Suspense>
                       </FullScreenLayout>
                     </ProtectedRoute>
                   }
@@ -1814,7 +1828,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <FullScreenLayout>
-                        <OwnerReportsHub />
+                        <Suspense fallback={<LazyFallback />}>
+                          <OwnerReportsHub />
+                        </Suspense>
                       </FullScreenLayout>
                     </ProtectedRoute>
                   }

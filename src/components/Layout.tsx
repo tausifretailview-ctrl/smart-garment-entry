@@ -6,7 +6,7 @@ import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { KeyboardShortcutsModal, useKeyboardShortcuts } from "@/components/KeyboardShortcutsModal";
 import { ChatProvider } from "@/contexts/ChatContext";
-import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
+import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
@@ -142,7 +142,7 @@ export const Layout = ({ children }: LayoutProps) => {
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />
-                <FloatingChatButton />
+                <LazyFloatingChatButton />
               </div>
             </IdleMount>
             <DesktopViewEscapeHatch />

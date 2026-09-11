@@ -21,8 +21,11 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
-import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { FloatingStockReport, FloatingSaleReport } from "@/components/FloatingPOSReports";
+import {
+  LazySizeStockDialog,
+  LazyFloatingStockReport,
+  LazyFloatingSaleReport,
+} from "@/components/lazyFloatingWidgets";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
@@ -602,9 +605,9 @@ export const Header = () => {
       </div>
 
       {/* Dialogs */}
-      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
-      <FloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
-      <FloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
+      <LazySizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
+      <LazyFloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
+      <LazyFloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
       <ContactSupportSheet open={supportOpen} onOpenChange={setSupportOpen} />
       <KeyboardShortcutsModal open={helpShortcutsOpen} onOpenChange={setHelpShortcutsOpen} context="general" />
     </>
