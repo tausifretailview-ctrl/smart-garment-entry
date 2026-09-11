@@ -7,6 +7,7 @@ import {
   posAdvanceApplyBlockReason,
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
+  unusedAdvanceFromBookings,
 } from "./posApplyAdvance";
 
 describe("posAdvanceApplyBlockReason", () => {
@@ -107,5 +108,34 @@ describe("posTenderDueAfterAdvance", () => {
     const advanceApplied = 200;
     expect(posTenderDueAfterAdvance(persistedNet, advanceApplied)).toBe(850);
     expect(persistedNet).toBe(1050);
+  });
+
+  it("₹600 bill fully adjusted from ₹1000 advance leaves ₹0 tender due", () => {
+    expect(posTenderDueAfterAdvance(600, 600)).toBe(0);
+    expect(capPosAdvanceApplyAmount({
+      requested: 600,
+      availableAdvanceBalance: 1000,
+      billRoom: 600,
+    })).toBe(600);
+  });
+});
+
+describe("unusedAdvanceFromBookings", () => {
+  it("₹1000 booking with ₹600 redeem leaves ₹400 on the customer", () => {
+    expect(
+      unusedAdvanceFromBookings([{ amount: 1000, used_amount: 600 }]),
+    ).toBe(400);
+  });
+
+  it("sums leftover across FIFO bookings and ignores over-used rows", () => {
+    expect(
+      unusedAdvanceFromBookings([
+        { amount: 400, used_amount: 400 },
+        { amount: 600, used_amount: 200 },
+      ]),
+    ).toBe(400);
+    expect(
+      unusedAdvanceFromBookings([{ amount: 500, used_amount: 800 }]),
+    ).toBe(0);
   });
 });

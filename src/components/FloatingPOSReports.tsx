@@ -24,6 +24,7 @@ import {
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   cashierSaleAndAdvanceCollection,
+  cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
@@ -225,9 +226,9 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         upiSale += applied.upi;
       } else {
         switch (sale.payment_method) {
-          case "cash": cashSale += Number(sale.cash_amount) || net; break;
-          case "card": cardSale += Number(sale.card_amount) || net; break;
-          case "upi": upiSale += Number(sale.upi_amount) || net; break;
+          case "cash": cashSale += cashierSaleTenderAmount(sale.cash_amount, net); break;
+          case "card": cardSale += cashierSaleTenderAmount(sale.card_amount, net); break;
+          case "upi": upiSale += cashierSaleTenderAmount(sale.upi_amount, net); break;
           case "pay_later": creditSale += net; break;
           default: cashSale += net;
         }

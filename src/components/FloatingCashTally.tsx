@@ -25,7 +25,7 @@ import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
-import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import { cashierSaleTenderAmount, createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
 
 // ─── helpers ───────────────────────────────────────────────────────────
@@ -274,9 +274,9 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
         target.upi += applied.upi;
       } else {
         switch (s.payment_method) {
-          case "cash": target.cash += Number(s.cash_amount) || net; break;
-          case "card": target.card += Number(s.card_amount) || net; break;
-          case "upi": target.upi += Number(s.upi_amount) || net; break;
+          case "cash": target.cash += cashierSaleTenderAmount(s.cash_amount, net); break;
+          case "card": target.card += cashierSaleTenderAmount(s.card_amount, net); break;
+          case "upi": target.upi += cashierSaleTenderAmount(s.upi_amount, net); break;
           case "pay_later": target.credit += net; break;
           default: target.cash += net;
         }

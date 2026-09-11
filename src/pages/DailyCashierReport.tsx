@@ -43,6 +43,7 @@ import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
   cashierSaleAndAdvanceCollection,
+  cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
@@ -455,15 +456,15 @@ const DailyCashierReport = () => {
           // For single payment methods
           switch (sale.payment_method) {
             case "cash":
-              cashSale += Number(sale.cash_amount) || netAmount;
+              cashSale += cashierSaleTenderAmount(sale.cash_amount, netAmount);
               cashBills++;
               break;
             case "card":
-              cardSale += Number(sale.card_amount) || netAmount;
+              cardSale += cashierSaleTenderAmount(sale.card_amount, netAmount);
               cardBills++;
               break;
             case "upi":
-              upiSale += Number(sale.upi_amount) || netAmount;
+              upiSale += cashierSaleTenderAmount(sale.upi_amount, netAmount);
               upiBills++;
               break;
             case "pay_later":

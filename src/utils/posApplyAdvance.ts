@@ -78,6 +78,17 @@ export function posTenderDueAfterAdvance(
   return Math.max(0, Math.round((net - adv) * 100) / 100);
 }
 
+/** Unused booking pool on the customer (Adv field). `used_amount` is FIFO redeem. */
+export function unusedAdvanceFromBookings(
+  rows: Array<{ amount?: number | null; used_amount?: number | null }>,
+): number {
+  const unused = rows.reduce((sum, row) => {
+    const available = (Number(row.amount) || 0) - (Number(row.used_amount) || 0);
+    return sum + Math.max(0, available);
+  }, 0);
+  return Math.round(unused * 100) / 100;
+}
+
 export type ApplyExistingAdvanceToSaleParams = {
   client: SupabaseClient;
   customerId: string;

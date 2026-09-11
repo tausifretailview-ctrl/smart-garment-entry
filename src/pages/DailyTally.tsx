@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
-import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import { cashierSaleTenderAmount, createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -310,9 +310,9 @@ const DailyTally = () => {
         target.upi += Number(s.upi_amount) || 0;
       } else {
         switch (s.payment_method) {
-          case "cash": target.cash += Number(s.cash_amount) || net; break;
-          case "card": target.card += Number(s.card_amount) || net; break;
-          case "upi": target.upi += Number(s.upi_amount) || net; break;
+          case "cash": target.cash += cashierSaleTenderAmount(s.cash_amount, net); break;
+          case "card": target.card += cashierSaleTenderAmount(s.card_amount, net); break;
+          case "upi": target.upi += cashierSaleTenderAmount(s.upi_amount, net); break;
           case "pay_later": target.credit += net; break;
           default: target.cash += net;
         }
