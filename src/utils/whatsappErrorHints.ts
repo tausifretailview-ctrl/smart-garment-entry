@@ -56,6 +56,7 @@ export function getWhatsAppErrorHint(
     const requestUrl = String((providerResponse as Record<string, unknown> | undefined)?.requestUrl ?? "");
     const isTextOnlySend =
       endpoint.includes("sendText") &&
+      !endpoint.includes("sendFile") &&
       !requestUrl.includes("serve-wappconnect-pdf") &&
       !requestUrl.includes(".pdf");
 

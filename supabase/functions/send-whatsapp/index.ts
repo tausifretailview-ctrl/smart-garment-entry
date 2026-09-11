@@ -764,7 +764,9 @@ serve(async (req) => {
         }
       }
 
-      // PDF + caption: WappConnect requires non-empty text body with sendFileWithCaption
+      // PDF + description: WappConnect drops captions on documents, so send-whatsapp
+      // still builds invoice text here; sendViaWappConnect then POSTs the PDF and
+      // sendTexts the description separately.
       if (resolvedFileUrl && !resolvedMessage) {
         const { data: companySettings } = await supabase
           .from('settings')
