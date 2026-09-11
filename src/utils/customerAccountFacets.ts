@@ -34,6 +34,15 @@ function roundRupee(n: number): number {
   return Math.round(Number(n) || 0);
 }
 
+/**
+ * POS footer Customer Balance chip.
+ * Unused booking advance stays in the Adv field — pass invoice leftover
+ * (`outstanding` / `useCustomerBalance.grossOutstanding`), never `netPosition`.
+ */
+export function posFooterCustomerBalance(invoiceOutstanding: number): number {
+  return roundRupee(invoiceOutstanding);
+}
+
 /** From Customer Ledger list row (JS balance already excludes unused advance). */
 export function facetsFromInvoiceOutstanding(
   invoiceOutstanding: number,

@@ -6,6 +6,7 @@ import {
   facetsFromPartySignedBalance,
   partyDebtorNetFromRpcRow,
   partyNetPositionFromRpcRow,
+  posFooterCustomerBalance,
   summarizeAccountFacets,
 } from "@/utils/customerAccountFacets";
 
@@ -92,5 +93,17 @@ describe("customerAccountFacets", () => {
     expect(partyNetPositionFromRpcRow({ signed_balance: -100 })).toBe(-100);
     expect(partyDebtorNetFromRpcRow({ signed_balance: -100 })).toBe(0);
     expect(partyDebtorNetFromRpcRow({ signed_balance: 158_700 })).toBe(158_700);
+  });
+
+  it("POS footer Customer Balance ignores unused advance (Adv field only)", () => {
+    const unusedOnly = facetsFromInvoiceOutstanding(0, 1_000);
+    expect(posFooterCustomerBalance(unusedOnly.outstanding)).toBe(0);
+    expect(unusedOnly.unusedAdvance).toBe(1_000);
+    expect(unusedOnly.netPosition).toBe(-1_000);
+
+    const invoiceAndAdvance = facetsFromInvoiceOutstanding(500, 1_000);
+    expect(posFooterCustomerBalance(invoiceAndAdvance.outstanding)).toBe(500);
+
+    expect(posFooterCustomerBalance(-200)).toBe(-200);
   });
 });

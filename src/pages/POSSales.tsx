@@ -80,7 +80,7 @@ import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
-import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot, grossOutstandingFromFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   applyExistingAdvanceToSale,
   capPosAdvanceApplyAmount,
@@ -88,6 +88,7 @@ import {
   posAdvanceApplyBlockToast,
   posTenderDueAfterAdvance,
 } from "@/utils/posApplyAdvance";
+import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
 import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
 import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -667,11 +668,12 @@ export default function POSSales() {
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
-  // Customer balance hook
-  const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+  // Customer balance hook — footer chip is invoice leftover, unused advance stays in Adv.
+  const { grossOutstanding: customerLedgerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
     customerId || null,
     currentOrganization?.id || null
   );
+  const customerBalance = posFooterCustomerBalance(customerLedgerBalance);
   
   // Customer points hooks
   const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
@@ -2158,9 +2160,9 @@ export default function POSSales() {
   );
   
   const {
-    getCustomerBalance,
     getCustomerAdvance,
     getCustomerCreditNote,
+    getCustomerSnapshot,
     balancesLoading,
     balancesFetching,
   } = useCustomerBalances({
@@ -5419,7 +5421,7 @@ export default function POSSales() {
             currentOrganization.id,
             custId,
           );
-          customerBalance = Math.round(Number(snap.netPosition) || 0);
+          customerBalance = Math.round(Number(grossOutstandingFromFinancialSnapshot(snap)) || 0);
         } catch {
           customerBalance = 0;
         }
@@ -7052,7 +7054,10 @@ export default function POSSales() {
                       <CommandEmpty>No customers found.</CommandEmpty>
                       <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
-                          const balance = getCustomerBalance(customer);
+                          const snap = getCustomerSnapshot(customer.id);
+                          const balance = posFooterCustomerBalance(
+                            snap ? grossOutstandingFromFinancialSnapshot(snap) : 0,
+                          );
                           const advanceAmt = getCustomerAdvance(customer.id);
                           const creditNoteAmt = getCustomerCreditNote(customer.id);
                           return (

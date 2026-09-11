@@ -42,6 +42,7 @@ import {
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
+  cashierSaleAndAdvanceCollection,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
@@ -740,6 +741,14 @@ const DailyCashierReport = () => {
   };
 
   const totals = calculateTotals();
+  const paymentCollection = cashierSaleAndAdvanceCollection({
+    cashSale: totals.cashSale,
+    cardSale: totals.cardSale,
+    upiSale: totals.upiSale,
+    advanceCash: totals.advanceCash,
+    advanceCard: totals.advanceCard,
+    advanceUpi: totals.advanceUpi,
+  });
 
   const eligibleSalesForList = useMemo(() => {
     const isHoldLikeSale = (sale: any) => {
@@ -1039,9 +1048,9 @@ const DailyCashierReport = () => {
           {/* Payment breakdown */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              {label:"Cash", value: totals.cashSale, color:"text-emerald-600", bg:"bg-emerald-50"},
-              {label:"Card", value: totals.cardSale, color:"text-blue-600", bg:"bg-blue-50"},
-              {label:"UPI", value: totals.upiSale, color:"text-purple-600", bg:"bg-purple-50"},
+              {label:"Cash", value: paymentCollection.cashCollection, color:"text-emerald-600", bg:"bg-emerald-50"},
+              {label:"Card", value: paymentCollection.cardCollection, color:"text-blue-600", bg:"bg-blue-50"},
+              {label:"UPI", value: paymentCollection.upiCollection, color:"text-purple-600", bg:"bg-purple-50"},
             ].map((p) => (
               <div key={p.label} className={cn("rounded-xl p-3", p.bg)}>
                 <p className="text-[10px] font-medium text-muted-foreground">{p.label}</p>
@@ -1309,7 +1318,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">Cash Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(totals.cashSale)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.cashCollection)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1320,7 +1329,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">Card Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(totals.cardSale)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.cardCollection)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1331,7 +1340,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">UPI Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(totals.upiSale)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.upiCollection)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1419,14 +1428,14 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                      <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale + (totals.advanceCash || 0) - totals.cashRefundTotal)}</TableCell>
+                      <TableCell className="text-right font-bold text-lg">{formatCurrency(paymentCollection.netCashCollection - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
-                  {/* Advance bookings — customer_advances, not RCP */}
+                  {/* Advance bookings — already in Cash / UPI / Card collection by payment mode */}
                   {(totals.advanceReceived || 0) > 0 && (
                     <>
                       <TableRow className="bg-emerald-50 dark:bg-emerald-950">
                         <TableCell colSpan={2} className="font-semibold text-emerald-700 dark:text-emerald-300">
-                          Advance Bookings — {totals.advanceCount} entries
+                          Advance Bookings — {totals.advanceCount} entries (included in Cash / UPI / Card)
                         </TableCell>
                       </TableRow>
                       {(totals.advanceCash || 0) > 0 && (

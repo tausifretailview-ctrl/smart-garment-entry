@@ -22,7 +22,11 @@ import {
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
-import { createSameDaySaleReceiptOverlapTracker, sumCustomerAdvanceTenders } from "@/utils/posCashierCashIn";
+import {
+  cashierSaleAndAdvanceCollection,
+  createSameDaySaleReceiptOverlapTracker,
+  sumCustomerAdvanceTenders,
+} from "@/utils/posCashierCashIn";
 import {
   buildProductTextOrFilter,
   expandProductSearchTerms,
@@ -287,6 +291,9 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       totalSRAdjusted: Math.round(totalSRAdjusted),
       totalBills: eligibleSales.length,
       advanceReceived: Math.round(advanceReceived),
+      advanceCash: Math.round(advanceCash),
+      advanceUpi: Math.round(advanceUpi),
+      advanceCard: Math.round(advanceCard),
       receiptTotal: Math.round(receiptTotal),
       supplierPaid: Math.round(supplierPaid),
       expensePaid: Math.round(expensePaid),
@@ -299,6 +306,14 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   const totals = calculateTotals();
+  const paymentCollection = cashierSaleAndAdvanceCollection({
+    cashSale: totals.cashSale,
+    cardSale: totals.cardSale,
+    upiSale: totals.upiSale,
+    advanceCash: totals.advanceCash,
+    advanceCard: totals.advanceCard,
+    advanceUpi: totals.advanceUpi,
+  });
 
   const formatCurrency = (amount: number) => `₹${Math.round(amount).toLocaleString('en-IN')}`;
 
@@ -435,21 +450,21 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                           <IndianRupee className="h-4 w-4 text-green-600" />
                           Cash
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(totals.cashSale)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.cashCollection)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-blue-600" />
                           Card
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(totals.cardSale)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.cardCollection)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
                           <Smartphone className="h-4 w-4 text-purple-600" />
                           UPI
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(totals.upiSale)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.upiCollection)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
@@ -471,7 +486,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         <TableCell className="font-bold">Net Cash Collection</TableCell>
                         {/* cash_amount on the sale row is already negative for refund outflows,
                             so cashSale already reflects the refund — do NOT subtract totalRefund again. */}
-                        <TableCell className="text-right font-bold text-lg">{formatCurrency(totals.cashSale)}</TableCell>
+                        <TableCell className="text-right font-bold text-lg">{formatCurrency(paymentCollection.netCashCollection)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -489,7 +504,12 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                       <TableBody>
                         {totals.advanceReceived > 0 && (
                           <TableRow>
-                            <TableCell>Advance Received</TableCell>
+                            <TableCell>
+                              <div>Advance Received</div>
+                              <div className="text-xs text-muted-foreground font-normal">
+                                Included in Cash / UPI / Card by payment mode
+                              </div>
+                            </TableCell>
                             <TableCell className="text-right text-green-600 font-medium">{formatCurrency(totals.advanceReceived)}</TableCell>
                           </TableRow>
                         )}

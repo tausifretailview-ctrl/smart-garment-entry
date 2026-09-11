@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { reconcileSaleInvoiceWithSplit } from "@/utils/customerBalanceUtils";
 import {
+  cashierSaleAndAdvanceCollection,
   computeCashierActualNetReceivable,
   createSameDaySaleReceiptOverlapTracker,
   reduceCashierCashIn,
@@ -271,5 +272,36 @@ describe("POS advance booking cashier cash-in", () => {
     expect(cashSale).toBe(0);
     expect(receiptCash).toBe(0);
     expect(totalCashIn).toBe(5_500);
+  });
+
+  it("Payment Collection Cash includes cash advance; UPI advance stays in UPI", () => {
+    const tenders = sumCustomerAdvanceTenders([
+      { amount: 1_000, payment_method: "cash" },
+    ]);
+    const collection = cashierSaleAndAdvanceCollection({
+      cashSale: 0,
+      cardSale: 0,
+      upiSale: 500,
+      advanceCash: tenders.advanceCash,
+      advanceCard: tenders.advanceCard,
+      advanceUpi: tenders.advanceUpi,
+    });
+    expect(collection.cashCollection).toBe(1_000);
+    expect(collection.upiCollection).toBe(500);
+    expect(collection.cardCollection).toBe(0);
+    expect(collection.netCashCollection).toBe(1_000);
+  });
+
+  it("UPI advance does not inflate Cash collection", () => {
+    const tenders = sumCustomerAdvanceTenders([{ amount: 1_000, payment_method: "upi" }]);
+    const collection = cashierSaleAndAdvanceCollection({
+      cashSale: 0,
+      cardSale: 0,
+      upiSale: 0,
+      ...tenders,
+    });
+    expect(collection.cashCollection).toBe(0);
+    expect(collection.upiCollection).toBe(1_000);
+    expect(collection.netCashCollection).toBe(0);
   });
 });
