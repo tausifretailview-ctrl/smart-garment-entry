@@ -34,9 +34,11 @@ const LazyWhatsAppMessageNotifier = lazy(() =>
 const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
-import { SizeStockDialog } from "@/components/SizeStockDialog";
-import { FloatingCashTally } from "@/components/FloatingCashTally";
-import { FloatingPayments } from "@/components/FloatingPayments";
+import {
+  LazySizeStockDialog,
+  LazyFloatingCashTally,
+  LazyFloatingPayments,
+} from "@/components/lazyFloatingWidgets";
 import { Truck } from "lucide-react";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
 import { IdleMount } from "@/components/IdleMount";
@@ -88,9 +90,9 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const posDialogs = (
     <>
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
-      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
-      <FloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
-      <FloatingPayments open={showPayments} onOpenChange={setShowPayments} />
+      <LazySizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+      <LazyFloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
+      <LazyFloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </>
   );
 

@@ -12,6 +12,9 @@ describe("mobile sale PDF preview", () => {
     expect(src).toContain("compactLayout");
     expect(src).toContain("documentType");
     expect(src).toContain("thermalPaper");
+    expect(src).toContain("LazyChunkGate");
+    expect(src).toContain("Loading invoice layout");
+    expect(src).not.toMatch(/import\s*\{\s*InvoiceWrapper\s*\}/);
   });
 
   it("scales the preview off the capture node so Download PDF is full-size", () => {

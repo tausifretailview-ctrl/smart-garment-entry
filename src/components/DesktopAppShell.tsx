@@ -6,7 +6,7 @@ import { SidebarExpandStrip } from "@/components/SidebarExpandStrip";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ChatProvider } from "@/contexts/ChatContext";
-import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
+import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
@@ -73,7 +73,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />
-                <FloatingChatButton />
+                <LazyFloatingChatButton />
               </div>
             </IdleMount>
             <DesktopViewEscapeHatch />

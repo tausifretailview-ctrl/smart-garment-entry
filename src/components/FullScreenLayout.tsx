@@ -5,7 +5,7 @@ import { SidebarExpandStrip } from "@/components/SidebarExpandStrip";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { ChatProvider } from "@/contexts/ChatContext";
-import { FloatingChatButton } from "@/components/AIChatbot/FloatingChatButton";
+import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileAppHeader } from "@/components/mobile/MobileAppHeader";
@@ -148,7 +148,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
             <OrgMoneyRealtimeInvalidation />
             <IdleMount>
               <div className="hidden lg:contents">
-                <FloatingChatButton />
+                <LazyFloatingChatButton />
               </div>
             </IdleMount>
             <DesktopViewEscapeHatch />

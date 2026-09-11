@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { PrintPreviewDialog } from "@/components/PrintPreviewDialog";
-import { InvoiceWrapper } from "@/components/InvoiceWrapper";
+import { LazyChunkGate } from "@/components/LazyChunkGate";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { fetchSaleForInvoicePreview } from "@/utils/mobileInvoicePreviewData";
@@ -12,6 +12,13 @@ import {
   toInvoiceWrapperFormat,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
+
+const loadInvoiceWrapper = () =>
+  import("@/components/InvoiceWrapper").then((m) => ({ default: m.InvoiceWrapper }));
+
+type InvoiceWrapperProps = ComponentProps<
+  typeof import("@/components/InvoiceWrapper").InvoiceWrapper
+>;
 
 type SaleHint = {
   sale_type?: string | null;
@@ -163,7 +170,22 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange, saleH
             </div>
           );
         }
-        return <InvoiceWrapper {...invoiceProps} format={format as typeof invoiceProps.format} />;
+        const wrapperProps: InvoiceWrapperProps = {
+          ...invoiceProps,
+          format: format as typeof invoiceProps.format,
+        };
+        return (
+          <LazyChunkGate
+            variant="inline"
+            loader={loadInvoiceWrapper}
+            componentProps={wrapperProps}
+            title="Invoice preview"
+            loadingMessage="Loading invoice layout…"
+            errorTitle="Could not load invoice preview"
+            errorDescription="This can happen after an app update. Retry to download the print layout — a bill cannot be printed until this loads."
+            onDismiss={() => onOpenChange(false)}
+          />
+        );
       }}
     />
   );
