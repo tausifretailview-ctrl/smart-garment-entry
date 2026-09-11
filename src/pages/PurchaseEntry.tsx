@@ -168,6 +168,7 @@ import {
 } from "@/utils/purchaseBarcodePrintGuard";
 import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
+import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
@@ -2292,6 +2293,8 @@ const PurchaseEntry = () => {
         .from('purchase_bills')
         .select('*')
         .eq('id', billId)
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
         .single();
       if (billError) throw billError;
 
@@ -2389,7 +2392,15 @@ const PurchaseEntry = () => {
 
       const loadedQty = loadedItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       const headerQty = Number((existingBill as { total_qty?: number }).total_qty) || 0;
-      if (headerQty > 0 && Math.abs(loadedQty - headerQty) > 0.5) {
+      const headerLineCount = Number((existingBill as { total_items?: number }).total_items) || 0;
+      if (
+        isPurchaseBillLoadIncomplete({
+          loadedQty,
+          loadedLineCount: loadedItems.length,
+          headerQty,
+          headerLineCount,
+        })
+      ) {
         toast({
           title: "Bill lines may be incomplete",
           description: `Loaded ${loadedQty.toLocaleString("en-IN")} qty from ${loadedItems.length.toLocaleString("en-IN")} lines but the bill header shows ${headerQty.toLocaleString("en-IN")} qty. Totals may not match until all lines are present.`,
