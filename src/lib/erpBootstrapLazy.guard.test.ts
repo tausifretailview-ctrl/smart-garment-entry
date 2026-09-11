@@ -77,4 +77,12 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     const orgLayout = src("src/components/OrgLayout.tsx");
     expect(orgLayout).toContain("OrgAuth");
   });
+
+  it("LazyChunkGate Refresh app purges caches via reloadAppWithUpdateCheck", () => {
+    const gate = src("src/components/LazyChunkGate.tsx");
+    expect(gate).toContain("reloadAppWithUpdateCheck");
+    expect(gate).toContain("lazyWithRetry");
+    expect(gate).toContain("data-lazy-chunk-error");
+    expect(gate).toContain("data-lazy-chunk-loading");
+  });
 });
