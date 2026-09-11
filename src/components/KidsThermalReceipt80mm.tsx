@@ -2,6 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
 import type { PosThermalPaper } from '@/utils/invoicePrintFormat';
+import {
+  formatKidsParticularsLine,
+  kidsLayoutForPaper,
+} from '@/utils/kidsThermalParticulars';
 
 interface KidsThermalItem {
   sr: number;
@@ -50,44 +54,6 @@ const KIDS_DEFAULT_TERMS = [
 
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
 const fmtDec = (n: number): string => n.toFixed(2);
-const fmtMrp = (n: number): string => n.toFixed(3);
-
-const KIDS_MAX_NAME_LEN_80 = 16;
-const KIDS_MAX_NAME_LEN_58 = 11;
-
-function kidsLayoutForPaper(paper: PosThermalPaper) {
-  const is58 = paper === '58mm';
-  return {
-    paperWidth: is58 ? '48mm' : '72mm',
-    padding: is58 ? '1mm 0.5mm 1mm 1mm' : '1mm 2mm 1mm 3mm',
-    baseFont: is58 ? '11px' : '14px',
-    headerFont: is58 ? '14px' : '18px',
-    titleFont: is58 ? '12px' : '15px',
-    itemFont: is58 ? '10px' : '13px',
-    footerFont: is58 ? '10px' : '13px',
-    grandFont: is58 ? '15px' : '20px',
-    maxNameLen: is58 ? KIDS_MAX_NAME_LEN_58 : KIDS_MAX_NAME_LEN_80,
-    colQtyFlex: is58 ? '0 0 11%' : '0 0 14%',
-    colAmtFlex: is58 ? '0 0 24%' : '0 0 24%',
-    stackTotals: is58,
-  };
-}
-
-/** One-line: short name - size - [MRP] (no box, no wrap). */
-function formatKidsParticularsLine(item: KidsThermalItem, maxNameLen: number, showMrp: boolean): string {
-  let name = item.particulars.trim();
-  if (name.length > maxNameLen) {
-    name = `${name.slice(0, maxNameLen - 2)}..`;
-  }
-  const rawSize = item.size?.trim() || '';
-  // Guard placeholder sizes/colors ("None", "N/A", "-") from printing as product detail.
-  const size = /^(none|n\/a|na|null|undefined|-|\.)$/i.test(rawSize) ? '' : rawSize;
-  const mrpVal = Number(item.mrp) || Number(item.rate) || 0;
-  const parts = [name];
-  if (size) parts.push(size);
-  if (showMrp && mrpVal > 0) parts.push(fmtMrp(mrpVal));
-  return parts.join(' - ');
-}
 
 export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsThermalReceipt80mmProps>(
   (props, ref) => {
@@ -204,7 +170,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       display: 'flex',
       justifyContent: 'flex-start',
       alignItems: 'center',
-      gap: layout.stackTotals ? '1mm' : '2mm',
+      gap: layout.itemGap,
       width: '100%',
       fontSize: layout.itemFont,
       fontWeight: 900,
@@ -223,6 +189,7 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
     };
     const colQty: React.CSSProperties = {
       flex: layout.colQtyFlex,
+      flexShrink: 0,
       textAlign: 'right',
       fontWeight: 900,
     };
@@ -303,19 +270,19 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         {/* Items — no box borders, left-aligned columns */}
         <div style={{ width: '100%', fontWeight: 900 }}>
           <div style={{ ...itemRow, fontSize: layout.itemFont, borderBottom: '1px solid #000', paddingBottom: '2px' }}>
-            <span style={colParticulars}>Particulars</span>
+            <span className="kids-thermal-particulars" style={colParticulars}>Particulars</span>
             <span style={colQty}>Qty</span>
             <span style={colAmt}>N.Amt.</span>
           </div>
           {items.map((item, i) => (
             <div key={i} style={itemRow}>
-              <span style={colParticulars}>{formatKidsParticularsLine(item, layout.maxNameLen, showMrp)}</span>
+              <span className="kids-thermal-particulars" style={colParticulars}>{formatKidsParticularsLine(item, layout.maxNameLen, showMrp)}</span>
               <span style={colQty}>{item.qty}</span>
               <span style={colAmt}>₹{fmtAmt(item.total)}</span>
             </div>
           ))}
           <div style={{ ...itemRow, borderTop: '1px dotted #000', marginTop: '2px', paddingTop: '2px' }}>
-            <span style={colParticulars}>Sub-Total</span>
+            <span className="kids-thermal-particulars" style={colParticulars}>Sub-Total</span>
             <span style={colQty}>{totalQty}</span>
             <span style={colAmt}>₹{fmtAmt(saleAmount)}</span>
           </div>

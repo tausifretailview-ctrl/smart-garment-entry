@@ -131,6 +131,11 @@ export function applyWappConnectInvoicePdfCloneFixes(
         padding-top: 1px !important;
         padding-bottom: 1px !important;
       }
+      .kids-thermal-receipt-80mm .kids-thermal-particulars {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+      }
     `;
     clonedDoc.head?.appendChild(thermalStyle);
 
