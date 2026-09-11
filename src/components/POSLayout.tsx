@@ -34,8 +34,8 @@ const LazyWhatsAppMessageNotifier = lazy(() =>
 const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
-  LazySizeStockDialog,
   LazyFloatingCashTally,
   LazyFloatingPayments,
 } from "@/components/lazyFloatingWidgets";
@@ -90,7 +90,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
   const posDialogs = (
     <>
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
-      <LazySizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <LazyFloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <LazyFloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </>

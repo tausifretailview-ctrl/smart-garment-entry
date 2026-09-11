@@ -21,8 +21,8 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
-  LazySizeStockDialog,
   LazyFloatingStockReport,
   LazyFloatingSaleReport,
 } from "@/components/lazyFloatingWidgets";
@@ -605,7 +605,7 @@ export const Header = () => {
       </div>
 
       {/* Dialogs */}
-      <LazySizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
+      <SizeStockDialog open={sizeStockOpen} onOpenChange={setSizeStockOpen} />
       <LazyFloatingStockReport open={quickStockOpen} onOpenChange={setQuickStockOpen} />
       <LazyFloatingSaleReport open={quickSaleOpen} onOpenChange={setQuickSaleOpen} />
       <ContactSupportSheet open={supportOpen} onOpenChange={setSupportOpen} />
