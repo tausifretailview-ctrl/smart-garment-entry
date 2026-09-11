@@ -10468,6 +10468,10 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      peek_sale_order_number: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
       platform_assign_user_to_org: {
         Args: {
           p_org_id: string

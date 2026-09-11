@@ -5,6 +5,11 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  isMissingSaleOrderNumberRpc,
+  isSaleOrderNumberConflict,
+  saleOrderFyPrefixIst,
+} from "@/utils/saleOrderNumber";
+import {
   fetchCustomerFinancialSnapshot,
   fetchCustomerFinancialSnapshotMap,
 } from "@/utils/customerFinancialSnapshot";
@@ -171,7 +176,7 @@ const SalesmanOrderEntry = () => {
 
   useEffect(() => {
     if (currentOrganization?.id) {
-      generateOrderNumber();
+      peekOrderNumberPreview();
     }
   }, [currentOrganization?.id]);
 
@@ -199,14 +204,7 @@ const SalesmanOrderEntry = () => {
     setShowDraftDialog(false);
   }, [deleteDraft]);
 
-  const isDuplicateOrderNumber = (error: { code?: string; message?: string } | null | undefined) =>
-    error?.code === "23505" || !!error?.message?.includes("duplicate key");
-
-  const fyOrderPrefix = () => {
-    const now = new Date();
-    const year = now.getMonth() >= 3 ? now.getFullYear() % 100 : (now.getFullYear() - 1) % 100;
-    return `SO/${year}-${year + 1}/`;
-  };
+  const fyOrderPrefix = () => saleOrderFyPrefixIst();
 
   // Fallback when the atomic RPC is unavailable or its sequence has drifted
   // behind numbers already inserted by the old client-side max+1 path.
@@ -239,6 +237,21 @@ const SalesmanOrderEntry = () => {
     }
 
     return `${prefix}${maxSeq + 1}`;
+  };
+
+  const peekOrderNumberPreview = async () => {
+    if (!currentOrganization?.id) return;
+    const { data, error } = await supabase.rpc("peek_sale_order_number", {
+      p_organization_id: currentOrganization.id,
+    });
+    if (!error && data) {
+      setOrderNumber(data);
+      return;
+    }
+    if (error && !isMissingSaleOrderNumberRpc(error)) {
+      console.warn("peek_sale_order_number failed, falling back:", error);
+    }
+    await generateOrderNumber();
   };
 
   const generateOrderNumber = async (): Promise<string> => {
@@ -595,7 +608,7 @@ const SalesmanOrderEntry = () => {
         }
 
         insertError = orderError;
-        if (!isDuplicateOrderNumber(orderError)) throw orderError;
+        if (!isSaleOrderNumberConflict(orderError)) throw orderError;
       }
 
       if (!order) throw insertError;
@@ -651,7 +664,7 @@ const SalesmanOrderEntry = () => {
     } catch (error: any) {
       console.error("Error saving order:", error);
       toast.error(
-        isDuplicateOrderNumber(error)
+        isSaleOrderNumberConflict(error)
           ? "Order number already used. Please tap Save again."
           : (error.message || "Failed to save order")
       );
