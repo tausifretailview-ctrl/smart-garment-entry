@@ -401,10 +401,19 @@ export async function recordCustomerReceiptJournalEntry(
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const arAccount = getAccountByCode(systemAccounts, "1200");
-  const discountAccount = getAccountByCode(systemAccounts, "6050");
+  if (!arAccount) {
+    throw new Error("Missing chart account Accounts Receivable (1200) for customer receipt");
+  }
 
-  if (!arAccount || !discountAccount) {
-    throw new Error("Missing chart accounts for customer receipt (AR / Settlement Discounts 6050)");
+  // Settlement discount ledger is only required when a discount is actually applied.
+  // Full UPI/cash receipts (common on Sales Invoice Dashboard) must not fail solely
+  // because 6050 was never created for the org.
+  let discountAccount: SeededAccount | undefined;
+  if (disc > 0) {
+    discountAccount = getAccountByCode(systemAccounts, "6050");
+    if (!discountAccount) {
+      throw new Error("Missing chart account Settlement Discounts Given (6050) for customer receipt");
+    }
   }
 
   const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
@@ -413,7 +422,7 @@ export async function recordCustomerReceiptJournalEntry(
   if (cashPortion > 0) {
     lines.push({ accountId: receiptAccount.id, debitAmount: cashPortion, creditAmount: 0 });
   }
-  if (disc > 0) {
+  if (disc > 0 && discountAccount) {
     lines.push({ accountId: discountAccount.id, debitAmount: disc, creditAmount: 0 });
   }
   lines.push({ accountId: arAccount.id, debitAmount: 0, creditAmount: total });
@@ -455,10 +464,18 @@ export async function recordSupplierPaymentJournalEntry(
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const apAccount = getAccountByCode(systemAccounts, "2000");
-  const discountReceived = getAccountByCode(systemAccounts, "6070");
+  if (!apAccount) {
+    throw new Error("Missing chart account Accounts Payable (2000) for supplier payment");
+  }
 
-  if (!apAccount || !discountReceived) {
-    throw new Error("Missing chart accounts for supplier payment (AP 2000 / Settlement Discounts Received 6070)");
+  let discountReceived: SeededAccount | undefined;
+  if (disc > 0) {
+    discountReceived = getAccountByCode(systemAccounts, "6070");
+    if (!discountReceived) {
+      throw new Error(
+        "Missing chart account Settlement Discounts Received (6070) for supplier payment",
+      );
+    }
   }
 
   const paymentAccount = resolveCashOrBankLedgerAccount(systemAccounts, paymentMethod);
@@ -469,7 +486,7 @@ export async function recordSupplierPaymentJournalEntry(
   if (cash > 0) {
     lines.push({ accountId: paymentAccount.id, debitAmount: 0, creditAmount: cash });
   }
-  if (disc > 0) {
+  if (disc > 0 && discountReceived) {
     lines.push({ accountId: discountReceived.id, debitAmount: 0, creditAmount: disc });
   }
 

@@ -71,8 +71,23 @@ const DEFAULT_SYSTEM_ACCOUNTS: Array<{
   { account_code: "6900", account_name: "Round Off", account_type: "Expense", account_group: "Indirect Expenses" },
 ];
 
+/** Bump when DEFAULT_SYSTEM_ACCOUNTS changes so in-memory cache cannot omit new codes. */
+const SEED_LIST_VERSION = 2;
+
 const SEED_CACHE_MS = 5 * 60 * 1000;
-const seedCache = new Map<string, { accounts: SeededAccount[]; expiresAt: number }>();
+const seedCache = new Map<string, { accounts: SeededAccount[]; expiresAt: number; version: number }>();
+
+const COA_SELECT =
+  "id, organization_id, account_code, account_name, account_type, account_group, parent_account_id, is_system_account";
+
+const REQUIRED_CODES = DEFAULT_SYSTEM_ACCOUNTS.map((a) => a.account_code);
+
+function isUniqueViolation(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false;
+  if (err.code === "23505") return true;
+  const msg = (err.message || "").toLowerCase();
+  return msg.includes("duplicate") || msg.includes("unique");
+}
 
 /** Clear after chart mutations (tests / admin tooling). */
 export function clearSeedDefaultAccountsCache(organizationId?: string) {
@@ -80,9 +95,31 @@ export function clearSeedDefaultAccountsCache(organizationId?: string) {
   else seedCache.clear();
 }
 
+async function insertSystemAccount(
+  organizationId: string,
+  def: (typeof DEFAULT_SYSTEM_ACCOUNTS)[number],
+  client: any,
+  accountName: string,
+) {
+  return (client as any).from("chart_of_accounts").insert({
+    organization_id: organizationId,
+    account_code: def.account_code,
+    account_name: accountName,
+    account_type: def.account_type,
+    account_group: def.account_group,
+    parent_account_id: null,
+    is_system_account: true,
+  });
+}
+
 /**
  * Ensure required system accounts exist for an organization.
- * Returns full system-account set after insertion of missing accounts.
+ * Returns full system-account set after insertion / promotion of missing accounts.
+ *
+ * Looks up by account_code across *all* rows (not only is_system_account=true).
+ * Orgs that created 1200/6050 manually as non-system ledgers used to break
+ * batch insert on UNIQUE(organization_id, account_code) and then failed
+ * customer receipts with "Missing chart accounts … 6050".
  */
 export async function seedDefaultAccounts(
   organizationId: string,
@@ -91,61 +128,120 @@ export async function seedDefaultAccounts(
   if (!organizationId) throw new Error("organizationId is required for seeding accounts");
 
   const cached = seedCache.get(organizationId);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.accounts;
+  if (cached && cached.expiresAt > Date.now() && cached.version === SEED_LIST_VERSION) {
+    const cachedCodes = new Set(cached.accounts.map((a) => a.account_code));
+    if (REQUIRED_CODES.every((code) => cachedCodes.has(code))) {
+      return cached.accounts;
+    }
+    // Stale/partial cache (e.g. older seed list) — refresh.
+    seedCache.delete(organizationId);
   }
 
-  const { data: existingRows, error: existingErr } = await (client as any)
+  const { data: codeRows, error: codeErr } = await (client as any)
     .from("chart_of_accounts")
-    .select(
-      "id, organization_id, account_code, account_name, account_type, account_group, parent_account_id, is_system_account"
-    )
+    .select(COA_SELECT)
     .eq("organization_id", organizationId)
-    .eq("is_system_account", true);
+    .in("account_code", REQUIRED_CODES);
 
-  if (existingErr) throw existingErr;
+  if (codeErr) throw codeErr;
 
-  const existingByCode = new Map(
-    ((existingRows || []) as SeededAccount[]).map((row) => [row.account_code, row])
+  const byCode = new Map(
+    ((codeRows || []) as SeededAccount[]).map((row) => [row.account_code, row])
   );
 
-  const missing = DEFAULT_SYSTEM_ACCOUNTS.filter((acc) => !existingByCode.has(acc.account_code));
-  if (missing.length > 0) {
-    const payload = missing.map((acc) => ({
-      organization_id: organizationId,
-      account_code: acc.account_code,
-      account_name: acc.account_name,
-      account_type: acc.account_type,
-      account_group: acc.account_group,
-      parent_account_id: null,
-      is_system_account: true,
-    }));
-    const { error: insertErr } = await (client as any).from("chart_of_accounts").insert(payload);
-    if (insertErr) throw insertErr;
-  }
-
-  // Backfill account_group on legacy system rows that predate Phase A
   for (const def of DEFAULT_SYSTEM_ACCOUNTS) {
-    const row = existingByCode.get(def.account_code);
-    if (row && row.account_group !== def.account_group) {
-      await (client as any)
-        .from("chart_of_accounts")
-        .update({ account_group: def.account_group })
-        .eq("id", row.id)
-        .eq("organization_id", organizationId);
+    const existing = byCode.get(def.account_code);
+    if (existing) {
+      const needsPromote = !existing.is_system_account;
+      const needsGroup = existing.account_group !== def.account_group;
+      if (needsPromote || needsGroup) {
+        const { error: updErr } = await (client as any)
+          .from("chart_of_accounts")
+          .update({
+            is_system_account: true,
+            ...(needsGroup ? { account_group: def.account_group } : {}),
+          })
+          .eq("id", existing.id)
+          .eq("organization_id", organizationId);
+        if (updErr) throw updErr;
+        existing.is_system_account = true;
+        if (needsGroup) existing.account_group = def.account_group;
+      }
+      continue;
+    }
+
+    let { error: insertErr } = await insertSystemAccount(
+      organizationId,
+      def,
+      client,
+      def.account_name,
+    );
+
+    // UNIQUE(organization_id, account_name) — another ledger already uses the
+    // canonical name under a different code. Retry with a code-suffixed name.
+    if (insertErr && isUniqueViolation(insertErr)) {
+      const fallbackName = `${def.account_name} (${def.account_code})`;
+      ({ error: insertErr } = await insertSystemAccount(
+        organizationId,
+        def,
+        client,
+        fallbackName,
+      ));
+    }
+
+    if (insertErr) {
+      // Concurrent seed may have inserted the same code — re-read and promote.
+      if (isUniqueViolation(insertErr)) {
+        const { data: raced, error: racedErr } = await (client as any)
+          .from("chart_of_accounts")
+          .select(COA_SELECT)
+          .eq("organization_id", organizationId)
+          .eq("account_code", def.account_code)
+          .maybeSingle();
+        if (racedErr) throw racedErr;
+        if (raced) {
+          if (!raced.is_system_account || raced.account_group !== def.account_group) {
+            const { error: updErr } = await (client as any)
+              .from("chart_of_accounts")
+              .update({
+                is_system_account: true,
+                account_group: def.account_group,
+              })
+              .eq("id", raced.id)
+              .eq("organization_id", organizationId);
+            if (updErr) throw updErr;
+            raced.is_system_account = true;
+            raced.account_group = def.account_group;
+          }
+          byCode.set(def.account_code, raced as SeededAccount);
+          continue;
+        }
+      }
+      throw insertErr;
     }
   }
 
   const { data: finalRows, error: finalErr } = await (client as any)
     .from("chart_of_accounts")
-    .select(
-      "id, organization_id, account_code, account_name, account_type, account_group, parent_account_id, is_system_account"
-    )
+    .select(COA_SELECT)
     .eq("organization_id", organizationId)
     .eq("is_system_account", true);
 
   if (finalErr) throw finalErr;
   const accounts = (finalRows || []) as SeededAccount[];
-  seedCache.set(organizationId, { accounts, expiresAt: Date.now() + SEED_CACHE_MS });
+
+  const finalCodes = new Set(accounts.map((a) => a.account_code));
+  const stillMissing = REQUIRED_CODES.filter((code) => !finalCodes.has(code));
+  if (stillMissing.length > 0) {
+    throw new Error(
+      `Failed to ensure system chart accounts: missing ${stillMissing.join(", ")}. Check Chart of Accounts / org permissions.`,
+    );
+  }
+
+  seedCache.set(organizationId, {
+    accounts,
+    expiresAt: Date.now() + SEED_CACHE_MS,
+    version: SEED_LIST_VERSION,
+  });
   return accounts;
 }
