@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { useCustomerSearch } from "@/hooks/useCustomerSearch";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  isMissingSaleOrderNumberRpc,
+  isSaleOrderNumberConflict,
+} from "@/utils/saleOrderNumber";
 import { useOrganization } from "@/contexts/OrganizationContext";
 
 import { Input } from "@/components/ui/input";
@@ -320,16 +324,25 @@ export default function SaleOrderEntry() {
     defaultValues: { customer_name: "", phone: "", email: "", address: "", gst_number: "" },
   });
 
-  // Generate order number
+  // Preview next SO number (peek does not consume the sequence; save allocates).
   useEffect(() => {
     const generateOrderNumber = async () => {
       if (!currentOrganization?.id || editingOrderId) return;
       try {
-        const { data, error } = await supabase.rpc('generate_sale_order_number', {
+        const { data, error } = await supabase.rpc('peek_sale_order_number', {
           p_organization_id: currentOrganization.id
         });
-        if (error) throw error;
-        setOrderNumber(data);
+        if (!error && data) {
+          setOrderNumber(data);
+          return;
+        }
+        if (error && !isMissingSaleOrderNumberRpc(error)) throw error;
+        const { data: fallback, error: fallbackError } = await supabase.rpc(
+          'generate_sale_order_number',
+          { p_organization_id: currentOrganization.id },
+        );
+        if (fallbackError) throw fallbackError;
+        setOrderNumber(fallback);
       } catch (error) {
         console.error('Error generating order number:', error);
       }
@@ -1177,9 +1190,7 @@ export default function SaleOrderEntry() {
           }
 
           insertError = error;
-          const isDuplicate =
-            error?.code === '23505' || error?.message?.includes('duplicate key');
-          if (!isDuplicate) throw error;
+          if (!isSaleOrderNumberConflict(error)) throw error;
         }
 
         if (!orderId) throw insertError;
@@ -1283,12 +1294,10 @@ export default function SaleOrderEntry() {
       toast({ title: "Success", description: `Sale Order ${savedOrderNumber} saved` });
       return { success: true, orderId };
     } catch (error: any) {
-      const isDuplicate =
-        error?.code === '23505' || error?.message?.includes('duplicate key');
       toast({
         variant: "destructive",
-        title: isDuplicate ? "Order number conflict" : "Error",
-        description: isDuplicate
+        title: isSaleOrderNumberConflict(error) ? "Order number conflict" : "Error",
+        description: isSaleOrderNumberConflict(error)
           ? "Another sale order was saved with the same number. Please try again."
           : error.message,
       });
