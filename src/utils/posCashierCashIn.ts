@@ -303,6 +303,41 @@ export function sumCustomerAdvanceTenders(advances: CashierAdvanceRow[]): {
   return { advanceReceived, advanceCash, advanceUpi, advanceCard };
 }
 
+/**
+ * Payment Collection rows: sale tenders plus same-day advance bookings by mode.
+ * Cash advance belongs in Cash collection (and analogously UPI/card), not only
+ * in Other Money In / Advance Received.
+ */
+export function cashierSaleAndAdvanceCollection(params: {
+  cashSale: number;
+  cardSale: number;
+  upiSale: number;
+  advanceCash?: number;
+  advanceCard?: number;
+  advanceUpi?: number;
+}): {
+  cashCollection: number;
+  cardCollection: number;
+  upiCollection: number;
+  netCashCollection: number;
+} {
+  const cashCollection = Math.round(
+    (Number(params.cashSale) || 0) + (Number(params.advanceCash) || 0),
+  );
+  const cardCollection = Math.round(
+    (Number(params.cardSale) || 0) + (Number(params.advanceCard) || 0),
+  );
+  const upiCollection = Math.round(
+    (Number(params.upiSale) || 0) + (Number(params.advanceUpi) || 0),
+  );
+  return {
+    cashCollection,
+    cardCollection,
+    upiCollection,
+    netCashCollection: cashCollection,
+  };
+}
+
 /** Mirrors FloatingPOSReports cash legs with same-day sale-RCP overlap stripped. */
 export function reduceCashierCashIn(params: {
   sales: CashierSaleRow[];
