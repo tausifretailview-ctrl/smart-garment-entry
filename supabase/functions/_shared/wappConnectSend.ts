@@ -51,6 +51,67 @@ export interface WappConnectSendResult {
   requestUrlRedacted: string;
 }
 
+/** WappConnect HTTP API allows 2000 bytes of text per part. */
+export const WAPPCONNECT_MESSAGE_MAX_BYTES = 2000;
+
+export type WappConnectSendStepRole = "file" | "text";
+
+export type WappConnectSendStep = {
+  endpoint: "/api/sendFileWithCaption" | "/api/sendText";
+  role: WappConnectSendStepRole;
+  message: string;
+};
+
+/** Trim to WappConnect's 2000-byte text limit without splitting a UTF-8 code point. */
+export function truncateWappConnectMessage(
+  text: string,
+  maxBytes = WAPPCONNECT_MESSAGE_MAX_BYTES,
+): string {
+  const value = String(text ?? "");
+  const bytes = new TextEncoder().encode(value);
+  if (bytes.length <= maxBytes) return value;
+  let end = maxBytes;
+  while (end > 0 && (bytes[end] & 0b11000000) === 0b10000000) end--;
+  const sliced = new TextDecoder().decode(bytes.slice(0, end)).replace(/\s+$/u, "");
+  return `${sliced}…`;
+}
+
+/**
+ * WappConnect drops captions on PDF/documents ("only document will deliver not caption").
+ * Invoice description must go as a separate sendText after the file.
+ */
+export function planWappConnectSendSteps(opts: {
+  hasFile: boolean;
+  message: string;
+}): WappConnectSendStep[] {
+  const message = truncateWappConnectMessage(String(opts.message ?? "").trim());
+  if (opts.hasFile) {
+    const fileMessage = message || "Please find your document attached.";
+    const steps: WappConnectSendStep[] = [
+      { endpoint: "/api/sendFileWithCaption", role: "file", message: fileMessage },
+    ];
+    if (message) {
+      steps.push({ endpoint: "/api/sendText", role: "text", message });
+    }
+    return steps;
+  }
+  if (message) {
+    return [{ endpoint: "/api/sendText", role: "text", message }];
+  }
+  return [];
+}
+
+/** Some WappConnect builds read `message`; others look for `caption` / `description`. */
+export function applyWappConnectCaptionFields(
+  setField: (key: "message" | "caption" | "description", value: string) => void,
+  message: string,
+): void {
+  const text = String(message ?? "");
+  setField("message", text);
+  setField("caption", text);
+  setField("description", text);
+}
+
 /** Remove instance id from strings/objects before persisting to logs. */
 export function redactWappConnectInstanceId(
   value: unknown,
@@ -220,7 +281,7 @@ export async function sendViaWappConnect(
   }
 
   const fileUrl = String(input.fileUrl ?? "").trim();
-  let message = String(input.message ?? "").trim();
+  const message = String(input.message ?? "").trim();
   const filename = String(input.filename ?? "").trim() || "document.pdf";
 
   const cleanFileUrl = fileUrl ? stripApikeyFromServeUrl(fileUrl) : "";
@@ -247,10 +308,19 @@ export async function sendViaWappConnect(
     }
   }
 
-  // WappConnect file endpoints require a text body — never send file-only via sendFiles.
-  if (cleanFileUrl && !message) {
-    message = "Please find your document attached.";
+  const steps = planWappConnectSendSteps({
+    hasFile: Boolean(cleanFileUrl),
+    message,
+  });
+  if (steps.length === 0) {
+    return {
+      success: false,
+      error: "WappConnect send requires a message and/or file URL",
+      endpoint: "",
+      requestUrlRedacted: "",
+    };
   }
+
   let downloadedPdf: Blob | null = null;
   if (cleanFileUrl) {
     try {
@@ -265,111 +335,139 @@ export async function sendViaWappConnect(
     }
   }
 
-  let endpoint: string;
-  if (cleanFileUrl) {
-    endpoint = "/api/sendFileWithCaption";
-  } else if (message) {
-    endpoint = "/api/sendText";
-  } else {
-    return {
-      success: false,
-      error: "WappConnect send requires a message and/or file URL",
-      endpoint: "",
-      requestUrlRedacted: "",
-    };
-  }
-
-  const applyParams = (url: URL, mode: "link" | "multipart" | "text" = "text") => {
+  const applyParams = (url: URL, mode: "link" | "multipart" | "text", stepMessage: string) => {
     url.searchParams.set("token", token);
     url.searchParams.set("phone", normalizedPhone);
     if (mode === "link" && cleanFileUrl) {
-      // WappConnect docs require `message` (not `caption`) for URL-based file sends.
       url.searchParams.set("link", cleanFileUrl);
-      url.searchParams.set("message", message);
-    } else if (mode === "text" && message) {
-      url.searchParams.set("message", message);
+      applyWappConnectCaptionFields((key, value) => url.searchParams.set(key, value), stepMessage);
+    } else if (mode === "text" && stepMessage) {
+      url.searchParams.set("message", stepMessage);
     }
-    // multipart POST: caption travels in FormData only — long invoice text in the query
-    // string has caused WappConnect 500 "Internal server error" responses.
+    // multipart POST: caption/description travel in FormData only — long invoice text in the
+    // query string has caused WappConnect 500 "Internal server error" responses.
   };
 
-  const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
-  applyParams(url, cleanFileUrl ? "multipart" : "text");
+  type StepRun = {
+    role: WappConnectSendStepRole;
+    endpoint: string;
+    requestUrlRedacted: string;
+    success: boolean;
+    error?: string;
+    messageId?: string;
+    responseObject: Record<string, unknown>;
+  };
 
-  let requestUrlRedacted = redactWappConnectInstanceId(
-    redactApiKeyInUrl(url.toString()),
-    token,
-  ) as string;
+  const runStep = async (step: WappConnectSendStep): Promise<StepRun> => {
+    const endpoint = step.endpoint;
+    const isFile = step.role === "file";
+    const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
+    applyParams(url, isFile ? "multipart" : "text", step.message);
 
-  let response: Response;
-  try {
-    if (cleanFileUrl && downloadedPdf) {
-      // Upload the already-generated PDF as multipart form-data. This avoids WappConnect
-      // having to fetch our backend URL itself, which was causing "PDF link not readable"
-      // / missing-attachment cases even when the ERP log was marked sent.
-      const form = new FormData();
-      form.append("file", downloadedPdf, filename);
-      form.append("message", message);
-      response = await fetch(url.toString(), { method: "POST", body: form });
-    } else {
-      response = await fetch(url.toString(), { method: "GET" });
+    let requestUrlRedacted = redactWappConnectInstanceId(
+      redactApiKeyInUrl(url.toString()),
+      token,
+    ) as string;
+
+    let response: Response;
+    try {
+      if (isFile && downloadedPdf) {
+        const form = new FormData();
+        form.append("file", downloadedPdf, filename);
+        applyWappConnectCaptionFields((key, value) => form.append(key, value), step.message);
+        response = await fetch(url.toString(), { method: "POST", body: form });
+      } else {
+        response = await fetch(url.toString(), { method: "GET" });
+      }
+    } catch (fetchError) {
+      const errMsg = fetchError instanceof Error ? fetchError.message : "Network error";
+      return {
+        role: step.role,
+        endpoint,
+        requestUrlRedacted,
+        success: false,
+        error: errMsg,
+        responseObject: { fetchError: errMsg },
+      };
     }
-  } catch (fetchError) {
-    const errMsg = fetchError instanceof Error ? fetchError.message : "Network error";
+
+    let rawBody = await response.text();
+    let responseData = parseWappConnectResponseBody(rawBody);
+    let responseObject = typeof responseData === "object" && responseData !== null
+      ? responseData as Record<string, unknown>
+      : { raw: responseData };
+
+    let providerError = extractWappConnectErrorMessage(responseObject);
+
+    // If multipart upload is not accepted by a WappConnect build, fall back to the
+    // documented URL-link method. Also send description/caption aliases.
+    if (
+      isFile &&
+      cleanFileUrl &&
+      providerError &&
+      /(save file|uploaded|unsupported media type|mime|content[- ]type|webclient|file)/i.test(providerError)
+    ) {
+      try {
+        const linkUrl = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
+        applyParams(linkUrl, "link", step.message);
+        requestUrlRedacted = redactWappConnectInstanceId(
+          redactApiKeyInUrl(linkUrl.toString()),
+          token,
+        ) as string;
+        const linkResponse = await fetch(linkUrl.toString(), { method: "GET" });
+        rawBody = await linkResponse.text();
+        responseData = parseWappConnectResponseBody(rawBody);
+        responseObject = typeof responseData === "object" && responseData !== null
+          ? responseData as Record<string, unknown>
+          : { raw: responseData };
+        providerError = extractWappConnectErrorMessage(responseObject);
+        response = linkResponse;
+      } catch {
+        // keep original multipart error
+      }
+    }
+
+    const outcome = classifyWappConnectResponse(response.status, responseObject);
     return {
-      success: false,
-      error: errMsg,
+      role: step.role,
       endpoint,
       requestUrlRedacted,
-      responseData: { fetchError: errMsg },
+      success: outcome.success,
+      error: outcome.error,
+      messageId: pickMessageId(responseObject),
+      responseObject,
     };
+  };
+
+  const stepRuns: StepRun[] = [];
+  for (const step of steps) {
+    stepRuns.push(await runStep(step));
   }
 
-  let rawBody = await response.text();
-  let responseData = parseWappConnectResponseBody(rawBody);
-  let responseObject = typeof responseData === "object" && responseData !== null
-    ? responseData as Record<string, unknown>
-    : { raw: responseData };
-
-  let providerError = extractWappConnectErrorMessage(responseObject);
-
-  // If multipart upload is not accepted by a WappConnect build, fall back to the
-  // documented URL-link method using `message` (not `caption`).
-  if (
-    cleanFileUrl &&
-    providerError &&
-    /(save file|uploaded|unsupported media type|mime|content[- ]type|webclient|file)/i.test(providerError)
-  ) {
-    try {
-      const linkUrl = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
-      applyParams(linkUrl, "link");
-      requestUrlRedacted = redactWappConnectInstanceId(
-        redactApiKeyInUrl(linkUrl.toString()),
-        token,
-      ) as string;
-      const linkResponse = await fetch(linkUrl.toString(), { method: "GET" });
-      rawBody = await linkResponse.text();
-      responseData = parseWappConnectResponseBody(rawBody);
-      responseObject = typeof responseData === "object" && responseData !== null
-        ? responseData as Record<string, unknown>
-        : { raw: responseData };
-      providerError = extractWappConnectErrorMessage(responseObject);
-      response = linkResponse;
-    } catch {
-      // keep original multipart error
-    }
-  }
-
-  const messageId = pickMessageId(responseObject);
-  const outcome = classifyWappConnectResponse(response.status, responseObject);
+  const failed = stepRuns.find((run) => !run.success);
+  const textRun = stepRuns.find((run) => run.role === "text");
+  const fileRun = stepRuns.find((run) => run.role === "file");
+  const messageId = textRun?.messageId || fileRun?.messageId || stepRuns[stepRuns.length - 1]?.messageId;
+  const combinedResponse = {
+    steps: stepRuns.map((run) => ({
+      role: run.role,
+      endpoint: run.endpoint,
+      success: run.success,
+      error: run.error,
+      messageId: run.messageId,
+      response: run.responseObject,
+    })),
+    endpoint: steps.map((step) => step.endpoint).join("+"),
+    requestUrl: stepRuns.map((run) => run.requestUrlRedacted).join(" | "),
+  };
 
   return {
-    success: outcome.success,
-    error: outcome.error,
+    success: stepRuns.every((run) => run.success),
+    error: failed?.error,
     messageId,
-    responseData: redactWappConnectInstanceId(responseObject, token),
-    endpoint,
-    requestUrlRedacted,
+    responseData: redactWappConnectInstanceId(combinedResponse, token),
+    endpoint: combinedResponse.endpoint,
+    requestUrlRedacted: combinedResponse.requestUrl,
   };
 }
 
