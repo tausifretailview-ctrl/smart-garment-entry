@@ -100,6 +100,33 @@ export type CreateReceiptVoucherParams = {
 };
 
 /**
+ * Gate for {@link ensureAtSaleTenderReceipt}.
+ *
+ * Stale cash/card/upi columns with paid_amount still 0 (pay-later / leftover mix
+ * tender) must not mint a "Counter payment" voucher when a later receipt is
+ * recorded — SM Hair RCP/26-27/4671 ₹8000 next to a real ₹6000 dashboard receipt.
+ */
+export function shouldMaterializeAtSaleTender(args: {
+  tender: number;
+  incomingAmount: number;
+  netAmount: number;
+  paidAmount: number;
+  existingReceiptCount: number;
+}): boolean {
+  const tender = Math.round((Number(args.tender) || 0) * 100) / 100;
+  const incoming = Math.max(0, Math.round((Number(args.incomingAmount) || 0) * 100) / 100);
+  const net = Math.round((Number(args.netAmount) || 0) * 100) / 100;
+  const paid = Math.round((Number(args.paidAmount) || 0) * 100) / 100;
+  const receipts = Number(args.existingReceiptCount) || 0;
+  if (tender <= 0.5) return false;
+  if (receipts > 0) return false;
+  // Tender columns are not real counter cash unless POS already booked them as paid.
+  if (paid + 0.5 < tender) return false;
+  if (tender + incoming > net + 1) return false;
+  return true;
+}
+
+/**
  * Materialise a bill's at-sale tender (cash/card/upi columns) as a real receipt
  * before the first later receipt lands on it.
  *
@@ -110,6 +137,7 @@ export type CreateReceiptVoucherParams = {
  *
  * Deliberately narrow so nothing can be double-counted:
  * - only when the sale has NO live receipt yet (dual-written POS bills are untouched),
+ * - only when paid_amount already covers the tender (POS booked the cash),
  * - only when tender + the incoming receipt still fit inside the bill value,
  * - never for hold / cancelled / deleted bills.
  */
@@ -126,7 +154,7 @@ export async function ensureAtSaleTenderReceipt(
   const { data: sale, error: saleErr } = await supabase
     .from("sales")
     .select(
-      "id, sale_number, net_amount, cash_amount, card_amount, upi_amount, payment_status, is_cancelled, deleted_at",
+      "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, payment_status, is_cancelled, deleted_at",
     )
     .eq("id", params.saleId)
     .eq("organization_id", params.organizationId)
@@ -145,8 +173,8 @@ export async function ensureAtSaleTenderReceipt(
   if (tender <= 0.5) return { created: false, amount: 0 };
 
   const net = Math.round((Number(row.net_amount) || 0) * 100) / 100;
+  const paid = Math.round((Number(row.paid_amount) || 0) * 100) / 100;
   const incoming = Math.max(0, Number(params.incomingAmount) || 0);
-  if (tender + incoming > net + 1) return { created: false, amount: 0 };
 
   const { count, error: countErr } = await supabase
     .from("voucher_entries")
@@ -156,8 +184,20 @@ export async function ensureAtSaleTenderReceipt(
     .eq("reference_id", params.saleId)
     .is("deleted_at", null);
   if (countErr) return { created: false, amount: 0 };
-  if ((count ?? 0) > 0) return { created: false, amount: 0 };
 
+  if (
+    !shouldMaterializeAtSaleTender({
+      tender,
+      incomingAmount: incoming,
+      netAmount: net,
+      paidAmount: paid,
+      existingReceiptCount: count ?? 0,
+    })
+  ) {
+    return { created: false, amount: 0 };
+  }
+
+  const saleDateYmd = String(row.sale_date || "").slice(0, 10);
   const method = cash >= card && cash >= upi ? "cash" : card >= upi ? "card" : "upi";
   await createReceiptVoucher(supabase, {
     organizationId: params.organizationId,
@@ -165,7 +205,7 @@ export async function ensureAtSaleTenderReceipt(
     referenceType: "sale",
     amount: tender,
     paymentMethod: method,
-    voucherDate: params.voucherDate,
+    voucherDate: /^\d{4}-\d{2}-\d{2}$/.test(saleDateYmd) ? saleDateYmd : params.voucherDate,
     createdBy: params.createdBy ?? null,
     description: `Counter payment received for sale ${String(row.sale_number || "")}`.trim(),
     skipAtSaleTenderBackfill: true,

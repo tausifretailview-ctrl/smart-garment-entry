@@ -11,6 +11,7 @@ import {
   normalizeSaleReturnAdjustAgainstBill,
   preSaveInvariants,
   voucherNumberWithRegeneratedBase,
+  shouldMaterializeAtSaleTender,
 } from "@/utils/saleSettlement";
 
 describe("derivePaidAndStatus — POS / sales settlement", () => {
@@ -338,5 +339,55 @@ describe("advanceApplicationRoomCap — UZMA KUDIA cash+advance over-settle", ()
         cashLikeSettled: 4149,
       }),
     ).toBe(0);
+  });
+});
+
+describe("shouldMaterializeAtSaleTender", () => {
+  it("keeps ELLA NOOR remainder collection: booked counter cash + later UPI", () => {
+    expect(
+      shouldMaterializeAtSaleTender({
+        tender: 4000,
+        incomingAmount: 16900,
+        netAmount: 20900,
+        paidAmount: 4000,
+        existingReceiptCount: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it("blocks SM Hair phantom: ₹8000 tender columns with paid_amount 0 + ₹6000 receipt", () => {
+    expect(
+      shouldMaterializeAtSaleTender({
+        tender: 8000,
+        incomingAmount: 6000,
+        netAmount: 14000,
+        paidAmount: 0,
+        existingReceiptCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("still materializes booked counter cash when collecting the remainder", () => {
+    expect(
+      shouldMaterializeAtSaleTender({
+        tender: 8000,
+        incomingAmount: 6000,
+        netAmount: 14000,
+        paidAmount: 8000,
+        existingReceiptCount: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not materialize when tender + incoming exceeds the bill", () => {
+    expect(
+      shouldMaterializeAtSaleTender({
+        tender: 8000,
+        incomingAmount: 6000,
+        netAmount: 8000,
+        paidAmount: 8000,
+        existingReceiptCount: 0,
+      }),
+    ).toBe(false);
   });
 });
