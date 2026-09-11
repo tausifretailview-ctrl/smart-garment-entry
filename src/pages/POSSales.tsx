@@ -63,6 +63,9 @@ import {
   normalizeFlatDiscountInput,
   posLineNetUnitPrice,
   resolveBillFlatForPosEdit,
+  computePosLiveMargin,
+  applyPurchasePricesToPosCart,
+  fetchVariantPurchasePrices,
 } from "@/lib/posBilling";
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
@@ -791,6 +794,22 @@ export default function POSSales() {
     buildSaleData,
     maxSrFromBill: billingMaxSrFromBill,
   } = billing;
+
+  const hydrateCartPurchasePrices = useCallback(
+    async (variantIds: Array<string | null | undefined>) => {
+      const orgId = currentOrganization?.id;
+      if (!orgId) return;
+      try {
+        const map = await fetchVariantPurchasePrices(supabase, orgId, variantIds as string[]);
+        if (Object.keys(map).length === 0) return;
+        setItems((prev) => applyPurchasePricesToPosCart(prev, map));
+      } catch (err) {
+        console.warn("POS live margin: could not load purchase prices", err);
+      }
+    },
+    [currentOrganization?.id, setItems],
+  );
+
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
   const [openProductSearch, setOpenProductSearch] = useState(false);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
@@ -1099,6 +1118,7 @@ export default function POSSales() {
     posCartHydratedOrgRef.current = orgId;
     if (!saved?.items?.length) return;
     setItems(saved.items as CartItem[]);
+    void hydrateCartPurchasePrices((saved.items as CartItem[]).map((i) => i.variantId));
     if (saved.customerId) setCustomerId(saved.customerId);
     if (saved.customerName) setCustomerName(saved.customerName);
     if (saved.customerPhone) {
@@ -1112,7 +1132,7 @@ export default function POSSales() {
     if (Number(saved.sameBillReturnGross) > 0.005) {
       setSameBillReturnGross(Number(saved.sameBillReturnGross) || 0);
     }
-  }, [currentOrganization?.id, items.length, currentSaleId, setItems, setSaleReturnAdjust]);
+  }, [currentOrganization?.id, items.length, currentSaleId, setItems, setSaleReturnAdjust, hydrateCartPurchasePrices]);
 
   // Barcode scanner detection for instant cart add
   const {
@@ -1388,6 +1408,9 @@ export default function POSSales() {
           const holdData = (sale as any).held_cart_data;
           if (holdData && holdData.items && Array.isArray(holdData.items)) {
             loadHeldCart(holdData);
+            void hydrateCartPurchasePrices(
+              holdData.items.map((i: { variantId?: string }) => i.variantId),
+            );
           }
         } catch (parseError) {
           console.error("Error loading held cart data:", parseError);
@@ -1405,6 +1428,7 @@ export default function POSSales() {
         if (itemsError) throw itemsError;
 
         const { flat: flatRes, items: cartItems } = loadFromSaleEdit(sale, saleItems || []);
+        void hydrateCartPurchasePrices((saleItems || []).map((item) => item.variant_id));
 
         // Load sale notes for regular sales
         setSaleNotes(sale.notes || "");
@@ -3597,18 +3621,10 @@ export default function POSSales() {
   /** Max S/R that keeps bill net ≥ 0 (gross/subtotal after other discounts/credits). */
   const maxSrFromBill = billingMaxSrFromBill;
 
-  const liveMargin = useMemo(() => {
-    let totalCost = 0;
-    let totalSale = 0;
-    for (const item of items) {
-      const qty = Number(item.quantity) || 0;
-      totalCost += (Number(item.purPrice) || 0) * qty;
-      totalSale += Number(item.netAmount) || 0;
-    }
-    const profit = totalSale - totalCost;
-    const marginPercent = totalSale > 0 ? (profit / totalSale) * 100 : 0;
-    return { profit, marginPercent, totalCost, totalSale };
-  }, [items]);
+  const liveMargin = useMemo(
+    () => computePosLiveMargin({ items, billNet: finalAmount }),
+    [items, finalAmount],
+  );
 
   const removeItem = (index: number) => {
     billingRemoveLine(index);
@@ -5494,6 +5510,7 @@ export default function POSSales() {
     }));
 
     setItems(loadedItems);
+    void hydrateCartPurchasePrices(loadedItems.map((item) => item.variantId));
 
     const flatRes = resolveBillFlatForPosEdit(sale, sale.sale_items || []);
     if (flatRes.percentLooksClean) {
