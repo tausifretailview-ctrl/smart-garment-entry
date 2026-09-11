@@ -51,6 +51,7 @@ import {
 import {
   classifySpinnerChrome,
   recordPwaColdOpenSnapshot,
+  recordPaneTimelineEvent,
 } from "@/lib/pwaColdOpenDiagnostics";
 import { cn } from "@/lib/utils";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
@@ -445,6 +446,7 @@ export const OrgLayout = () => {
         chunkLoadedBeforeReset,
         chunkInFlightBeforeReset,
       });
+      recordPaneTimelineEvent(resolvedCurrentPath, "rescue");
       const chrome = classifySpinnerChrome(typeof document !== "undefined" ? document : null);
       recordPwaColdOpenSnapshot({
         path: currentPath,

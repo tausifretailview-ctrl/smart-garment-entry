@@ -25,6 +25,11 @@ describe("isDiagConsoleEnabled", () => {
     expect(isDiagConsoleEnabled("ezzy_main_thread", "mainthread")).toBe(true);
   });
 
+  it("turns on from the storage-key query param (ezzy_pwa_cold_open=1)", () => {
+    window.history.replaceState({}, "", "/shop?ezzy_pwa_cold_open=1");
+    expect(isDiagConsoleEnabled("ezzy_pwa_cold_open", "pwacold")).toBe(true);
+  });
+
   it("ignores a different flag", () => {
     window.localStorage.setItem("ezzy_nav_perf", "1");
     expect(isDiagConsoleEnabled("ezzy_main_thread", "mainthread")).toBe(false);

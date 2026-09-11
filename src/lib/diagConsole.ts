@@ -11,6 +11,7 @@
  *   localStorage.setItem("ezzy_pwa_cold_open", "1")
  *
  * Or query: ?navperf=1  ?mainthread=1  ?pwacold=1
+ *            ?ezzy_pwa_cold_open=1  (same as the localStorage key)
  */
 
 export function isDiagConsoleEnabled(
@@ -23,9 +24,11 @@ export function isDiagConsoleEnabled(
   } catch {
     /* private mode / blocked storage */
   }
-  if (queryToken && typeof window.location?.search === "string") {
+  if (typeof window.location?.search === "string") {
     try {
-      return new URLSearchParams(window.location.search).get(queryToken) === "1";
+      const params = new URLSearchParams(window.location.search);
+      if (queryToken && params.get(queryToken) === "1") return true;
+      if (params.get(storageKey) === "1") return true;
     } catch {
       return false;
     }
