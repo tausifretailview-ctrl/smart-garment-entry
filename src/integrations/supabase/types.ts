@@ -9876,6 +9876,13 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_organization_login_history: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          logged_in_at: string
+          user_email: string
+        }[]
+      }
       get_organization_receivables_summary: {
         Args: { p_organization_id: string }
         Returns: {
