@@ -957,7 +957,7 @@ export default function SaleReturnDashboard() {
                 ref={printRef}
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
-                format={activePrintFormat === 'thermal' ? 'a4' : activePrintFormat}
+                format={activePrintFormat}
               />
             )
           )}
