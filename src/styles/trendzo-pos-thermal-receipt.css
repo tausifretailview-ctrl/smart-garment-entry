@@ -94,6 +94,22 @@
   white-space: pre-wrap;
 }
 
+.trendzo-pos-thermal-receipt-80mm .tz-header-ids {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 3mm;
+  width: 100%;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.trendzo-pos-thermal-receipt-80mm .tz-header-ids span {
+  white-space: nowrap;
+}
+
 .trendzo-pos-thermal-receipt-80mm .tz-sep-dashed {
   border-top: 1px dashed #000;
   margin: 3px 0;
@@ -112,33 +128,38 @@
   margin: 2px 0;
 }
 
-.trendzo-pos-thermal-receipt-80mm .tz-info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1mm 3mm;
-  font-size: 12px;
+.trendzo-pos-thermal-receipt-80mm .tz-meta {
+  width: 100%;
+  font-size: 11px;
   font-weight: 400;
-  line-height: 1.35;
 }
 
-.trendzo-pos-thermal-receipt-80mm .tz-info-col {
-  min-width: 0;
-}
-
-.trendzo-pos-thermal-receipt-80mm .tz-info-row {
+.trendzo-pos-thermal-receipt-80mm .tz-pair-row {
   display: flex;
-  gap: 2px;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 2mm;
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.3;
 }
 
-.trendzo-pos-thermal-receipt-80mm .tz-info-label {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-
-.trendzo-pos-thermal-receipt-80mm .tz-info-value {
-  flex: 1 1 auto;
+.trendzo-pos-thermal-receipt-80mm .tz-pair-left,
+.trendzo-pos-thermal-receipt-80mm .tz-pair-right {
   min-width: 0;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+}
+
+.trendzo-pos-thermal-receipt-80mm .tz-pair-left {
+  flex: 1 1 auto;
+}
+
+.trendzo-pos-thermal-receipt-80mm .tz-pair-right {
+  flex: 0 1 auto;
+  text-align: right;
 }
 
 /* Product lines — grid keeps QTY / RATE / AMT from overlapping */
@@ -203,22 +224,9 @@
   line-height: 1.25;
 }
 
-.trendzo-pos-thermal-receipt-80mm .tz-summary-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2mm;
-  font-size: 12px;
+.trendzo-pos-thermal-receipt-80mm .tz-summary {
+  font-size: 11px;
   font-weight: 400;
-}
-
-.trendzo-pos-thermal-receipt-80mm .tz-summary-left {
-  line-height: 1.4;
-}
-
-.trendzo-pos-thermal-receipt-80mm .tz-summary-right {
-  text-align: right;
-  line-height: 1.4;
-  font-variant-numeric: tabular-nums;
 }
 
 .trendzo-pos-thermal-receipt-80mm .tz-row-between {
