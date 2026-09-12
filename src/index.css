@@ -1758,7 +1758,8 @@ All colors MUST be HSL.
   }
 
   .thermal-print-80mm[data-thermal-paper="58mm"],
-  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"] {
+  .kids-thermal-receipt-80mm[data-thermal-paper="58mm"],
+  .kids-camp-thermal-receipt-80mm[data-thermal-paper="58mm"] {
     width: 48mm !important;
     max-width: 48mm !important;
     font-size: 10px !important;

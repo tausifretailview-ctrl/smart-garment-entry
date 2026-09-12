@@ -31,6 +31,7 @@ export const PRINT_DOCUMENT_ROOT_SELECTORS = [
   ".thermal-receipt-container",
   ".modern-thermal-receipt",
   ".kids-thermal-receipt-80mm",
+  ".kids-camp-thermal-receipt-80mm",
   ".tvs-thermal-receipt-80mm",
   ".gift-tally-invoice-root",
   ".print-document",

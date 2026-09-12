@@ -89,6 +89,13 @@ describe('resolvePosBillFormat', () => {
     expect(posInvoiceTemplateForBillFormat('thermal', 'trendzo-pos-80mm')).toBeUndefined();
   });
 
+  it('forces thermal for Kids Camp 80mm template', () => {
+    expect(resolvePosBillFormat('kids-camp-80mm', 'a4', 'a4')).toBe('thermal');
+    expect(isThermal80mmInvoiceTemplate('kids-camp-80mm')).toBe(true);
+    expect(posInvoiceTemplateForBillFormat('thermal', 'kids-camp-80mm')).toBeUndefined();
+    expect(posInvoiceTemplateForBillFormat('a4', 'kids-camp-80mm')).toBe('modern');
+  });
+
   it('follows POS A5 for preprinted letterhead template', () => {
     expect(resolvePosBillFormat('retail-erp-preprinted', 'a5', 'a4')).toBe('a5');
   });

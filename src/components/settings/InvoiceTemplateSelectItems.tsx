@@ -37,6 +37,12 @@ export function InvoiceTemplateSelectItems({
           Kids 80mm — Compact thermal receipt
         </span>
       </SelectItem>
+      <SelectItem value="kids-camp-80mm">
+        <span className="flex items-center gap-2">
+          <span className="text-orange-700 font-bold text-xs w-5">KC</span>
+          Kids Camp — Boxed GST invoice 80mm
+        </span>
+      </SelectItem>
       <SelectItem value="retail-pos-80mm">
         <span className="flex items-center gap-2">
           <span className="text-sky-700 font-bold text-xs w-5">RPS</span>

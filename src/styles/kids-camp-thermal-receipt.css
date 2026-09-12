@@ -1,0 +1,276 @@
+/* Kids Camp — boxed DOS-style 80mm GST invoice (screen + print) */
+
+.kids-camp-thermal-receipt-80mm.thermal-print-80mm,
+.kids-camp-thermal-receipt-80mm.thermal-receipt-container {
+  width: 76mm !important;
+  max-width: 76mm !important;
+  padding: 2mm 1.5mm !important;
+  font-family: "Courier New", Courier, monospace !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  -webkit-font-smoothing: none !important;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt {
+  width: 76mm;
+  max-width: 76mm;
+  margin: 0 auto;
+  padding: 2mm 1.5mm;
+  box-sizing: border-box;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.22;
+  color: #000;
+  background: #fff;
+  -webkit-font-smoothing: none;
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] {
+  width: 48mm;
+  max-width: 48mm;
+  padding: 1.5mm 0.8mm;
+  font-size: 8px;
+}
+
+.kids-camp-thermal-receipt-80mm *,
+.kids-camp-thermal-receipt-80mm *::before,
+.kids-camp-thermal-receipt-80mm *::after {
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-center {
+  text-align: center;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-header {
+  text-align: center;
+  width: 100%;
+  margin-bottom: 3px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-doc-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-company-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  line-height: 1.15;
+  margin: 1px 0;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-company-meta {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-meta {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.28;
+  margin: 3px 0 4px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-meta-row .kc-date {
+  flex-shrink: 0;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-box {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-box th,
+.kids-camp-thermal-receipt-80mm table.kc-box td {
+  border: 1px solid #000;
+  padding: 1px 2px;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items col.kc-qt {
+  width: 8mm;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items col.kc-rate {
+  width: 16mm;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items col.kc-amt {
+  width: 17mm;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items th {
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items td.kc-qt {
+  text-align: center;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items td.kc-name {
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-items td.kc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-count-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin: 3px 0 4px;
+  white-space: nowrap;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-totals col.kc-tot-amt {
+  width: 22mm;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-totals td:first-child {
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-totals td.kc-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-pay {
+  margin: 4px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.28;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-pay-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-pay-row span:last-child {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  min-width: 18mm;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-pay-head {
+  margin-top: 3px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-tax-title {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 4px 0 1px;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-tax th,
+.kids-camp-thermal-receipt-80mm table.kc-tax td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kids-camp-thermal-receipt-80mm table.kc-tax th:first-child,
+.kids-camp-thermal-receipt-80mm table.kc-tax td:first-child {
+  text-align: left;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-tax-note {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 700;
+  margin: 4px 0 6px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-terms {
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.28;
+  margin: 2px 0 6px;
+}
+
+.kids-camp-thermal-receipt-80mm .kc-thanks {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] .kc-company-name {
+  font-size: 11px;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] table.kc-box {
+  font-size: 7.5px;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] table.kc-items col.kc-qt {
+  width: 6mm;
+}
+
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] table.kc-items col.kc-rate,
+.kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] table.kc-items col.kc-amt {
+  width: 12mm;
+}
+
+@media print {
+  .kids-camp-thermal-receipt-80mm.thermal-print-80mm,
+  .kids-camp-thermal-receipt-80mm.thermal-receipt-container,
+  .kids-camp-thermal-receipt-80mm.thermal-receipt {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .kids-camp-thermal-receipt-80mm.thermal-receipt[data-thermal-paper="58mm"] {
+    width: 48mm !important;
+    max-width: 48mm !important;
+  }
+
+  .kids-camp-thermal-receipt-80mm table.kc-box th,
+  .kids-camp-thermal-receipt-80mm table.kc-box td {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+  }
+}

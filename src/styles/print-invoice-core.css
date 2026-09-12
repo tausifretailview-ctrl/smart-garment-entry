@@ -611,11 +611,13 @@
   .invoice-print-source.thermal-paper-58 .thermal-receipt-container,
   .invoice-print-source.thermal-paper-58 .modern-thermal-receipt,
   .invoice-print-source.thermal-paper-58 .kids-thermal-receipt-80mm,
+  .invoice-print-source.thermal-paper-58 .kids-camp-thermal-receipt-80mm,
   .invoice-print-source.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .thermal-print-80mm,
   .print-dialog.thermal-paper-58 .thermal-receipt-container,
   .print-dialog.thermal-paper-58 .modern-thermal-receipt,
   .print-dialog.thermal-paper-58 .kids-thermal-receipt-80mm,
+  .print-dialog.thermal-paper-58 .kids-camp-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm {
     width: 48mm !important;
     max-width: 48mm !important;
@@ -655,6 +657,24 @@
   .trendzo-pos-thermal-receipt-80mm .tz-items-num,
   .trendzo-pos-thermal-receipt-80mm .tz-invoice-barcode-no {
     font-weight: 600 !important;
+  }
+
+  /* Kids Camp — boxed Courier GST invoice; keep 76mm and 1px table rules */
+  .kids-camp-thermal-receipt-80mm.thermal-print-80mm,
+  .kids-camp-thermal-receipt-80mm.thermal-receipt-container {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 2mm 1.5mm !important;
+    font-family: "Courier New", Courier, monospace !important;
+    font-weight: 700 !important;
+    -webkit-font-smoothing: none !important;
+    letter-spacing: 0 !important;
+  }
+
+  .kids-camp-thermal-receipt-80mm table.kc-box th,
+  .kids-camp-thermal-receipt-80mm table.kc-box td {
+    border: 1px solid #000 !important;
+    background: #fff !important;
   }
 
   /* Force all thermal content to be visible */
