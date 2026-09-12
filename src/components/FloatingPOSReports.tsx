@@ -28,6 +28,7 @@ import {
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
+import { sumCashierSaleReturnRefunds } from "@/utils/cashierSaleReturnRefunds";
 import {
   buildProductTextOrFilter,
   expandProductSearchTerms,
@@ -165,6 +166,22 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     enabled: !!currentOrganization?.id && open,
   });
 
+  const { data: saleReturnsData, isLoading: saleReturnsLoading } = useQuery({
+    queryKey: ["cashier-report-sale-returns", currentOrganization?.id, selectedDateSafe],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [];
+      const { data, error } = await supabase
+        .from("sale_returns")
+        .select("id, net_amount, refund_type, payment_method")
+        .eq("organization_id", currentOrganization.id)
+        .eq("return_date", selectedDateSafe)
+        .is("deleted_at", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentOrganization?.id && open,
+  });
+
   const resolveMode = (paymentMethod: string | null, description: string): string | null => {
     const pm = (paymentMethod || '').toLowerCase().trim();
     if (pm === 'upi') return 'upi';
@@ -183,6 +200,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     let grossSale = 0, totalDiscount = 0, totalSale = 0, totalRoundOff = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
     let totalRefund = 0, totalSRAdjusted = 0;
+    const srRefunds = sumCashierSaleReturnRefunds(saleReturnsData);
     const advanceTenders = sumCustomerAdvanceTenders(advancesData || []);
     let advanceReceived = advanceTenders.advanceReceived;
     let advanceCash = advanceTenders.advanceCash;
@@ -276,8 +294,11 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       if (pm === 'cash') advanceRefundCash += amt;
     });
 
+    totalRefund += srRefunds.refundTotal;
+
     const totalCashIn = cashSale + advanceCash + receiptCash;
-    const totalCashOut = supplierPaid + expensePaid + employeePaid + advanceRefundCash;
+    const totalCashOut =
+      supplierPaid + expensePaid + employeePaid + advanceRefundCash + srRefunds.cashOut;
 
     return {
       grossSale: Math.round(grossSale),
@@ -289,6 +310,8 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       upiSale: Math.round(upiSale),
       creditSale: Math.round(creditSale),
       totalRefund: Math.round(totalRefund),
+      saleReturnRefundTotal: Math.round(srRefunds.refundTotal),
+      saleReturnCashOut: Math.round(srRefunds.cashOut),
       totalSRAdjusted: Math.round(totalSRAdjusted),
       totalBills: eligibleSales.length,
       advanceReceived: Math.round(advanceReceived),
@@ -379,7 +402,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         </DialogHeader>
 
         <div id="floating-cashier-report">
-          {isLoading ? (
+          {isLoading || saleReturnsLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : (
             <>
@@ -485,9 +508,11 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                       )}
                       <TableRow className="bg-green-50 dark:bg-green-950">
                         <TableCell className="font-bold">Net Cash Collection</TableCell>
-                        {/* cash_amount on the sale row is already negative for refund outflows,
-                            so cashSale already reflects the refund — do NOT subtract totalRefund again. */}
-                        <TableCell className="text-right font-bold text-lg">{formatCurrency(paymentCollection.netCashCollection)}</TableCell>
+                        {/* Exchange refunds already sit in cash_amount (often negative).
+                            Standalone S/R cash refunds do not — subtract those only. */}
+                        <TableCell className="text-right font-bold text-lg">
+                          {formatCurrency(paymentCollection.netCashCollection - totals.saleReturnCashOut)}
+                        </TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -527,7 +552,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
               )}
 
               {/* Money Out */}
-              {(totals.supplierPaid > 0 || totals.expensePaid > 0 || totals.employeePaid > 0 || totals.advanceRefundTotal > 0) && (
+              {(totals.supplierPaid > 0 || totals.expensePaid > 0 || totals.employeePaid > 0 || totals.advanceRefundTotal > 0 || totals.saleReturnRefundTotal > 0) && (
                 <Card className="mt-3">
                   <CardHeader className="py-3">
                     <CardTitle className="text-sm text-red-700 dark:text-red-400">📤 Money Out</CardTitle>
@@ -557,6 +582,12 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                           <TableRow>
                             <TableCell>Advance Refunds</TableCell>
                             <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.advanceRefundTotal)}</TableCell>
+                          </TableRow>
+                        )}
+                        {totals.saleReturnRefundTotal > 0 && (
+                          <TableRow>
+                            <TableCell>Sale Return Refunds</TableCell>
+                            <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.saleReturnRefundTotal)}</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
