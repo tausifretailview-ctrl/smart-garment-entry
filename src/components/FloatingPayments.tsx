@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon, Plus, Printer, X, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -1079,25 +1080,68 @@ function SupplierPaymentForm({ organizationId }: { organizationId: string }) {
 // ═══════════════════════════════════════════════════════════════
 // EXPENSE FORM (Compact)
 // ═══════════════════════════════════════════════════════════════
+const POS_EXPENSE_PAYMENT_METHODS = DEFAULT_RECEIPT_PAYMENT_METHODS.filter(
+  (m) => m.value !== "other" && m.value !== "online",
+);
+
 function ExpenseForm({ organizationId }: { organizationId: string }) {
   const queryClient = useQueryClient();
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("cash");
   const [amount, setAmount] = useState("");
   const [showSaved, setShowSaved] = useState(false);
 
-  const { data: recentExpenses } = useQuery({
-    queryKey: ["recent-expenses", organizationId],
+  const { data: categories } = useQuery({
+    queryKey: ["expense-categories", organizationId],
     queryFn: async () => {
-      const { data } = await supabase.from("voucher_entries").select("id, voucher_number, voucher_date, voucher_type, total_amount, description, category").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
+      const { data, error } = await supabase
+        .from("expense_categories")
+        .select("id, name, ledger_account_id")
+        .eq("organization_id", organizationId)
+        .eq("is_active", true)
+        .order("display_order");
+      if (error) throw error;
       return data || [];
     },
     enabled: !!organizationId,
   });
 
+  const addCategory = useMutation({
+    mutationFn: async (rawName: string) => {
+      const name = rawName.trim();
+      if (!name) throw new Error("Enter a category name");
+      const { error } = await supabase.from("expense_categories").upsert(
+        { organization_id: organizationId, name, is_active: true },
+        { onConflict: "organization_id,name" },
+      );
+      if (error) throw error;
+      return name;
+    },
+    onSuccess: (name) => {
+      toast.success(`Category "${name}" added`);
+      queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
+      setCategory(name);
+      setCustomCategory("");
+    },
+    onError: (e: Error) => toast.error(e.message || "Could not add category"),
+  });
+
+  const { data: recentExpenses } = useQuery({
+    queryKey: ["recent-expenses", organizationId],
+    queryFn: async () => {
+      const { data } = await supabase.from("voucher_entries").select("id, voucher_number, voucher_date, voucher_type, total_amount, description, category, payment_method").eq("organization_id", organizationId).eq("reference_type", "expense").is("deleted_at", null).order("created_at", { ascending: false }).limit(5);
+      return data || [];
+    },
+    enabled: !!organizationId,
+  });
+
+  const selectedCategoryName = category === "__custom__" ? customCategory.trim() : category;
+
   const createExpense = useMutation({
     mutationFn: async () => {
-      if (!category) throw new Error("Enter expense category");
+      if (!selectedCategoryName) throw new Error("Select an expense category");
       if (!amount || parseFloat(amount) <= 0) throw new Error("Enter valid amount");
       const { data: voucherNumber, error: numErr } = await supabase.rpc("generate_voucher_number", {
         p_type: "expense",
@@ -1112,13 +1156,24 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
           voucher_type: "expense",
           voucher_date: format(voucherDate, "yyyy-MM-dd"),
           reference_type: "expense",
-          description: category,
+          category: selectedCategoryName,
+          description: selectedCategoryName,
           total_amount: parseFloat(amount),
-          payment_method: "cash",
+          payment_method: paymentMethod,
         })
         .select("id")
         .single();
       if (insErr) throw insErr;
+
+      if (category === "__custom__" && customCategory.trim()) {
+        const { error: catErr } = await supabase.from("expense_categories").upsert(
+          { organization_id: organizationId, name: customCategory.trim(), is_active: true },
+          { onConflict: "organization_id,name" },
+        );
+        if (catErr) {
+          toast.error(`Expense saved, but category could not be added: ${catErr.message}`);
+        }
+      }
 
       const { data: acctSettings } = await supabase
         .from("settings")
@@ -1129,21 +1184,16 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
         acctSettings as { accounting_engine_enabled?: boolean } | null
       );
       if (postLedger && inserted?.id) {
-        const { data: catRow } = await supabase
-          .from("expense_categories")
-          .select("ledger_account_id")
-          .eq("organization_id", organizationId)
-          .eq("name", category)
-          .maybeSingle();
-        const categoryLedgerId = catRow?.ledger_account_id ?? null;
+        const categoryLedgerId =
+          categories?.find((c) => c.name === selectedCategoryName)?.ledger_account_id ?? null;
         try {
           await recordExpenseVoucherJournalEntry(
             inserted.id,
             organizationId,
             parseFloat(amount),
-            "cash",
+            paymentMethod,
             format(voucherDate, "yyyy-MM-dd"),
-            category,
+            selectedCategoryName,
             supabase,
             categoryLedgerId
           );
@@ -1160,8 +1210,14 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
       queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
       queryClient.invalidateQueries({ queryKey: ["recent-expenses"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["cashier-report-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
       setVoucherDate(new Date());
       setCategory("");
+      setCustomCategory("");
+      setPaymentMethod("cash");
       setAmount("");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1186,18 +1242,65 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Category</Label>
-          <Input placeholder="e.g., Rent, Travel" value={category} onChange={(e) => setCategory(e.target.value)} className="h-9 text-xs" />
+          <Select value={category} onValueChange={setCategory}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Select category" />
+            </SelectTrigger>
+            <SelectContent>
+              {(categories || []).map((c) => (
+                <SelectItem key={c.id} value={c.name} className="text-xs">{c.name}</SelectItem>
+              ))}
+              <SelectItem value="__custom__" className="text-xs text-primary">+ Add New Category</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <div className="space-y-1">
-        <Label className="text-xs">Amount</Label>
-        <Input type="number" step="0.01" placeholder="₹ Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 text-xs" />
+      {category === "__custom__" && (
+        <div className="flex gap-1">
+          <Input
+            placeholder="New category name"
+            value={customCategory}
+            onChange={(e) => setCustomCategory(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addCategory.mutate(customCategory);
+              }
+            }}
+            className="h-9 text-xs"
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-9 text-xs shrink-0"
+            disabled={addCategory.isPending || !customCategory.trim()}
+            onClick={() => addCategory.mutate(customCategory)}
+          >
+            {addCategory.isPending ? "Adding…" : "Add"}
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <AdaptivePaymentMethodPicker
+          label={<span className="text-xs">Paid by</span>}
+          value={paymentMethod}
+          onChange={setPaymentMethod}
+          methods={POS_EXPENSE_PAYMENT_METHODS}
+          triggerClassName="h-9 text-xs"
+          sheetTitle="Expense paid by"
+        />
+        <div className="space-y-1">
+          <Label className="text-xs">Amount</Label>
+          <Input type="number" step="0.01" placeholder="₹ Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-9 text-xs" />
+        </div>
       </div>
 
       <Button
         onClick={() => createExpense.mutate()}
-        disabled={createExpense.isPending || !category || !amount}
+        disabled={createExpense.isPending || !selectedCategoryName || !amount}
         className={cn("w-full h-9 text-xs gap-1", showSaved ? "bg-emerald-600 hover:bg-emerald-700" : "")}
       >
         {showSaved ? <><CheckCircle2 className="h-3 w-3" /> Saved</> : <><Plus className="h-3 w-3" /> {createExpense.isPending ? "Saving..." : "Record Expense"}</>}
@@ -1213,6 +1316,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
                 <TableRow>
                   <TableHead className="text-xs h-7 px-2">Date</TableHead>
                   <TableHead className="text-xs h-7 px-2">Category</TableHead>
+                  <TableHead className="text-xs h-7 px-2">Paid by</TableHead>
                   <TableHead className="text-xs h-7 px-2 text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1220,7 +1324,8 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
                 {recentExpenses.map(exp => (
                   <TableRow key={exp.id}>
                     <TableCell className="text-xs py-1 px-2">{format(new Date(exp.voucher_date), "dd/MM")}</TableCell>
-                    <TableCell className="text-xs py-1 px-2 truncate max-w-[150px]">{exp.description}</TableCell>
+                    <TableCell className="text-xs py-1 px-2 truncate max-w-[120px]">{exp.category || exp.description}</TableCell>
+                    <TableCell className="text-xs py-1 px-2 capitalize">{(exp.payment_method || "cash").replace("_", " ")}</TableCell>
                     <TableCell className="text-xs py-1 px-2 text-right">₹{Number(exp.total_amount).toLocaleString('en-IN')}</TableCell>
                   </TableRow>
                 ))}

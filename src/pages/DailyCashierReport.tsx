@@ -42,6 +42,7 @@ import {
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
+  cashierNetByModeAfterExpenses,
   cashierSaleAndAdvanceCollection,
   cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
@@ -865,6 +866,14 @@ const DailyCashierReport = () => {
     advanceCard: totals.advanceCard,
     advanceUpi: totals.advanceUpi,
   });
+  const collectionNetOfExpenses = cashierNetByModeAfterExpenses({
+    cash: paymentCollection.cashCollection,
+    card: paymentCollection.cardCollection,
+    upi: paymentCollection.upiCollection,
+    expenseCash: totals.expenseCash,
+    expenseCard: totals.expenseCard,
+    expenseUpi: totals.expenseUpi,
+  });
 
   // Expected cash in drawer — same identity as FloatingCashTally (do not reimplement).
   const drawerOpeningCash = useMemo(() => {
@@ -890,37 +899,43 @@ const DailyCashierReport = () => {
     [drawerOpeningCash, drawerFlows.cashIn, drawerFlows.cashOut],
   );
 
-  // Mode strip: sale tender + advance + mode RCP − mode refunds (compose existing totals only).
+  // Mode strip: sale tender + advance + mode RCP − mode refunds − shop expenses by mode.
   const modeStrip = useMemo(() => {
     const cash =
       (Number(totals.cashSale) || 0) +
       (Number(totals.advanceCash) || 0) +
       (Number(totals.rcpCashCollection) || 0) -
-      (Number(totals.cashRefundTotal) || 0);
+      (Number(totals.cashRefundTotal) || 0) -
+      (Number(totals.expenseCash) || 0);
     const card =
       (Number(totals.cardSale) || 0) +
       (Number(totals.advanceCard) || 0) +
       (Number(totals.rcpCardCollection) || 0) -
-      (Number(totals.customerRefundCard) || 0);
+      (Number(totals.customerRefundCard) || 0) -
+      (Number(totals.expenseCard) || 0);
     const upi =
       (Number(totals.upiSale) || 0) +
       (Number(totals.advanceUpi) || 0) +
       (Number(totals.rcpUpiCollection) || 0) -
-      (Number(totals.customerRefundUpi) || 0);
+      (Number(totals.customerRefundUpi) || 0) -
+      (Number(totals.expenseUpi) || 0);
     return { cash, card, upi };
   }, [
     totals.cashSale,
     totals.advanceCash,
     totals.rcpCashCollection,
     totals.cashRefundTotal,
+    totals.expenseCash,
     totals.cardSale,
     totals.advanceCard,
     totals.rcpCardCollection,
     totals.customerRefundCard,
+    totals.expenseCard,
     totals.upiSale,
     totals.advanceUpi,
     totals.rcpUpiCollection,
     totals.customerRefundUpi,
+    totals.expenseUpi,
   ]);
 
   const eligibleSalesForList = useMemo(() => {
@@ -945,10 +960,10 @@ const DailyCashierReport = () => {
   };
 
   const handleExportExcel = async () => {
-    // Calculate grand totals with RCP
-    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0);
-    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0);
-    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0);
+    // Calculate grand totals with RCP, net of expenses by payment mode
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0) - (totals.expenseCash || 0);
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0) - (totals.expenseCard || 0);
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0) - (totals.expenseUpi || 0);
     const grandTotalCollection = totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection + (totals.advanceReceived || 0);
     
     const data = [
@@ -1017,10 +1032,10 @@ const DailyCashierReport = () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
-    // Calculate grand totals with RCP
-    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0);
-    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0);
-    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0);
+    // Calculate grand totals with RCP, net of expenses by payment mode
+    const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0) - (totals.expenseCash || 0);
+    const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0) - (totals.expenseCard || 0);
+    const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0) - (totals.expenseUpi || 0);
     
     // Header
     doc.setFontSize(16);
@@ -1446,7 +1461,7 @@ const DailyCashierReport = () => {
                 <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400 mt-1">
                   {formatCurrency(modeStrip.cash)}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − cash refunds</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − cash refunds − cash expenses</p>
               </CardContent>
             </Card>
             <Card className="border shadow-sm">
@@ -1455,7 +1470,7 @@ const DailyCashierReport = () => {
                 <p className="text-xl font-bold tabular-nums text-blue-700 dark:text-blue-400 mt-1">
                   {formatCurrency(modeStrip.card)}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − card refunds</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − card refunds − card expenses</p>
               </CardContent>
             </Card>
             <Card className="border shadow-sm">
@@ -1464,7 +1479,7 @@ const DailyCashierReport = () => {
                 <p className="text-xl font-bold tabular-nums text-violet-700 dark:text-violet-400 mt-1">
                   {formatCurrency(modeStrip.upi)}
                 </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − UPI refunds</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − UPI refunds − UPI expenses</p>
               </CardContent>
             </Card>
           </div>
@@ -1613,7 +1628,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">Cash (Sales + Advance)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.cashCollection)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.cash)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1624,7 +1639,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">Card Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.cardCollection)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.card)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1635,7 +1650,7 @@ const DailyCashierReport = () => {
                         <span className="font-medium">UPI Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(paymentCollection.upiCollection)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.upi)}</TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell>
@@ -1682,7 +1697,7 @@ const DailyCashierReport = () => {
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                      <TableCell className="text-right font-bold text-lg">{formatCurrency(paymentCollection.netCashCollection - totals.cashRefundTotal)}</TableCell>
+                      <TableCell className="text-right font-bold text-lg">{formatCurrency(collectionNetOfExpenses.cash - totals.cashRefundTotal)}</TableCell>
                   </TableRow>
                   {/* Advance bookings — already in Cash / UPI / Card collection by payment mode */}
                   {(totals.advanceReceived || 0) > 0 && (
