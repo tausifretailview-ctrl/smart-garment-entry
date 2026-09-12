@@ -107,6 +107,10 @@ import {
   precisionAutoloadSettingsAlreadyInPlace,
 } from "@/utils/precisionPresetAutoloadGuard";
 import {
+  labelDesignNamesMatch,
+  preferSavedLabelConfig,
+} from "@/utils/labelDesignPersist";
+import {
   precisionLabelDesignHasUnsavedChanges,
   snapshotPrecisionDesign,
   syncBaselineLabelConfig,
@@ -1484,6 +1488,8 @@ export default function BarcodePrinting() {
 
   // Label template state
   const [savedLabelTemplates, setSavedLabelTemplates] = useState<LabelTemplate[]>([]);
+  const savedLabelTemplatesRef = useRef(savedLabelTemplates);
+  savedLabelTemplatesRef.current = savedLabelTemplates;
   const [selectedLabelTemplate, setSelectedLabelTemplate] = useState<string>("");
   const selectedLabelTemplateRef = useRef(selectedLabelTemplate);
   selectedLabelTemplateRef.current = selectedLabelTemplate;
@@ -1830,7 +1836,14 @@ export default function BarcodePrinting() {
   }, []);
 
   // Auto-save precision label config changes to active template/preset (debounced)
-  const autoSavePrecisionConfig = useCallback(async (targetName: string, labelConfig: LabelDesignConfig, labelWidth: number, labelHeight: number, orgId: string) => {
+  const autoSavePrecisionConfig = useCallback(async (
+    targetName: string,
+    labelConfig: LabelDesignConfig,
+    labelWidth: number,
+    labelHeight: number,
+    orgId: string,
+    opts?: { force?: boolean },
+  ) => {
     const configToSave = isFixedBuiltinLabelPreset(targetName)
       ? resolveFixedBuiltinLabelConfig(targetName.replace(/^preset:/, ""))!
       : { ...labelConfig };
@@ -1850,25 +1863,11 @@ export default function BarcodePrinting() {
     } catch {
       signature = `${orgId}|${cleanName}|${saveWidth}|${saveHeight}`;
     }
-    if (lastPersistedSignatureRef.current === signature) {
+    if (!opts?.force && lastPersistedSignatureRef.current === signature) {
       return true;
     }
 
     try {
-      if (targetName.startsWith("preset:")) {
-        const { error } = await supabase
-          .from("printer_presets")
-          .update({
-            label_config: configToSave as any,
-            label_width: saveWidth,
-            label_height: saveHeight,
-          })
-          .eq("organization_id", orgId)
-          .eq("name", cleanName);
-
-        if (error) throw error;
-      }
-
       const updatedTemplate: LabelTemplate = {
         name: cleanName,
         config: configToSave,
@@ -1879,7 +1878,7 @@ export default function BarcodePrinting() {
       if (!templateSaved) throw new Error("Failed to sync label template");
 
       setDbPresets(prev => prev.map(p =>
-        p.name === cleanName
+        labelDesignNamesMatch(p.name, cleanName)
           ? { ...p, labelConfig: configToSave, width: saveWidth, height: saveHeight }
           : p
       ));
@@ -1945,9 +1944,11 @@ export default function BarcodePrinting() {
           labelHeight: fixedDims.height,
         }));
       } else {
-        const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) => t.name === templateName);
-        const freshPreset = dbPresets.find((p) => p.name === templateName);
-        const storedConfig = freshTemplate?.config ?? freshPreset?.labelConfig;
+        const freshTemplate = dbLabelTemplates.find((t: LabelTemplate) =>
+          labelDesignNamesMatch(t.name, templateName),
+        );
+        const freshPreset = dbPresets.find((p) => labelDesignNamesMatch(p.name, templateName));
+        const storedConfig = preferSavedLabelConfig(freshTemplate?.config, freshPreset?.labelConfig);
         if (storedConfig) {
           hasLoadedPrecisionConfigRef.current = true;
           const migratedConfig = resolvePresetLabelConfig(templateName, storedConfig);
@@ -2499,13 +2500,20 @@ export default function BarcodePrinting() {
             ? mapped.find((p: { id?: string }) => p.id === defaultPresetIdFromSettings)
             : undefined;
           const presetToLoad = localStoragePresetName
-            ? mapped.find((p: any) => p.name === localStoragePresetName)
+            ? mapped.find((p: { name: string }) => labelDesignNamesMatch(p.name, localStoragePresetName))
             : settingsPreset || findDefaultPresetForMode(mapped, resolvedPrintMode);
 
           if (presetToLoad) {
+            const matchingTemplate = savedLabelTemplatesRef.current.find((t) =>
+              labelDesignNamesMatch(t.name, presetToLoad.name),
+            );
             const fixedDims = getFixedBuiltinLabelDimensions(presetToLoad.name);
-            const resolvedConfig = fixedDims || presetToLoad.labelConfig
-              ? resolvePresetLabelConfig(presetToLoad.name, presetToLoad.labelConfig)
+            const configSource = preferSavedLabelConfig(
+              matchingTemplate?.config,
+              presetToLoad.labelConfig,
+            );
+            const resolvedConfig = fixedDims || configSource
+              ? resolvePresetLabelConfig(presetToLoad.name, configSource)
               : undefined;
             const loadedMode = inferPrecisionPrintMode(presetToLoad);
             const landing = resolvedPrintMode;
@@ -8073,9 +8081,15 @@ export default function BarcodePrinting() {
                 onValueChange={(name) => {
                     if (name.startsWith("preset:")) {
                       const presetName = name.replace("preset:", "");
-                      const preset = dbPresets.find((p) => p.name === presetName);
+                      const preset = dbPresets.find((p) => labelDesignNamesMatch(p.name, presetName));
+                      const matchingTemplate = savedLabelTemplates.find((t) =>
+                        labelDesignNamesMatch(t.name, presetName),
+                      );
                       const fixedDims = getFixedBuiltinLabelDimensions(presetName);
-                      const labelConfig = resolvePresetLabelConfig(presetName, preset?.labelConfig);
+                      const labelConfig = resolvePresetLabelConfig(
+                        presetName,
+                        preferSavedLabelConfig(matchingTemplate?.config, preset?.labelConfig),
+                      );
                       if (
                         preset ||
                         isRanawatBlingPresetName(presetName) ||
@@ -8100,7 +8114,7 @@ export default function BarcodePrinting() {
                       }
                       return;
                     }
-                    const template = savedLabelTemplates.find((t) => t.name === name);
+                    const template = savedLabelTemplates.find((t) => labelDesignNamesMatch(t.name, name));
                     if (template) {
                       const templateDims = resolveTemplateLabelDimensions(template);
                       handlePrecisionPresetLoad({
@@ -8227,6 +8241,10 @@ export default function BarcodePrinting() {
               onSave={async () => {
                 if (!currentOrganization?.id) return;
                 try {
+                  if (autoSaveTimerRef.current) {
+                    clearTimeout(autoSaveTimerRef.current);
+                    autoSaveTimerRef.current = null;
+                  }
                   const templateName = activePrecisionTemplateBaseName || "";
                   const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
                   const fixedDims = getFixedBuiltinLabelDimensions(templateName);
@@ -8243,12 +8261,19 @@ export default function BarcodePrinting() {
                       configToSave,
                       saveWidth,
                       saveHeight,
-                      currentOrganization.id
+                      currentOrganization.id,
+                      { force: true },
                     );
 
                     if (!success) {
                       toast.error("Failed to save label design");
                       return;
+                    }
+
+                    try {
+                      await refreshDbPresetsFromServer();
+                    } catch (refreshErr) {
+                      console.warn("Failed to refresh printer presets after save:", refreshErr);
                     }
 
                     markLabelDesignBaselineSaved(configToSave, activePrecisionTemplateName);
