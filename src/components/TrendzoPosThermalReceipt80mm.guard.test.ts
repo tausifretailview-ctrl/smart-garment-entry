@@ -41,6 +41,21 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toContain("max-height: 28px");
   });
 
+  it("prints invoice/customer, date/time, totals, payment, and mobile/GST on one row each", () => {
+    expect(tsx).toContain("tz-pair-row");
+    expect(tsx).toContain("tz-header-ids");
+    expect(tsx).toContain("Invoice No:");
+    expect(tsx).toContain("Customer:");
+    expect(tsx).toContain("Date:");
+    expect(tsx).toContain("Time:");
+    expect(tsx).toContain("Items:");
+    expect(tsx).toContain("Subtotal");
+    expect(tsx).toContain("Payment:");
+    expect(tsx).not.toContain("tz-info-grid");
+    expect(css).toMatch(/\.tz-pair-left[\s\S]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.tz-header-ids \{[\s\S]*white-space:\s*nowrap/);
+  });
+
   it("uses larger body type than the original 11/9px receipt", () => {
     expect(css).toMatch(/\.thermal-receipt \{[\s\S]*font-size: 13px;/);
     expect(css).toMatch(/\.tz-terms-list \{[\s\S]*font-size: 11px;/);

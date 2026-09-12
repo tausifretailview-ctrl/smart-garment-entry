@@ -73,13 +73,12 @@ const fmtMoney = (n: number): string => {
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
-  const v = (value ?? "").trim();
-  if (!v) return null;
+function PairRow({ left, right }: { left?: React.ReactNode; right?: React.ReactNode }) {
+  if (!left && !right) return null;
   return (
-    <div className="tz-info-row">
-      <span className="tz-info-label">{label}</span>
-      <span className="tz-info-value">: {v}</span>
+    <div className="tz-pair-row">
+      <span className="tz-pair-left">{left}</span>
+      {right ? <span className="tz-pair-right">{right}</span> : null}
     </div>
   );
 }
@@ -274,8 +273,12 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
         {logoUrl ? <img src={logoUrl} alt="" className="tz-logo" /> : null}
         <div className="tz-company-name">{businessName}</div>
         {address ? <div className="tz-company-meta">{address}</div> : null}
-        {mobile ? <div className="tz-company-meta">Mobile: {mobile}</div> : null}
-        {gstNumber ? <div className="tz-company-meta">GSTIN: {gstNumber}</div> : null}
+        {mobile || gstNumber ? (
+          <div className="tz-header-ids">
+            {mobile ? <span>Mobile: {mobile}</span> : null}
+            {gstNumber ? <span>GSTIN: {gstNumber}</span> : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="tz-sep-dashed" />
@@ -284,17 +287,19 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
       <div className="tz-sep-solid" />
 
-      <div className="tz-info-grid">
-        <div className="tz-info-col">
-          <InfoRow label="Invoice No" value={billNo} />
-          <InfoRow label="Date" value={format(date, "dd/MM/yyyy")} />
-          <InfoRow label="Time" value={format(date, "hh:mm a")} />
-        </div>
-        <div className="tz-info-col">
-          <InfoRow label="Customer" value={partyName || undefined} />
-          <InfoRow label="Mobile" value={customerPhone} />
-          <InfoRow label="Salesman" value={staffLabel || undefined} />
-        </div>
+      <div className="tz-meta">
+        <PairRow
+          left={<>Invoice No: {billNo}</>}
+          right={partyName ? <>Customer: {partyName}</> : null}
+        />
+        <PairRow
+          left={<>Date: {format(date, "dd/MM/yyyy")}</>}
+          right={<>Time: {format(date, "hh:mm a")}</>}
+        />
+        <PairRow
+          left={customerPhone?.trim() ? <>Mobile: {customerPhone.trim()}</> : null}
+          right={staffLabel ? <>Salesman: {staffLabel}</> : null}
+        />
       </div>
 
       <div className="tz-sep-solid" />
@@ -322,17 +327,18 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
       <div className="tz-sep-dashed" />
 
-      <div className="tz-summary-grid">
-        <div className="tz-summary-left">
-          <div>Total Items : {itemCount}</div>
-          <div>Total Quantity : {fmtDec(totalQty)}</div>
-        </div>
-        <div className="tz-summary-right">
-          <AmountRow label="Subtotal" amount={subTotal} show={subTotal > 0} />
-          <AmountRow label="Discount" amount={discount} />
-          <AmountRow label="S/R Adjust" amount={saleReturnAdjust} />
-          <AmountRow label="Round Off" amount={roundOff} show={roundOff !== 0} />
-        </div>
+      <div className="tz-summary">
+        <PairRow
+          left={
+            <>
+              Items: {itemCount} &nbsp; Qty: {fmtDec(totalQty)}
+            </>
+          }
+          right={subTotal > 0 ? <>Subtotal {fmtMoney(subTotal)}</> : null}
+        />
+        <AmountRow label="Discount" amount={discount} />
+        <AmountRow label="S/R Adjust" amount={saleReturnAdjust} />
+        <AmountRow label="Round Off" amount={roundOff} show={roundOff !== 0} />
       </div>
 
       <div className="tz-grand-total">
@@ -341,8 +347,10 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
       </div>
 
       <div className="tz-payment">
-        <InfoRow label="Payment Mode" value={paymentModeLabel} />
-        <AmountRow label="Paid Amount" amount={totalPaid > 0 ? totalPaid : grandTotal} show />
+        <PairRow
+          left={<>Payment: {paymentModeLabel}</>}
+          right={<>Paid {fmtMoney(totalPaid > 0 ? totalPaid : grandTotal)}</>}
+        />
         <AmountRow label="Balance / Due" amount={balanceDue} show={balanceDue > 0.5} />
         <AmountRow label="Return Amount" amount={refundCash} />
         <AmountRow label="You Saved" amount={youSaved} show={youSaved > 0} />
