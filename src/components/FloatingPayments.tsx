@@ -1121,7 +1121,7 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
     },
     onSuccess: (name) => {
       toast.success(`Category "${name}" added`);
-      queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-categories", organizationId] });
       setCategory(name);
       setCustomCategory("");
     },
@@ -1207,13 +1207,13 @@ function ExpenseForm({ organizationId }: { organizationId: string }) {
       toast.success("Expense recorded");
       setShowSaved(true);
       setTimeout(() => setShowSaved(false), 3000);
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["recent-expenses"] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["cashier-report-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      void queryClient.invalidateQueries({ queryKey: ["recent-expenses"] });
+      void queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      void queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-vouchers"] });
+      void queryClient.invalidateQueries({ queryKey: ["cashier-report-expenses"] });
       setVoucherDate(new Date());
       setCategory("");
       setCustomCategory("");
