@@ -168,7 +168,144 @@ describe("computeCustomerBalanceCore — advance application", () => {
 
     expect(result.pendingStandaloneSaleReturns).toBeCloseTo(600, 0);
     expect(result.customerPaymentDebits).toBeCloseTo(600, 0);
+    expect(result.refundedStandaloneSaleReturnCredit).toBeCloseTo(0, 0);
     expect(result.balance).toBeCloseTo(0, 0);
+  });
+
+  it("FIZA MEMON — paid invoice + refunded cash-return + CN refund payment → balance 0", () => {
+    // ELLA NOOR Customer Balances showed ₹3,250 Dr while ledger recon / header were ₹0.
+    // INV/26-27/1752 paid by RCP/26-27/2187; SR/26-27/99 cash-refunded; PAY-88827 refunded the CN.
+    const result = computeCustomerBalanceCore({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "inv-1752",
+          net_amount: 3250,
+          paid_amount: 3250,
+          upi_amount: 0,
+          sale_return_adjust: 0,
+          items_gross: 3250,
+        },
+      ],
+      voucherEntries: [
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "inv-1752",
+          total_amount: 3250,
+          payment_method: "upi",
+          description: "Payment received for Invoice INV/26-27/1752",
+        },
+        {
+          voucher_type: "payment",
+          reference_type: "customer",
+          reference_id: "cust-fiza-memon",
+          total_amount: 3250,
+          payment_method: "bank",
+          description: "Refund paid for Sale Return SR/26-27/99",
+        },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 3250,
+          credit_status: "refunded",
+          refund_type: "cash_refund",
+          linked_sale_id: null,
+          credit_available_balance: 0,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+
+    expect(result.receiptCredits).toBeCloseTo(3250, 0);
+    expect(result.customerPaymentDebits).toBeCloseTo(3250, 0);
+    expect(result.pendingStandaloneSaleReturns).toBeCloseTo(0, 0);
+    expect(result.refundedStandaloneSaleReturnCredit).toBeCloseTo(3250, 0);
+    expect(result.balance).toBeCloseTo(0, 0);
+
+    const state = getCustomerAccountState({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "inv-1752",
+          net_amount: 3250,
+          paid_amount: 3250,
+          sale_return_adjust: 0,
+          items_gross: 3250,
+        },
+      ],
+      voucherEntries: [
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "inv-1752",
+          total_amount: 3250,
+          payment_method: "upi",
+        },
+        {
+          voucher_type: "payment",
+          reference_type: "customer",
+          reference_id: "cust-fiza-memon",
+          total_amount: 3250,
+          payment_method: "bank",
+        },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          net_amount: 3250,
+          credit_status: "refunded",
+          refund_type: "cash_refund",
+          linked_sale_id: null,
+          credit_available_balance: 0,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+    expect(state.outstanding).toBeCloseTo(0, 0);
+    expect(state.unclaimedSaleReturnCredit).toBeCloseTo(0, 0);
+    expect(state.netPosition).toBeCloseTo(0, 0);
+  });
+
+  it("FIZA MEMON — computeCustomerOutstanding public path (refundsPaidTotal) also nets to 0", () => {
+    const result = computeCustomerOutstanding({
+      openingBalance: 0,
+      customerId: "cust-fiza-memon",
+      sales: [
+        {
+          id: "inv-1752",
+          net_amount: 3250,
+          paid_amount: 3250,
+          sale_return_adjust: 0,
+        },
+      ],
+      vouchers: [
+        {
+          reference_id: "inv-1752",
+          reference_type: "sale",
+          total_amount: 3250,
+          discount_amount: 0,
+          payment_method: "upi",
+          description: "Payment received for Invoice INV/26-27/1752",
+        },
+      ],
+      adjustmentTotal: 0,
+      advances: [],
+      advanceRefundTotal: 0,
+      saleReturns: [
+        {
+          net_amount: 3250,
+          credit_status: "refunded",
+          linked_sale_id: null,
+        },
+      ],
+      refundsPaidTotal: 3250,
+    });
+    expect(result.balance).toBeCloseTo(0, 0);
+    expect(result.saleReturnTotal).toBeCloseTo(0, 0);
   });
 
   it("Hanif bhai — adjusted return remainder shows 3050 Cr not 3200 Dr", () => {

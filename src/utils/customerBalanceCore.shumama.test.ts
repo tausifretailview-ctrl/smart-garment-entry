@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeCustomerBalanceCore,
   computePendingStandaloneSaleReturns,
+  computeRefundedStandaloneSaleReturnCredit,
   getCustomerAccountState,
 } from "./customerBalanceCore";
 
@@ -26,6 +27,35 @@ describe("computePendingStandaloneSaleReturns", () => {
       { net_amount: 8000, credit_status: "pending", linked_sale_id: "sale-a" },
     ];
     expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(3000);
+  });
+
+  it("does not put refunded / cash_refund rows in the unclaimed CN pool", () => {
+    const sales = [{ id: "inv-1752", sale_return_adjust: 0 }];
+    const saleReturns = [
+      {
+        net_amount: 3250,
+        credit_status: "refunded",
+        refund_type: "cash_refund",
+        linked_sale_id: null,
+        credit_available_balance: 0,
+      },
+    ];
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(0);
+    expect(computeRefundedStandaloneSaleReturnCredit(saleReturns, sales)).toBe(3250);
+  });
+
+  it("refunded credit uses net − linked SRA, not cleared CAB", () => {
+    const sales = [{ id: "inv-a", sale_return_adjust: 1000 }];
+    const saleReturns = [
+      {
+        net_amount: 3250,
+        credit_status: "refunded",
+        refund_type: "cash_refund",
+        linked_sale_id: "inv-a",
+        credit_available_balance: 0,
+      },
+    ];
+    expect(computeRefundedStandaloneSaleReturnCredit(saleReturns, sales)).toBe(2250);
   });
 });
 

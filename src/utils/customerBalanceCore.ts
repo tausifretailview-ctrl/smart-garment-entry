@@ -9,7 +9,8 @@ import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
  * and `customerAuditMath` audit components, plus explicit extensions:
  *
  * - `paidAmountDrift` — POS cash/UPI on `sales.paid_amount` without a matching receipt voucher
- * - `pendingStandaloneSaleReturns` — standalone sale_returns still in `pending` (not in RPC lines)
+ * - `pendingStandaloneSaleReturns` — unclaimed sale-return / CN pool (excludes refunded / cash_refund)
+ * - `refundedStandaloneSaleReturnCredit` — refunded / cash_refund net − linked SRA (pairs with refund debit)
  *
  * Unused advance (`unusedAdvance`) is returned separately and must NOT reduce `balance`.
  * Applied advance is captured via `totalAdvanceUsed` / receipt credits.
@@ -145,6 +146,11 @@ export type CustomerBalanceCoreComponents = {
   paidAmountDrift: number;
   /** Standalone sale_returns with credit_status pending (explicit; not in RPC SUM). */
   pendingStandaloneSaleReturns: number;
+  /**
+   * Refunded / cash_refund sale-return credit (net − linked SRA). Not CN-available —
+   * pairs with `customerPaymentRefunds` so a paid-out return does not leave phantom Dr.
+   */
+  refundedStandaloneSaleReturnCredit: number;
 };
 
 export type CustomerBalanceCoreResult = {
@@ -164,6 +170,7 @@ export type CustomerBalanceCoreResult = {
   adjustmentTotal: number;
   paidAmountDrift: number;
   pendingStandaloneSaleReturns: number;
+  refundedStandaloneSaleReturnCredit: number;
   /** Audit/RPC formula before drift and pending SR (for comparison). */
   auditFormulaOutstanding: number;
   components: CustomerBalanceCoreComponents;
@@ -257,31 +264,75 @@ export function saleReturnRemainingCreditForBalance(
   return Math.max(0, net - absorb);
 }
 
+function saleReturnAdjustBySaleId(
+  sales?: CustomerBalanceCoreSale[],
+): Map<string, number> {
+  const saleReturnAdjustById = new Map<string, number>();
+  for (const s of sales || []) {
+    if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
+  }
+  return saleReturnAdjustById;
+}
+
+function linkedSaleReturnAbsorb(
+  sr: CustomerBalanceCoreSaleReturn,
+  saleReturnAdjustById: Map<string, number>,
+): number {
+  const linked = String(sr.linked_sale_id || "").trim();
+  return linked ? saleReturnAdjustById.get(linked) || 0 : 0;
+}
+
+function isRefundedOrCashRefundSaleReturn(sr: CustomerBalanceCoreSaleReturn): boolean {
+  const status = normalizeStatus(sr.credit_status);
+  if (status === "refunded") return true;
+  return String(sr.refund_type || "").toLowerCase() === "cash_refund";
+}
+
 /**
- * Sale-return credit toward lifetime outstanding (matches SQL `pending_sale_returns` line).
- * Includes pending, partially_adjusted, and adjusted rows with a remaining pool — not only
- * credit_status=pending (Hanif bhai / ELLA NOOR: adjusted return with ₹3,050 remainder).
+ * Unclaimed sale-return / CN pool toward lifetime outstanding (SQL `pending_sale_returns`
+ * for non-refunded rows). Includes pending, partially_adjusted, and adjusted remainders
+ * (Hanif bhai / ELLA NOOR: adjusted return with ₹3,050 remainder).
+ *
+ * Refunded / cash_refund rows are excluded here so CN-available stays 0 after payout.
+ * Their economic credit is {@link computeRefundedStandaloneSaleReturnCredit}.
  */
 export function computePendingStandaloneSaleReturns(
   saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
   sales?: CustomerBalanceCoreSale[],
 ): number {
   if (!saleReturns?.length) return 0;
-  const salesList = sales || [];
-  const saleReturnAdjustById = new Map<string, number>();
-  for (const s of salesList) {
-    if (s.id) saleReturnAdjustById.set(s.id, Number(s.sale_return_adjust || 0));
-  }
+  const saleReturnAdjustById = saleReturnAdjustBySaleId(sales);
 
   let sum = 0;
   for (const sr of saleReturns) {
-    const status = normalizeStatus(sr.credit_status);
-    if (status === "refunded") continue;
-    if (String(sr.refund_type || "").toLowerCase() === "cash_refund") continue;
+    if (isRefundedOrCashRefundSaleReturn(sr)) continue;
 
-    const linked = String(sr.linked_sale_id || "").trim();
-    const absorb = linked ? saleReturnAdjustById.get(linked) || 0 : 0;
+    const absorb = linkedSaleReturnAbsorb(sr, saleReturnAdjustById);
     const remaining = saleReturnRemainingCreditForBalance(sr, absorb);
+    if (remaining > 0.005) sum += remaining;
+  }
+
+  return sum;
+}
+
+/**
+ * Refunded / cash_refund sale-return credit for outstanding — `net_amount` minus linked
+ * invoice `sale_return_adjust`. Ignores `credit_available_balance` (cleared to 0 after
+ * payout). FIZA MEMON: paid INV ₹3,250 + SR/26-27/99 cash-refunded ₹3,250 + PAY-88827
+ * ₹3,250 must net to ₹0, not ₹3,250 Dr from the refund debit alone.
+ */
+export function computeRefundedStandaloneSaleReturnCredit(
+  saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
+  sales?: CustomerBalanceCoreSale[],
+): number {
+  if (!saleReturns?.length) return 0;
+  const saleReturnAdjustById = saleReturnAdjustBySaleId(sales);
+
+  let sum = 0;
+  for (const sr of saleReturns) {
+    if (!isRefundedOrCashRefundSaleReturn(sr)) continue;
+    const net = Math.max(0, Number(sr.net_amount || 0));
+    const remaining = Math.max(0, net - linkedSaleReturnAbsorb(sr, saleReturnAdjustById));
     if (remaining > 0.005) sum += remaining;
   }
 
@@ -385,9 +436,16 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     params.saleReturns,
     validSales,
   );
+  const refundedStandaloneSaleReturnCredit = computeRefundedStandaloneSaleReturnCredit(
+    params.saleReturns,
+    validSales,
+  );
 
   const balance = Math.round(
-    auditFormulaOutstanding - paidAmountDrift - pendingStandaloneSaleReturns,
+    auditFormulaOutstanding -
+      paidAmountDrift -
+      pendingStandaloneSaleReturns -
+      refundedStandaloneSaleReturnCredit,
   );
 
   return {
@@ -406,6 +464,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     adjustmentTotal: Math.round(adjustmentTotal),
     paidAmountDrift: Math.round(paidAmountDrift),
     pendingStandaloneSaleReturns: Math.round(pendingStandaloneSaleReturns),
+    refundedStandaloneSaleReturnCredit: Math.round(refundedStandaloneSaleReturnCredit),
     auditFormulaOutstanding: Math.round(auditFormulaOutstanding),
     components: {
       openingBalance: Math.round(openingBalance),
@@ -420,6 +479,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
       unusedAdvances: 0,
       paidAmountDrift: Math.round(-paidAmountDrift),
       pendingStandaloneSaleReturns: Math.round(-pendingStandaloneSaleReturns),
+      refundedStandaloneSaleReturnCredit: Math.round(-refundedStandaloneSaleReturnCredit),
     },
   };
 }
@@ -557,7 +617,8 @@ export function sumReconcileStyleComponents(c: CustomerBalanceCoreComponents): n
     c.advancesApplied +
     c.unusedAdvances +
     c.paidAmountDrift +
-    c.pendingStandaloneSaleReturns
+    c.pendingStandaloneSaleReturns +
+    c.refundedStandaloneSaleReturnCredit
   );
 }
 
