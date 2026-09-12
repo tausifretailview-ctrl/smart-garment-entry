@@ -73,7 +73,7 @@ const DailyCashierReport = () => {
     return d;
   });
   const [period, setPeriod] = useState<PeriodType>("daily");
-  const [salesCreditOpen, setSalesCreditOpen] = useState(false);
+  const [salesCreditOpen, setSalesCreditOpen] = useState(true);
   const [otherMoneyOpen, setOtherMoneyOpen] = useState(false);
   const [cashTallyOpen, setCashTallyOpen] = useState(false);
 
