@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import { LabelFieldConfig, LabelDesignConfig, LabelTemplate } from "@/types/labelTypes";
+import { labelDesignNamesMatch, pickLatestNamedSetting } from "@/utils/labelDesignPersist";
 
 interface MarginPreset {
   name: string;
@@ -87,17 +88,24 @@ export function useBarcodeLabelSettings() {
       const prns: PRNTemplate[] = [];
       let defaultFmt: DefaultFormat | null = null;
 
+      const templateRows = pickLatestNamedSetting(
+        (data || []).filter((row) => row.setting_type === "label_template"),
+      );
+      templateRows.forEach((row) => {
+        const settingData = row.setting_data as any;
+        templates.push({
+          name: row.setting_name,
+          config: settingData.config,
+          labelWidth: settingData.labelWidth,
+          labelHeight: settingData.labelHeight,
+        });
+      });
+
       data?.forEach((row) => {
         const settingData = row.setting_data as any;
         
         switch (row.setting_type) {
           case "label_template":
-            templates.push({
-              name: row.setting_name,
-              config: settingData.config,
-              labelWidth: settingData.labelWidth,
-              labelHeight: settingData.labelHeight,
-            });
             break;
           case "margin_preset":
             margins.push({
@@ -149,40 +157,63 @@ export function useBarcodeLabelSettings() {
     }
 
     try {
-      const { error } = await supabase
+      const orgId = currentOrganization.id;
+      const settingData = {
+        config: template.config,
+        labelWidth: template.labelWidth,
+        labelHeight: template.labelHeight,
+      };
+
+      const { data: existing, error: lookupError } = await supabase
         .from("barcode_label_settings")
-        .upsert({
-          organization_id: currentOrganization.id,
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("setting_type", "label_template")
+        .eq("setting_name", template.name);
+      if (lookupError) throw lookupError;
+
+      if (existing && existing.length > 0) {
+        const { error } = await supabase
+          .from("barcode_label_settings")
+          .update({ setting_data: settingData as any })
+          .in("id", existing.map((row) => row.id))
+          .eq("organization_id", orgId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("barcode_label_settings").insert({
+          organization_id: orgId,
           setting_type: "label_template",
           setting_name: template.name,
-          setting_data: { config: template.config, labelWidth: template.labelWidth, labelHeight: template.labelHeight } as any,
-        } as any, {
-          onConflict: "organization_id,setting_type,setting_name",
-        });
+          setting_data: settingData as any,
+        } as any);
+        if (error) throw error;
+      }
 
-      if (error) throw error;
+      const { data: orgPresets, error: presetLookupError } = await supabase
+        .from("printer_presets")
+        .select("id, name")
+        .eq("organization_id", orgId);
+      if (presetLookupError) throw presetLookupError;
 
-      // Sync label_config to any matching printer_preset with the same name
-      try {
-        const { data: matchingPresets } = await supabase
+      const presetIds = (orgPresets || [])
+        .filter((row) => labelDesignNamesMatch(row.name, template.name))
+        .map((row) => row.id);
+
+      if (presetIds.length > 0) {
+        const { data: updatedPresets, error: syncError } = await supabase
           .from("printer_presets")
-          .select("id")
-          .eq("organization_id", currentOrganization.id)
-          .eq("name", template.name);
-        
-        if (matchingPresets && matchingPresets.length > 0) {
-          await supabase
-            .from("printer_presets")
-            .update({
-              label_config: template.config as any,
-              label_width: template.labelWidth || null,
-              label_height: template.labelHeight || null,
-            })
-            .eq("organization_id", currentOrganization.id)
-            .eq("name", template.name);
+          .update({
+            label_config: template.config as any,
+            label_width: template.labelWidth || null,
+            label_height: template.labelHeight || null,
+          })
+          .in("id", presetIds)
+          .eq("organization_id", orgId)
+          .select("id");
+        if (syncError) throw syncError;
+        if (!updatedPresets || updatedPresets.length === 0) {
+          throw new Error("Printer preset was not updated");
         }
-      } catch (syncErr) {
-        console.warn("Failed to sync template to printer preset:", syncErr);
       }
 
       await fetchSettings();
