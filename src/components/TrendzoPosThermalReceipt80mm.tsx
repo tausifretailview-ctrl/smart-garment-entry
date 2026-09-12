@@ -307,16 +307,16 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           <span className="tz-items-num-col">AMT</span>
         </div>
         {items.map((item) => (
-            <div className="tz-items-row" key={`${item.sr}-${item.particulars}`}>
-              <div className="tz-items-item-col">
-                <div className="tz-item-name">
-                  {formatTrendzoThermalItemLine(item.particulars, item.barcode)}
-                </div>
+          <div className="tz-items-row" key={`${item.sr}-${item.particulars}`}>
+            <div className="tz-items-item-col">
+              <div className="tz-item-name">
+                {formatTrendzoThermalItemLine(item.particulars, item.barcode)}
               </div>
-              <span className="tz-items-qty-col tz-items-num">{item.qty}</span>
-              <span className="tz-items-num-col tz-items-num">{fmtDec(item.rate)}</span>
-              <span className="tz-items-num-col tz-items-num">{fmtDec(item.total)}</span>
             </div>
+            <span className="tz-items-qty-col tz-items-num">{item.qty}</span>
+            <span className="tz-items-num-col tz-items-num">{fmtDec(item.rate)}</span>
+            <span className="tz-items-num-col tz-items-num">{fmtDec(item.total)}</span>
+          </div>
         ))}
       </div>
 
