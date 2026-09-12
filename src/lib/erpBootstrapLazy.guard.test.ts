@@ -32,25 +32,29 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     expect(print).toContain("Retry");
   });
 
-  it("POSLayout / Header / DC layout do not statically import floating widgets", () => {
+  it("POSLayout / Header / DC layout statically open Size Stock; other widgets stay lazy", () => {
     for (const rel of [
       "src/components/POSLayout.tsx",
       "src/components/Header.tsx",
       "src/components/PosDeliveryChallanLayout.tsx",
     ]) {
       const text = src(rel);
-      expect(text).not.toMatch(/from "@\/components\/SizeStockDialog"/);
+      expect(text).toMatch(/from "@\/components\/SizeStockDialog"/);
       expect(text).not.toMatch(/from "@\/components\/FloatingPayments"/);
       expect(text).not.toMatch(/from "@\/components\/FloatingCashTally"/);
       expect(text).not.toMatch(/from "@\/components\/FloatingPOSReports"/);
     }
     const header = src("src/components/Header.tsx");
-    expect(header).toContain("LazySizeStockDialog");
+    expect(header).toContain("SizeStockDialog");
+    expect(header).not.toContain("LazySizeStockDialog");
     expect(header).toContain("LazyFloatingStockReport");
     expect(header).toContain("LazyFloatingSaleReport");
     const pos = src("src/components/POSLayout.tsx");
     expect(pos).toContain("LazyFloatingPayments");
     expect(pos).toContain("LazyFloatingCashTally");
+    const widgets = src("src/components/lazyFloatingWidgets.tsx");
+    expect(widgets).not.toContain("SizeStockDialog");
+    expect(widgets).not.toContain("LazySizeStockDialog");
   });
 
   it("Layout shells lazy-load chat (drops dompurify from erpBootstrap)", () => {

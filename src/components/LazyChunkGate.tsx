@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ComponentType,
@@ -257,41 +258,48 @@ export function LazyChunkGate<P extends object>({
     <LoadingBody message={loadingMessage} />,
   );
 
-  if (timedOut && !ready) {
-    return wrapVariant(
-      variant,
-      title,
-      resolvedErrorDescription,
-      onDismiss,
-      <ErrorBody
-        title={resolvedErrorTitle}
-        description={resolvedErrorDescription}
-        onRetry={handleRetry}
-        onDismiss={onDismiss}
-      />,
-    );
-  }
+  // Keep the in-flight import mounted after the UI timeout. Unmounting Suspense
+  // aborted a late chunk (deploy skew / slow PWA) and left "Could not open…"
+  // even when the module arrived a moment later.
+  const timedOutWaiting = timedOut && !ready;
+  const timeoutOverlay = timedOutWaiting
+    ? wrapVariant(
+        variant,
+        title,
+        resolvedErrorDescription,
+        onDismiss,
+        <ErrorBody
+          title={resolvedErrorTitle}
+          description={resolvedErrorDescription}
+          onRetry={handleRetry}
+          onDismiss={onDismiss}
+        />,
+      )
+    : null;
 
   return (
-    <LazyChunkErrorBoundary
-      title={title}
-      errorTitle={resolvedErrorTitle}
-      errorDescription={resolvedErrorDescription}
-      variant={variant}
-      onDismiss={onDismiss}
-      onRetry={handleRetry}
-    >
-      <Suspense fallback={loading}>
-        <LazyChunkReady key={loadKey} onReady={markReady}>
-          <LazyComp {...componentProps} />
-        </LazyChunkReady>
-      </Suspense>
-    </LazyChunkErrorBoundary>
+    <>
+      {timeoutOverlay}
+      <LazyChunkErrorBoundary
+        title={title}
+        errorTitle={resolvedErrorTitle}
+        errorDescription={resolvedErrorDescription}
+        variant={variant}
+        onDismiss={onDismiss}
+        onRetry={handleRetry}
+      >
+        <Suspense fallback={timedOutWaiting ? null : loading}>
+          <LazyChunkReady key={loadKey} onReady={markReady}>
+            <LazyComp {...componentProps} />
+          </LazyChunkReady>
+        </Suspense>
+      </LazyChunkErrorBoundary>
+    </>
   );
 }
 
 function LazyChunkReady({ onReady, children }: { onReady: () => void; children: ReactNode }) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     onReady();
   }, [onReady]);
   return <>{children}</>;

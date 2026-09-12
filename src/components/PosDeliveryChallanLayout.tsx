@@ -39,8 +39,8 @@ import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
+import { SizeStockDialog } from "@/components/SizeStockDialog";
 import {
-  LazySizeStockDialog,
   LazyFloatingCashTally,
   LazyFloatingPayments,
 } from "@/components/lazyFloatingWidgets";
@@ -324,7 +324,7 @@ function PosDeliveryChallanLayoutContent({ children }: { children: ReactNode }) 
   const dialogs = (
     <>
       <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="pos" />
-      <LazySizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
+      <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
       <LazyFloatingCashTally open={showCashTally} onOpenChange={setShowCashTally} />
       <LazyFloatingPayments open={showPayments} onOpenChange={setShowPayments} />
     </>

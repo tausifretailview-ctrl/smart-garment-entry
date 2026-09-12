@@ -115,4 +115,43 @@ describe("LazyChunkGate", () => {
     expect(container.textContent).toContain("invoice-ready");
     expect(container.querySelector("[data-lazy-chunk-error]")).toBeNull();
   });
+
+  it("keeps the in-flight import after UI timeout so a late chunk still opens", async () => {
+    let resolve: (value: { default: ComponentType<object> }) => void = () => {};
+    const pending = new Promise<{ default: ComponentType<object> }>((r) => {
+      resolve = r;
+    });
+
+    render(
+      createElement(LazyChunkGate, {
+        variant: "inline",
+        loader: () => pending,
+        componentProps: {},
+        title: "Size-wise stock",
+        loadingMessage: "Loading size stock…",
+        errorTitle: "Could not open size stock",
+        timeoutMs: 40,
+      }),
+    );
+
+    expect(container.querySelector("[data-lazy-chunk-loading]")).toBeTruthy();
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 60));
+    });
+
+    expect(container.querySelector("[data-lazy-chunk-error]")).toBeTruthy();
+    expect(container.textContent).toContain("Could not open size stock");
+    expect(container.querySelector("[data-loaded]")).toBeNull();
+
+    await act(async () => {
+      resolve({ default: Hello });
+      await pending;
+      await Promise.resolve();
+    });
+
+    expect(container.querySelector("[data-loaded]")).toBeTruthy();
+    expect(container.textContent).toContain("invoice-ready");
+    expect(container.querySelector("[data-lazy-chunk-error]")).toBeNull();
+  });
 });

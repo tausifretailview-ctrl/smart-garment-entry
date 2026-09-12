@@ -1,7 +1,6 @@
 import type { ComponentProps, ComponentType } from "react";
 import { LazyChunkGate } from "@/components/LazyChunkGate";
 
-type SizeStockProps = ComponentProps<typeof import("@/components/SizeStockDialog").SizeStockDialog>;
 type PaymentsProps = ComponentProps<typeof import("@/components/FloatingPayments").FloatingPayments>;
 type CashTallyProps = ComponentProps<typeof import("@/components/FloatingCashTally").FloatingCashTally>;
 type StockReportProps = ComponentProps<
@@ -10,9 +9,6 @@ type StockReportProps = ComponentProps<
 type SaleReportProps = ComponentProps<typeof import("@/components/FloatingPOSReports").FloatingSaleReport>;
 
 type OpenProps = { open: boolean; onOpenChange: (open: boolean) => void };
-
-const loadSizeStockDialog = () =>
-  import("@/components/SizeStockDialog").then((m) => ({ default: m.SizeStockDialog }));
 
 const loadFloatingPayments = () =>
   import("@/components/FloatingPayments").then((m) => ({ default: m.FloatingPayments }));
@@ -58,19 +54,6 @@ function OpenDialogGate<P extends OpenProps>({
       errorTitle={errorTitle}
       errorDescription={WIDGET_ERROR}
       onDismiss={() => componentProps.onOpenChange(false)}
-    />
-  );
-}
-
-export function LazySizeStockDialog(props: SizeStockProps) {
-  return (
-    <OpenDialogGate
-      open={props.open}
-      loader={loadSizeStockDialog}
-      title="Size-wise stock"
-      loadingMessage="Loading size stock…"
-      errorTitle="Could not open size stock"
-      componentProps={props}
     />
   );
 }
