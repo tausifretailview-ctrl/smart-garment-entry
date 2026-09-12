@@ -30,8 +30,10 @@ import {
 } from '@/utils/cnAdjustBillNote';
 import { NewDesignThermalReceipt80mm } from './NewDesignThermalReceipt80mm';
 import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
+import { KidsCampThermalReceipt80mm } from './KidsCampThermalReceipt80mm';
 import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
 import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
+import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
 import QRCode from 'qrcode';
 import {
   calculateGSTBreakup,
@@ -669,6 +671,44 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showYouSaved={showYouSaved}
+            />
+          );
+        }
+        if (templateForFormat === 'kids-camp-80mm') {
+          return (
+            <KidsCampThermalReceipt80mm
+              billNo={props.billNo}
+              date={props.date}
+              customerName={props.customerName}
+              customerPhone={props.customerMobile}
+              items={props.items.map((item, idx) => ({
+                sr: idx + 1,
+                particulars: item.particulars,
+                barcode: item.barcode,
+                hsn: item.hsn,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+                discountPercent: item.discountPercent,
+                gstPercent: item.gstPercent,
+              }))}
+              subTotal={props.subTotal}
+              discount={props.discount}
+              saleReturnAdjust={props.saleReturnAdjust}
+              roundOff={props.roundOff}
+              grandTotal={props.grandTotal}
+              gstRateBreakdown={buildKidsCampGstRateBreakdown(props.items)}
+              paymentMethod={props.paymentMethod}
+              cashPaid={props.cashPaid || props.cashAmount}
+              upiPaid={props.upiPaid || props.upiAmount}
+              cardPaid={props.cardAmount}
+              creditPaid={props.creditAmount}
+              paidAmount={props.paidAmount}
+              refundCash={props.refundCash}
+              documentType={props.documentType || 'pos'}
+              salesman={props.salesman}
+              thermalPaper={thermalPaper}
+              settingsOverride={settings}
             />
           );
         }

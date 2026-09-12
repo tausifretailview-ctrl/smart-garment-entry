@@ -23,6 +23,7 @@ export type InvoiceTemplateId =
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
   | 'kids-80mm'
+  | 'kids-camp-80mm'
   | 'retail-pos-80mm'
   | 'trendzo-pos-80mm'
   | 'real-tast';
@@ -185,6 +186,7 @@ export function preprintedLetterheadLogoBox(letterheadGap = "2in"): {
 /** Thermal-only invoice templates — always route through 80mm receipt path. */
 export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set([
   'kids-80mm',
+  'kids-camp-80mm',
   'retail-pos-80mm',
   'trendzo-pos-80mm',
 ]);
