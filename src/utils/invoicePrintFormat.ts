@@ -441,19 +441,24 @@ export function resolvePosBillFormatFromSaleSettings(
   saleSettings?: SaleSettingsBillFormatSlice | null,
 ): PosBillFormat {
   const template = resolvePosInvoiceTemplate(saleSettings);
-  const raw =
-    saleSettings?.pos_bill_format || saleSettings?.sales_bill_format || 'thermal';
+  const raw = saleSettings?.pos_bill_format || 'thermal';
   return resolvePosBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
 }
 
-/** Resolve sale-return / credit-note print format from settings (Sale Return dashboard). */
+/**
+ * Refund / sale-return print paper.
+ * POS returns (POS/ bill or no original bill) follow Settings → POS.
+ * Invoice returns (INV/) follow Sale bill format.
+ */
 export function resolveSaleReturnPrintFormatFromSettings(
   saleSettings?: SaleSettingsBillFormatSlice | null,
+  originalSaleNumber?: string | null,
 ): PosBillFormat {
-  const template = resolveSaleInvoiceTemplate(saleSettings);
-  const raw =
-    saleSettings?.sales_bill_format || saleSettings?.pos_bill_format || 'a4';
-  return resolveSaleBillFormat(template, raw, saleSettings?.invoice_paper_format ?? undefined);
+  const fromPos =
+    !originalSaleNumber ||
+    isPosSaleDocument({ sale_number: originalSaleNumber });
+  if (fromPos) return resolvePosBillFormatFromSaleSettings(saleSettings);
+  return resolveSaleBillFormatFromSaleSettings(saleSettings);
 }
 
 /** True for POS bills (sale_type, else POS/ number prefix). */
