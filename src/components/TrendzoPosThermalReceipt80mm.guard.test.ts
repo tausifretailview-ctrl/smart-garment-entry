@@ -46,6 +46,14 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toMatch(/\.tz-terms-list \{[\s\S]*font-size: 11px;/);
     expect(css).toMatch(/\.tz-company-name \{[\s\S]*font-size: 17px;/);
   });
+
+  it("prints product details and barcode on one nowrap row", () => {
+    expect(tsx).toContain("formatTrendzoThermalItemLine");
+    expect(tsx).not.toContain("tz-item-barcode");
+    expect(css).toMatch(/\.tz-item-name \{[\s\S]*white-space:\s*nowrap/);
+    expect(css).toMatch(/\.tz-item-name \{[\s\S]*word-break:\s*keep-all/);
+    expect(css).not.toContain(".tz-item-barcode");
+  });
 });
 
 describe("UPI pay link for Trendzo QR", () => {

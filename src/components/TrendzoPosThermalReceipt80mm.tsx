@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
 import { buildUpiPayLink } from "@/lib/upiPayLink";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import { formatTrendzoThermalItemLine } from "@/utils/trendzoThermalItemLine";
 import "@/styles/trendzo-pos-thermal-receipt.css";
 
 export interface TrendzoPosThermalItem {
@@ -91,11 +92,6 @@ function AmountRow({ label, amount, show = true }: { label: string; amount: numb
       <span>{fmtMoney(amount)}</span>
     </div>
   );
-}
-
-function itemBarcodeLine(item: TrendzoPosThermalItem): string | null {
-  const barcode = (item.barcode || "").trim();
-  return barcode || null;
 }
 
 export const TrendzoPosThermalReceipt80mm = React.forwardRef<
@@ -310,20 +306,18 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           <span className="tz-items-num-col">RATE</span>
           <span className="tz-items-num-col">AMT</span>
         </div>
-        {items.map((item) => {
-          const barcodeLine = itemBarcodeLine(item);
-          return (
+        {items.map((item) => (
             <div className="tz-items-row" key={`${item.sr}-${item.particulars}`}>
               <div className="tz-items-item-col">
-                <div className="tz-item-name">{item.particulars}</div>
-                {barcodeLine ? <div className="tz-item-barcode">{barcodeLine}</div> : null}
+                <div className="tz-item-name">
+                  {formatTrendzoThermalItemLine(item.particulars, item.barcode)}
+                </div>
               </div>
               <span className="tz-items-qty-col tz-items-num">{item.qty}</span>
               <span className="tz-items-num-col tz-items-num">{fmtDec(item.rate)}</span>
               <span className="tz-items-num-col tz-items-num">{fmtDec(item.total)}</span>
             </div>
-          );
-        })}
+        ))}
       </div>
 
       <div className="tz-sep-dashed" />
