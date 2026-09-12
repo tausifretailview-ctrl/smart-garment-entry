@@ -23,6 +23,8 @@ import {
 } from "@/utils/cashierReportUtils";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
+  cashierExpensePaymentMode,
+  cashierNetByModeAfterExpenses,
   cashierSaleAndAdvanceCollection,
   cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
@@ -208,6 +210,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     let advanceCard = advanceTenders.advanceCard;
     let receiptCash = 0, receiptUpi = 0, receiptCard = 0, receiptTotal = 0;
     let supplierPaid = 0, expensePaid = 0, employeePaid = 0;
+    let expenseCash = 0, expenseUpi = 0, expenseCard = 0;
     let advanceRefundTotal = 0, advanceRefundCash = 0;
 
     const isHoldLikeSale = (sale: any) => {
@@ -284,6 +287,10 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
         else if (v.reference_type === 'employee') employeePaid += rawAmt;
       } else if (v.voucher_type === 'expense' || v.category === 'expense') {
         expensePaid += rawAmt;
+        const expMode = cashierExpensePaymentMode(v.payment_method);
+        if (expMode === "upi") expenseUpi += rawAmt;
+        else if (expMode === "card") expenseCard += rawAmt;
+        else if (expMode === "cash") expenseCash += rawAmt;
       }
     });
 
@@ -298,7 +305,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
     const totalCashIn = cashSale + advanceCash + receiptCash;
     const totalCashOut =
-      supplierPaid + expensePaid + employeePaid + advanceRefundCash + srRefunds.cashOut;
+      supplierPaid + expenseCash + employeePaid + advanceRefundCash + srRefunds.cashOut;
 
     return {
       grossSale: Math.round(grossSale),
@@ -321,6 +328,9 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       receiptTotal: Math.round(receiptTotal),
       supplierPaid: Math.round(supplierPaid),
       expensePaid: Math.round(expensePaid),
+      expenseCash: Math.round(expenseCash),
+      expenseUpi: Math.round(expenseUpi),
+      expenseCard: Math.round(expenseCard),
       employeePaid: Math.round(employeePaid),
       advanceRefundTotal: Math.round(advanceRefundTotal),
       totalCashIn: Math.round(totalCashIn),
@@ -337,6 +347,14 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     advanceCash: totals.advanceCash,
     advanceCard: totals.advanceCard,
     advanceUpi: totals.advanceUpi,
+  });
+  const collectionNetOfExpenses = cashierNetByModeAfterExpenses({
+    cash: paymentCollection.cashCollection,
+    card: paymentCollection.cardCollection,
+    upi: paymentCollection.upiCollection,
+    expenseCash: totals.expenseCash,
+    expenseCard: totals.expenseCard,
+    expenseUpi: totals.expenseUpi,
   });
 
   const formatCurrency = (amount: number) => `₹${Math.round(amount).toLocaleString('en-IN')}`;
@@ -474,21 +492,21 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                           <IndianRupee className="h-4 w-4 text-green-600" />
                           Cash
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.cashCollection)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(collectionNetOfExpenses.cash)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-blue-600" />
                           Card
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.cardCollection)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(collectionNetOfExpenses.card)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
                           <Smartphone className="h-4 w-4 text-purple-600" />
                           UPI
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(paymentCollection.upiCollection)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(collectionNetOfExpenses.upi)}</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell className="flex items-center gap-2">
@@ -511,7 +529,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         {/* Exchange refunds already sit in cash_amount (often negative).
                             Standalone S/R cash refunds do not — subtract those only. */}
                         <TableCell className="text-right font-bold text-lg">
-                          {formatCurrency(paymentCollection.netCashCollection - totals.saleReturnCashOut)}
+                          {formatCurrency(collectionNetOfExpenses.cash - totals.saleReturnCashOut)}
                         </TableCell>
                       </TableRow>
                     </TableBody>
@@ -568,7 +586,16 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         )}
                         {totals.expensePaid > 0 && (
                           <TableRow>
-                            <TableCell>Shop Expenses</TableCell>
+                            <TableCell>
+                              <div>Shop Expenses</div>
+                              <div className="text-xs text-muted-foreground font-normal">
+                                {[
+                                  totals.expenseCash > 0 ? `Cash ${formatCurrency(totals.expenseCash)}` : null,
+                                  totals.expenseUpi > 0 ? `UPI ${formatCurrency(totals.expenseUpi)}` : null,
+                                  totals.expenseCard > 0 ? `Card ${formatCurrency(totals.expenseCard)}` : null,
+                                ].filter(Boolean).join(" · ") || "By payment mode"}
+                              </div>
+                            </TableCell>
                             <TableCell className="text-right text-red-600 font-medium">{formatCurrency(totals.expensePaid)}</TableCell>
                           </TableRow>
                         )}

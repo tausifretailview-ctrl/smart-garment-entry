@@ -32,6 +32,16 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
     expect(payments).toContain("loadSupplierBalanceMapForOrg");
   });
 
+  it("Quick Payments expenses use saved categories plus create-new and payment mode", () => {
+    const payments = src("src/components/FloatingPayments.tsx");
+    expect(payments).toContain('queryKey: ["expense-categories", organizationId]');
+    expect(payments).toContain("+ Add New Category");
+    expect(payments).toContain("category: selectedCategoryName");
+    expect(payments).toContain("payment_method: paymentMethod");
+    expect(payments).not.toMatch(/placeholder="e\.g\., Rent, Travel"/);
+    expect(payments).toContain("cashier-report-vouchers");
+  });
+
   it("Accounts no longer owns route attribution", () => {
     const accounts = src("src/pages/Accounts.tsx");
     expect(accounts).not.toContain("setCloudUsageRoutePath");

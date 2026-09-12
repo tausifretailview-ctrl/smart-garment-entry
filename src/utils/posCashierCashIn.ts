@@ -353,6 +353,36 @@ export function cashierSaleAndAdvanceCollection(params: {
   };
 }
 
+/** Map expense voucher payment_method onto cashier Cash / UPI / Card / other. */
+export function cashierExpensePaymentMode(
+  paymentMethod: string | null | undefined,
+): "cash" | "upi" | "card" | "other" {
+  const m = String(paymentMethod || "cash").toLowerCase().trim();
+  if (m === "upi") return "upi";
+  if (m === "card") return "card";
+  if (m === "cash" || m === "") return "cash";
+  return "other";
+}
+
+/**
+ * Subtract shop expenses from each collection mode so Cashier Report Cash / Card / UPI
+ * nets match how the expense was paid (cash expense reduces cash, UPI expense reduces UPI).
+ */
+export function cashierNetByModeAfterExpenses(params: {
+  cash: number;
+  card: number;
+  upi: number;
+  expenseCash?: number;
+  expenseCard?: number;
+  expenseUpi?: number;
+}): { cash: number; card: number; upi: number } {
+  return {
+    cash: Math.round((Number(params.cash) || 0) - (Number(params.expenseCash) || 0)),
+    card: Math.round((Number(params.card) || 0) - (Number(params.expenseCard) || 0)),
+    upi: Math.round((Number(params.upi) || 0) - (Number(params.expenseUpi) || 0)),
+  };
+}
+
 /** Mirrors FloatingPOSReports cash legs with same-day sale-RCP overlap stripped. */
 export function reduceCashierCashIn(params: {
   sales: CashierSaleRow[];

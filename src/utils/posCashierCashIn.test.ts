@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { reconcileSaleInvoiceWithSplit } from "@/utils/customerBalanceUtils";
 import {
+  cashierExpensePaymentMode,
+  cashierNetByModeAfterExpenses,
   cashierSaleAndAdvanceCollection,
   cashierSaleTenderAmount,
   computeCashierActualNetReceivable,
@@ -337,5 +339,35 @@ describe("POS advance booking cashier cash-in", () => {
     });
     expect(collection.cashCollection).toBe(1_000);
     expect(collection.netCashCollection).toBe(1_000);
+  });
+});
+
+describe("cashier expenses by payment mode", () => {
+  it("maps voucher payment_method onto cash / upi / card / other", () => {
+    expect(cashierExpensePaymentMode("cash")).toBe("cash");
+    expect(cashierExpensePaymentMode(null)).toBe("cash");
+    expect(cashierExpensePaymentMode("UPI")).toBe("upi");
+    expect(cashierExpensePaymentMode("card")).toBe("card");
+    expect(cashierExpensePaymentMode("bank_transfer")).toBe("other");
+    expect(cashierExpensePaymentMode("cheque")).toBe("other");
+  });
+
+  it("deducts expenses from the matching collection mode", () => {
+    const collection = cashierSaleAndAdvanceCollection({
+      cashSale: 2_000,
+      cardSale: 500,
+      upiSale: 5_800,
+    });
+    const net = cashierNetByModeAfterExpenses({
+      cash: collection.cashCollection,
+      card: collection.cardCollection,
+      upi: collection.upiCollection,
+      expenseCash: 300,
+      expenseCard: 0,
+      expenseUpi: 200,
+    });
+    expect(net.cash).toBe(1_700);
+    expect(net.card).toBe(500);
+    expect(net.upi).toBe(5_600);
   });
 });
