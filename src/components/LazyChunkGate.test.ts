@@ -20,6 +20,7 @@ describe("LazyChunkGate", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.spyOn(console, "error").mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -27,6 +28,7 @@ describe("LazyChunkGate", () => {
       root.unmount();
     });
     container.remove();
+    vi.restoreAllMocks();
   });
 
   function render(node: ReturnType<typeof createElement>) {
