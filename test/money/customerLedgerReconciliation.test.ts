@@ -79,6 +79,21 @@ describe("customerLedgerReconciliation", () => {
     expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(0);
   });
 
+  it("FIZA MEMON: paid invoice + sale return + cash refund → Outstanding Nil", () => {
+    const facets: LedgerReconciliationFacets = {
+      opening: 0,
+      grossInvoiced: 3250,
+      invoiceCnApplied: 0,
+      saleReturns: 3250,
+      paymentsCash: 3250,
+      paymentsDiscount: 0,
+      advanceApplied: 0,
+      adjustments: 0,
+      cnRefunded: 3250,
+    };
+    expect(computeInvoiceOutstandingFromReconciliation(facets)).toBe(0);
+  });
+
   it("advance applications reduce Outstanding even when memo-only on running balance", () => {
     const facets: LedgerReconciliationFacets = {
       opening: 0,

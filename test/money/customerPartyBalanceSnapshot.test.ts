@@ -271,6 +271,31 @@ describe("applyCanonicalStateToPartyRow", () => {
     expect(patched.net_position).toBe(4_800);
     expect(patched.gross_outstanding).toBe(14_800);
   });
+
+  it("FIZA MEMON — refunded SR does not keep Outstanding Dr or CN available", () => {
+    const drifted: CustomerPartyBalanceAlignedRow = {
+      ...aarish,
+      customer_id: "fiza-memon",
+      customer_name: "FIZA MEMON",
+      signed_balance: 3250,
+      direction: "Dr",
+      gross_outstanding: 3250,
+      net_position: 3250,
+      cn_available: 0,
+    };
+    const patched = applyCanonicalStateToPartyRow(drifted, {
+      netPosition: 0,
+      unusedAdvancePool: 0,
+      unclaimedSaleReturnCredit: 0,
+      totalInvoicedGross: 3250,
+      totalRealPayments: 3250,
+    });
+    expect(patched.signed_balance).toBe(0);
+    expect(patched.gross_outstanding).toBe(0);
+    expect(patched.net_position).toBe(0);
+    expect(patched.cn_available).toBe(0);
+    expect(patched.direction).toBe("Settled");
+  });
 });
 
 describe("partyBalanceOrgWindowFromRpcRow", () => {
