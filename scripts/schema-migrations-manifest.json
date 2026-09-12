@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-11",
-  "count": 759,
-  "fileCount": 776,
+  "generatedAt": "2026-09-12",
+  "count": 760,
+  "fileCount": 777,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -689,6 +689,7 @@
     "20260911190000",
     "20260911200000",
     "20260911210000",
+    "20260912051022",
     "20260912120000",
     "20260912130000",
     "20260912140000",
@@ -1466,6 +1467,7 @@
     "20260911190000_get_organization_receivables_summary_total_sales.sql",
     "20260911200000_get_sale_order_dashboard_stats.sql",
     "20260911210000_get_product_wise_stock_report.sql",
+    "20260912051022_6f1f27e5-84ee-4e12-ae30-7cfca1302772.sql",
     "20260912120000_purchase_bills_total_items.sql",
     "20260912130000_get_product_filter_options.sql",
     "20260912140000_get_product_catalog_page_user_cancelled.sql",

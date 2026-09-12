@@ -43,7 +43,11 @@ import {
   inferPrecisionPrintMode,
   type PrecisionPrintMode,
 } from "@/utils/precisionThermalModes";
-import { validatePurchaseCodeAlphabet } from "@/utils/purchaseCodeEncoder";
+import {
+  encodePurchasePrice,
+  normalizePurchaseCodeAlphabet,
+  validatePurchaseCodeAlphabet,
+} from "@/utils/purchaseCodeEncoder";
 import { isKsFootwearSlug } from "@/utils/saleScanPricePreference";
 import {
   paperPatchesForInvoiceTemplate,
@@ -168,6 +172,8 @@ interface PurchaseSettings {
   purchase_code_alphabet?: string;
   show_purchase_code?: boolean;
   purchase_code_include_gst?: boolean;
+  /** When true, barcode purchase code is MMCODEYR (e.g. 09SEWN26). Default letters only (SEWN). */
+  purchase_code_include_date?: boolean;
   purchase_code_extra_percent_enabled?: boolean;
   purchase_code_extra_percent?: number;
   show_mrp?: boolean;
@@ -824,8 +830,25 @@ export default function Settings() {
       return;
     }
 
+    const alphabetDraft = settings.purchase_settings?.purchase_code_alphabet;
+    if (alphabetDraft && !validatePurchaseCodeAlphabet(alphabetDraft)) {
+      toast({
+        title: "Invalid purchase code alphabet",
+        description: "Enter exactly 10 unique characters (A-Z or 0-9). First letter = 0, last = 9.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
+      const purchaseSettingsToSave = {
+        ...settings.purchase_settings,
+        ...(alphabetDraft
+          ? { purchase_code_alphabet: normalizePurchaseCodeAlphabet(alphabetDraft) }
+          : {}),
+      };
+
       // Check if settings already exist for this organization
       const { data: existingSettings, error: fetchError } = await supabase
         .from("settings" as any)
@@ -850,7 +873,7 @@ export default function Settings() {
             email_id: settings.email_id,
             gst_number: settings.gst_number,
             product_settings: settings.product_settings,
-            purchase_settings: settings.purchase_settings,
+            purchase_settings: purchaseSettingsToSave,
             sale_settings: settings.sale_settings,
             bill_barcode_settings: settings.bill_barcode_settings,
             report_settings: settings.report_settings,
@@ -870,7 +893,7 @@ export default function Settings() {
             email_id: settings.email_id,
             gst_number: settings.gst_number,
             product_settings: settings.product_settings,
-            purchase_settings: settings.purchase_settings,
+            purchase_settings: purchaseSettingsToSave,
             sale_settings: settings.sale_settings,
             bill_barcode_settings: settings.bill_barcode_settings,
             report_settings: settings.report_settings,
@@ -879,6 +902,11 @@ export default function Settings() {
       }
 
       if (error) throw error;
+
+      setSettings((prev) => ({
+        ...prev,
+        purchase_settings: purchaseSettingsToSave,
+      }));
 
       // POS / other screens read via useSettings() — bump cache so toggles apply immediately.
       await queryClient.invalidateQueries({
@@ -2128,7 +2156,7 @@ export default function Settings() {
                         },
                       });
                     }}
-                    maxLength={10}
+                    maxLength={11}
                     placeholder="ABCDEFGHIK"
                     className={
                       settings.purchase_settings?.purchase_code_alphabet &&
@@ -2138,9 +2166,27 @@ export default function Settings() {
                     }
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter 10 unique characters (A-Z or 0-9). First = 0, Second = 1, ... Tenth = 9. 
-                    Example: ABCDEFGHIK means 100 = BAA. Numeric: 0123456789 means 500 = 500
+                    Enter 10 unique characters (A-Z or 0-9). First = 0, Second = 1, ... Tenth = 9.
+                    Example: ABCDEFGHIK means ₹100 → BAA. NEASYFITOW means ₹3190 → SEWN.
                   </p>
+                  {settings.purchase_settings?.purchase_code_alphabet &&
+                    validatePurchaseCodeAlphabet(settings.purchase_settings.purchase_code_alphabet) && (
+                      <p className="text-xs font-mono tabular-nums text-foreground">
+                        Preview: ₹100 → {encodePurchasePrice(
+                          100,
+                          settings.purchase_settings.purchase_code_alphabet,
+                          "2026-09-12",
+                          { includeDate: settings.purchase_settings.purchase_code_include_date === true },
+                        )}
+                        {" · "}
+                        ₹3190 → {encodePurchasePrice(
+                          3190,
+                          settings.purchase_settings.purchase_code_alphabet,
+                          "2026-09-12",
+                          { includeDate: settings.purchase_settings.purchase_code_include_date === true },
+                        )}
+                      </p>
+                    )}
                   {settings.purchase_settings?.purchase_code_alphabet &&
                     !validatePurchaseCodeAlphabet(settings.purchase_settings.purchase_code_alphabet) && (
                       <p className="text-xs text-destructive">
@@ -2168,8 +2214,31 @@ export default function Settings() {
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground ml-6">
-                  When enabled, purchase prices will be automatically encoded using the alphabet above 
-                  and printed on barcode labels (e.g., ₹100 → BAA)
+                  When enabled, purchase prices are encoded with the alphabet above
+                  and printed on barcode labels (e.g., ₹100 → BAA, ₹3190 → SEWN with NEASYFITOW)
+                </p>
+
+                <div className="flex items-center space-x-2 ml-6">
+                  <Checkbox
+                    id="purchase_code_include_date"
+                    checked={settings.purchase_settings?.purchase_code_include_date === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          purchase_code_include_date: checked === true,
+                        },
+                      })
+                    }
+                    disabled={!settings.purchase_settings?.show_purchase_code}
+                  />
+                  <Label htmlFor="purchase_code_include_date" className="font-normal cursor-pointer">
+                    Include bill month/year on purchase code
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-12">
+                  Off (default): letters only (SEWN). On: wrap as MMCODEYR (09SEWN26)
                 </p>
                 
                 <div className="flex items-center space-x-2 ml-6">
