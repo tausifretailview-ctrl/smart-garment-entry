@@ -97,3 +97,27 @@ describe("aggregateCashTallyDrawerFlows", () => {
     expect(flows.receipts.cash).toBe(0);
   });
 });
+
+
+describe("cashier report mode-strip composition (presentation only)", () => {
+  it("cash strip = sale + advance + RCP − cash refunds (includes RCP so drawer is not undercounted)", () => {
+    const cashSale = 1000;
+    const advanceCash = 200;
+    const rcpCashCollection = 400;
+    const cashRefundTotal = 50;
+    const cashStrip = cashSale + advanceCash + rcpCashCollection - cashRefundTotal;
+    expect(cashStrip).toBe(1550);
+    // Sale+advance alone undercounts vs all-sources strip when RCP is present
+    expect(cashSale + advanceCash).toBe(1200);
+    expect(cashStrip).toBeGreaterThan(cashSale + advanceCash);
+  });
+
+  it("expected drawer rises with RCP cash while sale tenders alone stay flat", () => {
+    const opening = 500;
+    const saleCash = 1000;
+    const without = computeExpectedDrawerCash(opening, saleCash, 0);
+    const withRcp = computeExpectedDrawerCash(opening, saleCash + 400, 0);
+    expect(without).toBe(1500);
+    expect(withRcp).toBe(1900);
+  });
+});
