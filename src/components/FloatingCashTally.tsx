@@ -24,33 +24,21 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { localDayBounds } from "@/lib/localDayBounds";
 import DailyTallyReport from "@/components/DailyTallyReport";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
-import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
-import { cashierSaleTenderAmount, createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
-import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
+import {
+  aggregateCashTallyDrawerFlows,
+  computeExpectedDrawerCash,
+  emptyCashTallyBreakdown,
+  resolveCashTallyPaymentMode,
+  type CashTallyModeBreakdown,
+} from "@/utils/cashTallyExpectedDrawer";
 
 // ─── helpers ───────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2 }).format(n);
 
-// Use actual payment_method if available, fallback to parsing description
-const resolvePaymentMode = (paymentMethod: string | null, description: string): keyof Omit<PaymentBreakdown, 'total' | 'credit'> => {
-  const pm = (paymentMethod || '').toLowerCase().trim();
-  if (pm === 'upi') return 'upi';
-  if (pm === 'card') return 'card';
-  if (pm === 'bank' || pm === 'cheque' || pm === 'neft' || pm === 'rtgs' || pm === 'bank_transfer') return 'bank';
-  if (pm === 'cash') return 'cash';
-  // Fallback: parse description
-  const d = (description || '').toLowerCase();
-  if (d.includes('upi')) return 'upi';
-  if (d.includes('card')) return 'card';
-  if (d.includes('cheque') || d.includes('bank') || d.includes('neft') || d.includes('rtgs')) return 'bank';
-  return 'cash';
-};
-
-interface PaymentBreakdown {
-  cash: number; upi: number; card: number; bank: number; credit: number; total: number;
-}
-const emptyBreakdown = (): PaymentBreakdown => ({ cash: 0, upi: 0, card: 0, bank: 0, credit: 0, total: 0 });
+type PaymentBreakdown = CashTallyModeBreakdown;
+const emptyBreakdown = emptyCashTallyBreakdown;
+const resolvePaymentMode = resolveCashTallyPaymentMode;
 
 const DENOMINATIONS = [2000, 500, 200, 100, 50] as const;
 const DEFAULT_DENOM_COUNTS: Record<number, number> = { 2000: 0, 500: 0, 200: 0, 100: 0, 50: 0 };
@@ -236,130 +224,29 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
     }
   }, [snapshot, yesterdaySnapshot]);
 
-  // ─── Aggregation ───────────────────────────────────────────────────
+  // ─── Aggregation (shared with Cashier Report headline) ─────────────
   const aggregated = useMemo(() => {
-    const posSales = emptyBreakdown();
-    const invoiceSales = emptyBreakdown();
-    const receipts = emptyBreakdown();
-    const advances = emptyBreakdown();
-    const supplierPayments = emptyBreakdown();
-    const expenses = emptyBreakdown();
-    const employeeSalary = emptyBreakdown();
-    const thirdPartyPayments = emptyBreakdown();
-    const saleReturnRefunds = emptyBreakdown();
-    const advanceRefunds = emptyBreakdown();
-
-    const isHoldLikeSale = (s: any) => {
-      if (s?.payment_status === "hold") return true;
-      return s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/");
+    const flows = aggregateCashTallyDrawerFlows({
+      sales: salesData,
+      vouchers: vouchersData,
+      advances: advancesData,
+      saleReturns: refundsData,
+      advanceRefunds: advanceRefundsData,
+    });
+    return {
+      posSales: flows.posSales,
+      invoiceSales: flows.invoiceSales,
+      receipts: flows.receipts,
+      advances: flows.advances,
+      supplierPayments: flows.supplierPayments,
+      expenses: flows.expenses,
+      employeeSalary: flows.employeeSalary,
+      thirdPartyPayments: flows.thirdPartyPayments,
+      saleReturnRefunds: flows.saleReturnRefunds,
+      advanceRefunds: flows.advanceRefunds,
+      cashIn: flows.cashIn,
+      cashOut: flows.cashOut,
     };
-
-    /** Use saved bill total — manual rate edits don't populate discount_* columns. */
-    const getEffectiveNet = (s: any) => Number(s?.net_amount) || 0;
-
-    (salesData || []).forEach((s: any) => {
-      if (isHoldLikeSale(s)) return;
-      const net = getEffectiveNet(s);
-      const target = s.sale_type === "pos" ? posSales : invoiceSales;
-      if (s.payment_method === "multiple") {
-        // Cap over-tender (change) so cash tally matches bill settlement, not notes handed over.
-        const applied = allocateMixPaymentToBill({
-          billAmount: net,
-          cashAmount: Number(s.cash_amount) || 0,
-          cardAmount: Number(s.card_amount) || 0,
-          upiAmount: Number(s.upi_amount) || 0,
-        });
-        target.cash += applied.cash;
-        target.card += applied.card;
-        target.upi += applied.upi;
-      } else {
-        switch (s.payment_method) {
-          case "cash": target.cash += cashierSaleTenderAmount(s.cash_amount, net); break;
-          case "card": target.card += cashierSaleTenderAmount(s.card_amount, net); break;
-          case "upi": target.upi += cashierSaleTenderAmount(s.upi_amount, net); break;
-          case "pay_later": target.credit += net; break;
-          default: target.cash += net;
-        }
-      }
-      target.total += net;
-    });
-
-    const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
-      (salesData || [])
-        .filter(
-          (s: any) =>
-            s?.id &&
-            !isHoldLikeSale(s) &&
-            !s?.is_cancelled &&
-            s?.payment_status !== "cancelled",
-        )
-        .map((s: any) => ({
-          id: s.id as string,
-          net_amount: s.net_amount,
-          cash_amount: s.cash_amount,
-          card_amount: s.card_amount,
-          upi_amount: s.upi_amount,
-        })),
-      vouchersData || [],
-    );
-
-    (vouchersData || []).forEach((v: any) => {
-      const rawAmt = Number(v.total_amount) || 0;
-      if (rawAmt <= 0) return;
-      // Skip non-cash adjustments
-      const pm = (v.payment_method || '').toLowerCase();
-      if (pm === 'advance_adjustment' || pm === 'credit_note' || pm === 'advance') return;
-
-      const mode = resolvePaymentMode(v.payment_method, v.description);
-      const addToBreakdown = (b: PaymentBreakdown, amt: number) => {
-        (b as any)[mode] += amt;
-        b.total += amt;
-      };
-
-      if (v.voucher_type === 'receipt') {
-        const amt = receiptOverlap.countableAmount(v);
-        if (amt > 0) addToBreakdown(receipts, amt);
-      } else if (v.voucher_type === 'payment') {
-        if (v.reference_type === 'supplier') addToBreakdown(supplierPayments, rawAmt);
-        else if (v.reference_type === 'employee') addToBreakdown(employeeSalary, rawAmt);
-        else if (classifyDailyTallyPaymentOutflow(v) === 'third_party') addToBreakdown(thirdPartyPayments, rawAmt);
-        else if (v.reference_type === 'customer') addToBreakdown(saleReturnRefunds, rawAmt);
-      } else if (v.voucher_type === 'expense' || v.category === 'expense') {
-        addToBreakdown(expenses, rawAmt);
-      }
-    });
-
-    (advancesData || []).forEach((a: any) => {
-      const amt = Number(a.amount) || 0;
-      const mode = (a.payment_method || "cash").toLowerCase();
-      if (mode === "upi") advances.upi += amt;
-      else if (mode === "card") advances.card += amt;
-      else if (mode === "bank" || mode === "cheque") advances.bank += amt;
-      else advances.cash += amt;
-      advances.total += amt;
-    });
-
-    (refundsData || []).forEach((r: any) => {
-      const refundType = (r.refund_type || '').toLowerCase();
-      if (refundType === 'cash_refund' || refundType === 'upi_refund' || refundType === 'bank_refund' || refundType === 'card_refund') {
-        const amt = Number(r.net_amount) || 0;
-        if (refundType === 'upi_refund') saleReturnRefunds.upi += amt;
-        else if (refundType === 'bank_refund') saleReturnRefunds.bank += amt;
-        else if (refundType === 'card_refund') saleReturnRefunds.card += amt;
-        else saleReturnRefunds.cash += amt;
-        saleReturnRefunds.total += amt;
-      }
-    });
-
-    (advanceRefundsData || []).forEach((r: any) => {
-      const amt = Number(r.refund_amount) || 0;
-      if (amt <= 0) return;
-      const mode = resolvePaymentMode(r.payment_method, '');
-      (advanceRefunds as any)[mode] += amt;
-      advanceRefunds.total += amt;
-    });
-
-    return { posSales, invoiceSales, receipts, advances, supplierPayments, expenses, employeeSalary, thirdPartyPayments, saleReturnRefunds, advanceRefunds };
   }, [salesData, vouchersData, advancesData, refundsData, advanceRefundsData]);
 
   // ─── Totals ────────────────────────────────────────────────────────
@@ -380,7 +267,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
   }, [aggregated]);
 
   const totalSales = aggregated.posSales.total + aggregated.invoiceSales.total;
-  const expectedCash = openingCash + totalIn.cash - totalOut.cash;
+  const expectedCash = computeExpectedDrawerCash(openingCash, aggregated.cashIn, aggregated.cashOut);
   const difference = physicalCash - expectedCash;
   const handoverToOwner = physicalCash - leaveInDrawer - depositToBank;
 
