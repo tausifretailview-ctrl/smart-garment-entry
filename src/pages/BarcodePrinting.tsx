@@ -44,7 +44,10 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
   (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
 
 import type html2canvasType from "html2canvas";
-import { encodePurchasePrice, getEffectivePurchasePrice } from "@/utils/purchaseCodeEncoder";
+import {
+  encodePurchasePriceForLabel,
+  resolvePurchaseCodeAlphabet,
+} from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
   computeA4SheetMargins,
@@ -1525,6 +1528,7 @@ export default function BarcodePrinting() {
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
+  const [purchaseCodeIncludeDate, setPurchaseCodeIncludeDate] = useState(false);
   const [purchaseCodeExtraPercentEnabled, setPurchaseCodeExtraPercentEnabled] = useState(false);
   const [purchaseCodeExtraPercent, setPurchaseCodeExtraPercent] = useState(10);
   const [defaultUom, setDefaultUom] = useState("NOS");
@@ -2395,7 +2399,9 @@ export default function BarcodePrinting() {
         if (data?.purchase_settings) {
           const purchaseSettings = data.purchase_settings as any;
           if (purchaseSettings.purchase_code_alphabet) {
-            setPurchaseCodeAlphabet(purchaseSettings.purchase_code_alphabet);
+            setPurchaseCodeAlphabet(
+              resolvePurchaseCodeAlphabet(purchaseSettings.purchase_code_alphabet),
+            );
           }
           if (purchaseSettings.default_uom) {
             setDefaultUom(purchaseSettings.default_uom);
@@ -2407,6 +2413,7 @@ export default function BarcodePrinting() {
           if (purchaseSettings.purchase_code_include_gst !== undefined) {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
+          setPurchaseCodeIncludeDate(purchaseSettings.purchase_code_include_date === true);
           setPurchaseCodeExtraPercentEnabled(purchaseSettings.purchase_code_extra_percent_enabled === true);
           if (typeof purchaseSettings.purchase_code_extra_percent === "number") {
             setPurchaseCodeExtraPercent(purchaseSettings.purchase_code_extra_percent);
@@ -3244,17 +3251,24 @@ export default function BarcodePrinting() {
     refreshDbPresetsFromServer,
   ]);
 
-  // Recalculate purchase codes when alphabet changes (handles timing issues)
+  // Recalculate purchase codes when alphabet / encode options change (handles settings-load timing)
   useEffect(() => {
     if (purchaseCodeAlphabet && labelItems.length > 0) {
       setLabelItems(prev => prev.map(item => ({
         ...item,
-        purchase_code: item.pur_price && item.pur_price > 0 
-          ? encodePurchasePrice(getEffectivePurchasePrice(item.pur_price, item.gst_per || 0, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent), purchaseCodeAlphabet, item.bill_date) 
+        purchase_code: item.pur_price && item.pur_price > 0
+          ? encodePurchasePriceForLabel(item.pur_price, purchaseCodeAlphabet, {
+              gstPer: item.gst_per || 0,
+              includeGst: purchaseCodeIncludeGst,
+              extraPercentEnabled: purchaseCodeExtraPercentEnabled,
+              extraPercent: purchaseCodeExtraPercent,
+              billDate: item.bill_date,
+              includeDate: purchaseCodeIncludeDate,
+            })
           : item.purchase_code
       })));
     }
-  }, [purchaseCodeAlphabet, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent]);
+  }, [purchaseCodeAlphabet, purchaseCodeIncludeGst, purchaseCodeIncludeDate, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent]);
 
   // Restore purchase-bill context (survives tab switch when router state is cleared)
   useEffect(() => {
@@ -3314,7 +3328,7 @@ export default function BarcodePrinting() {
   // Hydrate sale_price / mrp / barcode / size / color from live product_variants so labels
   // match the master after price edits (callers pass a bill-line snapshot).
   useEffect(() => {
-    if (isLoadingSettings) return;
+    if (isLoadingSettings || settingsLoading) return;
 
     const st = location.state as { purchaseItems?: unknown[]; billId?: string } | null;
     const fromState = st?.purchaseItems?.length
@@ -3481,16 +3495,14 @@ export default function BarcodePrinting() {
         const purPrice = live?.pur_price ?? item.pur_price ?? 0;
         const gstPer = item.gst_per || 0;
         const billDateStr = item.bill_date || undefined;
-        const effectivePrice = getEffectivePurchasePrice(
-          purPrice,
+        const purchaseCode = encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
           gstPer,
-          purchaseCodeIncludeGst,
-          purchaseCodeExtraPercentEnabled,
-          purchaseCodeExtraPercent,
-        );
-        const purchaseCode = purPrice > 0
-          ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billDateStr)
-          : undefined;
+          includeGst: purchaseCodeIncludeGst,
+          extraPercentEnabled: purchaseCodeExtraPercentEnabled,
+          extraPercent: purchaseCodeExtraPercent,
+          billDate: billDateStr,
+          includeDate: purchaseCodeIncludeDate,
+        }) || undefined;
 
         if (purPrice > 0) hasPurchasePrices = true;
         const style = live?.style ?? item.style ?? "";
@@ -3577,12 +3589,14 @@ export default function BarcodePrinting() {
     };
   }, [
     isLoadingSettings,
+    settingsLoading,
     location.state,
     purchaseNavKey,
     purchaseBillIdParam,
     currentOrganization?.id,
     purchaseCodeAlphabet,
     purchaseCodeIncludeGst,
+    purchaseCodeIncludeDate,
     purchaseCodeExtraPercentEnabled,
     purchaseCodeExtraPercent,
     orgNavigate,
@@ -3814,7 +3828,12 @@ export default function BarcodePrinting() {
       sale_price: result.sale_price,
       mrp: result.mrp || result.sale_price,
       pur_price: purPrice,
-      purchase_code: purPrice > 0 ? encodePurchasePrice(getEffectivePurchasePrice(purPrice, 0, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent), purchaseCodeAlphabet) : '', // no bill_date for manual add
+      purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
+        includeGst: purchaseCodeIncludeGst,
+        extraPercentEnabled: purchaseCodeExtraPercentEnabled,
+        extraPercent: purchaseCodeExtraPercent,
+        includeDate: purchaseCodeIncludeDate,
+      }),
       barcode: result.barcode,
       bill_number: '',
       qty: 1,
@@ -4053,7 +4072,6 @@ export default function BarcodePrinting() {
           const variantInfo = variantMap.get(item.sku_id);
           const purPrice = item.pur_price || 0;
           const gstPer = (item as any).gst_per || 0;
-          const effectivePrice = getEffectivePurchasePrice(purPrice, gstPer, purchaseCodeIncludeGst, purchaseCodeExtraPercentEnabled, purchaseCodeExtraPercent);
           return {
             sku_id: item.sku_id,
             product_name: variantInfo.product_name,
@@ -4066,7 +4084,14 @@ export default function BarcodePrinting() {
             mrp: item.mrp || variantInfo.mrp || 0,
             pur_price: purPrice,
             gst_per: gstPer,
-            purchase_code: purPrice > 0 ? encodePurchasePrice(effectivePrice, purchaseCodeAlphabet, billData.bill_date) : '',
+            purchase_code: encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
+              gstPer,
+              includeGst: purchaseCodeIncludeGst,
+              extraPercentEnabled: purchaseCodeExtraPercentEnabled,
+              extraPercent: purchaseCodeExtraPercent,
+              billDate: billData.bill_date,
+              includeDate: purchaseCodeIncludeDate,
+            }),
             bill_date: billData.bill_date || undefined,
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
