@@ -261,8 +261,12 @@ const DailyCashierReport = () => {
         }
         const { isPosExchangeRefundPaymentVoucher } = await import("@/utils/saleSettlement");
         const { isAdvanceRefundPaymentVoucher } = await import("@/utils/advanceRefundVoucher");
+        const { isSaleReturnRefundPaymentVoucher } = await import("@/utils/cashierSaleReturnRefunds");
         return (data || []).filter(
-          (v) => !isPosExchangeRefundPaymentVoucher(v) && !isAdvanceRefundPaymentVoucher(v),
+          (v) =>
+            !isPosExchangeRefundPaymentVoucher(v) &&
+            !isAdvanceRefundPaymentVoucher(v) &&
+            !isSaleReturnRefundPaymentVoucher(v),
         );
       } catch (e) {
         console.error("Customer refund voucher query failed:", e);
@@ -334,7 +338,9 @@ const DailyCashierReport = () => {
     const hasNoData =
       (!salesData || salesData.length === 0) &&
       (!receiptData || receiptData.length === 0) &&
-      (!advancesData || advancesData.length === 0);
+      (!advancesData || advancesData.length === 0) &&
+      (!cashRefundData || cashRefundData.length === 0) &&
+      (!customerRefundVouchers || customerRefundVouchers.length === 0);
     
     if (hasNoData) {
       return {

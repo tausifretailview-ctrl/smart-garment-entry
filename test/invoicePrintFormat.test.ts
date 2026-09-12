@@ -138,17 +138,46 @@ describe('resolvePosBillFormatFromSaleSettings', () => {
       }),
     ).toBe('thermal');
   });
+
+  it('does not fall back to sales_bill_format when POS format is unset', () => {
+    expect(
+      resolvePosBillFormatFromSaleSettings({
+        sales_bill_format: 'a5',
+        pos_invoice_template: 'tax-invoice',
+      }),
+    ).toBe('thermal');
+  });
 });
 
 describe('resolveSaleReturnPrintFormatFromSettings', () => {
-  it('prefers sales_bill_format over pos_bill_format', () => {
+  const mixed = {
+    sales_bill_format: 'a4' as const,
+    pos_bill_format: 'thermal' as const,
+    invoice_template: 'tax-invoice',
+    pos_invoice_template: 'tax-invoice',
+  };
+
+  it('uses Settings → POS for POS bills and walk-in returns', () => {
+    expect(resolveSaleReturnPrintFormatFromSettings(mixed, 'POS/26-27/10')).toBe('thermal');
+    expect(resolveSaleReturnPrintFormatFromSettings(mixed, null)).toBe('thermal');
+    expect(resolveSaleReturnPrintFormatFromSettings(mixed)).toBe('thermal');
+  });
+
+  it('uses Sale bill format for invoice returns', () => {
+    expect(resolveSaleReturnPrintFormatFromSettings(mixed, 'INV/26-27/10')).toBe('a4');
+  });
+
+  it('follows POS A5 when Settings → POS is A5', () => {
     expect(
-      resolveSaleReturnPrintFormatFromSettings({
-        sales_bill_format: 'a4',
-        pos_bill_format: 'thermal',
-        invoice_template: 'tax-invoice',
-      }),
-    ).toBe('a4');
+      resolveSaleReturnPrintFormatFromSettings(
+        {
+          pos_bill_format: 'a5-vertical',
+          sales_bill_format: 'a4',
+          pos_invoice_template: 'tax-invoice',
+        },
+        'POS/26-27/32',
+      ),
+    ).toBe('a5');
   });
 });
 

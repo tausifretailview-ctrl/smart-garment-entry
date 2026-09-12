@@ -37,7 +37,7 @@ import {
   getPosDocumentPrintPageStyle,
   resolvePosThermalPaper,
   resolveSaleReturnPrintFormatFromSettings,
-  type PosBillFormat,
+  type SaleSettingsBillFormatSlice,
 } from "@/utils/invoicePrintFormat";
 import { getThermalReceiptPageStyleFragment } from "@/utils/thermalReceiptPrintDocument";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
@@ -314,7 +314,7 @@ export default function SaleReturnDashboard() {
 
   const [returnToPrint, setReturnToPrint] = useState<SaleReturn | null>(null);
   const [businessDetails, setBusinessDetails] = useState<BusinessDetails | null>(null);
-  const [billFormat, setBillFormat] = useState<PosBillFormat>('a4');
+  const [saleSettings, setSaleSettings] = useState<SaleSettingsBillFormatSlice | null>(null);
   const [returnThermalPaper, setReturnThermalPaper] = useState<'58mm' | '80mm'>('80mm');
   const printRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -345,16 +345,20 @@ export default function SaleReturnDashboard() {
   };
   const queryClient = useQueryClient();
 
-  const isThermal = billFormat === 'thermal';
+  const activePrintFormat = resolveSaleReturnPrintFormatFromSettings(
+    saleSettings,
+    returnToPrint?.original_sale_number,
+  );
+  const isThermal = activePrintFormat === 'thermal';
 
   const returnPrintPageStyle = useMemo(
     () =>
       getPosDocumentPrintPageStyle(
-        billFormat,
+        activePrintFormat,
         returnThermalPaper,
         getThermalReceiptPageStyleFragment(returnThermalPaper),
       ),
-    [billFormat, returnThermalPaper],
+    [activePrintFormat, returnThermalPaper],
   );
 
   const handlePrint = useReactToPrint({
@@ -762,8 +766,8 @@ export default function SaleReturnDashboard() {
     }
 
     setBusinessDetails(data);
-    const saleSettings = data?.sale_settings as Record<string, unknown> | undefined;
-    setBillFormat(resolveSaleReturnPrintFormatFromSettings(saleSettings));
+    const nextSaleSettings = data?.sale_settings as SaleSettingsBillFormatSlice | undefined;
+    setSaleSettings(nextSaleSettings ?? null);
     const barcodeSettings = data?.bill_barcode_settings as { direct_print_pos_paper?: string } | null;
     setReturnThermalPaper(resolvePosThermalPaper(barcodeSettings?.direct_print_pos_paper));
   };
@@ -953,7 +957,7 @@ export default function SaleReturnDashboard() {
                 ref={printRef}
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
-                format={billFormat}
+                format={activePrintFormat === 'thermal' ? 'a4' : activePrintFormat}
               />
             )
           )}
