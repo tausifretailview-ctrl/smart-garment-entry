@@ -22,8 +22,7 @@ import { cn } from "@/lib/utils";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import {
-  fetchCustomerFinancialSnapshotMap,
-  fetchCustomersWithFinancialActivity,
+  fetchOrganizationFinancialSnapshotMap,
 } from "@/utils/customerFinancialSnapshot";
 
 interface CustomerOutstanding {
