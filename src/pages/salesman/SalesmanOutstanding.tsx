@@ -22,8 +22,7 @@ import { cn } from "@/lib/utils";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
 import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
 import {
-  fetchCustomerFinancialSnapshotMap,
-  fetchCustomersWithFinancialActivity,
+  fetchOrganizationFinancialSnapshotMap,
 } from "@/utils/customerFinancialSnapshot";
 
 interface CustomerOutstanding {
@@ -58,11 +57,8 @@ const SalesmanOutstanding = () => {
     queryFn: async () => {
       const customersData = await fetchAllCustomers(orgId!);
       const allSales = await fetchAllSalesSummary(orgId!);
-      const financialIds = await fetchCustomersWithFinancialActivity(orgId!);
-      const customerIds = (customersData || [])
-        .map((c: { id: string }) => c.id)
-        .filter((id) => financialIds.has(id));
-      const snapMap = await fetchCustomerFinancialSnapshotMap(orgId!, customerIds);
+      // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)
+      const snapMap = await fetchOrganizationFinancialSnapshotMap(orgId!);
 
       const invoiceCountMap: Record<string, number> = {};
       (allSales || []).forEach((sale: any) => {

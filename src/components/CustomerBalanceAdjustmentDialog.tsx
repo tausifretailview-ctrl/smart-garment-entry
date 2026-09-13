@@ -19,8 +19,7 @@ import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
-  fetchCustomerFinancialSnapshotMap,
-  fetchCustomersWithFinancialActivity,
+  fetchOrganizationFinancialSnapshotMap,
   fetchAuthoritativeCustomerSignedOutstanding,
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
@@ -78,14 +77,8 @@ export function CustomerBalanceAdjustmentDialog({
     queryKey: ["all-customers-adjustment-balances", organizationId],
     queryFn: async () => {
       const allCustomers = await fetchAllCustomers(organizationId);
-      const activeIds = await fetchCustomersWithFinancialActivity(organizationId);
-      const idsToSnapshot = allCustomers
-        .map((c: { id: string }) => c.id)
-        .filter((id) => activeIds.has(id));
-      const snapshotMap = await fetchCustomerFinancialSnapshotMap(
-        organizationId,
-        idsToSnapshot,
-      );
+      // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)
+      const snapshotMap = await fetchOrganizationFinancialSnapshotMap(organizationId);
 
       return allCustomers.map((c: any) => {
         const snap = snapshotMap.get(c.id);
