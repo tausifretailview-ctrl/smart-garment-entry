@@ -12,7 +12,18 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import {
+  InsightsKpiCard,
+  InsightsKpiStrip,
+  InsightsPanel,
+  InsightsTableHeader,
+  INSIGHTS_NEUTRAL_TH,
+  INSIGHTS_BODY_ROW,
+  INSIGHTS_BODY_CELL,
+  INSIGHTS_BODY_CELL_NUM,
+} from "@/components/business-insights/insightsLayout";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export ΓÇö keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -31,7 +42,6 @@ import { addDays, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
-import { BackToDashboard } from "@/components/BackToDashboard";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
   getSaleReportDiscountAmount,
@@ -67,6 +77,7 @@ type PeriodType = "daily" | "monthly" | "quarterly";
 
 const DailyCashierReport = () => {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   // Calendar-day default ΓÇö query keys use YMD strings (not raw Date) so remount reuses cache.
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     const d = new Date();
@@ -1335,7 +1346,10 @@ const DailyCashierReport = () => {
   }
 
   return (
-    <div id="cashier-report-root" className="relative min-h-screen bg-slate-50 p-4 md:p-6 print:p-2 print:bg-white">
+    <div
+      id="cashier-report-root"
+      className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full print:p-2 print:bg-white print:h-auto print:overflow-visible"
+    >
       <QuietRefreshBar
         queryKeys={[
           ["cashier-report-sales-v2"],
@@ -1352,680 +1366,694 @@ const DailyCashierReport = () => {
           ["cashier-report-drawer-snapshot"],
         ]}
       />
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 print:hidden">
-        <div>
-          <BackToDashboard />
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight mt-3">Cashier Report</h1>
-          <p className="text-slate-400 text-base mt-0.5">Sales summary by payment method</p>
+
+      <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
+        <div className="print:hidden no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/reports")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Reports
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <Wallet className="h-5 w-5 shrink-0" />
+                Cashier Report
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                Sales summary by payment method
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <Select value={period} onValueChange={(value: PeriodType) => setPeriod(value)}>
+              <SelectTrigger className="h-9 w-[130px] text-sm border-slate-200 bg-white">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">Daily</SelectItem>
+                <SelectItem value="monthly">Monthly</SelectItem>
+                <SelectItem value="quarterly">Quarterly</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-9 w-[180px] justify-start text-left font-normal text-sm border-slate-200 bg-white",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {getPeriodLabel()}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
+
+            <ResetPersistedFiltersButton
+              visible={cashierFiltersDirty}
+              onReset={resetCashierFilters}
+            />
+
+            <Button
+              onClick={handleExportExcel}
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 bg-white"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Excel
+            </Button>
+            <Button
+              onClick={handleExportPDF}
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 bg-white"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              PDF
+            </Button>
+            <Button
+              onClick={handlePrint}
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 bg-white"
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print
+            </Button>
+          </div>
         </div>
-        
-        <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <Select value={period} onValueChange={(value: PeriodType) => setPeriod(value)}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
-            </SelectContent>
-          </Select>
 
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[180px] justify-start text-left font-normal")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {getPeriodLabel()}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
-                initialFocus
-                className="pointer-events-auto"
-              />
-            </PopoverContent>
-          </Popover>
-
-          <ResetPersistedFiltersButton
-            visible={cashierFiltersDirty}
-            onReset={resetCashierFilters}
-          />
-          
-          <Button onClick={handleExportExcel} variant="outline">
-            <FileSpreadsheet className="h-4 w-4 mr-2" />
-            Excel
-          </Button>
-          <Button onClick={handleExportPDF} variant="outline">
-            <FileText className="h-4 w-4 mr-2" />
-            PDF
-          </Button>
-          <Button onClick={handlePrint} variant="outline">
-            <Printer className="h-4 w-4 mr-2" />
-            Print
-          </Button>
+        <div className="hidden print:block mb-4 text-center border-b pb-4 shrink-0">
+          <h1 className="text-xl font-bold">{settings?.business_name || "Business Name"}</h1>
+          <p className="text-sm">{settings?.address}</p>
+          <p className="text-sm">Ph: {settings?.mobile_number}</p>
+          <h2 className="text-lg font-semibold mt-4">{getReportTitle()}</h2>
+          <p className="text-sm">Period: {getPeriodLabel()}</p>
         </div>
-      </div>
 
-      {/* Print Header */}
-      <div className="hidden print:block mb-6 text-center border-b pb-4">
-        <h1 className="text-xl font-bold">{settings?.business_name || "Business Name"}</h1>
-        <p className="text-sm">{settings?.address}</p>
-        <p className="text-sm">Ph: {settings?.mobile_number}</p>
-        <h2 className="text-lg font-semibold mt-4">{getReportTitle()}</h2>
-        <p className="text-sm">Period: {getPeriodLabel()}</p>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center py-8">Loading...</div>
-      ) : (
-        <>
-          {/* HEADLINE: Expected cash in drawer (FloatingCashTally identity) */}
-          <Card className="mb-4 border-0 shadow-lg bg-gradient-to-br from-slate-800 to-slate-900 text-white print:border print:shadow-none print:bg-white print:text-foreground">
-            <CardContent className="pt-6 pb-5">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white/80 print:text-muted-foreground flex items-center gap-2">
-                    <Wallet className="h-4 w-4" />
+        {isLoading ? (
+          <div className="flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">
+            Loading…
+          </div>
+        ) : (
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-2 print:overflow-visible print:h-auto pb-2">
+            <div className="shrink-0 rounded-lg border border-slate-200 border-l-[3px] border-l-slate-700 bg-white px-3 py-2 shadow-sm print:border print:shadow-none">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 leading-none flex items-center gap-1.5">
+                    <Wallet className="h-3.5 w-3.5" />
                     Expected cash in drawer
                   </p>
-                  <p className="text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight mt-1 print:text-foreground">
+                  <p className="text-lg sm:text-xl font-black tabular-nums text-slate-900 leading-tight mt-1">
                     {formatCurrency(expectedDrawerCash)}
                   </p>
-                  <p className="text-xs text-white/60 mt-2 print:text-muted-foreground max-w-xl">
+                  <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
                     Opening float + cash in − cash out (sales, advances, receipts including RCP, less cash outflows).
                     {period === "daily" ? "" : " Opening float applies on Daily view only."}
                   </p>
                 </div>
                 <Button
                   type="button"
-                  variant="secondary"
-                  className="print:hidden shrink-0 bg-white/15 hover:bg-white/25 text-white border-0"
+                  variant="outline"
+                  size="sm"
+                  className="print:hidden shrink-0 h-9 text-sm border-slate-200 bg-white"
                   onClick={() => setCashTallyOpen(true)}
                 >
                   <Wallet className="h-4 w-4 mr-2" />
                   Enter physical count / open–close
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* MODE STRIP: always visible */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            <Card className="border shadow-sm">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-medium text-muted-foreground">Cash in drawer (all sources)</p>
-                <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400 mt-1">
-                  {formatCurrency(modeStrip.cash)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − cash refunds − cash expenses</p>
-              </CardContent>
-            </Card>
-            <Card className="border shadow-sm">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-medium text-muted-foreground">Card</p>
-                <p className="text-xl font-bold tabular-nums text-blue-700 dark:text-blue-400 mt-1">
-                  {formatCurrency(modeStrip.card)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − card refunds − card expenses</p>
-              </CardContent>
-            </Card>
-            <Card className="border shadow-sm">
-              <CardContent className="pt-4 pb-3">
-                <p className="text-xs font-medium text-muted-foreground">UPI</p>
-                <p className="text-xl font-bold tabular-nums text-violet-700 dark:text-violet-400 mt-1">
-                  {formatCurrency(modeStrip.upi)}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − UPI refunds − UPI expenses</p>
-              </CardContent>
-            </Card>
-          </div>
+            <InsightsKpiStrip>
+              <InsightsKpiCard
+                label="Cash in drawer"
+                value={modeStrip.cash}
+                valueFormat="inr"
+                tone="positive"
+                sub="Sale + advance + RCP − cash refunds − cash expenses"
+              />
+              <InsightsKpiCard
+                label="Card"
+                value={modeStrip.card}
+                valueFormat="inr"
+                tone="neutral"
+                sub="Sale + advance + RCP − card refunds − card expenses"
+              />
+              <InsightsKpiCard
+                label="UPI"
+                value={modeStrip.upi}
+                valueFormat="inr"
+                tone="neutral"
+                sub="Sale + advance + RCP − UPI refunds − UPI expenses"
+              />
+            </InsightsKpiStrip>
 
-          {/* Sales & credit detail — open by default */}
-          <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen} className="mb-4">
-            <Card>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-6 py-4 text-left print:hidden"
-                >
-                  <div>
-                    <p className="text-sm font-semibold">Sales & credit detail</p>
-                    <p className="text-xs text-muted-foreground">
-                      Gross, discount, net, S/R, balance, old receipts, actual net receivable
-                    </p>
+            <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen} className="shrink-0">
+              <div className="rounded-lg border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left border-b border-slate-100 print:hidden"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 leading-tight">Sales & credit detail</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Gross, discount, net, S/R, balance, old receipts, actual net receivable
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${salesCreditOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <div className="hidden print:block px-3 py-2 border-b border-slate-100 font-bold text-sm text-slate-800">
+                  Sales & credit detail
+                </div>
+                <CollapsibleContent>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
+                    <InsightsKpiCard
+                      label="Gross Sale"
+                      value={totals.grossSale}
+                      valueFormat="inr"
+                      tone="neutral"
+                      sub={`${totals.totalBills} Bills`}
+                    />
+                    <InsightsKpiCard
+                      label="Total Discount"
+                      value={totals.totalDiscount}
+                      valueFormat="inr"
+                      tone={totals.totalDiscount > 0 ? "critical" : "neutral"}
+                      sub={
+                        totals.totalRoundOff !== 0
+                          ? `Incl. round off ${formatCurrency(Math.abs(totals.totalRoundOff))}`
+                          : undefined
+                      }
+                    />
+                    <InsightsKpiCard
+                      label="Net Sale"
+                      value={totals.totalSale}
+                      valueFormat="inr"
+                      tone="positive"
+                      sub="Gross − Discount"
+                    />
+                    <InsightsKpiCard
+                      label="S/R Adjusted"
+                      value={totals.totalSRAdjusted}
+                      valueFormat="inr"
+                      tone="neutral"
+                      sub="Return credit used"
+                    />
+                    <InsightsKpiCard
+                      label="Balance Pending"
+                      value={totals.totalBalance}
+                      valueFormat="inr"
+                      tone={totals.totalBalance > 0 ? "attention" : "neutral"}
+                      sub="Outstanding"
+                    />
+                    <InsightsKpiCard
+                      label="Old Payment Receipts"
+                      value={totals.oldBalanceReceiptTotal}
+                      valueFormat="inr"
+                      tone="neutral"
+                      sub={`${totals.oldBalanceReceiptCount} Receipt${totals.oldBalanceReceiptCount === 1 ? "" : "s"} · Against existing balance`}
+                    />
+                    <InsightsKpiCard
+                      label="Actual Net Receivable"
+                      value={totals.actualNetReceivable}
+                      valueFormat="inr"
+                      tone="positive"
+                      sub="Settled today + old balance receipts + fees"
+                    />
                   </div>
-                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${salesCreditOpen ? "rotate-180" : ""}`} />
-                </button>
-              </CollapsibleTrigger>
-              <div className="hidden print:block px-6 pt-4 pb-2 font-semibold text-sm">Sales & credit detail</div>
-              <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <Receipt className="h-4 w-4" />
-                          Gross Sale
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.grossSale)}</p>
-                        <p className="text-xs text-white/70">{totals.totalBills} Bills</p>
-                      </CardContent>
-                    </Card>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
 
-                    <Card className="bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <TrendingDown className="h-4 w-4" />
-                          Total Discount
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalDiscount)}</p>
-                        {totals.totalRoundOff !== 0 && (
-                          <p className="text-xs text-white/70">
-                            Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
-                          </p>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <IndianRupee className="h-4 w-4" />
-                          Net Sale
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalSale)}</p>
-                        <p className="text-xs text-white/70">Gross - Discount</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <RotateCcw className="h-4 w-4" />
-                          S/R Adjusted
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalSRAdjusted)}</p>
-                        <p className="text-xs text-white/70">Return credit used</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          Balance Pending
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.totalBalance)}</p>
-                        <p className="text-xs text-white/70">Outstanding</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 border-0 shadow-lg">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <Banknote className="h-4 w-4" />
-                          Old Payment Receipts
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.oldBalanceReceiptTotal)}</p>
-                        <p className="text-xs text-white/70">{totals.oldBalanceReceiptCount} Receipt{totals.oldBalanceReceiptCount === 1 ? "" : "s"} · Against existing balance</p>
-                      </CardContent>
-                    </Card>
-
-                    <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0 shadow-lg ring-2 ring-green-400/50">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-white/90 flex items-center gap-2">
-                          <Receipt className="h-4 w-4" />
-                          Actual Net Receivable
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-2xl font-bold text-white">{formatCurrency(totals.actualNetReceivable)}</p>
-                        <p className="text-xs text-white/70">Settled today + old balance receipts + fees</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
-
-          {/* Payment Method Breakdown */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="text-lg">Payment Collection Breakdown</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Collection Type</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
+            <InsightsPanel
+              className="shrink-0 max-h-[min(28rem,50vh)] print:max-h-none"
+              title="Payment Collection Breakdown"
+            >
+              <Table className="w-full">
+                <InsightsTableHeader>
+                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Collection Type</TableHead>
+                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Amount</TableHead>
+                </InsightsTableHeader>
                 <TableBody>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
-                          <IndianRupee className="h-4 w-4 text-green-600 dark:text-green-400" />
-                        </div>
+                        <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
                         <span className="font-medium">Cash (Sales + Advance)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.cash)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                      {formatCurrency(collectionNetOfExpenses.cash)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-blue-100 dark:bg-blue-900">
-                          <CreditCard className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        </div>
+                        <CreditCard className="h-4 w-4 text-blue-600 shrink-0" />
                         <span className="font-medium">Card Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.card)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                      {formatCurrency(collectionNetOfExpenses.card)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900">
-                          <Smartphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        </div>
+                        <Smartphone className="h-4 w-4 text-violet-600 shrink-0" />
                         <span className="font-medium">UPI Collection</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(collectionNetOfExpenses.upi)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                      {formatCurrency(collectionNetOfExpenses.upi)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-teal-100 dark:bg-teal-900">
-                          <RotateCcw className="h-4 w-4 text-teal-600 dark:text-teal-400" />
-                        </div>
+                        <RotateCcw className="h-4 w-4 text-teal-600 shrink-0" />
                         <span className="font-medium">S/R Adjusted</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-teal-600 dark:text-teal-400">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-teal-700")}>
+                      {formatCurrency(totals.totalSRAdjusted)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
-                          <Banknote className="h-4 w-4 text-red-600 dark:text-red-400" />
-                        </div>
+                        <Banknote className="h-4 w-4 text-slate-400 shrink-0" />
                         <span className="font-medium text-muted-foreground">Refund (already in Cash)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-muted-foreground">{formatCurrency(totals.totalRefund)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-muted-foreground")}>
+                      {formatCurrency(totals.totalRefund)}
+                    </TableCell>
                   </TableRow>
                   {totals.cashRefundTotal > 0 && (
-                    <TableRow>
-                      <TableCell>
+                    <TableRow className={INSIGHTS_BODY_ROW}>
+                      <TableCell className={INSIGHTS_BODY_CELL}>
                         <div className="flex items-center gap-2">
-                          <div className="p-2 rounded-full bg-red-100 dark:bg-red-900">
-                            <RotateCcw className="h-4 w-4 text-red-600 dark:text-red-400" />
-                          </div>
+                          <RotateCcw className="h-4 w-4 text-red-600 shrink-0" />
                           <span className="font-medium">Less: Cash Refunds (S/R + Customer)</span>
                           <span className="text-xs text-muted-foreground">({totals.cashRefundCount})</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-semibold text-red-600">{formatCurrency(totals.cashRefundTotal)}</TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                        {formatCurrency(totals.cashRefundTotal)}
+                      </TableCell>
                     </TableRow>
                   )}
-                  <TableRow className="bg-green-50 dark:bg-green-950">
-                    <TableCell>
+                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80 hover:bg-emerald-50")}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
-                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
-                        </div>
+                        <Receipt className="h-4 w-4 text-emerald-700 shrink-0" />
                         <span className="font-bold">Net Cash Collection</span>
                       </div>
                     </TableCell>
-                      <TableCell className="text-right font-bold text-lg">{formatCurrency(collectionNetOfExpenses.cash - totals.cashRefundTotal)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base")}>
+                      {formatCurrency(collectionNetOfExpenses.cash - totals.cashRefundTotal)}
+                    </TableCell>
                   </TableRow>
-                  {/* Advance bookings — already in Cash / UPI / Card collection by payment mode */}
                   {(totals.advanceReceived || 0) > 0 && (
                     <>
-                      <TableRow className="bg-emerald-50 dark:bg-emerald-950">
-                        <TableCell colSpan={2} className="font-semibold text-emerald-700 dark:text-emerald-300">
+                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-slate-50")}>
+                        <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-emerald-800")}>
                           Advance Bookings — {totals.advanceCount} entries (included in Cash / UPI / Card)
                         </TableCell>
                       </TableRow>
                       {(totals.advanceCash || 0) > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8">Advance Cash</TableCell>
-                          <TableCell className="text-right">{formatCurrency(totals.advanceCash)}</TableCell>
+                        <TableRow className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance Cash</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceCash)}</TableCell>
                         </TableRow>
                       )}
                       {(totals.advanceUpi || 0) > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8">Advance UPI</TableCell>
-                          <TableCell className="text-right">{formatCurrency(totals.advanceUpi)}</TableCell>
+                        <TableRow className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance UPI</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceUpi)}</TableCell>
                         </TableRow>
                       )}
                       {(totals.advanceCard || 0) > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8">Advance Card</TableCell>
-                          <TableCell className="text-right">{formatCurrency(totals.advanceCard)}</TableCell>
+                        <TableRow className={INSIGHTS_BODY_ROW}>
+                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance Card</TableCell>
+                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceCard)}</TableCell>
                         </TableRow>
                       )}
-                      <TableRow className="bg-emerald-100 dark:bg-emerald-900">
-                        <TableCell className="font-bold">Total Advance Received</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(totals.advanceReceived)}</TableCell>
+                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80")}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total Advance Received</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
+                          {formatCurrency(totals.advanceReceived)}
+                        </TableCell>
                       </TableRow>
                     </>
                   )}
-                  {/* RCP Collections Section */}
                   {totals.rcpTotalCollection > 0 && (
                     <>
-                      <TableRow className="bg-violet-50 dark:bg-violet-950">
-                        <TableCell colSpan={2} className="font-semibold text-violet-700 dark:text-violet-300">
+                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-slate-50")}>
+                        <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-violet-800")}>
                           Receipt Collections (RCP) - {totals.rcpCount} receipts
                         </TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">RCP Cash</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.rcpCashCollection)}</TableCell>
+                      <TableRow className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Cash</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpCashCollection)}</TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">RCP UPI</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.rcpUpiCollection)}</TableCell>
+                      <TableRow className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP UPI</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpUpiCollection)}</TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">RCP Card</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.rcpCardCollection)}</TableCell>
+                      <TableRow className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Card</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpCardCollection)}</TableCell>
                       </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">RCP Other (Cheque/Bank)</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.rcpOtherCollection)}</TableCell>
+                      <TableRow className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Other (Cheque/Bank)</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpOtherCollection)}</TableCell>
                       </TableRow>
-                      <TableRow className="bg-violet-100 dark:bg-violet-900">
-                        <TableCell className="font-bold">Total RCP Collection</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(totals.rcpTotalCollection)}</TableCell>
+                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-violet-50/80")}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total RCP Collection</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
+                          {formatCurrency(totals.rcpTotalCollection)}
+                        </TableCell>
                       </TableRow>
                     </>
                   )}
-                  <TableRow className="bg-primary/10">
-                    <TableCell className="font-bold text-primary">GRAND TOTAL (Sales + RCP + Advance + Fees - Outflows)</TableCell>
-                    <TableCell className="text-right font-bold text-lg text-primary">
-                      {formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.rcpTotalCollection + (totals.advanceReceived || 0) + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}
+                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-sky-50/80 hover:bg-sky-50")}>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-blue-800")}>
+                      GRAND TOTAL (Sales + RCP + Advance + Fees - Outflows)
+                    </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base text-blue-800")}>
+                      {formatCurrency(
+                        totals.cashSale +
+                          totals.cardSale +
+                          totals.upiSale +
+                          totals.rcpTotalCollection +
+                          (totals.advanceReceived || 0) +
+                          totals.feeTotalCollection -
+                          totals.totalRefund -
+                          totals.cashRefundTotal -
+                          (totals.customerRefundUpi || 0) -
+                          (totals.customerRefundCard || 0) -
+                          (totals.customerRefundOther || 0) -
+                          totals.expenseTotal -
+                          totals.thirdPartyOutflowTotal,
+                      )}
                     </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900">
-                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                        </div>
+                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
                         <span className="font-medium">Credit (Outstanding)</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(totals.creditSale)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-amber-700")}>
+                      {formatCurrency(totals.creditSale)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow>
-                    <TableCell>
+                  <TableRow className={INSIGHTS_BODY_ROW}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-orange-100 dark:bg-orange-900">
-                          <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                        </div>
+                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
                         <span className="font-medium">Balance Pending</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-orange-600 dark:text-orange-400">{formatCurrency(totals.totalBalance)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-amber-700")}>
+                      {formatCurrency(totals.totalBalance)}
+                    </TableCell>
                   </TableRow>
-                  <TableRow className="bg-green-100 dark:bg-green-900/40">
-                    <TableCell>
+                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80 hover:bg-emerald-50")}>
+                    <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="flex items-center gap-2">
-                        <div className="p-2 rounded-full bg-green-200 dark:bg-green-800">
-                          <Receipt className="h-4 w-4 text-green-700 dark:text-green-300" />
-                        </div>
-                        <span className="font-bold text-green-700 dark:text-green-300">Actual Net Receivable</span>
+                        <Receipt className="h-4 w-4 text-emerald-700 shrink-0" />
+                        <span className="font-bold text-emerald-800">Actual Net Receivable</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-bold text-lg text-green-700 dark:text-green-300">{formatCurrency(totals.actualNetReceivable)}</TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base text-emerald-800")}>
+                      {formatCurrency(totals.actualNetReceivable)}
+                    </TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
+            </InsightsPanel>
 
-          {/* Other money movement — default collapsed */}
-          <Collapsible open={otherMoneyOpen} onOpenChange={setOtherMoneyOpen} className="mb-6">
-            <Card>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between px-6 py-4 text-left print:hidden"
-                >
-                  <div>
-                    <p className="text-sm font-semibold">Other money movement</p>
-                    <p className="text-xs text-muted-foreground">
-                      Fees, expenses, third-party outflows, customer refunds by mode
-                    </p>
+            <Collapsible open={otherMoneyOpen} onOpenChange={setOtherMoneyOpen} className="shrink-0">
+              <div className="rounded-lg border border-slate-200 shadow-sm overflow-hidden bg-white">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between px-3 py-2 text-left border-b border-slate-100 print:hidden"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-800 leading-tight">Other money movement</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Fees, expenses, third-party outflows, customer refunds by mode
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${otherMoneyOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <div className="hidden print:block px-3 py-2 border-b border-slate-100 font-bold text-sm text-slate-800">
+                  Other money movement
+                </div>
+                <CollapsibleContent>
+                  <div className="overflow-x-auto">
+                    <Table className="w-full">
+                      <InsightsTableHeader>
+                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Type</TableHead>
+                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Amount</TableHead>
+                      </InsightsTableHeader>
+                      <TableBody>
+                        {totals.customerRefundTotal > 0 && (
+                          <>
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-rose-50/80")}>
+                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-rose-800")}>
+                                Customer refunds (overpayment / CN) — {totals.customerRefundCount} vouchers
+                              </TableCell>
+                            </TableRow>
+                            {totals.customerRefundCash > 0 && (
+                              <TableRow className={INSIGHTS_BODY_ROW}>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Cash</TableCell>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                                  {formatCurrency(totals.customerRefundCash)}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {totals.customerRefundUpi > 0 && (
+                              <TableRow className={INSIGHTS_BODY_ROW}>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>UPI</TableCell>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                                  {formatCurrency(totals.customerRefundUpi)}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {totals.customerRefundCard > 0 && (
+                              <TableRow className={INSIGHTS_BODY_ROW}>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Card / Bank</TableCell>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                                  {formatCurrency(totals.customerRefundCard)}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            {totals.customerRefundOther > 0 && (
+                              <TableRow className={INSIGHTS_BODY_ROW}>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Other</TableCell>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                                  {formatCurrency(totals.customerRefundOther)}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        )}
+                        {totals.feeTotalCollection > 0 && (
+                          <>
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-amber-50/80")}>
+                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-amber-900")}>
+                                Student Fee Collections - {totals.feeCount} receipts
+                              </TableCell>
+                            </TableRow>
+                            <TableRow className={INSIGHTS_BODY_ROW}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Cash</TableCell>
+                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeCashCollection)}</TableCell>
+                            </TableRow>
+                            <TableRow className={INSIGHTS_BODY_ROW}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee UPI</TableCell>
+                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeUpiCollection)}</TableCell>
+                            </TableRow>
+                            <TableRow className={INSIGHTS_BODY_ROW}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Card</TableCell>
+                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeCardCollection)}</TableCell>
+                            </TableRow>
+                            {totals.feeBankCollection > 0 && (
+                              <TableRow className={INSIGHTS_BODY_ROW}>
+                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Bank Transfer</TableCell>
+                                <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeBankCollection)}</TableCell>
+                              </TableRow>
+                            )}
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-amber-50/80")}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total Fee Collection</TableCell>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
+                                {formatCurrency(totals.feeTotalCollection)}
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        )}
+                        {totals.thirdPartyOutflowTotal > 0 && (
+                          <>
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-orange-50/80")}>
+                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-destructive")}>
+                                Third-party Payments — {totals.thirdPartyOutflowCount} entries
+                              </TableCell>
+                            </TableRow>
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-orange-50/80")}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-destructive")}>
+                                Total Third-party Outflows
+                              </TableCell>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-destructive")}>
+                                {formatCurrency(totals.thirdPartyOutflowTotal)}
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        )}
+                        {totals.expenseTotal > 0 && (
+                          <>
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-red-50/80")}>
+                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-destructive")}>
+                                Expense Outflows — {totals.expenseCount} entries
+                              </TableCell>
+                            </TableRow>
+                            {Object.entries(totals.expenseByCategory)
+                              .sort(([, a], [, b]) => b.total - a.total)
+                              .map(([cat, vals]) => (
+                                <TableRow key={cat} className={INSIGHTS_BODY_ROW}>
+                                  <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-xs")}>
+                                    {cat}
+                                    {vals.cash > 0 && (
+                                      <span className="ml-2 text-muted-foreground">Cash: {formatCurrency(vals.cash)}</span>
+                                    )}
+                                    {vals.upi > 0 && (
+                                      <span className="ml-2 text-muted-foreground">UPI: {formatCurrency(vals.upi)}</span>
+                                    )}
+                                    {vals.card > 0 && (
+                                      <span className="ml-2 text-muted-foreground">Card: {formatCurrency(vals.card)}</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium text-destructive")}>
+                                    {formatCurrency(vals.total)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-red-50/80")}>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-destructive")}>
+                                Total Expenses
+                              </TableCell>
+                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-destructive")}>
+                                {formatCurrency(totals.expenseTotal)}
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        )}
+                      </TableBody>
+                    </Table>
                   </div>
-                  <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${otherMoneyOpen ? "rotate-180" : ""}`} />
-                </button>
-              </CollapsibleTrigger>
-              <div className="hidden print:block px-6 pt-4 pb-2 font-semibold text-sm">Other money movement</div>
-              <CollapsibleContent>
-                <CardContent className="pt-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                  {totals.customerRefundTotal > 0 && (
-                    <>
-                      <TableRow className="bg-rose-50/80 dark:bg-rose-950/40">
-                        <TableCell colSpan={2} className="font-semibold text-rose-700 dark:text-rose-300">
-                          Customer refunds (overpayment / CN) ΓÇö {totals.customerRefundCount} vouchers
-                        </TableCell>
-                      </TableRow>
-                      {totals.customerRefundCash > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8 text-sm">Cash</TableCell>
-                          <TableCell className="text-right font-semibold text-red-600">
-                            {formatCurrency(totals.customerRefundCash)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {totals.customerRefundUpi > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8 text-sm">UPI</TableCell>
-                          <TableCell className="text-right font-semibold text-red-600">
-                            {formatCurrency(totals.customerRefundUpi)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {totals.customerRefundCard > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8 text-sm">Card / Bank</TableCell>
-                          <TableCell className="text-right font-semibold text-red-600">
-                            {formatCurrency(totals.customerRefundCard)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                      {totals.customerRefundOther > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8 text-sm">Other</TableCell>
-                          <TableCell className="text-right font-semibold text-red-600">
-                            {formatCurrency(totals.customerRefundOther)}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  )}
-                  {/* Student Fee Collections Section */}
-                  {totals.feeTotalCollection > 0 && (
-                    <>
-                      <TableRow className="bg-amber-50 dark:bg-amber-950">
-                        <TableCell colSpan={2} className="font-semibold text-amber-700 dark:text-amber-300">
-                          ≡ƒôÜ Student Fee Collections - {totals.feeCount} receipts
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">Fee Cash</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.feeCashCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">Fee UPI</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.feeUpiCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell className="pl-8">Fee Card</TableCell>
-                        <TableCell className="text-right">{formatCurrency(totals.feeCardCollection)}</TableCell>
-                      </TableRow>
-                      {totals.feeBankCollection > 0 && (
-                        <TableRow>
-                          <TableCell className="pl-8">Fee Bank Transfer</TableCell>
-                          <TableCell className="text-right">{formatCurrency(totals.feeBankCollection)}</TableCell>
-                        </TableRow>
-                      )}
-                      <TableRow className="bg-amber-100 dark:bg-amber-900">
-                        <TableCell className="font-bold">Total Fee Collection</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(totals.feeTotalCollection)}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {/* Third-party outflows (pay/receive — paid out only) */}
-                  {totals.thirdPartyOutflowTotal > 0 && (
-                    <>
-                      <TableRow className="bg-orange-50 dark:bg-orange-950">
-                        <TableCell colSpan={2} className="font-semibold text-destructive">
-                          Third-party Payments — {totals.thirdPartyOutflowCount} entries
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className="bg-orange-100 dark:bg-orange-900">
-                        <TableCell className="font-bold text-destructive">Total Third-party Outflows</TableCell>
-                        <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.thirdPartyOutflowTotal)}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {/* Expense Outflows Section */}
-                  {totals.expenseTotal > 0 && (
-                    <>
-                      <TableRow className="bg-red-50 dark:bg-red-950">
-                        <TableCell colSpan={2} className="font-semibold text-destructive">
-                          ≡ƒÆ╕ Expense Outflows ΓÇö {totals.expenseCount} entries
-                        </TableCell>
-                      </TableRow>
-                      {Object.entries(totals.expenseByCategory).sort(([,a],[,b]) => b.total - a.total).map(([cat, vals]) => (
-                        <TableRow key={cat}>
-                          <TableCell className="pl-8 text-xs">
-                            {cat}
-                            {vals.cash > 0 && <span className="ml-2 text-muted-foreground">Cash: {formatCurrency(vals.cash)}</span>}
-                            {vals.upi > 0 && <span className="ml-2 text-muted-foreground">UPI: {formatCurrency(vals.upi)}</span>}
-                            {vals.card > 0 && <span className="ml-2 text-muted-foreground">Card: {formatCurrency(vals.card)}</span>}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-destructive">{formatCurrency(vals.total)}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-red-100 dark:bg-red-900">
-                        <TableCell className="font-bold text-destructive">Total Expenses</TableCell>
-                        <TableCell className="text-right font-bold text-destructive">{formatCurrency(totals.expenseTotal)}</TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
 
-          {/* Detailed Summary Box (for print) */}
-          <Card className="print:border print:shadow-none">
-            <CardHeader>
-              <CardTitle className="text-lg">Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between py-2 border-b">
+            <InsightsPanel className="shrink-0 print:border print:shadow-none" title="Summary">
+              <div className="px-3 py-2 space-y-1 text-sm">
+                <div className="flex justify-between py-2 border-b border-slate-100">
                   <span>Gross Sale</span>
-                  <span className="font-semibold">{formatCurrency(totals.grossSale)}</span>
+                  <span className="font-semibold tabular-nums">{formatCurrency(totals.grossSale)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b text-red-600">
+                <div className="flex justify-between py-2 border-b border-slate-100 text-red-600">
                   <span>Less: Discount</span>
-                  <span className="font-semibold">- {formatCurrency(totals.totalDiscount)}</span>
+                  <span className="font-semibold tabular-nums">- {formatCurrency(totals.totalDiscount)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b text-lg font-bold">
+                <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold">
                   <span>Net Sale</span>
-                  <span>{formatCurrency(totals.totalSale)}</span>
+                  <span className="tabular-nums">{formatCurrency(totals.totalSale)}</span>
                 </div>
                 {totals.totalSRAdjusted > 0 && (
-                  <div className="flex justify-between py-2 border-b text-teal-600 text-xs">
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-teal-700 text-xs">
                     <span>(Includes S/R Adjusted)</span>
-                    <span className="font-semibold">{formatCurrency(totals.totalSRAdjusted)}</span>
+                    <span className="font-semibold tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2 border-b text-lg font-bold text-primary">
+                <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold text-blue-800">
                   <span>Net Receivable</span>
-                  <span>{formatCurrency(totals.netReceivable)}</span>
+                  <span className="tabular-nums">{formatCurrency(totals.netReceivable)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b text-orange-600">
+                <div className="flex justify-between py-2 border-b border-slate-100 text-amber-700">
                   <span>Less: Balance Pending</span>
-                  <span className="font-semibold">- {formatCurrency(totals.totalBalance)}</span>
+                  <span className="font-semibold tabular-nums">- {formatCurrency(totals.totalBalance)}</span>
                 </div>
-                <div className="flex justify-between py-2 border-b-2 border-double text-lg font-bold bg-green-100 dark:bg-green-900/30 px-2 -mx-2 rounded">
-                  <span className="text-green-700 dark:text-green-400">Actual Net Receivable</span>
-                  <span className="text-green-700 dark:text-green-400">{formatCurrency(totals.actualNetReceivable)}</span>
+                <div className="flex justify-between py-2 border-b-2 border-double text-base font-bold bg-emerald-50 px-2 -mx-2 rounded">
+                  <span className="text-emerald-800">Actual Net Receivable</span>
+                  <span className="text-emerald-800 tabular-nums">{formatCurrency(totals.actualNetReceivable)}</span>
                 </div>
                 <div className="pt-2 space-y-1">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cash Collection</span>
-                    <span>{formatCurrency(totals.cashSale)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.cashSale)}</span>
                   </div>
                   {(totals.advanceReceived || 0) > 0 && (
                     <div className="flex justify-between text-teal-700">
                       <span className="text-muted-foreground">Advance Booking ({totals.advanceCount})</span>
-                      <span>{formatCurrency(totals.advanceReceived)}</span>
+                      <span className="tabular-nums">{formatCurrency(totals.advanceReceived)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Card Collection</span>
-                    <span>{formatCurrency(totals.cardSale)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.cardSale)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">UPI Collection</span>
-                    <span>{formatCurrency(totals.upiSale)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.upiSale)}</span>
                   </div>
-                  <div className="flex justify-between text-teal-600">
+                  <div className="flex justify-between text-teal-700">
                     <span className="text-muted-foreground">S/R Adjusted</span>
-                    <span>{formatCurrency(totals.totalSRAdjusted)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                   <div className="flex justify-between text-red-600">
                     <span className="text-muted-foreground">Less: Refund</span>
-                    <span>- {formatCurrency(totals.totalRefund)}</span>
+                    <span className="tabular-nums">- {formatCurrency(totals.totalRefund)}</span>
                   </div>
                   {totals.cashRefundTotal > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-muted-foreground">Less: Cash Refunds ({totals.cashRefundCount})</span>
-                      <span>- {formatCurrency(totals.cashRefundTotal)}</span>
+                      <span className="tabular-nums">- {formatCurrency(totals.cashRefundTotal)}</span>
                     </div>
                   )}
                   {(totals.customerRefundUpi || 0) + (totals.customerRefundCard || 0) + (totals.customerRefundOther || 0) > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-muted-foreground">Less: Customer Refund UPI/Card/Other</span>
-                      <span>
+                      <span className="tabular-nums">
                         -{" "}
                         {formatCurrency(
                           (totals.customerRefundUpi || 0) +
@@ -2036,56 +2064,69 @@ const DailyCashierReport = () => {
                     </div>
                   )}
                   {totals.feeTotalCollection > 0 && (
-                    <div className="flex justify-between text-amber-600">
-                      <span className="text-muted-foreground">≡ƒôÜ Fee Collection ({totals.feeCount})</span>
-                      <span>{formatCurrency(totals.feeTotalCollection)}</span>
+                    <div className="flex justify-between text-amber-700">
+                      <span className="text-muted-foreground">Fee Collection ({totals.feeCount})</span>
+                      <span className="tabular-nums">{formatCurrency(totals.feeTotalCollection)}</span>
                     </div>
                   )}
                 </div>
                 {totals.thirdPartyOutflowTotal > 0 && (
-                  <div className="flex justify-between py-2 border-b text-destructive">
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-destructive">
                     <span className="text-muted-foreground">Third-party Payments ({totals.thirdPartyOutflowCount})</span>
-                    <span className="font-semibold">- {formatCurrency(totals.thirdPartyOutflowTotal)}</span>
+                    <span className="font-semibold tabular-nums">- {formatCurrency(totals.thirdPartyOutflowTotal)}</span>
                   </div>
                 )}
                 {totals.expenseTotal > 0 && (
-                  <div className="flex justify-between py-2 border-b text-destructive">
-                    <span className="text-muted-foreground">≡ƒÆ╕ Total Expenses ({totals.expenseCount})</span>
-                    <span className="font-semibold">- {formatCurrency(totals.expenseTotal)}</span>
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-destructive">
+                    <span className="text-muted-foreground">Total Expenses ({totals.expenseCount})</span>
+                    <span className="font-semibold tabular-nums">- {formatCurrency(totals.expenseTotal)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2 border-t mt-2 font-bold text-green-600">
+                <div className="flex justify-between py-2 border-t border-slate-200 mt-2 font-bold text-emerald-700">
                   <span>Total Collected</span>
-                  <span>{formatCurrency(totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection + (totals.advanceReceived || 0) + totals.feeTotalCollection - totals.totalRefund - totals.cashRefundTotal - (totals.customerRefundUpi || 0) - (totals.customerRefundCard || 0) - (totals.customerRefundOther || 0) - totals.expenseTotal - totals.thirdPartyOutflowTotal)}</span>
+                  <span className="tabular-nums">
+                    {formatCurrency(
+                      totals.cashSale +
+                        totals.cardSale +
+                        totals.upiSale +
+                        totals.totalSRAdjusted +
+                        totals.rcpTotalCollection +
+                        (totals.advanceReceived || 0) +
+                        totals.feeTotalCollection -
+                        totals.totalRefund -
+                        totals.cashRefundTotal -
+                        (totals.customerRefundUpi || 0) -
+                        (totals.customerRefundCard || 0) -
+                        (totals.customerRefundOther || 0) -
+                        totals.expenseTotal -
+                        totals.thirdPartyOutflowTotal,
+                    )}
+                  </span>
                 </div>
-                <div className="pt-2 space-y-1 border-t mt-2">
+                <div className="pt-2 space-y-1 border-t border-slate-200 mt-2">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Credit (Outstanding)</span>
-                    <span>{formatCurrency(totals.creditSale)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.creditSale)}</span>
                   </div>
-                  <div className="flex justify-between text-orange-600">
+                  <div className="flex justify-between text-amber-700">
                     <span className="text-muted-foreground">Balance Pending</span>
-                    <span>{formatCurrency(totals.totalBalance)}</span>
+                    <span className="tabular-nums">{formatCurrency(totals.totalBalance)}</span>
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </InsightsPanel>
 
-          {/* Print Footer */}
-          <div className="hidden print:block mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
-            <p>Generated on {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
-            <p className="mt-2">--- End of Report ---</p>
+            <div className="hidden print:block mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
+              <p>Generated on {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
+              <p className="mt-2">--- End of Report ---</p>
+            </div>
+            <div aria-hidden className="h-8 lg:h-10 print:hidden shrink-0" />
           </div>
-          {/* Spacer so last Balance row clears the fixed status bar */}
-          <div aria-hidden className="h-8 lg:h-10" />
-        </>
-      )}
-
+        )}
+      </div>
 
       <LazyFloatingCashTally open={cashTallyOpen} onOpenChange={setCashTallyOpen} />
 
-      {/* Print Styles */}
       <style>{`
         @media print {
           body * {
@@ -2111,5 +2152,6 @@ const DailyCashierReport = () => {
     </div>
   );
 };
+
 
 export default DailyCashierReport;
