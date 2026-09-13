@@ -279,23 +279,30 @@ export async function fetchOrganizationFinancialSnapshotMap(
   const map = new Map<string, CustomerFinancialSnapshot>();
   if (!organizationId) return map;
 
+  const PAGE = 1000;
   try {
-    const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_all", {
-      p_organization_id: organizationId,
-    });
-    if (error) throw error;
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_all", {
+        p_organization_id: organizationId,
+      }).range(offset, offset + PAGE - 1);
+      if (error) throw error;
 
-    for (const row of (data || []) as Array<{
-      customer_id: string;
-      outstanding_dr?: number | null;
-      advance_available?: number | null;
-      cn_available_total?: number | null;
-      cn_pending_count?: number | null;
-      gross_outstanding_dr?: number | null;
-      net_position?: number | null;
-    }>) {
-      if (!row?.customer_id) continue;
-      map.set(row.customer_id, normalizeRow(row));
+      const rows = (data || []) as Array<{
+        customer_id: string;
+        outstanding_dr?: number | null;
+        advance_available?: number | null;
+        cn_available_total?: number | null;
+        cn_pending_count?: number | null;
+        gross_outstanding_dr?: number | null;
+        net_position?: number | null;
+      }>;
+
+      for (const row of rows) {
+        if (!row?.customer_id) continue;
+        map.set(row.customer_id, normalizeRow(row));
+      }
+
+      if (rows.length < PAGE) break;
     }
   } catch (err) {
     console.warn("[customerFinancialSnapshot] snapshot_all fetch failed", err);
