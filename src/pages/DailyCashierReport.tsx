@@ -1232,7 +1232,7 @@ const DailyCashierReport = () => {
             ))}
           </div>
 
-          {/* Sales & credit — collapsed by default */}
+          {/* Sales & credit — open by default */}
           <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen}>
             <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
               <CollapsibleTrigger asChild>
