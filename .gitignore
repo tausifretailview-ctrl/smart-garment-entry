@@ -58,3 +58,5 @@ supabase/.temp/
 
 # tsc -b (npm run typecheck) writes these
 *.tsbuildinfo
+# Added by code-review-graph
+.code-review-graph/
