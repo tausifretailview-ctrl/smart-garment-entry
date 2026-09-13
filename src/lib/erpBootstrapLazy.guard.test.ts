@@ -77,9 +77,13 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     expect(vite).toContain('if (id.includes("recharts") || id.includes("d3-")) return "chart-vendor"');
   });
 
-  it("OrgAuth and OrgLayout stay untouched by this split", () => {
+  it("OrgLayout lazy-loads OrgAuth through LazyChunkGate (no static import)", () => {
     const orgLayout = src("src/components/OrgLayout.tsx");
-    expect(orgLayout).toContain("OrgAuth");
+    expect(orgLayout).not.toMatch(/import\s+OrgAuth\s+from\s+["']@\/pages\/OrgAuth["']/);
+    expect(orgLayout).toContain("LazyChunkGate");
+    expect(orgLayout).toContain('import("@/pages/OrgAuth")');
+    expect(orgLayout).toContain("Could not load sign-in");
+    expect(orgLayout).toContain("refresh the app");
   });
 
   it("LazyChunkGate Refresh app purges caches via reloadAppWithUpdateCheck", () => {
