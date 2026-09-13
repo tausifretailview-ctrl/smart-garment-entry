@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchCustomerFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
+import { fetchOrganizationFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
 import { fetchAllCustomers, fetchAllSuppliers } from "@/utils/fetchAllRows";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { sortSizes } from "@/utils/sizeSort";
