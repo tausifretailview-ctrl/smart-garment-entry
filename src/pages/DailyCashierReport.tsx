@@ -12,18 +12,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { ArrowLeft, CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Printer, IndianRupee, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import {
-  InsightsKpiCard,
-  InsightsKpiStrip,
-  InsightsPanel,
-  InsightsTableHeader,
-  INSIGHTS_NEUTRAL_TH,
-  INSIGHTS_BODY_ROW,
-  INSIGHTS_BODY_CELL,
-  INSIGHTS_BODY_CELL_NUM,
-} from "@/components/business-insights/insightsLayout";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export ΓÇö keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -52,8 +42,6 @@ import {
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
-  cashierNetByModeAfterExpenses,
-  cashierSaleAndAdvanceCollection,
   cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
@@ -869,22 +857,6 @@ const DailyCashierReport = () => {
   };
 
   const totals = calculateTotals();
-  const paymentCollection = cashierSaleAndAdvanceCollection({
-    cashSale: totals.cashSale,
-    cardSale: totals.cardSale,
-    upiSale: totals.upiSale,
-    advanceCash: totals.advanceCash,
-    advanceCard: totals.advanceCard,
-    advanceUpi: totals.advanceUpi,
-  });
-  const collectionNetOfExpenses = cashierNetByModeAfterExpenses({
-    cash: paymentCollection.cashCollection,
-    card: paymentCollection.cardCollection,
-    upi: paymentCollection.upiCollection,
-    expenseCash: totals.expenseCash,
-    expenseCard: totals.expenseCard,
-    expenseUpi: totals.expenseUpi,
-  });
 
   // Expected cash in drawer — same identity as FloatingCashTally (do not reimplement).
   const drawerOpeningCash = useMemo(() => {
@@ -909,6 +881,128 @@ const DailyCashierReport = () => {
     () => computeExpectedDrawerCash(drawerOpeningCash, drawerFlows.cashIn, drawerFlows.cashOut),
     [drawerOpeningCash, drawerFlows.cashIn, drawerFlows.cashOut],
   );
+
+  // Payment In (Dr) / Payment Out (Cr) — side-by-side ledger for quick reconcile.
+  // In uses gross collections (before expense/refund deduct); Out lists those deducts so totals do not double-count.
+  const paymentInRows = useMemo(() => {
+    const cashIn =
+      (Number(totals.cashSale) || 0) +
+      (Number(totals.advanceCash) || 0) +
+      (Number(totals.rcpCashCollection) || 0);
+    const cardIn =
+      (Number(totals.cardSale) || 0) +
+      (Number(totals.advanceCard) || 0) +
+      (Number(totals.rcpCardCollection) || 0);
+    const upiIn =
+      (Number(totals.upiSale) || 0) +
+      (Number(totals.advanceUpi) || 0) +
+      (Number(totals.rcpUpiCollection) || 0);
+    const rows: { label: string; amount: number; tone?: string }[] = [
+      { label: "Cash (Sales + Advance + RCP)", amount: cashIn, tone: "text-emerald-700" },
+      { label: "Card (Sales + Advance + RCP)", amount: cardIn, tone: "text-blue-700" },
+      { label: "UPI (Sales + Advance + RCP)", amount: upiIn, tone: "text-violet-700" },
+    ];
+    if ((Number(totals.rcpOtherCollection) || 0) > 0) {
+      rows.push({ label: "RCP Other (Cheque/Bank)", amount: totals.rcpOtherCollection, tone: "text-violet-800" });
+    }
+    if ((Number(totals.totalSRAdjusted) || 0) > 0) {
+      rows.push({ label: "S/R Adjusted", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
+    }
+    if ((Number(totals.feeTotalCollection) || 0) > 0) {
+      rows.push({
+        label: `Fee Collection (${totals.feeCount})`,
+        amount: totals.feeTotalCollection,
+        tone: "text-amber-800",
+      });
+    }
+    return rows;
+  }, [
+    totals.cashSale,
+    totals.advanceCash,
+    totals.rcpCashCollection,
+    totals.cardSale,
+    totals.advanceCard,
+    totals.rcpCardCollection,
+    totals.upiSale,
+    totals.advanceUpi,
+    totals.rcpUpiCollection,
+    totals.rcpOtherCollection,
+    totals.totalSRAdjusted,
+    totals.feeTotalCollection,
+    totals.feeCount,
+  ]);
+
+  const paymentOutRows = useMemo(() => {
+    const rows: { label: string; amount: number; tone?: string }[] = [];
+    if (totals.cashRefundTotal > 0) {
+      rows.push({
+        label: `Cash Refunds S/R + Customer (${totals.cashRefundCount})`,
+        amount: totals.cashRefundTotal,
+        tone: "text-red-600",
+      });
+    }
+    if (totals.customerRefundUpi > 0) {
+      rows.push({ label: "Customer Refund UPI", amount: totals.customerRefundUpi, tone: "text-red-600" });
+    }
+    if (totals.customerRefundCard > 0) {
+      rows.push({ label: "Customer Refund Card/Bank", amount: totals.customerRefundCard, tone: "text-red-600" });
+    }
+    if (totals.customerRefundOther > 0) {
+      rows.push({ label: "Customer Refund Other", amount: totals.customerRefundOther, tone: "text-red-600" });
+    }
+    if (totals.expenseCash > 0) {
+      rows.push({ label: "Expense — Cash", amount: totals.expenseCash, tone: "text-red-700" });
+    }
+    if (totals.expenseUpi > 0) {
+      rows.push({ label: "Expense — UPI", amount: totals.expenseUpi, tone: "text-red-700" });
+    }
+    if (totals.expenseCard > 0) {
+      rows.push({ label: "Expense — Card", amount: totals.expenseCard, tone: "text-red-700" });
+    }
+    if (totals.expenseOther > 0) {
+      rows.push({ label: "Expense — Other", amount: totals.expenseOther, tone: "text-red-700" });
+    }
+    if (totals.thirdPartyOutflowCash > 0) {
+      rows.push({ label: "Third-party Out — Cash", amount: totals.thirdPartyOutflowCash, tone: "text-orange-700" });
+    }
+    if (totals.thirdPartyOutflowUpi > 0) {
+      rows.push({ label: "Third-party Out — UPI", amount: totals.thirdPartyOutflowUpi, tone: "text-orange-700" });
+    }
+    if (totals.thirdPartyOutflowCard > 0) {
+      rows.push({ label: "Third-party Out — Card", amount: totals.thirdPartyOutflowCard, tone: "text-orange-700" });
+    }
+    if (totals.thirdPartyOutflowOther > 0) {
+      rows.push({ label: "Third-party Out — Other", amount: totals.thirdPartyOutflowOther, tone: "text-orange-700" });
+    }
+    if (rows.length === 0) {
+      rows.push({ label: "No outflows in this period", amount: 0, tone: "text-muted-foreground" });
+    }
+    return rows;
+  }, [
+    totals.cashRefundTotal,
+    totals.cashRefundCount,
+    totals.customerRefundUpi,
+    totals.customerRefundCard,
+    totals.customerRefundOther,
+    totals.expenseCash,
+    totals.expenseUpi,
+    totals.expenseCard,
+    totals.expenseOther,
+    totals.thirdPartyOutflowCash,
+    totals.thirdPartyOutflowUpi,
+    totals.thirdPartyOutflowCard,
+    totals.thirdPartyOutflowOther,
+  ]);
+
+  const paymentInTotal = useMemo(
+    () => paymentInRows.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+    [paymentInRows],
+  );
+  const paymentOutTotal = useMemo(
+    () => paymentOutRows.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+    [paymentOutRows],
+  );
+  const paymentNet = paymentInTotal - paymentOutTotal;
 
   // Mode strip: sale tender + advance + mode RCP − mode refunds − shop expenses by mode.
   const modeStrip = useMemo(() => {
@@ -1243,6 +1337,59 @@ const DailyCashierReport = () => {
             ))}
           </div>
 
+
+          {/* Payment In (Dr) / Payment Out (Cr) */}
+          <div className="grid grid-cols-1 gap-2">
+            <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
+                <p className="text-xs font-bold text-emerald-900 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-emerald-600 text-white text-[10px] font-bold">Dr</span>
+                  Payment In
+                </p>
+                <p className="text-sm font-bold tabular-nums text-emerald-800">{formatCurrency(paymentInTotal)}</p>
+              </div>
+              <div className="px-4 py-2 space-y-1.5">
+                {paymentInRows.map((row) => (
+                  <div key={row.label} className="flex justify-between items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className={cn("text-xs font-semibold tabular-nums", row.tone)}>{formatCurrency(row.amount)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                  <p className="text-xs font-bold">Total</p>
+                  <p className="text-sm font-bold tabular-nums text-emerald-800">{formatCurrency(paymentInTotal)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-rose-50 border-b border-rose-100">
+                <p className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-rose-600 text-white text-[10px] font-bold">Cr</span>
+                  Payment Out
+                </p>
+                <p className="text-sm font-bold tabular-nums text-rose-800">{formatCurrency(paymentOutTotal)}</p>
+              </div>
+              <div className="px-4 py-2 space-y-1.5">
+                {paymentOutRows.map((row) => (
+                  <div key={row.label} className="flex justify-between items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className={cn("text-xs font-semibold tabular-nums", row.tone)}>{formatCurrency(row.amount)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                  <p className="text-xs font-bold">Total</p>
+                  <p className="text-sm font-bold tabular-nums text-rose-800">{formatCurrency(paymentOutTotal)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-card rounded-2xl border border-border/40 px-4 py-2.5 flex items-center justify-between">
+              <p className="text-xs font-semibold">Net (In − Out)</p>
+              <p className={cn("text-sm font-bold tabular-nums", paymentNet >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                {formatCurrency(paymentNet)}
+              </p>
+            </div>
+          </div>
+
           {/* Sales & credit — open by default */}
           <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen}>
             <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
@@ -1474,351 +1621,280 @@ const DailyCashierReport = () => {
           </div>
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-2 print:overflow-visible print:h-auto pb-2">
-            <div className="shrink-0 rounded-lg border border-slate-200 border-l-[3px] border-l-slate-700 bg-white px-3 py-2 shadow-sm print:border print:shadow-none">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 leading-none flex items-center gap-1.5">
-                    <Wallet className="h-3.5 w-3.5" />
-                    Expected cash in drawer
-                  </p>
-                  <p className="text-lg sm:text-xl font-black tabular-nums text-slate-900 leading-tight mt-1">
-                    {formatCurrency(expectedDrawerCash)}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5 max-w-xl">
-                    Opening float + cash in − cash out (sales, advances, receipts including RCP, less cash outflows).
-                    {period === "daily" ? "" : " Opening float applies on Daily view only."}
-                  </p>
+            {/* HEADLINE: Expected cash in drawer */}
+            <Card className="shrink-0 border-0 shadow-lg bg-gradient-to-br from-slate-800 to-slate-900 text-white print:border print:shadow-none print:bg-white print:text-foreground">
+              <CardContent className="pt-5 pb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white/80 print:text-muted-foreground flex items-center gap-2">
+                      <Wallet className="h-4 w-4" />
+                      Expected cash in drawer
+                    </p>
+                    <p className="text-3xl sm:text-4xl font-extrabold tabular-nums tracking-tight mt-1 print:text-foreground">
+                      {formatCurrency(expectedDrawerCash)}
+                    </p>
+                    <p className="text-xs text-white/60 mt-2 print:text-muted-foreground max-w-xl">
+                      Opening float + cash in − cash out (sales, advances, receipts including RCP, less cash outflows).
+                      {period === "daily" ? "" : " Opening float applies on Daily view only."}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="print:hidden shrink-0 bg-white/15 hover:bg-white/25 text-white border-0"
+                    onClick={() => setCashTallyOpen(true)}
+                  >
+                    <Wallet className="h-4 w-4 mr-2" />
+                    Enter physical count / open–close
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="print:hidden shrink-0 h-9 text-sm border-slate-200 bg-white"
-                  onClick={() => setCashTallyOpen(true)}
-                >
-                  <Wallet className="h-4 w-4 mr-2" />
-                  Enter physical count / open–close
-                </Button>
-              </div>
+              </CardContent>
+            </Card>
+
+            {/* MODE STRIP */}
+            <div className="shrink-0 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <Card className="border shadow-sm">
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs font-medium text-muted-foreground">Cash in drawer (all sources)</p>
+                  <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400 mt-1">
+                    {formatCurrency(modeStrip.cash)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − cash refunds − cash expenses</p>
+                </CardContent>
+              </Card>
+              <Card className="border shadow-sm">
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs font-medium text-muted-foreground">Card</p>
+                  <p className="text-xl font-bold tabular-nums text-blue-700 dark:text-blue-400 mt-1">
+                    {formatCurrency(modeStrip.card)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − card refunds − card expenses</p>
+                </CardContent>
+              </Card>
+              <Card className="border shadow-sm">
+                <CardContent className="pt-4 pb-3">
+                  <p className="text-xs font-medium text-muted-foreground">UPI</p>
+                  <p className="text-xl font-bold tabular-nums text-violet-700 dark:text-violet-400 mt-1">
+                    {formatCurrency(modeStrip.upi)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Sale + advance + RCP − UPI refunds − UPI expenses</p>
+                </CardContent>
+              </Card>
             </div>
 
-            <InsightsKpiStrip>
-              <InsightsKpiCard
-                label="Cash in drawer"
-                value={modeStrip.cash}
-                valueFormat="inr"
-                tone="positive"
-                sub="Sale + advance + RCP − cash refunds − cash expenses"
-              />
-              <InsightsKpiCard
-                label="Card"
-                value={modeStrip.card}
-                valueFormat="inr"
-                tone="neutral"
-                sub="Sale + advance + RCP − card refunds − card expenses"
-              />
-              <InsightsKpiCard
-                label="UPI"
-                value={modeStrip.upi}
-                valueFormat="inr"
-                tone="neutral"
-                sub="Sale + advance + RCP − UPI refunds − UPI expenses"
-              />
-            </InsightsKpiStrip>
+            {/* Payment In (Dr) / Payment Out (Cr) — high on page for quick check */}
+            <div className="shrink-0 grid grid-cols-1 lg:grid-cols-2 gap-2">
+              <Card className="border shadow-sm overflow-hidden">
+                <CardHeader className="py-2.5 px-3 bg-emerald-50 border-b">
+                  <CardTitle className="text-sm font-bold text-emerald-900 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-emerald-600 text-white text-xs font-bold">Dr</span>
+                      Payment In
+                    </span>
+                    <span className="tabular-nums text-emerald-800">{formatCurrency(paymentInTotal)}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-8 text-xs">Payment mode</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentInRows.map((row) => (
+                        <TableRow key={row.label}>
+                          <TableCell className="py-1.5 text-sm font-medium">{row.label}</TableCell>
+                          <TableCell className={cn("py-1.5 text-right tabular-nums font-semibold text-sm", row.tone)}>
+                            {formatCurrency(row.amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-emerald-50/80 hover:bg-emerald-50">
+                        <TableCell className="py-2 text-sm font-bold">Total Payment In</TableCell>
+                        <TableCell className="py-2 text-right tabular-nums font-bold text-emerald-800">
+                          {formatCurrency(paymentInTotal)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
 
+              <Card className="border shadow-sm overflow-hidden">
+                <CardHeader className="py-2.5 px-3 bg-rose-50 border-b">
+                  <CardTitle className="text-sm font-bold text-rose-900 flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="inline-flex h-6 w-6 items-center justify-center rounded bg-rose-600 text-white text-xs font-bold">Cr</span>
+                      Payment Out
+                    </span>
+                    <span className="tabular-nums text-rose-800">{formatCurrency(paymentOutTotal)}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-8 text-xs">Payment mode</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paymentOutRows.map((row) => (
+                        <TableRow key={row.label}>
+                          <TableCell className="py-1.5 text-sm font-medium">{row.label}</TableCell>
+                          <TableCell className={cn("py-1.5 text-right tabular-nums font-semibold text-sm", row.tone)}>
+                            {formatCurrency(row.amount)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="bg-rose-50/80 hover:bg-rose-50">
+                        <TableCell className="py-2 text-sm font-bold">Total Payment Out</TableCell>
+                        <TableCell className="py-2 text-right tabular-nums font-bold text-rose-800">
+                          {formatCurrency(paymentOutTotal)}
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+              <p className="text-sm font-semibold text-slate-700">Net (Payment In − Payment Out)</p>
+              <p
+                className={cn(
+                  "text-lg font-bold tabular-nums",
+                  paymentNet >= 0 ? "text-emerald-700" : "text-rose-700",
+                )}
+              >
+                {formatCurrency(paymentNet)}
+              </p>
+            </div>
+
+            {/* Sales & credit detail — colorful KPI cards */}
             <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen} className="shrink-0">
-              <div className="rounded-lg border border-slate-200 shadow-sm overflow-hidden bg-white">
+              <Card>
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    className="flex w-full items-center justify-between px-3 py-2 text-left border-b border-slate-100 print:hidden"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left print:hidden"
                   >
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-800 leading-tight">Sales & credit detail</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
+                    <div>
+                      <p className="text-sm font-semibold">Sales & credit detail</p>
+                      <p className="text-xs text-muted-foreground">
                         Gross, discount, net, S/R, balance, old receipts, actual net receivable
                       </p>
                     </div>
-                    <ChevronDown
-                      className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${salesCreditOpen ? "rotate-180" : ""}`}
-                    />
+                    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${salesCreditOpen ? "rotate-180" : ""}`} />
                   </button>
                 </CollapsibleTrigger>
-                <div className="hidden print:block px-3 py-2 border-b border-slate-100 font-bold text-sm text-slate-800">
-                  Sales & credit detail
-                </div>
+                <div className="hidden print:block px-4 pt-3 pb-2 font-semibold text-sm">Sales & credit detail</div>
                 <CollapsibleContent>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 p-2">
-                    <InsightsKpiCard
-                      label="Gross Sale"
-                      value={totals.grossSale}
-                      valueFormat="inr"
-                      tone="neutral"
-                      sub={`${totals.totalBills} Bills`}
-                    />
-                    <InsightsKpiCard
-                      label="Total Discount"
-                      value={totals.totalDiscount}
-                      valueFormat="inr"
-                      tone={totals.totalDiscount > 0 ? "critical" : "neutral"}
-                      sub={
-                        totals.totalRoundOff !== 0
-                          ? `Incl. round off ${formatCurrency(Math.abs(totals.totalRoundOff))}`
-                          : undefined
-                      }
-                    />
-                    <InsightsKpiCard
-                      label="Net Sale"
-                      value={totals.totalSale}
-                      valueFormat="inr"
-                      tone="positive"
-                      sub="Gross − Discount"
-                    />
-                    <InsightsKpiCard
-                      label="S/R Adjusted"
-                      value={totals.totalSRAdjusted}
-                      valueFormat="inr"
-                      tone="neutral"
-                      sub="Return credit used"
-                    />
-                    <InsightsKpiCard
-                      label="Balance Pending"
-                      value={totals.totalBalance}
-                      valueFormat="inr"
-                      tone={totals.totalBalance > 0 ? "attention" : "neutral"}
-                      sub="Outstanding"
-                    />
-                    <InsightsKpiCard
-                      label="Old Payment Receipts"
-                      value={totals.oldBalanceReceiptTotal}
-                      valueFormat="inr"
-                      tone="neutral"
-                      sub={`${totals.oldBalanceReceiptCount} Receipt${totals.oldBalanceReceiptCount === 1 ? "" : "s"} · Against existing balance`}
-                    />
-                    <InsightsKpiCard
-                      label="Actual Net Receivable"
-                      value={totals.actualNetReceivable}
-                      valueFormat="inr"
-                      tone="positive"
-                      sub="Settled today + old balance receipts + fees"
-                    />
-                  </div>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
+                  <CardContent className="pt-0 pb-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                      <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <Receipt className="h-3.5 w-3.5" />
+                            Gross Sale
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.grossSale)}</p>
+                          <p className="text-[10px] text-white/70">{totals.totalBills} Bills</p>
+                        </CardContent>
+                      </Card>
 
-            <InsightsPanel
-              className="shrink-0 max-h-[min(28rem,50vh)] print:max-h-none"
-              title="Payment Collection Breakdown"
-            >
-              <Table className="w-full">
-                <InsightsTableHeader>
-                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Collection Type</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Amount</TableHead>
-                </InsightsTableHeader>
-                <TableBody>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <IndianRupee className="h-4 w-4 text-emerald-600 shrink-0" />
-                        <span className="font-medium">Cash (Sales + Advance)</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
-                      {formatCurrency(collectionNetOfExpenses.cash)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-blue-600 shrink-0" />
-                        <span className="font-medium">Card Collection</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
-                      {formatCurrency(collectionNetOfExpenses.card)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Smartphone className="h-4 w-4 text-violet-600 shrink-0" />
-                        <span className="font-medium">UPI Collection</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
-                      {formatCurrency(collectionNetOfExpenses.upi)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <RotateCcw className="h-4 w-4 text-teal-600 shrink-0" />
-                        <span className="font-medium">S/R Adjusted</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-teal-700")}>
-                      {formatCurrency(totals.totalSRAdjusted)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Banknote className="h-4 w-4 text-slate-400 shrink-0" />
-                        <span className="font-medium text-muted-foreground">Refund (already in Cash)</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-muted-foreground")}>
-                      {formatCurrency(totals.totalRefund)}
-                    </TableCell>
-                  </TableRow>
-                  {totals.cashRefundTotal > 0 && (
-                    <TableRow className={INSIGHTS_BODY_ROW}>
-                      <TableCell className={INSIGHTS_BODY_CELL}>
-                        <div className="flex items-center gap-2">
-                          <RotateCcw className="h-4 w-4 text-red-600 shrink-0" />
-                          <span className="font-medium">Less: Cash Refunds (S/R + Customer)</span>
-                          <span className="text-xs text-muted-foreground">({totals.cashRefundCount})</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
-                        {formatCurrency(totals.cashRefundTotal)}
-                      </TableCell>
-                    </TableRow>
-                  )}
-                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80 hover:bg-emerald-50")}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Receipt className="h-4 w-4 text-emerald-700 shrink-0" />
-                        <span className="font-bold">Net Cash Collection</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base")}>
-                      {formatCurrency(collectionNetOfExpenses.cash - totals.cashRefundTotal)}
-                    </TableCell>
-                  </TableRow>
-                  {(totals.advanceReceived || 0) > 0 && (
-                    <>
-                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-slate-50")}>
-                        <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-emerald-800")}>
-                          Advance Bookings — {totals.advanceCount} entries (included in Cash / UPI / Card)
-                        </TableCell>
-                      </TableRow>
-                      {(totals.advanceCash || 0) > 0 && (
-                        <TableRow className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance Cash</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceCash)}</TableCell>
-                        </TableRow>
-                      )}
-                      {(totals.advanceUpi || 0) > 0 && (
-                        <TableRow className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance UPI</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceUpi)}</TableCell>
-                        </TableRow>
-                      )}
-                      {(totals.advanceCard || 0) > 0 && (
-                        <TableRow className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Advance Card</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.advanceCard)}</TableCell>
-                        </TableRow>
-                      )}
-                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80")}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total Advance Received</TableCell>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
-                          {formatCurrency(totals.advanceReceived)}
-                        </TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  {totals.rcpTotalCollection > 0 && (
-                    <>
-                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-slate-50")}>
-                        <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-violet-800")}>
-                          Receipt Collections (RCP) - {totals.rcpCount} receipts
-                        </TableCell>
-                      </TableRow>
-                      <TableRow className={INSIGHTS_BODY_ROW}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Cash</TableCell>
-                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpCashCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow className={INSIGHTS_BODY_ROW}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP UPI</TableCell>
-                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpUpiCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow className={INSIGHTS_BODY_ROW}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Card</TableCell>
-                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpCardCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow className={INSIGHTS_BODY_ROW}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>RCP Other (Cheque/Bank)</TableCell>
-                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.rcpOtherCollection)}</TableCell>
-                      </TableRow>
-                      <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-violet-50/80")}>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total RCP Collection</TableCell>
-                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
-                          {formatCurrency(totals.rcpTotalCollection)}
-                        </TableCell>
-                      </TableRow>
-                    </>
-                  )}
-                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-sky-50/80 hover:bg-sky-50")}>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-blue-800")}>
-                      GRAND TOTAL (Sales + RCP + Advance + Fees - Outflows)
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base text-blue-800")}>
-                      {formatCurrency(
-                        totals.cashSale +
-                          totals.cardSale +
-                          totals.upiSale +
-                          totals.rcpTotalCollection +
-                          (totals.advanceReceived || 0) +
-                          totals.feeTotalCollection -
-                          totals.totalRefund -
-                          totals.cashRefundTotal -
-                          (totals.customerRefundUpi || 0) -
-                          (totals.customerRefundCard || 0) -
-                          (totals.customerRefundOther || 0) -
-                          totals.expenseTotal -
-                          totals.thirdPartyOutflowTotal,
-                      )}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
-                        <span className="font-medium">Credit (Outstanding)</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-amber-700")}>
-                      {formatCurrency(totals.creditSale)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-amber-600 shrink-0" />
-                        <span className="font-medium">Balance Pending</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-amber-700")}>
-                      {formatCurrency(totals.totalBalance)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-emerald-50/80 hover:bg-emerald-50")}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      <div className="flex items-center gap-2">
-                        <Receipt className="h-4 w-4 text-emerald-700 shrink-0" />
-                        <span className="font-bold text-emerald-800">Actual Net Receivable</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-base text-emerald-800")}>
-                      {formatCurrency(totals.actualNetReceivable)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </InsightsPanel>
+                      <Card className="bg-gradient-to-br from-red-500 to-red-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <TrendingDown className="h-3.5 w-3.5" />
+                            Total Discount
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalDiscount)}</p>
+                          {totals.totalRoundOff !== 0 && (
+                            <p className="text-[10px] text-white/70">
+                              Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <IndianRupee className="h-3.5 w-3.5" />
+                            Net Sale
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSale)}</p>
+                          <p className="text-[10px] text-white/70">Gross − Discount</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            S/R Adjusted
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</p>
+                          <p className="text-[10px] text-white/70">Return credit used</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-orange-500 to-orange-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            Balance Pending
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalBalance)}</p>
+                          <p className="text-[10px] text-white/70">Outstanding</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-indigo-500 to-indigo-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <Banknote className="h-3.5 w-3.5" />
+                            Old Payment Receipts
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.oldBalanceReceiptTotal)}</p>
+                          <p className="text-[10px] text-white/70">
+                            {totals.oldBalanceReceiptCount} Receipt{totals.oldBalanceReceiptCount === 1 ? "" : "s"} · Against existing balance
+                          </p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-green-600 to-green-700 border-0 shadow-lg ring-2 ring-green-400/50">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <Receipt className="h-3.5 w-3.5" />
+                            Actual Net Receivable
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.actualNetReceivable)}</p>
+                          <p className="text-[10px] text-white/70">Settled today + old balance receipts + fees</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
 
             <Collapsible open={otherMoneyOpen} onOpenChange={setOtherMoneyOpen} className="shrink-0">
               <div className="rounded-lg border border-slate-200 shadow-sm overflow-hidden bg-white">
@@ -1844,46 +1920,48 @@ const DailyCashierReport = () => {
                 <CollapsibleContent>
                   <div className="overflow-x-auto">
                     <Table className="w-full">
-                      <InsightsTableHeader>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Type</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Amount</TableHead>
-                      </InsightsTableHeader>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Type</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                        </TableRow>
+                      </TableHeader>
                       <TableBody>
                         {totals.customerRefundTotal > 0 && (
                           <>
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-rose-50/80")}>
-                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-rose-800")}>
+                            <TableRow className="bg-rose-50/80">
+                              <TableCell colSpan={2} className="font-semibold text-rose-800">
                                 Customer refunds (overpayment / CN) — {totals.customerRefundCount} vouchers
                               </TableCell>
                             </TableRow>
                             {totals.customerRefundCash > 0 && (
-                              <TableRow className={INSIGHTS_BODY_ROW}>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Cash</TableCell>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                              <TableRow>
+                                <TableCell className="pl-8 text-sm">Cash</TableCell>
+                                <TableCell className="text-right font-semibold text-red-600 tabular-nums">
                                   {formatCurrency(totals.customerRefundCash)}
                                 </TableCell>
                               </TableRow>
                             )}
                             {totals.customerRefundUpi > 0 && (
-                              <TableRow className={INSIGHTS_BODY_ROW}>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>UPI</TableCell>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                              <TableRow>
+                                <TableCell className="pl-8 text-sm">UPI</TableCell>
+                                <TableCell className="text-right font-semibold text-red-600 tabular-nums">
                                   {formatCurrency(totals.customerRefundUpi)}
                                 </TableCell>
                               </TableRow>
                             )}
                             {totals.customerRefundCard > 0 && (
-                              <TableRow className={INSIGHTS_BODY_ROW}>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Card / Bank</TableCell>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                              <TableRow>
+                                <TableCell className="pl-8 text-sm">Card / Bank</TableCell>
+                                <TableCell className="text-right font-semibold text-red-600 tabular-nums">
                                   {formatCurrency(totals.customerRefundCard)}
                                 </TableCell>
                               </TableRow>
                             )}
                             {totals.customerRefundOther > 0 && (
-                              <TableRow className={INSIGHTS_BODY_ROW}>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-sm")}>Other</TableCell>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold text-red-600")}>
+                              <TableRow>
+                                <TableCell className="pl-8 text-sm">Other</TableCell>
+                                <TableCell className="text-right font-semibold text-red-600 tabular-nums">
                                   {formatCurrency(totals.customerRefundOther)}
                                 </TableCell>
                               </TableRow>
@@ -1892,32 +1970,32 @@ const DailyCashierReport = () => {
                         )}
                         {totals.feeTotalCollection > 0 && (
                           <>
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-amber-50/80")}>
-                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-amber-900")}>
+                            <TableRow className="bg-amber-50/80">
+                              <TableCell colSpan={2} className="font-semibold text-amber-900">
                                 Student Fee Collections - {totals.feeCount} receipts
                               </TableCell>
                             </TableRow>
-                            <TableRow className={INSIGHTS_BODY_ROW}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Cash</TableCell>
-                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeCashCollection)}</TableCell>
+                            <TableRow>
+                              <TableCell className="pl-8">Fee Cash</TableCell>
+                              <TableCell className="text-right tabular-nums">{formatCurrency(totals.feeCashCollection)}</TableCell>
                             </TableRow>
-                            <TableRow className={INSIGHTS_BODY_ROW}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee UPI</TableCell>
-                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeUpiCollection)}</TableCell>
+                            <TableRow>
+                              <TableCell className="pl-8">Fee UPI</TableCell>
+                              <TableCell className="text-right tabular-nums">{formatCurrency(totals.feeUpiCollection)}</TableCell>
                             </TableRow>
-                            <TableRow className={INSIGHTS_BODY_ROW}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Card</TableCell>
-                              <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeCardCollection)}</TableCell>
+                            <TableRow>
+                              <TableCell className="pl-8">Fee Card</TableCell>
+                              <TableCell className="text-right tabular-nums">{formatCurrency(totals.feeCardCollection)}</TableCell>
                             </TableRow>
                             {totals.feeBankCollection > 0 && (
-                              <TableRow className={INSIGHTS_BODY_ROW}>
-                                <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8")}>Fee Bank Transfer</TableCell>
-                                <TableCell className={INSIGHTS_BODY_CELL_NUM}>{formatCurrency(totals.feeBankCollection)}</TableCell>
+                              <TableRow>
+                                <TableCell className="pl-8">Fee Bank Transfer</TableCell>
+                                <TableCell className="text-right tabular-nums">{formatCurrency(totals.feeBankCollection)}</TableCell>
                               </TableRow>
                             )}
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-amber-50/80")}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold")}>Total Fee Collection</TableCell>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold")}>
+                            <TableRow className="bg-amber-50/80">
+                              <TableCell className="font-bold">Total Fee Collection</TableCell>
+                              <TableCell className="text-right font-bold tabular-nums">
                                 {formatCurrency(totals.feeTotalCollection)}
                               </TableCell>
                             </TableRow>
@@ -1925,16 +2003,16 @@ const DailyCashierReport = () => {
                         )}
                         {totals.thirdPartyOutflowTotal > 0 && (
                           <>
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-orange-50/80")}>
-                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-destructive")}>
+                            <TableRow className="bg-orange-50/80">
+                              <TableCell colSpan={2} className="font-semibold text-destructive">
                                 Third-party Payments — {totals.thirdPartyOutflowCount} entries
                               </TableCell>
                             </TableRow>
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-orange-50/80")}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-destructive")}>
+                            <TableRow className="bg-orange-50/80">
+                              <TableCell className="font-bold text-destructive">
                                 Total Third-party Outflows
                               </TableCell>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-destructive")}>
+                              <TableCell className="text-right font-bold text-destructive tabular-nums">
                                 {formatCurrency(totals.thirdPartyOutflowTotal)}
                               </TableCell>
                             </TableRow>
@@ -1942,16 +2020,16 @@ const DailyCashierReport = () => {
                         )}
                         {totals.expenseTotal > 0 && (
                           <>
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-red-50/80")}>
-                              <TableCell colSpan={2} className={cn(INSIGHTS_BODY_CELL, "font-semibold text-destructive")}>
+                            <TableRow className="bg-red-50/80">
+                              <TableCell colSpan={2} className="font-semibold text-destructive">
                                 Expense Outflows — {totals.expenseCount} entries
                               </TableCell>
                             </TableRow>
                             {Object.entries(totals.expenseByCategory)
                               .sort(([, a], [, b]) => b.total - a.total)
                               .map(([cat, vals]) => (
-                                <TableRow key={cat} className={INSIGHTS_BODY_ROW}>
-                                  <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-8 text-xs")}>
+                                <TableRow key={cat} >
+                                  <TableCell className="pl-8 text-xs">
                                     {cat}
                                     {vals.cash > 0 && (
                                       <span className="ml-2 text-muted-foreground">Cash: {formatCurrency(vals.cash)}</span>
@@ -1963,16 +2041,16 @@ const DailyCashierReport = () => {
                                       <span className="ml-2 text-muted-foreground">Card: {formatCurrency(vals.card)}</span>
                                     )}
                                   </TableCell>
-                                  <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium text-destructive")}>
+                                  <TableCell className="text-right font-medium text-destructive tabular-nums">
                                     {formatCurrency(vals.total)}
                                   </TableCell>
                                 </TableRow>
                               ))}
-                            <TableRow className={cn(INSIGHTS_BODY_ROW, "bg-red-50/80")}>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL, "font-bold text-destructive")}>
+                            <TableRow className="bg-red-50/80">
+                              <TableCell className="font-bold text-destructive">
                                 Total Expenses
                               </TableCell>
-                              <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-bold text-destructive")}>
+                              <TableCell className="text-right font-bold text-destructive tabular-nums">
                                 {formatCurrency(totals.expenseTotal)}
                               </TableCell>
                             </TableRow>
@@ -1985,7 +2063,11 @@ const DailyCashierReport = () => {
               </div>
             </Collapsible>
 
-            <InsightsPanel className="shrink-0 print:border print:shadow-none" title="Summary">
+            <Card className="shrink-0 print:border print:shadow-none">
+              <CardHeader className="py-3 px-3">
+                <CardTitle className="text-base">Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 px-0 pb-0">
               <div className="px-3 py-2 space-y-1 text-sm">
                 <div className="flex justify-between py-2 border-b border-slate-100">
                   <span>Gross Sale</span>
@@ -2114,7 +2196,8 @@ const DailyCashierReport = () => {
                   </div>
                 </div>
               </div>
-            </InsightsPanel>
+              </CardContent>
+            </Card>
 
             <div className="hidden print:block mt-8 pt-4 border-t text-center text-sm text-muted-foreground">
               <p>Generated on {format(new Date(), "dd/MM/yyyy HH:mm")}</p>
