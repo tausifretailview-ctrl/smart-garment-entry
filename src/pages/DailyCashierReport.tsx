@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from "date-fns";
-import { ArrowLeft, CalendarIcon, Printer, IndianRupee, CreditCard, Smartphone, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, CalendarIcon, Printer, IndianRupee, Clock, Receipt, TrendingDown, FileSpreadsheet, FileText, Banknote, RotateCcw, ChevronLeft, ChevronRight, ChevronDown, Wallet } from "lucide-react";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export ΓÇö keeps the xlsx bundle off this page's initial chunk. */
@@ -42,8 +42,6 @@ import {
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
   computeCashierActualNetReceivable,
-  cashierNetByModeAfterExpenses,
-  cashierSaleAndAdvanceCollection,
   cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
@@ -859,22 +857,6 @@ const DailyCashierReport = () => {
   };
 
   const totals = calculateTotals();
-  const paymentCollection = cashierSaleAndAdvanceCollection({
-    cashSale: totals.cashSale,
-    cardSale: totals.cardSale,
-    upiSale: totals.upiSale,
-    advanceCash: totals.advanceCash,
-    advanceCard: totals.advanceCard,
-    advanceUpi: totals.advanceUpi,
-  });
-  const collectionNetOfExpenses = cashierNetByModeAfterExpenses({
-    cash: paymentCollection.cashCollection,
-    card: paymentCollection.cardCollection,
-    upi: paymentCollection.upiCollection,
-    expenseCash: totals.expenseCash,
-    expenseCard: totals.expenseCard,
-    expenseUpi: totals.expenseUpi,
-  });
 
   // Expected cash in drawer — same identity as FloatingCashTally (do not reimplement).
   const drawerOpeningCash = useMemo(() => {
@@ -1353,6 +1335,59 @@ const DailyCashierReport = () => {
                   : <p className={cn("text-sm font-bold tabular-nums mt-0.5", p.color)}>{formatCurrency(p.value)}</p>}
               </div>
             ))}
+          </div>
+
+
+          {/* Payment In (Dr) / Payment Out (Cr) */}
+          <div className="grid grid-cols-1 gap-2">
+            <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
+                <p className="text-xs font-bold text-emerald-900 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-emerald-600 text-white text-[10px] font-bold">Dr</span>
+                  Payment In
+                </p>
+                <p className="text-sm font-bold tabular-nums text-emerald-800">{formatCurrency(paymentInTotal)}</p>
+              </div>
+              <div className="px-4 py-2 space-y-1.5">
+                {paymentInRows.map((row) => (
+                  <div key={row.label} className="flex justify-between items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className={cn("text-xs font-semibold tabular-nums", row.tone)}>{formatCurrency(row.amount)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                  <p className="text-xs font-bold">Total</p>
+                  <p className="text-sm font-bold tabular-nums text-emerald-800">{formatCurrency(paymentInTotal)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-card rounded-2xl border border-border/40 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-rose-50 border-b border-rose-100">
+                <p className="text-xs font-bold text-rose-900 flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded bg-rose-600 text-white text-[10px] font-bold">Cr</span>
+                  Payment Out
+                </p>
+                <p className="text-sm font-bold tabular-nums text-rose-800">{formatCurrency(paymentOutTotal)}</p>
+              </div>
+              <div className="px-4 py-2 space-y-1.5">
+                {paymentOutRows.map((row) => (
+                  <div key={row.label} className="flex justify-between items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{row.label}</p>
+                    <p className={cn("text-xs font-semibold tabular-nums", row.tone)}>{formatCurrency(row.amount)}</p>
+                  </div>
+                ))}
+                <div className="flex justify-between items-center pt-1 border-t border-border/40">
+                  <p className="text-xs font-bold">Total</p>
+                  <p className="text-sm font-bold tabular-nums text-rose-800">{formatCurrency(paymentOutTotal)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-card rounded-2xl border border-border/40 px-4 py-2.5 flex items-center justify-between">
+              <p className="text-xs font-semibold">Net (In − Out)</p>
+              <p className={cn("text-sm font-bold tabular-nums", paymentNet >= 0 ? "text-emerald-700" : "text-rose-700")}>
+                {formatCurrency(paymentNet)}
+              </p>
+            </div>
           </div>
 
           {/* Sales & credit — open by default */}
