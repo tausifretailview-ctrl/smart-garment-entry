@@ -12,17 +12,23 @@ const mig = readFileSync(
   "utf8",
 );
 
-describe("nightly backup app.* GUCs bootstrap", () => {
-  it("sets database-level app.supabase_url and app.supabase_anon_key", () => {
-    expect(mig).toMatch(/ALTER DATABASE postgres SET app\.supabase_url\s*=/);
-    expect(mig).toMatch(/ALTER DATABASE postgres SET app\.supabase_anon_key\s*=/);
-    expect(mig).toContain("https://");
+describe("nightly backup dispatch URL bootstrap", () => {
+  it("redefines dispatch_nightly_backups with publishable URL/anon fallbacks", () => {
+    expect(mig).toContain("CREATE OR REPLACE FUNCTION public.dispatch_nightly_backups()");
+    expect(mig).toContain("current_setting('app.supabase_url', true)");
+    expect(mig).toContain("https://lkbbrqcsbhqjvsxiorvp.supabase.co");
     expect(mig).toContain("eyJ");
+    expect(mig).toMatch(/IF v_url IS NULL THEN/);
+    expect(mig).toMatch(/IF v_anon IS NULL THEN/);
   });
 
-  it("only bootstraps GUCs — no cron schedule churn", () => {
+  it("does not rely on ALTER DATABASE SET app.* (blocked on hosted Supabase)", () => {
+    expect(mig).not.toMatch(/ALTER DATABASE postgres SET app\.supabase_url/);
+    expect(mig).not.toMatch(/ALTER DATABASE postgres SET app\.supabase_anon_key/);
+  });
+
+  it("only bootstraps dispatch — no cron schedule churn", () => {
     expect(mig).not.toMatch(/purge_old_backup/);
     expect(mig).not.toMatch(/cron\.(schedule|unschedule)/);
-    expect(mig).not.toMatch(/CREATE OR REPLACE FUNCTION public\.dispatch_nightly_backups/);
   });
 });
