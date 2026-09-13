@@ -5,7 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
-import OrgAuth from "@/pages/OrgAuth";
+import { LazyChunkGate } from "@/components/LazyChunkGate";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
@@ -98,6 +98,21 @@ function getOrgPathSegment(pathname: string, orgSlug?: string): string {
     return pathname.slice(orgSlug.length + 2) || "";
   }
   return pathname.replace(/^\//, "");
+}
+
+/** Login page — lazy so OrgAuth/Zod stay out of erpBootstrap; gate handles deploy-skew. */
+function OrgAuthChunk() {
+  return (
+    <LazyChunkGate
+      variant="inline"
+      loader={() => import("@/pages/OrgAuth")}
+      componentProps={{}}
+      title="Sign in"
+      loadingMessage="Loading sign-in…"
+      errorTitle="Could not load sign-in"
+      errorDescription="This can happen after an app update. Retry to download again, or refresh the app."
+    />
+  );
 }
 
 export const OrgLayout = () => {
@@ -768,9 +783,10 @@ export const OrgLayout = () => {
     return <AppBootSplash message="Starting Ezzy ERP…" />;
   }
 
-  // If not logged in, render org login page immediately (don't wait for orgLoading)
+  // If not logged in, render org login page immediately (don't wait for orgLoading).
+  // Auth gates still run first — LazyChunkGate only loads OrgAuth after !user / wrong-org.
   if (!user) {
-    return <OrgAuth />;
+    return <OrgAuthChunk />;
   }
 
   // Only wait for org loading when user IS authenticated
@@ -784,7 +800,7 @@ export const OrgLayout = () => {
   if (!userBelongsToOrg && organizations.length > 0) {
     // Security: do NOT redirect to another org automatically.
     // Keep user on requested org URL login so cross-org access cannot occur.
-    return <OrgAuth />;
+    return <OrgAuthChunk />;
   }
 
   // Never render a half-initialized tenant shell. Offer an explicit retry when the
