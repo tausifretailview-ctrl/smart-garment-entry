@@ -63,69 +63,87 @@ const BATCH_CHUNK = 10;
 const EPS_MONEY = 0.015;
 const EPS_INT = 0.5;
 
+/**
+ * Page through a PostgREST table read. PostgREST caps any single response at
+ * the server's max-rows (1000 here), so a bare select silently truncates on
+ * large orgs. Always walk with .range() until a short page comes back.
+ */
+async function pageTable(table, columns, applyFilters) {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    let q = supabase.from(table).select(columns);
+    q = applyFilters(q);
+    const { data, error } = await q.range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return rows;
+}
+
+/** Same paging discipline for set-returning RPCs (also capped at max-rows). */
+async function pageRpc(fn, args) {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .rpc(fn, args)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return rows;
+}
+
 async function fetchCustomersWithFinancialActivity(organizationId) {
   const ids = new Set();
-  const [
-    salesRes,
-    advancesRes,
-    returnsRes,
-    adjustmentsRes,
-    vouchersRes,
-    openingBalanceRes,
-  ] = await Promise.all([
-    supabase
-      .from("sales")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .not("customer_id", "is", null),
-    supabase
-      .from("customer_advances")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .not("customer_id", "is", null),
-    supabase
-      .from("sale_returns")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .not("customer_id", "is", null),
-    supabase
-      .from("customer_balance_adjustments")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .not("customer_id", "is", null),
-    supabase
-      .from("voucher_entries")
-      .select("reference_id")
-      .eq("organization_id", organizationId)
-      .eq("reference_type", "customer")
-      .not("reference_id", "is", null),
-    supabase
-      .from("customers")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .neq("opening_balance", 0),
-  ]);
+  const notDeleted = (q) =>
+    q.eq("organization_id", organizationId).is("deleted_at", null);
 
-  for (const row of salesRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of advancesRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of returnsRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of adjustmentsRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of vouchersRes.data || []) if (row.reference_id) ids.add(row.reference_id);
-  for (const row of openingBalanceRes.data || []) if (row.id) ids.add(row.id);
+  const [sales, advances, returns, adjustments, vouchers, openingBalance] =
+    await Promise.all([
+      pageTable("sales", "customer_id", (q) =>
+        notDeleted(q).not("customer_id", "is", null).order("customer_id", { ascending: true }),
+      ),
+      pageTable("customer_advances", "customer_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .not("customer_id", "is", null)
+          .order("customer_id", { ascending: true }),
+      ),
+      pageTable("sale_returns", "customer_id", (q) =>
+        notDeleted(q).not("customer_id", "is", null).order("customer_id", { ascending: true }),
+      ),
+      pageTable("customer_balance_adjustments", "customer_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .not("customer_id", "is", null)
+          .order("customer_id", { ascending: true }),
+      ),
+      pageTable("voucher_entries", "reference_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .eq("reference_type", "customer")
+          .not("reference_id", "is", null)
+          .order("reference_id", { ascending: true }),
+      ),
+      pageTable("customers", "id", (q) =>
+        notDeleted(q).neq("opening_balance", 0).order("id", { ascending: true }),
+      ),
+    ]);
 
-  for (const res of [
-    salesRes,
-    advancesRes,
-    returnsRes,
-    adjustmentsRes,
-    vouchersRes,
-    openingBalanceRes,
-  ]) {
-    if (res.error) throw res.error;
-  }
+  for (const row of sales) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of advances) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of returns) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of adjustments) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of vouchers) if (row.reference_id) ids.add(row.reference_id);
+  for (const row of openingBalance) if (row.id) ids.add(row.id);
 
   return [...ids];
 }
@@ -134,12 +152,11 @@ async function fetchBatchMap(organizationId, customerIds) {
   const map = new Map();
   for (let i = 0; i < customerIds.length; i += BATCH_CHUNK) {
     const chunk = customerIds.slice(i, i + BATCH_CHUNK);
-    const { data, error } = await supabase.rpc("get_customer_financial_snapshot_batch", {
+    const data = await pageRpc("get_customer_financial_snapshot_batch", {
       p_organization_id: organizationId,
       p_customer_ids: chunk,
     });
-    if (error) throw error;
-    for (const row of data || []) {
+    for (const row of data) {
       if (!row?.customer_id) continue;
       map.set(row.customer_id, {
         outstanding_dr: Number(row.outstanding_dr ?? 0),
@@ -163,12 +180,11 @@ async function fetchBatchMap(organizationId, customerIds) {
 }
 
 async function fetchAllMap(organizationId) {
-  const { data, error } = await supabase.rpc("get_customer_financial_snapshot_all", {
+  const data = await pageRpc("get_customer_financial_snapshot_all", {
     p_organization_id: organizationId,
   });
-  if (error) throw error;
   const map = new Map();
-  for (const row of data || []) {
+  for (const row of data) {
     if (!row?.customer_id) continue;
     map.set(row.customer_id, {
       outstanding_dr: Number(row.outstanding_dr ?? 0),
