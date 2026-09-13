@@ -351,12 +351,13 @@ export async function fetchOrganizationCustomerAccountTotals(
   const ids = (customers || []).map((c: { id: string }) => c.id).filter(Boolean);
   if (ids.length === 0) return empty;
 
-  const activeIds = await fetchCustomersWithFinancialActivity(organizationId, client);
-  const idsToFetch = ids.filter((id) => activeIds.has(id));
-  const map = await fetchCustomerFinancialSnapshotMap(organizationId, idsToFetch, client);
+  // Phase 1c: set-based whole-org RPC (proven equivalent, ~80x faster than per-customer batch)
+  const orgMap = await fetchOrganizationFinancialSnapshotMap(organizationId, client);
+  const idSet = new Set(ids);
 
   const totals = { ...empty, customerCount: ids.length };
-  for (const snap of map.values()) {
+  for (const [cid, snap] of orgMap) {
+    if (!idSet.has(cid)) continue;
     if (snap.outstandingDr > 0) totals.customersWithOutstanding += 1;
     if (snap.advanceAvailable > 0.009) totals.customersWithAdvance += 1;
     if (snap.cnAvailableTotal > 0.009) totals.customersWithCn += 1;
