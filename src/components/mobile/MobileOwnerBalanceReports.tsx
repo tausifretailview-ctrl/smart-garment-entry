@@ -407,10 +407,8 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
         const customers = await fetchAllCustomers(orgId!);
         if (!customers.length) return [] as CustomerBalanceRow[];
 
-        const snapMap = await fetchCustomerFinancialSnapshotMap(
-          orgId!,
-          customers.map((c) => c.id),
-        );
+        // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)
+        const snapMap = await fetchOrganizationFinancialSnapshotMap(orgId!);
 
         return customers.map((c) => ({
           id: c.id,
