@@ -470,6 +470,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_dispatch_tickets: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       backup_logs: {
         Row: {
           backup_type: string
@@ -9380,6 +9404,10 @@ export type Database = {
       consolidate_duplicate_products: {
         Args: { p_dry_run?: boolean; p_org_id: string }
         Returns: Json
+      }
+      consume_backup_dispatch_ticket: {
+        Args: { p_id: string; p_token: string }
+        Returns: boolean
       }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
