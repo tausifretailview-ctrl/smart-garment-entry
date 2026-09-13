@@ -1,15 +1,73 @@
--- Nightly backup cron has failed with:
---   "app.supabase_url / app.supabase_anon_key are not configured"
+-- Nightly backup cron failed: missing app.* GUCs, and on this project the
+-- backup_dispatch_tickets table / consume RPC from 20260818170000 were never
+-- applied (live types have backup_dispatch_runs + dispatch_nightly_backups only).
+-- Hosted Supabase also blocks ALTER DATABASE SET app.* (42501).
 --
--- Root cause: dispatch_nightly_backups() required Postgres GUCs that were never
--- bootstrapped in-repo. On hosted Supabase the SQL-editor postgres role also
--- cannot ALTER DATABASE SET custom app.* parameters (42501 permission denied),
--- so GUCs are not a viable ops path here.
---
--- Fix: keep optional GUC overrides when present, but fall back to this project's
--- public URL + publishable anon key (same values the web client already ships).
--- scheduled-backup has verify_jwt = false; the anon bearer is for gateway routing.
+-- This migration:
+--   1) ensures tickets table + consume RPC exist
+--   2) redefines dispatch_nightly_backups with publishable URL/anon fallbacks
 -- Leaves stale-flag and retention-purge schedules unchanged.
+
+CREATE TABLE IF NOT EXISTS public.backup_dispatch_tickets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  token text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.backup_dispatch_tickets ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.backup_dispatch_tickets FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.backup_dispatch_tickets TO service_role;
+GRANT ALL ON TABLE public.backup_dispatch_tickets TO postgres;
+
+CREATE TABLE IF NOT EXISTS public.backup_dispatch_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  ticket_id uuid,
+  http_request_id bigint,
+  status text NOT NULL,
+  error_message text
+);
+
+ALTER TABLE public.backup_dispatch_runs ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.backup_dispatch_runs FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.backup_dispatch_runs TO service_role;
+GRANT ALL ON TABLE public.backup_dispatch_runs TO postgres;
+
+CREATE OR REPLACE FUNCTION public.consume_backup_dispatch_ticket(p_id uuid, p_token text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ok boolean;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_id IS NULL OR p_token IS NULL OR length(p_token) <> 64 THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.backup_dispatch_tickets
+  SET used_at = now()
+  WHERE id = p_id
+    AND used_at IS NULL
+    AND expires_at > now()
+    AND token = p_token
+  RETURNING true INTO v_ok;
+
+  RETURN COALESCE(v_ok, false);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.consume_backup_dispatch_ticket(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_backup_dispatch_ticket(uuid, text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.dispatch_nightly_backups()
 RETURNS bigint
@@ -34,7 +92,6 @@ BEGIN
   v_url := NULLIF(current_setting('app.supabase_url', true), '');
   v_anon := NULLIF(current_setting('app.supabase_anon_key', true), '');
 
-  -- Hosted Supabase blocks ALTER DATABASE SET app.*; bake publishable defaults.
   IF v_url IS NULL THEN
     v_url := 'https://lkbbrqcsbhqjvsxiorvp.supabase.co';
   END IF;
@@ -74,4 +131,3 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.dispatch_nightly_backups() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.dispatch_nightly_backups() TO postgres;
-

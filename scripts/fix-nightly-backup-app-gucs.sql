@@ -1,7 +1,69 @@
 -- Paste into Supabase SQL Editor as postgres (project lkbbrqcsbhqjvsxiorvp).
--- ALTER DATABASE SET app.* is blocked on hosted Supabase (42501). Instead,
--- redefine dispatch_nightly_backups() with publishable URL/anon fallbacks.
+-- Fixes nightly dispatch without ALTER DATABASE app.* GUCs (blocked: 42501).
+-- Also creates backup_dispatch_tickets + consume RPC if missing (Aug 18 migration
+-- never landed on this DB — that caused 42P01 on the previous paste).
 -- Does NOT touch stale/retention jobs.
+
+CREATE TABLE IF NOT EXISTS public.backup_dispatch_tickets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  token text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.backup_dispatch_tickets ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.backup_dispatch_tickets FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.backup_dispatch_tickets TO service_role;
+GRANT ALL ON TABLE public.backup_dispatch_tickets TO postgres;
+
+CREATE TABLE IF NOT EXISTS public.backup_dispatch_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  ticket_id uuid,
+  http_request_id bigint,
+  status text NOT NULL,
+  error_message text
+);
+
+ALTER TABLE public.backup_dispatch_runs ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE public.backup_dispatch_runs FROM PUBLIC, anon, authenticated;
+GRANT ALL ON TABLE public.backup_dispatch_runs TO service_role;
+GRANT ALL ON TABLE public.backup_dispatch_runs TO postgres;
+
+CREATE OR REPLACE FUNCTION public.consume_backup_dispatch_ticket(p_id uuid, p_token text)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ok boolean;
+BEGIN
+  IF auth.role() IS DISTINCT FROM 'service_role' THEN
+    RAISE EXCEPTION 'Not authorized' USING ERRCODE = '42501';
+  END IF;
+
+  IF p_id IS NULL OR p_token IS NULL OR length(p_token) <> 64 THEN
+    RETURN false;
+  END IF;
+
+  UPDATE public.backup_dispatch_tickets
+  SET used_at = now()
+  WHERE id = p_id
+    AND used_at IS NULL
+    AND expires_at > now()
+    AND token = p_token
+  RETURNING true INTO v_ok;
+
+  RETURN COALESCE(v_ok, false);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.consume_backup_dispatch_ticket(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.consume_backup_dispatch_ticket(uuid, text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.dispatch_nightly_backups()
 RETURNS bigint
@@ -61,17 +123,20 @@ BEGIN
   VALUES (v_id, v_request_id, 'posted');
 
   RETURN v_request_id;
+EXCEPTION WHEN OTHERS THEN
+  INSERT INTO public.backup_dispatch_runs (status, error_message)
+  VALUES ('failed', SQLERRM);
+  RAISE;
 END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.dispatch_nightly_backups() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.dispatch_nightly_backups() TO postgres;
 
-
 -- Manual invoke (same function pg_cron calls):
 SELECT public.dispatch_nightly_backups() AS request_id;
 
--- Expect status 'posted' (not the GUC failure):
+-- Expect status 'posted':
 SELECT id, created_at, status, error_message, http_request_id, ticket_id
 FROM public.backup_dispatch_runs
 ORDER BY created_at DESC

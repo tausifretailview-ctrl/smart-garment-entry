@@ -12,22 +12,22 @@ const mig = readFileSync(
   "utf8",
 );
 
-describe("nightly backup dispatch URL bootstrap", () => {
-  it("redefines dispatch_nightly_backups with publishable URL/anon fallbacks", () => {
+describe("nightly backup dispatch bootstrap", () => {
+  it("creates tickets table + consume RPC and redefines dispatch with URL fallbacks", () => {
+    expect(mig).toContain("CREATE TABLE IF NOT EXISTS public.backup_dispatch_tickets");
+    expect(mig).toContain("CREATE OR REPLACE FUNCTION public.consume_backup_dispatch_ticket");
     expect(mig).toContain("CREATE OR REPLACE FUNCTION public.dispatch_nightly_backups()");
-    expect(mig).toContain("current_setting('app.supabase_url', true)");
     expect(mig).toContain("https://lkbbrqcsbhqjvsxiorvp.supabase.co");
-    expect(mig).toContain("eyJ");
     expect(mig).toMatch(/IF v_url IS NULL THEN/);
     expect(mig).toMatch(/IF v_anon IS NULL THEN/);
   });
 
-  it("does not rely on ALTER DATABASE SET app.* (blocked on hosted Supabase)", () => {
+  it("does not use ALTER DATABASE SET app.* (blocked on hosted Supabase)", () => {
     expect(mig).not.toMatch(/ALTER DATABASE postgres SET app\.supabase_url/);
     expect(mig).not.toMatch(/ALTER DATABASE postgres SET app\.supabase_anon_key/);
   });
 
-  it("only bootstraps dispatch — no cron schedule churn", () => {
+  it("does not churn stale/retention cron schedules", () => {
     expect(mig).not.toMatch(/purge_old_backup/);
     expect(mig).not.toMatch(/cron\.(schedule|unschedule)/);
   });
