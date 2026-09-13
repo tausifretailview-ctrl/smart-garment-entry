@@ -54,6 +54,21 @@ const supabase = createClient(url, key, {
 const PAGE = 1000;
 const RULES = { vipRecencyDays: 90, riskRecencyDays: 365, vipMinOrders: 5, vipMinRevenue: 50_000 };
 
+/** Page a set-returning RPC; PostgREST caps a single response at max-rows. */
+async function pageRpc(fn, args) {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase.rpc(fn, args).range(offset, offset + PAGE - 1);
+    if (error) return { data: rows, error };
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return { data: rows, error: null };
+}
+
 function daysSince(ymd) {
   const t = new Date(ymd + "T12:00:00").getTime();
   return Math.floor((Date.now() - t) / 86400000);
@@ -181,7 +196,7 @@ async function main() {
     }
   }
 
-  const { data: indexData, error: indexErr } = await supabase.rpc(
+  const { data: indexData, error: indexErr } = await pageRpc(
     "get_customer_segment_index",
     { p_org_id: orgId },
   );

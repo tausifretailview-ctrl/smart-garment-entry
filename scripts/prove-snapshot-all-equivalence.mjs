@@ -58,98 +58,156 @@ const supabase = createClient(url, key, {
 });
 
 const PAGE = 1000;
-const BATCH_CHUNK = 10;
+// Diagnostic-only knobs. The production callers keep their own chunk size;
+// these exist so the proof can stay under the 8s authenticated statement
+// timeout (chunk 1 ≈ 0.4s) instead of storming retries on timed-out chunks.
+const BATCH_CHUNK = Number(process.env.BATCH_CHUNK || 10);
+const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
+const timeoutChunks = [];
+const timedOutIds = new Set();
 /** Match client normalizeRow tolerances for float fields. */
 const EPS_MONEY = 0.015;
 const EPS_INT = 0.5;
 
+/**
+ * Page through a PostgREST table read. PostgREST caps any single response at
+ * the server's max-rows (1000 here), so a bare select silently truncates on
+ * large orgs. Always walk with .range() until a short page comes back.
+ */
+async function pageTable(table, columns, applyFilters) {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    let q = supabase.from(table).select(columns);
+    q = applyFilters(q);
+    const { data, error } = await q.range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return rows;
+}
+
+/** Same paging discipline for set-returning RPCs (also capped at max-rows). */
+async function pageRpc(fn, args) {
+  const rows = [];
+  let offset = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .rpc(fn, args)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    if (!data?.length) break;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return rows;
+}
+
 async function fetchCustomersWithFinancialActivity(organizationId) {
   const ids = new Set();
-  const [
-    salesRes,
-    advancesRes,
-    returnsRes,
-    adjustmentsRes,
-    vouchersRes,
-    openingBalanceRes,
-  ] = await Promise.all([
-    supabase
-      .from("sales")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .not("customer_id", "is", null),
-    supabase
-      .from("customer_advances")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .not("customer_id", "is", null),
-    supabase
-      .from("sale_returns")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .not("customer_id", "is", null),
-    supabase
-      .from("customer_balance_adjustments")
-      .select("customer_id")
-      .eq("organization_id", organizationId)
-      .not("customer_id", "is", null),
-    supabase
-      .from("voucher_entries")
-      .select("reference_id")
-      .eq("organization_id", organizationId)
-      .eq("reference_type", "customer")
-      .not("reference_id", "is", null),
-    supabase
-      .from("customers")
-      .select("id")
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .neq("opening_balance", 0),
-  ]);
+  const notDeleted = (q) =>
+    q.eq("organization_id", organizationId).is("deleted_at", null);
 
-  for (const row of salesRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of advancesRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of returnsRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of adjustmentsRes.data || []) if (row.customer_id) ids.add(row.customer_id);
-  for (const row of vouchersRes.data || []) if (row.reference_id) ids.add(row.reference_id);
-  for (const row of openingBalanceRes.data || []) if (row.id) ids.add(row.id);
+  const [sales, advances, returns, adjustments, vouchers, openingBalance] =
+    await Promise.all([
+      pageTable("sales", "customer_id", (q) =>
+        notDeleted(q).not("customer_id", "is", null).order("customer_id", { ascending: true }),
+      ),
+      pageTable("customer_advances", "customer_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .not("customer_id", "is", null)
+          .order("customer_id", { ascending: true }),
+      ),
+      pageTable("sale_returns", "customer_id", (q) =>
+        notDeleted(q).not("customer_id", "is", null).order("customer_id", { ascending: true }),
+      ),
+      pageTable("customer_balance_adjustments", "customer_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .not("customer_id", "is", null)
+          .order("customer_id", { ascending: true }),
+      ),
+      pageTable("voucher_entries", "reference_id", (q) =>
+        q
+          .eq("organization_id", organizationId)
+          .eq("reference_type", "customer")
+          .not("reference_id", "is", null)
+          .order("reference_id", { ascending: true }),
+      ),
+      pageTable("customers", "id", (q) =>
+        notDeleted(q).neq("opening_balance", 0).order("id", { ascending: true }),
+      ),
+    ]);
 
-  for (const res of [
-    salesRes,
-    advancesRes,
-    returnsRes,
-    adjustmentsRes,
-    vouchersRes,
-    openingBalanceRes,
-  ]) {
-    if (res.error) throw res.error;
-  }
+  for (const row of sales) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of advances) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of returns) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of adjustments) if (row.customer_id) ids.add(row.customer_id);
+  for (const row of vouchers) if (row.reference_id) ids.add(row.reference_id);
+  for (const row of openingBalance) if (row.id) ids.add(row.id);
 
   return [...ids];
 }
 
 async function fetchBatchMap(organizationId, customerIds) {
   const map = new Map();
+  const chunks = [];
   for (let i = 0; i < customerIds.length; i += BATCH_CHUNK) {
-    const chunk = customerIds.slice(i, i + BATCH_CHUNK);
-    const { data, error } = await supabase.rpc("get_customer_financial_snapshot_batch", {
-      p_organization_id: organizationId,
-      p_customer_ids: chunk,
-    });
-    if (error) throw error;
-    for (const row of data || []) {
-      if (!row?.customer_id) continue;
-      map.set(row.customer_id, {
-        outstanding_dr: Number(row.outstanding_dr ?? 0),
-        advance_available: Number(row.advance_available ?? 0),
-        cn_available_total: Number(row.cn_available_total ?? 0),
-        cn_pending_count: Number(row.cn_pending_count ?? 0),
-      });
+    chunks.push(customerIds.slice(i, i + BATCH_CHUNK));
+  }
+  let next = 0;
+  let done = 0;
+  async function worker() {
+    for (;;) {
+      const idx = next++;
+      if (idx >= chunks.length) return;
+      const chunk = chunks[idx];
+      const t0 = Date.now();
+      let data;
+      try {
+        data = await pageRpc("get_customer_financial_snapshot_batch", {
+          p_organization_id: organizationId,
+          p_customer_ids: chunk,
+        });
+      } catch (err) {
+        const msg = String(err?.message || err);
+        const isTimeout =
+          err?.code === "57014" || /statement timeout/i.test(msg);
+        timeoutChunks.push({ idx, size: chunk.length, ms: Date.now() - t0, msg });
+        if (isTimeout) {
+          for (const id of chunk) timedOutIds.add(id);
+          continue;
+        }
+        throw err;
+      }
+      for (const row of data) {
+        if (!row?.customer_id) continue;
+        map.set(row.customer_id, {
+          outstanding_dr: Number(row.outstanding_dr ?? 0),
+          advance_available: Number(row.advance_available ?? 0),
+          cn_available_total: Number(row.cn_available_total ?? 0),
+          cn_pending_count: Number(row.cn_pending_count ?? 0),
+        });
+      }
+      done += 1;
+      if (done % 200 === 0) {
+        console.log(`  batch progress ${done}/${chunks.length}`);
+      }
     }
   }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  if (timeoutChunks.length) {
+    console.error(
+      `  !! ${timeoutChunks.length}/${chunks.length} batch chunk(s) hit the statement timeout (chunk size ${BATCH_CHUNK})`,
+    );
+  }
   for (const id of customerIds) {
+    if (timedOutIds.has(id)) continue;
     if (!map.has(id)) {
       map.set(id, {
         outstanding_dr: 0,
@@ -163,12 +221,11 @@ async function fetchBatchMap(organizationId, customerIds) {
 }
 
 async function fetchAllMap(organizationId) {
-  const { data, error } = await supabase.rpc("get_customer_financial_snapshot_all", {
+  const data = await pageRpc("get_customer_financial_snapshot_all", {
     p_organization_id: organizationId,
   });
-  if (error) throw error;
   const map = new Map();
-  for (const row of data || []) {
+  for (const row of data) {
     if (!row?.customer_id) continue;
     map.set(row.customer_id, {
       outstanding_dr: Number(row.outstanding_dr ?? 0),
@@ -195,6 +252,7 @@ function compareMaps(batchMap, allMap, label) {
   const ids = new Set([...batchMap.keys(), ...allMap.keys()]);
 
   for (const id of ids) {
+    if (timedOutIds.has(id)) continue; // no batch value obtainable — reported separately
     const b = batchMap.get(id);
     const a = allMap.get(id);
     if (!b) {
