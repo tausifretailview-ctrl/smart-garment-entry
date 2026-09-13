@@ -74,7 +74,7 @@ const DailyCashierReport = () => {
     return d;
   });
   const [period, setPeriod] = useState<PeriodType>("daily");
-  const [salesCreditOpen, setSalesCreditOpen] = useState(false);
+  const [salesCreditOpen, setSalesCreditOpen] = useState(true);
   const [otherMoneyOpen, setOtherMoneyOpen] = useState(false);
   const [cashTallyOpen, setCashTallyOpen] = useState(false);
 
@@ -1484,7 +1484,7 @@ const DailyCashierReport = () => {
             </Card>
           </div>
 
-          {/* Sales & credit detail — default collapsed on Daily */}
+          {/* Sales & credit detail — open by default */}
           <Collapsible open={salesCreditOpen} onOpenChange={setSalesCreditOpen} className="mb-4">
             <Card>
               <CollapsibleTrigger asChild>
