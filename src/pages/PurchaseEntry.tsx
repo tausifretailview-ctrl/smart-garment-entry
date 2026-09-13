@@ -124,7 +124,10 @@ import {
 } from "@/utils/barcodeCollisionGuard";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
-import { groupPurchaseSearchByProductMaster } from "@/utils/purchaseProductSearchGroup";
+import {
+  groupPurchaseSearchByProductMaster,
+  purchaseGroupMrpFilter,
+} from "@/utils/purchaseProductSearchGroup";
 import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
@@ -273,6 +276,7 @@ interface ProductVariant {
   groupedVariantCount?: number;
   groupedProductIds?: string[];
   groupedMrpTierCount?: number;
+  salePricesDiffer?: boolean;
 }
 
 interface LineItem {
@@ -1954,7 +1958,9 @@ const PurchaseEntry = () => {
 
   const { data: settings } = useSettings();
 
-  const showMrp = ((settings?.purchase_settings as any)?.show_mrp || false) && showPurCol.mrp;
+  /** Org flag only — drives search grouping MRP splits (independent of column visibility). */
+  const purchaseShowMrp = (settings?.purchase_settings as any)?.show_mrp === true;
+  const showMrp = purchaseShowMrp && showPurCol.mrp;
   const accountingEngineOn = isAccountingEngineEnabled(settings as { accounting_engine_enabled?: boolean } | null);
   
   // Barcode mode: 'auto' (default) or 'scan' (manual/manufacturer barcode)
@@ -2765,7 +2771,9 @@ const PurchaseEntry = () => {
         }
       }
 
-      setInlineSearchResults(groupPurchaseSearchByProductMaster(sortedResults));
+      setInlineSearchResults(
+        groupPurchaseSearchByProductMaster(sortedResults, { showMrp: purchaseShowMrp }),
+      );
       setSelectedInlineIndex(0);
       setShowInlineSearch(true);
     } catch (error: any) {
@@ -2779,12 +2787,16 @@ const PurchaseEntry = () => {
     setInlineSearchResults([]);
     
     if (repurchaseMode) {
-      await openRepurchaseDialog(variant.product_id);
+      await openRepurchaseDialog(variant.product_id, variant.groupedProductIds);
       return;
     }
 
     if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
-      openSizeGridModal(variant.product_id, variant.groupedProductIds, variant.mrp);
+      openSizeGridModal(
+        variant.product_id,
+        variant.groupedProductIds,
+        purchaseGroupMrpFilter(variant),
+      );
     } else {
       await addInlineRow(variant);
       setTimeout(() => {
@@ -3659,7 +3671,9 @@ const PurchaseEntry = () => {
         }
       }
 
-      setSearchResults(groupPurchaseSearchByProductMaster(sortedResults));
+      setSearchResults(
+        groupPurchaseSearchByProductMaster(sortedResults, { showMrp: purchaseShowMrp }),
+      );
       setSelectedSearchIndex(0);
       setShowSearch(true);
     } catch (error: any) {
@@ -3738,12 +3752,16 @@ const PurchaseEntry = () => {
     setShowSearch(false);
 
     if (repurchaseMode) {
-      await openRepurchaseDialog(variant.product_id);
+      await openRepurchaseDialog(variant.product_id, variant.groupedProductIds);
       return;
     }
 
     if (entryMode === "grid" || (variant.groupedVariantCount ?? 1) > 1) {
-      openSizeGridModal(variant.product_id, variant.groupedProductIds, variant.mrp);
+      openSizeGridModal(
+        variant.product_id,
+        variant.groupedProductIds,
+        purchaseGroupMrpFilter(variant),
+      );
     } else {
       await addInlineRow(variant);
       // Scroll to and focus on quantity input after adding inline row
@@ -3916,8 +3934,11 @@ const PurchaseEntry = () => {
     setSizeGridLoading(false);
   };
 
-  const openRepurchaseDialog = async (productId: string) => {
+  const openRepurchaseDialog = async (productId: string, productIds?: string[]) => {
     if (!currentOrganization) return;
+
+    const ids = [...new Set((productIds?.length ? productIds : [productId]).filter(Boolean))];
+    if (ids.length === 0) return;
 
     const { data, error } = await supabase
       .from("product_variants")
@@ -3947,7 +3968,7 @@ const PurchaseEntry = () => {
           size_group_id
         )
       `)
-      .eq("product_id", productId)
+      .in("product_id", ids)
       .eq("organization_id", currentOrganization.id)
       .eq("active", true)
       .is("deleted_at", null);
@@ -7344,9 +7365,13 @@ const PurchaseEntry = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-primary">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</p>
-                        <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</p>
-                        <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
+                        {!result.salePricesDiffer && (
+                          <>
+                            <p className="text-sm font-bold text-primary">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</p>
+                            <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</p>
+                            <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
+                          </>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -7489,7 +7514,7 @@ const PurchaseEntry = () => {
             await handleSave();
           }}
         />
-        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} />
+        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" />
         <RepurchaseDialog
           open={showRepurchaseDialog}
           onClose={() => {
@@ -7982,24 +8007,28 @@ const PurchaseEntry = () => {
                               </div>
                             </div>
                             <div className="text-right shrink-0 tabular-nums font-mono">
-                              <div className={cn(
-                                "font-bold text-[15px] leading-tight",
-                                idx === selectedSearchIndex ? "text-accent-foreground" : "text-amber-600 dark:text-amber-400",
-                              )}>
-                                MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
-                              </div>
-                              <div className={cn(
-                                "text-[12px] font-semibold leading-tight",
-                                idx === selectedSearchIndex ? "text-accent-foreground/90" : "text-primary",
-                              )}>
-                                Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}
-                              </div>
-                              <div className={cn(
-                                "text-[12px] leading-tight",
-                                idx === selectedSearchIndex ? "text-accent-foreground/80" : "text-muted-foreground",
-                              )}>
-                                Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
-                              </div>
+                              {!result.salePricesDiffer && (
+                                <>
+                                  <div className={cn(
+                                    "font-bold text-[15px] leading-tight",
+                                    idx === selectedSearchIndex ? "text-accent-foreground" : "text-amber-600 dark:text-amber-400",
+                                  )}>
+                                    MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
+                                  </div>
+                                  <div className={cn(
+                                    "text-[12px] font-semibold leading-tight",
+                                    idx === selectedSearchIndex ? "text-accent-foreground/90" : "text-primary",
+                                  )}>
+                                    Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                                  </div>
+                                  <div className={cn(
+                                    "text-[12px] leading-tight",
+                                    idx === selectedSearchIndex ? "text-accent-foreground/80" : "text-muted-foreground",
+                                  )}>
+                                    Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                                  </div>
+                                </>
+                              )}
                             </div>
                             </div>
                           </button>
@@ -8010,7 +8039,11 @@ const PurchaseEntry = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (result.product_id) {
-                                addAllVariantsRows(result.product_id, result.groupedProductIds, result.mrp);
+                                addAllVariantsRows(
+                                  result.product_id,
+                                  result.groupedProductIds,
+                                  purchaseGroupMrpFilter(result),
+                                );
                               }
                             }}
                             className="shrink-0 self-center text-[11px] font-semibold px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30"
@@ -8414,15 +8447,19 @@ const PurchaseEntry = () => {
                                           {result.groupedMrpTierCount} MRP
                                         </span>
                                       )}
-                                      <span className="text-primary font-medium">
-                                        Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
-                                      </span>
-                                      <span className="text-amber-600 dark:text-amber-400 font-bold">
-                                        MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
-                                      </span>
-                                      <span className="text-green-600 dark:text-green-400 font-medium">
-                                        Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
-                                      </span>
+                                      {!result.salePricesDiffer && (
+                                        <>
+                                          <span className="text-primary font-medium">
+                                            Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                                          </span>
+                                          <span className="text-amber-600 dark:text-amber-400 font-bold">
+                                            MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
+                                          </span>
+                                          <span className="text-green-600 dark:text-green-400 font-medium">
+                                            Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                                          </span>
+                                        </>
+                                      )}
                                     </div>
                                   </button>
                                 ))}
