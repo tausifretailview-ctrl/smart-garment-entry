@@ -58,7 +58,12 @@ const supabase = createClient(url, key, {
 });
 
 const PAGE = 1000;
-const BATCH_CHUNK = 10;
+// Diagnostic-only knobs. The production callers keep their own chunk size;
+// these exist so the proof can stay under the 8s authenticated statement
+// timeout (chunk 1 ≈ 0.4s) instead of storming retries on timed-out chunks.
+const BATCH_CHUNK = Number(process.env.BATCH_CHUNK || 10);
+const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
+const timeoutChunks = [];
 /** Match client normalizeRow tolerances for float fields. */
 const EPS_MONEY = 0.015;
 const EPS_INT = 0.5;
@@ -150,21 +155,52 @@ async function fetchCustomersWithFinancialActivity(organizationId) {
 
 async function fetchBatchMap(organizationId, customerIds) {
   const map = new Map();
+  const chunks = [];
   for (let i = 0; i < customerIds.length; i += BATCH_CHUNK) {
-    const chunk = customerIds.slice(i, i + BATCH_CHUNK);
-    const data = await pageRpc("get_customer_financial_snapshot_batch", {
-      p_organization_id: organizationId,
-      p_customer_ids: chunk,
-    });
-    for (const row of data) {
-      if (!row?.customer_id) continue;
-      map.set(row.customer_id, {
-        outstanding_dr: Number(row.outstanding_dr ?? 0),
-        advance_available: Number(row.advance_available ?? 0),
-        cn_available_total: Number(row.cn_available_total ?? 0),
-        cn_pending_count: Number(row.cn_pending_count ?? 0),
-      });
+    chunks.push(customerIds.slice(i, i + BATCH_CHUNK));
+  }
+  let next = 0;
+  let done = 0;
+  async function worker() {
+    for (;;) {
+      const idx = next++;
+      if (idx >= chunks.length) return;
+      const chunk = chunks[idx];
+      const t0 = Date.now();
+      let data;
+      try {
+        data = await pageRpc("get_customer_financial_snapshot_batch", {
+          p_organization_id: organizationId,
+          p_customer_ids: chunk,
+        });
+      } catch (err) {
+        const msg = String(err?.message || err);
+        const isTimeout =
+          err?.code === "57014" || /statement timeout/i.test(msg);
+        timeoutChunks.push({ idx, size: chunk.length, ms: Date.now() - t0, msg });
+        if (isTimeout) continue;
+        throw err;
+      }
+      for (const row of data) {
+        if (!row?.customer_id) continue;
+        map.set(row.customer_id, {
+          outstanding_dr: Number(row.outstanding_dr ?? 0),
+          advance_available: Number(row.advance_available ?? 0),
+          cn_available_total: Number(row.cn_available_total ?? 0),
+          cn_pending_count: Number(row.cn_pending_count ?? 0),
+        });
+      }
+      done += 1;
+      if (done % 200 === 0) {
+        console.log(`  batch progress ${done}/${chunks.length}`);
+      }
     }
+  }
+  await Promise.all(Array.from({ length: CONCURRENCY }, worker));
+  if (timeoutChunks.length) {
+    console.error(
+      `  !! ${timeoutChunks.length}/${chunks.length} batch chunk(s) hit the statement timeout (chunk size ${BATCH_CHUNK})`,
+    );
   }
   for (const id of customerIds) {
     if (!map.has(id)) {
