@@ -19,8 +19,7 @@ import { format } from "date-fns";
 import { fetchAllCustomers } from "@/utils/fetchAllRows";
 import { fetchCustomerBalanceSnapshot } from "@/utils/customerBalanceUtils";
 import {
-  fetchCustomerFinancialSnapshotMap,
-  fetchCustomersWithFinancialActivity,
+  fetchOrganizationFinancialSnapshotMap,
   fetchAuthoritativeCustomerSignedOutstanding,
   invalidateCustomerFinancialSnapshot,
 } from "@/utils/customerFinancialSnapshot";
