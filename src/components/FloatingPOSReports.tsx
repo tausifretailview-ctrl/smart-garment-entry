@@ -990,7 +990,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
 
     const variantIds = displayData.map((item: any) => item.id);
 
-    (async () => {
+    void (async () => {
       try {
         const { data } = await supabase
           .from("purchase_items")
