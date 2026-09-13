@@ -64,6 +64,7 @@ const PAGE = 1000;
 const BATCH_CHUNK = Number(process.env.BATCH_CHUNK || 10);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
 const timeoutChunks = [];
+const timedOutIds = new Set();
 /** Match client normalizeRow tolerances for float fields. */
 const EPS_MONEY = 0.015;
 const EPS_INT = 0.5;
@@ -178,7 +179,10 @@ async function fetchBatchMap(organizationId, customerIds) {
         const isTimeout =
           err?.code === "57014" || /statement timeout/i.test(msg);
         timeoutChunks.push({ idx, size: chunk.length, ms: Date.now() - t0, msg });
-        if (isTimeout) continue;
+        if (isTimeout) {
+          for (const id of chunk) timedOutIds.add(id);
+          continue;
+        }
         throw err;
       }
       for (const row of data) {
@@ -203,6 +207,7 @@ async function fetchBatchMap(organizationId, customerIds) {
     );
   }
   for (const id of customerIds) {
+    if (timedOutIds.has(id)) continue;
     if (!map.has(id)) {
       map.set(id, {
         outstanding_dr: 0,
@@ -247,6 +252,7 @@ function compareMaps(batchMap, allMap, label) {
   const ids = new Set([...batchMap.keys(), ...allMap.keys()]);
 
   for (const id of ids) {
+    if (timedOutIds.has(id)) continue; // no batch value obtainable — reported separately
     const b = batchMap.get(id);
     const a = allMap.get(id);
     if (!b) {
