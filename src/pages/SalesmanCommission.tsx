@@ -12,21 +12,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, startOfDay, endOfDay } from "date-fns";
-import { IndianRupee, TrendingUp, CheckCircle, Clock, Download, Plus, Trash2, BarChart3, Award, Percent } from "lucide-react";
+import { TrendingUp, CheckCircle, Download, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { cn } from "@/lib/utils";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import {
   INSIGHTS_BODY_CELL,
   INSIGHTS_BODY_CELL_NUM,
   INSIGHTS_BODY_ROW,
   INSIGHTS_NEUTRAL_TH,
-  INSIGHTS_TABLE_HEAD,
+  InsightsKpiCard,
+  InsightsPanel,
+  InsightsTableHeader,
 } from "@/components/business-insights/insightsLayout";
 import {
   enrichCommissionsWithSaleItems,
@@ -34,6 +36,11 @@ import {
 } from "@/utils/salesmanCommissionDisplay";
 import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
 import { DailySalesmanIncentivePanel } from "@/components/DailySalesmanIncentivePanel";
+
+const COMMISSION_TAB_TRIGGER = cn(
+  "rounded-md px-3 py-1.5 text-sm font-semibold text-slate-600",
+  "data-[state=active]:bg-slate-700 data-[state=active]:text-white data-[state=active]:shadow-sm",
+);
 
 const RULE_TYPES = [
   { value: "default", label: "Default (all products)" },
@@ -69,6 +76,7 @@ const fmt = (n: number) => `₹${Math.round(n).toLocaleString("en-IN")}`;
 
 export default function SalesmanCommission() {
   const { currentOrganization } = useOrganization();
+  const { orgNavigate } = useOrgNavigation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -132,7 +140,7 @@ export default function SalesmanCommission() {
       if (saleIds.length === 0) return [];
       const { data, error } = await supabase
         .from("sale_items")
-        .select("sale_id, product_id, product_name, line_total, discount_share, net_after_discount, discount_percent")
+        .select("sale_id, product_id, product_name, quantity, line_total, discount_share, net_after_discount, discount_percent")
         .in("sale_id", saleIds)
         .is("deleted_at", null);
       if (error) throw error;
@@ -192,6 +200,7 @@ export default function SalesmanCommission() {
       sales: number;
       discount: number;
       net: number;
+      qty: number;
       commission: number;
       pending: number;
       paid: number;
@@ -200,11 +209,12 @@ export default function SalesmanCommission() {
     enrichedCommissions.forEach((c) => {
       const name = String(c.employee_name || "—");
       if (!map[name]) {
-        map[name] = { name, sales: 0, discount: 0, net: 0, commission: 0, pending: 0, paid: 0, txCount: 0 };
+        map[name] = { name, sales: 0, discount: 0, net: 0, qty: 0, commission: 0, pending: 0, paid: 0, txCount: 0 };
       }
       map[name].sales += c.grossSale;
       map[name].discount += c.discountAmount;
       map[name].net += c.netSale;
+      map[name].qty += c.qty;
       map[name].commission += c.displayCommission;
       map[name].txCount += 1;
       if (c.payment_status === "pending") map[name].pending += c.displayCommission;
@@ -212,6 +222,8 @@ export default function SalesmanCommission() {
     });
     return Object.values(map).sort((a, b) => b.commission - a.commission);
   }, [enrichedCommissions]);
+
+  const totalQty = enrichedCommissions.reduce((s, c) => s + c.qty, 0);
 
   const saveRule = useMutation({
     mutationFn: async () => {
@@ -297,6 +309,7 @@ export default function SalesmanCommission() {
       "Sale (Gross)": c.grossSale,
       Discount: c.discountAmount,
       "Net Sale": c.netSale,
+      Qty: c.qty,
       "Commission %": c.commission_percent,
       "Commission ₹": c.displayCommission,
       Rule: c.rule_type,
@@ -319,272 +332,278 @@ export default function SalesmanCommission() {
     }
   };
 
-  const kpiCards = [
-    { label: "Gross Sales", value: fmt(totalGross), icon: IndianRupee, tone: "from-slate-600 to-slate-700" },
-    { label: "Discount", value: fmt(totalDiscount), icon: Percent, tone: "from-rose-500 to-rose-600" },
-    { label: "Net Sales", value: fmt(totalNet), icon: IndianRupee, tone: "from-blue-600 to-blue-700" },
-    { label: "Commission", value: fmt(totalCommission), icon: TrendingUp, tone: "from-indigo-500 to-indigo-600" },
-    { label: "Pending", value: fmt(pendingCommission), icon: Clock, tone: "from-amber-500 to-amber-600" },
-    { label: "Paid", value: fmt(paidCommission), icon: CheckCircle, tone: "from-emerald-500 to-emerald-600" },
-    { label: "Avg Rate", value: `${avgRate.toFixed(2)}%`, icon: Award, tone: "from-teal-600 to-teal-700" },
-  ];
-
   return (
-    <div className="salesman-commission-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
+    <div className="business-insights-workspace flex flex-col bg-slate-50 px-2 sm:px-3 py-2 min-h-0 h-full overflow-hidden w-full">
       <div className="w-full min-w-0 flex flex-col flex-1 min-h-0 gap-2">
-        {/* Toolbar — Customer Balances style */}
-        <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 shrink-0" />
-              Salesman Commission
-            </h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              {enrichedCommissions.length.toLocaleString("en-IN")} records · commission on{" "}
-              <strong className="text-foreground">net sale after discount</strong>
-            </p>
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-sm shrink-0"
+              onClick={() => orgNavigate("/")}
+            >
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Home
+            </Button>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-teal-700 tracking-tight leading-none flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 shrink-0" />
+                Salesman Commission
+              </h1>
+              <p className="text-sm text-muted-foreground mt-1 truncate">
+                {enrichedCommissions.length.toLocaleString("en-IN")} records · commission on net sale after discount
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-40 h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-40 h-9 text-sm border-slate-200 bg-white"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PERIODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
             {period === "custom" && (
               <>
-                <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9 text-sm no-uppercase" />
-                <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-36 h-9 text-sm no-uppercase" />
+                <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white" />
+                <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white" />
               </>
             )}
           </div>
         </div>
 
-        {/* Compact KPI strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 w-full shrink-0">
-          {kpiCards.map((k) => (
-            <div key={k.label} className={cn("rounded-lg bg-gradient-to-br px-3 py-2 min-w-0 shadow-sm", k.tone)}>
-              <p className="text-xs font-medium text-white/80 leading-none flex items-center gap-1">
-                <k.icon className="h-3 w-3" />{k.label}
-              </p>
-              <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
-                {k.value}
-              </p>
-            </div>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2 w-full shrink-0">
+          <InsightsKpiCard label="Gross sales" value={totalGross} valueFormat="inr" tone="neutral" sub="Before discount" />
+          <InsightsKpiCard label="Discount" value={totalDiscount} valueFormat="inr" tone="critical" sub="% off lines" />
+          <InsightsKpiCard label="Net sales" value={totalNet} valueFormat="inr" tone="neutral" sub="After discount" />
+          <InsightsKpiCard label="Qty" value={totalQty} valueFormat="int" tone="neutral" sub="Pieces sold" />
+          <InsightsKpiCard label="Commission" value={totalCommission} valueFormat="inr" tone="positive" sub="On net" />
+          <InsightsKpiCard label="Pending" value={pendingCommission} valueFormat="inr" tone={pendingCommission > 0 ? "attention" : "neutral"} sub="Unpaid" />
+          <InsightsKpiCard label="Paid" value={paidCommission} valueFormat="inr" tone="positive" sub="Settled" />
+          <InsightsKpiCard label="Avg rate" value={`${avgRate.toFixed(2)}%`} tone="neutral" sub="Of net sales" />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-2">
-          <TabsList className="h-9 shrink-0 w-fit rounded-md bg-slate-100 p-1">
-            <TabsTrigger value="overview" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Overview</TabsTrigger>
-            <TabsTrigger value="rules" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Rules</TabsTrigger>
-            <TabsTrigger value="transactions" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Transactions</TabsTrigger>
-            <TabsTrigger value="compare" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Compare</TabsTrigger>
+          <TabsList className="no-print flex h-auto w-fit flex-wrap justify-start gap-1 bg-transparent p-0 shrink-0">
+            <TabsTrigger value="overview" className={COMMISSION_TAB_TRIGGER}>Overview</TabsTrigger>
+            <TabsTrigger value="rules" className={COMMISSION_TAB_TRIGGER}>Rules</TabsTrigger>
+            <TabsTrigger value="transactions" className={COMMISSION_TAB_TRIGGER}>Transactions</TabsTrigger>
+            <TabsTrigger value="compare" className={COMMISSION_TAB_TRIGGER}>Compare</TabsTrigger>
             {showDailyIncentiveTab ? (
-              <TabsTrigger value="daily-incentive" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">
+              <TabsTrigger value="daily-incentive" className={COMMISSION_TAB_TRIGGER}>
                 Daily incentive
               </TabsTrigger>
             ) : null}
           </TabsList>
 
           <TabsContent value="overview" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
-            <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-              <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-                <h2 className="text-sm font-semibold text-foreground">Salesman-wise Summary</h2>
-              </div>
+            <InsightsPanel
+              className="flex-1 min-h-0"
+              title="Salesman-wise summary"
+              subtitle={
+                commissionsLoading
+                  ? "Loading…"
+                  : `${salesmanSummary.length} salesman · ${totalQty.toLocaleString("en-IN")} pcs`
+              }
+            >
               {commissionsLoading ? (
-                <div className="p-2"><ListTableSkeleton rows={8} columns={8} /></div>
+                <div className="p-2"><ListTableSkeleton rows={8} columns={10} /></div>
               ) : salesmanSummary.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No commission data for this period</p>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white tab-scroll-stable">
-                  <Table>
-                    <TableHeader className={INSIGHTS_TABLE_HEAD}>
-                      <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Sales</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Discount</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net Sale</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Commission</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Pending</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Paid</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Bills</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Actions</TableHead>
+                <Table>
+                  <InsightsTableHeader>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Sales</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Discount</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net sale</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Qty</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Commission</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Pending</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Paid</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Bills</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Actions</TableHead>
+                  </InsightsTableHeader>
+                  <TableBody>
+                    {salesmanSummary.map((s) => (
+                      <TableRow key={s.name} className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{s.name}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(s.sales)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-rose-600")}>{fmt(s.discount)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(s.net)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.qty.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(s.commission)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-amber-600")}>{fmt(s.pending)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-emerald-600")}>{fmt(s.paid)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.txCount}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right")}>
+                          {s.pending > 0 && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              onClick={() => {
+                                const pendingIds = enrichedCommissions
+                                  .filter((c) => c.employee_name === s.name && c.payment_status === "pending")
+                                  .map((c) => c.id);
+                                if (pendingIds.length > 0) markPaid.mutate(pendingIds);
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />Mark Paid
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {salesmanSummary.map((s) => (
-                        <TableRow key={s.name} className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{s.name}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(s.sales)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-rose-600")}>{fmt(s.discount)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(s.net)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(s.commission)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-amber-600")}>{fmt(s.pending)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-emerald-600")}>{fmt(s.paid)}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.txCount}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right")}>
-                            {s.pending > 0 && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => {
-                                  const pendingIds = enrichedCommissions
-                                    .filter((c) => c.employee_name === s.name && c.payment_status === "pending")
-                                    .map((c) => c.id);
-                                  if (pendingIds.length > 0) markPaid.mutate(pendingIds);
-                                }}
-                              >
-                                <CheckCircle className="h-3 w-3 mr-1" />Mark Paid
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
-            </Card>
+            </InsightsPanel>
           </TabsContent>
 
           <TabsContent value="rules" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
-            <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-                <h2 className="text-sm font-semibold">Commission Rules</h2>
+            <InsightsPanel
+              className="flex-1 min-h-0"
+              title="Commission rules"
+              subtitle={rulesLoading ? "Loading…" : `${rules.length} rules`}
+              toolbar={
                 <Button size="sm" className="h-8" onClick={() => { resetRuleForm(); setShowRuleDialog(true); }}>
                   <Plus className="h-4 w-4 mr-1" />Add Rule
                 </Button>
-              </div>
+              }
+            >
               {rulesLoading ? (
                 <div className="p-2"><ListTableSkeleton rows={5} columns={5} /></div>
               ) : rules.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No custom rules. Default employee commission % will be used.</p>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto bg-white">
-                  <Table>
-                    <TableHeader className={INSIGHTS_TABLE_HEAD}>
-                      <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Type</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Value</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Rate %</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Notes</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Actions</TableHead>
+                <Table>
+                  <InsightsTableHeader>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Type</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Value</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Rate %</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Notes</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Actions</TableHead>
+                  </InsightsTableHeader>
+                  <TableBody>
+                    {rules.map((r: any) => (
+                      <TableRow key={r.id} className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{r.employee_name}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}><Badge variant="outline" className="text-xs">{r.rule_type}</Badge></TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{r.rule_value || "All"}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{r.commission_percent}%</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}><Badge variant={r.is_active ? "default" : "secondary"}>{r.is_active ? "Active" : "Inactive"}</Badge></TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground")}>{r.notes || "-"}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right")}>
+                          <div className="flex justify-end gap-1">
+                            <Button size="sm" variant="ghost" className="h-7" onClick={() => editRule(r)}>Edit</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={() => { if (confirm("Delete this rule?")) deleteRule.mutate(r.id); }}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {rules.map((r: any) => (
-                        <TableRow key={r.id} className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium")}>{r.employee_name}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL}><Badge variant="outline" className="text-xs">{r.rule_type}</Badge></TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL}>{r.rule_value || "All"}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{r.commission_percent}%</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL}><Badge variant={r.is_active ? "default" : "secondary"}>{r.is_active ? "Active" : "Inactive"}</Badge></TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground")}>{r.notes || "-"}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-right")}>
-                            <div className="flex justify-end gap-1">
-                              <Button size="sm" variant="ghost" className="h-7" onClick={() => editRule(r)}>Edit</Button>
-                              <Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={() => { if (confirm("Delete this rule?")) deleteRule.mutate(r.id); }}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
-            </Card>
+            </InsightsPanel>
           </TabsContent>
 
           <TabsContent value="transactions" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
-            <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-              <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-                <h2 className="text-sm font-semibold shrink-0">Commission Records</h2>
-                <Input placeholder="Search..." value={txSearch} onChange={(e) => setTxSearch(e.target.value)} className="max-w-xs h-9 text-sm" />
-                <Select value={filterSalesman} onValueChange={setFilterSalesman}>
-                  <SelectTrigger className="w-44 h-9 text-sm"><SelectValue placeholder="All Salesmen" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Salesmen</SelectItem>
-                    {employees.map((e: any) => <SelectItem key={e.id} value={e.employee_name}>{e.employee_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={filterStatus} onValueChange={setFilterStatus}>
-                  <SelectTrigger className="w-32 h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button size="sm" variant="outline" className="h-9 ml-auto" onClick={exportToExcel}>
-                  <Download className="h-4 w-4 mr-1" />Export
-                </Button>
-              </div>
+            <InsightsPanel
+              className="flex-1 min-h-0"
+              title="Commission records"
+              subtitle={
+                commissionsLoading
+                  ? "Loading…"
+                  : `${filteredCommissions.length.toLocaleString("en-IN")} rows`
+              }
+              toolbar={
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input placeholder="Search..." value={txSearch} onChange={(e) => setTxSearch(e.target.value)} className="max-w-xs h-9 text-sm border-slate-200 bg-white" />
+                  <Select value={filterSalesman} onValueChange={setFilterSalesman}>
+                    <SelectTrigger className="w-44 h-9 text-sm border-slate-200 bg-white"><SelectValue placeholder="All Salesmen" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Salesmen</SelectItem>
+                      {employees.map((e: any) => <SelectItem key={e.id} value={e.employee_name}>{e.employee_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterStatus} onValueChange={setFilterStatus}>
+                    <SelectTrigger className="w-32 h-9 text-sm border-slate-200 bg-white"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" className="h-9" onClick={exportToExcel}>
+                    <Download className="h-4 w-4 mr-1" />Export
+                  </Button>
+                </div>
+              }
+            >
               {commissionsLoading ? (
-                <div className="p-2"><ListTableSkeleton rows={8} columns={8} /></div>
+                <div className="p-2"><ListTableSkeleton rows={8} columns={9} /></div>
               ) : filteredCommissions.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">No commission records found</p>
               ) : (
-                <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white tab-scroll-stable">
-                  <Table>
-                    <TableHeader className={INSIGHTS_TABLE_HEAD}>
-                      <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Date</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Invoice</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Customer</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Product</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Sale</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Discount</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Rate</TableHead>
-                        <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Commission</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Rule</TableHead>
-                        <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
+                <Table>
+                  <InsightsTableHeader>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Date</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Invoice</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Customer</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Product</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Sale</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Discount</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Qty</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Rate</TableHead>
+                    <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Commission</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Rule</TableHead>
+                    <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
+                  </InsightsTableHeader>
+                  <TableBody>
+                    {filteredCommissions.map((c) => (
+                      <TableRow key={c.id} className={INSIGHTS_BODY_ROW}>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs")}>{String(c.sale_date || "")}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs font-mono")}>{String(c.sale_number || "")}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium text-sm")}>{String(c.employee_name || "")}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-sm")}>{String(c.customer_name || "-")}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs")}>{String(c.product_name || "-")}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(c.grossSale)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-rose-600")}>{fmt(c.discountAmount)}</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{fmt(c.netSale)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{c.qty.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{c.commission_percent}%</TableCell>
+                        <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(c.displayCommission)}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}><Badge variant="outline" className="text-[10px]">{String(c.rule_type || "")}</Badge></TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          <Badge
+                            variant={c.payment_status === "paid" ? "default" : "secondary"}
+                            className={c.payment_status === "pending" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}
+                          >
+                            {String(c.payment_status || "")}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCommissions.map((c) => (
-                        <TableRow key={c.id} className={INSIGHTS_BODY_ROW}>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs")}>{String(c.sale_date || "")}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs font-mono")}>{String(c.sale_number || "")}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "font-medium text-sm")}>{String(c.employee_name || "")}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-sm")}>{String(c.customer_name || "-")}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs")}>{String(c.product_name || "-")}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmt(c.grossSale)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "text-rose-600")}>{fmt(c.discountAmount)}</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-medium")}>{fmt(c.netSale)}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL_NUM}>{c.commission_percent}%</TableCell>
-                          <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>{fmt(c.displayCommission)}</TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL}><Badge variant="outline" className="text-[10px]">{String(c.rule_type || "")}</Badge></TableCell>
-                          <TableCell className={INSIGHTS_BODY_CELL}>
-                            <Badge
-                              variant={c.payment_status === "paid" ? "default" : "secondary"}
-                              className={c.payment_status === "pending" ? "bg-amber-100 text-amber-800 border-amber-200" : ""}
-                            >
-                              {String(c.payment_status || "")}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               )}
-            </Card>
+            </InsightsPanel>
           </TabsContent>
 
           <TabsContent value="compare" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
-            <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col">
-              <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-                <h2 className="text-sm font-semibold flex items-center gap-2"><BarChart3 className="h-4 w-4" />Salesman Comparison</h2>
-              </div>
-              <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3">
+            <InsightsPanel
+              className="flex-1 min-h-0"
+              title="Salesman comparison"
+              subtitle={salesmanSummary.length === 0 ? "No data" : `${salesmanSummary.length} salesman`}
+            >
+              <div className="p-3 space-y-3">
                 {salesmanSummary.length === 0 ? (
                   <p className="text-sm text-muted-foreground py-8 text-center">No data to compare</p>
                 ) : (
@@ -594,10 +613,12 @@ export default function SalesmanCommission() {
                     const netWidth = maxNet > 0 ? (s.net / maxNet) * 100 : 0;
                     const commWidth = maxComm > 0 ? (s.commission / maxComm) * 100 : 0;
                     return (
-                      <div key={s.name} className="space-y-1.5 p-3 border border-border rounded-lg bg-white">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-sm text-foreground">{i + 1}. {s.name}</span>
-                          <span className="text-xs text-muted-foreground">{s.txCount} bills</span>
+                      <div key={s.name} className="space-y-1.5 p-3 border border-slate-200 rounded-lg bg-white">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-base text-foreground">{i + 1}. {s.name}</span>
+                          <span className="text-sm text-muted-foreground tabular-nums">
+                            {s.txCount} bills · {s.qty.toLocaleString("en-IN")} pcs
+                          </span>
                         </div>
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -619,7 +640,7 @@ export default function SalesmanCommission() {
                             <span className="text-xs font-semibold w-24 text-right tabular-nums">{fmt(s.commission)}</span>
                           </div>
                         </div>
-                        <div className="flex gap-4 text-xs text-muted-foreground">
+                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                           <span>Rate on net: <strong className="text-foreground">{s.net > 0 ? ((s.commission / s.net) * 100).toFixed(2) : 0}%</strong></span>
                           <span>Pending: <strong className="text-amber-600">{fmt(s.pending)}</strong></span>
                           <span>Paid: <strong className="text-emerald-600">{fmt(s.paid)}</strong></span>
@@ -629,7 +650,7 @@ export default function SalesmanCommission() {
                   })
                 )}
               </div>
-            </Card>
+            </InsightsPanel>
           </TabsContent>
 
           {showDailyIncentiveTab ? (

@@ -50,6 +50,7 @@ describe("enrichCommissionsWithSaleItems", () => {
           sale_id: "s1",
           product_id: "p1",
           product_name: "Shirt",
+          quantity: 3,
           line_total: 1000,
           discount_share: 200,
           net_after_discount: 800,
@@ -58,6 +59,7 @@ describe("enrichCommissionsWithSaleItems", () => {
     );
     expect(enriched[0].discountAmount).toBe(200);
     expect(enriched[0].netSale).toBe(800);
+    expect(enriched[0].qty).toBe(3);
     expect(enriched[0].displayCommission).toBe(8);
   });
 });
