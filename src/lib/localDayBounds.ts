@@ -73,6 +73,19 @@ export function istCalendarYmd(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * Inclusive IST calendar-day bounds for timestamptz `sale_date` filters.
+ * Prefer this over `localDayBounds` when the business day is defined as
+ * Asia/Kolkata (Cashier/POS “Daily” write path uses IST sale_date).
+ */
+export function istDayBounds(ymd: string): { startIso: string; endIso: string } | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  return {
+    startIso: `${ymd}T00:00:00.000+05:30`,
+    endIso: `${ymd}T23:59:59.999+05:30`,
+  };
+}
+
 /*
  * DATA CHECK (review before any correction — shifts which day revenue counts on):
  * SELECT id, sale_number, sale_date, created_at,

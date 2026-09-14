@@ -104,6 +104,7 @@ import {
   shouldClearPosSalesmanAfterSave,
   shouldCreatePosCommissionOnSave,
 } from "@/utils/posSalesmanRetain";
+import { findEmployeeBySalesmanName } from "@/utils/dailySalesmanIncentive";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
@@ -4350,7 +4351,7 @@ export default function POSSales() {
   ) => {
     if (!salesmanName || !currentOrganization?.id) return;
     try {
-      const employee = (employees || []).find((e: any) => e.employee_name === salesmanName);
+      const employee = findEmployeeBySalesmanName(employees || [], salesmanName);
       if (!employee) return;
       const defaultRate = (employee as any).commission_percent ?? 1.0;
       const employeeRules = (commissionRules || []).filter((r: any) => r.employee_id === employee.id);
