@@ -1,10 +1,48 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalDispatch, isServiceRoleRequest } from "../_shared/internalDispatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-internal-dispatch-secret",
 };
+
+/**
+ * SECURITY: this function runs with verify_jwt = false and reads cross-tenant
+ * accounting-invariant data with the service role (get_invariant_digest returns
+ * every organization when auth.uid() IS NULL). The caller must be the cron
+ * dispatcher (shared secret / service_role key) or a signed-in platform_admin.
+ */
+async function authorizeDigestCaller(req: Request): Promise<boolean> {
+  if (isInternalDispatch(req) || isServiceRoleRequest(req)) return true;
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) return false;
+
+  const authClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: userData, error: userError } = await authClient.auth.getUser();
+  const caller = userData?.user;
+  if (userError || !caller) return false;
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  );
+  const { data: isPlatformAdmin, error: roleError } = await admin.rpc("has_role", {
+    _user_id: caller.id,
+    _role: "platform_admin",
+  });
+  if (roleError) {
+    console.error("[run-invariant-digest] role check failed", roleError.message);
+    return false;
+  }
+  return isPlatformAdmin === true;
+}
 
 /**
  * Daily accounting-invariant digest.
@@ -41,6 +79,14 @@ type MismatchOrg = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  if (!(await authorizeDigestCaller(req))) {
+    console.error("[run-invariant-digest] rejected unauthorized invocation");
+    return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
