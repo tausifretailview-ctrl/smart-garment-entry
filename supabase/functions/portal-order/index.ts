@@ -141,7 +141,9 @@ Deno.serve(async (req) => {
       p_organization_id: session.organization_id
     });
 
-    const grossAmount = items.reduce((s: number, i: any) => s + (i.rate * i.qty), 0);
+    const grossAmount = Math.round(
+      pricedItems.reduce((s: number, i: any) => s + Number(i.line_total || 0), 0) * 100,
+    ) / 100;
 
     // Insert sale order
     const { data: order, error: orderError } = await supabase
