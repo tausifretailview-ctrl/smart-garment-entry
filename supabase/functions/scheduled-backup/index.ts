@@ -1,5 +1,10 @@
 // Dispatcher: backs up every non-suspended organization and fans out to auto-backup
-// (one invocation per org, fire-and-forget) so we never hit edge function timeout.
+// (one invocation per org) so we never hit edge function timeout.
+//
+// Fan-out is staggered + sequential with rate-limit retry. The previous Promise.all
+// blast tripped Supabase nested edge-function rate limits ("retry after ~60 seconds")
+// and left most orgs without a backup_logs row for the night. HTTP 546 from auto-backup
+// is WORKER_RESOURCE_LIMIT (CPU/memory) and is treated as failure, not success.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   isInternalDispatch,
@@ -14,6 +19,20 @@ import {
   isOrgEligibleForNightlyBackup,
   resolveNightlyRetentionDays,
 } from "../_shared/nightlyBackupEligibility.ts";
+import {
+  NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES,
+  NIGHTLY_DISPATCH_MIN_GAP_MS,
+  NIGHTLY_DISPATCH_SOFT_DEADLINE_MS,
+  NIGHTLY_DISPATCH_STAGGER_WINDOW_MS,
+  type NightlyDispatchResult,
+  isRateLimitFailure,
+  isSuccessfulDispatchStatus,
+  isWorkerResourceLimitStatus,
+  orgDispatchOffsetMs,
+  resolveRetryAfterMs,
+  sleepMs,
+  sortOrgsForStaggeredDispatch,
+} from "../_shared/nightlyBackupDispatch.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -57,6 +76,125 @@ async function authorizeDispatcher(
     return false;
   }
   return data === true;
+}
+
+
+// deno-lint-ignore no-explicit-any
+type ServiceClient = any;
+
+async function recordDispatchFailure(
+  supabase: ServiceClient,
+  orgId: string,
+  errorMessage: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error: logError } = await supabase.from('backup_logs').insert({
+    organization_id: orgId,
+    backup_type: 'automatic',
+    status: 'failed',
+    error_message: errorMessage,
+    started_at: now,
+    completed_at: now,
+  });
+  if (logError) {
+    console.error(`Failed to insert backup_logs failure for ${orgId}:`, logError.message);
+  }
+
+  const { error: appError } = await supabase.from('app_error_logs').insert({
+    organization_id: orgId,
+    operation: 'scheduled_backup_dispatch',
+    error_message: errorMessage,
+  });
+  if (appError) {
+    console.error(`Failed to insert app_error_logs for ${orgId}:`, appError.message);
+  }
+}
+
+async function dispatchOneOrg(opts: {
+  supabase: ServiceClient;
+  supabaseUrl: string;
+  supabaseServiceKey: string;
+  extraHeaders: Record<string, string>;
+  orgId: string;
+  retentionDays: number;
+}): Promise<NightlyDispatchResult> {
+  const { supabase, supabaseUrl, supabaseServiceKey, extraHeaders, orgId, retentionDays } = opts;
+
+  let attempts = 0;
+  let lastError = 'dispatch failed';
+
+  while (attempts <= NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES) {
+    attempts += 1;
+    try {
+      const res = await fetch(`${supabaseUrl}/functions/v1/auto-backup`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'apikey': supabaseServiceKey,
+          'Content-Type': 'application/json',
+          ...extraHeaders,
+        },
+        body: JSON.stringify({
+          organizationId: orgId,
+          backupType: 'automatic',
+          retentionDays,
+        }),
+      });
+
+      // Status only — backup work continues inside auto-backup.
+      if (isSuccessfulDispatchStatus(res.status)) {
+        return { orgId, dispatched: true, status: res.status, attempts };
+      }
+
+      const bodyText = await res.text().catch(() => '');
+      if (isWorkerResourceLimitStatus(res.status)) {
+        lastError =
+          `auto-backup HTTP 546 WORKER_RESOURCE_LIMIT (CPU/memory)` +
+          `${bodyText ? `: ${bodyText.slice(0, 200)}` : ''}`;
+      } else {
+        lastError =
+          `auto-backup HTTP ${res.status}` +
+          `${bodyText ? `: ${bodyText.slice(0, 200)}` : ''}`;
+      }
+
+      if (
+        isRateLimitFailure(null, res.status, bodyText) &&
+        attempts <= NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES
+      ) {
+        const waitMs = resolveRetryAfterMs({
+          retryAfterHeader: res.headers.get('Retry-After'),
+          bodyText,
+        });
+        console.warn(
+          `Rate-limited dispatching ${orgId} (HTTP ${res.status}); waiting ${waitMs}ms before retry ${attempts}/${NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES}`,
+        );
+        await sleepMs(waitMs);
+        continue;
+      }
+
+      console.error(`Dispatch failed for ${orgId}:`, lastError);
+      await recordDispatchFailure(supabase, orgId, lastError);
+      return { orgId, dispatched: false, status: res.status, error: lastError, attempts };
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err.message : 'dispatch failed';
+
+      if (isRateLimitFailure(err) && attempts <= NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES) {
+        const waitMs = resolveRetryAfterMs({ err });
+        console.warn(
+          `Rate-limited dispatching ${orgId} (throw); waiting ${waitMs}ms before retry ${attempts}/${NIGHTLY_DISPATCH_MAX_RATE_LIMIT_RETRIES}`,
+        );
+        await sleepMs(waitMs);
+        continue;
+      }
+
+      console.error(`Dispatch failed for ${orgId}:`, lastError);
+      await recordDispatchFailure(supabase, orgId, lastError);
+      return { orgId, dispatched: false, error: lastError, attempts };
+    }
+  }
+
+  await recordDispatchFailure(supabase, orgId, lastError);
+  return { orgId, dispatched: false, error: lastError, attempts };
 }
 
 Deno.serve(async (req) => {
@@ -133,56 +271,81 @@ Deno.serve(async (req) => {
     }
 
     const skipped = eligibleOrgs.length - eligibleSettings.length;
-    console.log(`Dispatching backup for ${eligibleSettings.length} organizations (${skipped} skipped as recently backed up)`);
+    const staggered = sortOrgsForStaggeredDispatch(
+      eligibleSettings,
+      NIGHTLY_DISPATCH_STAGGER_WINDOW_MS,
+    );
+    console.log(
+      `Dispatching backup for ${staggered.length} organizations ` +
+        `(${skipped} skipped as recently backed up; stagger window ${NIGHTLY_DISPATCH_STAGGER_WINDOW_MS}ms)`,
+    );
 
     const extraHeaders = optionalInternalDispatchHeaders();
+    const startedAt = Date.now();
+    const results: NightlyDispatchResult[] = [];
+    let lastDispatchAt = 0;
 
-    // Fan out: invoke auto-backup for each org as fire-and-forget HTTP call.
-    // We don't await — each invocation runs in its own short-lived edge function.
-    const dispatchPromises = eligibleSettings.map(async (setting) => {
-      const orgId = setting.organization_id;
-      const retentionDays = resolveNightlyRetentionDays(setting.backup_retention_days);
-      try {
-        // Fire-and-forget: do not await response body; just kick it off.
-        // Using fetch directly so we control headers and don't block on body.
-        const res = await fetch(`${supabaseUrl}/functions/v1/auto-backup`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-            'apikey': supabaseServiceKey,
-            'Content-Type': 'application/json',
-            ...extraHeaders,
-          },
-          body: JSON.stringify({
-            organizationId: orgId,
-            backupType: 'automatic',
-            retentionDays,
-          }),
-        });
-        // Just check status code; don't await body
-        return { orgId, dispatched: true, status: res.status };
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'dispatch failed';
-        console.error(`Dispatch failed for ${orgId}:`, msg);
-        return { orgId, dispatched: false, error: msg };
+    for (const setting of staggered) {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed >= NIGHTLY_DISPATCH_SOFT_DEADLINE_MS) {
+        // Leave remaining orgs due (last_auto_backup_at unchanged) for catch-up
+        // crons — do not pretend they were attempted.
+        console.warn(
+          `Soft deadline ${NIGHTLY_DISPATCH_SOFT_DEADLINE_MS}ms reached after ${results.length}/${staggered.length}; deferring rest to catch-up cron`,
+        );
+        for (const rest of staggered.slice(results.length)) {
+          results.push({
+            orgId: rest.organization_id,
+            dispatched: false,
+            deferred: true,
+            error: 'deferred_to_catchup_cron',
+          });
+        }
+        break;
       }
-    });
 
-    // Await all dispatches (status codes only — actual backup runs in each child invocation)
-    const results = await Promise.all(dispatchPromises);
-    const dispatched = results.filter(r => r.dispatched).length;
-    const failed = results.length - dispatched;
+      const orgId = setting.organization_id;
+      const targetOffset = orgDispatchOffsetMs(orgId, NIGHTLY_DISPATCH_STAGGER_WINDOW_MS);
+      const waitForSlot = targetOffset - (Date.now() - startedAt);
+      if (waitForSlot > 0) await sleepMs(waitForSlot);
 
-    console.log(`Dispatcher complete: ${dispatched} dispatched, ${failed} failed`);
+      const sinceLast = Date.now() - lastDispatchAt;
+      if (lastDispatchAt > 0 && sinceLast < NIGHTLY_DISPATCH_MIN_GAP_MS) {
+        await sleepMs(NIGHTLY_DISPATCH_MIN_GAP_MS - sinceLast);
+      }
+
+      const retentionDays = resolveNightlyRetentionDays(setting.backup_retention_days);
+      const result = await dispatchOneOrg({
+        supabase,
+        supabaseUrl,
+        supabaseServiceKey,
+        extraHeaders,
+        orgId,
+        retentionDays,
+      });
+      lastDispatchAt = Date.now();
+      results.push(result);
+    }
+
+    const dispatched = results.filter((r) => r.dispatched).length;
+    const deferred = results.filter((r) => r.deferred).length;
+    const failed = results.length - dispatched - deferred;
+
+    console.log(
+      `Dispatcher complete: ${dispatched} dispatched, ${failed} failed, ${deferred} deferred`,
+    );
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Dispatched ${dispatched} backup jobs (${failed} failed to dispatch)`,
+        message:
+          `Dispatched ${dispatched} backup jobs (${failed} failed, ${deferred} deferred to catch-up)`,
         dispatched,
         failed,
+        deferred,
         skipped,
         default_retention_days: DEFAULT_NIGHTLY_RETENTION_DAYS,
+        stagger_window_ms: NIGHTLY_DISPATCH_STAGGER_WINDOW_MS,
         results,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
