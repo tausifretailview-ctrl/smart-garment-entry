@@ -1,6 +1,6 @@
 import { DesktopWindowControls } from "@/components/desktop/DesktopWindowControls";
 import { HeaderMenubar } from "@/components/desktop/HeaderMenubar";
-import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, BarChart3, Settings, Users, Building2, Wallet } from "lucide-react";
+import { Menu, ShoppingCart, Package, Download, LayoutGrid, BoxIcon, Plus, FileText, Banknote, RefreshCw, Settings, Users, Wallet } from "lucide-react";
 import { UIScaleSelector } from "@/components/UIScaleSelector";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -108,9 +108,6 @@ export const Header = () => {
     (permissions === null ||
       hasMenuAccess("customer_party_balances") ||
       hasMenuAccess("customer_ledger"));
-  const canSupplierBalance =
-    !permissionsLoading &&
-    (permissions === null || hasMenuAccess("supplier_party_balances"));
   const canQuickSaleLookup =
     !permissionsLoading &&
     (permissions === null ||
@@ -443,6 +440,7 @@ export const Header = () => {
         )}
       >
         <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-nowrap">
+          {/* Order: POS → Purchase → Cashier Report → Payment → Quick Stock → Quick Sale → Stock → Size Stock → Customer Balance */}
           {showPrimarySaleButton && (
             <button
               type="button"
@@ -489,35 +487,6 @@ export const Header = () => {
               Purchase
             </button>
           )}
-          {can("stock_report") && (
-            <button
-              type="button"
-              className={cn("erp-tbtn", isShortcutPath("stock-report") && "erp-tbtn--primary")}
-              onPointerEnter={() => void prefetchTabPage("stock-report")}
-              onFocus={() => void prefetchTabPage("stock-report")}
-              onPointerDown={() => prefetchTabPage("stock-report", { intent: true })}
-              onClick={() => orgNavigate("/stock-report")}
-            >
-              <LayoutGrid className="erp-tbtn__icon" />
-              Stock
-            </button>
-          )}
-          {(showPrimarySaleButton || can("purchase_bill") || can("stock_report")) && canAccessReportsHub && (
-            <div className="erp-toolbar-sep" />
-          )}
-          {canAccessReportsHub && (
-            <button
-              type="button"
-              className={cn("erp-tbtn", isShortcutPath("reports") && "erp-tbtn--primary")}
-              onPointerEnter={() => void prefetchTabPage("reports")}
-              onFocus={() => void prefetchTabPage("reports")}
-              onPointerDown={() => prefetchTabPage("reports", { intent: true })}
-              onClick={() => orgNavigate("/reports")}
-            >
-              <BarChart3 className="erp-tbtn__icon" />
-              Reports
-            </button>
-          )}
           {can("daily_cashier_report") && (
             <button
               type="button"
@@ -530,27 +499,6 @@ export const Header = () => {
               <Wallet className="erp-tbtn__icon" />
               Cashier Report
             </button>
-          )}
-          {/* Secondary quick actions — compact, after primary mockup row */}
-          {can("stock_report") && (
-            <>
-              <button
-                type="button"
-                className={cn("erp-tbtn", quickStockOpen && "erp-tbtn--primary")}
-                onClick={() => setQuickStockOpen(true)}
-              >
-                <BoxIcon className="erp-tbtn__icon" />
-                Quick Stock
-              </button>
-              <button
-                type="button"
-                className={cn("erp-tbtn", sizeStockOpen && "erp-tbtn--primary")}
-                onClick={() => setSizeStockOpen(true)}
-              >
-                <LayoutGrid className="erp-tbtn__icon" />
-                Size Stock
-              </button>
-            </>
           )}
           {canQuickPayments && (
             <button
@@ -565,6 +513,16 @@ export const Header = () => {
               Payment
             </button>
           )}
+          {can("stock_report") && (
+            <button
+              type="button"
+              className={cn("erp-tbtn", quickStockOpen && "erp-tbtn--primary")}
+              onClick={() => setQuickStockOpen(true)}
+            >
+              <BoxIcon className="erp-tbtn__icon" />
+              Quick Stock
+            </button>
+          )}
           {canQuickSaleLookup && (
             <button
               type="button"
@@ -575,22 +533,30 @@ export const Header = () => {
               Quick Sale
             </button>
           )}
-          {canSupplierBalance && (
+          {can("stock_report") && (
             <button
               type="button"
-              className={cn("erp-tbtn", isShortcutPath("supplier-party-balances") && "erp-tbtn--primary")}
-              onPointerEnter={() => void prefetchTabPage("supplier-party-balances")}
-              onFocus={() => void prefetchTabPage("supplier-party-balances")}
-              onPointerDown={() => prefetchTabPage("supplier-party-balances", { intent: true })}
-              onClick={() => orgNavigate("/supplier-party-balances")}
+              className={cn("erp-tbtn", isShortcutPath("stock-report") && "erp-tbtn--primary")}
+              onPointerEnter={() => void prefetchTabPage("stock-report")}
+              onFocus={() => void prefetchTabPage("stock-report")}
+              onPointerDown={() => prefetchTabPage("stock-report", { intent: true })}
+              onClick={() => orgNavigate("/stock-report")}
             >
-              <Building2 className="erp-tbtn__icon" />
-              Supplier Balance
+              <LayoutGrid className="erp-tbtn__icon" />
+              Stock
             </button>
           )}
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {can("stock_report") && (
+            <button
+              type="button"
+              className={cn("erp-tbtn", sizeStockOpen && "erp-tbtn--primary")}
+              onClick={() => setSizeStockOpen(true)}
+              title="Size wise stock (Ctrl+G)"
+            >
+              <LayoutGrid className="erp-tbtn__icon" />
+              Size Stock
+            </button>
+          )}
           {canCustomerBalance && (
             <button
               type="button"
