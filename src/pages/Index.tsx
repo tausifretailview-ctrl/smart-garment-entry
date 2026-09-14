@@ -23,7 +23,6 @@ import {
   ShoppingCart,
   FileText,
   TrendingUp,
-  Building2,
   Users,
   Store,
   DollarSign,
@@ -248,8 +247,6 @@ const DesktopDashboard = () => {
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
-  const canViewSupplierBalance =
-    !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
   const canViewDiscountScheme =
     !permissionsLoading && (permissions === null || hasMenuAccess("discount_scheme_dashboard"));
   
@@ -846,20 +843,6 @@ const DesktopDashboard = () => {
             >
               <Percent className="mr-1.5 h-4 w-4" />
               Discount Scheme
-            </Button>
-          )}
-          {canViewSupplierBalance && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate("/supplier-party-balances")}
-              onPointerEnter={() => prefetchTabPage("supplier-party-balances")}
-              onTouchStart={() => prefetchTabPage("supplier-party-balances", { intent: true })}
-              title="Open Supplier Balance"
-              className="h-9 shrink-0 border-amber-200 bg-amber-50 text-sm font-medium text-amber-800 hover:bg-amber-100"
-            >
-              <Building2 className="mr-1.5 h-4 w-4" />
-              Supplier Balance
             </Button>
           )}
         </div>
