@@ -1116,7 +1116,7 @@ export default function NetProfitAnalysis() {
                   setSearch("");
                 }}
               >
-                <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-2 bg-transparent p-0">
+                <TabsList className="flex h-auto max-w-full flex-wrap justify-start gap-2 bg-transparent p-0">
                   {tabs.map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -1137,50 +1137,41 @@ export default function NetProfitAnalysis() {
                   })}
                 </TabsList>
               </Tabs>
+              {activeTab === "field-wise" && (
+                <div className="flex items-center gap-2">
+                  <Label className="text-sm font-semibold text-slate-600">Group by</Label>
+                  <Select
+                    value={fieldDimension}
+                    onValueChange={(v) => setFieldDimension(v as NetProfitFieldDimension)}
+                  >
+                    <SelectTrigger className="h-10 w-44 text-base">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FIELD_DIMENSION_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-base">
+                          {opt.labelKey ? fieldLabels[opt.labelKey] : opt.fallbackLabel}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="relative min-w-[180px] max-w-sm flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={searchPlaceholder}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="h-10 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
+                />
+              </div>
+              <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
+                {filteredRows.length.toLocaleString("en-IN")} {countLabel}
+              </span>
             </div>
 
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
-                {activeTab === "field-wise" && (
-                  <div className="flex items-center gap-2">
-                    <Label className="text-sm font-semibold text-slate-600">Group by</Label>
-                    <Select
-                      value={fieldDimension}
-                      onValueChange={(v) => setFieldDimension(v as NetProfitFieldDimension)}
-                    >
-                      <SelectTrigger className="h-11 w-48 text-base">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FIELD_DIMENSION_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value} className="text-base">
-                            {opt.labelKey ? fieldLabels[opt.labelKey] : opt.fallbackLabel}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                <div className="relative min-w-[200px] max-w-md flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder={searchPlaceholder}
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-11 border-slate-200 bg-slate-50 pl-10 text-base uppercase placeholder:normal-case"
-                  />
-                </div>
-                <span className="ml-auto shrink-0 text-base font-medium tabular-nums text-muted-foreground">
-                  {filteredRows.length.toLocaleString("en-IN")} {countLabel}
-                </span>
-              </div>
-              <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
-                Discounts match POS Disc (item + bill flat + points) — not round-off. Net sales, COGS,
-                Gross Profit and Margin use original sale amounts only (as if returns never happened).
-                Sale Returns (net) is a separate informational total for the selected period — not
-                deducted from profit. Services included (COGS 0). Tabs re-group in memory.
-              </p>
-
               <ProfitBreakdownTable
                 rows={filteredRows}
                 columns={columnsForTab}
