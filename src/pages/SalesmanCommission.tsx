@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, subMonths, startOfDay, endOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from "date-fns";
 import { TrendingUp, CheckCircle, Download, Plus, Trash2, ArrowLeft } from "lucide-react";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { cn } from "@/lib/utils";
@@ -52,23 +52,29 @@ const RULE_TYPES = [
 
 const PERIODS = [
   { value: "today", label: "Today" },
-  { value: "this_month", label: "This Month" },
-  { value: "last_month", label: "Last Month" },
-  { value: "this_quarter", label: "This Quarter" },
-  { value: "this_year", label: "This Year" },
-  { value: "custom", label: "Custom Range" },
+  { value: "this_month", label: "Monthly" },
+  { value: "this_quarter", label: "Quarterly" },
+  { value: "this_year", label: "Yearly" },
+  { value: "custom", label: "Custom" },
 ];
+
+const todayYmd = () => format(new Date(), "yyyy-MM-dd");
 
 const getPeriodDates = (period: string, customStart: string, customEnd: string) => {
   const now = new Date();
   switch (period) {
-    case "today": return { start: format(startOfDay(now), "yyyy-MM-dd"), end: format(endOfDay(now), "yyyy-MM-dd") };
-    case "this_month": return { start: format(startOfMonth(now), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
-    case "last_month": return { start: format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd"), end: format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd") };
-    case "this_quarter": return { start: format(startOfQuarter(now), "yyyy-MM-dd"), end: format(endOfQuarter(now), "yyyy-MM-dd") };
-    case "this_year": return { start: format(startOfYear(now), "yyyy-MM-dd"), end: format(endOfYear(now), "yyyy-MM-dd") };
-    case "custom": return { start: customStart, end: customEnd };
-    default: return { start: format(startOfMonth(now), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
+    case "today":
+      return { start: todayYmd(), end: todayYmd() };
+    case "this_month":
+      return { start: format(startOfMonth(now), "yyyy-MM-dd"), end: format(endOfMonth(now), "yyyy-MM-dd") };
+    case "this_quarter":
+      return { start: format(startOfQuarter(now), "yyyy-MM-dd"), end: format(endOfQuarter(now), "yyyy-MM-dd") };
+    case "this_year":
+      return { start: format(startOfYear(now), "yyyy-MM-dd"), end: format(endOfYear(now), "yyyy-MM-dd") };
+    case "custom":
+      return { start: customStart || todayYmd(), end: customEnd || todayYmd() };
+    default:
+      return { start: todayYmd(), end: todayYmd() };
   }
 };
 
@@ -80,9 +86,9 @@ export default function SalesmanCommission() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [period, setPeriod] = useState("this_month");
-  const [customStart, setCustomStart] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [customEnd, setCustomEnd] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [period, setPeriod] = useState("today");
+  const [customStart, setCustomStart] = useState(todayYmd);
+  const [customEnd, setCustomEnd] = useState(todayYmd);
   const [filterSalesman, setFilterSalesman] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [txSearch, setTxSearch] = useState("");
@@ -356,18 +362,54 @@ export default function SalesmanCommission() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={period} onValueChange={setPeriod}>
-              <SelectTrigger className="w-40 h-9 text-sm border-slate-200 bg-white"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {PERIODS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="commission-period" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                Date filter
+              </Label>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger id="commission-period" className="w-40 h-9 text-sm border-slate-200 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIODS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {period === "custom" && (
               <>
-                <Input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white" />
-                <Input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white" />
+                <div className="space-y-1">
+                  <Label htmlFor="commission-from" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    From
+                  </Label>
+                  <Input
+                    id="commission-from"
+                    type="date"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="commission-to" className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    To
+                  </Label>
+                  <Input
+                    id="commission-to"
+                    type="date"
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                    className="w-36 h-9 text-sm no-uppercase border-slate-200 bg-white"
+                  />
+                </div>
               </>
+            )}
+            {period !== "custom" && (
+              <p className="text-xs text-muted-foreground pb-2 tabular-nums">
+                {start === end ? start : `${start} → ${end}`}
+              </p>
             )}
           </div>
         </div>
@@ -655,7 +697,7 @@ export default function SalesmanCommission() {
 
           {showDailyIncentiveTab ? (
             <TabsContent value="daily-incentive" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
-              <DailySalesmanIncentivePanel />
+              <DailySalesmanIncentivePanel rangeStart={start} rangeEnd={end} />
             </TabsContent>
           ) : null}
         </Tabs>
