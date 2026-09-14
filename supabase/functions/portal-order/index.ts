@@ -173,25 +173,11 @@ Deno.serve(async (req) => {
 
     if (orderError) throw orderError;
 
-    // Insert order items
-    const orderItems = items.map((item: any) => ({
-      order_id: order.id,
-      product_id: item.productId,
-      variant_id: item.variantId,
-      product_name: item.productName,
-      size: item.size,
-      barcode: item.barcode || null,
-      color: item.color || null,
-      order_qty: item.qty,
-      pending_qty: item.qty,
-      unit_price: item.rate,
-      mrp: item.mrp,
-      discount_percent: 0,
-      line_total: item.rate * item.qty,
-      hsn_code: item.hsnCode || null,
-    }));
+    // Insert order items (server-derived prices only)
+    const orderItems = pricedItems.map((item) => ({ ...item, order_id: order.id }));
 
-    await supabase.from('sale_order_items').insert(orderItems);
+    const { error: itemsError } = await supabase.from('sale_order_items').insert(orderItems);
+    if (itemsError) throw itemsError;
 
     // Notify seller via WhatsApp (fire and forget)
     const { data: waSettings } = await supabase
