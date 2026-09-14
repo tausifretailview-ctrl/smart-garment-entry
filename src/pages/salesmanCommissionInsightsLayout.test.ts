@@ -16,6 +16,13 @@ describe("Salesman Commission Insights chrome", () => {
     expect(page).toContain("Qty");
     expect(page).toContain("quantity");
     expect(page).toContain("DailySalesmanIncentivePanel");
+    expect(page).toContain('useState("today")');
+    expect(page).toContain('label: "Monthly"');
+    expect(page).toContain('label: "Quarterly"');
+    expect(page).toContain('label: "Yearly"');
+    expect(page).toContain('label: "Custom"');
+    expect(page).toContain("rangeStart={start}");
+    expect(page).toContain("rangeEnd={end}");
   });
 
   it("fills the dashboard shell like Insights and hides top chrome", () => {

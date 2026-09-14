@@ -1,10 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfMonth, endOfMonth, subDays } from "date-fns";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,7 +21,6 @@ import {
   INSIGHTS_TABLE_HEAD,
 } from "@/components/business-insights/insightsLayout";
 import { cn } from "@/lib/utils";
-import { istCalendarYmd } from "@/lib/localDayBounds";
 import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
 import {
   fetchDailyIncentiveConfig,
@@ -33,13 +30,19 @@ import {
 const fmtInr = (n: number) =>
   `₹${Number(n || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
-export function DailySalesmanIncentivePanel() {
+export function DailySalesmanIncentivePanel({
+  rangeStart,
+  rangeEnd,
+}: {
+  /** Shared page date filter (IST yyyy-MM-dd). */
+  rangeStart: string;
+  rangeEnd: string;
+}) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
-  const today = istCalendarYmd();
 
-  const [startYmd, setStartYmd] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [endYmd, setEndYmd] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const startYmd = rangeStart;
+  const endYmd = rangeEnd;
   const [filterSalesman, setFilterSalesman] = useState("all");
 
   const uiEnabled = isDailyIncentiveUiOrg(orgId);
@@ -64,7 +67,7 @@ export function DailySalesmanIncentivePanel() {
         startYmd,
         endYmd,
       }),
-    enabled: !!orgId && uiEnabled && !!config,
+    enabled: !!orgId && uiEnabled && !!config && !!startYmd && !!endYmd,
   });
 
   const salesmanNames = useMemo(
@@ -121,26 +124,6 @@ export function DailySalesmanIncentivePanel() {
     <div className="flex flex-col gap-3 flex-1 min-h-0">
       <div className="flex flex-wrap items-end gap-3 shrink-0">
         <div className="space-y-1">
-          <Label className="text-xs">From (IST)</Label>
-          <Input
-            type="date"
-            value={startYmd}
-            max={today}
-            onChange={(e) => setStartYmd(e.target.value)}
-            className="h-9 w-[150px]"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">To (IST)</Label>
-          <Input
-            type="date"
-            value={endYmd}
-            max={today}
-            onChange={(e) => setEndYmd(e.target.value)}
-            className="h-9 w-[150px]"
-          />
-        </div>
-        <div className="space-y-1">
           <Label className="text-xs">Salesman</Label>
           <select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
@@ -164,7 +147,8 @@ export function DailySalesmanIncentivePanel() {
           {isFetching ? "Refreshing…" : "Refresh"}
         </button>
         <p className="text-xs text-muted-foreground pb-2 max-w-xl">
-          Qty ≥ {config.qty_threshold} required. Net brackets:{" "}
+          Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Qty ≥{" "}
+          {config.qty_threshold} required. Net brackets:{" "}
           {config.brackets
             .slice()
             .sort(
@@ -185,7 +169,7 @@ export function DailySalesmanIncentivePanel() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 shrink-0">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 shrink-0">
         <Card className="p-3">
           <div className="text-xs text-muted-foreground">Incentive total</div>
           <div className="text-lg font-semibold tabular-nums">{fmtInr(totalIncentive)}</div>
@@ -198,31 +182,6 @@ export function DailySalesmanIncentivePanel() {
           <div className="text-xs text-muted-foreground">Eligible day-rows</div>
           <div className="text-lg font-semibold tabular-nums">
             {filtered.filter((r) => r.is_eligible).length}
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Quick range</div>
-          <div className="flex gap-2 mt-1">
-            <button
-              type="button"
-              className="text-xs underline"
-              onClick={() => {
-                setStartYmd(today);
-                setEndYmd(today);
-              }}
-            >
-              Today
-            </button>
-            <button
-              type="button"
-              className="text-xs underline"
-              onClick={() => {
-                setStartYmd(format(subDays(new Date(), 6), "yyyy-MM-dd"));
-                setEndYmd(today);
-              }}
-            >
-              7d
-            </button>
           </div>
         </Card>
       </div>
