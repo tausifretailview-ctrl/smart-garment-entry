@@ -999,25 +999,27 @@ export default function NetProfitAnalysis() {
         </div>
 
         {dataset && (
-          <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden lg:grid-cols-4">
+          <div className="grid shrink-0 grid-cols-2 gap-2 print:hidden sm:grid-cols-3 lg:grid-cols-5">
             {kpiItems.map((item) => (
               <div
                 key={item.label}
                 className={cn(
-                  "min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm",
+                  "flex min-w-0 flex-col justify-center rounded-lg px-3 py-2 shadow-sm",
                   item.gradient,
                   "hint" in item && item.hint ? "ring-2 ring-white/40 ring-offset-1 ring-offset-slate-50" : null,
                 )}
                 title={"hint" in item ? item.hint : undefined}
               >
-                <p className="truncate text-sm font-semibold uppercase tracking-wide leading-none text-white/85">
+                <p className="truncate text-[11px] font-semibold uppercase tracking-wide leading-none text-white/85 sm:text-xs">
                   {item.label}
                 </p>
-                <p className="mt-1.5 truncate text-xl font-black tabular-nums leading-tight text-white sm:text-2xl">
+                <p className="mt-1 truncate text-lg font-black tabular-nums leading-tight text-white sm:text-xl lg:text-[1.35rem]">
                   {item.value}
                 </p>
                 {"hint" in item && item.hint ? (
-                  <p className="mt-1 truncate text-[11px] font-medium leading-tight text-white/80">{item.hint}</p>
+                  <p className="mt-0.5 truncate text-[10px] font-medium leading-tight text-white/80">
+                    {item.hint}
+                  </p>
                 ) : null}
               </div>
             ))}
@@ -1098,8 +1100,14 @@ export default function NetProfitAnalysis() {
           </div>
         </div>
 
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 p-0 shadow-sm">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border-2 border-teal-600/70 p-0 shadow-md ring-2 ring-teal-500/20">
           <div className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 items-center gap-2 border-b border-teal-700/30 bg-gradient-to-r from-teal-700 to-teal-600 px-3 py-2 print:hidden">
+              <TrendingUp className="h-4 w-4 shrink-0 text-white" />
+              <h2 className="text-sm font-bold uppercase tracking-wide text-white sm:text-base">
+                Net Profit Calculations
+              </h2>
+            </div>
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 print:hidden">
               <Tabs
                 value={activeTab}
