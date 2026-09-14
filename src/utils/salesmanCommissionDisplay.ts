@@ -7,6 +7,7 @@ export type SaleItemDiscountRow = {
   sale_id: string;
   product_id: string | null;
   product_name?: string | null;
+  quantity?: number | null;
   line_total?: number | null;
   discount_share?: number | null;
   net_after_discount?: number | null;
@@ -30,6 +31,8 @@ export type EnrichedCommissionRow = CommissionDisplayRow & {
   grossSale: number;
   discountAmount: number;
   netSale: number;
+  /** Pieces from matched sale_items.quantity (0 when unmatched). */
+  qty: number;
   /** Commission on netSale × rate — use for UI / export / summary */
   displayCommission: number;
 };
@@ -123,11 +126,13 @@ export function enrichCommissionsWithSaleItems(
       Number(c.sale_amount) || 0,
     );
     const rate = Number(c.commission_percent) || 0;
+    const qty = Number(match?.quantity);
     return {
       ...c,
       grossSale,
       discountAmount,
       netSale,
+      qty: Number.isFinite(qty) && qty > 0 ? qty : 0,
       displayCommission: commissionOnNet(netSale, rate),
     };
   });

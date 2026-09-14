@@ -164,8 +164,24 @@ export function DailySalesmanIncentivePanel() {
           {isFetching ? "Refreshing…" : "Refresh"}
         </button>
         <p className="text-xs text-muted-foreground pb-2 max-w-xl">
-          Qty ≥ {config.qty_threshold} required. Net brackets: ₹0–499.99→₹3 · ₹500–999.99→₹5 ·
-          ≥₹1000→₹10. Past IST days lock after first compute (later returns do not reverse).
+          Qty ≥ {config.qty_threshold} required. Net brackets:{" "}
+          {config.brackets
+            .slice()
+            .sort(
+              (a, b) =>
+                (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.min_net_amount - b.min_net_amount,
+            )
+            .map((b) => {
+              const min = Number(b.min_net_amount);
+              const max = b.max_net_amount == null ? null : Number(b.max_net_amount);
+              const range =
+                max == null
+                  ? `≥₹${min.toLocaleString("en-IN")}`
+                  : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
+              return `${range}→₹${Number(b.incentive_amount)}`;
+            })
+            .join(" · ")}
+          . Past IST days lock after first compute (later returns do not reverse).
         </p>
       </div>
 
