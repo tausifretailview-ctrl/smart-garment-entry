@@ -781,7 +781,7 @@ export default function NetProfitAnalysis() {
               align: "right" as const,
               accent: "red" as const,
               title:
-                "Units returned in this period (already netted into Qty Sold and Net Sales — shown here for clarity)",
+                "Units returned in this period — informational only; not deducted from Qty Sold or profit",
               get: (r: ProfitAggregateRow) => r.qtyReturned,
             },
           ]
@@ -806,7 +806,7 @@ export default function NetProfitAnalysis() {
               money: true,
               accent: "red" as const,
               title:
-                "₹ value of returns in this period (already netted into Net Sales — shown here for clarity)",
+                "₹ value of returns in this period — informational only; not deducted from Net Sales or profit",
               get: (r: ProfitAggregateRow) => r.returnAmount,
             },
           ]
@@ -923,6 +923,12 @@ export default function NetProfitAnalysis() {
         value: `${activeTotals.marginPercent.toFixed(1)}%`,
         gradient: "bg-gradient-to-br from-amber-500 to-amber-600",
       },
+      {
+        label: "Sale Returns (net)",
+        value: formatCurrency(activeTotals.returnAmount),
+        gradient: "bg-gradient-to-br from-slate-500 to-slate-600",
+        hint: "Informational — not deducted from profit above",
+      },
     ],
     [activeTotals],
   );
@@ -997,7 +1003,12 @@ export default function NetProfitAnalysis() {
             {kpiItems.map((item) => (
               <div
                 key={item.label}
-                className={cn("min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm", item.gradient)}
+                className={cn(
+                  "min-w-0 rounded-lg px-3.5 py-2.5 shadow-sm",
+                  item.gradient,
+                  "hint" in item && item.hint ? "ring-2 ring-white/40 ring-offset-1 ring-offset-slate-50" : null,
+                )}
+                title={"hint" in item ? item.hint : undefined}
               >
                 <p className="truncate text-sm font-semibold uppercase tracking-wide leading-none text-white/85">
                   {item.label}
@@ -1005,6 +1016,9 @@ export default function NetProfitAnalysis() {
                 <p className="mt-1.5 truncate text-xl font-black tabular-nums leading-tight text-white sm:text-2xl">
                   {item.value}
                 </p>
+                {"hint" in item && item.hint ? (
+                  <p className="mt-1 truncate text-[11px] font-medium leading-tight text-white/80">{item.hint}</p>
+                ) : null}
               </div>
             ))}
           </div>
@@ -1153,9 +1167,10 @@ export default function NetProfitAnalysis() {
                 </span>
               </div>
               <p className="shrink-0 px-3 py-1.5 text-sm text-muted-foreground print:hidden">
-                Discounts match POS Disc (item + bill flat + points) — not round-off or S/R adjust.
-                Net sales include round-off and subtract sale-return adjust (same as POS Net after
-                disc/SR). Services included (COGS 0). Tabs re-group in memory.
+                Discounts match POS Disc (item + bill flat + points) — not round-off. Net sales, COGS,
+                Gross Profit and Margin use original sale amounts only (as if returns never happened).
+                Sale Returns (net) is a separate informational total for the selected period — not
+                deducted from profit. Services included (COGS 0). Tabs re-group in memory.
               </p>
 
               <ProfitBreakdownTable

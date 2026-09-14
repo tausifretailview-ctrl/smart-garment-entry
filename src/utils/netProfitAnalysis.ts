@@ -39,6 +39,10 @@ export interface ProfitLine {
   zeroCostQty: number;
   /** +1 sale line, -1 return line */
   sign: 1 | -1;
+  /** Informational return qty (0 on sale lines). Never rolled into itemsSold/profit. */
+  returnQty: number;
+  /** Informational return ₹ (0 on sale lines). Never rolled into netSales/COGS/profit. */
+  returnAmount: number;
   supplierId: string | null;
   supplierName: string;
   productId: string;
@@ -72,9 +76,9 @@ export interface ProfitAggregateRow {
   marginPercent: number;
   itemsSold: number;
   zeroCostQty: number;
-  /** Units returned in the period (always ≥ 0). Already netted into itemsSold. */
+  /** Units returned in the period (always ≥ 0). Informational only — not netted into itemsSold. */
   qtyReturned: number;
-  /** Absolute ₹ of return lines in the period. Already netted into netSales. */
+  /** Absolute ₹ of return lines in the period. Informational only — not netted into netSales/profit. */
   returnAmount: number;
 }
 
@@ -96,7 +100,7 @@ export type SaleRevenueMeta = {
   discount_amount: number;
   flat_discount_amount: number;
   points_redeemed_amount: number;
-  /** Credit note / sale-return adjust — reduces net like POS "After disc/SR". */
+  /** Present on sale header; ignored for Net Profit (profit uses original sale only). */
   sale_return_adjust: number;
 };
 
@@ -104,7 +108,7 @@ export type SaleRevenueMeta = {
  * Per sale_item revenue.
  * Discounts match POS Disc: header discount_amount + flat + points only (never round-off / SR / negative).
  * Line gross follows MRP×qty. Header discount weights use Σ line MRP (not Exclusive gross+GST).
- * Net follows net_after_discount (incl. round-off), then caller subtracts SR share.
+ * Net follows net_after_discount (incl. round-off). Sale-return adjust is NOT applied here.
  */
 export function computeSaleLineRevenue(
   item: {
@@ -308,11 +312,6 @@ export async function loadProfitDataset(
   const saleRows = (sales || []) as SaleRow[];
   const saleById = new Map(saleRows.map((s) => [s.id, s]));
   const saleByNumber = new Map(saleRows.map((s) => [s.sale_number, s]));
-  /** Sales that already reduced net via sale_return_adjust — skip return revenue (avoid double count). */
-  const saleIdsWithSrAdjust = new Set(
-    saleRows.filter((s) => Number(s.sale_return_adjust) > 0).map((s) => s.id),
-  );
-
   const saleItems = saleRows.length ? await fetchAllSaleItems(saleRows.map((s) => s.id)) : [];
 
   const { data: returns, error: returnsError } = await supabase
@@ -403,13 +402,10 @@ export async function loadProfitDataset(
     return { id: null as string | null, name: "Unknown Supplier" };
   };
 
-  // Pre-sum line_totals per sale for SR allocation weight
-  const lineTotalBySaleId = new Map<string, number>();
   // Σ(MRP×qty) per sale — discount weights must not use Exclusive gross (MRP+GST).
   const mrpBaseBySaleId = new Map<string, number>();
   saleItems.forEach((item: any) => {
     const sid = item.sale_id as string;
-    lineTotalBySaleId.set(sid, (lineTotalBySaleId.get(sid) || 0) + (Number(item.line_total) || 0));
     const qty = Number(item.quantity) || 0;
     const mrp = Number(item.mrp) || 0;
     const unitP = Number(item.unit_price) || 0;
@@ -445,20 +441,17 @@ export async function loadProfitDataset(
     const { cogs, purPrice } = lineCogs(qty, item.variant_id, productType, maps);
     const supplier = resolveSupplier(item.variant_id, productType);
 
-    // POS Net Sale = after disc/SR — allocate sale_return_adjust onto lines.
-    const srAdjust = Math.max(0, Number(sale?.sale_return_adjust) || 0);
-    const saleLinesTotal = lineTotalBySaleId.get(item.sale_id) || 0;
-    const srShare =
-      srAdjust > 0 && saleLinesTotal > 0 ? (lineTotal / saleLinesTotal) * srAdjust : 0;
-
+    // Original sale only — do not allocate sale_return_adjust into profit.
     lines.push({
       qty,
       grossSales: grossLine,
       totalDiscounts: Math.max(0, lineDiscount + flatShare),
-      netSales: netLine - srShare,
+      netSales: netLine,
       totalCOGS: cogs,
       zeroCostQty: !isService && purPrice === 0 && qty > 0 ? qty : 0,
       sign: 1,
+      returnQty: 0,
+      returnAmount: 0,
       supplierId: supplier.id,
       supplierName: supplier.name,
       productId: productId || item.product_name || "unknown",
@@ -501,19 +494,17 @@ export async function loadProfitDataset(
     const { cogs, purPrice } = lineCogs(qty, item.variant_id, productType, maps);
     const supplier = resolveSupplier(item.variant_id, productType);
 
-    // If linked sale already reduced net via sale_return_adjust, only reverse COGS/qty.
-    const revenueAlreadyInSr =
-      !!linkedSale && saleIdsWithSrAdjust.has(linkedSale.id);
-    const revenueSign = revenueAlreadyInSr ? 0 : -1;
-
+    // Returns are informational only — never reverse revenue/COGS in profit math.
     lines.push({
-      qty: -qty,
-      grossSales: revenueSign * lineTotal,
+      qty: 0,
+      grossSales: 0,
       totalDiscounts: 0,
-      netSales: revenueSign * lineTotal,
-      totalCOGS: -cogs,
-      zeroCostQty: !isService && purPrice === 0 && qty > 0 ? -qty : 0,
+      netSales: 0,
+      totalCOGS: 0,
+      zeroCostQty: 0,
       sign: -1,
+      returnQty: qty,
+      returnAmount: Math.abs(lineTotal),
       supplierId: supplier.id,
       supplierName: supplier.name,
       productId: productId || item.product_name || "unknown",
@@ -552,16 +543,15 @@ function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
     returnAmount: 0,
   };
   for (const line of lines) {
+    // Sale lines carry profit fields; return lines contribute only returnQty/returnAmount.
     acc.grossSales += line.grossSales;
     acc.totalDiscounts += line.totalDiscounts;
     acc.netSales += line.netSales;
     acc.totalCOGS += line.totalCOGS;
     acc.itemsSold += line.qty;
     acc.zeroCostQty += line.zeroCostQty;
-    if (line.sign === -1) {
-      acc.qtyReturned += Math.abs(line.qty);
-      acc.returnAmount += Math.abs(line.netSales);
-    }
+    acc.qtyReturned += line.returnQty;
+    acc.returnAmount += line.returnAmount;
   }
   const grossProfit = acc.netSales - acc.totalCOGS;
   return {
@@ -605,14 +595,13 @@ export function aggregateBy(
     row.totalCOGS += line.totalCOGS;
     row.itemsSold += line.qty;
     row.zeroCostQty += line.zeroCostQty;
-    if (line.sign === -1) {
-      row.qtyReturned += Math.abs(line.qty);
-      row.returnAmount += Math.abs(line.netSales);
-    }
+    row.qtyReturned += line.returnQty;
+    row.returnAmount += line.returnAmount;
   }
 
   const result: ProfitAggregateRow[] = [];
   map.forEach((row) => {
+    // Return-only groups stay visible with ₹0 profit impact; returnAmount is informational.
     row.grossProfit = row.netSales - row.totalCOGS;
     row.marginPercent = row.netSales !== 0 ? (row.grossProfit / row.netSales) * 100 : 0;
     result.push(row);
