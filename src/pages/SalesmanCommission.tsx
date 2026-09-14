@@ -32,6 +32,8 @@ import {
   enrichCommissionsWithSaleItems,
   type EnrichedCommissionRow,
 } from "@/utils/salesmanCommissionDisplay";
+import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
+import { DailySalesmanIncentivePanel } from "@/components/DailySalesmanIncentivePanel";
 
 const RULE_TYPES = [
   { value: "default", label: "Default (all products)" },
@@ -87,6 +89,7 @@ export default function SalesmanCommission() {
   const [editingRule, setEditingRule] = useState<any>(null);
 
   const { start, end } = getPeriodDates(period, customStart, customEnd);
+  const showDailyIncentiveTab = isDailyIncentiveUiOrg(currentOrganization?.id);
 
   const { data: employees = [] } = useQuery({
     queryKey: ["employees-commission-page", currentOrganization?.id],
@@ -377,6 +380,11 @@ export default function SalesmanCommission() {
             <TabsTrigger value="rules" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Rules</TabsTrigger>
             <TabsTrigger value="transactions" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Transactions</TabsTrigger>
             <TabsTrigger value="compare" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">Compare</TabsTrigger>
+            {showDailyIncentiveTab ? (
+              <TabsTrigger value="daily-incentive" className="rounded px-3 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-blue-700">
+                Daily incentive
+              </TabsTrigger>
+            ) : null}
           </TabsList>
 
           <TabsContent value="overview" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
@@ -623,6 +631,12 @@ export default function SalesmanCommission() {
               </div>
             </Card>
           </TabsContent>
+
+          {showDailyIncentiveTab ? (
+            <TabsContent value="daily-incentive" className="mt-0 flex flex-1 min-h-0 flex-col data-[state=inactive]:hidden">
+              <DailySalesmanIncentivePanel />
+            </TabsContent>
+          ) : null}
         </Tabs>
       </div>
 
