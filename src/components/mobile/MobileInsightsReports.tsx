@@ -769,7 +769,15 @@ export function MobileNetProfitReport({ orgId, start, end }: DateProps) {
           color={data.totals.grossProfit >= 0 ? "text-blue-600" : "text-destructive"}
         />
         <MetricCard label="Margin %" value={`${data.totals.marginPercent.toFixed(1)}%`} />
+        <MetricCard
+          label="Sale Returns (net)"
+          value={fmt(data.totals.returnAmount)}
+          color="text-slate-600"
+        />
       </div>
+      <p className="text-[11px] text-muted-foreground px-0.5">
+        Sale Returns (net) is informational — not deducted from Profit / Margin above.
+      </p>
       <MobileReportTable variant="insights" columns={columns} rows={rows} rowKey={(r) => r.key} />
     </div>
   );

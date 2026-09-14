@@ -14,6 +14,8 @@ function line(partial: Partial<ProfitLine> & Pick<ProfitLine, "netSales" | "tota
     totalDiscounts: 0,
     zeroCostQty: 0,
     sign: 1,
+    returnQty: 0,
+    returnAmount: 0,
     supplierId: null,
     supplierName: "Unknown Supplier",
     productId: "p1",
@@ -191,11 +193,13 @@ describe("aggregateForTab", () => {
       supplierId: "sup1",
     }),
     line({
-      netSales: -100,
-      totalCOGS: -70,
-      grossSales: -100,
-      qty: -1,
+      netSales: 0,
+      totalCOGS: 0,
+      grossSales: 0,
+      qty: 0,
       sign: -1,
+      returnQty: 1,
+      returnAmount: 100,
       saleId: "s1",
       saleNumber: "POS/26-27/1",
       customerName: "RAM",
@@ -203,19 +207,22 @@ describe("aggregateForTab", () => {
     }),
   ];
 
-  it("bill-wise groups by sale and applies returns", () => {
+  it("bill-wise groups by sale and keeps original sale profit (returns informational)", () => {
     const rows = aggregateForTab(lines, "bill-wise");
     expect(rows).toHaveLength(1);
     expect(rows[0].label).toBe("POS/26-27/1");
-    expect(rows[0].netSales).toBe(300);
-    expect(rows[0].totalCOGS).toBe(280);
-    expect(rows[0].grossProfit).toBe(20);
+    // Sale 400−350 profit; return line does not reduce net/COGS
+    expect(rows[0].netSales).toBe(400);
+    expect(rows[0].totalCOGS).toBe(350);
+    expect(rows[0].grossProfit).toBe(50);
+    expect(rows[0].qtyReturned).toBe(1);
+    expect(rows[0].returnAmount).toBe(100);
   });
 
   it("customer-wise and salesman-wise group header dims", () => {
     const byCustomer = aggregateForTab(lines, "customer-wise");
     expect(byCustomer[0].label).toBe("RAM");
-    expect(byCustomer[0].netSales).toBe(300);
+    expect(byCustomer[0].netSales).toBe(400);
 
     const bySalesman = aggregateForTab(lines, "salesman-wise");
     expect(bySalesman[0].label).toBe("Amit");
@@ -224,7 +231,7 @@ describe("aggregateForTab", () => {
   it("field-wise groups by selected dimension", () => {
     const byBrand = aggregateForTab(lines, "field-wise", "brand");
     expect(byBrand[0].label).toBe("BrandX");
-    expect(byBrand[0].netSales).toBe(300);
+    expect(byBrand[0].netSales).toBe(400);
 
     const byType = aggregateForTab(
       [
@@ -244,7 +251,7 @@ describe("aggregateForTab", () => {
     const service = byType.find((r) => r.label === "service");
     const goods = byType.find((r) => r.label === "goods");
     expect(service?.netSales).toBe(50);
-    expect(goods?.netSales).toBe(300);
+    expect(goods?.netSales).toBe(400);
   });
 
   it("date-wise groups by day × product with brand detail", () => {
@@ -310,13 +317,13 @@ describe("aggregateForTab", () => {
     expect(supplier.grossProfit).toBe(dateWise.grossProfit);
   });
 
-  it("keeps net qty/sales/profit byte-identical while surfacing return qty and amount", () => {
+  it("keeps original sale profit while surfacing return qty and amount separately", () => {
     const product = aggregateForTab(lines, "product-wise")[0];
     const dateWise = aggregateForTab(lines, "date-wise")[0];
-    expect(product.itemsSold).toBe(0);
-    expect(product.netSales).toBe(300);
-    expect(product.grossProfit).toBe(20);
-    expect(product.marginPercent).toBeCloseTo((20 / 300) * 100);
+    expect(product.itemsSold).toBe(1);
+    expect(product.netSales).toBe(400);
+    expect(product.grossProfit).toBe(50);
+    expect(product.marginPercent).toBeCloseTo((50 / 400) * 100);
     expect(product.qtyReturned).toBe(1);
     expect(product.returnAmount).toBe(100);
     expect(dateWise.itemsSold).toBe(product.itemsSold);
@@ -325,15 +332,17 @@ describe("aggregateForTab", () => {
     expect(dateWise.qtyReturned).toBe(1);
   });
 
-  it("shows 5 returned / 0 sold as net -5 plus Qty Returned 5", () => {
+  it("keeps return-only groups at ₹0 profit with informational return amount", () => {
     const rows = aggregateForTab(
       [
         line({
-          qty: -5,
+          qty: 0,
           sign: -1,
-          netSales: -650,
-          grossSales: -650,
+          netSales: 0,
+          grossSales: 0,
           totalCOGS: 0,
+          returnQty: 5,
+          returnAmount: 650,
           productName: "TSHIRT",
           brand: "HOSERIY",
           productId: "tshirt-1",
@@ -342,13 +351,64 @@ describe("aggregateForTab", () => {
       "product-wise",
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].itemsSold).toBe(-5);
-    expect(rows[0].netSales).toBe(-650);
-    expect(rows[0].grossProfit).toBe(-650);
-    expect(rows[0].marginPercent).toBe(100);
+    expect(rows[0].itemsSold).toBe(0);
+    expect(rows[0].netSales).toBe(0);
+    expect(rows[0].totalCOGS).toBe(0);
+    expect(rows[0].grossProfit).toBe(0);
+    expect(rows[0].marginPercent).toBe(0);
     expect(rows[0].qtyReturned).toBe(5);
     expect(rows[0].returnAmount).toBe(650);
     expect(rowsHaveReturns(rows)).toBe(true);
+  });
+
+
+  it("profit matches sale-only totals when a return exists (as if the return never happened)", () => {
+    const saleOnly = [
+      line({
+        netSales: 2400,
+        totalCOGS: 1902,
+        grossSales: 2900,
+        totalDiscounts: 500,
+        qty: 1,
+        saleId: "pos-153",
+        saleNumber: "POS/26-27/153",
+      }),
+    ];
+    const withReturn = [
+      ...saleOnly,
+      line({
+        qty: 0,
+        sign: -1,
+        netSales: 0,
+        grossSales: 0,
+        totalCOGS: 0,
+        returnQty: 2,
+        returnAmount: 6550.62,
+        saleId: null,
+        saleNumber: "Unlinked Return",
+        productName: "RETURNED ITEM",
+      }),
+    ];
+    const saleTot = sumAggregates(aggregateForTab(saleOnly, "bill-wise"));
+    const withTot = sumAggregates(aggregateForTab(withReturn, "bill-wise"));
+    // Profit figures identical — return does not move them
+    expect(withTot.grossSales).toBe(saleTot.grossSales);
+    expect(withTot.netSales).toBe(saleTot.netSales);
+    expect(withTot.totalCOGS).toBe(saleTot.totalCOGS);
+    expect(withTot.grossProfit).toBe(saleTot.grossProfit);
+    expect(withTot.marginPercent).toBe(saleTot.marginPercent);
+    expect(withTot.grossProfit).toBe(498);
+    expect(withTot.marginPercent).toBeCloseTo((498 / 2400) * 100);
+    // Standalone return figure (informational; does not move profit)
+    expect(withTot.returnAmount).toBe(6550.62);
+    expect(saleTot.returnAmount).toBe(0);
+    const billLabels = aggregateForTab(withReturn, "bill-wise").map((r) => r.label);
+    expect(billLabels).toContain("POS/26-27/153");
+    expect(billLabels).toContain("Unlinked Return");
+    const unlinked = aggregateForTab(withReturn, "bill-wise").find((r) => r.label === "Unlinked Return");
+    expect(unlinked?.grossProfit).toBe(0);
+    expect(unlinked?.netSales).toBe(0);
+    expect(unlinked?.returnAmount).toBe(6550.62);
   });
 
   it("does not flag returns when every line is a sale", () => {
