@@ -160,7 +160,7 @@ const ProductEditPanel = ({
   useEffect(() => {
     if (!open || !currentOrganization?.id) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       const { data } = await supabase
         .from("settings")
         .select("purchase_settings")
