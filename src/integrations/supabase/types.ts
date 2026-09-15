@@ -1876,6 +1876,160 @@ export type Database = {
           },
         ]
       }
+      daily_salesman_incentive_brackets: {
+        Row: {
+          created_at: string
+          id: string
+          incentive_amount: number
+          max_net_amount: number | null
+          min_net_amount: number
+          organization_id: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          incentive_amount: number
+          max_net_amount?: number | null
+          min_net_amount?: number
+          organization_id: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          incentive_amount?: number
+          max_net_amount?: number | null
+          min_net_amount?: number
+          organization_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_salesman_incentive_brackets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_salesman_incentive_brackets_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      daily_salesman_incentive_configs: {
+        Row: {
+          created_at: string
+          is_enabled: boolean
+          organization_id: string
+          qty_threshold: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          is_enabled?: boolean
+          organization_id: string
+          qty_threshold?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          is_enabled?: boolean
+          organization_id?: string
+          qty_threshold?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_salesman_incentive_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_salesman_incentive_configs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      daily_salesman_incentive_days: {
+        Row: {
+          computed_at: string
+          created_at: string
+          employee_id: string | null
+          employee_name: string
+          id: string
+          incentive_amount: number
+          incentive_date: string
+          is_eligible: boolean
+          is_locked: boolean
+          organization_id: string
+          total_net_amount: number
+          total_qty: number
+          updated_at: string
+        }
+        Insert: {
+          computed_at?: string
+          created_at?: string
+          employee_id?: string | null
+          employee_name: string
+          id?: string
+          incentive_amount?: number
+          incentive_date: string
+          is_eligible?: boolean
+          is_locked?: boolean
+          organization_id: string
+          total_net_amount?: number
+          total_qty?: number
+          updated_at?: string
+        }
+        Update: {
+          computed_at?: string
+          created_at?: string
+          employee_id?: string | null
+          employee_name?: string
+          id?: string
+          incentive_amount?: number
+          incentive_date?: string
+          is_eligible?: boolean
+          is_locked?: boolean
+          organization_id?: string
+          total_net_amount?: number
+          total_qty?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_salesman_incentive_days_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_salesman_incentive_days_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_salesman_incentive_days_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       daily_tally_snapshot: {
         Row: {
           created_at: string | null
