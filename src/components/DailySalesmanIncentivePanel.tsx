@@ -181,68 +181,80 @@ export function DailySalesmanIncentivePanel({
         2026-09-15 under per-unit recalc migration; recomputed server-side on next sync.
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 shrink-0">
-        <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Incentive total</div>
-          <div className="text-lg font-semibold tabular-nums">{fmtInr(totalIncentive)}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Day-rows</div>
-          <div className="text-lg font-semibold tabular-nums">{filtered.length}</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-xs text-muted-foreground">Eligible day-rows</div>
-          <div className="text-lg font-semibold tabular-nums">
-            {filtered.filter((r) => r.is_eligible).length}
-          </div>
-        </Card>
-      </div>
+      <div className="flex flex-wrap items-end gap-2 shrink-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 min-w-0 flex-1 sm:flex-none sm:w-auto">
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">Incentive total</div>
+            <div className="text-lg font-semibold tabular-nums">{fmtInr(totalIncentive)}</div>
+          </Card>
+          <Card className="p-3">
+            <div className="text-xs text-muted-foreground">Day-rows</div>
+            <div className="text-lg font-semibold tabular-nums">{filtered.length}</div>
+          </Card>
+          <Card className="p-3 col-span-2 sm:col-span-1">
+            <div className="text-xs text-muted-foreground">Eligible day-rows</div>
+            <div className="text-lg font-semibold tabular-nums">
+              {filtered.filter((r) => r.is_eligible).length}
+            </div>
+          </Card>
+        </div>
 
-      <div
-        className={cn(
-          "flex flex-wrap items-end gap-3 shrink-0 rounded-lg border px-3 py-2.5",
-          selfViewEmployeeName
-            ? "border-slate-200 bg-slate-50"
-            : "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20",
-        )}
-      >
-        {!selfViewEmployeeName ? (
-          <div className="space-y-1 min-w-[220px] flex-1 sm:flex-none">
-            <Label htmlFor="daily-incentive-salesman" className="text-xs font-semibold text-primary">
-              Salesman
-            </Label>
-            <Select value={filterSalesman} onValueChange={setFilterSalesman}>
-              <SelectTrigger
-                id="daily-incentive-salesman"
-                className="h-9 w-full sm:w-56 text-sm border-primary/40 bg-white font-medium shadow-sm focus:ring-primary/30"
-              >
-                <SelectValue placeholder="All salesmen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All salesmen</SelectItem>
-                {salesmanNames.map((n) => (
-                  <SelectItem key={n} value={n}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {selfViewEmployeeName ? (
+          <div className="flex items-end gap-2 shrink-0 pb-0.5">
+            <p className="text-sm text-muted-foreground">
+              Showing your incentive only ({selfViewEmployeeName})
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 border-slate-200 bg-white"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? "Refreshing…" : "Refresh"}
+            </Button>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">
-            Showing your incentive only ({selfViewEmployeeName})
-          </p>
+          <div
+            className={cn(
+              "flex flex-wrap items-end gap-2 shrink-0 rounded-lg border px-2.5 py-2",
+              "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20",
+            )}
+          >
+            <div className="space-y-1 min-w-[180px]">
+              <Label htmlFor="daily-incentive-salesman" className="text-xs font-semibold text-primary">
+                Salesman
+              </Label>
+              <Select value={filterSalesman} onValueChange={setFilterSalesman}>
+                <SelectTrigger
+                  id="daily-incentive-salesman"
+                  className="h-9 w-full sm:w-48 text-sm border-primary/40 bg-white font-medium shadow-sm focus:ring-primary/30"
+                >
+                  <SelectValue placeholder="All salesmen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All salesmen</SelectItem>
+                  {salesmanNames.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 border-slate-200 bg-white"
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
+              {isFetching ? "Refreshing…" : "Refresh"}
+            </Button>
+          </div>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 shrink-0 border-slate-200 bg-white"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          {isFetching ? "Refreshing…" : "Refresh"}
-        </Button>
       </div>
 
       {error ? (
@@ -251,7 +263,7 @@ export function DailySalesmanIncentivePanel({
         </p>
       ) : null}
 
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col shrink-0 max-h-[168px]">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col shrink-0 max-h-[140px]">
         <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
           <h2 className="text-sm font-semibold text-foreground">Salesman summary</h2>
         </div>
