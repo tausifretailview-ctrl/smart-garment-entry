@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRoles } from "@/hooks/useUserRoles";
+import { supabase } from "@/integrations/supabase/client";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -39,13 +42,34 @@ export function DailySalesmanIncentivePanel({
   rangeEnd: string;
 }) {
   const { currentOrganization } = useOrganization();
+  const { user } = useAuth();
   const orgId = currentOrganization?.id;
+  const { isAdmin, isManager } = useUserRoles(orgId);
 
   const startYmd = rangeStart;
   const endYmd = rangeEnd;
   const [filterSalesman, setFilterSalesman] = useState("all");
 
   const uiEnabled = isDailyIncentiveUiOrg(orgId);
+
+  const { data: linkedEmployeeName } = useQuery({
+    queryKey: ["daily-incentive-linked-employee", orgId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("employee_name")
+        .eq("organization_id", orgId!)
+        .eq("user_id", user!.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.employee_name ?? null;
+    },
+    enabled: !!orgId && !!user?.id && uiEnabled,
+  });
+
+  const selfViewEmployeeName =
+    linkedEmployeeName && !isAdmin && !isManager ? linkedEmployeeName : null;
 
   const { data: config, isLoading: configLoading } = useQuery({
     queryKey: ["daily-salesman-incentive-config", orgId],
@@ -76,9 +100,12 @@ export function DailySalesmanIncentivePanel({
   );
 
   const filtered = useMemo(() => {
+    if (selfViewEmployeeName) {
+      return rows.filter((r) => r.employee_name === selfViewEmployeeName);
+    }
     if (filterSalesman === "all") return rows;
     return rows.filter((r) => r.employee_name === filterSalesman);
-  }, [rows, filterSalesman]);
+  }, [rows, filterSalesman, selfViewEmployeeName]);
 
   const summary = useMemo(() => {
     const map = new Map<
@@ -123,21 +150,27 @@ export function DailySalesmanIncentivePanel({
   return (
     <div className="flex flex-col gap-3 flex-1 min-h-0">
       <div className="flex flex-wrap items-end gap-3 shrink-0">
-        <div className="space-y-1">
-          <Label className="text-xs">Salesman</Label>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={filterSalesman}
-            onChange={(e) => setFilterSalesman(e.target.value)}
-          >
-            <option value="all">All</option>
-            {salesmanNames.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
+        {!selfViewEmployeeName ? (
+          <div className="space-y-1">
+            <Label className="text-xs">Salesman</Label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={filterSalesman}
+              onChange={(e) => setFilterSalesman(e.target.value)}
+            >
+              <option value="all">All</option>
+              {salesmanNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground pb-2">
+            Showing your incentive only ({selfViewEmployeeName})
+          </p>
+        )}
         <button
           type="button"
           className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-slate-50"
@@ -146,9 +179,10 @@ export function DailySalesmanIncentivePanel({
         >
           {isFetching ? "Refreshing…" : "Refresh"}
         </button>
-        <p className="text-xs text-muted-foreground pb-2 max-w-xl">
-          Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Qty ≥{" "}
-          {config.qty_threshold} required. Net brackets:{" "}
+        <p className="text-xs text-muted-foreground pb-2 max-w-2xl">
+          Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Day
+          qty ≥ {config.qty_threshold} required (sum across all lines that day). Per line: bracket on
+          full line net (after discount), flat ₹ × line qty; day incentive = Σ lines. Brackets:{" "}
           {config.brackets
             .slice()
             .sort(
@@ -162,10 +196,11 @@ export function DailySalesmanIncentivePanel({
                 max == null
                   ? `≥₹${min.toLocaleString("en-IN")}`
                   : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
-              return `${range}→₹${Number(b.incentive_amount)}`;
+              return `${range}→₹${Number(b.incentive_amount)}/unit`;
             })
             .join(" · ")}
-          . Past IST days lock after first compute (later returns do not reverse).
+          . Past IST days lock after first compute (later returns do not reverse). Locked rows
+          computed under the old day-total formula are not auto-recalculated — see ops note.
         </p>
       </div>
 

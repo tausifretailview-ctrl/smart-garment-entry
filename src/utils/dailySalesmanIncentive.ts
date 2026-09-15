@@ -1,5 +1,5 @@
 /**
- * Daily salesman incentive — flat ₹ brackets after a qty gate.
+ * Daily salesman incentive — flat ₹ per unit from line-net brackets after a day qty gate.
  * Parallel to %-based salesman_commissions (do not mix).
  */
 
@@ -20,9 +20,11 @@ export type SaleForDailyIncentive = {
   is_cancelled?: boolean | null;
 };
 
-export type SaleItemQtyRow = {
+export type SaleItemForDailyIncentive = {
   sale_id: string;
   quantity: number | null;
+  line_total: number | null;
+  net_after_discount?: number | null;
 };
 
 export type EmployeeNameRow = {
@@ -52,6 +54,17 @@ export function findEmployeeBySalesmanName<T extends { employee_name: string }>(
   return employees.find((e) => e.employee_name === salesmanName);
 }
 
+/** Line net after discount — prefer net_after_discount, else line_total. */
+export function lineNetForDailyIncentive(
+  item: Pick<SaleItemForDailyIncentive, "line_total" | "net_after_discount">,
+): number {
+  const nad = item.net_after_discount;
+  if (nad != null && Number.isFinite(Number(nad))) {
+    return Math.max(0, Number(nad));
+  }
+  return Math.max(0, Number(item.line_total) || 0);
+}
+
 /** Half-open brackets: min inclusive, max exclusive (null max = no upper bound). */
 export function incentiveForNetAmount(
   netAmount: number,
@@ -72,50 +85,74 @@ export function incentiveForNetAmount(
   return 0;
 }
 
+/**
+ * Per-line incentive: bracket(full line net) × line qty.
+ * Bracket uses the FULL line net — never net/qty.
+ */
+export function incentiveForLineItem(
+  lineNet: number,
+  qty: number,
+  brackets: DailyIncentiveBracket[],
+): number {
+  const q = Number(qty) || 0;
+  if (q <= 0) return 0;
+  return incentiveForNetAmount(lineNet, brackets) * q;
+}
+
 export function computeDailyIncentiveAmount(params: {
   totalQty: number;
-  totalNetAmount: number;
+  lineIncentiveTotal: number;
   qtyThreshold: number;
-  brackets: DailyIncentiveBracket[];
 }): { isEligible: boolean; incentiveAmount: number } {
   const qty = Number(params.totalQty) || 0;
-  const net = Number(params.totalNetAmount) || 0;
   const threshold = Number(params.qtyThreshold) || 0;
+  const lineTotal = Math.max(0, Number(params.lineIncentiveTotal) || 0);
   if (qty < threshold) {
     return { isEligible: false, incentiveAmount: 0 };
   }
   return {
     isEligible: true,
-    incentiveAmount: incentiveForNetAmount(net, params.brackets),
+    incentiveAmount: lineTotal,
   };
 }
 
 /**
- * Aggregate sales for one IST calendar day into per-salesman rows.
- * Blank salesman excluded. Qty from sale_items; value from sales.net_amount.
+ * Aggregate sale_items for one IST calendar day into per-salesman rows.
+ * Blank salesman excluded. Bracket on each line's full net × qty; day qty gate on sum of qty.
  */
 export function aggregateDailySalesmanIncentive(params: {
   incentiveDateYmd: string;
   sales: SaleForDailyIncentive[];
-  items: SaleItemQtyRow[];
+  items: SaleItemForDailyIncentive[];
   employees: EmployeeNameRow[];
   qtyThreshold: number;
   brackets: DailyIncentiveBracket[];
 }): DailyIncentiveComputedRow[] {
-  const qtyBySale = new Map<string, number>();
-  for (const item of params.items) {
-    const q = Number(item.quantity) || 0;
-    qtyBySale.set(item.sale_id, (qtyBySale.get(item.sale_id) || 0) + q);
+  const saleById = new Map<string, SaleForDailyIncentive>();
+  for (const sale of params.sales) {
+    if (sale.deleted_at || sale.is_cancelled) continue;
+    saleById.set(sale.id, sale);
   }
 
-  type Acc = { employee_id: string | null; employee_name: string; qty: number; net: number };
+  type Acc = {
+    employee_id: string | null;
+    employee_name: string;
+    qty: number;
+    net: number;
+    lineIncentive: number;
+  };
   const byName = new Map<string, Acc>();
 
-  for (const sale of params.sales) {
-    if (sale.deleted_at) continue;
-    if (sale.is_cancelled) continue;
+  for (const item of params.items) {
+    const sale = saleById.get(item.sale_id);
+    if (!sale) continue;
     const name = (sale.salesman || "").trim();
     if (!name) continue;
+
+    const qty = Number(item.quantity) || 0;
+    if (qty <= 0) continue;
+    const lineNet = lineNetForDailyIncentive(item);
+    const lineIncentive = incentiveForLineItem(lineNet, qty, params.brackets);
 
     const emp = findEmployeeBySalesmanName(params.employees, name);
     const existing = byName.get(name) || {
@@ -123,9 +160,11 @@ export function aggregateDailySalesmanIncentive(params: {
       employee_name: name,
       qty: 0,
       net: 0,
+      lineIncentive: 0,
     };
-    existing.qty += qtyBySale.get(sale.id) || 0;
-    existing.net += Number(sale.net_amount) || 0;
+    existing.qty += qty;
+    existing.net += lineNet;
+    existing.lineIncentive += lineIncentive;
     if (!existing.employee_id && emp) existing.employee_id = emp.id;
     byName.set(name, existing);
   }
@@ -134,9 +173,8 @@ export function aggregateDailySalesmanIncentive(params: {
     .map((acc) => {
       const { isEligible, incentiveAmount } = computeDailyIncentiveAmount({
         totalQty: acc.qty,
-        totalNetAmount: acc.net,
+        lineIncentiveTotal: acc.lineIncentive,
         qtyThreshold: params.qtyThreshold,
-        brackets: params.brackets,
       });
       return {
         employee_id: acc.employee_id,
@@ -145,7 +183,7 @@ export function aggregateDailySalesmanIncentive(params: {
         total_qty: acc.qty,
         total_net_amount: Math.round(acc.net * 100) / 100,
         is_eligible: isEligible,
-        incentive_amount: incentiveAmount,
+        incentive_amount: Math.round(incentiveAmount * 100) / 100,
       };
     })
     .sort((a, b) => a.employee_name.localeCompare(b.employee_name));
