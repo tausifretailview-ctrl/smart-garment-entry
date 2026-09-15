@@ -822,6 +822,8 @@ export function reconcileSaleInvoiceDisplay(params: {
   net_amount: number;
   sale_return_adjust: number;
   paid_amount: number;
+  /** Raw `sales.paid_amount` — legacy SRA-in-paid guard only (not tender-inflated reconcile input). */
+  stored_paid_amount?: number | null;
   split?: SaleReceiptVoucherSplit | null;
   /**
    * Merchandise gross (Σ mrp × qty from sale_items). Optional.
@@ -873,7 +875,9 @@ export function reconcileSaleInvoiceDisplay(params: {
   // At-sale tender (POS cash/card/UPI columns) plus follow-up receipt vouchers — not max().
   let effectiveCash = Math.max(0, salePaid - advCnToPeel) + cash + discount;
 
-  if (sr > INVOICE_RECON_TOL && Math.abs(salePaid - sr) <= DUPLICATE_CN_PAID_MATCH_TOL) {
+  const storedPaidCol =
+    params.stored_paid_amount != null ? Number(params.stored_paid_amount) : salePaid;
+  if (sr > INVOICE_RECON_TOL && Math.abs(storedPaidCol - sr) <= DUPLICATE_CN_PAID_MATCH_TOL) {
     effectiveCash = Math.max(0, cash);
   }
 
@@ -902,11 +906,19 @@ export function reconcileSaleInvoiceDisplay(params: {
   // Status matches adjust_invoice_balance / DB normalize: count SRA toward settlement
   // vs net (Option A). Outstanding/due still uses the payable path above so
   // post-return rows (SRA baked into net) do not double-credit the due amount.
+  const srAlreadyNettedInPayable =
+    sr > INVOICE_RECON_TOL &&
+    !srAppliedOnTop &&
+    grossKnown &&
+    net + sr <= (itemsGross as number) + DUPLICATE_CN_PAID_MATCH_TOL;
   const settledForStatus =
-    effectiveCash + adv + discount + cnNotInSr + Math.max(0, sr);
+    effectiveCash +
+    adv +
+    discount +
+    cnNotInSr +
+    (srAlreadyNettedInPayable ? 0 : Math.max(0, sr));
   const payment_status: "pending" | "partial" | "completed" =
-    outstanding <= INVOICE_RECON_TOL ||
-    net - settledForStatus <= INVOICE_RECON_TOL
+    outstanding <= INVOICE_RECON_TOL
       ? "completed"
       : settledForStatus > INVOICE_RECON_TOL
         ? "partial"
@@ -1003,6 +1015,7 @@ export function reconcileSaleInvoiceWithSplit(
     net_amount: Number(sale.net_amount || 0),
     sale_return_adjust: Number(sale.sale_return_adjust || 0),
     paid_amount: paidForReconcile,
+    stored_paid_amount: storedPaid,
     split: s,
     items_gross: sale.items_gross != null ? Number(sale.items_gross) : null,
   });

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { reconcileSaleInvoiceDisplay } from "./customerBalanceUtils";
+import {
+  reconcileSaleInvoiceDisplay,
+  reconcileSaleInvoiceWithSplit,
+} from "./customerBalanceUtils";
 
 describe("reconcileSaleInvoiceDisplay — Adjust Credit Note status", () => {
   it("marks partial when CN/SRA applied on a still-unpaid full bill", () => {
@@ -57,5 +60,21 @@ describe("reconcileSaleInvoiceDisplay — Adjust Credit Note status", () => {
       split: { cash: 0, cn: 1259, adv: 0, discount: 0 },
     });
     expect(withoutGross.outstanding).toBe(313);
+  });
+
+  it("POS exchange: at-sale cash matching SRA must not zero tender (Gurukrupa POS/26-27/1851 shape)", () => {
+    const rec = reconcileSaleInvoiceWithSplit(
+      {
+        net_amount: 1400,
+        sale_return_adjust: 1000,
+        paid_amount: 200,
+        cash_amount: 1000,
+        card_amount: 0,
+        upi_amount: 0,
+      },
+      { cash: 200, cn: 0, adv: 0, discount: 0 },
+    );
+    expect(rec.outstanding).toBe(200);
+    expect(rec.payment_status).toBe("partial");
   });
 });

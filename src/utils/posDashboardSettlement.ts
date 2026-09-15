@@ -24,6 +24,8 @@ export type PosDashboardSaleLike = {
   card_amount?: number | null;
   upi_amount?: number | null;
   sale_return_adjust?: number | null;
+  /** Set after receipt reconcile — matches Customer Payment pending. */
+  pos_outstanding?: number | null;
 };
 
 export function isHoldLikePosSale(sale: PosDashboardSaleLike): boolean {
@@ -73,20 +75,56 @@ export function getEffectivePaidAmountForPosDashboard(sale: PosDashboardSaleLike
   return Math.min(cap, Math.max(stored, tender));
 }
 
+/** POS exchange: `net_amount` already net of billing S/R; do not subtract SRA again in due/paid tests. */
+export function isSaleReturnAdjustBakedIntoNet(sale: PosDashboardSaleLike): boolean {
+  const sr = Number(sale.sale_return_adjust || 0);
+  if (sr <= SETTLEMENT_EPS) return false;
+  const discountTotal =
+    (Number(sale.discount_amount) || 0) +
+    (Number(sale.flat_discount_amount) || 0) +
+    (Number(sale.points_redeemed_amount) || 0);
+  const baseBeforeSr =
+    Number(sale.gross_amount || 0) - discountTotal + Number(sale.round_off || 0);
+  const net = getPosSettlementNetAmount(sale);
+  return Math.abs(net + sr - baseBeforeSr) <= SETTLEMENT_EPS;
+}
+
+export function getPosDashboardDisplayOutstanding(sale: PosDashboardSaleLike): number {
+  if (
+    typeof sale.pos_outstanding === "number" &&
+    Number.isFinite(sale.pos_outstanding)
+  ) {
+    return Math.max(0, Math.round(sale.pos_outstanding));
+  }
+  return getPosSaleOutstandingBalance(sale);
+}
+
 export function isPosSalePaidCompleted(sale: PosDashboardSaleLike): boolean {
   if (isHoldLikePosSale(sale)) return false;
+  if (
+    typeof sale.pos_outstanding === "number" &&
+    Number.isFinite(sale.pos_outstanding)
+  ) {
+    return sale.pos_outstanding <= SETTLEMENT_EPS;
+  }
   const net = getPosSettlementNetAmount(sale);
   const paid = getEffectivePaidAmountForPosDashboard(sale);
   const sra = Number(sale.sale_return_adjust || 0);
+  if (isSaleReturnAdjustBakedIntoNet(sale)) {
+    return paid >= net - SETTLEMENT_EPS;
+  }
   return paid + sra >= net - SETTLEMENT_EPS;
 }
 
 export function getPosSaleOutstandingBalance(sale: PosDashboardSaleLike): number {
+  const net = getPosSettlementNetAmount(sale);
+  const paid = getEffectivePaidAmountForPosDashboard(sale);
+  if (isSaleReturnAdjustBakedIntoNet(sale)) {
+    return Math.max(0, Math.round((net - paid) * 100) / 100);
+  }
   return Math.max(
     0,
-    getPosSettlementNetAmount(sale) -
-      getEffectivePaidAmountForPosDashboard(sale) -
-      Number(sale.sale_return_adjust || 0),
+    Math.round((net - paid - Number(sale.sale_return_adjust || 0)) * 100) / 100,
   );
 }
 
