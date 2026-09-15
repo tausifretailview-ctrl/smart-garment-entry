@@ -12,6 +12,7 @@ function line(partial: Partial<ProfitLine> & Pick<ProfitLine, "netSales" | "tota
     qty: 1,
     grossSales: partial.netSales,
     totalDiscounts: 0,
+    roundOff: 0,
     zeroCostQty: 0,
     sign: 1,
     returnQty: 0,
@@ -315,6 +316,30 @@ describe("aggregateForTab", () => {
     expect(bill.netSales).toBe(field.netSales);
     expect(field.netSales).toBe(dateWise.netSales);
     expect(supplier.grossProfit).toBe(dateWise.grossProfit);
+  });
+
+  it("sums roundOff separately so Gross − Discounts + Round Off = Net Sales", () => {
+    const rows = aggregateForTab(
+      [
+        line({
+          grossSales: 68768,
+          totalDiscounts: 12138.9,
+          roundOff: -29.1,
+          netSales: 56600,
+          totalCOGS: 39834,
+        }),
+      ],
+      "supplier-wise",
+    );
+    const totals = sumAggregates(rows);
+    expect(totals.grossSales).toBe(68768);
+    expect(totals.totalDiscounts).toBeCloseTo(12138.9);
+    expect(totals.roundOff).toBeCloseTo(-29.1);
+    expect(totals.netSales).toBe(56600);
+    expect(totals.grossSales - totals.totalDiscounts + totals.roundOff).toBeCloseTo(
+      totals.netSales,
+      2,
+    );
   });
 
   it("keeps original sale profit while surfacing return qty and amount separately", () => {

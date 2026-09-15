@@ -34,6 +34,8 @@ export interface ProfitLine {
   qty: number;
   grossSales: number;
   totalDiscounts: number;
+  /** Bill-level round-off allocated to this line (± paise rounding). Not part of totalDiscounts. */
+  roundOff: number;
   netSales: number;
   totalCOGS: number;
   zeroCostQty: number;
@@ -70,6 +72,8 @@ export interface ProfitAggregateRow {
   tertiary?: string | null;
   grossSales: number;
   totalDiscounts: number;
+  /** Bill-level round-off (± paise rounding), already included in netSales. */
+  roundOff: number;
   netSales: number;
   totalCOGS: number;
   grossProfit: number;
@@ -437,7 +441,10 @@ export async function loadProfitDataset(
           sale_return_adjust: Number(sale.sale_return_adjust) || 0,
         }
       : undefined;
-    const { grossLine, flatShare, netLine, lineDiscount } = computeSaleLineRevenue(item, meta);
+    const { grossLine, flatShare, roundOffShare, netLine, lineDiscount } = computeSaleLineRevenue(
+      item,
+      meta,
+    );
     const { cogs, purPrice } = lineCogs(qty, item.variant_id, productType, maps);
     const supplier = resolveSupplier(item.variant_id, productType);
 
@@ -446,6 +453,7 @@ export async function loadProfitDataset(
       qty,
       grossSales: grossLine,
       totalDiscounts: Math.max(0, lineDiscount + flatShare),
+      roundOff: roundOffShare,
       netSales: netLine,
       totalCOGS: cogs,
       zeroCostQty: !isService && purPrice === 0 && qty > 0 ? qty : 0,
@@ -499,6 +507,7 @@ export async function loadProfitDataset(
       qty: 0,
       grossSales: 0,
       totalDiscounts: 0,
+      roundOff: 0,
       netSales: 0,
       totalCOGS: 0,
       zeroCostQty: 0,
@@ -535,6 +544,7 @@ function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
   const acc = {
     grossSales: 0,
     totalDiscounts: 0,
+    roundOff: 0,
     netSales: 0,
     totalCOGS: 0,
     itemsSold: 0,
@@ -546,6 +556,7 @@ function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
     // Sale lines carry profit fields; return lines contribute only returnQty/returnAmount.
     acc.grossSales += line.grossSales;
     acc.totalDiscounts += line.totalDiscounts;
+    acc.roundOff += line.roundOff;
     acc.netSales += line.netSales;
     acc.totalCOGS += line.totalCOGS;
     acc.itemsSold += line.qty;
@@ -578,6 +589,7 @@ export function aggregateBy(
         tertiary: tertiary ?? null,
         grossSales: 0,
         totalDiscounts: 0,
+        roundOff: 0,
         netSales: 0,
         totalCOGS: 0,
         grossProfit: 0,
@@ -591,6 +603,7 @@ export function aggregateBy(
     }
     row.grossSales += line.grossSales;
     row.totalDiscounts += line.totalDiscounts;
+    row.roundOff += line.roundOff;
     row.netSales += line.netSales;
     row.totalCOGS += line.totalCOGS;
     row.itemsSold += line.qty;
@@ -703,6 +716,7 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
   const acc = {
     grossSales: 0,
     totalDiscounts: 0,
+    roundOff: 0,
     netSales: 0,
     totalCOGS: 0,
     itemsSold: 0,
@@ -713,6 +727,7 @@ export function sumAggregates(rows: ProfitAggregateRow[]): ProfitDataset["totals
   for (const row of rows) {
     acc.grossSales += row.grossSales;
     acc.totalDiscounts += row.totalDiscounts;
+    acc.roundOff += row.roundOff;
     acc.netSales += row.netSales;
     acc.totalCOGS += row.totalCOGS;
     acc.itemsSold += row.itemsSold;
