@@ -41,6 +41,7 @@ import {
   Calculator,
   Layers,
   Percent,
+  Building2,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -247,6 +248,8 @@ const DesktopDashboard = () => {
   const canViewGrossProfit = isAdmin || hasSpecialPermission("view_gross_profit");
   const canViewNetProfit =
     !permissionsLoading && (permissions === null || hasMenuAccess("net_profit_analysis"));
+  const canViewSupplierBalance =
+    !permissionsLoading && (permissions === null || hasMenuAccess("supplier_party_balances"));
   const canViewDiscountScheme =
     !permissionsLoading && (permissions === null || hasMenuAccess("discount_scheme_dashboard"));
   
@@ -829,6 +832,20 @@ const DesktopDashboard = () => {
             >
               <TrendingUp className="mr-1.5 h-4 w-4" />
               Net Profit
+            </Button>
+          )}
+          {canViewSupplierBalance && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate("/supplier-party-balances")}
+              onPointerEnter={() => prefetchTabPage("supplier-party-balances")}
+              onTouchStart={() => prefetchTabPage("supplier-party-balances", { intent: true })}
+              title="Open Supplier Balance"
+              className="h-9 shrink-0 border-amber-200 bg-amber-50 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              <Building2 className="mr-1.5 h-4 w-4" />
+              Supplier Balance
             </Button>
           )}
           {canViewDiscountScheme && (
