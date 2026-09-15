@@ -177,8 +177,8 @@ export function DailySalesmanIncentivePanel({
             return `${range}→₹${Number(b.incentive_amount)}/unit`;
           })
           .join(" · ")}
-        . Past IST days lock after first compute (later returns do not reverse). Locked rows computed
-        under the old day-total formula are not auto-recalculated — see ops note.
+        . Past IST days lock after first compute (later returns do not reverse). Rows cleared
+        2026-09-15 under per-unit recalc migration; recomputed server-side on next sync.
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 shrink-0">

@@ -107,10 +107,18 @@ SELECT
   total_qty >= 5 AS is_eligible
 FROM day_agg;
 
--- §3 Sai Man gate: qty 4 → ₹0 (edit salesman name if needed)
--- §4 Locked rows under OLD formula — decide before bulk UPDATE:
--- SELECT employee_name, incentive_date, total_qty, incentive_amount, is_locked, computed_at
--- FROM public.daily_salesman_incentive_days
--- WHERE organization_id = 'b230c582-4f0b-420f-b18b-bef26c2f5ce8'
---   AND is_locked = true
+-- §5 RPC hand-check (after migration 20260915160000 applied):
+-- SELECT * FROM public.compute_daily_salesman_incentive(
+--   'b230c582-4f0b-420f-b18b-bef26c2f5ce8'::uuid,
+--   '2026-09-15'::date
+-- ) WHERE employee_name = 'MOHD ASHRAF FAROOQUI';
+-- Expected: total_qty=12, incentive_amount=100 (per-unit sum), is_eligible=true
+--
+-- Monthly sync (single round-trip, server-side loop):
+-- SELECT incentive_date, employee_name, total_qty, incentive_amount, is_locked
+-- FROM public.sync_daily_salesman_incentive_days(
+--   'b230c582-4f0b-420f-b18b-bef26c2f5ce8'::uuid,
+--   '2026-09-01'::date,
+--   '2026-09-30'::date
+-- )
 -- ORDER BY incentive_date DESC, employee_name;
