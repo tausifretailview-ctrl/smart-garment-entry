@@ -106,17 +106,19 @@ async function computeDayFromSales(
   }));
 
   const saleIds = saleRows.map((s) => s.id);
-  let items: { sale_id: string; quantity: number | null }[] = [];
+  let items: { sale_id: string; quantity: number | null; line_total: number | null; net_after_discount: number | null }[] = [];
   if (saleIds.length > 0) {
     const { data: itemRows, error: itemsError } = await supabase
       .from("sale_items")
-      .select("sale_id, quantity")
+      .select("sale_id, quantity, line_total, net_after_discount")
       .in("sale_id", saleIds)
       .is("deleted_at", null);
     if (itemsError) throw itemsError;
     items = (itemRows || []).map((i) => ({
       sale_id: i.sale_id,
       quantity: i.quantity,
+      line_total: i.line_total,
+      net_after_discount: i.net_after_discount,
     }));
   }
 
