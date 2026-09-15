@@ -396,7 +396,12 @@ export async function fetchCustomerLedgerTransactionsWithClient(
   const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
 
 
-  // Calculate total voucher payments per sale to exclude from "payment at sale"
+  // Calculate total voucher payments per sale to exclude from "payment at sale".
+  // saleDatesById lets splitSaleLinkedReceiptRows distinguish same-day backfill
+  // vouchers (subtract from at-sale tender) from later separate payments (do not).
+  const saleDatesById = new Map<string, string | null | undefined>(
+    (salesData || []).map((s: any) => [s.id, s.sale_date]),
+  );
   const saleReceiptSplitMap = splitSaleLinkedReceiptRows(
     [...(vouchersData || []), ...(openingBalancePayments || [])]
       .filter((v: any) => v.voucher_type === "receipt")
@@ -406,7 +411,9 @@ export async function fetchCustomerLedgerTransactionsWithClient(
         discount_amount: v.discount_amount,
         payment_method: v.payment_method,
         description: v.description,
+        voucher_date: v.voucher_date,
       })),
+    saleDatesById,
   );
 
   // Align sales.paid_amount / payment_status with receipts (incl. settlement discount)
@@ -717,9 +724,11 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       // at-sale tender columns AND an RCP ("Payment received for POS sale…");
       // crediting both double-counts overpayment. Voucher receipts stay as
       // separate rows from `allVouchers` below.
+      // Uses cashSameDay, not cash: a later payment must not be subtracted from
+      // at-sale tender (see SaleReceiptVoucherSplit.cashSameDay).
       const voucherCashOnSale = isExchangeCoveredByReturn
         ? 0
-        : Number(split.cash || 0);
+        : Number(split.cashSameDay ?? split.cash ?? 0);
       const paidAtSale = isExchangeCoveredByReturn
         ? 0
         : residualPaymentAtSaleTender(sale, voucherCashOnSale);

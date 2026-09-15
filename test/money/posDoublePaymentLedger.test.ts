@@ -5,6 +5,7 @@ import {
   residualTenderBreakdown,
   salePaidAtSaleTender,
 } from "@/utils/customerAuditBundle";
+import { splitSaleLinkedReceiptRows } from "@/utils/customerBalanceUtils";
 
 describe("POS payment-at-sale vs receipt double-count", () => {
   it("residual is zero when RCP covers full tender", () => {
@@ -109,5 +110,77 @@ describe("POS payment-at-sale vs receipt double-count", () => {
     const receipt = rows.find((r) => r.id.startsWith("ve-rcpt-"));
     expect(pas?.credit).toBe(500);
     expect(receipt?.credit).toBe(500);
+  });
+
+  it("splitSaleLinkedReceiptRows keeps cashSameDay separate from later payments", () => {
+    const saleDatesById = new Map([["sale-1", "2026-04-01"]]);
+    const split = splitSaleLinkedReceiptRows(
+      [
+        {
+          reference_id: "sale-1",
+          total_amount: 5000,
+          voucher_date: "2026-04-12",
+          payment_method: "cash",
+        },
+      ],
+      saleDatesById,
+    );
+    expect(split.get("sale-1")).toEqual({
+      cash: 5000,
+      cn: 0,
+      adv: 0,
+      discount: 0,
+      cashSameDay: 0,
+    });
+  });
+
+  it("buildAuditRows keeps at-sale tender when a larger payment arrives later", () => {
+    const rows = buildAuditRows({
+      sales: [
+        {
+          id: "sale-anita",
+          sale_number: "POS/26-27/1",
+          sale_date: "2026-04-01",
+          net_amount: 9000,
+          paid_amount: 9000,
+          cash_amount: 4000,
+          card_amount: 0,
+          upi_amount: 0,
+          sale_return_adjust: 0,
+          payment_status: "completed",
+        },
+      ],
+      saleReturns: [],
+      vouchers: [
+        {
+          id: "rcp-later",
+          voucher_type: "receipt",
+          voucher_number: "RCP/26-27/99",
+          voucher_date: "2026-04-12",
+          reference_type: "sale",
+          reference_id: "sale-anita",
+          total_amount: 5000,
+          discount_amount: 0,
+          payment_method: "cash",
+          description: "Follow-up payment",
+        },
+      ],
+      advances: [],
+      refunds: [],
+    });
+
+    const sale = { cash_amount: 4000, card_amount: 0, upi_amount: 0 };
+    expect(residualPaymentAtSaleTender(sale, 0)).toBe(4000);
+
+    const pas = rows.find((r) => r.id.startsWith("pas-"));
+    const receipt = rows.find((r) => r.id.startsWith("ve-rcpt-"));
+    expect(pas?.credit).toBe(4000);
+    expect(receipt?.credit).toBe(5000);
+
+    const balanceRows = rows.filter((r) => !r.internal);
+    const totalDebit = balanceRows.reduce((s, r) => s + r.debit, 0);
+    const totalCredit = balanceRows.reduce((s, r) => s + r.credit, 0);
+    expect(totalDebit).toBe(9000);
+    expect(totalCredit).toBe(9000);
   });
 });

@@ -161,6 +161,12 @@ export function buildAuditRows(
 
   // Sale-linked cash/card receipts (exclude advance/CN memo apps) — same bucket as
   // residualPaymentAtSaleTender so we never credit payment-at-sale + matching RCP twice.
+  //
+  // Only accumulates vouchers dated the SAME calendar day as their linked sale.
+  // A later payment is genuinely separate and must not be subtracted from at-sale tender.
+  const saleDatesById = new Map<string, string | null | undefined>(
+    params.sales.map((s: any) => [String(s.id), s.sale_date]),
+  );
   const saleLinkedCashReceiptBySaleId = new Map<string, number>();
   for (const v of params.vouchers) {
     if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
@@ -174,6 +180,12 @@ export function buildAuditRows(
     if (memo) continue;
     const pm = String(v.payment_method || "").toLowerCase();
     if (pm === "credit_note_adjustment") continue;
+    const saleDate = saleDatesById.get(refId);
+    const voucherDate = v.voucher_date;
+    const sameDay =
+      !saleDate || !voucherDate ||
+      String(voucherDate).slice(0, 10) === String(saleDate).slice(0, 10);
+    if (!sameDay) continue;
     saleLinkedCashReceiptBySaleId.set(
       refId,
       (saleLinkedCashReceiptBySaleId.get(refId) || 0) + voucherCreditAmount(v),

@@ -273,6 +273,19 @@ export type SaleReceiptVoucherSplit = {
   cn: number;
   adv: number;
   discount: number;
+  /**
+   * Same as `cash`, but restricted to vouchers recorded on the same
+   * calendar day as the linked sale. Used to guard the Customer Ledger's
+   * "Payment at sale" line: residualPaymentAtSaleTender() subtracts a
+   * sale's linked voucher total from its at-sale cash/card/upi tender to
+   * avoid double-crediting a same-day backfill voucher that duplicates the
+   * at-sale tender. A voucher recorded well after the sale is a genuinely
+   * separate payment and must not be subtracted, or it wipes out the real
+   * at-sale tender whenever it exceeds the at-sale amount.
+   * Only populated when `saleDatesById` is passed to splitSaleLinkedReceiptRows;
+   * otherwise equals `cash` (preserves prior behavior for callers that don't opt in).
+   */
+  cashSameDay?: number;
 };
 
 /**
@@ -288,7 +301,7 @@ export type SaleReceiptVoucherRow = {
   description?: string | null;
 };
 
-const emptySplit = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0, discount: 0 });
+const emptySplit = (): SaleReceiptVoucherSplit => ({ cash: 0, cn: 0, adv: 0, discount: 0, cashSameDay: 0 });
 
 function mergeSplits(
   target: Map<string, SaleReceiptVoucherSplit>,
@@ -301,6 +314,7 @@ function mergeSplits(
       cn: cur.cn + split.cn,
       adv: cur.adv + split.adv,
       discount: cur.discount + split.discount,
+      cashSameDay: (cur.cashSameDay || 0) + (split.cashSameDay || 0),
     });
   });
 }
@@ -783,7 +797,16 @@ export function splitSaleLinkedReceiptRows(
     discount_amount?: number | null;
     payment_method?: string | null;
     description?: string | null;
-  }>
+    voucher_date?: string | null;
+  }>,
+  /**
+   * Optional sale_id -> sale_date lookup. When provided, `cashSameDay` only
+   * accumulates vouchers dated the same calendar day as their linked sale.
+   * When omitted (default), `cashSameDay` equals `cash` — identical to
+   * pre-existing behavior for callers that haven't opted into the
+   * same-day-only guard.
+   */
+  saleDatesById?: Map<string, string | null | undefined>,
 ): Map<string, SaleReceiptVoucherSplit> {
   const map = new Map<string, SaleReceiptVoucherSplit>();
 
@@ -805,6 +828,13 @@ export function splitSaleLinkedReceiptRows(
       else {
         cur.cash += cashAmt;
         cur.discount += discAmt;
+        const saleDate = saleDatesById?.get(r.reference_id);
+        const sameDay =
+          !saleDatesById ||
+          !saleDate ||
+          !r.voucher_date ||
+          String(r.voucher_date).slice(0, 10) === String(saleDate).slice(0, 10);
+        if (sameDay) cur.cashSameDay = (cur.cashSameDay || 0) + cashAmt;
       }
       map.set(r.reference_id, cur);
     } catch (rowErr) {
