@@ -983,6 +983,16 @@ export const FloatingSaleReturn = ({
     setReturnItems(updated);
   };
 
+  const updateUnitPrice = (index: number, unitPrice: number) => {
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+    const item = returnItems[index];
+    if (!item) return;
+    const updated = [...returnItems];
+    updated[index].unitPrice = unitPrice;
+    updated[index].lineTotal = item.quantity * unitPrice;
+    setReturnItems(updated);
+  };
+
   const removeItem = (index: number) => {
     setReturnItems(prev => prev.filter((_, i) => i !== index));
   };
@@ -1914,7 +1924,7 @@ export const FloatingSaleReturn = ({
                   <TableHead>Product</TableHead>
                   <TableHead className="w-[80px] text-center">Size</TableHead>
                   <TableHead className="w-[120px] text-center">Qty</TableHead>
-                  <TableHead className="w-[80px] text-right">Rate</TableHead>
+                  <TableHead className="w-[96px] text-right">Rate</TableHead>
                   <TableHead className="w-[80px] text-right">Total</TableHead>
                   <TableHead className="w-[40px]"></TableHead>
                 </TableRow>
@@ -1954,7 +1964,22 @@ export const FloatingSaleReturn = ({
                         </Button>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right text-sm">₹{item.unitPrice.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step="0.01"
+                        value={item.unitPrice}
+                        onChange={(e) => {
+                          const parsed = parseFloat(e.target.value);
+                          if (Number.isFinite(parsed)) updateUnitPrice(index, parsed);
+                        }}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-[88px] h-7 text-right text-sm font-mono tabular-nums ml-auto"
+                        title="Adjust return rate per unit"
+                      />
+                    </TableCell>
                     <TableCell className="text-right text-sm font-semibold">₹{item.lineTotal.toFixed(2)}</TableCell>
                     <TableCell>
                       <Button
