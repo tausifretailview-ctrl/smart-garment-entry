@@ -57,6 +57,10 @@ import {
   SETTLEMENT_TOLERANCE_RUPEE,
   voucherSettlementCredit,
 } from "@/utils/paymentSettlementBreakdown";
+import {
+  syncPurchaseBillPaymentFromVouchers,
+  syncPurchaseBillPaymentsFromVouchersBatch,
+} from "@/utils/purchaseBillSettlement";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import {
   fetchPurchaseBillsForSupplierPayment,
@@ -324,32 +328,6 @@ export function SupplierPaymentTab({
         }
       }
 
-      // Supplier payment reconciliation - Apr 2026:
-      // keep bill paid_amount/payment_status synced with actual bill-linked payment vouchers.
-      const updates = bills
-        .map((bill: any) => {
-          const net = Number(bill.net_amount || 0);
-          const voucherPaid = Number(safeMapGet<number>(voucherPaidByBill, bill.id) || 0);
-          const effectivePaid = Math.min(net, Math.max(Number(bill.paid_amount || 0), voucherPaid));
-          const status = effectivePaid >= net - 0.01 ? "paid" : effectivePaid > 0 ? "partial" : "unpaid";
-          return { bill, effectivePaid, status };
-        })
-        .filter(({ bill, effectivePaid, status }) =>
-          Math.abs(Number(bill.paid_amount || 0) - effectivePaid) > 0.009 ||
-          (bill.payment_status || "unpaid") !== status
-        );
-
-      if (updates.length > 0) {
-        await Promise.all(
-          updates.map(({ bill, effectivePaid, status }) =>
-            supabase
-              .from("purchase_bills")
-              .update({ paid_amount: effectivePaid, payment_status: status })
-              .eq("id", bill.id)
-          )
-        );
-      }
-
       return {
         bills: bills.filter((bill) => isSupplierBillOpenOnDashboard(bill, voucherPaidByBill)),
         voucherPaidByBill,
@@ -552,8 +530,6 @@ export function SupplierPaymentTab({
         bill: any;
         cashApplied: number;
         discountApplied: number;
-        prevPaid: number;
-        prevStatus: string;
       }> = [];
 
       if (selectedSupplierBillIds.length > 0) {
@@ -561,9 +537,6 @@ export function SupplierPaymentTab({
           if (remainingCash + remainingDiscount <= 0) break;
           const bill = supplierBills?.find((b) => b.id === billId);
           if (!bill) continue;
-          const currentPaid = bill.paid_amount || 0;
-          const prevPaid = Number(currentPaid);
-          const prevStatus = (bill.payment_status || "unpaid") as string;
           const netDue =
             safeMapGet<SupplierBillOutstandingBreakdown>(billOutstandingMap, billId)?.rawOutstanding ??
             getSupplierBillRawOutstanding(bill, voucherPaidByBill);
@@ -573,22 +546,7 @@ export function SupplierPaymentTab({
           const { cash: cashApplied, discount: discountApplied } = takeFromPool(amountToApply);
           const settledOnBill = roundToRupee(cashApplied + discountApplied);
           if (settledOnBill <= 0) continue;
-          const newPaidAmount = Math.min(
-            Number(bill.net_amount || 0),
-            roundToRupee(Number(currentPaid) + settledOnBill),
-          );
-          const newStatus =
-            newPaidAmount >= Number(bill.net_amount || 0) - 0.01
-              ? "paid"
-              : newPaidAmount > 0
-                ? "partial"
-                : "unpaid";
-          const { error: updateError } = await supabase
-            .from("purchase_bills")
-            .update({ paid_amount: newPaidAmount, payment_status: newStatus })
-            .eq("id", billId);
-          if (updateError) throw updateError;
-          processedBills.push({ bill, cashApplied, discountApplied, prevPaid, prevStatus });
+          processedBills.push({ bill, cashApplied, discountApplied });
         }
       }
 
@@ -661,6 +619,7 @@ export function SupplierPaymentTab({
           if (voucherError) throw voucherError;
           if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
           createdSupplierVoucherIds.push(ins.id);
+          await syncPurchaseBillPaymentFromVouchers(processed.bill.id, organizationId, supabase);
           if (postLedger) {
             try {
               await recordSupplierPaymentJournalEntry(
@@ -678,12 +637,11 @@ export function SupplierPaymentTab({
                 await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
                 await supabase.from("voucher_entries").delete().eq("id", vid);
               }
-              for (const p of processedBills) {
-                await supabase
-                  .from("purchase_bills")
-                  .update({ paid_amount: p.prevPaid, payment_status: p.prevStatus })
-                  .eq("id", p.bill.id);
-              }
+              await syncPurchaseBillPaymentsFromVouchersBatch(
+                processedBills.map((p) => p.bill.id),
+                organizationId,
+                supabase,
+              );
               throw glErr;
             }
           }
