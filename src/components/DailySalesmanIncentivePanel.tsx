@@ -8,6 +8,14 @@ import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -149,60 +157,29 @@ export function DailySalesmanIncentivePanel({
 
   return (
     <div className="flex flex-col gap-3 flex-1 min-h-0">
-      <div className="flex flex-wrap items-end gap-3 shrink-0">
-        {!selfViewEmployeeName ? (
-          <div className="space-y-1">
-            <Label className="text-xs">Salesman</Label>
-            <select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-              value={filterSalesman}
-              onChange={(e) => setFilterSalesman(e.target.value)}
-            >
-              <option value="all">All</option>
-              {salesmanNames.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground pb-2">
-            Showing your incentive only ({selfViewEmployeeName})
-          </p>
-        )}
-        <button
-          type="button"
-          className="h-9 rounded-md border px-3 text-sm font-medium hover:bg-slate-50"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          {isFetching ? "Refreshing…" : "Refresh"}
-        </button>
-        <p className="text-xs text-muted-foreground pb-2 max-w-2xl">
-          Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Day
-          qty ≥ {config.qty_threshold} required (sum across all lines that day). Per line: bracket on
-          full line net (after discount), flat ₹ × line qty; day incentive = Σ lines. Brackets:{" "}
-          {config.brackets
-            .slice()
-            .sort(
-              (a, b) =>
-                (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.min_net_amount - b.min_net_amount,
-            )
-            .map((b) => {
-              const min = Number(b.min_net_amount);
-              const max = b.max_net_amount == null ? null : Number(b.max_net_amount);
-              const range =
-                max == null
-                  ? `≥₹${min.toLocaleString("en-IN")}`
-                  : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
-              return `${range}→₹${Number(b.incentive_amount)}/unit`;
-            })
-            .join(" · ")}
-          . Past IST days lock after first compute (later returns do not reverse). Locked rows
-          computed under the old day-total formula are not auto-recalculated — see ops note.
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground shrink-0">
+        Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Day qty ≥
+        {config.qty_threshold} required (sum across all lines that day). Per line: bracket on full line
+        net (after discount), flat ₹ × line qty; day incentive = Σ lines. Brackets:{" "}
+        {config.brackets
+          .slice()
+          .sort(
+            (a, b) =>
+              (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.min_net_amount - b.min_net_amount,
+          )
+          .map((b) => {
+            const min = Number(b.min_net_amount);
+            const max = b.max_net_amount == null ? null : Number(b.max_net_amount);
+            const range =
+              max == null
+                ? `≥₹${min.toLocaleString("en-IN")}`
+                : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
+            return `${range}→₹${Number(b.incentive_amount)}/unit`;
+          })
+          .join(" · ")}
+        . Past IST days lock after first compute (later returns do not reverse). Locked rows computed
+        under the old day-total formula are not auto-recalculated — see ops note.
+      </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 shrink-0">
         <Card className="p-3">
@@ -221,26 +198,73 @@ export function DailySalesmanIncentivePanel({
         </Card>
       </div>
 
+      <div
+        className={cn(
+          "flex flex-wrap items-end gap-3 shrink-0 rounded-lg border px-3 py-2.5",
+          selfViewEmployeeName
+            ? "border-slate-200 bg-slate-50"
+            : "border-primary/50 bg-primary/5 shadow-sm ring-1 ring-primary/20",
+        )}
+      >
+        {!selfViewEmployeeName ? (
+          <div className="space-y-1 min-w-[220px] flex-1 sm:flex-none">
+            <Label htmlFor="daily-incentive-salesman" className="text-xs font-semibold text-primary">
+              Salesman
+            </Label>
+            <Select value={filterSalesman} onValueChange={setFilterSalesman}>
+              <SelectTrigger
+                id="daily-incentive-salesman"
+                className="h-9 w-full sm:w-56 text-sm border-primary/40 bg-white font-medium shadow-sm focus:ring-primary/30"
+              >
+                <SelectValue placeholder="All salesmen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All salesmen</SelectItem>
+                {salesmanNames.map((n) => (
+                  <SelectItem key={n} value={n}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Showing your incentive only ({selfViewEmployeeName})
+          </p>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-9 shrink-0 border-slate-200 bg-white"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          {isFetching ? "Refreshing…" : "Refresh"}
+        </Button>
+      </div>
+
       {error ? (
         <p className="text-sm text-destructive">
           {(error as Error).message || "Failed to load daily incentive"}
         </p>
       ) : null}
 
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col min-h-[180px]">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col shrink-0 max-h-[168px]">
         <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
           <h2 className="text-sm font-semibold text-foreground">Salesman summary</h2>
         </div>
         {rowsLoading ? (
           <div className="p-2">
-            <ListTableSkeleton rows={6} columns={6} />
+            <ListTableSkeleton rows={4} columns={6} />
           </div>
         ) : summary.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
             No salesman sales in this range (blank salesman excluded)
           </p>
         ) : (
-          <div className="overflow-auto bg-white max-h-[240px]">
+          <div className="overflow-auto bg-white min-h-0 flex-1">
             <Table>
               <TableHeader className={INSIGHTS_TABLE_HEAD}>
                 <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
@@ -269,7 +293,7 @@ export function DailySalesmanIncentivePanel({
         )}
       </Card>
 
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col flex-1 min-h-[220px]">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col flex-1 min-h-[320px]">
         <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
           <h2 className="text-sm font-semibold text-foreground">Daily detail</h2>
         </div>
