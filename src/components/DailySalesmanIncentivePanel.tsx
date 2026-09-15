@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,7 @@ import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
 import {
   fetchDailyIncentiveConfig,
   loadOrComputeDailyIncentiveDays,
+  type DailyIncentiveDayRow,
 } from "@/utils/dailySalesmanIncentiveSync";
 
 const fmtInr = (n: number) =>
@@ -138,6 +139,21 @@ export function DailySalesmanIncentivePanel({
     }
     return [...map.values()].sort((a, b) => b.incentive - a.incentive);
   }, [filtered]);
+
+  const groupedRows = useMemo(() => {
+    const byName = new Map<string, DailyIncentiveDayRow[]>();
+    for (const r of filtered) {
+      const list = byName.get(r.employee_name) || [];
+      list.push(r);
+      byName.set(r.employee_name, list);
+    }
+    return summary.map((s) => ({
+      summary: s,
+      details: (byName.get(s.name) || []).sort((a, b) =>
+        b.incentive_date.localeCompare(a.incentive_date),
+      ),
+    }));
+  }, [summary, filtered]);
 
   const totalIncentive = filtered.reduce((s, r) => s + r.incentive_amount, 0);
 
@@ -263,102 +279,102 @@ export function DailySalesmanIncentivePanel({
         </p>
       ) : null}
 
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col shrink-0 max-h-[140px]">
+      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col flex-1 min-h-[280px]">
         <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Salesman summary</h2>
+          <h2 className="text-sm font-semibold text-foreground">
+            Salesman incentive
+            {!rowsLoading && groupedRows.length > 0 ? (
+              <span className="ml-2 font-normal text-muted-foreground">
+                · {groupedRows.length} salesman · {filtered.length} day-rows
+              </span>
+            ) : null}
+          </h2>
         </div>
         {rowsLoading ? (
           <div className="p-2">
-            <ListTableSkeleton rows={4} columns={6} />
+            <ListTableSkeleton rows={8} columns={8} />
           </div>
-        ) : summary.length === 0 ? (
+        ) : groupedRows.length === 0 ? (
           <p className="text-sm text-muted-foreground py-8 text-center">
             No salesman sales in this range (blank salesman excluded)
           </p>
-        ) : (
-          <div className="overflow-auto bg-white min-h-0 flex-1">
-            <Table>
-              <TableHeader className={INSIGHTS_TABLE_HEAD}>
-                <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Days</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Eligible</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Qty</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net sale</TableHead>
-                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Incentive</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {summary.map((s) => (
-                  <TableRow key={s.name} className={INSIGHTS_BODY_ROW}>
-                    <TableCell className={INSIGHTS_BODY_CELL}>{s.name}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.days}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.eligibleDays}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{s.qty}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmtInr(s.net)}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{fmtInr(s.incentive)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </Card>
-
-      <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex flex-col flex-1 min-h-[320px]">
-        <div className="px-3 py-2 border-b border-slate-100 bg-white shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Daily detail</h2>
-        </div>
-        {rowsLoading ? (
-          <div className="p-2">
-            <ListTableSkeleton rows={8} columns={7} />
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">No daily rows</p>
         ) : (
           <div className="overflow-auto bg-white flex-1 min-h-0">
             <Table>
               <TableHeader className={INSIGHTS_TABLE_HEAD}>
                 <TableRow className="bg-slate-800 hover:bg-slate-800 border-none">
-                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Date</TableHead>
                   <TableHead className={INSIGHTS_NEUTRAL_TH}>Salesman</TableHead>
+                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Date</TableHead>
                   <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Qty</TableHead>
                   <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Net</TableHead>
-                  <TableHead className={INSIGHTS_NEUTRAL_TH}>Eligible</TableHead>
+                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Days</TableHead>
+                  <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Eligible</TableHead>
                   <TableHead className={cn(INSIGHTS_NEUTRAL_TH, "text-right")}>Incentive</TableHead>
                   <TableHead className={INSIGHTS_NEUTRAL_TH}>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((r) => (
-                  <TableRow
-                    key={`${r.incentive_date}-${r.employee_name}`}
-                    className={INSIGHTS_BODY_ROW}
-                  >
-                    <TableCell className={INSIGHTS_BODY_CELL}>{r.incentive_date}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL}>{r.employee_name}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>{r.total_qty}</TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>
-                      {fmtInr(r.total_net_amount)}
-                    </TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      {r.is_eligible ? (
-                        <Badge variant="default">Yes</Badge>
-                      ) : (
-                        <Badge variant="secondary">No</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL_NUM}>
-                      {fmtInr(r.incentive_amount)}
-                    </TableCell>
-                    <TableCell className={INSIGHTS_BODY_CELL}>
-                      {r.is_locked ? (
-                        <Badge variant="outline">Locked</Badge>
-                      ) : (
-                        <Badge variant="secondary">Live</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                {groupedRows.map(({ summary: s, details }) => (
+                  <Fragment key={s.name}>
+                    <TableRow
+                      key={`summary-${s.name}`}
+                      className={cn(INSIGHTS_BODY_ROW, "bg-slate-50/90 hover:bg-slate-100/90")}
+                    >
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold")}>{s.name}</TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL, "text-xs text-muted-foreground")}>
+                        Total
+                      </TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                        {s.qty.toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                        {fmtInr(s.net)}
+                      </TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                        {s.days}
+                      </TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                        {s.eligibleDays}
+                      </TableCell>
+                      <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-semibold")}>
+                        {fmtInr(s.incentive)}
+                      </TableCell>
+                      <TableCell className={INSIGHTS_BODY_CELL} />
+                    </TableRow>
+                    {details.map((r) => (
+                      <TableRow
+                        key={`${r.incentive_date}-${r.employee_name}`}
+                        className={INSIGHTS_BODY_ROW}
+                      >
+                        <TableCell className={cn(INSIGHTS_BODY_CELL, "pl-6 text-muted-foreground")}>
+                          ↳
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>{r.incentive_date}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>{r.total_qty}</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {fmtInr(r.total_net_amount)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>—</TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          {r.is_eligible ? (
+                            <Badge variant="default">Yes</Badge>
+                          ) : (
+                            <Badge variant="secondary">No</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                          {fmtInr(r.incentive_amount)}
+                        </TableCell>
+                        <TableCell className={INSIGHTS_BODY_CELL}>
+                          {r.is_locked ? (
+                            <Badge variant="outline">Locked</Badge>
+                          ) : (
+                            <Badge variant="secondary">Live</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
