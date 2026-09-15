@@ -147,7 +147,7 @@ import { createReceiptVoucher } from "@/utils/saleSettlement";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import {
   getEffectivePaidAmountForPosDashboard,
-  getPosSaleOutstandingBalance,
+  getPosDashboardDisplayOutstanding,
   getPosSettlementNetAmount,
   isHoldLikePosSale,
   isPosSalePaidCompleted,
@@ -2462,10 +2462,7 @@ const POSDashboard = () => {
         'Discount': (sale.discount_amount || 0) + (sale.flat_discount_amount || 0),
         'Net Amount': sale.net_amount || 0,
         'Paid Amount': getEffectivePaidAmountForDashboard(sale),
-        'Balance':
-          sale.net_amount -
-          getEffectivePaidAmountForDashboard(sale) -
-          (sale.sale_return_adjust || 0),
+        'Balance': getPosDashboardDisplayOutstanding(sale),
         'Cash': sale.cash_amount || 0,
         'Card': sale.card_amount || 0,
         'UPI': sale.upi_amount || 0,
@@ -3720,26 +3717,10 @@ const POSDashboard = () => {
                                 if (cancelled) {
                                   return <span className="text-muted-foreground">-</span>;
                                 }
-                                const discountTotal =
-                                  (sale.discount_amount || 0) +
-                                  (sale.flat_discount_amount || 0) +
-                                  ((sale as any).points_redeemed_amount || 0);
-                                const srAdjust = Number(sale.sale_return_adjust || 0);
-                                const baseBillBeforeSR =
-                                  Number(sale.gross_amount || 0) -
-                                  discountTotal +
-                                  Number((sale as any).round_off || 0);
-                                const effectiveNetAmount =
-                                  srAdjust > 0 && Number(sale.net_amount || 0) === 0
-                                    ? (baseBillBeforeSR - srAdjust)
-                                    : Number(sale.net_amount || 0);
-                                const ep = getEffectivePaidAmountForDashboard(sale);
-                                const esb = isHoldLikeSale(sale) ? 'hold'
-                                  : ep >= effectiveNetAmount - 0.01 ? 'completed'
-                                  : ep > 0 ? 'partial' : 'pending';
-                                return esb !== 'completed' ? (
+                                const outstanding = getPosDashboardDisplayOutstanding(sale);
+                                return outstanding >= 1 ? (
                                   <span className="font-semibold text-orange-600">
-                                    ₹{Math.round(effectiveNetAmount - ep).toLocaleString('en-IN')}
+                                    ₹{Math.round(outstanding).toLocaleString("en-IN")}
                                   </span>
                                 ) : (
                                   <span className="text-muted-foreground">-</span>

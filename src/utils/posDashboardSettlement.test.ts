@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  getPosDashboardDisplayOutstanding,
   getPosPaymentModeDisplayAmounts,
   isHoldLikePosSale,
   isPosSalePaidCompleted,
+  isSaleReturnAdjustBakedIntoNet,
 } from "./posDashboardSettlement";
 
 describe("getPosPaymentModeDisplayAmounts", () => {
@@ -94,5 +96,32 @@ describe("Hold/ invoice after accidental Hold on S/R exchange refund", () => {
         cash_amount: 100,
       }),
     ).toBe(true);
+  });
+});
+
+describe("S/R exchange — SRA baked into net_amount", () => {
+  const exchangeBill = {
+    sale_number: "POS/26-27/1851",
+    gross_amount: 3000,
+    discount_amount: 600,
+    net_amount: 1400,
+    sale_return_adjust: 1000,
+    paid_amount: 200,
+    cash_amount: 1000,
+    payment_status: "partial" as const,
+  };
+
+  it("detects billing return already netted into net_amount", () => {
+    expect(isSaleReturnAdjustBakedIntoNet(exchangeBill)).toBe(true);
+  });
+
+  it("does not mark Paid when cash tender equals SRA but net is still partly due", () => {
+    expect(isPosSalePaidCompleted(exchangeBill)).toBe(false);
+  });
+
+  it("uses pos_outstanding from receipt reconcile when present", () => {
+    expect(
+      getPosDashboardDisplayOutstanding({ ...exchangeBill, pos_outstanding: 200 }),
+    ).toBe(200);
   });
 });
