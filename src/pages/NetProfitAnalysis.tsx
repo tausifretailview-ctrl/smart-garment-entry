@@ -351,6 +351,7 @@ function ProfitBreakdownTable({
                   const map: Record<string, number> = {
                     gross: totals.grossSales,
                     discounts: totals.totalDiscounts,
+                    roundOff: totals.roundOff,
                     net: totals.netSales,
                     returnAmount: totals.returnAmount,
                     cogs: totals.totalCOGS,
@@ -483,6 +484,7 @@ export default function NetProfitAnalysis() {
       if (showReturnColumns) base["Qty Returned"] = r.qtyReturned;
       base["Gross Sales"] = r.grossSales;
       base["Discounts"] = r.totalDiscounts;
+      base["Round Off"] = r.roundOff;
       base["Net Sales"] = r.netSales;
       if (showReturnColumns) base["Return Amount"] = r.returnAmount;
       base["COGS"] = r.totalCOGS;
@@ -547,6 +549,12 @@ export default function NetProfitAnalysis() {
           const d = Math.max(0, r.totalDiscounts);
           return d > 0 ? `-${formatPdfAmount(d)}` : formatPdfAmount(0);
         },
+      },
+      {
+        header: "Round Off",
+        width: 18,
+        align: "right",
+        get: (r) => formatPdfAmount(r.roundOff),
       },
       {
         header: "Net Sales",
@@ -740,6 +748,7 @@ export default function NetProfitAnalysis() {
         const d = Math.max(0, activeTotals.totalDiscounts);
         return d > 0 ? `-${formatPdfAmount(d)}` : formatPdfAmount(0);
       })(),
+      formatPdfAmount(activeTotals.roundOff),
       formatPdfAmount(activeTotals.netSales),
       ...(showReturnColumns ? [formatPdfAmount(activeTotals.returnAmount)] : []),
       formatPdfAmount(activeTotals.totalCOGS),
@@ -793,8 +802,18 @@ export default function NetProfitAnalysis() {
         align: "right",
         money: true,
         accent: "orange",
-        title: "Item discount + bill-level flat discount (round-off is in Net Sales)",
+        title:
+          "Item discount + bill-level flat discount only (does not include round-off — see the Round Off column)",
         get: (r) => r.totalDiscounts,
+      },
+      {
+        key: "roundOff",
+        header: "Round Off",
+        align: "right",
+        money: true,
+        title:
+          "Bill-level paise rounding (± a few paise/rupees per bill). Already included in Net Sales — shown separately so Gross Sales − Discounts + Round Off = Net Sales reconciles visibly.",
+        get: (r) => r.roundOff,
       },
       { key: "net", header: "Net Sales", align: "right", money: true, get: (r) => r.netSales },
       ...(showReturnColumns
