@@ -14,6 +14,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
 import { Label } from "@/components/ui/label";
+import {
+  applyPurchaseMarkupPricing,
+  calcSaleFromMrp,
+} from "@/utils/productPricingCalc";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -183,6 +187,8 @@ const ProductEntry = () => {
   });
   const [colorInput, setColorInput] = useState("");
   const [markupPercent, setMarkupPercent] = useState<string>("");
+  /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
+  const [pricingDiscPercent, setPricingDiscPercent] = useState("");
 
   // Copy from existing product
   const [copySearch, setCopySearch] = useState("");
@@ -2490,14 +2496,21 @@ const ProductEntry = () => {
                   onChange={(val) => {
                     const purPrice = val || 0;
                     const markup = parseFloat(markupPercent);
-                    const newSalePrice = (!isNaN(markup) && purPrice > 0)
-                      ? Math.round(purPrice * (1 + markup / 100))
-                      : formData.default_sale_price;
                     const updates: any = { default_pur_price: purPrice };
                     if (!isNaN(markup) && purPrice > 0) {
-                      updates.default_sale_price = newSalePrice;
+                      const disc = parseFloat(pricingDiscPercent);
+                      const priced = applyPurchaseMarkupPricing({
+                        showMrp,
+                        purchasePrice: purPrice,
+                        markupPercent: markup,
+                        saleDiscPercent: !isNaN(disc) ? disc : 0,
+                      });
+                      if (showMrp && priced.mrp != null) {
+                        updates.default_mrp = priced.mrp;
+                      }
+                      updates.default_sale_price = priced.salePrice;
                       updates.sale_gst_percent = resolveGarmentGstForLine(
-                        newSalePrice,
+                        priced.salePrice,
                         formData.purchase_gst_percent,
                         formData.sale_gst_percent,
                         garmentGstSettings,
@@ -2526,12 +2539,19 @@ const ProductEntry = () => {
                     setMarkupPercent(val);
                     const markup = parseFloat(val);
                     if (!isNaN(markup) && (formData.default_pur_price ?? 0) > 0) {
-                      const newSalePrice = Math.round((formData.default_pur_price ?? 0) * (1 + markup / 100));
+                      const disc = parseFloat(pricingDiscPercent);
+                      const priced = applyPurchaseMarkupPricing({
+                        showMrp,
+                        purchasePrice: formData.default_pur_price ?? 0,
+                        markupPercent: markup,
+                        saleDiscPercent: !isNaN(disc) ? disc : 0,
+                      });
                       setFormData(prev => ({
                         ...prev,
-                        default_sale_price: newSalePrice,
+                        ...(showMrp && priced.mrp != null ? { default_mrp: priced.mrp } : {}),
+                        default_sale_price: priced.salePrice,
                         sale_gst_percent: resolveGarmentGstForLine(
-                          newSalePrice,
+                          priced.salePrice,
                           prev.purchase_gst_percent,
                           prev.sale_gst_percent,
                           garmentGstSettings,
@@ -2542,6 +2562,76 @@ const ProductEntry = () => {
                   placeholder="e.g. 100"
                 />
               </div>
+
+              {showMrp && (
+                <div className="space-y-2">
+                  <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
+                  <CalculatorInput
+                    id="default_mrp"
+                    value={formData.default_mrp ?? ""}
+                    onChange={(val) => {
+                      const mrp = val || 0;
+                      const disc = parseFloat(pricingDiscPercent);
+                      const salePrice = mrp > 0
+                        ? calcSaleFromMrp(mrp, !isNaN(disc) ? disc : 0)
+                        : formData.default_sale_price;
+                      const updates: any = { default_mrp: mrp };
+                      if (mrp > 0) {
+                        updates.default_sale_price = salePrice;
+                        updates.sale_gst_percent = resolveGarmentGstForLine(
+                          salePrice ?? 0,
+                          formData.purchase_gst_percent,
+                          formData.sale_gst_percent,
+                          garmentGstSettings,
+                        );
+                        if ((formData.default_pur_price ?? 0) > 0) {
+                          setMarkupPercent(
+                            Math.round(((mrp - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 10000) / 100 + "",
+                          );
+                        }
+                      }
+                      setFormData({ ...formData, ...updates });
+                    }}
+                    placeholder="MRP"
+                  />
+                </div>
+              )}
+
+              {showMrp && (
+                <div className="space-y-2">
+                  <Label htmlFor="pricing_sale_disc">Sale Disc %</Label>
+                  <Input
+                    id="pricing_sale_disc"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={pricingDiscPercent}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setPricingDiscPercent(val);
+                      const disc = parseFloat(val);
+                      const mrp = formData.default_mrp ?? 0;
+                      if (mrp > 0) {
+                        const salePrice = calcSaleFromMrp(mrp, !isNaN(disc) ? disc : 0);
+                        setFormData(prev => ({
+                          ...prev,
+                          default_sale_price: salePrice,
+                          sale_gst_percent: resolveGarmentGstForLine(
+                            salePrice,
+                            prev.purchase_gst_percent,
+                            prev.sale_gst_percent,
+                            garmentGstSettings,
+                          ),
+                        }));
+                      }
+                    }}
+                    placeholder="e.g. 20"
+                  />
+                  <p className="text-[10px] text-muted-foreground leading-snug">
+                    Sets Sale Price from MRP on this form only — not a live POS discount.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="default_sale_price">Sale Price <span className="text-destructive">*</span></Label>
@@ -2561,6 +2651,8 @@ const ProductEntry = () => {
                       default_sale_price: salePrice,
                       sale_gst_percent: newGst,
                     });
+                    // When MRP chain is on, Markup tracks MRP↔Pur (not Sale). Do not reverse-fill MRP.
+                    if (showMrp) return;
                     if ((formData.default_pur_price ?? 0) > 0 && salePrice > 0) {
                       const calc = ((salePrice - (formData.default_pur_price ?? 0)) / (formData.default_pur_price ?? 1)) * 100;
                       setMarkupPercent(Math.round(calc * 100) / 100 + "");
@@ -2575,23 +2667,6 @@ const ProductEntry = () => {
                   <p className="text-destructive text-xs font-semibold">⚠ Check sale price</p>
                 )}
               </div>
-
-              {showMrp && (
-                <div className="space-y-2">
-                  <Label htmlFor="default_mrp">MRP <span className="text-destructive">*</span></Label>
-                  <CalculatorInput
-                    id="default_mrp"
-                    value={formData.default_mrp ?? ""}
-                    onChange={(val) =>
-                      setFormData({
-                        ...formData,
-                        default_mrp: val || 0,
-                      })
-                    }
-                    placeholder="MRP"
-                  />
-                </div>
-              )}
 
               {/* Purchase Discount Section */}
               {showDiscountFields && (

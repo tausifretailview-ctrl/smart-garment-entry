@@ -27,6 +27,10 @@ import { validateIMEI } from "@/utils/imeiValidation";
 import { getNetSoldQtyForVariant } from "@/utils/variantNetSoldQty";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { resolveVariantColor } from "@/utils/resolveVariantColor";
+import {
+  applyPurchaseMarkupPricing,
+  calcSaleFromMrp,
+} from "@/utils/productPricingCalc";
 
 interface LineItem {
   temp_id: string;
@@ -117,6 +121,12 @@ const ProductEditPanel = ({
   const [barcodeSaving, setBarcodeSaving] = useState(false);
   /** Net sold qty for the current variant — identity freeze when > 0. */
   const [soldUnits, setSoldUnits] = useState(0);
+  /** Gate for Purchase→Markup→MRP→Sale chain (purchase_settings.show_mrp). */
+  const [showMrp, setShowMrp] = useState(false);
+  /** Ephemeral Sale Disc % for MRP→Sale pricing only — never persisted to sale_discount_*. */
+  const [pricingDiscPercent, setPricingDiscPercent] = useState("");
+  /** Last margin chip % so Purchase Price edits can recompute when showMrp. */
+  const [lastMarkupPct, setLastMarkupPct] = useState<number | null>(null);
 
   const allowImeiEdit =
     !!mobileErpMode?.enabled &&
@@ -145,6 +155,25 @@ const ProductEditPanel = ({
       setTimeout(() => focusRef.current?.focus(), 300);
     }
   }, [focusField, currentIndex]);
+
+  // Load purchase_settings.show_mrp for pricing chain (same || false convention as Product Entry)
+  useEffect(() => {
+    if (!open || !currentOrganization?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("settings")
+        .select("purchase_settings")
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const ps = (data?.purchase_settings && typeof data.purchase_settings === "object")
+        ? (data.purchase_settings as { show_mrp?: boolean })
+        : null;
+      setShowMrp(ps?.show_mrp || false);
+    })();
+    return () => { cancelled = true; };
+  }, [open, currentOrganization?.id]);
 
   const loadProductData = async (productId: string, skuId?: string) => {
     setLoading(true);
@@ -202,6 +231,8 @@ const ProductEditPanel = ({
         setModifiedFields(new Set());
         setHasUnsavedChanges(false);
         setSaved(false);
+        setPricingDiscPercent("");
+        setLastMarkupPct(null);
       }
 
       if (variantData) {
@@ -256,8 +287,36 @@ const ProductEditPanel = ({
 
   const handleMarginChip = (pct: number) => {
     if (!form) return;
-    const newSale = Math.round(form.default_pur_price * (1 + pct / 100));
-    updateField("default_sale_price", newSale);
+    setLastMarkupPct(pct);
+    const disc = parseFloat(pricingDiscPercent);
+    const priced = applyPurchaseMarkupPricing({
+      showMrp,
+      purchasePrice: form.default_pur_price,
+      markupPercent: pct,
+      saleDiscPercent: !isNaN(disc) ? disc : 0,
+    });
+    if (showMrp && priced.mrp != null) {
+      // Batch MRP + Sale so both land in one state update
+      setForm(prev => {
+        if (!prev || !original) return prev;
+        const next = { ...prev, default_mrp: priced.mrp!, default_sale_price: priced.salePrice };
+        const changed = new Set(modifiedFields);
+        for (const f of ["default_mrp", "default_sale_price"] as const) {
+          if (next[f] !== (original as any)[f]) changed.add(f);
+          else changed.delete(f);
+        }
+        setModifiedFields(changed);
+        setHasUnsavedChanges(changed.size > 0);
+        return next;
+      });
+    } else {
+      updateField("default_sale_price", priced.salePrice);
+    }
+  };
+
+  const applySaleFromMrpDisc = (mrp: number, discRaw: string) => {
+    const disc = parseFloat(discRaw);
+    return calcSaleFromMrp(mrp, !isNaN(disc) ? disc : 0);
   };
 
   const criticalFields = ["hsn_code", "gst_per", "uom"];
@@ -591,9 +650,119 @@ const ProductEditPanel = ({
               {/* SECTION C: Pricing */}
               <SectionBlock title="Pricing" color="border-l-green-500" open={sections.pricing} onToggle={() => toggleSection("pricing")}>
                 <div className="grid grid-cols-2 gap-3">
-                  {renderField("Purchase Price", "default_pur_price", "number", { ref: focusField === "pur_price" ? focusRef : undefined })}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Purchase Price</Label>
+                    <Input
+                      ref={focusField === "pur_price" ? focusRef : undefined}
+                      type="number"
+                      value={form.default_pur_price ?? ""}
+                      onChange={(e) => {
+                        const pur = parseFloat(e.target.value) || 0;
+                        if (showMrp && lastMarkupPct != null) {
+                          const disc = parseFloat(pricingDiscPercent);
+                          const priced = applyPurchaseMarkupPricing({
+                            showMrp: true,
+                            purchasePrice: pur,
+                            markupPercent: lastMarkupPct,
+                            saleDiscPercent: !isNaN(disc) ? disc : 0,
+                          });
+                          setForm(prev => {
+                            if (!prev || !original) return prev;
+                            const next = {
+                              ...prev,
+                              default_pur_price: pur,
+                              default_mrp: priced.mrp ?? prev.default_mrp,
+                              default_sale_price: priced.salePrice,
+                            };
+                            const changed = new Set(modifiedFields);
+                            for (const f of ["default_pur_price", "default_mrp", "default_sale_price"] as const) {
+                              if (next[f] !== (original as any)[f]) changed.add(f);
+                              else changed.delete(f);
+                            }
+                            setModifiedFields(changed);
+                            setHasUnsavedChanges(changed.size > 0);
+                            return next;
+                          });
+                        } else if (!showMrp && lastMarkupPct != null) {
+                          const priced = applyPurchaseMarkupPricing({
+                            showMrp: false,
+                            purchasePrice: pur,
+                            markupPercent: lastMarkupPct,
+                          });
+                          setForm(prev => {
+                            if (!prev || !original) return prev;
+                            const next = { ...prev, default_pur_price: pur, default_sale_price: priced.salePrice };
+                            const changed = new Set(modifiedFields);
+                            for (const f of ["default_pur_price", "default_sale_price"] as const) {
+                              if (next[f] !== (original as any)[f]) changed.add(f);
+                              else changed.delete(f);
+                            }
+                            setModifiedFields(changed);
+                            setHasUnsavedChanges(changed.size > 0);
+                            return next;
+                          });
+                        } else {
+                          updateField("default_pur_price", pur);
+                        }
+                      }}
+                      className={cn("h-9 text-sm no-uppercase", modifiedFields.has("default_pur_price") && "border-l-4 border-l-amber-500")}
+                    />
+                  </div>
                   {renderField("Sale Price", "default_sale_price", "number", { ref: focusField === "sale_price" ? focusRef : undefined })}
-                  {renderField("MRP", "default_mrp", "number", { ref: focusField === "mrp" ? focusRef : undefined })}
+                  <div className="space-y-1">
+                    <Label className="text-xs">MRP</Label>
+                    <Input
+                      ref={focusField === "mrp" ? focusRef : undefined}
+                      type="number"
+                      value={form.default_mrp ?? ""}
+                      onChange={(e) => {
+                        const mrp = parseFloat(e.target.value) || 0;
+                        if (showMrp && mrp > 0) {
+                          const sale = applySaleFromMrpDisc(mrp, pricingDiscPercent);
+                          setForm(prev => {
+                            if (!prev || !original) return prev;
+                            const next = { ...prev, default_mrp: mrp, default_sale_price: sale };
+                            const changed = new Set(modifiedFields);
+                            for (const f of ["default_mrp", "default_sale_price"] as const) {
+                              if (next[f] !== (original as any)[f]) changed.add(f);
+                              else changed.delete(f);
+                            }
+                            setModifiedFields(changed);
+                            setHasUnsavedChanges(changed.size > 0);
+                            return next;
+                          });
+                        } else {
+                          updateField("default_mrp", mrp);
+                        }
+                      }}
+                      className={cn("h-9 text-sm no-uppercase", modifiedFields.has("default_mrp") && "border-l-4 border-l-amber-500")}
+                    />
+                  </div>
+
+                  {showMrp && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Sale Disc %</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={pricingDiscPercent}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setPricingDiscPercent(val);
+                          const mrp = form.default_mrp ?? 0;
+                          if (mrp > 0) {
+                            const sale = applySaleFromMrpDisc(mrp, val);
+                            updateField("default_sale_price", sale);
+                          }
+                        }}
+                        placeholder="e.g. 20"
+                        className="h-9 text-sm no-uppercase"
+                      />
+                      <p className="text-[10px] text-muted-foreground leading-snug">
+                        Sets Sale from MRP on this form only — not a live POS discount.
+                      </p>
+                    </div>
+                  )}
                   
                   {/* Margin Display */}
                   <div className="space-y-1">
@@ -608,7 +777,10 @@ const ProductEditPanel = ({
                 {/* Quick margin chips */}
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {MARGIN_CHIPS.map(pct => {
-                    const isActive = Math.abs(margin - pct) < 0.5;
+                    const chipBase = showMrp && form.default_mrp > 0 && form.default_pur_price > 0
+                      ? ((form.default_mrp - form.default_pur_price) / form.default_pur_price) * 100
+                      : margin;
+                    const isActive = Math.abs(chipBase - pct) < 0.5;
                     return (
                       <button key={pct} onClick={() => handleMarginChip(pct)}
                         className={cn(
@@ -631,7 +803,7 @@ const ProductEditPanel = ({
                 )}
               </SectionBlock>
 
-              {/* SECTION D: Tax / GST */}
+{/* SECTION D: Tax / GST */}
               <SectionBlock title="Tax / GST" color="border-l-amber-500" open={sections.tax} onToggle={() => toggleSection("tax")}>
                 <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
