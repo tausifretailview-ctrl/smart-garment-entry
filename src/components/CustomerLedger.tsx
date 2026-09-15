@@ -1369,6 +1369,13 @@ export function CustomerLedger({
         ) {
           return;
         }
+        const relatedSale = saleMap.get(voucher.reference_id);
+        const saleDate = relatedSale?.sale_date;
+        const voucherDate = voucher.voucher_date;
+        const sameDay =
+          !saleDate || !voucherDate ||
+          String(voucherDate).slice(0, 10) === String(saleDate).slice(0, 10);
+        if (!sameDay) return;
         voucherCashBySaleId[voucher.reference_id] =
           (voucherCashBySaleId[voucher.reference_id] || 0) +
           (Number(voucher.total_amount) || 0);

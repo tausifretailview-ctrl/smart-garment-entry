@@ -364,6 +364,10 @@ export default function CustomerLedgerPage() {
 
       const saleReceiptLedgerRows: LedgerRow[] = [];
       const receiptTotalBySaleId = new Map<string, number>();
+      // Only same-day vouchers subtract from at-sale tender — see cashSameDay.
+      const saleDatesById = new Map<string, string | null | undefined>(
+        (inRangeSales || []).map((s: any) => [String(s.id), s.sale_date]),
+      );
       if (saleIds.length > 0) {
         let veSaleQ = supabase
           .from("voucher_entries")
@@ -402,7 +406,14 @@ export default function CustomerLedgerPage() {
               );
             }
           } else if (refSaleId) {
-            receiptTotalBySaleId.set(refSaleId, (receiptTotalBySaleId.get(refSaleId) || 0) + cr);
+            const saleDate = saleDatesById.get(refSaleId);
+            const voucherDate = (v as any).voucher_date;
+            const sameDay =
+              !saleDate || !voucherDate ||
+              String(voucherDate).slice(0, 10) === String(saleDate).slice(0, 10);
+            if (sameDay) {
+              receiptTotalBySaleId.set(refSaleId, (receiptTotalBySaleId.get(refSaleId) || 0) + cr);
+            }
           }
           const descBase =
             (v as any).description ||
