@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-09-16",
-  "count": 778,
-  "fileCount": 795,
+  "count": 779,
+  "fileCount": 796,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -781,7 +781,8 @@
     "20261216120000",
     "20261217120000",
     "20261218120000",
-    "20261219120000"
+    "20261219120000",
+    "20261219120100"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1578,7 +1579,8 @@
     "20261216120000_purchase_bill_total_qty_exclude_deleted.sql",
     "20261217120000_scope_invoice_dashboard_stats_items_gross.sql",
     "20261218120000_daily_salesman_incentive.sql",
-    "20261219120000_fix_party_leftover_cn_refund_sign.sql"
+    "20261219120000_fix_party_leftover_cn_refund_sign.sql",
+    "20261219120100_sr_remaining_same_customer.sql"
   ],
   "duplicateVersions": [
     {

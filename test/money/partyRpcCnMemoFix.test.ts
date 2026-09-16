@@ -224,6 +224,14 @@ describe("latest _get_customer_party_balances_rows SQL source", () => {
     expect(partyFn).not.toMatch(/- COALESCE\(cpr\.amt, 0\)/);
   });
 
+  it("drops snapshot_all before recreate so live 7-column OUT row type can be replaced", () => {
+    expect(body).toContain("DROP FUNCTION IF EXISTS public.get_customer_financial_snapshot_all(uuid);");
+    const snapStart = body.indexOf("CREATE OR REPLACE FUNCTION public.get_customer_financial_snapshot_all(");
+    const snapReturns = body.slice(snapStart, snapStart + 600);
+    expect(snapReturns).toContain("gross_outstanding_dr numeric");
+    expect(snapReturns).toContain("net_position numeric");
+  });
+
   it("keeps the items_gross SRA gate and credit_note_vouchers CTE", () => {
     expect(partyFn).toContain("s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1");
     expect(partyFn).toContain("credit_note_vouchers AS (");

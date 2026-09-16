@@ -674,6 +674,10 @@ COMMENT ON FUNCTION public._get_customer_party_balances_rows(uuid) IS
 REVOKE ALL ON FUNCTION public._get_customer_party_balances_rows(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public._get_customer_party_balances_rows(uuid) TO authenticated, service_role;
 
+-- Live OUT row still has gross_outstanding_dr + net_position (20260822183000 /
+-- types.ts). CREATE OR REPLACE cannot shrink that row type (42P13). Drop first.
+DROP FUNCTION IF EXISTS public.get_customer_financial_snapshot_all(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_customer_financial_snapshot_all(
   p_organization_id uuid
 )
@@ -682,7 +686,9 @@ RETURNS TABLE (
   outstanding_dr numeric,
   advance_available numeric,
   cn_available_total numeric,
-  cn_pending_count integer
+  cn_pending_count integer,
+  gross_outstanding_dr numeric,
+  net_position numeric
 )
 LANGUAGE plpgsql
 STABLE
@@ -1002,10 +1008,12 @@ BEGIN
   )
   SELECT
     b.cust_id,
-    b.bal_signed,
-    b.unused_advance_pool,
+    ROUND(b.bal_signed::numeric, 2),
+    ROUND(b.unused_advance_pool::numeric, 2),
     COALESCE(ct.cn_available_total, 0)::numeric,
-    COALESCE(ct.cn_pending_count, 0)::integer
+    COALESCE(ct.cn_pending_count, 0)::integer,
+    ROUND((b.bal_signed + GREATEST(b.unused_advance_pool, 0::numeric))::numeric, 2),
+    ROUND(b.bal_signed::numeric, 2)
   FROM balances b
   LEFT JOIN cn_totals ct ON ct.customer_id = b.cust_id
   ORDER BY b.cust_id;
