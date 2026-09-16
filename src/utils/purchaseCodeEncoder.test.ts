@@ -5,6 +5,7 @@ import {
   getEffectivePurchasePrice,
   normalizePurchaseCodeAlphabet,
   resolvePurchaseCodeAlphabet,
+  resolvePurchaseCodeIncludeDate,
   validatePurchaseCodeAlphabet,
 } from "./purchaseCodeEncoder";
 
@@ -89,9 +90,43 @@ describe("normalize / resolve alphabet", () => {
   });
 });
 
+describe("resolvePurchaseCodeIncludeDate", () => {
+  it("defaults to true when unset or null", () => {
+    expect(resolvePurchaseCodeIncludeDate(undefined)).toBe(true);
+    expect(resolvePurchaseCodeIncludeDate(null)).toBe(true);
+    expect(resolvePurchaseCodeIncludeDate({})).toBe(true);
+    expect(resolvePurchaseCodeIncludeDate({ purchase_code_include_date: null })).toBe(true);
+  });
+
+  it("respects explicit false", () => {
+    expect(resolvePurchaseCodeIncludeDate({ purchase_code_include_date: false })).toBe(false);
+  });
+
+  it("respects explicit true", () => {
+    expect(resolvePurchaseCodeIncludeDate({ purchase_code_include_date: true })).toBe(true);
+  });
+});
+
 describe("encodePurchasePriceForLabel", () => {
   it("uses the org alphabet and purchase amount, ignoring sale/MRP", () => {
-    expect(encodePurchasePriceForLabel(3190, RAHMANI_ALPHABET)).toBe("SEWN");
+    expect(
+      encodePurchasePriceForLabel(3190, RAHMANI_ALPHABET, { includeDate: false }),
+    ).toBe("SEWN");
+  });
+
+  it("wraps month/year by default when billDate is provided", () => {
+    expect(
+      encodePurchasePriceForLabel(3190, RAHMANI_ALPHABET, { billDate: "2026-09-12" }),
+    ).toBe("09SEWN26");
+  });
+
+  it("skips date wrap when includeDate is false", () => {
+    expect(
+      encodePurchasePriceForLabel(3190, RAHMANI_ALPHABET, {
+        billDate: "2026-09-12",
+        includeDate: false,
+      }),
+    ).toBe("SEWN");
   });
 
   it("returns empty when there is no purchase price", () => {

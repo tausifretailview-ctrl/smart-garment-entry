@@ -9,9 +9,16 @@
 export const DEFAULT_PURCHASE_CODE_ALPHABET = "ABCDEFGHIK";
 
 export type EncodePurchasePriceOptions = {
-  /** When true, wrap as MM + code + YY using billDate or today. Default false. */
+  /** When true, wrap as MM + code + YY using billDate or today. Default true (org setting). */
   includeDate?: boolean;
 };
+
+/** Default on for all orgs unless explicitly disabled in purchase_settings. */
+export function resolvePurchaseCodeIncludeDate(
+  purchaseSettings?: { purchase_code_include_date?: boolean | null } | null,
+): boolean {
+  return purchaseSettings?.purchase_code_include_date !== false;
+}
 
 /**
  * Shop alphabets are 10 unique A–Z / 0–9 characters (digit 0 = first letter).
@@ -131,7 +138,7 @@ export const encodePurchasePriceForLabel = (
     options?.extraPercent || 0,
   );
   return encodePurchasePrice(effective, alphabet, options?.billDate, {
-    includeDate: options?.includeDate === true,
+    includeDate: options?.includeDate !== false,
   });
 };
 
