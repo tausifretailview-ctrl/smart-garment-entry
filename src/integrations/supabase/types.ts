@@ -813,6 +813,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "batch_stock_purchase_bill_id_fkey"
+            columns: ["purchase_bill_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_bill_payment_voucher_drift"
+            referencedColumns: ["bill_id"]
+          },
+          {
             foreignKeyName: "batch_stock_variant_id_fkey"
             columns: ["variant_id"]
             isOneToOne: false
@@ -4856,6 +4863,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "purchase_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_bill_payment_voucher_drift"
+            referencedColumns: ["bill_id"]
+          },
+          {
             foreignKeyName: "purchase_items_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -5236,6 +5250,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "purchase_bills"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_returns_linked_bill_id_fkey"
+            columns: ["linked_bill_id"]
+            isOneToOne: false
+            referencedRelation: "supplier_bill_payment_voucher_drift"
+            referencedColumns: ["bill_id"]
           },
           {
             foreignKeyName: "purchase_returns_supplier_id_fkey"
@@ -9043,6 +9064,42 @@ export type Database = {
           },
         ]
       }
+      supplier_bill_payment_voucher_drift: {
+        Row: {
+          bill_id: string | null
+          bill_paid_amount: number | null
+          drift_amount: number | null
+          net_amount: number | null
+          organization_id: string | null
+          software_bill_no: string | null
+          supplier_id: string | null
+          supplier_invoice_no: string | null
+          voucher_payments_sum: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "purchase_bills_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_accounting_invariants: {
         Row: {
           check_name: string | null
@@ -9537,6 +9594,18 @@ export type Database = {
         }[]
       }
       cleanup_old_login_attempts: { Args: never; Returns: undefined }
+      compute_daily_salesman_incentive: {
+        Args: { p_incentive_date: string; p_org_id: string }
+        Returns: {
+          employee_id: string
+          employee_name: string
+          incentive_amount: number
+          incentive_date: string
+          is_eligible: boolean
+          total_net_amount: number
+          total_qty: number
+        }[]
+      }
       compute_sale_settlement: {
         Args: { p_org_id: string; p_sale_id: string }
         Returns: {
@@ -10994,6 +11063,21 @@ export type Database = {
           p_slug: string
         }
         Returns: Json
+      }
+      sync_daily_salesman_incentive_days: {
+        Args: { p_end_date: string; p_org_id: string; p_start_date: string }
+        Returns: {
+          computed_at: string
+          employee_id: string
+          employee_name: string
+          id: string
+          incentive_amount: number
+          incentive_date: string
+          is_eligible: boolean
+          is_locked: boolean
+          total_net_amount: number
+          total_qty: number
+        }[]
       }
       update_purchase_line_numbers: {
         Args: { p_bill_id: string; p_ids: string[]; p_line_numbers: number[] }
