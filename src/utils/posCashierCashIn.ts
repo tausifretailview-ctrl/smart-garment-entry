@@ -7,15 +7,23 @@
  */
 
 import { isHoldSaleNumber } from "@/utils/posHoldBill";
+import {
+  buildCashierReceiptModeMap,
+  getCashierSalePaymentModeAmounts,
+  toCashierOverlapSaleRow,
+} from "@/utils/cashierSaleModeAmounts";
 
 const OVERLAP_EPS = 0.5;
 
 export type CashierSaleRow = {
   id?: string | null;
+  customer_id?: string | null;
   payment_method?: string | null;
   payment_status?: string | null;
   sale_number?: string | null;
   net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
   cash_amount?: number | null;
   card_amount?: number | null;
   upi_amount?: number | null;
@@ -404,11 +412,38 @@ export function reduceCashierCashIn(params: {
     return true;
   });
 
+  const receiptRows = params.receipts.filter(
+    (r) => String(r.voucher_type || "").toLowerCase() === "receipt",
+  );
+  const receiptModeBySale = buildCashierReceiptModeMap(
+    eligibleSales
+      .filter((s): s is CashierSaleRow & { id: string } => !!s.id)
+      .map((s) => ({
+        id: s.id,
+        sale_number: s.sale_number,
+        customer_id: s.customer_id,
+        net_amount: s.net_amount,
+        sale_return_adjust: s.sale_return_adjust,
+      })),
+    receiptRows,
+  );
+
+  const displayModesBySaleId = new Map<
+    string,
+    ReturnType<typeof getCashierSalePaymentModeAmounts>
+  >();
+
   for (const sale of eligibleSales) {
-    const net = Number(sale.net_amount) || 0;
+    const receiptModes = sale.id ? receiptModeBySale.get(sale.id) : undefined;
+    const displayModes = getCashierSalePaymentModeAmounts(sale, receiptModes);
+    if (sale.id) {
+      displayModesBySaleId.set(sale.id, displayModes);
+    }
+
     if (sale.payment_method === "multiple") {
-      cashSale += Number(sale.cash_amount) || 0;
+      cashSale += displayModes.cash;
     } else {
+      const net = Number(sale.net_amount) || 0;
       switch (sale.payment_method) {
         case "cash":
           cashSale += cashierSaleTenderAmount(sale.cash_amount, net);
@@ -425,13 +460,21 @@ export function reduceCashierCashIn(params: {
 
   const overlapSales: SaleForCashierOverlap[] = eligibleSales
     .filter((s): s is CashierSaleRow & { id: string } => !!s.id)
-    .map((s) => ({
-      id: s.id,
-      net_amount: s.net_amount,
-      cash_amount: s.cash_amount,
-      card_amount: s.card_amount,
-      upi_amount: s.upi_amount,
-    }));
+    .map((s) => {
+      if (s.payment_method === "multiple") {
+        const displayModes =
+          displayModesBySaleId.get(s.id) ??
+          getCashierSalePaymentModeAmounts(s, receiptModeBySale.get(s.id));
+        return toCashierOverlapSaleRow(s, displayModes);
+      }
+      return {
+        id: s.id,
+        net_amount: s.net_amount,
+        cash_amount: s.cash_amount,
+        card_amount: s.card_amount,
+        upi_amount: s.upi_amount,
+      };
+    });
 
   const tracker = createSameDaySaleReceiptOverlapTracker(overlapSales, params.receipts);
 

@@ -21,12 +21,15 @@ import {
   getSaleReportNetAmount,
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
-import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import {
+  buildCashierReceiptModeMap,
+  getCashierSalePaymentModeAmounts,
+  toCashierOverlapSaleRow,
+} from "@/utils/cashierSaleModeAmounts";
 import {
   cashierExpensePaymentMode,
   cashierNetByModeAfterExpenses,
   cashierSaleAndAdvanceCollection,
-  cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
@@ -111,7 +114,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
       const { data, error } = await supabase
         .from("sales")
-        .select("id, sale_number, sale_date, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled")
+        .select("id, sale_number, sale_date, customer_id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, paid_amount, refund_amount, payment_method, cash_amount, card_amount, upi_amount, payment_status, sale_return_adjust, is_cancelled")
         .eq("organization_id", currentOrganization.id)
         .gte("sale_date", startIso)
         .lte("sale_date", endIso)
@@ -131,7 +134,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       if (!currentOrganization?.id) return [];
       const { data } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_type, total_amount, payment_method, reference_type, reference_id, description, category")
+        .select("id, voucher_type, total_amount, discount_amount, payment_method, reference_type, reference_id, description, category")
         .eq("organization_id", currentOrganization.id)
         .eq("voucher_date", selectedDateSafe)
         .is("deleted_at", null);
@@ -225,6 +228,33 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       return true;
     });
 
+    const receiptModeBySale = buildCashierReceiptModeMap(
+      eligibleSales
+        .filter((s: any) => s?.id)
+        .map((s: any) => ({
+          id: s.id as string,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id,
+          net_amount: s.net_amount,
+          sale_return_adjust: s.sale_return_adjust,
+        })),
+      (voucherData || [])
+        .filter((v: any) => String(v.voucher_type || "").toLowerCase() === "receipt")
+        .map((v: any) => ({
+          reference_id: v.reference_id,
+          reference_type: v.reference_type,
+          total_amount: v.total_amount,
+          discount_amount: v.discount_amount,
+          payment_method: v.payment_method,
+          description: v.description,
+        })),
+    );
+
+    const displayModesBySaleId = new Map<
+      string,
+      ReturnType<typeof getCashierSalePaymentModeAmounts>
+    >();
+
     eligibleSales.forEach((sale: any) => {
       grossSale += getSaleReportGrossAmount(sale);
       // Include round-off in Discount so Gross − Discount matches Net / collections.
@@ -235,24 +265,18 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
-      if (sale.payment_method === "multiple") {
-        const applied = allocateMixPaymentToBill({
-          billAmount: net,
-          cashAmount: Number(sale.cash_amount) || 0,
-          cardAmount: Number(sale.card_amount) || 0,
-          upiAmount: Number(sale.upi_amount) || 0,
-        });
-        cashSale += applied.cash;
-        cardSale += applied.card;
-        upiSale += applied.upi;
+      const receiptModes = sale.id ? receiptModeBySale.get(sale.id) : undefined;
+      const displayModes = getCashierSalePaymentModeAmounts(sale, receiptModes);
+      if (sale.id) {
+        displayModesBySaleId.set(sale.id, displayModes);
+      }
+
+      if (sale.payment_method === "pay_later") {
+        creditSale += net;
       } else {
-        switch (sale.payment_method) {
-          case "cash": cashSale += cashierSaleTenderAmount(sale.cash_amount, net); break;
-          case "card": cardSale += cashierSaleTenderAmount(sale.card_amount, net); break;
-          case "upi": upiSale += cashierSaleTenderAmount(sale.upi_amount, net); break;
-          case "pay_later": creditSale += net; break;
-          default: cashSale += net;
-        }
+        cashSale += displayModes.cash;
+        cardSale += displayModes.card;
+        upiSale += displayModes.upi;
       }
     });
 
@@ -260,13 +284,15 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     const receiptOverlap = createSameDaySaleReceiptOverlapTracker(
       eligibleSales
         .filter((s: any) => !!s?.id)
-        .map((s: any) => ({
-          id: s.id as string,
-          net_amount: s.net_amount,
-          cash_amount: s.cash_amount,
-          card_amount: s.card_amount,
-          upi_amount: s.upi_amount,
-        })),
+        .map((s: any) => {
+          const displayModes =
+            displayModesBySaleId.get(s.id) ??
+            getCashierSalePaymentModeAmounts(
+              s,
+              receiptModeBySale.get(s.id),
+            );
+          return toCashierOverlapSaleRow(s, displayModes);
+        }),
       voucherData || [],
     );
 

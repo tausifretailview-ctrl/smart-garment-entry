@@ -340,6 +340,26 @@ describe("POS advance booking cashier cash-in", () => {
     expect(collection.cashCollection).toBe(1_000);
     expect(collection.netCashCollection).toBe(1_000);
   });
+
+  it("zero-tender mix bill gap-fills to card, not cash collection", () => {
+    const { cashSale } = reduceCashierCashIn({
+      sales: [
+        {
+          id: "mix-gap",
+          payment_method: "multiple",
+          payment_status: "completed",
+          sale_number: "POS/26-27/50",
+          net_amount: 161136,
+          paid_amount: 161136,
+          cash_amount: 0,
+          card_amount: 0,
+          upi_amount: 0,
+        },
+      ],
+      receipts: [],
+    });
+    expect(cashSale).toBe(0);
+  });
 });
 
 describe("cashier expenses by payment mode", () => {
