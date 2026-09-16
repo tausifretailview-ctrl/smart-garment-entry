@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   defaultLineSalesmanFromHeader,
   effectiveCartLineSalesman,
+  isSaleItemsSalesmanColumnMissingError,
   saleItemSalesmanFromCartLine,
+  saleItemSalesmanInsertField,
   withDefaultLineSalesman,
 } from "./posLineSalesman";
 import type { PosCartItem } from "@/lib/posBilling/types";
@@ -45,5 +47,25 @@ describe("posLineSalesman", () => {
 
   it("defaultLineSalesmanFromHeader matches header trim", () => {
     expect(defaultLineSalesmanFromHeader(" MOHD ASHRAF ")).toBe("MOHD ASHRAF");
+  });
+
+  it("saleItemSalesmanInsertField omits key when disabled or blank", () => {
+    expect(saleItemSalesmanInsertField("RAVI", false)).toEqual({});
+    expect(saleItemSalesmanInsertField("", true)).toEqual({});
+    expect(saleItemSalesmanInsertField("RAVI", true)).toEqual({ salesman: "RAVI" });
+  });
+
+  it("detects PostgREST missing sale_items.salesman column", () => {
+    expect(
+      isSaleItemsSalesmanColumnMissingError(
+        new Error("Could not find the 'salesman' column of 'sale_items' in the schema cache"),
+      ),
+    ).toBe(true);
+    expect(
+      isSaleItemsSalesmanColumnMissingError({
+        message: "Could not find the 'salesman' column of 'sale_items' in the schema cache",
+      }),
+    ).toBe(true);
+    expect(isSaleItemsSalesmanColumnMissingError(new Error("duplicate key"))).toBe(false);
   });
 });
