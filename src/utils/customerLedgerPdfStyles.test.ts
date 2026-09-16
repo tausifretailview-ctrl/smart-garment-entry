@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import jsPDF from "jspdf";
-import { LEDGER_PDF, ledgerPdfLayout } from "./customerLedgerPdfStyles";
+import {
+  LEDGER_PDF,
+  fitLedgerPdfText,
+  ledgerPdfLayout,
+  ledgerPdfMoney,
+  ledgerPdfTypeLabel,
+  sanitizeLedgerPdfText,
+} from "./customerLedgerPdfStyles";
 
 describe("ledgerPdfLayout", () => {
   it("keeps A4 table width inside the page with default margins", () => {
@@ -28,6 +35,12 @@ describe("ledgerPdfLayout", () => {
     expect(a5.pageBreakY).toBeLessThan(a4.pageBreakY);
     expect(a5.margin + a5.tableWidth + a5.margin).toBe(148);
   });
+
+  it("gives A5 amount columns enough width for 5-digit balances", () => {
+    const a5 = ledgerPdfLayout("a5");
+    expect(a5.colWidths[2]).toBeGreaterThanOrEqual(23);
+    expect(a5.colWidths[6]).toBeGreaterThanOrEqual(17);
+  });
 });
 
 describe("LEDGER_PDF print contrast", () => {
@@ -36,5 +49,38 @@ describe("LEDGER_PDF print contrast", () => {
     expect(LEDGER_PDF.headerBg[0] + LEDGER_PDF.headerBg[1] + LEDGER_PDF.headerBg[2]).toBeLessThan(170);
     expect(LEDGER_PDF.muted[1]).toBeLessThan(80);
     expect(LEDGER_PDF.grid[0]).toBeLessThan(40);
+  });
+});
+
+describe("ledger PDF cell clipping", () => {
+  it("replaces rupee signs so Helvetica does not scatter glyphs", () => {
+    expect(sanitizeLedgerPdfText("Customer owes ₹36,100")).toBe("Customer owes Rs. 36,100");
+  });
+
+  it("never lets fitted text exceed the cell width", () => {
+    const doc = new jsPDF({ unit: "mm", format: "a5" });
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.5);
+    const layout = ledgerPdfLayout("a5");
+    const samples = [
+      "POS/26-27/1259",
+      "POS/26-27/1843",
+      "Payment at sale - Cash: Rs. 4,000",
+      "Rs. 36,100 Dr",
+    ];
+    for (const colW of layout.colWidths) {
+      const max = colW - 2.2;
+      for (const sample of samples) {
+        const fitted = fitLedgerPdfText(doc, sample, max);
+        expect(doc.getTextWidth(fitted)).toBeLessThanOrEqual(max + 0.05);
+      }
+    }
+  });
+
+  it("uses compact type labels and amounts on A5", () => {
+    expect(ledgerPdfTypeLabel({ type: "invoice" }, true)).toBe("Inv");
+    expect(ledgerPdfTypeLabel({ type: "payment" }, true)).toBe("Pmt");
+    expect(ledgerPdfMoney(36100, "a5", "Dr")).toBe("36,100 Dr");
+    expect(ledgerPdfMoney(36100, "a4", "Dr")).toBe("Rs. 36,100 Dr");
   });
 });

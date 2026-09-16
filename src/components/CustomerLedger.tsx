@@ -117,7 +117,9 @@ import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePrio
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import {
   LEDGER_PDF,
+  drawLedgerPdfCell,
   ledgerPdfLayout,
+  ledgerPdfMoney,
   ledgerPdfReconLineColor,
   ledgerPdfTypeColor,
   ledgerPdfTypeLabel,
@@ -125,6 +127,7 @@ import {
   pdfSetFill,
   pdfSetText,
   pdfStrokeGrid,
+  sanitizeLedgerPdfText,
   type LedgerPdfPaper,
 } from "@/utils/customerLedgerPdfStyles";
 
@@ -2502,10 +2505,20 @@ Please clear your dues at the earliest. Thank you!`;
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = layout.margin;
     const tableWidth = pageWidth - margin * 2;
-    const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
+    const headers = layout.headers;
     const colWidths = layout.colWidths.map((w) => (w / layout.tableWidth) * tableWidth);
-    const pageBreakY = pageHeight - (paper === "a5" ? 16 : 20);
-    const headerH = paper === "a5" ? 7 : 8;
+    const pageBreakY = pageHeight - (paper === "a5" ? 14 : 18);
+    const headerH = layout.headerH;
+    const rowTextY = (rowTop: number, h: number) => rowTop + h - 1.8;
+
+    const drawRowGrid = (rowTop: number, h: number) => {
+      let gx = margin;
+      pdfStrokeGrid(doc, 0.15);
+      for (let i = 0; i < colWidths.length - 1; i++) {
+        gx += colWidths[i];
+        doc.line(gx, rowTop, gx, rowTop + h);
+      }
+    };
 
     const drawLedgerTableHeader = (y: number) => {
       pdfSetFill(doc, LEDGER_PDF.headerBg);
@@ -2516,10 +2529,13 @@ Please clear your dues at the earliest. Thank you!`;
       doc.setFont("helvetica", "bold");
       let x = margin;
       headers.forEach((header, i) => {
-        doc.text(header, x + 1, y + headerH - 2.2);
+        drawLedgerPdfCell(doc, header, x, rowTextY(y, headerH), colWidths[i], {
+          align: layout.moneyAlign[i] ? "right" : "left",
+        });
         x += colWidths[i];
       });
-      return y + headerH + 2;
+      drawRowGrid(y, headerH);
+      return y + headerH;
     };
 
     let yPos = 16;
@@ -2530,19 +2546,20 @@ Please clear your dues at the earliest. Thank you!`;
     const bizMobile = (businessInfo.mobileNumber || "").trim();
     if (bizName || bizAddress || bizMobile) {
       if (bizName) {
-        doc.setFontSize(15);
+        doc.setFontSize(paper === "a5" ? 11 : 14);
         doc.setFont("helvetica", "bold");
         pdfSetText(doc, LEDGER_PDF.text);
-        doc.text(bizName, pageWidth / 2, yPos, { align: "center" });
-        yPos += 6;
+        const nameLines = doc.splitTextToSize(sanitizeLedgerPdfText(bizName), tableWidth);
+        doc.text(nameLines, pageWidth / 2, yPos, { align: "center" });
+        yPos += nameLines.length * (paper === "a5" ? 5 : 6);
       }
-      doc.setFontSize(9);
+      doc.setFontSize(paper === "a5" ? 7.5 : 9);
       doc.setFont("helvetica", "normal");
       pdfSetText(doc, LEDGER_PDF.muted);
       if (bizAddress) {
-        const addrLines = doc.splitTextToSize(bizAddress, tableWidth - 20);
+        const addrLines = doc.splitTextToSize(sanitizeLedgerPdfText(bizAddress), tableWidth);
         doc.text(addrLines, pageWidth / 2, yPos, { align: "center" });
-        yPos += addrLines.length * 4;
+        yPos += addrLines.length * 3.6;
       }
       if (bizMobile) {
         doc.text(`Mobile: ${bizMobile}`, pageWidth / 2, yPos, { align: "center" });
@@ -2559,30 +2576,38 @@ Please clear your dues at the earliest. Thank you!`;
     doc.setFont("helvetica", "bold");
     pdfSetText(doc, LEDGER_PDF.title);
     doc.text("Customer Ledger", pageWidth / 2, yPos, { align: "center" });
-    yPos += 12;
+    yPos += paper === "a5" ? 8 : 11;
 
     const infoStartY = yPos;
-    doc.setFontSize(12);
+    const balanceBoxW = paper === "a5" ? 50 : 68;
+    const balanceBoxH = paper === "a5" ? 16 : 18;
+    const balanceBoxX = pageWidth - margin - balanceBoxW;
+    const nameColW = Math.max(40, balanceBoxX - margin - 4);
+    doc.setFontSize(paper === "a5" ? 10 : 12);
     doc.setFont("helvetica", "bold");
     pdfSetText(doc, LEDGER_PDF.text);
-    doc.text(selectedCustomer.customer_name, margin, yPos);
-    yPos += 6;
+    drawLedgerPdfCell(doc, selectedCustomer.customer_name, margin, yPos, nameColW);
+    yPos += paper === "a5" ? 5 : 6;
 
-    doc.setFontSize(10);
+    doc.setFontSize(paper === "a5" ? 8 : 10);
     doc.setFont("helvetica", "normal");
     pdfSetText(doc, LEDGER_PDF.muted);
     if (selectedCustomer.phone) {
-      doc.text(`Phone: ${selectedCustomer.phone}`, margin, yPos);
-      yPos += 5;
+      drawLedgerPdfCell(doc, `Phone: ${selectedCustomer.phone}`, margin, yPos, nameColW);
+      yPos += paper === "a5" ? 4 : 5;
     }
     if (selectedCustomer.address) {
-      doc.text(`Address: ${selectedCustomer.address}`, margin, yPos);
-      yPos += 5;
+      const addrLines = doc.splitTextToSize(
+        sanitizeLedgerPdfText(`Address: ${selectedCustomer.address}`),
+        nameColW,
+      );
+      doc.text(addrLines, margin, yPos);
+      yPos += addrLines.length * (paper === "a5" ? 3.6 : 4.2);
     }
     if (startDate || endDate) {
       const dateRange = `Period: ${startDate ? format(startDate, "dd MMM yyyy") : "Beginning"} to ${endDate ? format(endDate, "dd MMM yyyy") : "Today"}`;
-      doc.text(dateRange, margin, yPos);
-      yPos += 5;
+      drawLedgerPdfCell(doc, dateRange, margin, yPos, nameColW);
+      yPos += paper === "a5" ? 4 : 5;
     }
 
     const pdfCredit =
@@ -2592,10 +2617,7 @@ Please clear your dues at the earliest. Thank you!`;
           ? Math.abs(effectiveBalance)
           : 0;
     const pdfCreditIsRefundable = refundableCreditBalance > 0;
-    const balanceBoxW = paper === "a5" ? 58 : 72;
-    const balanceBoxH = 18;
-    const balanceBoxX = pageWidth - margin - balanceBoxW;
-    const balanceBoxY = infoStartY - 4;
+    const balanceBoxY = infoStartY - 3;
     if (pdfCredit > 0) {
       pdfSetFill(doc, LEDGER_PDF.tealBoxBg);
       pdfSetDraw(doc, LEDGER_PDF.tealBoxBorder);
@@ -2652,23 +2674,24 @@ Please clear your dues at the earliest. Thank you!`;
     // Same Pure Outstanding arithmetic as SID / Record Payment / Collect.
     if (accountArithmeticLine) {
       pdfSetText(doc, LEDGER_PDF.muted);
-      doc.setFontSize(8);
+      doc.setFontSize(paper === "a5" ? 7 : 8);
       doc.setFont("helvetica", "normal");
-      const wrapped = doc.splitTextToSize(accountArithmeticLine, tableWidth);
+      const wrapped = doc.splitTextToSize(sanitizeLedgerPdfText(accountArithmeticLine), tableWidth);
       doc.text(wrapped, margin, yPos);
-      yPos += Math.max(5, wrapped.length * 4) + 2;
+      yPos += Math.max(4.5, wrapped.length * 3.8) + 2;
     }
 
     yPos = drawLedgerTableHeader(yPos);
 
     transactions.forEach((t, rowIdx) => {
-      if (yPos > pageBreakY) {
+      const rowH = layout.rowH;
+      if (yPos + rowH > pageBreakY) {
         doc.addPage();
-        yPos = 16;
+        yPos = 12;
         yPos = drawLedgerTableHeader(yPos);
       }
 
-      const rowH = layout.rowH;
+      const rowTop = yPos;
       if (t.id === "opening-balance") {
         pdfSetFill(doc, LEDGER_PDF.openingBg);
       } else if (rowIdx % 2 === 1) {
@@ -2677,41 +2700,43 @@ Please clear your dues at the earliest. Thank you!`;
         pdfSetFill(doc, [255, 255, 255]);
       }
       pdfStrokeGrid(doc, 0.22);
-      doc.rect(margin, yPos - 4, tableWidth, rowH, "FD");
+      doc.rect(margin, rowTop, tableWidth, rowH, "FD");
+      drawRowGrid(rowTop, rowH);
 
       const dateTimeStr =
         t.id === "opening-balance"
           ? "Opening"
           : format(new Date(t.date), "dd/MM/yy") +
-            (t.timestamp ? ` ${format(new Date(t.timestamp), "hh:mm a")}` : "");
+            (t.timestamp
+              ? ` ${format(new Date(t.timestamp), paper === "a5" ? "HH:mm" : "hh:mm a")}`
+              : "");
       const bNum = Math.round(t.balance);
-      const bStr =
-        bNum === 0 ? "Rs. 0" : `Rs. ${Math.abs(bNum).toLocaleString("en-IN")} ${bNum < 0 ? "Cr" : "Dr"}`;
       const dispDebit = t.displayDebit ?? t.debit ?? 0;
       const dispCredit = t.displayCredit ?? t.credit ?? 0;
       const desc = t.informational ? `(info) ${t.description}` : t.description;
-      const descShort = desc.length > layout.descChars ? `${desc.substring(0, layout.descChars)}...` : desc;
-      const typeLabel = ledgerPdfTypeLabel(t);
-      const debitStr = dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "";
-      const creditStr = dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "";
-      const balanceStr = t.informational ? "" : bStr;
+      const typeLabel = ledgerPdfTypeLabel(t, paper === "a5");
+      const debitStr = dispDebit > 0 ? ledgerPdfMoney(dispDebit, paper) : "";
+      const creditStr = dispCredit > 0 ? ledgerPdfMoney(dispCredit, paper) : "";
+      const balanceStr = t.informational
+        ? ""
+        : bNum === 0
+          ? paper === "a5"
+            ? "0"
+            : "Rs. 0"
+          : ledgerPdfMoney(bNum, paper, bNum < 0 ? "Cr" : "Dr");
 
       doc.setFontSize(layout.bodyFont);
-      if (t.informational) {
-        doc.setFont("helvetica", "italic");
-      } else {
-        doc.setFont("helvetica", "bold");
-      }
+      doc.setFont("helvetica", t.informational ? "italic" : "bold");
 
-      let xPos = margin;
+      const textY = rowTextY(rowTop, rowH);
       const cellSpecs: Array<{ text: string; color: readonly [number, number, number] }> = [
         {
           text: dateTimeStr,
           color: t.id === "opening-balance" ? LEDGER_PDF.openingText : t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text,
         },
         { text: typeLabel, color: ledgerPdfTypeColor(t) },
-        { text: t.reference, color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
-        { text: descShort, color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
+        { text: t.reference || "", color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
+        { text: desc, color: t.informational ? LEDGER_PDF.muted : LEDGER_PDF.text },
         { text: debitStr, color: dispDebit > 0 ? LEDGER_PDF.debit : LEDGER_PDF.text },
         { text: creditStr, color: dispCredit > 0 ? LEDGER_PDF.credit : LEDGER_PDF.text },
         {
@@ -2727,51 +2752,65 @@ Please clear your dues at the earliest. Thank you!`;
         },
       ];
 
+      let xPos = margin;
       cellSpecs.forEach((cell, i) => {
         pdfSetText(doc, cell.color);
-        doc.text(cell.text, xPos + 1, yPos);
+        drawLedgerPdfCell(doc, cell.text, xPos, textY, colWidths[i], {
+          align: layout.moneyAlign[i] ? "right" : "left",
+        });
         xPos += colWidths[i];
       });
       if (t.informational) {
         doc.setFont("helvetica", "normal");
       }
-      yPos += rowH;
+      yPos = rowTop + rowH;
     });
 
-    yPos += 2;
+    yPos += 1;
+    const totalsH = paper === "a5" ? 7 : 8;
+    if (yPos + totalsH > pageBreakY) {
+      doc.addPage();
+      yPos = 12;
+    }
     pdfSetFill(doc, LEDGER_PDF.totalsBg);
     pdfStrokeGrid(doc, 0.3);
-    doc.rect(margin, yPos - 4, tableWidth, 8, "FD");
+    doc.rect(margin, yPos, tableWidth, totalsH, "FD");
+    drawRowGrid(yPos, totalsH);
     doc.setFontSize(layout.bodyFont);
     doc.setFont("helvetica", "bold");
 
     const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : 0;
-    const closingStr = (() => {
-      const n = Math.abs(Math.round(closingBalance));
-      const suffix = closingBalance > 0 ? " Dr" : closingBalance < 0 ? " Cr" : "";
-      return `Rs. ${n.toLocaleString("en-IN")}${suffix}`;
-    })();
+    const closingStr =
+      closingBalance === 0
+        ? paper === "a5"
+          ? "0"
+          : "Rs. 0"
+        : ledgerPdfMoney(closingBalance, paper, closingBalance < 0 ? "Cr" : "Dr");
 
-    let xPos = margin;
+    const totalsY = rowTextY(yPos, totalsH);
     const totalsSpecs: Array<{ text: string; color: readonly [number, number, number] }> = [
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
-      { text: "COLUMN TOTALS (Dr / Cr)", color: LEDGER_PDF.text },
-      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.text },
-      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.text },
-      { text: `${closingStr} diff`, color: LEDGER_PDF.text },
+      { text: paper === "a5" ? "TOTALS" : "COLUMN TOTALS", color: LEDGER_PDF.text },
+      { text: ledgerPdfMoney(transactionTotals.totalDebit, paper) || (paper === "a5" ? "0" : "Rs. 0"), color: LEDGER_PDF.text },
+      { text: ledgerPdfMoney(transactionTotals.totalCredit, paper) || (paper === "a5" ? "0" : "Rs. 0"), color: LEDGER_PDF.text },
+      { text: closingStr, color: LEDGER_PDF.text },
     ];
+    let xPos = margin;
     totalsSpecs.forEach((cell, i) => {
       pdfSetText(doc, cell.color);
-      doc.text(cell.text, xPos + 1, yPos);
+      drawLedgerPdfCell(doc, cell.text, xPos, totalsY, colWidths[i], {
+        align: layout.moneyAlign[i] ? "right" : "left",
+      });
       xPos += colWidths[i];
     });
+    yPos += totalsH;
 
-    yPos += 12;
-    if (yPos > pageBreakY - 55) {
+    yPos += paper === "a5" ? 6 : 10;
+    if (yPos > pageBreakY - (paper === "a5" ? 40 : 55)) {
       doc.addPage();
-      yPos = 16;
+      yPos = 12;
     }
 
     const invoiceOutstanding = reconciliation.invoiceOutstanding;
@@ -2816,27 +2855,36 @@ Please clear your dues at the earliest. Thank you!`;
     const pdfNetPosition = Math.round(invoiceOutstanding - pdfUnusedAdvance);
     const noteLines =
       2 + (pdfPoolFloored ? 1 : 0) + (reconciliation.advanceRefunded > 0 ? 1 : 0) + 1;
-    const reconBoxH = 8 + reconLines.length * 5 + 8 + noteLines * 5;
+    const reconLineH = paper === "a5" ? 4.4 : 5;
+    const reconBoxH = 10 + reconLines.length * reconLineH + 10 + noteLines * (paper === "a5" ? 6 : 5);
     pdfSetFill(doc, LEDGER_PDF.reconBg);
     pdfSetDraw(doc, LEDGER_PDF.reconBorder);
     doc.rect(margin, yPos - 2, tableWidth, reconBoxH, "FD");
 
-    doc.setFontSize(10);
+    doc.setFontSize(paper === "a5" ? 9 : 10);
     doc.setFont("helvetica", "bold");
     pdfSetText(doc, LEDGER_PDF.title);
     doc.text("Balance Reconciliation", margin + 4, yPos + 4);
-    yPos += 10;
-    doc.setFontSize(paper === "a5" ? 8 : 9);
+    yPos += paper === "a5" ? 8 : 10;
+    doc.setFontSize(paper === "a5" ? 7.5 : 9);
     doc.setFont("helvetica", "bold");
-    const labelX = margin + 4;
-    const valueX = margin + Math.min(paper === "a5" ? 78 : 92, tableWidth * 0.62);
+    const reconLabelW = tableWidth * 0.62;
+    const reconValueW = tableWidth - reconLabelW;
+    const labelX = margin + 3;
     reconLines.forEach(([label, val]) => {
       const lineColor = ledgerPdfReconLineColor(label) ?? LEDGER_PDF.text;
       pdfSetText(doc, lineColor);
-      doc.text(label, labelX, yPos);
       const sign = val < 0 ? "-" : "";
-      doc.text(`${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`, valueX, yPos);
-      yPos += 5;
+      drawLedgerPdfCell(doc, label, labelX, yPos, reconLabelW - 4);
+      drawLedgerPdfCell(
+        doc,
+        `${sign}Rs. ${Math.abs(Math.round(val)).toLocaleString("en-IN")}`,
+        labelX + reconLabelW,
+        yPos,
+        reconValueW - 6,
+        { align: "right" },
+      );
+      yPos += paper === "a5" ? 4.4 : 5;
     });
     doc.setFont("helvetica", "bold");
     const finalColor =
@@ -2846,13 +2894,27 @@ Please clear your dues at the earliest. Thank you!`;
           ? LEDGER_PDF.balanceCr
           : LEDGER_PDF.balanceSettled;
     pdfSetText(doc, finalColor);
-    doc.text(finalLabel, labelX, yPos + 1);
-    doc.text(`Rs. ${Math.abs(Math.round(invoiceOutstanding)).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    drawLedgerPdfCell(doc, finalLabel, labelX, yPos + 1, reconLabelW - 4);
+    drawLedgerPdfCell(
+      doc,
+      `Rs. ${Math.abs(Math.round(invoiceOutstanding)).toLocaleString("en-IN")}`,
+      labelX + reconLabelW,
+      yPos + 1,
+      reconValueW - 6,
+      { align: "right" },
+    );
     yPos += 6;
     doc.setFont("helvetica", "normal");
     pdfSetText(doc, LEDGER_PDF.text);
     doc.text("(-) Unused Advance", labelX, yPos + 1);
-    doc.text(`Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`, valueX, yPos + 1);
+    drawLedgerPdfCell(
+      doc,
+      `Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`,
+      labelX + reconLabelW,
+      yPos + 1,
+      reconValueW - 6,
+      { align: "right" },
+    );
     yPos += 5;
     doc.setFont("helvetica", "bold");
     pdfSetText(
@@ -2868,7 +2930,14 @@ Please clear your dues at the earliest. Thank you!`;
       labelX,
       yPos + 1,
     );
-    doc.text(`Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`, valueX, yPos + 1);
+    drawLedgerPdfCell(
+      doc,
+      `Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`,
+      labelX + reconLabelW,
+      yPos + 1,
+      reconValueW - 6,
+      { align: "right" },
+    );
     yPos += 6;
     if (pdfPoolFloored) {
       doc.setFont("helvetica", "normal");
@@ -2892,23 +2961,20 @@ Please clear your dues at the earliest. Thank you!`;
     }
     doc.setFont("helvetica", "normal");
     pdfSetText(doc, LEDGER_PDF.muted);
-    doc.setFontSize(7);
-    doc.text(
+    doc.setFontSize(paper === "a5" ? 6.5 : 7);
+    const legendW = tableWidth - 8;
+    const legend1 = doc.splitTextToSize(
       "Legend: [Memo] rows (advance / credit-note applications) are tracing entries only and are excluded from the Dr / Cr columns.",
-      labelX,
-      yPos + 1,
+      legendW,
     );
-    yPos += 5;
-    doc.text(
+    doc.text(legend1, labelX, yPos + 1);
+    yPos += legend1.length * 3.4 + 1;
+    const legend2 = doc.splitTextToSize(
       "Column totals above include advance receipts and refunds - they are not what the customer owes.",
-      labelX,
-      yPos + 1,
+      legendW,
     );
-    doc.setFontSize(9);
-    yPos += 5;
-    yPos += 4;
-
-    yPos += 6;
+    doc.text(legend2, labelX, yPos + 1);
+    yPos += legend2.length * 3.4 + 6;
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
     pdfSetText(doc, LEDGER_PDF.muted);
@@ -2954,7 +3020,9 @@ Please clear your dues at the earliest. Thank you!`;
         pdfSetText(doc, LEDGER_PDF.headerText);
         let x = margin;
         h.forEach((label, i) => {
-          doc.text(label, x + 1, yPos + 1);
+          drawLedgerPdfCell(doc, label, x, yPos + 1, allocCols[i], {
+            align: i === 3 ? "right" : "left",
+          });
           x += allocCols[i];
         });
         yPos += 7;
@@ -2971,19 +3039,18 @@ Please clear your dues at the earliest. Thank you!`;
           }
           pdfStrokeGrid(doc, 0.2);
           doc.rect(margin, yPos - 3, tableWidth, 5, "FD");
-          const dStr = r.voucher_date ? format(new Date(`${r.voucher_date}T12:00:00`), "dd/MM/yy") : "—";
-          const desc = r.description.length > 55 ? `${r.description.slice(0, 52)}...` : r.description;
+          const dStr = r.voucher_date ? format(new Date(`${r.voucher_date}T12:00:00`), "dd/MM/yy") : "-";
           const cells = [
-            { text: dStr, color: LEDGER_PDF.text },
-            { text: r.voucher_number, color: LEDGER_PDF.text },
-            { text: r.sale_number, color: LEDGER_PDF.purple },
-            { text: `Rs. ${r.amount.toLocaleString("en-IN")}`, color: LEDGER_PDF.credit },
-            { text: desc || "—", color: LEDGER_PDF.muted },
+            { text: dStr, color: LEDGER_PDF.text, align: "left" as const },
+            { text: r.voucher_number, color: LEDGER_PDF.text, align: "left" as const },
+            { text: r.sale_number, color: LEDGER_PDF.purple, align: "left" as const },
+            { text: `Rs. ${r.amount.toLocaleString("en-IN")}`, color: LEDGER_PDF.credit, align: "right" as const },
+            { text: r.description || "-", color: LEDGER_PDF.muted, align: "left" as const },
           ];
           x = margin;
           cells.forEach((cell, i) => {
             pdfSetText(doc, cell.color);
-            doc.text(String(cell.text), x + 1, yPos);
+            drawLedgerPdfCell(doc, String(cell.text), x, yPos, allocCols[i], { align: cell.align });
             x += allocCols[i];
           });
           yPos += 5;
