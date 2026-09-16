@@ -28,19 +28,40 @@ describe("decidePosSaveAutoRollback", () => {
     expect(decision.action).toBe("keep_sale");
   });
 
-  it("keeps a settled sale even with zero counted items", () => {
-    const decision = decidePosSaveAutoRollback({
-      saleType: "pos",
-      paymentStatus: "completed",
-      itemCount: 0,
-    });
-    expect(decision.action).toBe("keep_sale");
+  it("rolls back a completed sale with zero counted items", () => {
+    expect(
+      decidePosSaveAutoRollback({
+        saleType: "pos",
+        paymentStatus: "completed",
+        itemCount: 0,
+      }),
+    ).toEqual({ action: "rollback_empty_header" });
   });
 
-  it("keeps a partial sale", () => {
+  it("rolls back a partial sale with zero counted items", () => {
+    expect(
+      decidePosSaveAutoRollback({
+        saleType: "pos",
+        paymentStatus: "partial",
+        itemCount: 0,
+      }),
+    ).toEqual({ action: "rollback_empty_header" });
+  });
+
+  it("rolls back a paid sale with zero counted items", () => {
+    expect(
+      decidePosSaveAutoRollback({
+        saleType: "invoice",
+        paymentStatus: "paid",
+        itemCount: 0,
+      }),
+    ).toEqual({ action: "rollback_empty_header" });
+  });
+
+  it("keeps a held cart with zero sale_items", () => {
     const decision = decidePosSaveAutoRollback({
       saleType: "pos",
-      paymentStatus: "partial",
+      paymentStatus: "hold",
       itemCount: 0,
     });
     expect(decision.action).toBe("keep_sale");
