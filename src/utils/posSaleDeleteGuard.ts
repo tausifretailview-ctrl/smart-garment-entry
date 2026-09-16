@@ -5,9 +5,10 @@ export type AutoRollbackDecision =
   | { action: "keep_sale"; reason: string };
 
 /**
- * Automatic delete after a failed POS/sale save is allowed only for an empty
- * header (line items never landed). A bill that already has items or is
- * settled must stay — print can have already happened.
+ * After a failed save, roll back only when the header has zero active line items.
+ * Settled/completed/partial/paid headers with no products are invalid and must
+ * not be kept. Held carts (payment_status = hold) may legitimately have zero
+ * sale_items until resumed — those are kept.
  */
 export function decidePosSaveAutoRollback(input: {
   saleType?: string | null;
@@ -22,10 +23,10 @@ export function decidePosSaveAutoRollback(input: {
     };
   }
   const status = String(input.paymentStatus || "").toLowerCase();
-  if (status === "completed" || status === "partial") {
+  if (status === "hold") {
     return {
       action: "keep_sale",
-      reason: "Sale is already settled — refusing automatic delete.",
+      reason: "Held cart — zero sale_items is expected until the hold is resumed.",
     };
   }
   return { action: "rollback_empty_header" };

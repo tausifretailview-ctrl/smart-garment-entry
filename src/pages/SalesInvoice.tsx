@@ -102,6 +102,12 @@ import {
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
+import {
+  EMPTY_HEADER_ROLLBACK_TOAST,
+  evaluateEmptyHeaderRollback,
+  softCancelEmptySaleHeader,
+} from "@/utils/saleEmptyHeaderRollback";
+import { useAuth } from "@/contexts/AuthContext";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -284,6 +290,7 @@ function applyFlatDiscountFromInvoice(
 
 export default function SalesInvoice() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
   const { scheduleInvalidateSales, flushScheduledSalesInvalidation, invalidateSales } = useDashboardInvalidation();
@@ -3681,7 +3688,34 @@ Thank you for choosing us!`;
       }
     } catch (error: any) {
       if (newSaleIdForRollback && !editingInvoiceId) {
-        await supabase.from('sales').delete().eq('id', newSaleIdForRollback);
+        try {
+          const { decision } = await evaluateEmptyHeaderRollback(supabase, newSaleIdForRollback);
+          if (decision.action === "rollback_empty_header") {
+            await softCancelEmptySaleHeader(supabase, newSaleIdForRollback, user?.id);
+            toast({
+              variant: "destructive",
+              title: EMPTY_HEADER_ROLLBACK_TOAST.title,
+              description: EMPTY_HEADER_ROLLBACK_TOAST.description,
+            });
+          } else {
+            console.error(
+              "[SalesInvoice] skipped auto-rollback",
+              decision.reason,
+              newSaleIdForRollback,
+            );
+            toast({
+              variant: "destructive",
+              title: "Invoice was saved",
+              description:
+                "A follow-up step failed, but the invoice header was kept. Check Sales Dashboard and re-open if needed.",
+            });
+          }
+        } catch (rollbackErr) {
+          console.error(
+            "[SalesInvoice] auto-rollback guard failed — sale left in place",
+            rollbackErr,
+          );
+        }
       }
       logError(
         {
