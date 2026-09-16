@@ -73,6 +73,7 @@ export function mapSaleItemsToPosCart(
     variant_id: string;
     hsn_code?: string | null;
     item_notes?: string | null;
+    salesman?: string | null;
   }>,
 ): PosCartItem[] {
   return saleItems.map((item) => ({
@@ -93,5 +94,6 @@ export function mapSaleItemsToPosCart(
     variantId: item.variant_id,
     hsnCode: item.hsn_code || "",
     itemNotes: item.item_notes || null,
+    salesman: item.salesman?.trim() || null,
   }));
 }

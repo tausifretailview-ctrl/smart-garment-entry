@@ -48,6 +48,8 @@ export interface PosCartItem {
   uom?: string;
   showDiscount?: boolean;
   itemNotes?: string | null;
+  /** Per-line salesperson override (POS org-gated). Falls back to bill header at save/attribution. */
+  salesman?: string | null;
   /**
    * Scan-time snapshot of `product_variants.stock_qty` for the cart stock-status dot.
    * - Taken once at add; not refreshed while the bill is open (v1 — bills are short-lived).

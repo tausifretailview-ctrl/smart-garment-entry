@@ -66,6 +66,7 @@ export const POS_TAB_SETTING_FIELD_IDS = [
   "pos_unit_price_override_confirm_pct",
   "pos_quick_price_code",
   "pos_retain_salesman",
+  "pos_per_line_salesman",
   "pos_barcode_price_mode",
   "pos_goods_ask_qty_dialog",
   "pos_category_tier_pricing",
