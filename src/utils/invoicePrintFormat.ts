@@ -165,21 +165,30 @@ export function shouldPrintPreprintedLetterheadLogo(opts: {
 export const PREPRINTED_LETTERHEAD_LOGO_TOP_GAP = "4mm";
 /** Small air before the TAX INVOICE rule. */
 export const PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP = "2mm";
+/** Horizontal inset so wide logos stay inside the printable band. */
+export const PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4 = "8mm";
+export const PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A5 = "5mm";
 
-/** Full-page-width stretch box inside the existing 2in letterhead gap. */
-export function preprintedLetterheadLogoBox(letterheadGap = "2in"): {
+export type PreprintedLetterheadLogoBox = {
   top: string;
   left: string;
   width: string;
   height: string;
-  objectFit: "fill";
-} {
+  objectFit: "contain";
+};
+
+/** Scale uploaded logo to fit inside the existing 2in letterhead gap (aspect ratio preserved). */
+export function preprintedLetterheadLogoBox(
+  letterheadGap = "2in",
+  opts?: { sideGap?: string },
+): PreprintedLetterheadLogoBox {
+  const sideGap = opts?.sideGap ?? PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4;
   return {
     top: PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
-    left: "0",
-    width: "100%",
+    left: sideGap,
+    width: `calc(100% - 2 * ${sideGap})`,
     height: `calc(${letterheadGap} - ${PREPRINTED_LETTERHEAD_LOGO_TOP_GAP} - ${PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP})`,
-    objectFit: "fill",
+    objectFit: "contain",
   };
 }
 

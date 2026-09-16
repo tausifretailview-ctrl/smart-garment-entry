@@ -3020,7 +3020,7 @@ export default function Settings() {
                         </Label>
                         <p className="text-xs text-muted-foreground">
                           Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the
-                          uploaded Organization Logo full-width in that top space (Semme-style banner).
+                          uploaded Organization Logo scaled to fit that top space (aspect ratio preserved).
                         </p>
                       </div>
                       <Switch
