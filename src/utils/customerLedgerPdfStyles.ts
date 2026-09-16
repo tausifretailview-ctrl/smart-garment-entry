@@ -1,37 +1,75 @@
 import type jsPDF from "jspdf";
 
-/** RGB tuples aligned with CustomerLedger on-screen colors (Tailwind approx). */
+export type LedgerPdfPaper = "a4" | "a5";
+
+/**
+ * RGB tuples for the Customer Ledger PDF.
+ * Tuned darker than Tailwind screen tokens so inkjet/laser prints stay readable
+ * while remaining full-color (not grayscale).
+ */
 export const LEDGER_PDF = {
-  headerBg: [15, 118, 110] as const,
+  headerBg: [4, 78, 71] as const,
   headerText: [255, 255, 255] as const,
-  title: [15, 118, 110] as const,
-  text: [15, 23, 42] as const,
-  muted: [100, 116, 139] as const,
-  debit: [220, 38, 38] as const,
-  credit: [4, 120, 87] as const,
-  balanceDr: [220, 38, 38] as const,
-  balanceCr: [4, 120, 87] as const,
-  balanceSettled: [100, 116, 139] as const,
-  totalsBg: [241, 245, 249] as const,
-  zebra: [248, 250, 252] as const,
-  openingBg: [255, 247, 237] as const,
-  openingText: [234, 88, 12] as const,
-  reconBg: [248, 250, 252] as const,
-  reconBorder: [226, 232, 240] as const,
-  orange: [234, 88, 12] as const,
-  purple: [126, 34, 206] as const,
-  blue: [29, 78, 216] as const,
-  green: [4, 120, 87] as const,
-  red: [220, 38, 38] as const,
-  amber: [180, 83, 9] as const,
-  tealBoxBg: [240, 253, 250] as const,
-  tealBoxBorder: [153, 246, 228] as const,
-  tealBoxText: [15, 118, 110] as const,
-  redBoxBg: [254, 242, 242] as const,
-  redBoxBorder: [254, 202, 202] as const,
-  emeraldBoxBg: [236, 253, 245] as const,
-  emeraldBoxBorder: [167, 243, 208] as const,
+  title: [4, 78, 71] as const,
+  text: [0, 0, 0] as const,
+  muted: [51, 65, 85] as const,
+  debit: [185, 28, 28] as const,
+  credit: [6, 95, 70] as const,
+  balanceDr: [185, 28, 28] as const,
+  balanceCr: [6, 95, 70] as const,
+  balanceSettled: [51, 65, 85] as const,
+  totalsBg: [226, 232, 240] as const,
+  zebra: [241, 245, 249] as const,
+  openingBg: [255, 237, 213] as const,
+  openingText: [154, 52, 18] as const,
+  reconBg: [241, 245, 249] as const,
+  reconBorder: [71, 85, 105] as const,
+  grid: [30, 41, 59] as const,
+  orange: [194, 65, 12] as const,
+  purple: [88, 28, 135] as const,
+  blue: [29, 57, 196] as const,
+  green: [6, 95, 70] as const,
+  red: [185, 28, 28] as const,
+  amber: [146, 64, 14] as const,
+  tealBoxBg: [204, 251, 241] as const,
+  tealBoxBorder: [15, 118, 110] as const,
+  tealBoxText: [4, 78, 71] as const,
+  redBoxBg: [254, 226, 226] as const,
+  redBoxBorder: [185, 28, 28] as const,
+  emeraldBoxBg: [209, 250, 229] as const,
+  emeraldBoxBorder: [4, 120, 87] as const,
 };
+
+const COL_RATIOS = [28, 16, 22, 48, 22, 22, 22] as const;
+
+export function ledgerPdfLayout(paper: LedgerPdfPaper) {
+  const isA5 = paper === "a5";
+  const margin = isA5 ? 8 : 14;
+  const pageWidth = isA5 ? 148 : 210;
+  const pageHeight = isA5 ? 210 : 297;
+  const tableWidth = pageWidth - margin * 2;
+  const ratioSum = COL_RATIOS.reduce((s, n) => s + n, 0);
+  const colWidths = COL_RATIOS.map((n) => (n / ratioSum) * tableWidth);
+  return {
+    paper,
+    margin,
+    pageWidth,
+    pageHeight,
+    tableWidth,
+    colWidths,
+    pageBreakY: pageHeight - (isA5 ? 16 : 20),
+    bodyFont: isA5 ? 7 : 9,
+    headerFont: isA5 ? 7 : 8,
+    titleFont: isA5 ? 14 : 18,
+    descChars: isA5 ? 18 : 28,
+    rowH: isA5 ? 5.5 : 6.5,
+  };
+}
+
+export function pdfStrokeGrid(doc: jsPDF, lineWidth = 0.25) {
+  pdfSetDraw(doc, LEDGER_PDF.grid);
+  doc.setLineWidth(lineWidth);
+}
 
 type Rgb = readonly [number, number, number];
 

@@ -109,6 +109,7 @@ export default function CustomerLedgerPage() {
   const [fromDate, setFromDate] = useState<Date | undefined>(fyStart);
   const [toDate, setToDate] = useState<Date | undefined>(fyEnd);
   const [custOpen, setCustOpen] = useState(false);
+  const [printPaper, setPrintPaper] = useState<"a4" | "a5">("a4");
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.customerAccountStatement,
@@ -768,7 +769,23 @@ export default function CustomerLedgerPage() {
   }
 
   return (
-    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white">
+    <div className="relative min-h-screen bg-slate-50 dark:bg-background p-4 print:p-0 print:bg-white print:text-black">
+      <style>{`
+        @media print {
+          @page { size: ${printPaper === "a5" ? "A5" : "A4"} portrait; margin: 10mm; }
+          html, body { color: #000 !important; background: #fff !important; }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          .text-muted-foreground { color: #334155 !important; }
+          table, th, td { border-color: #1e293b !important; }
+          thead tr { background: #0f172a !important; color: #fff !important; }
+          th { color: #fff !important; font-weight: 700 !important; }
+          td { color: #000 !important; }
+        }
+      `}</style>
       <QuietRefreshBar
         queryKey={["customer-ledger-statement", currentOrganization.id, customerId]}
         enabled={!!customerId}
@@ -782,9 +799,21 @@ export default function CustomerLedgerPage() {
               Detailed ledger with running balance (Dr/Cr)
             </p>
           </div>
-          <Button onClick={handlePrint} disabled={!selectedCustomer || rows.length === 0}>
-            <Printer className="h-4 w-4 mr-2" /> Print Statement
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
+            {(["a4", "a5"] as const).map((size) => (
+              <Button
+                key={size}
+                type="button"
+                variant={printPaper === size ? "default" : "outline"}
+                onClick={() => setPrintPaper(size)}
+              >
+                {size.toUpperCase()}
+              </Button>
+            ))}
+            <Button onClick={handlePrint} disabled={!selectedCustomer || rows.length === 0}>
+              <Printer className="h-4 w-4 mr-2" /> Print Statement
+            </Button>
+          </div>
         </div>
 
         {/* Controls */}

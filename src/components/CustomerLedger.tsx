@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2, Scale } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2, Scale, Printer } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -117,12 +117,15 @@ import { computePendingAllSessionsBatch, computeYearWiseFeeBalances, computePrio
 import { resolveImportedOpeningBalance } from "@/lib/schoolFeeOpening";
 import {
   LEDGER_PDF,
+  ledgerPdfLayout,
   ledgerPdfReconLineColor,
   ledgerPdfTypeColor,
   ledgerPdfTypeLabel,
   pdfSetDraw,
   pdfSetFill,
   pdfSetText,
+  pdfStrokeGrid,
+  type LedgerPdfPaper,
 } from "@/utils/customerLedgerPdfStyles";
 
 interface CustomerLedgerProps {
@@ -334,6 +337,7 @@ export function CustomerLedger({
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>(paymentFilter || "all");
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [ledgerPdfPaper, setLedgerPdfPaper] = useState<LedgerPdfPaper>("a4");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("transactions");
   /** KPI card drill — filters the Transactions list (or switches tab when one exists). */
@@ -2474,8 +2478,9 @@ Please clear your dues at the earliest. Thank you!`;
     XLSX.writeFile(wb, `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
   };
 
-  const handleExportToPDF = async () => {
+  const handleExportToPDF = async (mode: "download" | "print" = "download") => {
     if (!selectedCustomer || !transactions) return;
+    if (mode !== "download" && mode !== "print") mode = "download";
 
     let accountArithmeticLine = "";
     try {
@@ -2489,26 +2494,32 @@ Please clear your dues at the earliest. Thank you!`;
       // PDF still exports without the strip if fetch fails.
     }
 
+    const paper = ledgerPdfPaper;
+    const layout = ledgerPdfLayout(paper);
     const jsPDF = await loadJsPdf();
-    const doc = new jsPDF();
+    const doc = new jsPDF({ unit: "mm", format: paper, orientation: "portrait" });
     const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 14;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = layout.margin;
     const tableWidth = pageWidth - margin * 2;
     const headers = ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"];
-    const colWidths = [28, 16, 22, 48, 22, 22, 22];
+    const colWidths = layout.colWidths.map((w) => (w / layout.tableWidth) * tableWidth);
+    const pageBreakY = pageHeight - (paper === "a5" ? 16 : 20);
+    const headerH = paper === "a5" ? 7 : 8;
 
     const drawLedgerTableHeader = (y: number) => {
       pdfSetFill(doc, LEDGER_PDF.headerBg);
-      doc.rect(margin, y, tableWidth, 8, "F");
+      pdfStrokeGrid(doc, 0.35);
+      doc.rect(margin, y, tableWidth, headerH, "FD");
       pdfSetText(doc, LEDGER_PDF.headerText);
-      doc.setFontSize(8);
+      doc.setFontSize(layout.headerFont);
       doc.setFont("helvetica", "bold");
       let x = margin;
       headers.forEach((header, i) => {
-        doc.text(header, x + 1, y + 5);
+        doc.text(header, x + 1, y + headerH - 2.2);
         x += colWidths[i];
       });
-      return y + 10;
+      return y + headerH + 2;
     };
 
     let yPos = 16;
@@ -2544,7 +2555,7 @@ Please clear your dues at the earliest. Thank you!`;
       yPos += 7;
     }
 
-    doc.setFontSize(18);
+    doc.setFontSize(layout.titleFont);
     doc.setFont("helvetica", "bold");
     pdfSetText(doc, LEDGER_PDF.title);
     doc.text("Customer Ledger", pageWidth / 2, yPos, { align: "center" });
@@ -2581,7 +2592,7 @@ Please clear your dues at the earliest. Thank you!`;
           ? Math.abs(effectiveBalance)
           : 0;
     const pdfCreditIsRefundable = refundableCreditBalance > 0;
-    const balanceBoxW = 72;
+    const balanceBoxW = paper === "a5" ? 58 : 72;
     const balanceBoxH = 18;
     const balanceBoxX = pageWidth - margin - balanceBoxW;
     const balanceBoxY = infoStartY - 4;
@@ -2651,13 +2662,13 @@ Please clear your dues at the earliest. Thank you!`;
     yPos = drawLedgerTableHeader(yPos);
 
     transactions.forEach((t, rowIdx) => {
-      if (yPos > 270) {
+      if (yPos > pageBreakY) {
         doc.addPage();
-        yPos = 20;
+        yPos = 16;
         yPos = drawLedgerTableHeader(yPos);
       }
 
-      const rowH = 6;
+      const rowH = layout.rowH;
       if (t.id === "opening-balance") {
         pdfSetFill(doc, LEDGER_PDF.openingBg);
       } else if (rowIdx % 2 === 1) {
@@ -2665,7 +2676,8 @@ Please clear your dues at the earliest. Thank you!`;
       } else {
         pdfSetFill(doc, [255, 255, 255]);
       }
-      doc.rect(margin, yPos - 4, tableWidth, rowH, "F");
+      pdfStrokeGrid(doc, 0.22);
+      doc.rect(margin, yPos - 4, tableWidth, rowH, "FD");
 
       const dateTimeStr =
         t.id === "opening-balance"
@@ -2678,17 +2690,17 @@ Please clear your dues at the earliest. Thank you!`;
       const dispDebit = t.displayDebit ?? t.debit ?? 0;
       const dispCredit = t.displayCredit ?? t.credit ?? 0;
       const desc = t.informational ? `(info) ${t.description}` : t.description;
-      const descShort = desc.length > 28 ? `${desc.substring(0, 28)}...` : desc;
+      const descShort = desc.length > layout.descChars ? `${desc.substring(0, layout.descChars)}...` : desc;
       const typeLabel = ledgerPdfTypeLabel(t);
       const debitStr = dispDebit > 0 ? `Rs. ${Math.round(dispDebit).toLocaleString("en-IN")}` : "";
       const creditStr = dispCredit > 0 ? `Rs. ${Math.round(dispCredit).toLocaleString("en-IN")}` : "";
       const balanceStr = t.informational ? "" : bStr;
 
-      doc.setFontSize(8);
+      doc.setFontSize(layout.bodyFont);
       if (t.informational) {
         doc.setFont("helvetica", "italic");
       } else {
-        doc.setFont("helvetica", "normal");
+        doc.setFont("helvetica", "bold");
       }
 
       let xPos = margin;
@@ -2728,8 +2740,9 @@ Please clear your dues at the earliest. Thank you!`;
 
     yPos += 2;
     pdfSetFill(doc, LEDGER_PDF.totalsBg);
-    doc.rect(margin, yPos - 4, tableWidth, 8, "F");
-    doc.setFontSize(8);
+    pdfStrokeGrid(doc, 0.3);
+    doc.rect(margin, yPos - 4, tableWidth, 8, "FD");
+    doc.setFontSize(layout.bodyFont);
     doc.setFont("helvetica", "bold");
 
     const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : 0;
@@ -2744,10 +2757,10 @@ Please clear your dues at the earliest. Thank you!`;
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
       { text: "", color: LEDGER_PDF.text },
-      { text: "COLUMN TOTALS (Dr / Cr)", color: LEDGER_PDF.muted },
-      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
-      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.muted },
-      { text: `${closingStr} diff`, color: LEDGER_PDF.muted },
+      { text: "COLUMN TOTALS (Dr / Cr)", color: LEDGER_PDF.text },
+      { text: `Rs. ${Math.round(transactionTotals.totalDebit).toLocaleString("en-IN")}`, color: LEDGER_PDF.text },
+      { text: `Rs. ${Math.round(transactionTotals.totalCredit).toLocaleString("en-IN")}`, color: LEDGER_PDF.text },
+      { text: `${closingStr} diff`, color: LEDGER_PDF.text },
     ];
     totalsSpecs.forEach((cell, i) => {
       pdfSetText(doc, cell.color);
@@ -2756,9 +2769,9 @@ Please clear your dues at the earliest. Thank you!`;
     });
 
     yPos += 12;
-    if (yPos > 240) {
+    if (yPos > pageBreakY - 55) {
       doc.addPage();
-      yPos = 20;
+      yPos = 16;
     }
 
     const invoiceOutstanding = reconciliation.invoiceOutstanding;
@@ -2813,10 +2826,10 @@ Please clear your dues at the earliest. Thank you!`;
     pdfSetText(doc, LEDGER_PDF.title);
     doc.text("Balance Reconciliation", margin + 4, yPos + 4);
     yPos += 10;
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    const labelX = margin + 6;
-    const valueX = margin + 92;
+    doc.setFontSize(paper === "a5" ? 8 : 9);
+    doc.setFont("helvetica", "bold");
+    const labelX = margin + 4;
+    const valueX = margin + Math.min(paper === "a5" ? 78 : 92, tableWidth * 0.62);
     reconLines.forEach(([label, val]) => {
       const lineColor = ledgerPdfReconLineColor(label) ?? LEDGER_PDF.text;
       pdfSetText(doc, lineColor);
@@ -2919,10 +2932,12 @@ Please clear your dues at the earliest. Thank you!`;
       doc.text(`Voucher date range: ${periodPdf}`, margin, yPos);
       yPos += 8;
 
-      const allocCols = [22, 24, 22, 22, 88] as const;
+      const allocRatio = [22, 24, 22, 22, 88] as const;
+      const allocSum = allocRatio.reduce((s, n) => s + n, 0);
+      const allocCols = allocRatio.map((n) => (n / allocSum) * tableWidth);
       const drawAllocBlock = (sectionTitle: string, rows: typeof advanceAllocRows) => {
         if (rows.length === 0) return;
-        if (yPos > 255) {
+        if (yPos > pageBreakY - 10) {
           doc.addPage();
           yPos = 18;
         }
@@ -2934,7 +2949,8 @@ Please clear your dues at the earliest. Thank you!`;
         doc.setFontSize(7);
         const h = ["Date", "Voucher", "Invoice", "Amount", "Description"];
         pdfSetFill(doc, LEDGER_PDF.headerBg);
-        doc.rect(margin, yPos - 3, tableWidth, 6, "F");
+        pdfStrokeGrid(doc, 0.3);
+        doc.rect(margin, yPos - 3, tableWidth, 6, "FD");
         pdfSetText(doc, LEDGER_PDF.headerText);
         let x = margin;
         h.forEach((label, i) => {
@@ -2944,14 +2960,17 @@ Please clear your dues at the earliest. Thank you!`;
         yPos += 7;
         doc.setFont("helvetica", "normal");
         rows.forEach((r, idx) => {
-          if (yPos > 278) {
+          if (yPos > pageBreakY) {
             doc.addPage();
             yPos = 18;
           }
           if (idx % 2 === 1) {
             pdfSetFill(doc, LEDGER_PDF.zebra);
-            doc.rect(margin, yPos - 3, tableWidth, 5, "F");
+          } else {
+            pdfSetFill(doc, [255, 255, 255]);
           }
+          pdfStrokeGrid(doc, 0.2);
+          doc.rect(margin, yPos - 3, tableWidth, 5, "FD");
           const dStr = r.voucher_date ? format(new Date(`${r.voucher_date}T12:00:00`), "dd/MM/yy") : "—";
           const desc = r.description.length > 55 ? `${r.description.slice(0, 52)}...` : r.description;
           const cells = [
@@ -2980,7 +2999,7 @@ Please clear your dues at the earliest. Thank you!`;
       pdfSetText(doc, LEDGER_PDF.blue);
       const advFoot = `Unused advance (bookings): Rs. ${(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN")}`;
       const cnFoot = `CN available (notes): Rs. ${cnAvailable.toLocaleString("en-IN")}`;
-      if (yPos > 272) {
+      if (yPos > pageBreakY) {
         doc.addPage();
         yPos = 18;
       }
@@ -2990,7 +3009,15 @@ Please clear your dues at the earliest. Thank you!`;
       doc.text(cnFoot, margin, yPos);
     }
 
-    await downloadJsPdf(doc, `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    const fileName = `${selectedCustomer.customer_name}_Ledger_${format(new Date(), "dd-MM-yyyy")}.pdf`;
+    if (mode === "print") {
+      doc.autoPrint();
+      const blobUrl = doc.output("bloburl");
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      toast.success(`Printing ${paper.toUpperCase()} ledger`);
+      return;
+    }
+    await downloadJsPdf(doc, fileName);
   };
 
   const overpaymentRefundDialog = (
@@ -3285,14 +3312,40 @@ Please clear your dues at the earliest. Thank you!`;
               {isMobile ? "Excel" : "Export Excel"}
             </Button>
 
+            <div className="flex items-center gap-1">
+              {(["a4", "a5"] as const).map((size) => (
+                <Button
+                  key={size}
+                  type="button"
+                  variant={ledgerPdfPaper === size ? "default" : "outline"}
+                  size="sm"
+                  className="h-9 px-2.5"
+                  onClick={() => setLedgerPdfPaper(size)}
+                  title={`Ledger PDF paper size ${size.toUpperCase()}`}
+                >
+                  {size.toUpperCase()}
+                </Button>
+              ))}
+            </div>
+
             <Button
               variant="outline"
               size="sm"
-              onClick={handleExportToPDF}
+              onClick={() => void handleExportToPDF("download")}
               className="h-9 min-w-0"
             >
               <FileDown className="mr-1.5 h-4 w-4 shrink-0" />
               {isMobile ? "PDF" : "Export PDF"}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleExportToPDF("print")}
+              className="h-9 min-w-0"
+            >
+              <Printer className="mr-1.5 h-4 w-4 shrink-0" />
+              Print
             </Button>
 
             {selectedCustomer.phone && (
