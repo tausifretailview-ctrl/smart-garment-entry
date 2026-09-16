@@ -291,6 +291,172 @@ WHERE pb.organization_id = p.org_id
 ORDER BY pb.deleted_at DESC;
 
 -- =============================================================================
+-- SECTION 11 — DEFINITIVE: guard bypass cause (a/b/c) for POS/26-27/1
+-- Run this block alone. Paste full result CSV back.
+-- =============================================================================
+WITH params AS (
+  SELECT
+    'a4623c1e-fcce-4e5e-8259-4b116ac7d62a'::uuid AS org_id,
+    'POS/26-27/1'::text AS sale_number,
+    'ae70affc-7a1c-4f2b-9420-baffbc0c35d7'::uuid AS bill_id
+),
+anchor_sale AS (
+  SELECT s.id, s.sale_number, s.total_qty, s.gross_amount, s.net_amount, s.created_at
+  FROM sales s
+  CROSS JOIN params p
+  WHERE s.organization_id = p.org_id
+    AND s.sale_number = p.sale_number
+    AND s.deleted_at IS NULL
+  LIMIT 1
+)
+SELECT
+  si.id AS sale_item_id,
+  si.quantity,
+  si.variant_id,
+  si.product_name,
+  si.line_total,
+  si.deleted_at AS sale_item_deleted_at,
+  pi.sku_id AS purchase_sku_id,
+  pi.qty AS purchased_qty,
+  pi.deleted_at AS purchase_item_deleted_at,
+  (pi.sku_id IS NULL) AS purchase_sku_id_is_null,
+  (si.variant_id IS NOT NULL AND pi.sku_id IS NOT NULL AND si.variant_id <> pi.sku_id) AS variant_mismatch,
+  pv.stock_qty,
+  (
+    SELECT count(*)::integer
+    FROM stock_movements sm
+    WHERE sm.deleted_at IS NULL
+      AND sm.variant_id = si.variant_id
+      AND (
+        sm.reference_id = (SELECT id FROM anchor_sale)
+        OR sm.reference_id = (SELECT bill_id FROM params)
+      )
+  ) AS movement_count_for_sale_or_bill,
+  (
+    SELECT count(*)::integer
+    FROM sale_items si2
+    WHERE si2.sale_id = (SELECT id FROM anchor_sale)
+      AND si2.deleted_at IS NULL
+  ) AS active_sale_item_count,
+  (
+    SELECT count(*)::integer
+    FROM sale_items si3
+    WHERE si3.sale_id = (SELECT id FROM anchor_sale)
+      AND si3.deleted_at IS NOT NULL
+  ) AS soft_deleted_sale_item_count,
+  (SELECT total_qty FROM anchor_sale) AS sale_header_total_qty,
+  (SELECT gross_amount FROM anchor_sale) AS sale_header_gross
+FROM anchor_sale a
+LEFT JOIN sale_items si ON si.sale_id = a.id
+LEFT JOIN purchase_items pi ON pi.bill_id = (SELECT bill_id FROM params)
+LEFT JOIN product_variants pv ON pv.id = si.variant_id;
+
+-- Same diagnosis when sale_items are missing (empty LEFT JOIN)
+WITH params AS (
+  SELECT
+    'a4623c1e-fcce-4e5e-8259-4b116ac7d62a'::uuid AS org_id,
+    'POS/26-27/1'::text AS sale_number,
+    'ae70affc-7a1c-4f2b-9420-baffbc0c35d7'::uuid AS bill_id
+),
+anchor_sale AS (
+  SELECT s.id, s.sale_number, s.total_qty, s.gross_amount, s.net_amount
+  FROM sales s
+  CROSS JOIN params p
+  WHERE s.organization_id = p.org_id
+    AND s.sale_number = p.sale_number
+    AND s.deleted_at IS NULL
+  LIMIT 1
+)
+SELECT
+  a.sale_number,
+  a.total_qty,
+  a.gross_amount,
+  a.net_amount,
+  count(si.id) FILTER (WHERE si.deleted_at IS NULL) AS active_items,
+  count(si.id) FILTER (WHERE si.deleted_at IS NOT NULL) AS deleted_items,
+  COALESCE(sum(si.quantity) FILTER (WHERE si.deleted_at IS NULL), 0) AS active_qty_sum,
+  bool_or(pi.sku_id IS NULL) AS any_purchase_line_sku_null,
+  count(pi.id) FILTER (WHERE pi.deleted_at IS NULL) AS active_purchase_lines
+FROM anchor_sale a
+LEFT JOIN sale_items si ON si.sale_id = a.id
+LEFT JOIN purchase_items pi ON pi.bill_id = (SELECT bill_id FROM params)
+GROUP BY a.sale_number, a.total_qty, a.gross_amount, a.net_amount;
+
+-- =============================================================================
+-- SECTION 12 — Scope (a): zero-qty lines with money, and header-only sales
+-- =============================================================================
+-- 12a: Active sale_items with quantity=0 but nonzero line_total (all orgs)
+SELECT
+  count(*) AS row_count,
+  count(DISTINCT s.organization_id) AS org_count,
+  count(DISTINCT s.id) AS sale_count
+FROM sale_items si
+JOIN sales s ON s.id = si.sale_id
+WHERE si.deleted_at IS NULL
+  AND s.deleted_at IS NULL
+  AND si.quantity = 0
+  AND abs(coalesce(si.line_total, 0)) > 0.01;
+
+SELECT
+  o.name AS org_name,
+  s.sale_number,
+  s.sale_date,
+  s.sale_type,
+  si.quantity,
+  si.line_total,
+  si.variant_id,
+  s.gross_amount,
+  s.net_amount,
+  s.payment_status
+FROM sale_items si
+JOIN sales s ON s.id = si.sale_id
+JOIN organizations o ON o.id = s.organization_id
+WHERE si.deleted_at IS NULL
+  AND s.deleted_at IS NULL
+  AND si.quantity = 0
+  AND abs(coalesce(si.line_total, 0)) > 0.01
+ORDER BY s.created_at DESC
+LIMIT 100;
+
+-- 12b: Settled sales with gross>0 but NO active sale_items (empty-line header class)
+SELECT
+  count(*) AS sale_count,
+  count(DISTINCT s.organization_id) AS org_count
+FROM sales s
+WHERE s.deleted_at IS NULL
+  AND coalesce(s.is_cancelled, false) = false
+  AND abs(coalesce(s.gross_amount, 0)) > 0.01
+  AND coalesce(s.payment_status, '') IN ('completed', 'partial', 'paid')
+  AND NOT EXISTS (
+    SELECT 1 FROM sale_items si
+    WHERE si.sale_id = s.id AND si.deleted_at IS NULL
+  );
+
+SELECT
+  o.name AS org_name,
+  s.sale_number,
+  s.sale_type,
+  s.sale_date,
+  s.gross_amount,
+  s.net_amount,
+  s.paid_amount,
+  s.payment_status,
+  s.total_qty,
+  s.created_at
+FROM sales s
+JOIN organizations o ON o.id = s.organization_id
+WHERE s.deleted_at IS NULL
+  AND coalesce(s.is_cancelled, false) = false
+  AND abs(coalesce(s.gross_amount, 0)) > 0.01
+  AND coalesce(s.payment_status, '') IN ('completed', 'partial', 'paid')
+  AND NOT EXISTS (
+    SELECT 1 FROM sale_items si
+    WHERE si.sale_id = s.id AND si.deleted_at IS NULL
+  )
+ORDER BY s.created_at DESC
+LIMIT 100;
+
+-- =============================================================================
 -- SECTION 10 — Cross-org: orgs with zero active purchase bills (pattern scan)
 -- =============================================================================
 SELECT
