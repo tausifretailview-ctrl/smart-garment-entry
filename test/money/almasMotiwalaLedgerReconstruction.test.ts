@@ -15,6 +15,7 @@ import {
   saleReturnRemainingCredit,
   saleReturnRunningBalanceCredit,
   walkLedgerSignedBalance,
+  allocateCnAdjustmentsToSaleReturns,
 } from "@/utils/customerLedgerSaleReturnBalance";
 import {
   getCustomerAccountState,
@@ -64,32 +65,46 @@ describe("ALMAS MOTIWALA — source arithmetic (not a report formula)", () => {
   });
 });
 
-describe("ALMAS MOTIWALA — why recon Sale Returns is ₹6,750 not ₹8,550", () => {
-  it("srAppliedMap only consumes CN on the current linked_sale_id (last FIFO overwrite)", () => {
-    // applyCreditNoteFifoToSale writes linked_sale_id = params.saleId on every chunk.
-    // After CN → 3009 then CN → 3064, SR/153 points at 3064 only.
+describe("ALMAS MOTIWALA — leftover CN on last-linked SR", () => {
+  it("pass-1-only (last linked_sale_id) consumed ₹1,800 and left phantom remaining ₹6,750", () => {
     const applied = attributeCnToLinkedSaleOnly({
       srNet: SR_153_GROSS,
       linkedSaleId: "inv-3064",
       cnBySaleId: { "inv-3009": CN_3009, "inv-3064": CN_3064 },
     });
     expect(applied).toBe(1_800);
+    expect(
+      saleReturnRemainingCredit({
+        grossNetAmount: SR_153_GROSS,
+        consumedAmount: applied,
+      }),
+    ).toBe(6_750);
+  });
 
-    const absorbedOnInvoice = Math.min(SR_153_GROSS, CN_3064);
-    const consumedAmount = Math.max(absorbedOnInvoice, applied);
-    const remainingCredit = saleReturnRemainingCredit({
+  it("pass-2 leftover onto the same linked SR consumes ₹4,700+₹1,800 = ₹6,500", () => {
+    const map = allocateCnAdjustmentsToSaleReturns(
+      [
+        {
+          id: "sr-153",
+          net_amount: SR_153_GROSS,
+          linked_sale_id: "inv-3064",
+          return_date: "2026-09-09",
+        },
+      ],
+      { "inv-3009": CN_3009, "inv-3064": CN_3064 },
+    );
+    expect(map["sr-153"].applied).toBe(6_500);
+    const remaining = saleReturnRemainingCredit({
       grossNetAmount: SR_153_GROSS,
-      consumedAmount,
+      consumedAmount: map["sr-153"].applied,
     });
-    expect(consumedAmount).toBe(1_800);
-    expect(remainingCredit).toBe(6_750);
-
+    expect(remaining).toBe(2_050);
     expect(
       saleReturnCreditForReconciliation({
         displayCredit: SR_153_GROSS,
-        credit: remainingCredit,
+        credit: remaining,
       }),
-    ).toBe(6_750);
+    ).toBe(2_050);
   });
 
   it("CAB / credit_notes remaining still holds the full unclaimed ₹2,050", () => {
@@ -269,5 +284,135 @@ describe("ALMAS MOTIWALA — running Balance stays ₹8,550 Cr", () => {
     ];
     // Column totals gap = true unclaimed; last running balance does not.
     expect(walkLedgerSignedBalance(displayedRows)).toBe(-2_050);
+  });
+});
+
+const PAY_00055 = 2_050;
+
+describe("ALMAS MOTIWALA — after PAY-00055 ₹2,050 CN refund", () => {
+  it("true remaining unclaimed is ₹0 — Refund Overpayment ₹4,700 is fully overstated", () => {
+    const remainingAfterApplyAndRefund =
+      SR_153_GROSS - CN_3009 - CN_3064 - PAY_00055;
+    expect(remainingAfterApplyAndRefund).toBe(0);
+
+    const phantomReconSaleReturns = 6_750;
+    const liveBuggyOutstanding = computeInvoiceOutstandingFromReconciliation({
+      opening: 0,
+      grossInvoiced: 15_050,
+      invoiceCnApplied: 6_500,
+      saleReturns: phantomReconSaleReturns,
+      paymentsCash: 8_550,
+      paymentsDiscount: 0,
+      advanceApplied: 0,
+      adjustments: 0,
+      cnRefunded: PAY_00055,
+    });
+    expect(liveBuggyOutstanding).toBe(-4_700);
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 0,
+        invoiceOutstanding: liveBuggyOutstanding,
+      }),
+    ).toBe(4_700);
+
+    const fixedSaleReturns = 2_050;
+    const fixedOutstanding = computeInvoiceOutstandingFromReconciliation({
+      opening: 0,
+      grossInvoiced: 15_050,
+      invoiceCnApplied: 6_500,
+      saleReturns: fixedSaleReturns,
+      paymentsCash: 8_550,
+      paymentsDiscount: 0,
+      advanceApplied: 0,
+      adjustments: 0,
+      cnRefunded: PAY_00055,
+    });
+    expect(fixedOutstanding).toBe(0);
+    expect(
+      computeRefundableCreditBalance({
+        unusedAdvance: 0,
+        cnAvailable: 0,
+        invoiceOutstanding: fixedOutstanding,
+      }),
+    ).toBe(0);
+  });
+
+  it("canonical state after refund is Nil, not ₹4,700 Cr", () => {
+    const state = getCustomerAccountState({
+      openingBalance: 0,
+      sales: [
+        {
+          id: "inv-3005",
+          net_amount: INV_3005,
+          paid_amount: INV_3005,
+          sale_return_adjust: 0,
+          items_gross: INV_3005,
+        },
+        {
+          id: "inv-3009",
+          net_amount: INV_3009,
+          paid_amount: 0,
+          sale_return_adjust: CN_3009,
+          items_gross: INV_3009,
+        },
+        {
+          id: "inv-3064",
+          net_amount: INV_3064,
+          paid_amount: 0,
+          sale_return_adjust: CN_3064,
+          items_gross: INV_3064,
+        },
+      ],
+      voucherEntries: [
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "inv-3005",
+          total_amount: CASH_RCP_4625,
+          payment_method: "upi",
+        },
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "inv-3009",
+          total_amount: CN_3009,
+          payment_method: "credit_note_adjustment",
+          description: "Credit note adjusted (Rs. 4700) against INV/26-27/3009",
+        },
+        {
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "inv-3064",
+          total_amount: CN_3064,
+          payment_method: "credit_note_adjustment",
+          description: "Credit note adjusted (Rs. 1800) against INV/26-27/3064",
+        },
+        {
+          voucher_type: "payment",
+          reference_type: "customer",
+          total_amount: PAY_00055,
+          payment_method: "cn_refund",
+          description: "Refund paid for Sale Return SR/26-27/153",
+        },
+      ],
+      customerAdvances: [],
+      advanceRefunds: [],
+      saleReturns: [
+        {
+          id: "sr-153",
+          net_amount: SR_153_GROSS,
+          credit_status: "refunded",
+          linked_sale_id: "inv-3064",
+          credit_available_balance: 0,
+        },
+      ],
+      options: { ledgerAlignedApplicationReceipts: true },
+    });
+
+    expect(state.unclaimedSaleReturnCredit).toBe(0);
+    expect(state.outstanding).toBe(0);
+    expect(state.netPosition).toBe(0);
+    expect(state.refundedStandaloneSaleReturnCredit).toBe(2_050);
   });
 });
