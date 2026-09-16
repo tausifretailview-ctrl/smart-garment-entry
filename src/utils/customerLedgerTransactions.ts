@@ -14,7 +14,10 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { residualPaymentAtSaleTender, residualTenderBreakdown } from "@/utils/customerAuditBundle";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
-import { saleReturnRunningBalanceCredit } from "@/utils/customerLedgerSaleReturnBalance";
+import {
+  allocateCnAdjustmentsToSaleReturns,
+  saleReturnRunningBalanceCredit,
+} from "@/utils/customerLedgerSaleReturnBalance";
 import { isCnRefundPaymentVoucher } from "@/utils/cnRefundVoucher";
 import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
 import { fetchAdvanceRefundsForAdvances } from "@/utils/advanceRefundService";
@@ -307,64 +310,17 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       (cnVoucherBySaleId[v.reference_id] || 0) + (Number(v.total_amount) || 0);
   });
 
-  // Allocate applied amount per SR (chronological by return_date)
-  const srAppliedMap: Record<string, { saleId: string; saleNumber: string | null; applied: number }> = {};
-  const remainingBySale: Record<string, number> = { ...cnVoucherBySaleId };
-  const sortedSRs = [...(saleReturnsData || [])]
-    .filter((sr: any) => sr.linked_sale_id)
-    .sort((a: any, b: any) =>
-      new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
-      || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
-    );
-  sortedSRs.forEach((sr: any) => {
-    const saleId = sr.linked_sale_id;
-    const remaining = remainingBySale[saleId] || 0;
-    if (remaining <= 0) return;
-    const applied = Math.min(remaining, Number(sr.net_amount) || 0);
-    srAppliedMap[sr.id] = {
-      saleId,
-      saleNumber: linkedSaleMap[saleId] || null,
-      applied,
-    };
-    remainingBySale[saleId] = remaining - applied;
-  });
-
-  // Pass 2: Distribute any leftover voucher balance to UNLINKED SRs of this
-  // customer (chronological). This handles cases where multiple SRs were
-  // applied via sales.sale_return_adjust at billing time but only one was
-  // recorded with linked_sale_id, leaving the rest "phantom pending".
-  const unlinkedSRs = [...(saleReturnsData || [])]
-    .filter((sr: any) => !sr.linked_sale_id)
-    .sort((a: any, b: any) =>
-      new Date(a.return_date).getTime() - new Date(b.return_date).getTime()
-      || new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
-    );
-  const saleIdsWithRemainder = Object.keys(remainingBySale).filter(
-    (sid) => (remainingBySale[sid] || 0) > 0
+  const srAppliedMap = allocateCnAdjustmentsToSaleReturns(
+    (saleReturnsData || []) as Array<{
+      id: string;
+      net_amount?: number | null;
+      linked_sale_id?: string | null;
+      return_date?: string | null;
+      created_at?: string | null;
+    }>,
+    cnVoucherBySaleId,
+    linkedSaleMap,
   );
-  for (const sr of unlinkedSRs) {
-    let srRemaining = Number(sr.net_amount) || 0;
-    if (srRemaining <= 0) continue;
-    for (const sid of saleIdsWithRemainder) {
-      const avail = remainingBySale[sid] || 0;
-      if (avail <= 0) continue;
-      const take = Math.min(avail, srRemaining);
-      if (take <= 0) continue;
-      // Use first sale we attribute against (most common case is one sale)
-      if (!srAppliedMap[sr.id]) {
-        srAppliedMap[sr.id] = {
-          saleId: sid,
-          saleNumber: linkedSaleMap[sid] || null,
-          applied: take,
-        };
-      } else {
-        srAppliedMap[sr.id].applied += take;
-      }
-      remainingBySale[sid] = avail - take;
-      srRemaining -= take;
-      if (srRemaining <= 0) break;
-    }
-  }
 
   // Fetch advance refunds for this customer
   const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);

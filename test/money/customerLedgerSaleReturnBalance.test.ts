@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  allocateCnAdjustmentsToSaleReturns,
   saleReturnRemainingCredit,
   saleReturnRunningBalanceCredit,
   walkLedgerSignedBalance,
@@ -46,5 +47,23 @@ describe("Hanif bhai — running balance vs column totals", () => {
 
     const buggyOutstanding = grossInvoiced - remaining - paymentsCash;
     expect(buggyOutstanding).toBe(150);
+  });
+});
+
+describe("allocateCnAdjustmentsToSaleReturns — leftover on linked SRs", () => {
+  it("Almas: CN on 3009 leftover applies after FIFO linked_sale_id points at 3064", () => {
+    const map = allocateCnAdjustmentsToSaleReturns(
+      [
+        {
+          id: "sr-153",
+          net_amount: 8550,
+          linked_sale_id: "inv-3064",
+          return_date: "2026-09-09",
+        },
+      ],
+      { "inv-3009": 4700, "inv-3064": 1800 },
+      { "inv-3009": "INV/26-27/3009", "inv-3064": "INV/26-27/3064" },
+    );
+    expect(map["sr-153"].applied).toBe(6500);
   });
 });

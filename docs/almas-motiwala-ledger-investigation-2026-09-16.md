@@ -10,6 +10,32 @@ Production tenant tables are RLS-blocked from this environment (anon key only). 
 
 ---
 
+## 0. URGENT — 16 Sep 21:07 refund (PAY-00055) + live ₹4,700 button
+
+Second PDF `ALMAS_MOTIWALA_Ledger_16-09-2026__1__da4a.pdf` generated **16 Sep 2026 21:12** (after refund).
+
+**Do not pay the ₹4,700 Refund Overpayment.** True remaining unclaimed credit is **₹0**. The ₹4,700 prompt is the original phantom ₹6,750 minus the ₹2,050 already paid out.
+
+| Step | Amount |
+| --- | --- |
+| SR/153 stored `net_amount` (real credit generated) | ₹8,550 — Credit column uses this, **not** INV/3005 by coincidence of equal value |
+| Applied to INV/3009 | −₹4,700 |
+| Applied to INV/3064 | −₹1,800 |
+| Already refunded PAY-00055 16 Sep 21:07 | −₹2,050 |
+| **True remaining** | **₹0** |
+
+Live 21:12 PDF recon still subtracts Sale Returns **₹6,750** (pass-1-only remaining) then adds CN Refunded **₹2,050** → Outstanding Cr **₹4,700**. Banner and “Refund Overpayment” both use `computeRefundableCreditBalance({ invoiceOutstanding: reconciliation.invoiceOutstanding })` in `CustomerLedger.tsx`.
+
+Arithmetic line **also** flipped to ₹4,700 Cr after the refund: `computeRefundedStandaloneSaleReturnCredit` used `net − linked_sale SRA` = 8550−1800 = **₹6,750**, then `audit (incl. +₹2,050 refund debit) − 6750 = −4700`. Same missing ₹4,700.
+
+Running Balance 8550 Cr → 6500 Cr on the refund row only: `runningBalance +=` refund debit. Cosmetic relative to payout: **the refund amount is NOT taken from that column**; it is `refundableCreditBalance` from recon Outstanding. Same broken remaining feeds the button.
+
+**Scope:** any customer where one SR is FIFO-applied to **two or more later invoices** (`linked_sale_id` last-write-wins) will inflate recon remaining by the earlier CN chunks. After refunding true CAB, the leftover phantom is offered as a second payout. ELLA NOOR already has 72 Farhaan-shape leftover rows (usually one later invoice — lower risk) plus Hanif (one invoice). Split-across-invoices is the live cash-out risk. No production scan from this environment (RLS).
+
+Fix (this branch): `allocateCnAdjustmentsToSaleReturns` pass-2 leftover onto **linked** SRs with unused net; same allocator for refunded-standalone credit.
+
+---
+
 ## 1. Source transactions (from the PDF, not from a report total)
 
 | When | Voucher | What | Money |

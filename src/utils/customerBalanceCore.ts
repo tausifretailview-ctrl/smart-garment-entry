@@ -1,5 +1,6 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
+import { allocateCnAdjustmentsToSaleReturns } from "@/utils/customerLedgerSaleReturnBalance";
 
 /**
  * Client-side lifetime outstanding (transaction list / audit). For headline UI numbers
@@ -110,6 +111,7 @@ export type CustomerBalanceCoreSale = {
 };
 
 export type CustomerBalanceCoreSaleReturn = {
+  id?: string | null;
   net_amount?: number | null;
   credit_status?: string | null;
   linked_sale_id?: string | null;
@@ -316,23 +318,65 @@ export function computePendingStandaloneSaleReturns(
 }
 
 /**
- * Refunded / cash_refund sale-return credit for outstanding — `net_amount` minus linked
- * invoice `sale_return_adjust`. Ignores `credit_available_balance` (cleared to 0 after
- * payout). FIZA MEMON: paid INV ₹3,250 + SR/26-27/99 cash-refunded ₹3,250 + PAY-88827
- * ₹3,250 must net to ₹0, not ₹3,250 Dr from the refund debit alone.
+ * Refunded / cash_refund sale-return credit for outstanding — `net_amount` minus
+ * CN/SRA consumed on **all** invoices this return funded, not only `linked_sale_id`.
+ * Ignores `credit_available_balance` (cleared to 0 after payout).
+ * FIZA MEMON: paid INV ₹3,250 + SR cash-refunded ₹3,250 + PAY ₹3,250 → ₹0.
+ * ALMAS MOTIWALA: SR ₹8,550, SRA ₹4,700+₹1,800, refund ₹2,050 → remaining ₹2,050
+ * (not ₹6,750 from last-linked invoice only).
  */
+function cnPoolFromSalesReturnAdjust(
+  sales?: CustomerBalanceCoreSale[],
+): Record<string, number> {
+  const cnBySaleId: Record<string, number> = {};
+  for (const s of sales || []) {
+    if (!s.id) continue;
+    const sra = Number(s.sale_return_adjust || 0);
+    if (sra > 0.005) cnBySaleId[s.id] = (cnBySaleId[s.id] || 0) + sra;
+  }
+  return cnBySaleId;
+}
+
+function saleReturnConsumedAgainstInvoices(
+  sr: CustomerBalanceCoreSaleReturn,
+  index: number,
+  saleReturnAdjustById: Map<string, number>,
+  appliedBySrId: Record<string, { applied: number }>,
+): number {
+  const key = String(sr.id || `sr-${index}`);
+  const absorbed = linkedSaleReturnAbsorb(sr, saleReturnAdjustById);
+  const applied = appliedBySrId[key]?.applied || 0;
+  return Math.max(absorbed, applied);
+}
+
 export function computeRefundedStandaloneSaleReturnCredit(
   saleReturns: CustomerBalanceCoreSaleReturn[] | undefined,
   sales?: CustomerBalanceCoreSale[],
 ): number {
   if (!saleReturns?.length) return 0;
   const saleReturnAdjustById = saleReturnAdjustBySaleId(sales);
+  const allocRows = saleReturns.map((sr, i) => ({
+    id: String(sr.id || `sr-${i}`),
+    net_amount: sr.net_amount,
+    linked_sale_id: sr.linked_sale_id,
+  }));
+  const appliedBySrId = allocateCnAdjustmentsToSaleReturns(
+    allocRows,
+    cnPoolFromSalesReturnAdjust(sales),
+  );
 
   let sum = 0;
-  for (const sr of saleReturns) {
+  for (let i = 0; i < saleReturns.length; i++) {
+    const sr = saleReturns[i];
     if (!isRefundedOrCashRefundSaleReturn(sr)) continue;
     const net = Math.max(0, Number(sr.net_amount || 0));
-    const remaining = Math.max(0, net - linkedSaleReturnAbsorb(sr, saleReturnAdjustById));
+    const consumed = saleReturnConsumedAgainstInvoices(
+      sr,
+      i,
+      saleReturnAdjustById,
+      appliedBySrId,
+    );
+    const remaining = Math.max(0, net - consumed);
     if (remaining > 0.005) sum += remaining;
   }
 
