@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
+import { resolveInvoiceUpiId } from "@/utils/companyUpi";
 
 interface ThermalItem {
   sr: number;
@@ -167,10 +168,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
     }, [orgSettings, settingsOverride]);
 
     useEffect(() => {
-      const upiId =
-        isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id
-          ? settings.bill_barcode_settings.dc_upi_id
-          : settings?.bill_barcode_settings?.upi_id;
+      const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice);
       if (!upiId || grandTotal <= 0) {
         setQrCodeUrl("");
         return;
@@ -298,10 +296,7 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
           .filter(Boolean)
       : [];
 
-    const upiIdShown =
-      isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id;
+    const upiIdShown = resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice);
 
     if (!settings) {
       return (

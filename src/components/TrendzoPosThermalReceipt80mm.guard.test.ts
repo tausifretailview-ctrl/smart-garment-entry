@@ -25,9 +25,9 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(tsx).not.toContain('label="IGST"');
   });
 
-  it("renders UPI QR from bill_barcode_settings.upi_id", () => {
+  it("renders UPI QR from the default company UPI ID", () => {
     expect(tsx).toContain("buildUpiPayLink");
-    expect(tsx).toContain("billSettings.upi_id");
+    expect(tsx).toContain("resolveCompanyUpiId");
     expect(tsx).toContain("SCAN TO PAY");
     expect(tsx).toContain("tz-upi-qr");
   });

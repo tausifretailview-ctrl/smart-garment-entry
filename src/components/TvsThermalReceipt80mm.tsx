@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
+import { resolveInvoiceUpiId } from '@/utils/companyUpi';
 
 interface ThermalItem {
   sr: number;
@@ -111,9 +112,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
     }, [orgSettings, settingsOverride]);
 
     useEffect(() => {
-      const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id;
+      const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice);
       if (!upiId || grandTotal <= 0) return;
       (async () => {
         try {
@@ -381,7 +380,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
           </div>
         )}
 
-        {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) && (
+        {qrCodeUrl && resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice) && (
           <div style={{ ...center, margin: '4px 0' }}>
             <div style={{ fontSize: '12px', fontWeight: 900 }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '4px auto', display: 'block' }} />

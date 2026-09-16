@@ -1,6 +1,7 @@
 import type { PublicStorefrontShop } from "@/lib/websiteTypes";
 import { publicOrgSlugKey } from "@/lib/storefrontPath";
 import { normalizeInstagramUrl } from "@/lib/storefrontShare";
+import { resolveCompanyUpiId } from "@/utils/companyUpi";
 
 export type OrgPublicInfoSlice = {
   name?: string;
@@ -10,6 +11,8 @@ export type OrgPublicInfoSlice = {
     logo_url?: string | null;
     login_display_name?: string | null;
     upi_id?: string | null;
+    upi_id_2?: string | null;
+    active_upi_id?: "primary" | "secondary" | string | null;
     upi_business_name?: string | null;
     instagram_link?: string | null;
   } | null;
@@ -49,7 +52,7 @@ export function enrichPublicStorefrontShop(
     address: address || shop.address || null,
     whatsapp_number: whatsapp || shop.whatsapp_number || null,
     instagram_url: instagram || shop.instagram_url || null,
-    upi_id: (bill.upi_id || "").trim() || null,
+    upi_id: resolveCompanyUpiId(bill) || null,
     upi_business_name:
       (bill.upi_business_name || org.business_name || displayName || "").trim() || displayName,
   };

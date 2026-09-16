@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
+import { resolveInvoiceUpiId } from '@/utils/companyUpi';
 import './InvoicePrint.css';
 
 interface InvoiceItem {
@@ -94,17 +95,15 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
   }, [orgSettings]);
 
   useEffect(() => {
-    if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
+    if (resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice)) {
       generateUpiQrCode();
     }
-  }, [settings, grandTotal]);
+  }, [settings, grandTotal, props.isDcInvoice]);
 
 
   const generateUpiQrCode = async () => {
     try {
-      const upiId = (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id;
+      const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice);
       if (!upiId) return;
       const businessName = settings?.business_name || 'Store';
       
@@ -332,11 +331,11 @@ export const InvoicePrint = React.forwardRef<HTMLDivElement, InvoicePrintProps>(
             )}
           </div>
           <div className="terms-right">
-            {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) ? (
+            {qrCodeUrl && resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice) ? (
               <div className="upi-qr-section">
                 <img src={qrCodeUrl} alt="UPI QR Code" className="upi-qr-code" />
                 <p className="upi-text">Scan to Pay</p>
-                <p className="upi-id">{(props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}</p>
+                <p className="upi-id">{resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice)}</p>
               </div>
             ) : (
               <div className="barcode-image">
