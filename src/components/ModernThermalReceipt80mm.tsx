@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
+import { resolveInvoiceUpiId } from '@/utils/companyUpi';
 import { formatThermalPosAmount } from '@/utils/thermalPosItemLayout';
 import { ThermalPosItemRows } from '@/components/thermal/ThermalPosItemRows';
 
@@ -107,9 +108,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
     }, [orgSettings, settingsOverride]);
 
     useEffect(() => {
-      const upiId = (isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id;
+      const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice);
       if (!upiId || grandTotal <= 0) return;
       (async () => {
         try {
@@ -413,12 +412,12 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
         )}
 
         {/* ═══ UPI QR ═══ */}
-        {qrCodeUrl && (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) && (
+        {qrCodeUrl && resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice) && (
           <div style={{ textAlign: 'center', margin: '6px 0' }}>
             <div style={{ fontSize: '10px', fontWeight: 800, marginBottom: '3px', letterSpacing: '0.5px' }}>SCAN TO PAY</div>
             <img src={qrCodeUrl} alt="UPI QR" style={{ width: '80px', height: '80px', margin: '0 auto', display: 'block' }} />
             <div style={{ fontSize: '9px', marginTop: '2px', color: '#000' }}>
-              {(isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id) ? settings.bill_barcode_settings.dc_upi_id : settings.bill_barcode_settings.upi_id}
+              {resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice)}
             </div>
           </div>
         )}

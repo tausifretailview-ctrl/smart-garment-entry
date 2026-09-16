@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
+import { resolveCompanyUpiId } from "@/utils/companyUpi";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card } from "@/components/ui/card";
 import { ErpDashboardKpiCard } from "@/components/dashboard/ErpDashboardKpiCard";
@@ -958,7 +959,7 @@ function PrintQuotationDialog({
     ...quotationPrintProps,
     showBankDetails: true,
     bankDetails: companyBankDetails || settings?.sale_settings?.bank_details || null,
-    upiId: settings?.bill_barcode_settings?.upi_id || "",
+    upiId: resolveCompanyUpiId(settings?.bill_barcode_settings),
   };
 
   const onTemplateChange = (value: QuotationPrintTemplateId) => {

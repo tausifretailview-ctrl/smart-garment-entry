@@ -59,6 +59,7 @@ import { isMissingWebsiteSectionsSchema, sectionIdForProduct } from "@/lib/websi
 import { saveProductSectionAssignment } from "@/lib/websiteSectionIo";
 import { cn } from "@/lib/utils";
 import type { WebsiteEnquiry, WebsiteEnquiryStatus, WebsiteProduct, WebsiteSettings } from "@/lib/websiteTypes";
+import { coerceActiveUpiId, patchCompanyUpi, resolveCompanyUpiId } from "@/utils/companyUpi";
 
 type CatalogProduct = {
   id: string;
@@ -333,6 +334,8 @@ function StoreProfile({
       if (error) throw error;
       return (data?.bill_barcode_settings || {}) as {
         upi_id?: string | null;
+        upi_id_2?: string | null;
+        active_upi_id?: string | null;
         instagram_link?: string | null;
       };
     },
@@ -342,7 +345,7 @@ function StoreProfile({
     setWhatsapp(settings?.whatsapp_number || "");
     setInstagram(settings?.instagram_url || billQuery.data?.instagram_link || "");
     setFacebook(settings?.facebook_url || "");
-    setUpiId(billQuery.data?.upi_id || "");
+    setUpiId(resolveCompanyUpiId(billQuery.data) || "");
     setAccent(settings?.theme_accent_color || "#2563EB");
     setPublished(!!settings?.is_published);
   }, [settings, billQuery.data]);
@@ -373,14 +376,21 @@ function StoreProfile({
       if (readErr) throw readErr;
       const prev = (existing?.bill_barcode_settings || {}) as {
         upi_id?: string | null;
+        upi_id_2?: string | null;
+        active_upi_id?: string | null;
         instagram_link?: string | null;
       };
+      const slot = coerceActiveUpiId(prev);
+      const patched = patchCompanyUpi(
+        prev,
+        slot === "secondary" ? { upi_id_2: upiId.trim() } : { upi_id: upiId.trim() },
+      );
       const { error: billErr } = await supabase
         .from("settings")
         .update({
           bill_barcode_settings: {
             ...prev,
-            upi_id: upiId.trim() || null,
+            ...patched,
             instagram_link: instagramUrl || prev.instagram_link || null,
           },
         })
@@ -429,7 +439,7 @@ function StoreProfile({
               className="h-9 text-sm border-slate-200 bg-white"
             />
             <p className="text-xs text-muted-foreground">
-              Shown on the public store when a customer books or pays. Same UPI as invoice settings.
+              Shown on the public store when a customer books or pays. Uses the default UPI ID from Bill &amp; Barcode settings.
             </p>
           </div>
           <div className="space-y-1.5">

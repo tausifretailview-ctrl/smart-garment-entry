@@ -56,6 +56,18 @@ describe("enrichPublicStorefrontShop", () => {
     expect(enriched.instagram_url).toBe("https://instagram.com/ella.noor");
     expect(enriched.whatsapp_number).toBe("919876543210");
   });
+
+  it("uses the default-selected company UPI ID when two are configured", () => {
+    const shop = { name: "Ella", slug: "ella-noor" };
+    const enriched = enrichPublicStorefrontShop(shop, {
+      bill_barcode_settings: {
+        upi_id: "one@upi",
+        upi_id_2: "two@upi",
+        active_upi_id: "secondary",
+      },
+    });
+    expect(enriched.upi_id).toBe("two@upi");
+  });
 });
 
 describe("isEllaNoorSlug", () => {

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { resolveCompanyUpiId } from "@/utils/companyUpi";
 
 interface UPILinkParams {
   amount: number;
@@ -35,7 +36,7 @@ export const useUPIPaymentLink = () => {
     enabled: !!currentOrganization?.id,
   });
 
-  const upiId = (settings?.bill_barcode_settings as any)?.upi_id || "";
+  const upiId = resolveCompanyUpiId(settings?.bill_barcode_settings as any);
   const businessName = settings?.business_name || "Merchant";
 
   /**

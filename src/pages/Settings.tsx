@@ -31,6 +31,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  canSelectUpiSlot,
+  coerceActiveUpiId,
+  patchCompanyUpi,
+  resolveCompanyUpiId,
+  type ActiveUpiId,
+} from "@/utils/companyUpi";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -316,6 +324,8 @@ interface BillBarcodeSettings {
   show_style?: boolean;
   show_hsn_code?: boolean;
   upi_id?: string;
+  upi_id_2?: string;
+  active_upi_id?: "primary" | "secondary";
   dc_upi_id?: string;
   invoice_format?: string;
   show_product_details?: boolean;
@@ -4679,25 +4689,82 @@ export default function Settings() {
               <CardContent className="space-y-3">
                 <SettingsSection title="Bill & barcode">
                 <div className="space-y-2">
-                  <Label htmlFor="upi_id">UPI ID</Label>
-                  <Input
-                    id="upi_id"
-                    value={settings.bill_barcode_settings?.upi_id || ""}
-                    onChange={(e) =>
+                  <Label>UPI ID</Label>
+                  <p className="text-xs text-muted-foreground">
+                    POS and Sale invoice QR codes use the UPI ID marked default. Only one can be default at a time.
+                  </p>
+                  <RadioGroup
+                    value={coerceActiveUpiId(settings.bill_barcode_settings)}
+                    onValueChange={(next) => {
+                      const nextSlot = next as ActiveUpiId;
+                      if (!canSelectUpiSlot(settings.bill_barcode_settings, nextSlot)) return;
                       setSettings({
                         ...settings,
-                        bill_barcode_settings: {
-                          ...settings.bill_barcode_settings,
-                          upi_id: e.target.value,
-                        },
-                      })
-                    }
-                    placeholder="e.g., yourname@paytm"
-                    className="no-uppercase"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    UPI ID for payment QR code on invoice
-                  </p>
+                        bill_barcode_settings: patchCompanyUpi(
+                          settings.bill_barcode_settings,
+                          { active_upi_id: nextSlot },
+                        ),
+                      });
+                    }}
+                    className="gap-3"
+                  >
+                    {(["primary", "secondary"] as const).map((slot) => {
+                      const fieldId = slot === "primary" ? "upi_id" : "upi_id_2";
+                      const value =
+                        slot === "primary"
+                          ? settings.bill_barcode_settings?.upi_id || ""
+                          : settings.bill_barcode_settings?.upi_id_2 || "";
+                      const selectable = canSelectUpiSlot(
+                        settings.bill_barcode_settings,
+                        slot,
+                      );
+                      return (
+                        <div key={slot} className="space-y-1.5">
+                          <Label htmlFor={fieldId} className="text-sm font-normal">
+                            {slot === "primary" ? "UPI ID 1" : "UPI ID 2"}
+                          </Label>
+                          <div className="flex items-center gap-3">
+                            <Input
+                              id={fieldId}
+                              value={value}
+                              onChange={(e) =>
+                                setSettings({
+                                  ...settings,
+                                  bill_barcode_settings: patchCompanyUpi(
+                                    settings.bill_barcode_settings,
+                                    slot === "primary"
+                                      ? { upi_id: e.target.value }
+                                      : { upi_id_2: e.target.value },
+                                  ),
+                                })
+                              }
+                              placeholder={
+                                slot === "primary"
+                                  ? "e.g., yourname@paytm"
+                                  : "Optional second UPI ID"
+                              }
+                              className="no-uppercase"
+                            />
+                            <label
+                              htmlFor={`${fieldId}_default`}
+                              className={`flex shrink-0 items-center gap-1.5 text-xs ${
+                                selectable
+                                  ? "cursor-pointer"
+                                  : "cursor-not-allowed text-muted-foreground"
+                              }`}
+                            >
+                              <RadioGroupItem
+                                value={slot}
+                                id={`${fieldId}_default`}
+                                disabled={!selectable}
+                              />
+                              Default
+                            </label>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </RadioGroup>
                 </div>
 
                 <div className="space-y-1.5">
@@ -4733,7 +4800,7 @@ export default function Settings() {
                     </div>
                   ) : (
                     <div className="text-xs text-muted-foreground bg-muted rounded px-2 py-1">
-                      DC invoices will use company UPI: {settings.bill_barcode_settings?.upi_id || 'not set'}
+                      DC invoices will use company UPI: {resolveCompanyUpiId(settings.bill_barcode_settings) || 'not set'}
                     </div>
                   )}
                 </div>

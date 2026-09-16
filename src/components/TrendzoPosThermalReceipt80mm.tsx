@@ -4,6 +4,7 @@ import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
 import { buildUpiPayLink } from "@/lib/upiPayLink";
+import { resolveCompanyUpiId } from "@/utils/companyUpi";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { formatTrendzoThermalItemLine } from "@/utils/trendzoThermalItemLine";
 import "@/styles/trendzo-pos-thermal-receipt.css";
@@ -197,7 +198,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
   const staffLabel = (salesman || cashier || billSettings.login_display_name || "").trim();
   const partyName = (customerName || "").trim();
 
-  const upiId = String(billSettings.upi_id || "").trim();
+  const upiId = resolveCompanyUpiId(billSettings);
 
   useEffect(() => {
     if (!upiId || grandTotal <= 0) {

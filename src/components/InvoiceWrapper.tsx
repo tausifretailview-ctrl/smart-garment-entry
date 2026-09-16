@@ -35,6 +35,7 @@ import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
 import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
 import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
 import QRCode from 'qrcode';
+import { resolveCompanyUpiId, resolveInvoiceUpiId } from '@/utils/companyUpi';
 import {
   calculateGSTBreakup,
   getGstInclusiveNetBase,
@@ -239,17 +240,15 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     }, [useParentOrgSettings, props.orgSettings, fetchedOrgSettings]);
 
     useEffect(() => {
-      if (settings?.bill_barcode_settings?.upi_id || settings?.bill_barcode_settings?.dc_upi_id) {
+      if (resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice)) {
         generateUpiQrCode();
       }
-    }, [settings, props.grandTotal]);
+    }, [settings, props.grandTotal, props.isDcInvoice]);
 
 
     const generateUpiQrCode = async () => {
       try {
-        const upiId = (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
-          ? settings.bill_barcode_settings.dc_upi_id
-          : settings?.bill_barcode_settings?.upi_id;
+        const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice);
         if (!upiId) return;
         const businessName = settings?.business_name || 'Store';
         
@@ -374,10 +373,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const thermalPaper =
       props.thermalPaper ??
       resolvePosThermalPaper((settings?.bill_barcode_settings as { direct_print_pos_paper?: string })?.direct_print_pos_paper);
-    const upiId =
-      props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id;
+    const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice);
     const isThermalReceipt = format === 'thermal' || format === 'thermal-receipt';
     const templateUsesPaymentQr =
       !isThermalReceipt && templateForFormat !== 'real-tast' && templateForFormat !== 'gift_tally';
@@ -513,9 +509,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       previousBalance: props.previousBalance || 0,
       
       qrCodeUrl,
-      upiId: (props.isDcInvoice && settings?.bill_barcode_settings?.dc_upi_id)
-        ? settings.bill_barcode_settings.dc_upi_id
-        : settings?.bill_barcode_settings?.upi_id,
+      upiId: resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice),
       bankDetails: resolvedBankDetails,
       declarationText,
       termsConditions: filteredTerms,
@@ -862,7 +856,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             address: settings?.address || '',
             phone: settings?.mobile_number || '',
             email: settings?.email_id,
-            upiId: settings?.bill_barcode_settings?.upi_id,
+            upiId: resolveCompanyUpiId(settings?.bill_barcode_settings),
             terms: settings?.sale_settings?.declaration_text,
             logo: settings?.bill_barcode_settings?.logo_url,
           },

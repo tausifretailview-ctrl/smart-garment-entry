@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
+import { resolveCompanyUpiId } from "@/utils/companyUpi";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 
 export interface RetailPosThermalItem {
@@ -161,7 +162,7 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
   const mobile = String(settings?.mobile_number || settings?.owner_phone || "").trim();
   const gstNumber = String(settings?.gst_number || "").trim();
   const logoUrl = billSettings.logo_url?.trim() || "";
-  const upiId = billSettings.upi_id?.trim() || "";
+  const upiId = resolveCompanyUpiId(billSettings);
 
   useEffect(() => {
     if (!upiId || grandTotal <= 0) {
