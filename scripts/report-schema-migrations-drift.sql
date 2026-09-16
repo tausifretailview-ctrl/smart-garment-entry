@@ -19,3 +19,4 @@
 --   20260824120000  sale settlement / payment_status normalizer
 --   20260628120000  reconcile gross invoiced CN receipts
 --   20261126120000  party RPC CN memos via _is_settlement_memo_receipt
+--   20261219120000  leftover-CN remaining + customer_payment_refunds sign

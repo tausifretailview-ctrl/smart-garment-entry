@@ -117,15 +117,15 @@ export function partySqlSignedBalance(p: {
 }): number {
   return round2(
     p.opening
-      + p.invoicedNet
-      - p.sraGated
-      - p.receiptsExclMemo
-      - p.paidAtSaleDrift
-      - p.pendingRemainingCredit
-      - p.creditNoteVouchers
-      - p.paymentRefunds
-      - p.advanceUsed
-      - p.unusedAdvance,
+        + p.invoicedNet
+        - p.sraGated
+        - p.receiptsExclMemo
+        - p.paidAtSaleDrift
+        - p.pendingRemainingCredit
+        - p.creditNoteVouchers
+        + p.paymentRefunds
+        - p.advanceUsed
+        - p.unusedAdvance,
   );
 }
 
@@ -191,33 +191,43 @@ const FARHAAN_CORE_PARAMS = {
 
 describe("latest _get_customer_party_balances_rows SQL source", () => {
   const { file, body } = latestPartyRowsSql();
+  const partyFnStart = body.indexOf(PARTY_ROWS_FN);
+  const partyGrant = "GRANT EXECUTE ON FUNCTION public._get_customer_party_balances_rows(uuid) TO authenticated, service_role;";
+  const partyFnEnd = body.indexOf(partyGrant, partyFnStart);
+  const partyFn = body.slice(partyFnStart, partyFnEnd + partyGrant.length);
 
-  it("is the Phase 1 step 1 migration, not an earlier copy that inlines LIKE", () => {
-    expect(file).toBe("20261126120000_fix_party_balances_settlement_memo_helper.sql");
+  it("is the leftover-CN refund-sign migration, not an earlier copy that inlines LIKE", () => {
+    expect(file).toBe("20261219120000_fix_party_leftover_cn_refund_sign.sql");
   });
 
   it("excludes receipts via _is_settlement_memo_receipt (receipt_voucher_base + paid_at_sale_drift)", () => {
-    expect(body).toContain("AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)");
-    const helperCalls = body.split("public._is_settlement_memo_receipt(").length - 1;
+    expect(partyFn).toContain("AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)");
+    const helperCalls = partyFn.split("public._is_settlement_memo_receipt(").length - 1;
     expect(helperCalls).toBe(2);
-    expect(body).not.toMatch(/LIKE '%credit note adjusted%'/);
-    expect(body).not.toMatch(/IN \('advance_adjustment', 'credit_note_adjustment'\)/);
+    expect(partyFn).not.toMatch(/LIKE '%credit note adjusted%'/);
+    expect(partyFn).not.toMatch(/IN \('advance_adjustment', 'credit_note_adjustment'\)/);
   });
 
-  it("restores remaining CN via _sale_return_remaining_credit_for_balance, not pending-only", () => {
-    expect(body).toContain("public._sale_return_remaining_credit_for_balance(");
-    const pendingBlock = body.slice(
-      body.indexOf("pending_sale_returns AS ("),
-      body.indexOf("credit_note_vouchers AS ("),
+  it("uses _org_sale_return_balance_remaining (includes refunded leftover CN)", () => {
+    expect(partyFn).toContain("public._org_sale_return_balance_remaining(");
+    const pendingBlock = partyFn.slice(
+      partyFn.indexOf("pending_sale_returns AS ("),
+      partyFn.indexOf("credit_note_vouchers AS ("),
     );
-    expect(pendingBlock).toContain("NOT IN ('refunded')");
+    expect(pendingBlock).toContain("_org_sale_return_balance_remaining");
+    expect(pendingBlock).not.toMatch(/NOT IN \('refunded'\)/);
     expect(pendingBlock).not.toMatch(/=\s*'pending'/);
   });
 
+  it("adds customer_payment_refunds to signed outstanding (ledger cnRefunded)", () => {
+    expect(partyFn).toContain("+ COALESCE(cpr.amt, 0)");
+    expect(partyFn).not.toMatch(/- COALESCE\(cpr\.amt, 0\)/);
+  });
+
   it("keeps the items_gross SRA gate and credit_note_vouchers CTE", () => {
-    expect(body).toContain("s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1");
-    expect(body).toContain("credit_note_vouchers AS (");
-    expect(body).toMatch(/voucher_type, ''\)\) = 'credit_note'/);
+    expect(partyFn).toContain("s.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1");
+    expect(partyFn).toContain("credit_note_vouchers AS (");
+    expect(partyFn).toMatch(/voucher_type, ''\)\) = 'credit_note'/);
   });
 });
 
@@ -325,6 +335,63 @@ describe("Farhaan Fab — SQL-shaped party formula", () => {
       options: { ledgerAlignedApplicationReceipts: false },
     });
     expect(buggy.balance).toBeCloseTo(-2_800, 0);
+  });
+});
+
+describe("ALMAS MOTIWALA — SQL-shaped leftover CN + refund sign", () => {
+  const invoicedNet = 8_550 + 4_700 + 1_800;
+  const sraGated =
+    gatedSraSql(4_700, 4_700, 4_700) + gatedSraSql(1_800, 1_800, 1_800) + gatedSraSql(8_550, 0, 8_550);
+  const receiptsExclMemo = 8_550;
+  const leftoverAfterAllInvoiceSra = 8_550 - 4_700 - 1_800;
+  const refund = 2_050;
+
+  it("SRA on post-apply invoices is not gated away (net+sra > items_gross)", () => {
+    expect(invoicedNet).toBe(15_050);
+    expect(sraGated).toBe(6_500);
+    expect(leftoverAfterAllInvoiceSra).toBe(2_050);
+  });
+
+  it("list bug: +refund with leftover remaining dropped → ₹2,050 Dr", () => {
+    expect(
+      partySqlSignedBalance({
+        opening: 0,
+        invoicedNet,
+        sraGated,
+        receiptsExclMemo,
+        paidAtSaleDrift: 0,
+        pendingRemainingCredit: 0,
+        creditNoteVouchers: 0,
+        paymentRefunds: refund,
+        advanceUsed: 0,
+        unusedAdvance: 0,
+      }),
+    ).toBe(2_050);
+  });
+
+  it("snapshot bug: −refund with leftover remaining dropped → ₹2,050 Cr", () => {
+    expect(
+      round2(
+        invoicedNet - sraGated - receiptsExclMemo - 0 - refund,
+      ),
+    ).toBe(-2_050);
+  });
+
+  it("post-fix: leftover remaining 2050 + refund +2050 → ₹0", () => {
+    expect(
+      partySqlSignedBalance({
+        opening: 0,
+        invoicedNet,
+        sraGated,
+        receiptsExclMemo,
+        paidAtSaleDrift: 0,
+        pendingRemainingCredit: leftoverAfterAllInvoiceSra,
+        creditNoteVouchers: 0,
+        paymentRefunds: refund,
+        advanceUsed: 0,
+        unusedAdvance: 0,
+      }),
+    ).toBe(0);
   });
 });
 

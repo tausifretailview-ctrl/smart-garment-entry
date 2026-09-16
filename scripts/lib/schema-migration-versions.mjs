@@ -31,6 +31,10 @@ export const CRITICAL_SCHEMA_MIGRATIONS = [
     version: "20261126120000",
     reason: "Party RPC CN memos via _is_settlement_memo_receipt + remaining sale-return credit",
   },
+  {
+    version: "20261219120000",
+    reason: "Party leftover-CN remaining + customer_payment_refunds sign (Almas mirrors)",
+  },
 ];
 
 export function parseMigrationVersion(filename) {
