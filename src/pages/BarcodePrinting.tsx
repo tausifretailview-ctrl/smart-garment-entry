@@ -47,6 +47,7 @@ import type html2canvasType from "html2canvas";
 import {
   encodePurchasePriceForLabel,
   resolvePurchaseCodeAlphabet,
+  resolvePurchaseCodeIncludeDate,
 } from "@/utils/purchaseCodeEncoder";
 import { generateA4LabelPdf } from '@/utils/a4LabelPdf';
 import {
@@ -1528,7 +1529,7 @@ export default function BarcodePrinting() {
   const [purchaseCodeAlphabet, setPurchaseCodeAlphabet] = useState("ABCDEFGHIK");
   const [showPurchaseCode, setShowPurchaseCode] = useState(false);
   const [purchaseCodeIncludeGst, setPurchaseCodeIncludeGst] = useState(false);
-  const [purchaseCodeIncludeDate, setPurchaseCodeIncludeDate] = useState(false);
+  const [purchaseCodeIncludeDate, setPurchaseCodeIncludeDate] = useState(true);
   const [purchaseCodeExtraPercentEnabled, setPurchaseCodeExtraPercentEnabled] = useState(false);
   const [purchaseCodeExtraPercent, setPurchaseCodeExtraPercent] = useState(10);
   const [defaultUom, setDefaultUom] = useState("NOS");
@@ -2413,7 +2414,7 @@ export default function BarcodePrinting() {
           if (purchaseSettings.purchase_code_include_gst !== undefined) {
             setPurchaseCodeIncludeGst(purchaseSettings.purchase_code_include_gst);
           }
-          setPurchaseCodeIncludeDate(purchaseSettings.purchase_code_include_date === true);
+          setPurchaseCodeIncludeDate(resolvePurchaseCodeIncludeDate(purchaseSettings));
           setPurchaseCodeExtraPercentEnabled(purchaseSettings.purchase_code_extra_percent_enabled === true);
           if (typeof purchaseSettings.purchase_code_extra_percent === "number") {
             setPurchaseCodeExtraPercent(purchaseSettings.purchase_code_extra_percent);

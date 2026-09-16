@@ -46,6 +46,7 @@ import {
 import {
   encodePurchasePrice,
   normalizePurchaseCodeAlphabet,
+  resolvePurchaseCodeIncludeDate,
   validatePurchaseCodeAlphabet,
 } from "@/utils/purchaseCodeEncoder";
 import { isKsFootwearSlug } from "@/utils/saleScanPricePreference";
@@ -2178,14 +2179,14 @@ export default function Settings() {
                           100,
                           settings.purchase_settings.purchase_code_alphabet,
                           "2026-09-12",
-                          { includeDate: settings.purchase_settings.purchase_code_include_date === true },
+                          { includeDate: resolvePurchaseCodeIncludeDate(settings.purchase_settings) },
                         )}
                         {" · "}
                         ₹3190 → {encodePurchasePrice(
                           3190,
                           settings.purchase_settings.purchase_code_alphabet,
                           "2026-09-12",
-                          { includeDate: settings.purchase_settings.purchase_code_include_date === true },
+                          { includeDate: resolvePurchaseCodeIncludeDate(settings.purchase_settings) },
                         )}
                       </p>
                     )}
@@ -2223,7 +2224,7 @@ export default function Settings() {
                 <div className="flex items-center space-x-2 ml-6">
                   <Checkbox
                     id="purchase_code_include_date"
-                    checked={settings.purchase_settings?.purchase_code_include_date === true}
+                    checked={resolvePurchaseCodeIncludeDate(settings.purchase_settings)}
                     onCheckedChange={(checked) =>
                       setSettings({
                         ...settings,
@@ -2240,7 +2241,7 @@ export default function Settings() {
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground ml-12">
-                  Off (default): letters only (SEWN). On: wrap as MMCODEYR (09SEWN26)
+                  On (default): wrap as MMCODEYR (09SEWN26). Off: letters only (SEWN)
                 </p>
                 
                 <div className="flex items-center space-x-2 ml-6">
