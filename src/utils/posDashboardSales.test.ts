@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  POS_DASHBOARD_CREDIT_NOTE_OR,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
+  POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR,
+  applyPosDashboardFilters,
   buildPosDashboardPaymentMethodOrFilter,
   buildPosDashboardSummaryScopeFilters,
   patchPosDashboardSalePayment,
   posDashboardModeTotalsNeedCorrection,
   posDashboardSummaryLooksValid,
+  posSaleMatchesCreditNoteDashboardFilter,
   reconcilePosDashboardUnpaidCounts,
   resolvePosDashboardVoucherLookbackFrom,
   type PosDashboardFilters,
@@ -24,6 +28,120 @@ const baseFilters = (): PosDashboardFilters => ({
   creditNoteFilter: "all",
   userFilter: "all",
   cancelFilter: "active",
+});
+
+function recordingQuery() {
+  const ops: Array<[string, ...unknown[]]> = [];
+  const q: { ops: typeof ops } = { ops };
+  const chain = new Proxy(q, {
+    get(target, prop: string) {
+      if (prop === "ops") return target.ops;
+      return (...args: unknown[]) => {
+        target.ops.push([prop, ...args]);
+        return chain;
+      };
+    },
+  });
+  return chain;
+}
+
+describe("POS dashboard credit-note filters", () => {
+  it("never queries the nonexistent sales.credit_amount column", () => {
+    expect(POS_DASHBOARD_CREDIT_NOTE_OR).toContain("credit_note_id");
+    expect(POS_DASHBOARD_CREDIT_NOTE_OR).toContain("credit_note_amount");
+    expect(POS_DASHBOARD_CREDIT_NOTE_OR).not.toContain("credit_amount");
+    expect(POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR).toContain("credit_note_amount");
+    expect(POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR).not.toMatch(/(^|[^_])credit_amount/);
+  });
+
+  it("CN Only matches linked CN id or credit_note_amount, not credit_applied", () => {
+    expect(
+      posSaleMatchesCreditNoteDashboardFilter({ credit_note_id: "cn-1", credit_note_amount: 0 }),
+    ).toBe(true);
+    expect(
+      posSaleMatchesCreditNoteDashboardFilter({ credit_note_id: null, credit_note_amount: 4700 }),
+    ).toBe(true);
+    expect(
+      posSaleMatchesCreditNoteDashboardFilter({ credit_note_id: null, credit_note_amount: 0 }),
+    ).toBe(false);
+    const bills = [
+      { id: "with-id", credit_note_id: "cn-1", credit_note_amount: 0, sale_type: "pos" },
+      { id: "with-amt", credit_note_id: null, credit_note_amount: 500, sale_type: "pos" },
+      { id: "cash-only", credit_note_id: null, credit_note_amount: 0, sale_type: "pos" },
+      { id: "dc-only", credit_note_id: null, credit_note_amount: 0, sale_type: "delivery_challan" },
+    ];
+    expect(bills.filter(posSaleMatchesCreditNoteDashboardFilter).map((b) => b.id)).toEqual([
+      "with-id",
+      "with-amt",
+    ]);
+    expect(bills.filter((b) => !posSaleMatchesCreditNoteDashboardFilter(b))).toHaveLength(2);
+  });
+
+  it("applies credit_note_amount PostgREST filters for cn / with / without", () => {
+    const cn = recordingQuery();
+    applyPosDashboardFilters(cn, { ...baseFilters(), saleTypeFilter: "cn" });
+    expect(cn.ops.some((op) => op[0] === "or" && op[1] === POS_DASHBOARD_CREDIT_NOTE_OR)).toBe(
+      true,
+    );
+    expect(JSON.stringify(cn.ops)).not.toContain("credit_amount");
+
+    const withCn = recordingQuery();
+    applyPosDashboardFilters(withCn, {
+      ...baseFilters(),
+      saleTypeFilter: "all",
+      creditNoteFilter: "with_credit_note",
+    });
+    expect(
+      withCn.ops.some((op) => op[0] === "or" && op[1] === POS_DASHBOARD_CREDIT_NOTE_OR),
+    ).toBe(true);
+
+    const withoutCn = recordingQuery();
+    applyPosDashboardFilters(withoutCn, {
+      ...baseFilters(),
+      saleTypeFilter: "all",
+      creditNoteFilter: "without_credit_note",
+    });
+    expect(withoutCn.ops.some((op) => op[0] === "is" && op[1] === "credit_note_id")).toBe(true);
+    expect(
+      withoutCn.ops.some((op) => op[0] === "or" && op[1] === POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR),
+    ).toBe(true);
+    expect(JSON.stringify(withoutCn.ops)).not.toContain("credit_amount.gt");
+  });
+
+  it("leaves Cash / DC Only / Mix payment filters on their own columns", () => {
+    const cash = recordingQuery();
+    applyPosDashboardFilters(cash, { ...baseFilters(), paymentMethodFilter: "cash" });
+    expect(
+      cash.ops.some(
+        (op) =>
+          op[0] === "or" &&
+          String(op[1]).includes("payment_method.eq.cash") &&
+          String(op[1]).includes("cash_amount.gt.0"),
+      ),
+    ).toBe(true);
+
+    const dc = recordingQuery();
+    applyPosDashboardFilters(dc, {
+      ...baseFilters(),
+      paymentMethodFilter: "all",
+      saleTypeFilter: "dc",
+    });
+    expect(dc.ops.some((op) => op[0] === "eq" && op[1] === "sale_type" && op[2] === "delivery_challan")).toBe(
+      true,
+    );
+    expect(dc.ops.some((op) => op[0] === "or" && op[1] === POS_DASHBOARD_CREDIT_NOTE_OR)).toBe(
+      false,
+    );
+
+    const mix = recordingQuery();
+    applyPosDashboardFilters(mix, {
+      ...baseFilters(),
+      paymentMethodFilter: "multiple",
+    });
+    expect(mix.ops.some((op) => op[0] === "eq" && op[1] === "payment_method" && op[2] === "multiple")).toBe(
+      true,
+    );
+  });
 });
 
 describe("POS dashboard mix / unpaid filters", () => {

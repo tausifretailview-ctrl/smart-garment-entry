@@ -26,7 +26,7 @@ import {
 } from "@/utils/posDashboardSearch";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useToast } from "@/hooks/use-toast";
+import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { fetchCustomerAccountStateView } from "@/utils/customerAccountStateView";
@@ -855,6 +855,9 @@ const POSDashboard = () => {
     },
     enabled: posQueryEnabled,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+    // Failed CN filters used to retry 3×, each retry re-firing the error toast
+    // while this pane stays mounted in the tab cache.
+    retry: false,
   });
 
   const posReconcileSourceKey = useMemo(
@@ -1008,26 +1011,44 @@ const POSDashboard = () => {
     blockedUi: loading,
   });
 
+  const posDashboardLoadErrorToastIdRef = useRef<string | null>(null);
+  const lastPosDashboardLoadErrorKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!salesQueryError) return;
-    if (isStatementTimeout(salesQueryError)) {
-      const { title, message } = statementTimeoutMessage();
-      toast({ title, description: message, variant: "destructive" });
+    if (!salesQueryError) {
+      if (posDashboardLoadErrorToastIdRef.current) {
+        dismissToast(posDashboardLoadErrorToastIdRef.current);
+        posDashboardLoadErrorToastIdRef.current = null;
+      }
+      lastPosDashboardLoadErrorKeyRef.current = null;
       return;
     }
     const message =
-      salesQueryError instanceof Error
-        ? salesQueryError.message
-        : typeof salesQueryError === "object" &&
-            salesQueryError !== null &&
-            "message" in salesQueryError
-          ? String((salesQueryError as { message?: string }).message)
-          : "Failed to load sales";
-    toast({
+      isStatementTimeout(salesQueryError)
+        ? statementTimeoutMessage().message
+        : salesQueryError instanceof Error
+          ? salesQueryError.message
+          : typeof salesQueryError === "object" &&
+              salesQueryError !== null &&
+              "message" in salesQueryError
+            ? String((salesQueryError as { message?: string }).message)
+            : "Failed to load sales";
+    const errorKey = `${message}`;
+    if (lastPosDashboardLoadErrorKeyRef.current === errorKey) return;
+    lastPosDashboardLoadErrorKeyRef.current = errorKey;
+
+    if (isStatementTimeout(salesQueryError)) {
+      const { title, message: timeoutMessage } = statementTimeoutMessage();
+      const shown = toast({ title, description: timeoutMessage, variant: "destructive" });
+      posDashboardLoadErrorToastIdRef.current = shown.id;
+      return;
+    }
+    const shown = toast({
       title: "Error",
       description: message || "Failed to load sales",
       variant: "destructive",
     });
+    posDashboardLoadErrorToastIdRef.current = shown.id;
   }, [salesQueryError, toast]);
 
   const posDashboardWasActiveRef = useRef(false);

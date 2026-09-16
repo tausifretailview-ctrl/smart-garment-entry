@@ -559,11 +559,32 @@ async function fetchPosDashboardSummaryViaRpc(
 }
 
 const POS_DASHBOARD_SUMMARY_SELECT =
-  "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
+  "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
 
 /** Safer column list when full summary select fails (e.g. migration not yet applied). */
 const POS_DASHBOARD_SUMMARY_FALLBACK_SELECT =
-  "id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
+  "id, gross_amount, discount_amount, flat_discount_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, refund_amount, credit_note_id, credit_note_amount, sale_return_adjust, round_off, total_qty, is_cancelled";
+
+/**
+ * PostgREST OR for "this sale has a credit note".
+ * `sales.credit_amount` does not exist — match get_pos_dashboard_stats
+ * (`credit_note_id` / `credit_note_amount`).
+ */
+export const POS_DASHBOARD_CREDIT_NOTE_OR =
+  "credit_note_id.not.is.null,credit_note_amount.gt.0";
+
+export const POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR =
+  "credit_note_amount.is.null,credit_note_amount.eq.0";
+
+export function posSaleMatchesCreditNoteDashboardFilter(sale: {
+  credit_note_id?: string | null;
+  credit_note_amount?: number | null;
+}): boolean {
+  return (
+    sale.credit_note_id != null && sale.credit_note_id !== "" ||
+    Number(sale.credit_note_amount || 0) > 0
+  );
+}
 
 function posSearchBypassesDateFilter(search: string): boolean {
   return search.trim().length > 0;
@@ -610,7 +631,7 @@ export function buildPosDashboardSummaryScopeFilters(
   };
 }
 
-function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
+export function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
   let q = query
     .eq("organization_id", filters.organizationId)
     .in("sale_type", ["pos", "delivery_challan"])
@@ -648,7 +669,7 @@ function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
   } else if (filters.saleTypeFilter === "pos") {
     q = q.eq("sale_type", "pos");
   } else if (filters.saleTypeFilter === "cn") {
-    q = q.or("credit_note_id.not.is.null,credit_amount.gt.0");
+    q = q.or(POS_DASHBOARD_CREDIT_NOTE_OR);
   }
 
   if (filters.refundFilter === "with_refund") {
@@ -658,9 +679,9 @@ function applyPosDashboardFilters(query: any, filters: PosDashboardFilters) {
   }
 
   if (filters.creditNoteFilter === "with_credit_note") {
-    q = q.or("credit_note_id.not.is.null,credit_amount.gt.0");
+    q = q.or(POS_DASHBOARD_CREDIT_NOTE_OR);
   } else if (filters.creditNoteFilter === "without_credit_note") {
-    q = q.is("credit_note_id", null).or("credit_amount.is.null,credit_amount.eq.0");
+    q = q.is("credit_note_id", null).or(POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR);
   }
 
   if (!posSearchBypassesDateFilter(filters.search)) {
@@ -1082,19 +1103,14 @@ export function computePosDashboardSummaryStats(
       (sum, sale) => sum + Number((sale as { refund_amount?: number }).refund_amount || 0),
       0,
     ),
-    creditNoteCount: nonHoldSales.filter(
-      (sale) =>
-        !!(sale as { credit_note_id?: string | null }).credit_note_id ||
-        Number((sale as { credit_amount?: number }).credit_amount || 0) > 0,
+    creditNoteCount: nonHoldSales.filter((sale) =>
+      posSaleMatchesCreditNoteDashboardFilter(
+        sale as { credit_note_id?: string | null; credit_note_amount?: number | null },
+      ),
     ).length,
     creditNoteAmount: nonHoldSales.reduce(
       (sum, sale) =>
-        sum +
-        Number(
-          (sale as { credit_note_amount?: number }).credit_note_amount ||
-            (sale as { credit_amount?: number }).credit_amount ||
-            0,
-        ),
+        sum + Number((sale as { credit_note_amount?: number }).credit_note_amount || 0),
       0,
     ),
     ...(() => {
