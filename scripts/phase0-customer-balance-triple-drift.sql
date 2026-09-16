@@ -132,3 +132,134 @@ SELECT
   ROUND(MAX(total_cr)::numeric, 2) AS kpi_total_credit_cr_rpc,
   ROUND(MAX(net_receivable)::numeric, 2) AS kpi_net_receivable_rpc
 FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::uuid);
+
+
+-- =============================================================================
+-- LIVE APPLY GATE (run BEFORE treating A2/A3 as post-fix)
+-- Must return a row for 20261219120000. Empty = repo-only, not Lovable-applied.
+-- =============================================================================
+SELECT version, name, inserted_at
+FROM supabase_migrations.schema_migrations
+WHERE version IN (
+  '20261126120000',
+  '20261127120000',
+  '20261219120000'
+)
+ORDER BY version;
+
+
+-- =============================================================================
+-- A2) INNER JOIN party vs snapshot_all (overlap only)
+-- Pre-fix: 663 diffs, abs ₹23,94,895. Post-fix: 17 mirrors must be gone.
+-- =============================================================================
+SET statement_timeout = '180s';
+
+WITH params AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id
+),
+all_snap AS (
+  SELECT customer_id, outstanding_dr, advance_available
+  FROM public.get_customer_financial_snapshot_all((SELECT org_id FROM params))
+),
+party AS (
+  SELECT customer_id, customer_name, signed_balance, advance_available
+  FROM public.get_customer_party_balances((SELECT org_id FROM params))
+),
+compared AS (
+  SELECT
+    p.customer_id,
+    p.customer_name,
+    p.signed_balance AS party_signed,
+    a.outstanding_dr AS snap_signed,
+    a.advance_available AS snap_adv,
+    p.signed_balance - a.outstanding_dr AS party_minus_snap,
+    ABS(p.signed_balance - a.outstanding_dr) AS d_signed
+  FROM party p
+  INNER JOIN all_snap a ON a.customer_id = p.customer_id
+)
+SELECT
+  COUNT(*) AS overlap_rows,
+  COUNT(*) FILTER (WHERE d_signed > 1) AS diff_rows_gt_1,
+  ROUND(COALESCE(SUM(d_signed) FILTER (WHERE d_signed > 1), 0)::numeric, 2) AS abs_signed_divergence,
+  ROUND(MAX(d_signed)::numeric, 2) AS max_signed_delta
+FROM compared;
+
+
+-- =============================================================================
+-- A3) split  diffs into unused-advance netting vs leftover-CN (not explained)
+-- Pre-fix: 554 explained_by_advance, 109 not_explained. 17 mirrors in the 109.
+-- =============================================================================
+SET statement_timeout = '180s';
+
+WITH params AS (
+  SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id
+),
+all_snap AS (
+  SELECT customer_id, outstanding_dr, advance_available
+  FROM public.get_customer_financial_snapshot_all((SELECT org_id FROM params))
+),
+party AS (
+  SELECT customer_id, customer_name, signed_balance
+  FROM public.get_customer_party_balances((SELECT org_id FROM params))
+),
+compared AS (
+  SELECT
+    p.customer_id,
+    p.customer_name,
+    p.signed_balance AS party_signed,
+    a.outstanding_dr AS snap_signed,
+    COALESCE(a.advance_available, 0) AS snap_adv,
+    p.signed_balance - a.outstanding_dr AS party_minus_snap,
+    ABS(p.signed_balance - a.outstanding_dr) AS d_signed
+  FROM party p
+  INNER JOIN all_snap a ON a.customer_id = p.customer_id
+  WHERE ABS(p.signed_balance - a.outstanding_dr) > 1
+),
+classified AS (
+  SELECT
+    *,
+    ABS(party_signed - (snap_signed + snap_adv)) <= 1 AS explained_by_advance,
+    party_signed = -snap_signed AND party_signed <> 0 AS is_mirror
+  FROM compared
+)
+SELECT
+  COUNT(*) AS diff_rows,
+  COUNT(*) FILTER (WHERE explained_by_advance) AS explained_by_advance,
+  COUNT(*) FILTER (WHERE NOT explained_by_advance) AS not_explained_by_advance,
+  COUNT(*) FILTER (WHERE is_mirror AND NOT explained_by_advance) AS leftover_mirrors,
+  ROUND(COALESCE(SUM(GREATEST(party_signed, 0)) FILTER (WHERE NOT explained_by_advance), 0)::numeric, 2)
+    AS not_explained_party_dr
+FROM classified;
+
+
+-- Named 17-mirror set (must all be gone post-fix: party_signed = snap_signed)
+SELECT customer_name, party_signed, snap_signed, snap_adv, party_minus_snap
+FROM (
+  WITH params AS (
+    SELECT '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id
+  ),
+  all_snap AS (
+    SELECT customer_id, outstanding_dr, advance_available
+    FROM public.get_customer_financial_snapshot_all((SELECT org_id FROM params))
+  ),
+  party AS (
+    SELECT customer_id, customer_name, signed_balance
+    FROM public.get_customer_party_balances((SELECT org_id FROM params))
+  )
+  SELECT
+    p.customer_name,
+    p.signed_balance AS party_signed,
+    a.outstanding_dr AS snap_signed,
+    COALESCE(a.advance_available, 0) AS snap_adv,
+    p.signed_balance - a.outstanding_dr AS party_minus_snap
+  FROM party p
+  INNER JOIN all_snap a ON a.customer_id = p.customer_id
+  WHERE p.customer_id IN (
+    '06e8d6a2-7e27-47fe-9684-db1693775b74', -- ALMAS MOTIWALA
+    '00c34380-3602-406d-b9a0-d378a20f7b9c', -- Hanif bhai
+    'd1a729d1-8c7d-4411-85ce-6501dbdb2945'  -- FIZA MEMON
+  )
+    OR (p.signed_balance = -a.outstanding_dr AND p.signed_balance <> 0
+        AND ABS(p.signed_balance - a.outstanding_dr) > 1)
+) m
+ORDER BY ABS(party_minus_snap) DESC;
