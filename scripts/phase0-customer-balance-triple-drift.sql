@@ -96,25 +96,25 @@ refunds AS (
 )
 SELECT
   COUNT(*) FILTER (
-    WHERE remaining_via_linked > 1
-      AND lower(trim(COALESCE(credit_status, ''))) NOT IN ('pending', 'refunded')
+    WHERE sr.remaining_via_linked > 1
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('pending', 'refunded')
   ) AS leftover_on_applied_sr_rows,
-  COUNT(DISTINCT customer_id) FILTER (
-    WHERE remaining_via_linked > 1
-      AND lower(trim(COALESCE(credit_status, ''))) NOT IN ('pending', 'refunded')
+  COUNT(DISTINCT sr.customer_id) FILTER (
+    WHERE sr.remaining_via_linked > 1
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('pending', 'refunded')
   ) AS leftover_on_applied_sr_customers,
   COUNT(DISTINCT sr.customer_id) FILTER (
-    WHERE remaining_via_linked > 1
+    WHERE sr.remaining_via_linked > 1
       AND COALESCE(sra.sra_invoice_count, 0) >= 2
   ) AS split_cn_candidate_customers,
   COUNT(DISTINCT sr.customer_id) FILTER (
-    WHERE remaining_via_linked > 1
+    WHERE sr.remaining_via_linked > 1
       AND COALESCE(rf.refund_amt, 0) > 1
-      AND lower(trim(COALESCE(credit_status, ''))) <> 'pending'
+      AND lower(trim(COALESCE(sr.credit_status, ''))) <> 'pending'
   ) AS refund_on_applied_candidate_customers,
-  ROUND(COALESCE(SUM(remaining_via_linked) FILTER (
-    WHERE remaining_via_linked > 1
-      AND lower(trim(COALESCE(credit_status, ''))) NOT IN ('pending', 'refunded')
+  ROUND(COALESCE(SUM(sr.remaining_via_linked) FILTER (
+    WHERE sr.remaining_via_linked > 1
+      AND lower(trim(COALESCE(sr.credit_status, ''))) NOT IN ('pending', 'refunded')
   ), 0)::numeric, 2) AS leftover_on_applied_sr_rupees
 FROM sr
 LEFT JOIN sra_sales sra ON sra.customer_id = sr.customer_id
