@@ -16,8 +16,6 @@ import {
   shouldPrintPreprintedLetterheadLogo,
   preprintedLetterheadLogoBox,
   PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
-  PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4,
-  PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A5,
   toInvoiceWrapperFormat,
   isA5PortraitInvoiceTemplate,
 } from '@/utils/invoicePrintFormat';
@@ -311,11 +309,14 @@ describe('preprinted letterhead logo opt-in', () => {
     ).toBe(false);
   });
 
-  it('fits the banner inside the letterhead band with side insets', () => {
-    const box = preprintedLetterheadLogoBox('2in');
-    expect(box.width).toBe('calc(100% - 2 * 8mm)');
-    expect(box.left).toBe(PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4);
-    expect(box.objectFit).toBe('contain');
+  it('aligns the banner with table column edges using page content insets', () => {
+    const box = preprintedLetterheadLogoBox('2in', {
+      contentInsetLeft: '8mm',
+      contentInsetRight: '10mm',
+    });
+    expect(box.width).toBe('calc(100% - 8mm - 10mm)');
+    expect(box.left).toBe('8mm');
+    expect(box.objectFit).toBe('fill');
     expect(box.top).toBe(PREPRINTED_LETTERHEAD_LOGO_TOP_GAP);
     expect(box.top).toBe('4mm');
     expect(box.height).toContain('2in');
@@ -323,11 +324,12 @@ describe('preprinted letterhead logo opt-in', () => {
     expect(box.height).toContain('2mm');
   });
 
-  it('uses tighter side insets on A5 preprinted', () => {
+  it('uses A5 preprinted page padding for letterhead alignment', () => {
     const box = preprintedLetterheadLogoBox('2in', {
-      sideGap: PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A5,
+      contentInsetLeft: '5.5mm',
+      contentInsetRight: '7mm',
     });
-    expect(box.left).toBe('5mm');
-    expect(box.width).toBe('calc(100% - 2 * 5mm)');
+    expect(box.left).toBe('5.5mm');
+    expect(box.width).toBe('calc(100% - 5.5mm - 7mm)');
   });
 });

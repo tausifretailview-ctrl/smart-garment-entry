@@ -468,7 +468,7 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
             <SettingsFieldBlock
               label="Print shop logo on letterhead"
               htmlFor="pos_print_logo_on_preprinted_letterhead"
-              description="Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the uploaded Organization Logo scaled to fit that top space (aspect ratio preserved)."
+              description="Off (default): keep the 2-inch top blank for physical letterpad paper. On: print the uploaded Organization Logo full-width in that top space, aligned with invoice columns."
             >
               <Switch
                 id="pos_print_logo_on_preprinted_letterhead"

@@ -4,8 +4,6 @@ import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/uti
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
 import {
-  PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4,
-  PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A5,
   preprintedLetterheadLogoBox,
   shouldPrintPreprintedLetterheadLogo,
 } from "@/utils/invoicePrintFormat";
@@ -512,15 +510,14 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const pageH = isA4 ? "297mm" : "210mm";
   const pad = isA4 ? "10mm" : "5mm";
   const letterheadGap = isPreprinted ? "2in" : pad;
-  const letterheadLogoBox = preprintedLetterheadLogoBox(letterheadGap, {
-    sideGap: isPreprintedA5
-      ? PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A5
-      : PREPRINTED_LETTERHEAD_LOGO_SIDE_GAP_A4,
-  });
   // Preprinted: extra right/bottom inset so border lines stay inside printer safe area
   const preprintedPadX = isPreprintedA5 ? "5.5mm" : isPreprinted ? "8mm" : pad;
   const preprintedPadRight = isPreprintedA5 ? "7mm" : isPreprinted ? "10mm" : pad;
   const preprintedPadBottom = isPreprintedA5 ? "7mm" : isPreprinted ? "8mm" : pad;
+  const letterheadLogoBox = preprintedLetterheadLogoBox(letterheadGap, {
+    contentInsetLeft: isPreprinted ? preprintedPadX : "0",
+    contentInsetRight: isPreprinted ? preprintedPadRight : "0",
+  });
   // Same typography as standard Retail ERP — only top letterhead gap differs.
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
