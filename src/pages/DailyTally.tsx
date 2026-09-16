@@ -31,7 +31,12 @@ import { cn } from "@/lib/utils";
 import { BackToDashboard } from "@/components/BackToDashboard";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
-import { cashierSaleTenderAmount, createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
+import {
+  buildCashierReceiptModeMap,
+  getCashierSalePaymentModeAmounts,
+  toCashierOverlapSaleRow,
+} from "@/utils/cashierSaleModeAmounts";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -139,7 +144,7 @@ const DailyTally = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("voucher_entries")
-        .select("id, voucher_number, voucher_date, voucher_type, total_amount, description, reference_type, reference_id, category")
+        .select("id, voucher_number, voucher_date, voucher_type, total_amount, discount_amount, description, reference_type, reference_id, category, payment_method")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .gte("voucher_date", dateStr)
@@ -299,23 +304,50 @@ const DailyTally = () => {
 
     const getEffectiveNet = (s: any) => Number(s?.net_amount) || 0;
 
+    const receiptModeBySale = buildCashierReceiptModeMap(
+      (salesData || [])
+        .filter((s: any) => s?.id && !isHoldLikeSale(s))
+        .map((s: any) => ({
+          id: s.id as string,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id,
+          net_amount: s.net_amount,
+          sale_return_adjust: s.sale_return_adjust,
+        })),
+      (vouchersData || [])
+        .filter((v: any) => String(v.voucher_type || "").toLowerCase() === "receipt")
+        .map((v: any) => ({
+          reference_id: v.reference_id,
+          reference_type: v.reference_type,
+          total_amount: v.total_amount,
+          discount_amount: v.discount_amount,
+          payment_method: v.payment_method,
+          description: v.description,
+        })),
+    );
+
+    const displayModesBySaleId = new Map<
+      string,
+      ReturnType<typeof getCashierSalePaymentModeAmounts>
+    >();
+
     // Process sales (exclude hold/cancelled-like rows to match POS dashboard)
     (salesData || []).forEach((s: any) => {
       if (isHoldLikeSale(s)) return;
       const net = getEffectiveNet(s);
       const target = s.sale_type === "pos" ? posSales : invoiceSales;
-      if (s.payment_method === "multiple") {
-        target.cash += Number(s.cash_amount) || 0;
-        target.card += Number(s.card_amount) || 0;
-        target.upi += Number(s.upi_amount) || 0;
+      const receiptModes = s.id ? receiptModeBySale.get(s.id) : undefined;
+      const displayModes = getCashierSalePaymentModeAmounts(s, receiptModes);
+      if (s.id) {
+        displayModesBySaleId.set(s.id, displayModes);
+      }
+
+      if (s.payment_method === "pay_later") {
+        target.credit += net;
       } else {
-        switch (s.payment_method) {
-          case "cash": target.cash += cashierSaleTenderAmount(s.cash_amount, net); break;
-          case "card": target.card += cashierSaleTenderAmount(s.card_amount, net); break;
-          case "upi": target.upi += cashierSaleTenderAmount(s.upi_amount, net); break;
-          case "pay_later": target.credit += net; break;
-          default: target.cash += net;
-        }
+        target.cash += displayModes.cash;
+        target.card += displayModes.card;
+        target.upi += displayModes.upi;
       }
       target.total += net;
     });
@@ -329,13 +361,15 @@ const DailyTally = () => {
             !s?.is_cancelled &&
             s?.payment_status !== "cancelled",
         )
-        .map((s: any) => ({
-          id: s.id as string,
-          net_amount: s.net_amount,
-          cash_amount: s.cash_amount,
-          card_amount: s.card_amount,
-          upi_amount: s.upi_amount,
-        })),
+        .map((s: any) => {
+          const displayModes =
+            displayModesBySaleId.get(s.id) ??
+            getCashierSalePaymentModeAmounts(
+              s,
+              receiptModeBySale.get(s.id),
+            );
+          return toCashierOverlapSaleRow(s, displayModes);
+        }),
       vouchersData || [],
     );
 

@@ -9,11 +9,12 @@
  * helpers rather than re-deriving the identity.
  */
 
-import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
 import {
-  cashierSaleTenderAmount,
-  createSameDaySaleReceiptOverlapTracker,
-} from "@/utils/posCashierCashIn";
+  buildCashierReceiptModeMap,
+  getCashierSalePaymentModeAmounts,
+  toCashierOverlapSaleRow,
+} from "@/utils/cashierSaleModeAmounts";
+import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
 
 export type CashTallyModeBreakdown = {
@@ -65,11 +66,14 @@ export function resolveCashTallyPaymentMode(
 
 export type CashTallySaleInput = {
   id?: string | null;
+  customer_id?: string | null;
   sale_type?: string | null;
   payment_method?: string | null;
   payment_status?: string | null;
   sale_number?: string | null;
   net_amount?: number | null;
+  paid_amount?: number | null;
+  sale_return_adjust?: number | null;
   cash_amount?: number | null;
   card_amount?: number | null;
   upi_amount?: number | null;
@@ -79,6 +83,7 @@ export type CashTallySaleInput = {
 export type CashTallyVoucherInput = {
   voucher_type?: string | null;
   total_amount?: number | null;
+  discount_amount?: number | null;
   description?: string | null;
   reference_type?: string | null;
   reference_id?: string | null;
@@ -145,37 +150,50 @@ export function aggregateCashTallyDrawerFlows(params: {
 
   const getEffectiveNet = (s: CashTallySaleInput) => Number(s?.net_amount) || 0;
 
+  const receiptVouchers = (params.vouchers || []).filter(
+    (v) => String(v.voucher_type || "").toLowerCase() === "receipt",
+  );
+  const receiptModeBySale = buildCashierReceiptModeMap(
+    (params.sales || [])
+      .filter((s) => s?.id && !isHoldLikeSale(s))
+      .map((s) => ({
+        id: s.id as string,
+        sale_number: s.sale_number,
+        customer_id: s.customer_id,
+        net_amount: s.net_amount,
+        sale_return_adjust: s.sale_return_adjust,
+      })),
+    receiptVouchers.map((v) => ({
+      reference_id: v.reference_id,
+      reference_type: v.reference_type,
+      total_amount: v.total_amount,
+      discount_amount: v.discount_amount,
+      payment_method: v.payment_method,
+      description: v.description,
+    })),
+  );
+
+  const displayModesBySaleId = new Map<
+    string,
+    ReturnType<typeof getCashierSalePaymentModeAmounts>
+  >();
+
   for (const s of params.sales || []) {
     if (isHoldLikeSale(s)) continue;
     const net = getEffectiveNet(s);
     const target = s.sale_type === "pos" ? posSales : invoiceSales;
-    if (s.payment_method === "multiple") {
-      const applied = allocateMixPaymentToBill({
-        billAmount: net,
-        cashAmount: Number(s.cash_amount) || 0,
-        cardAmount: Number(s.card_amount) || 0,
-        upiAmount: Number(s.upi_amount) || 0,
-      });
-      target.cash += applied.cash;
-      target.card += applied.card;
-      target.upi += applied.upi;
+    const receiptModes = s.id ? receiptModeBySale.get(s.id) : undefined;
+    const displayModes = getCashierSalePaymentModeAmounts(s, receiptModes);
+    if (s.id) {
+      displayModesBySaleId.set(s.id, displayModes);
+    }
+
+    if (s.payment_method === "pay_later") {
+      target.credit += net;
     } else {
-      switch (s.payment_method) {
-        case "cash":
-          target.cash += cashierSaleTenderAmount(s.cash_amount, net);
-          break;
-        case "card":
-          target.card += cashierSaleTenderAmount(s.card_amount, net);
-          break;
-        case "upi":
-          target.upi += cashierSaleTenderAmount(s.upi_amount, net);
-          break;
-        case "pay_later":
-          target.credit += net;
-          break;
-        default:
-          target.cash += net;
-      }
+      target.cash += displayModes.cash;
+      target.card += displayModes.card;
+      target.upi += displayModes.upi;
     }
     target.total += net;
   }
@@ -189,13 +207,15 @@ export function aggregateCashTallyDrawerFlows(params: {
           !s?.is_cancelled &&
           s?.payment_status !== "cancelled",
       )
-      .map((s) => ({
-        id: s.id as string,
-        net_amount: s.net_amount,
-        cash_amount: s.cash_amount,
-        card_amount: s.card_amount,
-        upi_amount: s.upi_amount,
-      })),
+      .map((s) => {
+        const displayModes =
+          displayModesBySaleId.get(s.id as string) ??
+          getCashierSalePaymentModeAmounts(
+            s,
+            receiptModeBySale.get(s.id as string),
+          );
+        return toCashierOverlapSaleRow(s, displayModes);
+      }),
     params.vouchers || [],
   );
 

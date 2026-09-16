@@ -39,10 +39,14 @@ import {
   getSaleReportNetAmount,
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
-import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import {
+  buildCashierReceiptModeMap,
+  getCashierSalePaymentModeAmounts,
+  sumCashierModeAmounts,
+  toCashierOverlapSaleRow,
+} from "@/utils/cashierSaleModeAmounts";
 import {
   computeCashierActualNetReceivable,
-  cashierSaleTenderAmount,
   createSameDaySaleReceiptOverlapTracker,
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
@@ -472,6 +476,7 @@ const DailyCashierReport = () => {
         upiBills: 0,
         creditBills: 0,
         mixBills: 0,
+        mixPaymentSale: 0,
         // Receipt collections
         rcpCashCollection: 0,
         rcpUpiCollection: 0,
@@ -516,6 +521,32 @@ const DailyCashierReport = () => {
     let upiBills = 0;
     let creditBills = 0;
     let mixBills = 0;
+    let mixPaymentSale = 0;
+
+    const receiptModeBySale = buildCashierReceiptModeMap(
+      (salesData || [])
+        .filter((s: any) => s?.id)
+        .map((s: any) => ({
+          id: s.id as string,
+          sale_number: s.sale_number,
+          customer_id: s.customer_id,
+          net_amount: s.net_amount,
+          sale_return_adjust: s.sale_return_adjust,
+        })),
+      (receiptData || []).map((r: any) => ({
+        reference_id: r.reference_id,
+        reference_type: r.reference_type,
+        total_amount: r.total_amount,
+        discount_amount: r.discount_amount,
+        payment_method: r.payment_method,
+        description: r.description,
+      })),
+    );
+
+    const displayModesBySaleId = new Map<
+      string,
+      ReturnType<typeof getCashierSalePaymentModeAmounts>
+    >();
 
     const isHoldLikeSale = (sale: any) => {
       if (sale?.payment_status === "hold") return true;
@@ -554,40 +585,37 @@ const DailyCashierReport = () => {
         totalPaid += paidAmount;
         totalBalance += balance;
         totalRefund += refundAmt;
-        
-        // For mixed payments, add individual amounts (cap change/over-tender to bill)
+
+        const receiptModes = sale.id ? receiptModeBySale.get(sale.id) : undefined;
+        const displayModes = getCashierSalePaymentModeAmounts(sale, receiptModes);
+        if (sale.id) {
+          displayModesBySaleId.set(sale.id, displayModes);
+        }
+
         if (sale.payment_method === "multiple") {
-          const applied = allocateMixPaymentToBill({
-            billAmount: netAmount,
-            cashAmount: Number(sale.cash_amount) || 0,
-            cardAmount: Number(sale.card_amount) || 0,
-            upiAmount: Number(sale.upi_amount) || 0,
-          });
-          cashSale += applied.cash;
-          cardSale += applied.card;
-          upiSale += applied.upi;
+          cashSale += displayModes.cash;
+          cardSale += displayModes.card;
+          upiSale += displayModes.upi;
+          mixPaymentSale += sumCashierModeAmounts(displayModes);
           mixBills++;
+        } else if (sale.payment_method === "pay_later") {
+          creditSale += netAmount;
+          creditBills++;
         } else {
-          // For single payment methods
+          cashSale += displayModes.cash;
+          cardSale += displayModes.card;
+          upiSale += displayModes.upi;
           switch (sale.payment_method) {
             case "cash":
-              cashSale += cashierSaleTenderAmount(sale.cash_amount, netAmount);
               cashBills++;
               break;
             case "card":
-              cardSale += cashierSaleTenderAmount(sale.card_amount, netAmount);
               cardBills++;
               break;
             case "upi":
-              upiSale += cashierSaleTenderAmount(sale.upi_amount, netAmount);
               upiBills++;
               break;
-            case "pay_later":
-              creditSale += netAmount;
-              creditBills++;
-              break;
             default:
-              cashSale += netAmount;
               cashBills++;
           }
         }
@@ -613,13 +641,15 @@ const DailyCashierReport = () => {
               (s?.payment_status === "pending" && String(s?.sale_number || "").startsWith("Hold/"))
             ),
         )
-        .map((s: any) => ({
-          id: s.id as string,
-          net_amount: s.net_amount,
-          cash_amount: s.cash_amount,
-          card_amount: s.card_amount,
-          upi_amount: s.upi_amount,
-        })),
+        .map((s: any) => {
+          const displayModes =
+            displayModesBySaleId.get(s.id) ??
+            getCashierSalePaymentModeAmounts(
+              s,
+              receiptModeBySale.get(s.id),
+            );
+          return toCashierOverlapSaleRow(s, displayModes);
+        }),
       (receiptData || []).map((r: any) => ({
         voucher_type: "receipt",
         reference_type: r.reference_type,
@@ -803,6 +833,7 @@ const DailyCashierReport = () => {
       upiBills,
       creditBills,
       mixBills,
+      mixPaymentSale,
       // Receipt collections
       rcpCashCollection,
       rcpUpiCollection,
@@ -1087,7 +1118,7 @@ const DailyCashierReport = () => {
       ["Cash", totals.cashBills, totals.cashSale],
       ["Card", totals.cardBills, totals.cardSale],
       ["UPI", totals.upiBills, totals.upiSale],
-      ["Mix Payment", totals.mixBills, "-"],
+      ["Mix Payment", totals.mixBills, totals.mixPaymentSale || "-"],
       ["Credit (Pay Later)", totals.creditBills, totals.creditSale],
       ["Total", totals.totalBills, totals.totalSale],
       [],

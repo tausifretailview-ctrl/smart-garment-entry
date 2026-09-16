@@ -65,6 +65,32 @@ describe("aggregateCashTallyDrawerFlows", () => {
     expect(computeExpectedDrawerCash(0, withoutRcp.cashIn, withoutRcp.cashOut)).toBe(1000);
   });
 
+  it("gap-fills zero-tender mix bill into card for drawer mode breakdown", () => {
+    const flows = aggregateCashTallyDrawerFlows({
+      sales: [
+        {
+          id: "mix-zero",
+          sale_type: "pos",
+          payment_method: "multiple",
+          payment_status: "completed",
+          sale_number: "POS/26-27/99",
+          net_amount: 5000,
+          paid_amount: 5000,
+          cash_amount: 0,
+          card_amount: 0,
+          upi_amount: 0,
+        },
+      ],
+      vouchers: [],
+      advances: [],
+      saleReturns: [],
+      advanceRefunds: [],
+    });
+    expect(flows.posSales.card).toBe(5000);
+    expect(flows.posSales.cash).toBe(0);
+    expect(flows.cashIn).toBe(0);
+  });
+
   it("strips same-day sale RCP already covered by tenders (dual-write history)", () => {
     const flows = aggregateCashTallyDrawerFlows({
       sales: [
