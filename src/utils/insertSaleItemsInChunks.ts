@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isSaleItemsSalesmanColumnMissingError } from "@/utils/posLineSalesman";
 
 /** Each sale_item row fires FIFO stock + total_qty triggers — keep chunks small. */
 const DEFAULT_CHUNK_SIZE = 5;
@@ -41,5 +42,32 @@ export async function insertSaleItemsInChunks(
     }
 
     throw error;
+  }
+}
+
+export type InsertSaleItemsResult = {
+  /** True when insert succeeded only after stripping sale_items.salesman (migration not applied). */
+  salesmanColumnMissing: boolean;
+};
+
+/**
+ * Insert sale_items; if DB lacks sale_items.salesman (migration pending), retry without that column.
+ */
+export async function insertSaleItemsResilient(
+  client: SupabaseClient,
+  rows: Record<string, unknown>[],
+  chunkSize = DEFAULT_CHUNK_SIZE,
+): Promise<InsertSaleItemsResult> {
+  try {
+    await insertSaleItemsInChunks(client, rows, chunkSize);
+    return { salesmanColumnMissing: false };
+  } catch (err) {
+    if (!isSaleItemsSalesmanColumnMissingError(err)) throw err;
+    const stripped = rows.map((row) => {
+      const { salesman: _omit, ...rest } = row;
+      return rest;
+    });
+    await insertSaleItemsInChunks(client, stripped, chunkSize);
+    return { salesmanColumnMissing: true };
   }
 }

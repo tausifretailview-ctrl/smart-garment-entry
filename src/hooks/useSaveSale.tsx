@@ -36,7 +36,7 @@ import {
   shouldPromoteHoldNumberToPos,
 } from "@/utils/posHoldBill";
 import {
-  insertSaleItemsInChunks,
+  insertSaleItemsResilient,
   isStatementTimeoutError,
   saleSaveTimeoutMessage,
 } from "@/utils/insertSaleItemsInChunks";
@@ -50,7 +50,7 @@ import {
   resolveWhatsAppCustomerName,
 } from "@/lib/posBilling/buildSaleData";
 import { decidePosSaveAutoRollback } from "@/utils/posSaleDeleteGuard";
-import { saleItemSalesmanFromCartLine } from "@/utils/posLineSalesman";
+import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
 
 interface CartItem {
   id: string;
@@ -104,6 +104,52 @@ interface SaleData {
    * standard behavior. Format must match `saleDateIsoIst()`.
    */
   saleDate?: string;
+}
+
+function isPerLineSalesmanEnabled(orgSettings: unknown): boolean {
+  const saleSettings = (orgSettings as { sale_settings?: Record<string, unknown> } | null)
+    ?.sale_settings;
+  return saleSettings?.pos_per_line_salesman === true;
+}
+
+function buildSaleItemInsertRows(
+  saleId: string,
+  saleData: SaleData,
+  perLineSalesman: boolean,
+): Record<string, unknown>[] {
+  const subTotal = saleData.grossAmount;
+  const flatDiscount = saleData.flatDiscountAmount || 0;
+  const roundOffAmount = saleData.roundOff || 0;
+  return saleData.items.map((item) => {
+    const itemGross = item.netAmount;
+    const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
+    const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
+    const netAfterDiscount = itemGross - discountShare + roundOffShare;
+    const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
+    return {
+      sale_id: saleId,
+      product_id: item.productId,
+      variant_id: item.variantId,
+      product_name: item.productName,
+      size: item.size,
+      barcode: item.barcode,
+      color: item.color || null,
+      quantity: item.quantity,
+      unit_price: item.unitCost,
+      mrp: item.mrp,
+      gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
+      discount_percent: item.discountPercent,
+      line_total: item.netAmount,
+      hsn_code: item.hsnCode || null,
+      discount_share: Math.round(discountShare * 100) / 100,
+      round_off_share: Math.round(roundOffShare * 100) / 100,
+      net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+      per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
+      is_dc_item: (item as { isDcProduct?: boolean }).isDcProduct === true,
+      item_notes: item.itemNotes || null,
+      ...saleItemSalesmanInsertField(item.salesman, perLineSalesman),
+    };
+  });
 }
 
 function buildPosWhatsAppCaptureMeta(
@@ -1042,41 +1088,18 @@ export const useSaveSale = () => {
       }
 
       // Insert sale items with proportional bill discount + round-off distribution
-      const subTotal = saleData.grossAmount;
-      const flatDiscount = saleData.flatDiscountAmount || 0;
-      const roundOffAmount = saleData.roundOff || 0;
-      const saleItems = saleData.items.map((item) => {
-        const itemGross = item.netAmount; // line_total (unit_price * qty after line discount)
-        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
-        const netAfterDiscount = itemGross - discountShare + roundOffShare;
-        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
-        return {
-          sale_id: sale.id,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.unitCost,
-          mrp: item.mrp,
-          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
-          discount_percent: item.discountPercent,
-          line_total: item.netAmount,
-          hsn_code: item.hsnCode || null,
-          discount_share: Math.round(discountShare * 100) / 100,
-          round_off_share: Math.round(roundOffShare * 100) / 100,
-          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
-          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
-          is_dc_item: (item as any).isDcProduct === true,
-          item_notes: (item as any).itemNotes || null,
-          salesman: saleItemSalesmanFromCartLine(item.salesman),
-        };
-      });
+      const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
+      const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
 
-      await insertSaleItemsInChunks(supabase, saleItems);
+      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+      if (lineInsert.salesmanColumnMissing) {
+        toast({
+          title: "Bill saved — per-line salesman not stored yet",
+          description:
+            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
+          variant: "destructive",
+        });
+      }
       insertedSaleIdForRollback = null;
 
       if (isExchangeRefund && saleData.customerId) {
@@ -1845,40 +1868,17 @@ export const useSaveSale = () => {
       if (deleteError) throw deleteError;
 
       // Step 2: Insert new sale_items with proportional bill discount + round-off distribution
-      const subTotal = saleData.grossAmount;
-      const flatDiscount = saleData.flatDiscountAmount || 0;
-      const roundOffAmount = saleData.roundOff || 0;
-      const saleItems = saleData.items.map((item) => {
-        const itemGross = item.netAmount;
-        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
-        const netAfterDiscount = itemGross - discountShare + roundOffShare;
-        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
-        return {
-          sale_id: saleId,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.unitCost,
-          mrp: item.mrp,
-          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
-          discount_percent: item.discountPercent,
-          line_total: item.netAmount,
-          hsn_code: item.hsnCode || null,
-          discount_share: Math.round(discountShare * 100) / 100,
-          round_off_share: Math.round(roundOffShare * 100) / 100,
-          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
-          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
-          item_notes: (item as any).itemNotes || null,
-          salesman: saleItemSalesmanFromCartLine(item.salesman),
-        };
-      });
-
-      await insertSaleItemsInChunks(supabase, saleItems);
+      const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
+      const saleItems = buildSaleItemInsertRows(saleId, saleData, perLineSalesman);
+      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+      if (lineInsert.salesmanColumnMissing) {
+        toast({
+          title: "Bill updated — per-line salesman not stored yet",
+          description:
+            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
+          variant: "destructive",
+        });
+      }
 
       // Step 3: Update the sales record
       const { data: sale, error: saleError } = await supabase
@@ -2329,40 +2329,17 @@ export const useSaveSale = () => {
       if (deleteHeldItemsError) throw deleteHeldItemsError;
 
       // Insert sale items with proportional bill discount + round-off distribution (NOW affects stock via triggers)
-      const subTotal = saleData.grossAmount;
-      const flatDiscount = saleData.flatDiscountAmount || 0;
-      const roundOffAmount = saleData.roundOff || 0;
-      const saleItems = saleData.items.map((item) => {
-        const itemGross = item.netAmount;
-        const discountShare = subTotal > 0 ? (itemGross / subTotal) * flatDiscount : 0;
-        const roundOffShare = subTotal > 0 ? (itemGross / subTotal) * roundOffAmount : 0;
-        const netAfterDiscount = itemGross - discountShare + roundOffShare;
-        const perQtyNetAmount = item.quantity > 0 ? netAfterDiscount / item.quantity : 0;
-        return {
-          sale_id: heldSaleId,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.unitCost,
-          mrp: item.mrp,
-          gst_percent: saleData.taxType === "no_gst" ? 0 : item.gstPer,
-          discount_percent: item.discountPercent,
-          line_total: item.netAmount,
-          hsn_code: item.hsnCode || null,
-          discount_share: Math.round(discountShare * 100) / 100,
-          round_off_share: Math.round(roundOffShare * 100) / 100,
-          net_after_discount: Math.round(netAfterDiscount * 100) / 100,
-          per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
-          item_notes: (item as any).itemNotes || null,
-          salesman: saleItemSalesmanFromCartLine(item.salesman),
-        };
-      });
-
-      await insertSaleItemsInChunks(supabase, saleItems);
+      const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
+      const saleItems = buildSaleItemInsertRows(heldSaleId, saleData, perLineSalesman);
+      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+      if (lineInsert.salesmanColumnMissing) {
+        toast({
+          title: "Bill saved — per-line salesman not stored yet",
+          description:
+            "The database migration for sale_items.salesman is pending. Header salesman was saved; apply migration 20260916180000 to enable per-line assignment.",
+          variant: "destructive",
+        });
+      }
 
       // Update the held sale: assign NEW POS number + current date + completed status
       const { data: sale, error: saleError } = await supabase
