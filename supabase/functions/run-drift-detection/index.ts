@@ -1,14 +1,52 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isInternalDispatch, isServiceRoleRequest } from "../_shared/internalDispatch.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-internal-dispatch-secret",
 };
 
 /**
+ * SECURITY: this function runs with verify_jwt = false and scans EVERY
+ * organization's settlement data with the service role. The caller must be the
+ * cron dispatcher (shared secret / service_role key) or a signed-in
+ * platform_admin. Everyone else gets 403.
+ */
+async function authorizeDigestCaller(req: Request): Promise<boolean> {
+  if (isInternalDispatch(req) || isServiceRoleRequest(req)) return true;
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) return false;
+
+  const authClient = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    { global: { headers: { Authorization: authHeader } } },
+  );
+  const { data: userData, error: userError } = await authClient.auth.getUser();
+  const caller = userData?.user;
+  if (userError || !caller) return false;
+
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  );
+  const { data: isPlatformAdmin, error: roleError } = await admin.rpc("has_role", {
+    _user_id: caller.id,
+    _role: "platform_admin",
+  });
+  if (roleError) {
+    console.error("[run-drift-detection] role check failed", roleError.message);
+    return false;
+  }
+  return isPlatformAdmin === true;
+}
+
+/**
  * Nightly (or on-demand) settlement drift detector.
- * - Calls public.detect_settlement_drift(NULL) — read-only scan across all orgs.
+ * - Calls public.detect_settlement_drift(NULL) — scan across all orgs.
  * - If any CRITICAL drift was recorded in this run, sends a WhatsApp alert to
  *   PLATFORM_ADMIN_WHATSAPP via the existing send-whatsapp function, using
  *   PLATFORM_ADMIN_ORG_ID as the sending org's WhatsApp config.
@@ -17,6 +55,13 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (!(await authorizeDigestCaller(req))) {
+    return new Response(JSON.stringify({ ok: false, error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
