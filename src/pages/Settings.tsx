@@ -207,6 +207,8 @@ interface SaleSettings {
   pos_barcode_price_mode?: 'mrp' | 'sale_price';
   /** When true, POS keeps the selected salesman after save (default off). */
   pos_retain_salesman?: boolean;
+  /** Per-line salesperson column in POS cart (org-gated; default off). */
+  pos_per_line_salesman?: boolean;
   default_discount?: number;
   /** When true, `default_discount` is applied as flat ₹ on new POS bills; default false = %. */
   default_discount_in_rupees?: boolean;

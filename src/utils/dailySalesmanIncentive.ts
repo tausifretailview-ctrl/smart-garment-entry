@@ -25,6 +25,8 @@ export type SaleItemForDailyIncentive = {
   quantity: number | null;
   line_total: number | null;
   net_after_discount?: number | null;
+  /** Per-line override; falls back to sale.salesman when null/blank. */
+  salesman?: string | null;
 };
 
 export type EmployeeNameRow = {
@@ -52,6 +54,16 @@ export function findEmployeeBySalesmanName<T extends { employee_name: string }>(
 ): T | undefined {
   if (!salesmanName) return undefined;
   return employees.find((e) => e.employee_name === salesmanName);
+}
+
+/** Line attribution: per-line override, else bill header (backward-compatible). */
+export function resolveEffectiveLineSalesman(
+  lineSalesman: string | null | undefined,
+  headerSalesman: string | null | undefined,
+): string {
+  const line = (lineSalesman ?? "").trim();
+  if (line) return line;
+  return (headerSalesman ?? "").trim();
 }
 
 /** Line net after discount — prefer net_after_discount, else line_total. */
@@ -146,7 +158,7 @@ export function aggregateDailySalesmanIncentive(params: {
   for (const item of params.items) {
     const sale = saleById.get(item.sale_id);
     if (!sale) continue;
-    const name = (sale.salesman || "").trim();
+    const name = resolveEffectiveLineSalesman(item.salesman, sale.salesman);
     if (!name) continue;
 
     const qty = Number(item.quantity) || 0;

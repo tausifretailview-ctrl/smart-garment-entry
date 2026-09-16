@@ -66,6 +66,9 @@ interface TabletPOSLayoutProps {
   onAddNewCustomer?: () => void;
   /** Display gate from POS `enable_mrp` — omit MRP chrome when false. */
   enableMrp?: boolean;
+  /** Per-line salesperson column (org-gated). */
+  posPerLineSalesman?: boolean;
+  onLineSalesmanChange?: (index: number, salesmanName: string) => void;
 }
 
 export function TabletPOSLayout({
@@ -82,6 +85,8 @@ export function TabletPOSLayout({
   selectedProductType, onProductTypeChange, hasMoreCustomers,
   onCashierReport, onEstimatePrint, onStockReport, onAddNewCustomer,
   enableMrp = true,
+  posPerLineSalesman = false,
+  onLineSalesmanChange,
   fastBillingEnabled = false,
 }: TabletPOSLayoutProps) {
   const [showCamera, setShowCamera] = useState(false);
@@ -101,6 +106,14 @@ export function TabletPOSLayout({
   }, [onBarcodeSubmit]);
 
   const fmtINR = (n: number) => Math.round(n).toLocaleString("en-IN");
+
+  const cartGridCols = posPerLineSalesman
+    ? enableMrp
+      ? "grid-cols-[1fr_88px_80px_110px_85px_36px]"
+      : "grid-cols-[1fr_88px_110px_85px_36px]"
+    : enableMrp
+      ? "grid-cols-[1fr_80px_110px_85px_36px]"
+      : "grid-cols-[1fr_110px_85px_36px]";
 
   // Scan pulse animation
   useEffect(() => {
@@ -282,8 +295,9 @@ export function TabletPOSLayout({
           {/* Cart Items */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Cart Header */}
-            <div className={`grid ${enableMrp ? "grid-cols-[1fr_80px_110px_85px_36px]" : "grid-cols-[1fr_110px_85px_36px]"} gap-2 px-4 py-2 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0`}>
+            <div className={`grid ${cartGridCols} gap-2 px-4 py-2 bg-muted/40 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0`}>
               <span>Product</span>
+              {posPerLineSalesman && <span>Salesman</span>}
               {enableMrp && <span className="text-right">MRP</span>}
               <span className="text-center">Qty</span>
               <span className="text-right">Total</span>
@@ -302,7 +316,7 @@ export function TabletPOSLayout({
                 items.map((item: any, idx: number) => (
                   <div
                     key={`${item.variantId}-${idx}`}
-                    className={`grid ${enableMrp ? "grid-cols-[1fr_80px_110px_85px_36px]" : "grid-cols-[1fr_110px_85px_36px]"} gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-muted/20 transition-colors group`}
+                    className={`grid ${cartGridCols} gap-2 px-4 py-3 border-b border-border/40 items-center hover:bg-muted/20 transition-colors group`}
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-1 min-w-0">
@@ -322,6 +336,25 @@ export function TabletPOSLayout({
                         {item.barcode} · {item.size}{item.color ? ` · ${item.color}` : ""}
                       </p>
                     </div>
+
+                    {posPerLineSalesman && (
+                      <select
+                        className="h-9 w-full rounded-lg border border-input bg-card px-1 text-[10px] truncate"
+                        value={(item.salesman || selectedSalesman || "").trim()}
+                        onChange={(e) => onLineSalesmanChange?.(idx, e.target.value)}
+                        title="Line salesperson"
+                      >
+                        <option value="">—</option>
+                        {salesmen.map((s: { id?: string; employee_name?: string; name?: string }) => (
+                          <option
+                            key={s.id || s.employee_name || s.name}
+                            value={s.employee_name || s.name || ""}
+                          >
+                            {s.employee_name || s.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
 
                     {enableMrp && (
                       <div className="text-right text-[13px] font-medium" style={{ fontFamily: "'JetBrains Mono', monospace" }}>

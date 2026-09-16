@@ -104,6 +104,10 @@ import {
   shouldClearPosSalesmanAfterSave,
   shouldCreatePosCommissionOnSave,
 } from "@/utils/posSalesmanRetain";
+import {
+  effectiveCartLineSalesman,
+  withDefaultLineSalesman,
+} from "@/utils/posLineSalesman";
 import { findEmployeeBySalesmanName } from "@/utils/dailySalesmanIncentive";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
@@ -291,10 +295,15 @@ function posCartBarcodeColumnWidth(items: { barcode?: string | null }[]): number
   );
 }
 
-function posCartGridColumns(barcodeColPx: number, showMrpColumn: boolean): string {
-  // Sr | Barcode | Product | Size | Color | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
+function posCartGridColumns(
+  barcodeColPx: number,
+  showMrpColumn: boolean,
+  showSalesmanColumn: boolean,
+): string {
+  // Sr | Barcode | Product | Size | Color | [Salesman] | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
   const mrpCol = showMrpColumn ? " 96px" : "";
-  return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px 56px${mrpCol} 68px 72px 96px 110px 118px`;
+  const salesmanCol = showSalesmanColumn ? " 88px" : "";
+  return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px${salesmanCol} 56px${mrpCol} 68px 72px 96px 110px 118px`;
 }
 
 /** Default POS service price from variant master (MRP, else sale price from product entry). */
@@ -687,6 +696,9 @@ export default function POSSales() {
 
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
+  const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  const posPerLineSalesman = _posSaleSettings.pos_per_line_salesman === true;
+  const retainPosSalesman = _posSaleSettings.pos_retain_salesman === true;
   const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
   const posRuntimeSettingsRef = useRef<POSBarcodeRuntimeSettings | null>(null);
 
@@ -1091,6 +1103,7 @@ export default function POSSales() {
       saleNotes,
       saleReturnAdjust,
       sameBillReturnGross,
+      selectedSalesman: posPerLineSalesman ? selectedSalesman : undefined,
       savedAt: Date.now(),
     };
     writePosCartSnapshot(orgId, snapshot);
@@ -1102,6 +1115,8 @@ export default function POSSales() {
     saleNotes,
     saleReturnAdjust,
     sameBillReturnGross,
+    selectedSalesman,
+    posPerLineSalesman,
     currentOrganization?.id,
     currentSaleId,
   ]);
@@ -1127,6 +1142,7 @@ export default function POSSales() {
       linkedCustomerPhoneRef.current = saved.customerPhone;
     }
     if (saved.saleNotes) setSaleNotes(saved.saleNotes);
+    if (saved.selectedSalesman) setSelectedSalesman(saved.selectedSalesman);
     if (Number(saved.saleReturnAdjust) > 0.005) {
       setSaleReturnAdjust(Number(saved.saleReturnAdjust) || 0);
     }
@@ -1505,8 +1521,8 @@ export default function POSSales() {
   // Display gate only — computations (mrpTotal / savings / discount cap) stay unconditional.
   const enableMrp = posRuntimeSettings?.enable_mrp === true;
   const posCartGridCols = useMemo(
-    () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp),
-    [items, enableMrp],
+    () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp, posPerLineSalesman),
+    [items, enableMrp, posPerLineSalesman],
   );
 
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
@@ -1540,7 +1556,6 @@ export default function POSSales() {
   }, [posAllowDateChange, posInvoiceDate]);
 
   // Derive POS bill format / invoice template / preview flag from cached settings (no extra DB call)
-  const _posSaleSettings = (settingsData as any)?.sale_settings || {};
   const posBillFormatSetting: PosBillFormat =
     (_posSaleSettings.pos_bill_format as PosBillFormat) || 'thermal';
   const posInvoiceTemplate: string = resolvePosInvoiceTemplate(_posSaleSettings);
@@ -1586,13 +1601,42 @@ export default function POSSales() {
   }, [posBillFormat, posThermalPaper, posInvoiceTemplate]);
   const showInvoicePreviewSetting: boolean = _posSaleSettings.show_invoice_preview ?? true;
   const defaultPosTaxType = resolvePosDefaultTaxType(_posSaleSettings);
-  const retainPosSalesman = _posSaleSettings.pos_retain_salesman === true;
 
   const clearSalesmanAfterSaveIfNeeded = useCallback(() => {
     if (shouldClearPosSalesmanAfterSave(retainPosSalesman)) {
       setSelectedSalesman("");
     }
   }, [retainPosSalesman]);
+
+  const stampDefaultSalesmanOnLine = useCallback(
+    (lineId: string | undefined) => {
+      if (!posPerLineSalesman || !lineId || !selectedSalesman.trim()) return;
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === lineId && !(item.salesman ?? "").trim()
+            ? withDefaultLineSalesman(item, selectedSalesman)
+            : item,
+        ),
+      );
+    },
+    [posPerLineSalesman, selectedSalesman, setItems],
+  );
+
+  const updateLineSalesman = useCallback(
+    (index: number, salesmanName: string) => {
+      setItems((prev) => {
+        const next = [...prev];
+        const line = next[index];
+        if (!line) return prev;
+        next[index] = {
+          ...line,
+          salesman: salesmanName.trim() || null,
+        };
+        return next;
+      });
+    },
+    [setItems],
+  );
 
   useEffect(() => {
     setTaxType(defaultPosTaxType);
@@ -3174,7 +3218,10 @@ export default function POSSales() {
     };
 
     const finishQuickServiceAdd = (newItem: CartItem, lineDiscountRs?: number) => {
-      const itemToAdd = applyDiscRsToServiceItem(newItem, lineDiscountRs);
+      let itemToAdd = applyDiscRsToServiceItem(newItem, lineDiscountRs);
+      if (posPerLineSalesman) {
+        itemToAdd = withDefaultLineSalesman(itemToAdd, selectedSalesman);
+      }
       const existingIndex = findPosServiceMergeIndex(itemsRef.current, {
         barcode: itemToAdd.barcode,
         variantId: itemToAdd.variantId,
@@ -3259,7 +3306,10 @@ export default function POSSales() {
         }
 
         const highlightId = addResult.mergedItemId || addResult.addedItemId;
-        if (highlightId) bumpCartHighlight(highlightId);
+        if (highlightId) {
+          stampDefaultSalesmanOnLine(highlightId);
+          bumpCartHighlight(highlightId);
+        }
         playSuccessBeep();
         closeDialog();
         setOpenProductSearch(false);
@@ -3562,7 +3612,10 @@ export default function POSSales() {
         brandDiscountPercent: brandDiscount,
       });
       const highlightId = addResult.mergedItemId || addResult.addedItemId;
-      if (highlightId) bumpCartHighlight(highlightId);
+      if (highlightId) {
+        stampDefaultSalesmanOnLine(highlightId);
+        bumpCartHighlight(highlightId);
+      }
 
       // Play success beep for new item added
       playSuccessBeep();
@@ -5513,6 +5566,7 @@ export default function POSSales() {
       productId: item.product_id,
       variantId: item.variant_id,
       itemNotes: item.item_notes || null,
+      salesman: item.salesman?.trim() || null,
     }));
 
     setItems(loadedItems);
@@ -6241,6 +6295,8 @@ export default function POSSales() {
           onStockReport={() => setShowFloatingStockReport(true)}
           onAddNewCustomer={() => openAddCustomerDialog()}
           enableMrp={enableMrp}
+          posPerLineSalesman={posPerLineSalesman}
+          onLineSalesmanChange={updateLineSalesman}
         />
 
         {/* Dialogs needed for tablet too */}
@@ -7389,6 +7445,7 @@ export default function POSSales() {
                 <div>Product</div>
                 <div className="text-center">Size</div>
                 <div className="text-center">Color</div>
+                {posPerLineSalesman && <div className="text-center">Salesman</div>}
                 <div className="text-center">Qty</div>
                 {enableMrp && <div className="text-right">MRP</div>}
                 <div className="text-center">Tax%</div>
@@ -7486,6 +7543,9 @@ export default function POSSales() {
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      {posPerLineSalesman && (
+                        <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      )}
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       {enableMrp && <div className="flex items-center justify-end text-muted-foreground/20">—</div>}
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
@@ -7573,6 +7633,23 @@ export default function POSSales() {
                           <div className="flex items-center justify-center text-sm text-muted-foreground truncate min-w-0" title={item.color || undefined}>
                             {item.color || '-'}
                           </div>
+                          {posPerLineSalesman && (
+                            <div>
+                              <select
+                                value={effectiveCartLineSalesman(item, selectedSalesman) || ""}
+                                onChange={(e) => updateLineSalesman(index, e.target.value)}
+                                className="h-8 w-full rounded-md text-[11px] border border-border/60 bg-muted/30 px-1 truncate focus:outline-none focus:ring-2 focus:ring-ring"
+                                title="Line salesperson"
+                              >
+                                <option value="">—</option>
+                                {(employees || []).map((emp: { id: string; employee_name: string }) => (
+                                  <option key={emp.id} value={emp.employee_name}>
+                                    {emp.employee_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
                           <div>
                             <QtyInput
                               uom={item.uom}

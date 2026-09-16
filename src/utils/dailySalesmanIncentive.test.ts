@@ -8,6 +8,7 @@ import {
   incentiveForNetAmount,
   isDailyIncentiveUiOrg,
   lineNetForDailyIncentive,
+  resolveEffectiveLineSalesman,
 } from "./dailySalesmanIncentive";
 
 const ADEEBA_BRACKETS = [
@@ -82,6 +83,70 @@ describe("qty gate (day total)", () => {
         qtyThreshold: 5,
       }),
     ).toEqual({ isEligible: true, incentiveAmount: 30 });
+  });
+});
+
+describe("resolveEffectiveLineSalesman", () => {
+  it("uses line override when set, else header", () => {
+    expect(resolveEffectiveLineSalesman("RAVI", "PRIYA")).toBe("RAVI");
+    expect(resolveEffectiveLineSalesman(null, "PRIYA")).toBe("PRIYA");
+    expect(resolveEffectiveLineSalesman("  ", "PRIYA")).toBe("PRIYA");
+    expect(resolveEffectiveLineSalesman(null, null)).toBe("");
+  });
+});
+
+describe("aggregateDailySalesmanIncentive — per-line salesman", () => {
+  const employees = [
+    { id: "e1", employee_name: "RAVI" },
+    { id: "e2", employee_name: "PRIYA" },
+  ];
+
+  it("splits one bill across two salesmen via sale_items.salesman", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-09-16",
+      sales: [
+        {
+          id: "s1",
+          salesman: "RAVI",
+          net_amount: 2000,
+          sale_date: "2026-09-16T10:00:00+05:30",
+        },
+      ],
+      items: [
+        {
+          sale_id: "s1",
+          quantity: 3,
+          line_total: 1500,
+          net_after_discount: 1500,
+          salesman: "RAVI",
+        },
+        {
+          sale_id: "s1",
+          quantity: 2,
+          line_total: 600,
+          net_after_discount: 600,
+          salesman: "PRIYA",
+        },
+        {
+          sale_id: "s1",
+          quantity: 1,
+          line_total: 400,
+          net_after_discount: 400,
+          salesman: null,
+        },
+      ],
+      employees,
+      qtyThreshold: 5,
+      brackets: ADEEBA_BRACKETS,
+    });
+
+    expect(rows).toHaveLength(2);
+    const ravi = rows.find((r) => r.employee_name === "RAVI");
+    const priya = rows.find((r) => r.employee_name === "PRIYA");
+    expect(ravi?.total_qty).toBe(4);
+    expect(priya?.total_qty).toBe(2);
+    expect(ravi?.is_eligible).toBe(false);
+    expect(priya?.is_eligible).toBe(false);
   });
 });
 

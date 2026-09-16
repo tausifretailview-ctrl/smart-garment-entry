@@ -50,6 +50,7 @@ import {
   resolveWhatsAppCustomerName,
 } from "@/lib/posBilling/buildSaleData";
 import { decidePosSaveAutoRollback } from "@/utils/posSaleDeleteGuard";
+import { saleItemSalesmanFromCartLine } from "@/utils/posLineSalesman";
 
 interface CartItem {
   id: string;
@@ -69,6 +70,7 @@ interface CartItem {
   variantId: string;
   hsnCode?: string;
   itemNotes?: string | null;
+  salesman?: string | null;
 }
 
 interface SaleData {
@@ -1070,6 +1072,7 @@ export const useSaveSale = () => {
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
           is_dc_item: (item as any).isDcProduct === true,
           item_notes: (item as any).itemNotes || null,
+          salesman: saleItemSalesmanFromCartLine(item.salesman),
         };
       });
 
@@ -1871,6 +1874,7 @@ export const useSaveSale = () => {
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
           item_notes: (item as any).itemNotes || null,
+          salesman: saleItemSalesmanFromCartLine(item.salesman),
         };
       });
 
@@ -2354,6 +2358,7 @@ export const useSaveSale = () => {
           net_after_discount: Math.round(netAfterDiscount * 100) / 100,
           per_qty_net_amount: Math.round(perQtyNetAmount * 100) / 100,
           item_notes: (item as any).itemNotes || null,
+          salesman: saleItemSalesmanFromCartLine(item.salesman),
         };
       });
 

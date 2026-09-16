@@ -5584,6 +5584,7 @@ export type Database = {
           quantity: number
           round_off_share: number | null
           sale_id: string
+          salesman: string | null
           size: string
           unit_price: number
           variant_id: string
@@ -5611,6 +5612,7 @@ export type Database = {
           quantity: number
           round_off_share?: number | null
           sale_id: string
+          salesman?: string | null
           size: string
           unit_price: number
           variant_id: string
@@ -5638,6 +5640,7 @@ export type Database = {
           quantity?: number
           round_off_share?: number | null
           sale_id?: string
+          salesman?: string | null
           size?: string
           unit_price?: number
           variant_id?: string

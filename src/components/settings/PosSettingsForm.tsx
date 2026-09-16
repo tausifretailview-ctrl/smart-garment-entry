@@ -41,6 +41,7 @@ type SaleSlice = {
   pos_unit_price_override_confirm_pct?: number;
   pos_quick_price_code?: boolean;
   pos_retain_salesman?: boolean;
+  pos_per_line_salesman?: boolean;
   pos_barcode_price_mode?: "mrp" | "sale_price";
   pos_goods_ask_qty_dialog?: boolean;
   pos_category_tier_pricing?: boolean;
@@ -309,6 +310,25 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               id="pos_retain_salesman"
               checked={sale.pos_retain_salesman === true}
               onCheckedChange={(checked) => patchSale({ pos_retain_salesman: checked })}
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            label="Per-line salesperson in POS cart"
+            htmlFor="pos_per_line_salesman"
+            description="Shows a compact salesman dropdown on each cart line. Off by default."
+            hint={
+              <SettingOnOffHint
+                active={sale.pos_per_line_salesman === true ? "on" : "off"}
+                on="Each line can assign a different salesperson; bill header remains the default."
+                off="One salesperson per bill (header only)."
+              />
+            }
+          >
+            <Switch
+              id="pos_per_line_salesman"
+              checked={sale.pos_per_line_salesman === true}
+              onCheckedChange={(checked) => patchSale({ pos_per_line_salesman: checked })}
             />
           </SettingsRow>
 

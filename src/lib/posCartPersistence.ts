@@ -9,6 +9,8 @@ export type PosCartSnapshot = {
   customerName?: string;
   customerPhone?: string;
   saleNotes?: string;
+  /** Bill-level salesperson default for per-line assignment restore. */
+  selectedSalesman?: string;
   /** Persist S/R so deleting a cart line / tab switch does not wipe exchange credit. */
   saleReturnAdjust?: number;
   sameBillReturnGross?: number;
