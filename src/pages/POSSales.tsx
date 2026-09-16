@@ -4210,6 +4210,11 @@ export default function POSSales() {
     }
 
     const effectiveMethod = forcePaymentMethod || paymentMethod;
+    // Mix must go through F6 dialog — never save full paid with zero tender columns.
+    if (effectiveMethod === 'multiple') {
+      handleMixPayment();
+      return;
+    }
     // Credit / Pay Later must always have a named customer
     if (effectiveMethod === 'pay_later' && !hasNamedPosCustomer()) {
       showCustomerNameRequiredWindow();

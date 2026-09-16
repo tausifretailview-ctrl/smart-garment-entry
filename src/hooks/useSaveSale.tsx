@@ -26,6 +26,10 @@ import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
 import { allocateMixPaymentToBill } from "@/utils/mixPaymentAllocation";
+import {
+  assertMixPaymentHasBreakdown,
+  MIX_PAYMENT_BREAKDOWN_REQUIRED_MESSAGE,
+} from "@/utils/mixPaymentSaveGuard";
 import { generateOrgSaleNumber } from "@/utils/saleNumber";
 import {
   posBillHasExchangeRefundDue,
@@ -635,6 +639,32 @@ export const useSaveSale = () => {
 
   type SavePaymentMethod = 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later';
 
+  const rejectMixWithoutBreakdown = (
+    paymentMethod: SavePaymentMethod,
+    paymentBreakdown?: {
+      cashAmount: number;
+      cardAmount: number;
+      upiAmount: number;
+      bankAmount?: number;
+      financeAmount?: number;
+      totalPaid: number;
+      refundAmount: number;
+      issueCreditNote?: boolean;
+      refundMode?: "cash" | "upi" | "bank_transfer";
+    },
+  ): boolean => {
+    if (paymentMethod !== "multiple" || paymentBreakdown) {
+      return false;
+    }
+    savingLockRef.current = false;
+    toast({
+      title: "Mix Payment Required",
+      description: MIX_PAYMENT_BREAKDOWN_REQUIRED_MESSAGE,
+      variant: "destructive",
+    });
+    return true;
+  };
+
   const resolveSalePaymentFields = (
     saleData: SaleData,
     paymentMethod: SavePaymentMethod,
@@ -655,6 +685,8 @@ export const useSaveSale = () => {
       isUpdate?: boolean;
     },
   ) => {
+    assertMixPaymentHasBreakdown(paymentMethod, paymentBreakdown);
+
     let cashAmt = 0;
     let cardAmt = 0;
     let upiAmt = 0;
@@ -844,6 +876,10 @@ export const useSaveSale = () => {
         });
         return null;
       }
+    }
+
+    if (rejectMixWithoutBreakdown(paymentMethod, paymentBreakdown)) {
+      return null;
     }
 
     // Mix payment with unpaid credit balance must have a named customer.
@@ -1579,6 +1615,10 @@ export const useSaveSale = () => {
       }
     }
 
+    if (rejectMixWithoutBreakdown(paymentMethod, paymentBreakdown)) {
+      return null;
+    }
+
     if (paymentMethod === "multiple" && paymentBreakdown) {
       const mixCreditAmount = Math.max(
         0,
@@ -2216,6 +2256,10 @@ export const useSaveSale = () => {
         description: "You must be logged in to complete sales",
         variant: "destructive",
       });
+      return null;
+    }
+
+    if (rejectMixWithoutBreakdown(paymentMethod, paymentBreakdown)) {
       return null;
     }
 
