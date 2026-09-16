@@ -40,7 +40,8 @@ export const LEDGER_PDF = {
   emeraldBoxBorder: [4, 120, 87] as const,
 };
 
-const COL_RATIOS = [28, 16, 22, 48, 22, 22, 22] as const;
+const COL_RATIOS_A4 = [32, 18, 28, 32, 24, 24, 24] as const;
+const COL_RATIOS_A5 = [24, 14, 24, 16, 18, 18, 18] as const;
 
 export function ledgerPdfLayout(paper: LedgerPdfPaper) {
   const isA5 = paper === "a5";
@@ -48,8 +49,9 @@ export function ledgerPdfLayout(paper: LedgerPdfPaper) {
   const pageWidth = isA5 ? 148 : 210;
   const pageHeight = isA5 ? 210 : 297;
   const tableWidth = pageWidth - margin * 2;
-  const ratioSum = COL_RATIOS.reduce((s, n) => s + n, 0);
-  const colWidths = COL_RATIOS.map((n) => (n / ratioSum) * tableWidth);
+  const ratios = isA5 ? COL_RATIOS_A5 : COL_RATIOS_A4;
+  const ratioSum = ratios.reduce((s, n) => s + n, 0);
+  const colWidths = ratios.map((n) => (n / ratioSum) * tableWidth);
   return {
     paper,
     margin,
@@ -57,13 +59,74 @@ export function ledgerPdfLayout(paper: LedgerPdfPaper) {
     pageHeight,
     tableWidth,
     colWidths,
-    pageBreakY: pageHeight - (isA5 ? 16 : 20),
-    bodyFont: isA5 ? 7 : 9,
-    headerFont: isA5 ? 7 : 8,
-    titleFont: isA5 ? 14 : 18,
-    descChars: isA5 ? 18 : 28,
-    rowH: isA5 ? 5.5 : 6.5,
+    pageBreakY: pageHeight - (isA5 ? 14 : 18),
+    bodyFont: isA5 ? 6.5 : 8,
+    headerFont: isA5 ? 6.5 : 7.5,
+    titleFont: isA5 ? 12 : 16,
+    rowH: isA5 ? 6 : 7,
+    headerH: isA5 ? 6.5 : 7.5,
+    moneyAlign: [false, false, false, false, true, true, true] as boolean[],
+    headers: isA5
+      ? ["Date", "Type", "Ref", "Particulars", "Debit", "Credit", "Bal"]
+      : ["Date & Time", "Type", "Reference", "Description", "Debit", "Credit", "Balance"],
   };
+}
+
+/** Helvetica cannot draw ₹ / other Unicode — those glyphs spread and overlap columns. */
+export function sanitizeLedgerPdfText(value: string | null | undefined): string {
+  return String(value || "")
+    .replace(/₹\s*/g, "Rs. ")
+    .replace(/[^\t\n\r\x20-\x7E]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function fitLedgerPdfText(doc: jsPDF, raw: string, maxWidth: number): string {
+  const text = sanitizeLedgerPdfText(raw);
+  if (!text || maxWidth <= 0.4) return "";
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  const ellipsis = "...";
+  const ellW = doc.getTextWidth(ellipsis);
+  if (ellW >= maxWidth) return "";
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (doc.getTextWidth(text.slice(0, mid)) + ellW <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return `${text.slice(0, lo).trimEnd()}${ellipsis}`;
+}
+
+export function drawLedgerPdfCell(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  opts?: { align?: "left" | "right"; pad?: number },
+) {
+  const pad = opts?.pad ?? 1.1;
+  const maxW = Math.max(0, width - pad * 2);
+  const fitted = fitLedgerPdfText(doc, text, maxW);
+  if (!fitted) return;
+  if (opts?.align === "right") {
+    doc.text(fitted, x + width - pad, y, { align: "right" });
+  } else {
+    doc.text(fitted, x + pad, y);
+  }
+}
+
+export function ledgerPdfMoney(
+  amount: number,
+  paper: LedgerPdfPaper,
+  suffix?: "Dr" | "Cr" | "",
+): string {
+  if (!amount) return "";
+  const abs = Math.abs(Math.round(amount)).toLocaleString("en-IN");
+  const prefix = paper === "a5" ? "" : "Rs. ";
+  const tail = suffix ? ` ${suffix}` : "";
+  return `${prefix}${abs}${tail}`.trim();
 }
 
 export function pdfStrokeGrid(doc: jsPDF, lineWidth = 0.25) {
@@ -85,7 +148,33 @@ export function pdfSetText(doc: jsPDF, rgb: Rgb) {
   doc.setTextColor(rgb[0], rgb[1], rgb[2]);
 }
 
-export function ledgerPdfTypeLabel(t: { type: string; status?: string }): string {
+export function ledgerPdfTypeLabel(t: { type: string; status?: string }, compact = false): string {
+  if (compact) {
+    switch (t.type) {
+      case "invoice":
+        return "Inv";
+      case "return":
+        return "S/R";
+      case "advance":
+        return "Adv";
+      case "advance_application":
+        return "Adj";
+      case "adjustment":
+        return "Adj";
+      case "cn_refund":
+        return "CN Rfd";
+      case "adv_refund":
+        return "Adv Rfd";
+      case "credit_note":
+        return "CN";
+      case "cn_adjusted":
+        return "CN Adj";
+      case "fee":
+        return "Fee";
+      default:
+        return "Pmt";
+    }
+  }
   switch (t.type) {
     case "invoice":
       return "Invoice";
