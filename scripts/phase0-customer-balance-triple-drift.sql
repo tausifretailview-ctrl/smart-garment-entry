@@ -138,7 +138,7 @@ FROM public.get_customer_party_balances('3fdca631-1e0c-4417-9704-421f5129ff67'::
 -- LIVE APPLY GATE (run BEFORE treating A2/A3 as post-fix)
 -- Must return a row for 20261219120000. Empty = repo-only, not Lovable-applied.
 -- =============================================================================
-SELECT version, name, inserted_at
+SELECT *
 FROM supabase_migrations.schema_migrations
 WHERE version IN (
   '20261126120000',
