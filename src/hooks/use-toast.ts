@@ -7,7 +7,7 @@ import { ENTRY_SCREEN_TOAST_MS } from "@/utils/entryScreenToast";
 const TOAST_LIMIT = 1;
 const TOAST_REMOVE_DELAY = ENTRY_SCREEN_TOAST_MS;
 
-type ToasterToast = ToastProps & {
+export type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
@@ -99,25 +99,45 @@ export const reducer = (state: State, action: Action): State => {
     case "DISMISS_TOAST": {
       const { toastId } = action;
 
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
+      const isStickyErrorDialog = (t: ToasterToast) =>
+        t.variant === "destructive" && !t.inline;
+
+      // Sticky error dialogs skip auto-timeout. User OK still has to REMOVE them —
+      // otherwise they stay in memory (open: false) and a later retry/navigation
+      // can surface a new dialog on an unrelated screen.
       if (toastId) {
         const t = state.toasts.find((x) => x.id === toastId);
+        if (t && isStickyErrorDialog(t)) {
+          return {
+            ...state,
+            toasts: state.toasts.filter((x) => x.id !== toastId),
+          };
+        }
         addToRemoveQueue(
           toastId,
-          (t as any)?.variant,
-          (t as any)?.inline,
-          (t as any)?.persistent,
+          (t as ToasterToast | undefined)?.variant,
+          (t as ToasterToast | undefined)?.inline,
+          (t as ToasterToast | undefined)?.persistent,
         );
       } else {
-        state.toasts.forEach((toast) => {
+        const stickyIds = new Set(
+          state.toasts.filter(isStickyErrorDialog).map((t) => t.id),
+        );
+        state.toasts.forEach((toastItem) => {
+          if (stickyIds.has(toastItem.id)) return;
           addToRemoveQueue(
-            toast.id,
-            (toast as any).variant,
-            (toast as any).inline,
-            (toast as any).persistent,
+            toastItem.id,
+            toastItem.variant,
+            toastItem.inline,
+            toastItem.persistent,
           );
         });
+        return {
+          ...state,
+          toasts: state.toasts
+            .filter((t) => !stickyIds.has(t.id))
+            .map((t) => ({ ...t, open: false })),
+        };
       }
 
       return {
@@ -208,7 +228,7 @@ function useToast() {
   return {
     ...state,
     toast,
-    dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
+    dismiss: dismissToast,
   };
 }
 
@@ -228,4 +248,8 @@ export function showWarning(message: string, title?: string) {
   });
 }
 
-export { useToast, toast };
+function dismissToast(toastId?: string) {
+  dispatch({ type: "DISMISS_TOAST", toastId });
+}
+
+export { useToast, toast, dismissToast };
