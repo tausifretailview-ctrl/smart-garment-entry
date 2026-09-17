@@ -52,18 +52,31 @@ export async function ensureFreshSupabaseSession(withinSeconds = 120): Promise<v
  *   );
  */
 export async function withJwtRetry<T>(
-  fn: () => PromiseLike<T>
+  fn: () => PromiseLike<T>,
+  refreshSession: () => PromiseLike<{ error?: unknown }> = () => supabase.auth.refreshSession(),
 ): Promise<T> {
-  const result: any = await fn();
-  if (result && isJwtExpiredError(result.error)) {
-    console.warn("JWT expired during operation — refreshing session and retrying once");
+  let firstResult: T;
+  try {
+    firstResult = await fn();
+  } catch (error) {
+    if (!isJwtExpiredError(error)) throw error;
     try {
-      await supabase.auth.refreshSession();
-    } catch (refreshErr) {
-      console.error("Session refresh failed during JWT retry:", refreshErr);
-      return result;
+      const refreshed = await refreshSession();
+      if (refreshed?.error) throw refreshed.error;
+    } catch {
+      throw error;
     }
     return await fn();
   }
-  return result;
+
+  const resultWithError = firstResult as { error?: unknown } | null;
+  if (!isJwtExpiredError(resultWithError?.error)) return firstResult;
+
+  try {
+    const refreshed = await refreshSession();
+    if (refreshed?.error) return firstResult;
+  } catch {
+    return firstResult;
+  }
+  return await fn();
 }

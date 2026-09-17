@@ -60,11 +60,11 @@ export function canSelectUpiSlot(
   return !!trimUpiId(bill?.upi_id);
 }
 
-export function patchCompanyUpi(
-  bill: CompanyUpiSettings | null | undefined,
+export function patchCompanyUpi<T extends CompanyUpiSettings>(
+  bill: T | null | undefined,
   patch: Partial<Pick<CompanyUpiSettings, "upi_id" | "upi_id_2" | "active_upi_id">>,
-): CompanyUpiSettings {
-  const next: CompanyUpiSettings = { ...(bill || {}), ...patch };
+): T & { active_upi_id: ActiveUpiId } {
+  const next = { ...(bill || {}), ...patch } as T & { active_upi_id: ActiveUpiId };
   next.active_upi_id = coerceActiveUpiId(next);
   return next;
 }

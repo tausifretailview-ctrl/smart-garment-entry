@@ -71,6 +71,7 @@ import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { isJwtExpiredError, withJwtRetry } from "@/lib/jwtRetry";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
@@ -413,7 +414,7 @@ async function fetchPosExactBarcodeMatches(
 }
 
 /** Same barcode resolution chain as POS add-to-cart (exact master → scan RPC). */
-async function resolvePosBarcodeLookupMatches(
+async function resolvePosBarcodeLookupMatchesOnce(
   orgId: string,
   trimmedTerm: string,
 ): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
@@ -450,6 +451,13 @@ async function resolvePosBarcodeLookupMatches(
   }
 
   return exactBarcodeMatches;
+}
+
+function resolvePosBarcodeLookupMatches(
+  orgId: string,
+  trimmedTerm: string,
+): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+  return withJwtRetry(() => resolvePosBarcodeLookupMatchesOnce(orgId, trimmedTerm));
 }
 
 async function fetchPosVariantByBarcodeOnce(
@@ -538,12 +546,13 @@ async function fetchPosVariantByBarcodeOnce(
       remappedLiveBarcode: liveBc && liveBc !== trimmed ? liveBc : undefined,
     };
   } catch (err) {
+    if (isJwtExpiredError(err)) throw err;
     console.error('POS purchase-barcode resolve failed:', err);
     return null;
   }
 }
 
-async function fetchPosVariantByBarcode(
+async function fetchPosVariantByBarcodeOnceAcrossCandidates(
   orgId: string,
   barcode: string,
   mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
@@ -560,11 +569,22 @@ async function fetchPosVariantByBarcode(
   return null;
 }
 
+function fetchPosVariantByBarcode(
+  orgId: string,
+  barcode: string,
+  mobileERPConfig?: Parameters<typeof productRequiresImei>[1],
+  lookupOptions: { exactOnly?: boolean } = POS_BARCODE_CART_LOOKUP_EXACT,
+) {
+  return withJwtRetry(() =>
+    fetchPosVariantByBarcodeOnceAcrossCandidates(orgId, barcode, mobileERPConfig, lookupOptions),
+  );
+}
+
 function isStockTrackedPosProduct(product: { product_type?: string | null } | null | undefined): boolean {
   return product?.product_type !== 'service' && product?.product_type !== 'combo';
 }
 
-async function fetchUnavailablePosVariantByProductName(
+async function fetchUnavailablePosVariantByProductNameOnce(
   orgId: string,
   searchTerm: string,
   productTypeFilter: string,
@@ -598,6 +618,16 @@ async function fetchUnavailablePosVariantByProductName(
 
   if (!row?.products) return null;
   return { product: row.products, variant: row };
+}
+
+function fetchUnavailablePosVariantByProductName(
+  orgId: string,
+  searchTerm: string,
+  productTypeFilter: string,
+) {
+  return withJwtRetry(() =>
+    fetchUnavailablePosVariantByProductNameOnce(orgId, searchTerm, productTypeFilter),
+  );
 }
 
 function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclusive") {
@@ -2550,6 +2580,7 @@ export default function POSSales() {
             supabase.from('product_variants').select('id, product_id'),
           ).eq('barcode', escToken);
           const exactRes = await exactQ.limit(500);
+          if (exactRes.error) throw exactRes.error;
           if (!exactRes.error && exactRes.data?.length) {
             exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
           } else if (!strictBarcode && !exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
@@ -2574,6 +2605,7 @@ export default function POSSales() {
                 if (!r.excludeReason && r.skuId) matchedVariantIds.add(r.skuId);
               }
             } catch (err) {
+              if (isJwtExpiredError(err)) throw err;
               console.error('POS dropdown purchase-barcode resolve failed:', err);
             }
           }
@@ -2611,6 +2643,8 @@ export default function POSSales() {
         }
 
         const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
+        if (vRes.error) throw vRes.error;
+        if (pRes.error) throw pRes.error;
 
         if (!vRes.error && vRes.data) {
           vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
@@ -2618,7 +2652,7 @@ export default function POSSales() {
 
         if (!pRes.error && pRes.data && pRes.data.length > 0) {
           const prodIds = pRes.data.map((p: any) => p.id);
-          const { data: pVariants } = await supabase
+          const { data: pVariants, error: pVariantsError } = await supabase
             .from('product_variants')
             .select('id')
             .eq('organization_id', currentOrganization.id)
@@ -2626,6 +2660,7 @@ export default function POSSales() {
             .eq('active', true)
             .is('deleted_at', null)
             .limit(1000);
+          if (pVariantsError) throw pVariantsError;
           if (pVariants) {
             pVariants.forEach((v: any) => matchedVariantIds.add(v.id));
           }
@@ -2795,7 +2830,7 @@ export default function POSSales() {
       setProductSearchResults(formatted);
     };
 
-    runSearch()
+    withJwtRetry(() => runSearch())
       .catch((error) => {
         if (requestSeq !== productSearchSeqRef.current) return;
         console.error('POS product search failed:', error);
@@ -3072,17 +3107,19 @@ export default function POSSales() {
         !(mobileERP.enabled && mobileERP.imei_scan_enforcement) &&
         !posRuntimeSettingsRef.current?.pos_quick_price_code
       ) {
-        const { data: nameResults, error: nameError } = await supabase
-          .from('product_variants')
-          .select(POS_VARIANT_LOOKUP_SELECT)
-          .eq('organization_id', orgId)
-          .eq('products.organization_id', orgId)
-          .ilike('products.product_name', `%${trimmedTerm}%`)
-          .is('deleted_at', null)
-          .is('products.deleted_at', null)
-          .eq('products.status', 'active')
-          .gt('stock_qty', 0)
-          .limit(1);
+        const { data: nameResults, error: nameError } = await withJwtRetry(() =>
+          supabase
+            .from('product_variants')
+            .select(POS_VARIANT_LOOKUP_SELECT)
+            .eq('organization_id', orgId)
+            .eq('products.organization_id', orgId)
+            .ilike('products.product_name', `%${trimmedTerm}%`)
+            .is('deleted_at', null)
+            .is('products.deleted_at', null)
+            .eq('products.status', 'active')
+            .gt('stock_qty', 0)
+            .limit(1),
+        );
 
         if (nameError) throw nameError;
 
@@ -3117,15 +3154,17 @@ export default function POSSales() {
       // Fallback: search purchase_items for IMEI barcode (for legacy IMEI purchases).
       // Scope to current org via purchase_bills — purchase_items has no organization_id column.
       if (mobileERP.enabled) {
-        const { data: purchaseItem, error: purchaseError } = await supabase
-          .from('purchase_items')
-          .select('sku_id, barcode, product_name, size, purchase_bills!inner(organization_id)')
-          .eq('purchase_bills.organization_id', orgId)
-          .is('purchase_bills.deleted_at', null)
-          .eq('barcode', trimmedTerm)
-          .is('deleted_at', null)
-          .limit(1)
-          .maybeSingle();
+        const { data: purchaseItem, error: purchaseError } = await withJwtRetry(() =>
+          supabase
+            .from('purchase_items')
+            .select('sku_id, barcode, product_name, size, purchase_bills!inner(organization_id)')
+            .eq('purchase_bills.organization_id', orgId)
+            .is('purchase_bills.deleted_at', null)
+            .eq('barcode', trimmedTerm)
+            .is('deleted_at', null)
+            .limit(1)
+            .maybeSingle(),
+        );
 
         if (purchaseError) throw purchaseError;
 
@@ -3133,16 +3172,18 @@ export default function POSSales() {
           // Same products.status gate as fetchPosVariantByBarcode — legacy IMEI→sku
           // must not re-open deactivated masters that still have units on hand.
           // Do not gate product_variants.active here (semantics held).
-          const { data: variant, error: variantError } = await supabase
-            .from('product_variants')
-            .select(POS_VARIANT_LOOKUP_SELECT)
-            .eq('id', purchaseItem.sku_id)
-            .eq('organization_id', orgId)
-            .eq('products.organization_id', orgId)
-            .eq('products.status', 'active')
-            .is('deleted_at', null)
-            .is('products.deleted_at', null)
-            .maybeSingle();
+          const { data: variant, error: variantError } = await withJwtRetry(() =>
+            supabase
+              .from('product_variants')
+              .select(POS_VARIANT_LOOKUP_SELECT)
+              .eq('id', purchaseItem.sku_id)
+              .eq('organization_id', orgId)
+              .eq('products.organization_id', orgId)
+              .eq('products.status', 'active')
+              .is('deleted_at', null)
+              .is('products.deleted_at', null)
+              .maybeSingle(),
+          );
 
           if (variantError) throw variantError;
 
@@ -3175,7 +3216,11 @@ export default function POSSales() {
       focusBarcodeScanInput();
     } catch (error: any) {
       console.error('POS scan/search failed:', error);
-      toast.error('Lookup failed', { description: error.message || 'Could not search products. Try again.' });
+      toast.error(isJwtExpiredError(error) ? 'Session expired' : 'Lookup failed', {
+        description: isJwtExpiredError(error)
+          ? 'Please sign in again, then scan the product once more.'
+          : error.message || 'Could not search products. Try again.',
+      });
       focusBarcodeScanInput();
     } finally {
       posSearchAndAddInFlight.delete(trimmedTerm);
@@ -3364,7 +3409,11 @@ export default function POSSales() {
         }
       } catch (error) {
         console.error('Quick service lookup failed:', error);
-        toast.error('Lookup failed', { description: 'Could not resolve service product. Try again.' });
+        toast.error(isJwtExpiredError(error) ? 'Session expired' : 'Lookup failed', {
+          description: isJwtExpiredError(error)
+            ? 'Please sign in again, then add the service once more.'
+            : 'Could not resolve service product. Try again.',
+        });
         return;
       }
     }
