@@ -9,6 +9,7 @@ import {
   ArrowDownRight, Clock, Star, AlertCircle,
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
+import { formatLastFetchedLabel } from "@/utils/formatLastFetched";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
 import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 import { useEffect, useState } from "react";
@@ -117,7 +118,13 @@ export const OwnerDashboard = () => {
   const greeting = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
 
   /* ── Primary KPI: today's stats (single RPC) ── */
-  const { data: dashStats, isLoading: dashLoading, isSuccess: dashReady } = useQuery({
+  const {
+    data: dashStats,
+    isLoading: dashLoading,
+    isSuccess: dashReady,
+    isFetching: dashFetching,
+    dataUpdatedAt: dashUpdatedAt,
+  } = useQuery({
     queryKey: ["owner-erp-dashboard-stats", orgId, statsStart, statsEnd],
     queryFn: async () => {
       if (!orgId) return null;
@@ -365,6 +372,9 @@ export const OwnerDashboard = () => {
   const periodPurchaseLabel = periodIsMonth ? "This Month's Purchase" : "Today's Purchase";
   const periodProfitLabel = periodIsMonth ? "This Month's Profit" : "Today's Profit";
   const periodBillsSub = periodIsMonth ? "this month" : "today";
+  const lastFetchedLabel = formatLastFetchedLabel(dashUpdatedAt, {
+    fetching: isRefreshing || (dashFetching && !dashLoading),
+  });
 
   const customerOs = partyReceivablesWindow.netReceivable;
   const supplierOs = supplierOrgWindow.totalPayableCr;
@@ -486,7 +496,7 @@ export const OwnerDashboard = () => {
             <ShellButton onClick={handleRefresh} ariaLabel="Refresh dashboard">
               <span className="flex items-center gap-1.5">
                 <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
-                {isRefreshing ? "Syncing" : "Synced"}
+                {lastFetchedLabel || (dashLoading ? "Loading" : "Refresh")}
               </span>
             </ShellButton>
           }
@@ -693,13 +703,20 @@ export const OwnerDashboard = () => {
             <h1 className="text-lg font-semibold text-white">{greeting}!</h1>
             <p className="text-xs text-white/60 mt-0.5">{currentOrganization?.name}</p>
           </div>
-          <button
-            onClick={handleRefresh}
-            className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all touch-manipulation"
-            aria-label="Refresh dashboard"
-          >
-            <RefreshCw className={cn("h-4 w-4 text-white/70", isRefreshing && "animate-spin")} />
-          </button>
+          <div className="flex flex-col items-end gap-0.5">
+            <button
+              onClick={handleRefresh}
+              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all touch-manipulation"
+              aria-label="Refresh dashboard"
+            >
+              <RefreshCw className={cn("h-4 w-4 text-white/70", isRefreshing && "animate-spin")} />
+            </button>
+            {lastFetchedLabel ? (
+              <p className="max-w-[7.5rem] text-right text-[9px] font-medium tabular-nums text-white/50">
+                {lastFetchedLabel}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         {/* Today at a glance — reuses dashStats + receivables (no extra query) */}
