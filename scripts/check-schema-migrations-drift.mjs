@@ -255,15 +255,14 @@ export async function runSchemaMigrationsDriftCheck({
       "  SUPABASE_DRIFT_SERVICE_ROLE_KEY = service_role key from Lovable Cloud (not the anon/publishable key)\n" +
       "  ALLOW_PRODUCTION_DRIFT_CHECK = 1\n" +
       "There is no staging Supabase project. The service-role key cannot be generated here.";
-    const msg = `Live compare skipped — missing ${missing.join(" + ")}.\n${how}`;
     if (requireLive) {
       error(
         "Live compare required but credentials are missing. A green skip is not allowed.\n" +
-          msg,
+          `Missing ${missing.join(" + ")}.\n${how}`,
       );
       return 1;
     }
-    log(msg);
+    log("Live compare skipped — set SUPABASE_DRIFT_URL + SUPABASE_DRIFT_SERVICE_ROLE_KEY (or SUPABASE_TEST_*).");
     return 0;
   }
 
