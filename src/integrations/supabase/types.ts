@@ -9415,6 +9415,14 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: string
       }
+      _org_sale_return_balance_remaining: {
+        Args: { p_organization_id: string }
+        Returns: {
+          out_customer_id: string
+          remaining: number
+          sale_return_id: string
+        }[]
+      }
       _product_has_active_references: {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
@@ -11003,6 +11011,12 @@ export type Database = {
         }
         Returns: {
           bill_id: string
+        }[]
+      }
+      search_sale_items_by_ids: {
+        Args: { p_sale_ids: string[]; p_search: string }
+        Returns: {
+          sale_id: string
         }[]
       }
       set_whatsapp_send_provider: {
