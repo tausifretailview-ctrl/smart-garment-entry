@@ -147,7 +147,8 @@ migration, run `npm run check:schema-drift:write` and commit the manifest.
 
 Live bidirectional compare (`npm run check:schema-drift:live`) needs
 `SUPABASE_DRIFT_*` or staging `SUPABASE_TEST_*`. It refuses the production
-project URL unless `--allow-production` is set. See
+project URL unless `--allow-production` is set. The nightly workflow
+**fails closed** when those secrets are missing — it must not skip. See
 `scripts/README-schema-migrations-drift.md`.
 
 ## CI follow-up (not wired yet)

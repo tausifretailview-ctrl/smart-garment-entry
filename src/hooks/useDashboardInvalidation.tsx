@@ -17,6 +17,7 @@ export const useDashboardInvalidation = () => {
 
   const invalidateDashboard = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    queryClient.invalidateQueries({ queryKey: ["net-profit-kpis"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
     queryClient.invalidateQueries({ queryKey: ["mobile-customers-served"] });

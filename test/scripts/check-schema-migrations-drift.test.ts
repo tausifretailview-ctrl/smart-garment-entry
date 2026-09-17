@@ -118,4 +118,32 @@ cursor/sale-items-org-search-rpc-4576
     expect(code).toBe(0);
     expect(logs.some((line) => /Live compare skipped/.test(line))).toBe(true);
   });
+
+  it("fails closed with --require-live when credentials are missing", async () => {
+    const errors: string[] = [];
+    const code = await runSchemaMigrationsDriftCheck({
+      argv: ["--check", "--require-live"],
+      envMap: {},
+      readFileFn: async () => matchingManifestRead(),
+      log: () => {},
+      error: (msg) => errors.push(String(msg)),
+    });
+    expect(code).toBe(1);
+    expect(errors.join("\n")).toMatch(/Live compare required/);
+    expect(errors.join("\n")).toMatch(/SUPABASE_DRIFT_SERVICE_ROLE_KEY/);
+    expect(errors.join("\n")).not.toMatch(/Skipping live compare/);
+  });
+
+  it("fails closed with --require-live when only the URL is set", async () => {
+    const errors: string[] = [];
+    const code = await runSchemaMigrationsDriftCheck({
+      argv: ["--check", "--require-live"],
+      envMap: { SUPABASE_DRIFT_URL: "https://lkbbrqcsbhqjvsxiorvp.supabase.co" },
+      readFileFn: async () => matchingManifestRead(),
+      log: () => {},
+      error: (msg) => errors.push(String(msg)),
+    });
+    expect(code).toBe(1);
+    expect(errors.join("\n")).toMatch(/SUPABASE_DRIFT_SERVICE_ROLE_KEY/);
+  });
 });

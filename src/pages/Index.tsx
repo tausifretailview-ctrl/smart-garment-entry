@@ -15,6 +15,12 @@ import {
   isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
+import {
+  NPA_NET_PROFIT_CAPTION,
+  NET_PROFIT_KPI_QUERY_HEAD,
+  STORED_NET_CAPTION,
+  fetchNetProfitKpis,
+} from "@/utils/netProfitKpis";
 import { isStatementTimeout } from "@/utils/statementTimeout";
 import { PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { DashboardSkeleton, MetricCardSkeleton } from "@/components/ui/skeletons";
@@ -92,7 +98,7 @@ type DashStats = {
   total_stock_value: number;
   total_receivables: number;
   pending_count: number;
-  gross_profit: number;
+  gross_profit: number | null;
   cash_collection: number;
   sale_return_total: number;
   sale_return_count: number;
@@ -320,6 +326,7 @@ const DesktopDashboard = () => {
       const head = String(event.query?.queryKey?.[0] ?? "");
       if (
         head === "dashboard-stats" ||
+        head === "net-profit-kpis" ||
         head === "customer-segment-counts"
       ) {
         syncFromCache();
@@ -366,6 +373,21 @@ const DesktopDashboard = () => {
     ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 
+  const npaKpisQueryKey = useMemo(
+    () => [NET_PROFIT_KPI_QUERY_HEAD, currentOrganization?.id, startDate, endDate] as const,
+    [currentOrganization?.id, startDate, endDate],
+  );
+
+  const { data: liveNpaKpis, isFetching: npaKpisFetching } = useQuery({
+    queryKey: npaKpisQueryKey,
+    queryFn: async () => {
+      if (!currentOrganization) return null;
+      return fetchNetProfitKpis(currentOrganization.id, startDate, endDate);
+    },
+    enabled: metricsQueryEnabled && canViewGrossProfit,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
+  });
+
   const displayedDashStats = useMemo(() => {
     // Never surface cached KPI numbers when Main Dashboard is disabled / rights loading.
     if (permissionsLoading || !canAccessMainDashboard) return null;
@@ -380,6 +402,23 @@ const DesktopDashboard = () => {
     liveDashStats,
     queryClient,
     dashStatsQueryKey,
+    cacheTick,
+  ]);
+
+  const displayedNpaKpis = useMemo(() => {
+    if (permissionsLoading || !canAccessMainDashboard || !canViewGrossProfit) return null;
+    return (
+      liveNpaKpis ??
+      queryClient.getQueryData<NonNullable<typeof liveNpaKpis>>(npaKpisQueryKey) ??
+      null
+    );
+  }, [
+    permissionsLoading,
+    canAccessMainDashboard,
+    canViewGrossProfit,
+    liveNpaKpis,
+    queryClient,
+    npaKpisQueryKey,
     cacheTick,
   ]);
 
@@ -449,7 +488,9 @@ const DesktopDashboard = () => {
   const suppliersCount = displayedDashStats?.supplier_count || 0;
   const stockData = displayedDashStats?.total_stock_qty || 0;
   const stockValue = displayedDashStats?.total_stock_value || 0;
-  const profitData = displayedDashStats?.gross_profit || 0;
+  const profitData = displayedNpaKpis?.gross_profit ?? 0;
+  const npaKpisReady = displayedNpaKpis != null;
+  const profitLoading = metricsLoadRequested && npaKpisFetching && npaKpisReady;
   const cashCollection = displayedDashStats?.cash_collection || 0;
   const receivablesData = { total: displayedDashStats?.total_receivables || 0 };
   const saleReturnData = { total: displayedDashStats?.sale_return_total || 0, count: displayedDashStats?.sale_return_count || 0, returnQty: displayedDashStats?.sale_return_qty || 0 };
@@ -878,7 +919,8 @@ const DesktopDashboard = () => {
               accentColor="bg-blue-500"
               prefetchPath="sales-invoice-dashboard"
               onClick={() => navigate("/sales-invoice-dashboard")}
-              tooltip="Total revenue from all sales invoices. Click to view Sales Dashboard."
+              tooltip="Stored net after discount and sale-return adjust (dashboard sales summary). Not NPA net. Click to view Sales Dashboard."
+              caption={STORED_NET_CAPTION}
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1060,12 +1102,13 @@ const DesktopDashboard = () => {
                 value={profitData || 0}
                 icon={TrendingUp}
                 accentColor="bg-green-600"
-                prefetchPath="daily-cashier-report"
-                onClick={() => navigate("/daily-cashier-report")}
-                tooltip="Sales revenue minus purchase cost. Click to view Cashier Report."
+                prefetchPath={canViewNetProfit ? "net-profit-analysis" : "daily-cashier-report"}
+                onClick={() => navigate(canViewNetProfit ? "/net-profit-analysis" : "/daily-cashier-report")}
+                tooltip="NPA net (before returns) minus qty-weighted purchase COGS. Same spec as Net Profit Analysis totals. Not stored net after S/R."
+                caption={NPA_NET_PROFIT_CAPTION}
                 isCurrency
-                placeholder={showPlaceholders}
-                loading={metricsLoading}
+                placeholder={showPlaceholders || !npaKpisReady}
+                loading={profitLoading}
               />
             )}
             <AnimatedMetricCard

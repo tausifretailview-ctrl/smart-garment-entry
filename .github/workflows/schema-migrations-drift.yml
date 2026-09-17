@@ -1,8 +1,8 @@
 name: Schema migration drift
 
-# Repo-only manifest check runs on every PR via ci.yml.
-# This workflow is the live bidirectional compare. It stays skipped until
-# staging (or an explicit production allow) credentials are configured.
+# Live bidirectional compare. Fail closed: missing credentials is an error,
+# never a green skip. This job exists to catch "merged but not applied live"
+# (dispatch_nightly_backups, 20260628120000, 20261025120000 / Bug A).
 
 on:
   schedule:
@@ -14,6 +14,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Require live-compare secrets
+        env:
+          SUPABASE_DRIFT_URL: ${{ secrets.SUPABASE_DRIFT_URL }}
+          SUPABASE_DRIFT_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_DRIFT_SERVICE_ROLE_KEY }}
+          ALLOW_PRODUCTION_DRIFT_CHECK: ${{ secrets.ALLOW_PRODUCTION_DRIFT_CHECK }}
+        run: |
+          set -eu
+          url="${SUPABASE_DRIFT_URL:-https://lkbbrqcsbhqjvsxiorvp.supabase.co}"
+          if [ -z "${SUPABASE_DRIFT_SERVICE_ROLE_KEY}" ]; then
+            echo "::error::SUPABASE_DRIFT_SERVICE_ROLE_KEY is empty. Set it from Lovable Cloud → Supabase project → service_role key (Settings → Secrets and variables → Actions). Also set ALLOW_PRODUCTION_DRIFT_CHECK=1."
+            exit 1
+          fi
+          case "$url" in
+            *lkbbrqcsbhqjvsxiorvp*)
+              if [ "${ALLOW_PRODUCTION_DRIFT_CHECK}" != "1" ]; then
+                echo "::error::Production URL requires ALLOW_PRODUCTION_DRIFT_CHECK=1 (literal 1). There is no staging project."
+                exit 1
+              fi
+              ;;
+          esac
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -26,12 +47,25 @@ jobs:
 
       - name: Compare repo migrations to live schema_migrations
         env:
+          # URL is not secret (also in .env). Default the production project when
+          # the GitHub secret is unset so an empty SUPABASE_DRIFT_URL cannot skip
+          # the compare. The service-role key and production-allow flag remain required.
           SUPABASE_DRIFT_URL: ${{ secrets.SUPABASE_DRIFT_URL }}
           SUPABASE_DRIFT_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_DRIFT_SERVICE_ROLE_KEY }}
           ALLOW_PRODUCTION_DRIFT_CHECK: ${{ secrets.ALLOW_PRODUCTION_DRIFT_CHECK }}
         run: |
-          if [ -z "$SUPABASE_DRIFT_URL" ] || [ -z "$SUPABASE_DRIFT_SERVICE_ROLE_KEY" ]; then
-            echo "Skipping live compare — configure SUPABASE_DRIFT_URL and SUPABASE_DRIFT_SERVICE_ROLE_KEY."
-            exit 0
+          set -eu
+          if [ -z "${SUPABASE_DRIFT_URL}" ]; then
+            SUPABASE_DRIFT_URL="https://lkbbrqcsbhqjvsxiorvp.supabase.co"
+            export SUPABASE_DRIFT_URL
+            echo "SUPABASE_DRIFT_URL secret unset — using production project URL."
+          fi
+          echo "Live compare URL host: $(node -e 'try { console.log(new URL(process.env.SUPABASE_DRIFT_URL).host) } catch { console.log("invalid-url") }')"
+          if [ -z "${SUPABASE_DRIFT_SERVICE_ROLE_KEY}" ]; then
+            echo "::error::SUPABASE_DRIFT_SERVICE_ROLE_KEY is empty. Set it from Lovable Cloud → Supabase project → service_role key (Settings → Secrets and variables → Actions). Also set ALLOW_PRODUCTION_DRIFT_CHECK=1 because this URL is production."
+            exit 1
+          fi
+          if [ -z "${ALLOW_PRODUCTION_DRIFT_CHECK}" ]; then
+            echo "::warning::ALLOW_PRODUCTION_DRIFT_CHECK is empty. Production URLs are refused unless this secret is the literal 1."
           fi
           npm run check:schema-drift:live

@@ -10,6 +10,13 @@ import {
 } from "lucide-react";
 import { format, subDays, formatDistanceToNow, startOfMonth, endOfMonth } from "date-fns";
 import { formatLastFetchedLabel } from "@/utils/formatLastFetched";
+import {
+  NPA_MARGIN_CAPTION,
+  NPA_NET_PROFIT_CAPTION,
+  NET_PROFIT_KPI_QUERY_HEAD,
+  STORED_NET_CAPTION,
+  fetchNetProfitKpis,
+} from "@/utils/netProfitKpis";
 import { localDayBounds, saleRowCalendarYmd, todayLocalYmd } from "@/lib/localDayBounds";
 import { MOBILE_HOME_SALE_TYPES, MOBILE_SALES_PATH, MOBILE_REPORTS_PATH } from "@/lib/mobileShell";
 import { useEffect, useState } from "react";
@@ -49,7 +56,7 @@ type ErpDashboardStats = {
   invoice_count: number;
   total_purchase: number;
   purchase_count: number;
-  gross_profit: number;
+  gross_profit: number | null;
   cash_collection: number;
 };
 
@@ -137,6 +144,21 @@ export const OwnerDashboard = () => {
         if (error) throw error;
         return data as ErpDashboardStats;
       });
+    },
+    enabled: kpisEnabled,
+    staleTime: BALANCE_STALE_MS,
+    refetchInterval: false,
+    retry: 1,
+  });
+
+  const {
+    data: npaKpis,
+    isLoading: npaKpisLoading,
+  } = useQuery({
+    queryKey: [NET_PROFIT_KPI_QUERY_HEAD, orgId, statsStart, statsEnd],
+    queryFn: async () => {
+      if (!orgId) return null;
+      return withMobileQueryTimeout(() => fetchNetProfitKpis(orgId, statsStart, statsEnd));
     },
     enabled: kpisEnabled,
     staleTime: BALANCE_STALE_MS,
@@ -362,10 +384,11 @@ export const OwnerDashboard = () => {
   const salesCount = dashStats?.invoice_count ?? 0;
   const totalPurchase = dashStats?.total_purchase ?? 0;
   const purchaseCount = dashStats?.purchase_count ?? 0;
-  const grossProfit = dashStats?.gross_profit ?? 0;
+  const grossProfit = npaKpis?.gross_profit ?? 0;
   const cashCollection = dashStats?.cash_collection ?? 0;
   const profitMarginPct =
-    totalSales > 0 ? ((grossProfit / totalSales) * 100).toFixed(1) : "0.0";
+    npaKpis && npaKpis.net_sales > 0 ? npaKpis.margin_percent.toFixed(1) : "0.0";
+  const profitLoading = dashLoading || npaKpisLoading;
 
   const periodIsMonth = theme === "premium" && heroPeriod === "month";
   const periodSaleLabel = periodIsMonth ? "This Month's Sale" : "Today's Sale";
@@ -385,7 +408,7 @@ export const OwnerDashboard = () => {
     {
       label: periodSaleLabel,
       value: totalSales,
-      sub: `${salesCount} bill${salesCount === 1 ? "" : "s"} ${periodBillsSub}`,
+      sub: `${STORED_NET_CAPTION} · ${salesCount} bill${salesCount === 1 ? "" : "s"} ${periodBillsSub}`,
       icon: IndianRupee,
       gradient: "bg-gradient-to-br from-emerald-500/15 via-emerald-500/8 to-card",
       iconBg: "bg-emerald-500/20",
@@ -407,13 +430,13 @@ export const OwnerDashboard = () => {
     {
       label: periodProfitLabel,
       value: grossProfit,
-      sub: `${profitMarginPct}% margin`,
+      sub: `${NPA_NET_PROFIT_CAPTION} · ${profitMarginPct}% ${NPA_MARGIN_CAPTION}`,
       icon: TrendingUp,
       gradient: "bg-gradient-to-br from-primary/15 via-primary/8 to-card",
       iconBg: "bg-primary/20",
       iconColor: "text-primary",
       valueClass: grossProfit >= 0 ? "text-emerald-600" : "text-destructive",
-      loading: dashLoading,
+      loading: profitLoading,
       path: `${MOBILE_REPORTS_PATH}?report=profit-loss`,
     },
     {
@@ -523,6 +546,9 @@ export const OwnerDashboard = () => {
               <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
                 {periodIsMonth ? "Revenue this month" : "Revenue today"}
               </p>
+              <p className="mt-0.5 text-[9px] font-medium leading-tight text-[var(--ez-shell-muted)]">
+                {STORED_NET_CAPTION}
+              </p>
               <p className="num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]">
                 {dashLoading ? "—" : fmtShort(totalSales)}
               </p>
@@ -531,13 +557,16 @@ export const OwnerDashboard = () => {
               <p className="text-[9.5px] font-semibold uppercase leading-none tracking-[0.12em] text-[var(--ez-shell-muted)]">
                 Gross profit
               </p>
+              <p className="mt-0.5 text-[9px] font-medium leading-tight text-[var(--ez-shell-muted)]">
+                {NPA_NET_PROFIT_CAPTION}
+              </p>
               <p
                 className={cn(
                   "num mt-1.5 text-[27px] font-extrabold leading-none tracking-[-0.02em]",
                   grossProfit >= 0 ? "text-[var(--ez-shell-credit)]" : "text-[var(--ez-shell-debit)]",
                 )}
               >
-                {dashLoading ? "—" : fmtShort(grossProfit)}
+                {profitLoading ? "—" : fmtShort(grossProfit)}
               </p>
             </div>
           </div>
@@ -731,17 +760,19 @@ export const OwnerDashboard = () => {
             <div className="mt-3 grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-white/50">Revenue</p>
+                <p className="text-[9px] text-white/40">{STORED_NET_CAPTION}</p>
                 <p className="text-xl font-bold text-white tabular-nums mt-0.5">{fmtShort(totalSales)}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wider text-white/50">Profit</p>
+                <p className="text-[9px] text-white/40">{NPA_NET_PROFIT_CAPTION}</p>
                 <p
                   className={cn(
                     "text-xl font-bold tabular-nums mt-0.5",
                     grossProfit >= 0 ? "text-emerald-300" : "text-rose-300",
                   )}
                 >
-                  {fmtShort(grossProfit)}
+                  {profitLoading ? "—" : fmtShort(grossProfit)}
                 </p>
               </div>
             </div>

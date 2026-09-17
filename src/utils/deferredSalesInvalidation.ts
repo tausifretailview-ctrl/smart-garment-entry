@@ -16,6 +16,7 @@ let deferTimer: ReturnType<typeof setTimeout> | null = null;
 
 function runSalesInvalidation(queryClient: QueryClient, opts: PendingSalesInvalidation) {
   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+  queryClient.invalidateQueries({ queryKey: ["net-profit-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["mobile-dashboard-stats"] });
   queryClient.invalidateQueries({ queryKey: ["mobile-month-stats"] });
   queryClient.invalidateQueries({ queryKey: ["sales-trend"] });
