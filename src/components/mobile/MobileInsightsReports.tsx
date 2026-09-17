@@ -29,7 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/mobile/MobileReportMetricCard";
 import {
-  getSaleReportDiscountAmount,
+  getSaleReportLineDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
 } from "@/utils/cashierReportUtils";
@@ -127,7 +127,7 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
         cash: Number(s.cash_amount) || 0,
         upi: Number(s.upi_amount) || 0,
         card: Number(s.card_amount) || 0,
-        disc: getSaleReportDiscountAmount(s),
+        disc: getSaleReportLineDiscountAmount(s),
         net: getSaleReportNetAmount(s),
         gross: getSaleReportGrossAmount(s),
       })),
