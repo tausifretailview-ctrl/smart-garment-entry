@@ -546,6 +546,7 @@ async function fetchPosVariantByBarcodeOnce(
       remappedLiveBarcode: liveBc && liveBc !== trimmed ? liveBc : undefined,
     };
   } catch (err) {
+    if (isJwtExpiredError(err)) throw err;
     console.error('POS purchase-barcode resolve failed:', err);
     return null;
   }
@@ -2579,6 +2580,7 @@ export default function POSSales() {
             supabase.from('product_variants').select('id, product_id'),
           ).eq('barcode', escToken);
           const exactRes = await exactQ.limit(500);
+          if (exactRes.error) throw exactRes.error;
           if (!exactRes.error && exactRes.data?.length) {
             exactRes.data.forEach((v: { id: string }) => matchedVariantIds.add(v.id));
           } else if (!strictBarcode && !exactRes.error && shouldUsePartialPosBarcodeMatch(escToken)) {
@@ -2603,6 +2605,7 @@ export default function POSSales() {
                 if (!r.excludeReason && r.skuId) matchedVariantIds.add(r.skuId);
               }
             } catch (err) {
+              if (isJwtExpiredError(err)) throw err;
               console.error('POS dropdown purchase-barcode resolve failed:', err);
             }
           }
@@ -2640,6 +2643,8 @@ export default function POSSales() {
         }
 
         const [vRes, pRes] = await Promise.all([variantQ, productQ.limit(500)]);
+        if (vRes.error) throw vRes.error;
+        if (pRes.error) throw pRes.error;
 
         if (!vRes.error && vRes.data) {
           vRes.data.forEach((v: any) => matchedVariantIds.add(v.id));
@@ -2647,7 +2652,7 @@ export default function POSSales() {
 
         if (!pRes.error && pRes.data && pRes.data.length > 0) {
           const prodIds = pRes.data.map((p: any) => p.id);
-          const { data: pVariants } = await supabase
+          const { data: pVariants, error: pVariantsError } = await supabase
             .from('product_variants')
             .select('id')
             .eq('organization_id', currentOrganization.id)
@@ -2655,6 +2660,7 @@ export default function POSSales() {
             .eq('active', true)
             .is('deleted_at', null)
             .limit(1000);
+          if (pVariantsError) throw pVariantsError;
           if (pVariants) {
             pVariants.forEach((v: any) => matchedVariantIds.add(v.id));
           }
@@ -3403,7 +3409,11 @@ export default function POSSales() {
         }
       } catch (error) {
         console.error('Quick service lookup failed:', error);
-        toast.error('Lookup failed', { description: 'Could not resolve service product. Try again.' });
+        toast.error(isJwtExpiredError(error) ? 'Session expired' : 'Lookup failed', {
+          description: isJwtExpiredError(error)
+            ? 'Please sign in again, then add the service once more.'
+            : 'Could not resolve service product. Try again.',
+        });
         return;
       }
     }

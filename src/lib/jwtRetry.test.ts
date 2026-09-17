@@ -49,4 +49,13 @@ describe("withJwtRetry", () => {
     expect(operation).toHaveBeenCalledTimes(1);
     expect(refresh).toHaveBeenCalledTimes(1);
   });
+
+  it("rethrows an expired JWT when refresh fails after a thrown error", async () => {
+    const operation = vi.fn().mockRejectedValue(expiredError);
+    const refresh = vi.fn().mockRejectedValue(new Error("refresh failed"));
+
+    await expect(withJwtRetry(operation, refresh)).rejects.toBe(expiredError);
+    expect(operation).toHaveBeenCalledTimes(1);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
 });
