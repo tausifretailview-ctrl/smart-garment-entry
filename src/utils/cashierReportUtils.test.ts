@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getSaleReportDiscountAmount,
   getSaleReportGrossAmount,
+  getSaleReportLineDiscountAmount,
   getSaleReportNetAmount,
 } from "./cashierReportUtils";
 
@@ -16,6 +17,19 @@ describe("getSaleReportGrossAmount", () => {
 
   it("returns 0 when both are zero", () => {
     expect(getSaleReportGrossAmount({ gross_amount: 0, net_amount: 0 })).toBe(0);
+  });
+});
+
+describe("getSaleReportLineDiscountAmount", () => {
+  it("excludes round-off (POS / NPA display convention)", () => {
+    expect(
+      getSaleReportLineDiscountAmount({
+        discount_amount: 100,
+        flat_discount_amount: 50,
+        points_redeemed_amount: 10,
+        round_off: -2301.05,
+      }),
+    ).toBe(160);
   });
 });
 

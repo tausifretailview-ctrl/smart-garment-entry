@@ -22,7 +22,10 @@ export function getSaleReportGrossAmount(sale: SaleReportAmountRow): number {
   return net > 0 ? net : 0;
 }
 
-/** Line + bill + points discount only (excludes round-off). */
+/**
+ * Line + bill + points discount only (excludes round-off).
+ * Display surfaces (POS Dashboard, Cashier Report, NPA) must use this — not the folded helper.
+ */
 export function getSaleReportLineDiscountAmount(sale: SaleReportAmountRow): number {
   return (
     (Number(sale.discount_amount) || 0) +
@@ -32,8 +35,9 @@ export function getSaleReportLineDiscountAmount(sale: SaleReportAmountRow): numb
 }
 
 /**
- * Discount for cashier Gross − Discount ≈ Net identity.
- * Round-off is folded in as −round_off (negative round-off increases discount).
+ * @deprecated Display "Total Discount" with {@link getSaleReportLineDiscountAmount} and
+ * round-off as its own line. Kept for Gross − Discount ≈ Net identity checks that
+ * still fold −round_off into discount.
  */
 export function getSaleReportDiscountAmount(sale: SaleReportAmountRow): number {
   return getSaleReportLineDiscountAmount(sale) - (Number(sale.round_off) || 0);

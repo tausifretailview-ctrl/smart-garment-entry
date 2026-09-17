@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { QuietRefreshBar } from "@/components/QuietRefreshBar";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
-  getSaleReportDiscountAmount,
+  getSaleReportLineDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
   getSaleReportRoundOff,
@@ -569,8 +569,8 @@ const DailyCashierReport = () => {
         // NEGATIVE on the sale row, so they naturally subtract from cashSale/upiSale/
         // cardSale below ΓÇö no separate "Less: Refund" subtraction is needed.
         grossSale += getSaleReportGrossAmount(sale);
-        // Fold round-off into Discount so Gross ΓêÆ Discount matches Net / collections.
-        totalDiscount += getSaleReportDiscountAmount(sale);
+        // Discount-only (POS / NPA convention). Round-off is a separate line.
+        totalDiscount += getSaleReportLineDiscountAmount(sale);
         totalRoundOff += getSaleReportRoundOff(sale);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
         const effectiveNet = getEffectiveNet(sale);
@@ -1109,6 +1109,7 @@ const DailyCashierReport = () => {
       ["Sales Summary"],
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
+      ["Round off", totals.totalRoundOff],
       ["Net Sale", totals.totalSale],
       ["S/R Adjusted (included in Net Sale)", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
@@ -1191,6 +1192,8 @@ const DailyCashierReport = () => {
     doc.text(`Gross Sale: ${formatCurrency(totals.grossSale)}`, 20, y);
     y += 7;
     doc.text(`Less: Discount: ${formatCurrency(totals.totalDiscount)}`, 20, y);
+    y += 7;
+    doc.text(`Round off: ${formatCurrency(totals.totalRoundOff)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
@@ -1443,6 +1446,15 @@ const DailyCashierReport = () => {
                     {isLoading ? <Skeleton className="h-5 w-20" />
                       : <p className="text-sm font-bold tabular-nums text-red-600">−{formatCurrency(totals.totalDiscount)}</p>}
                   </div>
+                  {totals.totalRoundOff !== 0 && (
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-muted-foreground">Round off</p>
+                      <p className="text-sm font-bold tabular-nums text-slate-700">
+                        {totals.totalRoundOff > 0 ? "+" : "−"}
+                        {formatCurrency(Math.abs(totals.totalRoundOff))}
+                      </p>
+                    </div>
+                  )}
                   {totals.totalSRAdjusted > 0 && (
                     <div className="flex justify-between items-center">
                       <p className="text-xs text-muted-foreground">S/R Adjusted</p>
@@ -1824,7 +1836,7 @@ const DailyCashierReport = () => {
                 <div className="hidden print:block px-4 pt-3 pb-2 font-semibold text-sm">Sales & credit detail</div>
                 <CollapsibleContent>
                   <CardContent className="pt-0 pb-3">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-2">
                       <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-lg">
                         <CardHeader className="pb-1 pt-3 px-3">
                           <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
@@ -1847,11 +1859,20 @@ const DailyCashierReport = () => {
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
                           <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalDiscount)}</p>
-                          {totals.totalRoundOff !== 0 && (
-                            <p className="text-[10px] text-white/70">
-                              Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
-                            </p>
-                          )}
+                          <p className="text-[10px] text-white/70">Line + bill + points</p>
+                        </CardContent>
+                      </Card>
+
+                      <Card className="bg-gradient-to-br from-slate-500 to-slate-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <IndianRupee className="h-3.5 w-3.5" />
+                            Round Off
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalRoundOff)}</p>
+                          <p className="text-[10px] text-white/70">Not included in Discount</p>
                         </CardContent>
                       </Card>
 
@@ -1864,7 +1885,7 @@ const DailyCashierReport = () => {
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
                           <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSale)}</p>
-                          <p className="text-[10px] text-white/70">Gross − Discount</p>
+                          <p className="text-[10px] text-white/70">After disc, round-off & S/R</p>
                         </CardContent>
                       </Card>
 
@@ -2108,6 +2129,12 @@ const DailyCashierReport = () => {
                   <span>Less: Discount</span>
                   <span className="font-semibold tabular-nums">- {formatCurrency(totals.totalDiscount)}</span>
                 </div>
+                {totals.totalRoundOff !== 0 && (
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-slate-700">
+                    <span>Round off</span>
+                    <span className="font-semibold tabular-nums">{formatCurrency(totals.totalRoundOff)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold">
                   <span>Net Sale</span>
                   <span className="tabular-nums">{formatCurrency(totals.totalSale)}</span>

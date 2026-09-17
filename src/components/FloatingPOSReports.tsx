@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { format } from "date-fns";
 import { localDayBounds } from "@/lib/localDayBounds";
 import {
-  getSaleReportDiscountAmount,
+  getSaleReportLineDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
   getSaleReportRoundOff,
@@ -257,8 +257,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
 
     eligibleSales.forEach((sale: any) => {
       grossSale += getSaleReportGrossAmount(sale);
-      // Include round-off in Discount so Gross − Discount matches Net / collections.
-      totalDiscount += getSaleReportDiscountAmount(sale);
+      totalDiscount += getSaleReportLineDiscountAmount(sale);
       totalRoundOff += getSaleReportRoundOff(sale);
       const net = getSaleReportNetAmount(sale);
       totalSale += net;
@@ -470,11 +469,18 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                       Discount
                     </div>
                     <p className="text-lg font-bold text-white">{formatCurrency(totals.totalDiscount)}</p>
-                    {totals.totalRoundOff !== 0 && (
-                      <p className="text-[10px] text-white/70">
-                        Incl. round off {formatCurrency(Math.abs(totals.totalRoundOff))}
-                      </p>
-                    )}
+                    <p className="text-[10px] text-white/70">Line + bill + points</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-slate-500 to-slate-600 border-0">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-white/90 text-xs mb-1">
+                      <IndianRupee className="h-3 w-3" />
+                      Round Off
+                    </div>
+                    <p className="text-lg font-bold text-white">{formatCurrency(totals.totalRoundOff)}</p>
+                    <p className="text-[10px] text-white/70">Not included in Discount</p>
                   </CardContent>
                 </Card>
 
