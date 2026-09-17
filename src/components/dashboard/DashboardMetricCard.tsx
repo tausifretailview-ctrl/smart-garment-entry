@@ -77,6 +77,7 @@ const DashboardMetricCardBase = ({
   onClick,
   prefetchPath,
   tooltip,
+  caption,
   isCurrency = false,
   placeholder = false,
   loading = false,
@@ -89,6 +90,8 @@ const DashboardMetricCardBase = ({
   /** Tab-cache path — warm JS chunk on hover/touch before navigate. */
   prefetchPath?: string;
   tooltip?: string;
+  /** One-line formula label under the value (stored-net vs NPA-net). */
+  caption?: string;
   isCurrency?: boolean;
   placeholder?: boolean;
   loading?: boolean;
@@ -137,6 +140,11 @@ const DashboardMetricCardBase = ({
                   refreshing && "opacity-60",
                 )}
               />
+              {caption ? (
+                <p className="mt-1.5 max-w-[11rem] text-[10px] font-medium leading-snug text-slate-500">
+                  {caption}
+                </p>
+              ) : null}
               <Icon
                 className={cn(
                   "absolute right-2.5 top-2.5 h-4 w-4 opacity-25",

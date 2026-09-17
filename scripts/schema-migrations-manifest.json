@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-16",
-  "count": 779,
-  "fileCount": 796,
+  "generatedAt": "2026-09-17",
+  "count": 780,
+  "fileCount": 797,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -782,7 +782,8 @@
     "20261217120000",
     "20261218120000",
     "20261219120000",
-    "20261219120100"
+    "20261219120100",
+    "20261220120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1580,7 +1581,8 @@
     "20261217120000_scope_invoice_dashboard_stats_items_gross.sql",
     "20261218120000_daily_salesman_incentive.sql",
     "20261219120000_fix_party_leftover_cn_refund_sign.sql",
-    "20261219120100_sr_remaining_same_customer.sql"
+    "20261219120100_sr_remaining_same_customer.sql",
+    "20261220120000_get_net_profit_kpis.sql"
   ],
   "duplicateVersions": [
     {
@@ -1704,6 +1706,14 @@
     }
   ],
   "critical": [
+    {
+      "version": "20261220120000",
+      "reason": "get_net_profit_kpis totals-only NPA RPC; get_erp_dashboard_stats drops v_dashboard_gross_profit"
+    },
+    {
+      "version": "20261025120000",
+      "reason": "v_dashboard_sales_summary SUM(net_amount) without DISTINCT (Bug A)"
+    },
     {
       "version": "20261208120000",
       "reason": "Purchase line barcode must match stocked item (no silent SKU fork)"

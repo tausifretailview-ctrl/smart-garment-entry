@@ -81,6 +81,7 @@ export function invalidatePurchaseDashboardQueries(
   organizationId?: string,
 ) {
   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+  queryClient.invalidateQueries({ queryKey: ["net-profit-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
   queryClient.invalidateQueries({
     queryKey: organizationId ? ["purchase-bills", organizationId] : ["purchase-bills"],

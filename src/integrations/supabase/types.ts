@@ -10011,6 +10011,10 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
+      get_net_profit_kpis: {
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
+      }
       get_expense_by_category: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json

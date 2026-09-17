@@ -540,7 +540,7 @@ export async function loadProfitDataset(
   return { lines, totals };
 }
 
-function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
+export function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
   const acc = {
     grossSales: 0,
     totalDiscounts: 0,

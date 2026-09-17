@@ -4,6 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 export async function invalidateOwnerDashboardQueries(qc: QueryClient) {
   await Promise.all([
     qc.invalidateQueries({ queryKey: ["owner-erp-dashboard-stats"] }),
+    qc.invalidateQueries({ queryKey: ["net-profit-kpis"] }),
     qc.invalidateQueries({ queryKey: ["organization-receivables"] }),
     qc.invalidateQueries({ queryKey: ["customer-party-balance-org-window"] }),
     qc.invalidateQueries({ queryKey: ["organization-supplier-payable"] }),

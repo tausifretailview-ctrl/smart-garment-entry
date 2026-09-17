@@ -8,6 +8,10 @@ export const MIGRATION_VERSION_RE = /^(\d{14})_/;
 /** Critical fixes that must be applied live — called out first in drift reports. */
 export const CRITICAL_SCHEMA_MIGRATIONS = [
   {
+    version: "20261220120000",
+    reason: "get_net_profit_kpis totals-only NPA RPC; get_erp_dashboard_stats drops v_dashboard_gross_profit",
+  },
+  {
     version: "20261025120000",
     reason: "v_dashboard_sales_summary SUM(net_amount) without DISTINCT (Bug A)",
   },
