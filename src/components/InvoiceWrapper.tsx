@@ -506,7 +506,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       upiAmount: props.upiAmount,
       creditAmount: props.creditAmount,
       paidAmount: props.paidAmount,
-      previousBalance: props.previousBalance || 0,
+      previousBalance: props.previousBalance ?? 0,
       
       qrCodeUrl,
       upiId: resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice),
