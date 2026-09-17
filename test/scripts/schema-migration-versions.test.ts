@@ -44,6 +44,7 @@ describe("diffSchemaMigrationVersions", () => {
 describe("missingCritical", () => {
   it("flags the purchase-stock floor when live is missing it", () => {
     const missing = missingCritical([]);
+    expect(missing.some((row) => row.version === "20261025120000")).toBe(true);
     expect(missing.some((row) => row.version === "20261001140000")).toBe(true);
     expect(missing.some((row) => row.version === "20261207140000")).toBe(true);
     expect(missing.some((row) => row.version === "20261208120000")).toBe(true);
