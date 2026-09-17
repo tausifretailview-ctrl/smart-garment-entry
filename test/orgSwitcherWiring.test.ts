@@ -30,9 +30,22 @@ describe("multi-company switcher wiring", () => {
     expect(selector).toMatch(/useOrganizationSwitcher/);
     expect(compact).toMatch(/useOrganizationSwitcher/);
   });
+
+  it("clears React Query on org switch so tenant data cannot bleed", async () => {
+    const ctx = await readFile(path.join(ROOT, "src/contexts/OrganizationContext.tsx"), "utf8");
+    expect(ctx).toMatch(/queryClient\.clear\(\)/);
+    expect(ctx).toMatch(/currentOrganization\?\.id !== orgId/);
+  });
+
+  it("OrgLayout does not auto-redirect into another org on a foreign slug", async () => {
+    const layout = await readFile(path.join(ROOT, "src/components/OrgLayout.tsx"), "utf8");
+    expect(layout).toMatch(/never allow fallback redirect to another organization/);
+    expect(layout).toMatch(/Access denied for this organization URL/);
+    expect(layout).not.toMatch(/navigate\(`\/\$\{organizations\[0\]/);
+  });
 });
 
-describe("create_organization safety (Step 1 verification)", () => {
+describe("create_organization safety (self-serve additional org)", () => {
   it("RPC only inserts a new organization_members row", async () => {
     const migration = await readFile(
       path.join(ROOT, "supabase/migrations/20260625120000_whatsapp_third_party_org_defaults.sql"),
@@ -44,9 +57,44 @@ describe("create_organization safety (Step 1 verification)", () => {
     expect(migration).not.toMatch(/DELETE FROM public\.organization_members/);
   });
 
-  it("OrganizationSetup UI blocks self-service second org via existing membership check", async () => {
+  it("RPC inserts the caller as admin on a new free-tier org and does not cap memberships", async () => {
+    const migration = await readFile(
+      path.join(ROOT, "supabase/migrations/20260625120000_whatsapp_third_party_org_defaults.sql"),
+      "utf8",
+    );
+    const fnStart = migration.indexOf(
+      "CREATE OR REPLACE FUNCTION public.create_organization(p_name text, p_user_id uuid DEFAULT auth.uid())",
+    );
+    const fnEnd = migration.indexOf("-- Platform admin org creation", fnStart);
+    expect(fnStart).toBeGreaterThan(-1);
+    expect(fnEnd).toBeGreaterThan(fnStart);
+    const fn = migration.slice(fnStart, fnEnd);
+
+    expect(fn).toMatch(/VALUES \(p_name, v_slug, 'free'/);
+    expect(fn).toMatch(/VALUES \(v_org\.id, p_user_id, 'admin'\)/);
+    expect(fn).not.toMatch(/already have an organization/i);
+    expect(fn).not.toMatch(/COUNT\(\*\)\s+FROM\s+public\.organization_members/);
+    expect(fn).not.toMatch(/FROM public\.organization_members[\s\S]*RAISE EXCEPTION/);
+  });
+
+  it("OrganizationSetup first-org form still redirects existing members (new-user path unchanged)", async () => {
     const setup = await readFile(path.join(ROOT, "src/components/OrganizationSetup.tsx"), "utf8");
     expect(setup).toMatch(/existingOrgs\.length > 0/);
     expect(setup).toMatch(/You already have an organization/);
+    expect(setup).toMatch(/organizations\.length === 1/);
+    expect(setup).toMatch(/Create Your Organization/);
+    expect(setup).toMatch(/createAdditionalOrganization/);
+  });
+
+  it("Organization Management lets an existing admin create an additional organization", async () => {
+    const page = await readFile(path.join(ROOT, "src/pages/OrganizationManagement.tsx"), "utf8");
+    expect(page).toMatch(/Add another organization/);
+    expect(page).toMatch(/createAdditionalOrganization/);
+    expect(page).toMatch(/persistAdditionalOrgSession/);
+    expect(page).toMatch(/window\.location\.assign\(path\)/);
+    expect(page).toMatch(/queryClient\.clear\(\)/);
+    expect(page).not.toMatch(/existingOrgs\.length > 0/);
+    expect(page).not.toMatch(/You already have an organization/);
+    expect(page).not.toMatch(/platform_create_organization/);
   });
 });

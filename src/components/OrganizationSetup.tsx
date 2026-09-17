@@ -102,6 +102,8 @@ export const OrganizationSetup = () => {
     if (!user || !orgName.trim()) return;
     setLoading(true);
     try {
+      // First-org setup only. Existing admins add another firm from Organization Management
+      // (`createAdditionalOrganization`) so this page stays a new-user create flow.
       const { data: existingOrgs, error: checkError } = await supabase
         .from("organization_members")
         .select("organization_id")

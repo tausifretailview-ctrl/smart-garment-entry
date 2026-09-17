@@ -1,6 +1,12 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  createAdditionalOrganization,
+  persistAdditionalOrgSession,
+  type CreateOrganizationRpcClient,
+} from "@/utils/createAdditionalOrganization";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,12 +34,16 @@ const AVAILABLE_FEATURES = [
 ];
 
 export default function OrganizationManagement() {
+  const { user } = useAuth();
   const { currentOrganization, organizationRole, organizations } = useOrganization();
   const queryClient = useQueryClient();
   const [orgName, setOrgName] = useState(currentOrganization?.name || "");
   const [selectedTier, setSelectedTier] = useState<string>(currentOrganization?.subscription_tier || "free");
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isAddExistingUserOpen, setIsAddExistingUserOpen] = useState(false);
+  const [isCreateAdditionalOrgOpen, setIsCreateAdditionalOrgOpen] = useState(false);
+  const [additionalOrgName, setAdditionalOrgName] = useState("");
+  const [isCreatingAdditionalOrg, setIsCreatingAdditionalOrg] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserPassword, setNewUserPassword] = useState("");
   const [showNewUserPassword, setShowNewUserPassword] = useState(false);
@@ -155,6 +165,42 @@ export default function OrganizationManagement() {
       name: orgName,
       subscription_tier: selectedTier,
     });
+  };
+
+  const handleCreateAdditionalOrganization = async () => {
+    if (!user) {
+      toast.error("You must be signed in to create an organization");
+      return;
+    }
+    const name = additionalOrgName.trim();
+    if (!name) {
+      toast.error("Please enter an organization name");
+      return;
+    }
+    setIsCreatingAdditionalOrg(true);
+    try {
+      const org = await createAdditionalOrganization(
+        supabase as unknown as CreateOrganizationRpcClient,
+        {
+          name,
+          userId: user.id,
+        },
+      );
+      const path = persistAdditionalOrgSession(user.id, org);
+      queryClient.clear();
+      toast.success(`${org.name} created. You are its administrator.`);
+      setIsCreateAdditionalOrgOpen(false);
+      setAdditionalOrgName("");
+      // Full load so OrganizationContext refetches memberships (both orgs) before
+      // OrgLayout evaluates the new slug — a client navigate with a stale list
+      // would look like cross-org access and sign the user out.
+      window.location.assign(path);
+    } catch (error: any) {
+      console.error("Error creating additional organization:", error);
+      toast.error(error.message || "Failed to create organization");
+    } finally {
+      setIsCreatingAdditionalOrg(false);
+    }
   };
 
   const handleSaveSlug = async () => {
@@ -396,6 +442,76 @@ export default function OrganizationManagement() {
               </CardContent>
             </Card>
           )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Add another organization</CardTitle>
+              <CardDescription>
+                Create a fully independent firm with its own GSTIN, stock, customers, products, and accounts. It starts on the Free plan and can be billed separately from this organization.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Dialog open={isCreateAdditionalOrgOpen} onOpenChange={setIsCreateAdditionalOrgOpen}>
+                <DialogTrigger asChild>
+                  <Button type="button">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add another organization
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add another organization</DialogTitle>
+                    <DialogDescription>
+                      This does not replace or merge with {currentOrganization.name}. You will be the administrator of the new firm. Existing companies stay in the switcher.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="additional-org-name">Organization Name</Label>
+                      <Input
+                        id="additional-org-name"
+                        type="text"
+                        placeholder="Enter organization name"
+                        value={additionalOrgName}
+                        onChange={(e) => setAdditionalOrgName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void handleCreateAdditionalOrganization();
+                          }
+                        }}
+                        disabled={isCreatingAdditionalOrg}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateAdditionalOrgOpen(false)}
+                      disabled={isCreatingAdditionalOrg}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleCreateAdditionalOrganization}
+                      disabled={isCreatingAdditionalOrg}
+                    >
+                      {isCreatingAdditionalOrg ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        "Create organization"
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>
