@@ -29,11 +29,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
-import { fetchCustomerAccountStateView } from "@/utils/customerAccountStateView";
-import {
-  invoicePreviousBalanceFromAccount,
-  invoiceThisBillBalance,
-} from "@/utils/invoiceAccountDue";
+import { fetchInvoicePrintPreviousBalance } from "@/utils/customerAccountStateView";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1773,21 +1769,16 @@ const POSDashboard = () => {
         (async () => {
           if (!sale.customer_id || !currentOrganization?.id) return 0;
           try {
-            const view = await fetchCustomerAccountStateView(
+            return await fetchInvoicePrintPreviousBalance(
               supabase,
               currentOrganization.id,
               sale.customer_id,
+              {
+                billTotal: Number(sale.net_amount) || 0,
+                receivedToday: Number(sale.paid_amount) || 0,
+                accountIncludesThisBill: true,
+              },
             );
-            const thisBill = invoiceThisBillBalance(
-              Number(sale.net_amount) || 0,
-              Number(sale.paid_amount) || 0,
-            );
-            // Snapshot already includes this sale — Prev Bal is account minus this bill.
-            return invoicePreviousBalanceFromAccount({
-              accountOutstanding: view.netPosition,
-              thisBillBalance: thisBill,
-              accountIncludesThisBill: true,
-            });
           } catch {
             return 0;
           }
@@ -1841,7 +1832,7 @@ const POSDashboard = () => {
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
-        previousBalance: previousBalance || 0,
+        previousBalance: previousBalance ?? 0,
         salesman: sale.salesman || "",
         notes: sale.notes || "",
         taxType: normalizeGstTaxType(sale.tax_type),

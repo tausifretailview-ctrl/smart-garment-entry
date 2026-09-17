@@ -32,10 +32,16 @@ describe("Gurukrupa POS A5 invoice", () => {
     expect(template).not.toMatch(/!isGurukrupa &&[\s\S]{0,80}Prev Bal/);
 
     const dashboard = readFileSync(resolve(here, "../../pages/POSDashboard.tsx"), "utf8");
-    expect(dashboard).toContain("invoicePreviousBalanceFromAccount");
-    expect(dashboard).toContain("fetchCustomerAccountStateView");
+    expect(dashboard).toContain("fetchInvoicePrintPreviousBalance");
     expect(dashboard).not.toMatch(
       /allSales\.reduce\(\(sum, s\) => sum \+ \(\(s\.net_amount \|\| 0\) - \(s\.paid_amount \|\| 0\)\)/,
     );
+
+    const posSales = readFileSync(resolve(here, "../../pages/POSSales.tsx"), "utf8");
+    expect(posSales).toContain("fetchInvoicePrintPreviousBalance");
+    expect(posSales).toContain("rate: billedUnit");
+
+    expect(template).toContain("retailErpLineDisplayRate");
+    expect(template).toContain("billedUnitRate = isGurukrupa");
   });
 });

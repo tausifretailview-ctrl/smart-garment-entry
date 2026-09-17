@@ -4,6 +4,10 @@ import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/uti
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
 import {
+  retailErpDisplayDiscount,
+  retailErpLineDisplayRate,
+} from "@/utils/retailErpInvoicePrint";
+import {
   preprintedLetterheadLogoBox,
   shouldPrintPreprintedLetterheadLogo,
 } from "@/utils/invoicePrintFormat";
@@ -273,13 +277,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
-  // Retail ERP invoice requirement:
-  // show pre-discount sale rate in Rate column and net value in Amount column.
-  const getDisplayBaseRate = (item: InvoiceItem) => {
-    const mrp = Number(item.mrp || 0);
-    const rate = Number(item.rate || 0);
-    return mrp > 0 && mrp > rate ? mrp : rate;
-  };
+  // Retail ERP: list/MRP in Rate, net in Amount.
+  // Gurukrupa: cashier unit price in Rate (POS edit unit price must not reprint old sale_price).
+  const billedUnitRate = isGurukrupa;
+  const getDisplayBaseRate = (item: InvoiceItem) =>
+    retailErpLineDisplayRate(item, billedUnitRate);
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
   const propRoundOff = Number(roundOff ?? 0);
   const propDiscount = Math.max(0, Number(discount || 0));
@@ -287,8 +289,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const merchandiseNetExcludingRound =
     Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - propRoundOff;
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetExcludingRound);
-  const displayDiscount =
-    propDiscount > 0.005 ? propDiscount : computedDiscountFromLines > 0.005 ? computedDiscountFromLines : 0;
+  const displayDiscount = retailErpDisplayDiscount({
+    billedUnitRate,
+    propDiscount,
+    computedFromLines: computedDiscountFromLines,
+  });
 
   // GST breakup first — needed so tax is never mislabeled as Other Charges.
   // Independent of cgst/sgst/igst props: extracts from item.gstPercent on line totals.
@@ -505,6 +510,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       : Math.min(billTotal, settledPaid > 0 ? settledPaid : 0);
   const currentBalance = invoiceThisBillBalance(billTotal, receivedToday);
   const totalDue = invoiceTotalDue(previousBalance, currentBalance);
+  const printDueColor = isGurukrupa ? "#000" : undefined;
+  const billBalanceColor = printDueColor ?? (currentBalance > 0 ? "#dc2626" : "#16a34a");
+  const accountDueColor = printDueColor ?? (totalDue > 0 ? "#dc2626" : "#16a34a");
 
   const pageW = isA4 ? "210mm" : "148mm";
   const pageH = isA4 ? "297mm" : "210mm";
@@ -1482,7 +1490,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </div>
                         <div style={{ flex: 1, padding: "4px 6px", textAlign: "center", lineHeight: 1.25 }}>
                           <strong>Balance:</strong>{" "}
-                          <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>
+                          <span style={{ color: billBalanceColor, fontWeight: 900 }}>
                             ₹{fmt(currentBalance)}
                           </span>
                         </div>
@@ -1501,7 +1509,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         </div>
                         <div style={{ flex: 1, padding: "4px 6px", textAlign: "center", lineHeight: 1.25 }}>
                           <strong>Total Due:</strong>{" "}
-                          <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>
+                          <span style={{ color: accountDueColor, fontWeight: 900 }}>
                             ₹{fmt(totalDue)}
                           </span>
                         </div>
@@ -1514,13 +1522,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Balance:</strong>{" "}
-                      <span style={{ color: currentBalance > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>₹{fmt(currentBalance)}</span>
+                      <span style={{ color: billBalanceColor, fontWeight: 900 }}>₹{fmt(currentBalance)}</span>
                     </div>
                     <div style={{ flex: 1, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
                       {" | "}
                       <strong>Total Due:</strong>{" "}
-                      <span style={{ color: totalDue > 0 ? "#dc2626" : "#16a34a", fontWeight: 900 }}>₹{fmt(totalDue)}</span>
+                      <span style={{ color: accountDueColor, fontWeight: 900 }}>₹{fmt(totalDue)}</span>
                     </div>
                   </div>
                   )

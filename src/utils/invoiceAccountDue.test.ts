@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   invoicePreviousBalanceFromAccount,
+  invoicePrintBalances,
   invoiceThisBillBalance,
   invoiceTotalDue,
 } from "./invoiceAccountDue";
@@ -47,5 +48,36 @@ describe("Gurukrupa invoice Prev Bal / Total Due vs customer account", () => {
       accountIncludesThisBill: true,
     });
     expect(invoiceTotalDue(prev, thisBill)).toBe(accountAfterThisBill);
+  });
+
+  it("paid-in-full reprint: Total Due is live invoice outstanding, not ₹0", () => {
+    const printed = invoicePrintBalances({
+      accountOutstanding: 12_000,
+      billTotal: 5_500,
+      receivedToday: 5_500,
+      accountIncludesThisBill: true,
+    });
+    expect(printed.thisBillBalance).toBe(0);
+    expect(printed.previousBalance).toBe(12_000);
+    expect(printed.totalDue).toBe(12_000);
+  });
+
+  it("Total Due follows invoice leftover, not net-of-advance (which can be ₹0)", () => {
+    const invoiceOutstanding = 12_000;
+    const netAfterAdvance = 0;
+    const printedFromNet = invoicePrintBalances({
+      accountOutstanding: netAfterAdvance,
+      billTotal: 5_500,
+      receivedToday: 5_500,
+      accountIncludesThisBill: true,
+    });
+    expect(printedFromNet.totalDue).toBe(0);
+    const printedFromOutstanding = invoicePrintBalances({
+      accountOutstanding: invoiceOutstanding,
+      billTotal: 5_500,
+      receivedToday: 5_500,
+      accountIncludesThisBill: true,
+    });
+    expect(printedFromOutstanding.totalDue).toBe(12_000);
   });
 });

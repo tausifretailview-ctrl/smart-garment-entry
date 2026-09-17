@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCustomerAuditBundle } from "@/utils/customerAuditBundle";
 import { getCustomerAccountState } from "@/utils/customerBalanceCore";
+import {
+  invoicePreviousBalanceFromAccount,
+  invoiceThisBillBalance,
+} from "@/utils/invoiceAccountDue";
 
 /** One unused advance booking line for hover/expand decomposition. */
 export type CustomerAdvanceLegView = {
@@ -94,6 +98,30 @@ export async function fetchCustomerAccountStateView(
     openingBalance: roundRupee(Number(bundle.customer.opening_balance || 0)),
     advanceLegs,
   };
+}
+
+/**
+ * Prev Bal for POS / dashboard invoice print from live invoice leftover.
+ * Total Due in the template is Prev Bal + this bill's unpaid Balance.
+ */
+export async function fetchInvoicePrintPreviousBalance(
+  client: SupabaseClient,
+  organizationId: string,
+  customerId: string | null | undefined,
+  opts: {
+    billTotal: number;
+    receivedToday: number;
+    accountIncludesThisBill: boolean;
+  },
+): Promise<number> {
+  if (!customerId || !organizationId) return 0;
+  const view = await fetchCustomerAccountStateView(client, organizationId, customerId);
+  const thisBill = invoiceThisBillBalance(opts.billTotal, opts.receivedToday);
+  return invoicePreviousBalanceFromAccount({
+    accountOutstanding: view.outstanding,
+    thisBillBalance: thisBill,
+    accountIncludesThisBill: opts.accountIncludesThisBill,
+  });
 }
 
 export function formatAccountInr(n: number): string {

@@ -94,6 +94,7 @@ import {
   unusedAdvanceFromBookings,
 } from "@/utils/posApplyAdvance";
 import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
+import { fetchInvoicePrintPreviousBalance } from "@/utils/customerAccountStateView";
 import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
 import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -634,10 +635,11 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
   const taxableUnit = posLineNetUnitPrice(item as CartItem);
   const taxableTotal = Number(item.netAmount) || 0;
   const printTotal = posLineDisplayTotal(taxableTotal, item.gstPer || 0, taxType);
+  const billedUnit = Number(item.unitCost) || taxableUnit;
   const displayMrp = Math.max(
     Number(item?.originalMrp) || 0,
     Number(item?.mrp) || 0,
-    Number(taxableUnit) || 0
+    Number(billedUnit) || 0
   );
   return {
     sr: index + 1,
@@ -646,15 +648,41 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
     barcode: item.barcode || "",
     hsn: item.hsnCode || "",
     color: item.color || "",
-    sp: taxableUnit,
+    sp: billedUnit,
     mrp: displayMrp,
     qty: item.quantity,
-    rate: taxableUnit,
+    rate: billedUnit,
     total: printTotal,
     gstPercent: item.gstPer || 0,
     discountPercent: item.discountPercent || 0,
     itemNotes: item.itemNotes || "",
   };
+}
+
+async function resolvePosInvoicePreviousBalance(opts: {
+  organizationId?: string | null;
+  customerId?: string | null;
+  billTotal: number;
+  receivedToday: number;
+  accountIncludesThisBill: boolean;
+  fallback?: number;
+}): Promise<number> {
+  const fallback = Math.round(Number(opts.fallback) || 0);
+  if (!opts.customerId || !opts.organizationId) return fallback;
+  try {
+    return await fetchInvoicePrintPreviousBalance(
+      supabase,
+      opts.organizationId,
+      opts.customerId,
+      {
+        billTotal: opts.billTotal,
+        receivedToday: opts.receivedToday,
+        accountIncludesThisBill: opts.accountIncludesThisBill,
+      },
+    );
+  } catch {
+    return fallback;
+  }
 }
 
 const PERF_PATH = "pos-sales";
@@ -1512,6 +1540,14 @@ export default function POSSales() {
           customerName: sale.customer_name,
           customerPhone: sale.customer_phone,
           paidAmount: Number(sale.paid_amount) || 0,
+          previousBalance: await resolvePosInvoicePreviousBalance({
+            organizationId: currentOrganization?.id,
+            customerId: sale.customer_id,
+            billTotal: Number(sale.net_amount) || 0,
+            receivedToday: Number(sale.paid_amount) || 0,
+            accountIncludesThisBill: true,
+            fallback: 0,
+          }),
           cashAmount: Number(sale.cash_amount) || 0,
           upiAmount: Number(sale.upi_amount) || 0,
           cardAmount: Number(sale.card_amount) || 0,
@@ -3981,7 +4017,7 @@ export default function POSSales() {
   }, [whatsappPdfSnapshot]);
 
   const captureWhatsAppPdf = useCallback(
-    (meta: PosWhatsAppPdfCaptureMeta): Promise<string | null> => {
+    async (meta: PosWhatsAppPdfCaptureMeta): Promise<string | null> => {
       try {
         const snap = meta.snapshot;
         const lineItems = snap?.items ?? items;
@@ -3996,7 +4032,14 @@ export default function POSSales() {
         const snapSaleReturnAdjust = snap?.saleReturnAdjust ?? saleReturnAdjust;
         const snapPaidAmount =
           snap?.paidAmount ?? (paymentMethod === "pay_later" ? 0 : finalAmount);
-        const snapPreviousBalance = snap?.previousBalance ?? customerBalance ?? 0;
+        const snapPreviousBalance = await resolvePosInvoicePreviousBalance({
+          organizationId: currentOrganization?.id,
+          customerId: snapCustomerId,
+          billTotal: snapGrandTotal,
+          receivedToday: snapPaidAmount,
+          accountIncludesThisBill: true,
+          fallback: customerBalance,
+        });
         const snapRoundOff = snap?.roundOff ?? roundOff;
         const snapSalesman = snap?.salesman ?? selectedSalesman ?? "";
         const snapNotes = snap?.notes ?? saleNotes;
@@ -4024,10 +4067,10 @@ export default function POSSales() {
             size: item.size,
             barcode: item.barcode,
             hsn: item.hsnCode || "",
-            sp: posLineNetUnitPrice(item),
+            sp: Number(item.unitCost) || posLineNetUnitPrice(item),
             mrp: item.originalMrp || item.mrp,
             qty: item.quantity,
-            rate: posLineNetUnitPrice(item),
+            rate: Number(item.unitCost) || posLineNetUnitPrice(item),
             total: posLineDisplayTotal(item.netAmount, item.gstPer, snapTaxType),
             gstPercent: item.gstPer || 0,
             discountPercent: item.discountPercent || 0,
@@ -4087,6 +4130,7 @@ export default function POSSales() {
       financerDetails,
       saleNotes,
       enableMrp,
+      currentOrganization?.id,
     ],
   );
 
@@ -4145,7 +4189,14 @@ export default function POSSales() {
       creditApplied: creditApplied,
       notes: saleNotes || null,
       paidAmount: 0,
-      previousBalance: customerBalance || 0,
+      previousBalance: await resolvePosInvoicePreviousBalance({
+        organizationId: currentOrganization?.id,
+        customerId,
+        billTotal: finalAmount,
+        receivedToday: 0,
+        accountIncludesThisBill: false,
+        fallback: customerBalance,
+      }),
       isEstimate: true,
       taxType,
     };
@@ -4663,7 +4714,14 @@ export default function POSSales() {
         creditAmount: creditApplied,
         notes: saleNotes || null,
         paidAmount: method === 'pay_later' ? 0 : posTenderDue,
-        previousBalance: customerBalance || 0,
+        previousBalance: await resolvePosInvoicePreviousBalance({
+          organizationId: currentOrganization?.id,
+          customerId,
+          billTotal: finalAmount,
+          receivedToday: method === "pay_later" ? 0 : posTenderDue,
+          accountIncludesThisBill: true,
+          fallback: customerBalance,
+        }),
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
@@ -4955,7 +5013,14 @@ export default function POSSales() {
         creditApplied: creditApplied,
         notes: saleNotes || null,
         paidAmount: paymentData.totalPaid,
-        previousBalance: customerBalance || 0,
+        previousBalance: await resolvePosInvoicePreviousBalance({
+          organizationId: currentOrganization?.id,
+          customerId,
+          billTotal: isRefund ? 0 : finalAmount,
+          receivedToday: paymentData.totalPaid,
+          accountIncludesThisBill: true,
+          fallback: customerBalance,
+        }),
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
@@ -5585,7 +5650,7 @@ export default function POSSales() {
     }
   };
 
-  const loadInvoice = (sale: any) => {
+  const loadInvoice = async (sale: any) => {
     if (!sale || !sale.sale_items) return;
     isInitializingEditRef.current = true;
     hasManuallyAddedNewItemRef.current = false;
@@ -5677,7 +5742,14 @@ export default function POSSales() {
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
       paidAmount: Number(sale.paid_amount) || 0,
-      previousBalance: 0,
+      previousBalance: await resolvePosInvoicePreviousBalance({
+        organizationId: currentOrganization?.id,
+        customerId: sale.customer_id,
+        billTotal: Number(sale.net_amount) || 0,
+        receivedToday: Number(sale.paid_amount) || 0,
+        accountIncludesThisBill: true,
+        fallback: 0,
+      }),
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
@@ -5734,7 +5806,7 @@ export default function POSSales() {
       }
 
       // Load the found invoice
-      loadInvoice(sale);
+      await loadInvoice(sale);
       setInvoiceSearchInput("");
       
       toast.success(`Invoice ${sale.sale_number} loaded successfully`);
@@ -8578,21 +8650,9 @@ export default function POSSales() {
                 customerAddress={customers.find(c => c.id === customerId)?.address || ""}
                 customerMobile={customerPhone}
                 customerGSTIN={customers.find(c => c.id === customerId)?.gst_number || ""}
-                items={items.map((item, index) => ({
-                  sr: index + 1,
-                  particulars: item.productName,
-                  itemNotes: item.itemNotes || "",
-                  size: item.size,
-                  barcode: item.barcode,
-                  hsn: item.hsnCode || "",
-                  sp: posLineNetUnitPrice(item),
-                  mrp: item.originalMrp || item.mrp,
-                  qty: item.quantity,
-                  rate: posLineNetUnitPrice(item),
-                  total: posLineDisplayTotal(item.netAmount, item.gstPer, invoiceTaxType),
-                  gstPercent: item.gstPer || 0,
-                  discountPercent: item.discountPercent || 0,
-                }))}
+                items={items.map((item, index) =>
+                  mapPosPrintItem(item, index, invoiceTaxType),
+                )}
                 subTotal={totals.subtotal}
                 discount={totals.discount + flatDiscountAmount}
                 saleReturnAdjust={saleReturnAdjust}
