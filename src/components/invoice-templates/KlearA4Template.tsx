@@ -110,7 +110,6 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
   customerTransportDetails,
   taxType: taxTypeProp = "inclusive",
   items,
-  discount,
   cgstAmount = 0,
   sgstAmount = 0,
   igstAmount = 0,
@@ -154,7 +153,9 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
     })),
     columns,
   );
-  const splDiscount = Number(discount) > 0.005 ? Number(discount) : pivot.merchandiseDiscount;
+  // Informational MRP gap (sum of MRP×qty − Net×qty). Not sale.discount —
+  // that header discount is already in line nets / grandTotal.
+  const splDiscount = pivot.merchandiseDiscount;
   const placeOfSupply =
     formatPlaceOfSupplyFromGstin(customerGSTIN) ||
     formatPlaceOfSupplyFromGstin(gstNumber) ||
@@ -176,8 +177,8 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
   const b = "1px solid #222";
   const cell: React.CSSProperties = {
     border: b,
-    padding: "3px 4px",
-    fontSize: "9px",
+    padding: "3px 3px",
+    fontSize: "8.5px",
     verticalAlign: "middle",
     color: "#111",
   };
@@ -191,7 +192,13 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
     printColorAdjust: "exact",
   };
 
-  const titleText = grandTotal < 0 ? "CREDIT NOTE" : "TAX INVOICE";
+  const productLabel = (row: { productName: string; color: string }) => {
+    const color = row.color.trim();
+    if (!color) return row.productName;
+    return row.productName.toUpperCase().includes(color.toUpperCase())
+      ? row.productName
+      : `${row.productName} ${color}`;
+  };
 
   return (
     <div
@@ -228,8 +235,8 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
       `}</style>
 
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", fontWeight: 700 }}>
-        <div>{titleText}</div>
-        <div>{grandTotal < 0 ? "CREDIT MEMO" : "ORIGINAL FOR RECIPIENT"}</div>
+        <div>Tax Invoice</div>
+        <div>Credit Memo</div>
       </div>
 
       <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginTop: "6px" }}>
@@ -254,7 +261,7 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
               ["Transport", customerTransportDetails?.trim() || "—"],
               ["LR. No.", "—"],
               ["LR. Date", "—"],
-              ["No. of Cartons", String(pivot.rows.length || "—")],
+              ["No. of Cartons", "—"],
             ].map(([label, value]) => (
               <tr key={label}>
                 <td style={{ ...cell, fontWeight: 700, width: "48%", background: "#f8f8f8" }}>{label}</td>
@@ -275,9 +282,22 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
       </div>
 
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: "8px" }}>
+        <colgroup>
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "5%" }} />
+          <col style={{ width: "8%" }} />
+          {columns.map((sz) => (
+            <col key={sz} style={{ width: `${Math.max(3.2, 30 / Math.max(columns.length, 1))}%` }} />
+          ))}
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "5.5%" }} />
+          <col style={{ width: "8.5%" }} />
+          <col style={{ width: "10%" }} />
+        </colgroup>
         <thead>
           <tr>
-            <th style={{ ...hCell, textAlign: "left", width: "22%" }}>Product Name</th>
+            <th style={{ ...hCell, textAlign: "left" }}>Product Name</th>
             <th style={hCell}>HSN</th>
             <th style={hCell}>GST%</th>
             <th style={hCell}>MRP</th>
@@ -295,10 +315,12 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
         <tbody>
           {pivot.rows.map((row) => (
             <tr key={row.key}>
-              <td style={{ ...cell, fontWeight: 700 }}>{row.productName}</td>
-              <td style={{ ...cell, textAlign: "center" }}>{row.hsn || "—"}</td>
+              <td style={{ ...cell, fontWeight: 700 }}>{productLabel(row)}</td>
+              <td style={{ ...cell, textAlign: "center", fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: "-0.2px" }}>
+                {row.hsn || "—"}
+              </td>
               <td style={{ ...cell, textAlign: "center" }}>{row.gstPercent ? `${row.gstPercent}%` : "—"}</td>
-              <td style={{ ...cell, textAlign: "right" }}>{row.mrp ? fmt(row.mrp) : "—"}</td>
+              <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>{row.mrp ? fmt(row.mrp) : "—"}</td>
               {columns.map((sz) => {
                 const qty = row.qtyBySize[sz] || 0;
                 return (
@@ -311,8 +333,8 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
               <td style={{ ...cell, textAlign: "center" }}>
                 {row.discountPercent ? `${roundInvoiceMoney(row.discountPercent)}%` : ""}
               </td>
-              <td style={{ ...cell, textAlign: "right" }}>{fmt(row.netRate)}</td>
-              <td style={{ ...cell, textAlign: "right", fontWeight: 700 }}>{fmt(row.amount)}</td>
+              <td style={{ ...cell, textAlign: "right", whiteSpace: "nowrap" }}>{fmt(row.netRate)}</td>
+              <td style={{ ...cell, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{fmt(row.amount)}</td>
             </tr>
           ))}
           <tr>
@@ -327,7 +349,7 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
             <td style={{ ...cell, textAlign: "center", fontWeight: 800 }}>{pivot.totalPairs}</td>
             <td style={cell} />
             <td style={cell} />
-            <td style={{ ...cell, textAlign: "right", fontWeight: 800 }}>{fmt(pivot.totalAmount)}</td>
+            <td style={{ ...cell, textAlign: "right", fontWeight: 800, whiteSpace: "nowrap" }}>{fmt(pivot.totalAmount)}</td>
           </tr>
         </tbody>
       </table>

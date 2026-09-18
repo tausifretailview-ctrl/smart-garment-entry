@@ -77,6 +77,8 @@ describe("KlearA4Template", () => {
 
     expect(html).toContain("SANJAY SHOES");
     expect(html).toContain("SAEEMA SHOES");
+    expect(html).toContain("Tax Invoice");
+    expect(html).toContain("Credit Memo");
     expect(html).toContain("27-MAHARASHTRA");
     expect(html).toContain(">5</th>");
     expect(html).toContain(">13</th>");
@@ -92,6 +94,7 @@ describe("KlearA4Template", () => {
     expect(html).toContain("INDUS BANK");
     expect(html).toContain("650014122731");
     expect(html).toContain(numberToWords(82382));
+    expect(html).toContain("Amount in words");
     expect(html).not.toContain("Swipe");
     expect(html).not.toContain("digitally signed");
   });

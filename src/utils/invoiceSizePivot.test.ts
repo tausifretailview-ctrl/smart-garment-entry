@@ -76,4 +76,72 @@ describe("pivotSaleItemsBySize", () => {
     expect(pivot.merchandiseDiscount).toBe(7215.6);
     expect(pivot.merchandiseDiscount).not.toBe(8465.38);
   });
+
+  it("SANJAY bill 74: 7 products pivot to 32 pairs with column totals 4/10/11/7", () => {
+    const line = (
+      name: string,
+      hsn: string,
+      gst: number,
+      mrp: number,
+      disc: number,
+      rate: number,
+      size: string,
+      qty: number,
+    ) => ({
+      particulars: name,
+      hsn,
+      gstPercent: gst,
+      mrp,
+      discountPercent: disc,
+      rate,
+      size,
+      qty,
+      total: Math.round(rate * qty * 100) / 100,
+    });
+    const bill74 = [
+      line("1037 CAMEL", "64039990", 5, 3295, 28, 2372.4, "7", 1),
+      line("1037 CAMEL", "64039990", 5, 3295, 28, 2372.4, "8", 1),
+      line("1037 CAMEL", "64039990", 5, 3295, 28, 2372.4, "9", 1),
+      line("1037 CAMEL", "64039990", 5, 3295, 28, 2372.4, "10", 1),
+      line("1868 CAML", "64051000", 18, 4295, 28, 3092.4, "7", 1),
+      line("1868 CAML", "64051000", 18, 4295, 28, 3092.4, "8", 2),
+      line("1868 CAML", "64051000", 18, 4295, 28, 3092.4, "9", 2),
+      line("1868 CAML", "64051000", 18, 4295, 28, 3092.4, "10", 1),
+      line("2667 CAML", "64039990", 5, 2080, 28, 1497.6, "7", 1),
+      line("2667 CAML", "64039990", 5, 2080, 28, 1497.6, "8", 1),
+      line("2667 CAML", "64039990", 5, 2080, 28, 1497.6, "9", 2),
+      line("2667 CAML", "64039990", 5, 2080, 28, 1497.6, "10", 1),
+      line("4024 CAMEL", "64051000", 5, 3495, 28.5, 2498.92, "7", 1),
+      line("4024 CAMEL", "64051000", 5, 3495, 28.5, 2498.92, "8", 2),
+      line("4024 CAMEL", "64051000", 5, 3495, 28.5, 2498.92, "9", 2),
+      line("4024 CAMEL", "64051000", 5, 3495, 28.5, 2498.92, "10", 1),
+      line("40777 CAMEL", "64051000", 18, 4495, 28, 3236.4, "8", 2),
+      line("40777 CAMEL", "64051000", 18, 4495, 28, 3236.4, "9", 2),
+      line("40777 CAMEL", "64051000", 18, 4495, 28, 3236.4, "10", 2),
+      line("6193 CML", "64039990", 5, 3295, 28, 2372.4, "8", 1),
+      line("6193 CML", "64039990", 5, 3295, 28, 2372.4, "9", 1),
+      line("6193 CML", "64039990", 5, 3295, 28, 2372.4, "10", 1),
+      line("777 CAMEL", "64051000", 18, 3695, 28, 2660.4, "8", 1),
+      line("777 CAMEL", "64051000", 18, 3695, 28, 2660.4, "9", 1),
+    ];
+    const cols = resolveInvoiceSizeColumns(bill74, ["5", "6", "7", "8", "9", "10", "11", "12", "13"]);
+    const pivot = pivotSaleItemsBySize(bill74, cols);
+    expect(bill74).toHaveLength(24);
+    expect(pivot.rows).toHaveLength(7);
+    expect(pivot.totalPairs).toBe(32);
+    expect(pivot.columnQtyTotals).toEqual({
+      "5": 0,
+      "6": 0,
+      "7": 4,
+      "8": 10,
+      "9": 11,
+      "10": 7,
+      "11": 0,
+      "12": 0,
+      "13": 0,
+    });
+    expect(pivot.totalAmount).toBe(82381.92);
+    expect(pivot.merchandiseDiscount).toBe(32183.08);
+    expect(pivot.merchandiseDiscount).not.toBe(8465.38);
+  });
 });

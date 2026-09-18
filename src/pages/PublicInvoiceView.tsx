@@ -216,6 +216,7 @@ export default function PublicInvoiceView() {
       size: item.size,
       hsn: item.hsn_code || "",
       sp: item.mrp,
+      mrp: item.mrp,
       qty: item.quantity,
       rate: item.unit_price,
       total: item.line_total,
