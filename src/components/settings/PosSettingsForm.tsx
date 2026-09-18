@@ -433,18 +433,10 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
           <SettingsFieldBlock
             label="POS Invoice Template"
             htmlFor="pos_invoice_template"
-            description={
-              posThermal
-                ? "Thermal POS bills use 80mm designs only (Kids 80mm, Kids Camp, Retail POS, or Trendzo POS). Switch POS Bill Format to A4/A5 for laser templates."
-                : "Grouped by A4 / A5 / Thermal. Can differ from Sale. Live preview on the right is POS."
-            }
+            description="Same named templates as Sale, grouped by A4 / A5 / Thermal. Any organization can select Klear A4 or Wholesale GST A4; that sets POS Bill Format to A4."
           >
             <Select
-              value={
-                posThermal
-                  ? posInvoiceTemplateForBillFormat("thermal", resolvedPosTemplate) ?? resolvedPosTemplate
-                  : resolvedPosTemplate
-              }
+              value={resolvedPosTemplate}
               onValueChange={(value) => {
                 onFocusPosPreview();
                 patchSale({
@@ -457,10 +449,7 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
                 <SelectValue placeholder="Select template" />
               </SelectTrigger>
               <SelectContent>
-                <InvoiceTemplateSelectItems
-                  currentValue={resolvedPosTemplate}
-                  paperGroups={posThermal ? "thermal-80mm" : "all"}
-                />
+                <InvoiceTemplateSelectItems currentValue={resolvedPosTemplate} />
               </SelectContent>
             </Select>
           </SettingsFieldBlock>

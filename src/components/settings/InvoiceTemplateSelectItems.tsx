@@ -78,6 +78,7 @@ export function InvoiceTemplateSelectItems({
 
       <SelectGroup>
         <SelectLabel>A4 Size</SelectLabel>
+        {/* Named A4 layouts — available to every organization, not org-locked. */}
         <SelectItem value="modern">
           <span className="flex items-center gap-2">
             <span className="text-violet-600 font-bold text-xs w-5">MOD</span>
@@ -111,13 +112,13 @@ export function InvoiceTemplateSelectItems({
         <SelectItem value="wholesale-gst-a4">
           <span className="flex items-center gap-2">
             <span className="text-sky-800 font-bold text-xs w-5">WGA</span>
-            Wholesale GST A4 — Tax Invoice (per-rate CGST/SGST)
+            Wholesale GST A4 — Per-rate CGST/SGST
           </span>
         </SelectItem>
         <SelectItem value="klear-a4">
           <span className="flex items-center gap-2">
             <span className="text-amber-800 font-bold text-xs w-5">KLR</span>
-            Klear A4 — Footwear wholesale (size columns)
+            Klear A4 — Size-column tax invoice
           </span>
         </SelectItem>
         <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
