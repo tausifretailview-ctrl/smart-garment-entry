@@ -616,9 +616,10 @@ export default function PaymentsDashboard() {
       refetch();
     } catch (error: any) {
       console.error('Error recording payment:', error);
+      const guardMessage = describeReceiptGuardError(error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to record payment",
+        title: guardMessage ? "Payment not recorded" : "Error",
+        description: guardMessage || error.message || "Failed to record payment",
         variant: "destructive",
       });
     } finally {

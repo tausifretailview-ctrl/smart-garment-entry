@@ -2380,9 +2380,10 @@ const POSDashboard = () => {
           // Best-effort restore sale row from remaining vouchers.
         }
       }
+      const guardMessage = describeReceiptGuardError(error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to record payment",
+        title: guardMessage ? "Payment not recorded" : "Error",
+        description: guardMessage || error.message || "Failed to record payment",
         variant: "destructive",
       });
     } finally {

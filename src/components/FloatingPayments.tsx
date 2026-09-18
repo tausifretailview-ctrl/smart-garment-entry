@@ -654,7 +654,7 @@ function CustomerPaymentForm({
       }
       resetForm();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(describeReceiptGuardError(e) || e.message),
   });
 
   return (
