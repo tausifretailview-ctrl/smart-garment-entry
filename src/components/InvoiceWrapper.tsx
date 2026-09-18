@@ -261,7 +261,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     useEffect(() => {
       if (resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice)) {
-        generateUpiQrCode();
+        void generateUpiQrCode();
       }
     }, [settings, props.grandTotal, props.isDcInvoice]);
 
