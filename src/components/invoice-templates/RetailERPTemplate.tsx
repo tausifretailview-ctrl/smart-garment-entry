@@ -9,6 +9,7 @@ import {
 } from "@/utils/invoiceAccountDue";
 import {
   retailErpDisplayDiscount,
+  retailErpLetterpadNoteText,
   retailErpLineDisplayRate,
 } from "@/utils/retailErpInvoicePrint";
 import {
@@ -188,6 +189,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   pointsRedeemedAmount = 0,
   qrCodeUrl,
   termsConditions = [],
+  declarationText,
   notes,
   otherCharges = 0,
   showHSN = true,
@@ -226,8 +228,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
   const isPreprintedA5 = isPreprinted && isA5Retail;
   const isPreprintedAny = isPreprinted;
-  const invoiceNoteText =
-    notes && notes.trim() && !/^\d+$/.test(notes.trim()) ? notes.trim() : "";
+  const invoiceNoteText = retailErpLetterpadNoteText({
+    isPreprinted,
+    saleNote: notes,
+    declarationText,
+  });
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
   /** A5 Retail ERP tax invoice: 8 SN lines — full page with footer (Terms + QR + balances). */
@@ -1322,9 +1327,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         {invoiceNoteText ? (
                           <span
                             style={{
-                              fontSize: fsNoteBody,
+                              fontSize: isPreprinted && !isA4 ? "11px" : fsNoteBody,
                               fontWeight: 700,
-                              lineHeight: 1.3,
+                              lineHeight: isPreprinted ? 1.25 : 1.3,
                               color: "#000",
                               whiteSpace: "pre-wrap",
                               wordBreak: "break-word",

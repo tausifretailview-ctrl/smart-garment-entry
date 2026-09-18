@@ -1,9 +1,16 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  LETTERPAD_COMPOSITION_DECLARATION,
   retailErpDisplayDiscount,
+  retailErpLetterpadNoteText,
   retailErpLineDisplayRate,
   retailErpLineGross,
 } from "./retailErpInvoicePrint";
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 describe("Gurukrupa A5 billed unit rate (POS unit-price edit)", () => {
   /** POS/26-27/1892: qty 2, edited unit ₹2,750, master/MRP ₹4,000, net ₹5,500. */
@@ -47,5 +54,57 @@ describe("Gurukrupa A5 billed unit rate (POS unit-price edit)", () => {
         computedFromLines: 500,
       }),
     ).toBe(500);
+  });
+});
+
+describe("preprinted letter-pad Note declaration", () => {
+  it("wires the helper into the Retail ERP Note: block", () => {
+    const template = readFileSync(
+      resolve(here, "../components/invoice-templates/RetailERPTemplate.tsx"),
+      "utf8",
+    );
+    expect(template).toContain("retailErpLetterpadNoteText");
+    expect(template).toContain("Note:");
+  });
+
+  it("fills the Note section with the composition declaration on letter-pad", () => {
+    expect(
+      retailErpLetterpadNoteText({
+        isPreprinted: true,
+        saleNote: "",
+        declarationText: "",
+      }),
+    ).toBe(LETTERPAD_COMPOSITION_DECLARATION);
+  });
+
+  it("does not add the declaration on standard Retail ERP", () => {
+    expect(
+      retailErpLetterpadNoteText({
+        isPreprinted: false,
+        saleNote: "",
+        declarationText: "",
+      }),
+    ).toBe("");
+  });
+
+  it("keeps an existing sale note and appends the declaration", () => {
+    expect(
+      retailErpLetterpadNoteText({
+        isPreprinted: true,
+        saleNote: "Handle with care",
+        declarationText: "",
+      }),
+    ).toBe(`Handle with care\n${LETTERPAD_COMPOSITION_DECLARATION}`);
+  });
+
+  it("uses Settings declaration text when it is not the generic certified line", () => {
+    const custom = "Composition taxable person, not eligible to collect tax on supplies.";
+    expect(
+      retailErpLetterpadNoteText({
+        isPreprinted: true,
+        saleNote: "",
+        declarationText: custom,
+      }),
+    ).toBe(custom);
   });
 });
