@@ -307,5 +307,7 @@ describe("SANTOSH ZADE — 19 Sep 2026 ledger PDF …40d9", () => {
       }),
     ).toBe(-24_300);
     expect(11_500 + SANTOSH_CN).toBe(24_300);
+    // Header Net ₹5,500 Cr = recon minus the memo CN minus the already-zero 1131-2.
+    expect(24_300 - SANTOSH_CN - RCP_1131_2).toBe(5_500);
   });
 });

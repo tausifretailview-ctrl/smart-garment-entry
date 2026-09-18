@@ -154,6 +154,8 @@ What each printed number is:
 | Header `Customer owes` / Net | **5,500 Cr** | 11,500 − 6,000 (1131-2 already invisible to capped leftover; 1131-1 overpay remains) |
 | Recon / banner Outstanding | 24,300 Cr | 88,200 − **12,800 CN** − 99,700. Gap vs columns is exactly the POS/723 memo CN |
 
+24,300 − 12,800 − 6,000 (1131-2) = **5,500**. Canonical leftover already ignores the memo CN and the already-zero duplicate; it still includes the 1131-1 overpay.
+
 Removing **only 1131-2**: columns 11,500 Cr → **5,500 Cr**, matching the header Net. Genuine leftover immediately before the 30-May save is the ₹300 Dr on POS/1130. Do not also delete 1131-1, RCP/213, or RCP/1618.
 
 The CN ₹12,800 recon-vs-column split is pre-existing (memo CN Adjust vs recon `invoiceCnApplied`). It is not this duplicate’s signature and is not a repair item here.
