@@ -339,3 +339,11 @@ LIMIT 200;
 - Do not run `reconcile_variant_stock_qty` or any bulk money repair.
 
 Next (when asked): population SQL results, then a remainingCredit change that uses allocated CN not full invoice SRA (without reintroducing billing double-count), plus dating `cn_adjusted` from `voucher_date`, plus a tracing row for adjusted+linked SRs that does not add `t.credit`.
+
+---
+
+## Phase 0 fixtures (no production code)
+
+Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** figures (SR/159 memo credit 0; SR/160 remaining / banner / Unclaimed all ₹4,150; `cn_adjusted` date = voucher_date). They are **RED** against current `fetchCustomerLedgerTransactionsWithClient` until Phase 1.
+
+Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql`.
