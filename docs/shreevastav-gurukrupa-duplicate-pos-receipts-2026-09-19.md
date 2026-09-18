@@ -3,7 +3,7 @@
 **Date:** 19 Sep 2026  
 **Org:** GURUKRUPA SILK SAREES (`e8fbf0d8-182c-4364-8570-96c756b72db8`)  
 **Customer:** SHREEVASTAV, phone 9819151882  
-**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:23 IST (`query-results-export-2026-09-19_00-22-48_2474.csv`, `_00-23-33_612c.csv`, `_00-23-50_8008.csv`).  
+**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:28 IST (`…00-22-48_2474`, `…00-23-33_612c`, `…00-23-50_8008`, paste 3 `…00-28-21_f03b`).  
 **This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1128 or RCP/1129.**
 
 ---
@@ -32,9 +32,16 @@ POS/875 was already fully settled on 05/03 (at-sale ₹1,000 + RCP/799 ₹2,100)
 
 No other org hit this already-zero-balance POS-template filter on 29–30 May.
 
-Gurukrupa 4 rows / ₹9,500 = SHREEVASTAV’s 2 rows / ₹3,100 **plus 2 more receipts / 2 customers / 2 invoices / ₹6,400**. Paste 3 (Gurukrupa already-settled detail) was **not** in this export batch — those two names are still unknown. Do not guess them.
+Paste 3 names all four Gurukrupa rows (₹400 + ₹2,100 + ₹1,000 + ₹6,000 = ₹9,500). RCP/1127 is **not** in the set (correct: POS/767 still had ₹5,600 remaining).
 
-RCP/1127 is **not** in the headline (correct: POS/767 still had ₹5,600 remaining).
+| Customer | Voucher | UTC | Invoice | Net | Prior | Tender | Dup amt | What it duplicates |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| VIMLA YADAV 9869426163 | RCP/26-27/1126 | 29 May **16:18:41Z** (21:48 IST) | POS/26-27/765 | 3,000 | 2,600 | 400 | **400** | at-sale tender |
+| SHREEVASTAV | RCP/26-27/1128 | 30 May 07:29:06Z | POS/25-26/875 | 3,100 | 2,100 | 1,000 | **2,100** | RCP/799 |
+| SHREEVASTAV | RCP/26-27/1129 | 30 May 07:29:20Z | POS/25-26/875 | 3,100 | 4,200 | 1,000 | **1,000** | at-sale; prior already includes 1128 |
+| SANTOSH ZADE 9324531447 | RCP/26-27/**1131-2** | 30 May **07:39:31Z** (13:09 IST) | POS/25-26/717 | 81,200 | 6,000 | 75,200 | **6,000** | prior ₹6,000 receipt |
+
+VIMLA and SANTOSH are the DOLLY/DIYA shape: `prior + tender = net` before the new row. SANTOSH’s `1131-2` suffix is a multi-invoice Customer Payment Tab save (`${base}-${i+1}`). Sibling **1131-1 is not in this list** — it was not already-zero and must not be treated as a duplicate from the suffix alone. 07:39:31Z is the end of the cited 07:29–07:39 UTC window.
 
 ---
 
@@ -70,10 +77,11 @@ This is SQL remaining_before reconstruction per invoice, not a full customer-led
 
 | Cluster | Org | UTC | Template | Writer |
 | --- | --- | --- | --- | --- |
-| 07:29:06–07:29:20 | Gurukrupa SHREEVASTAV | 12:59 IST | `Payment for POS/25-26/875` | Customer Payment Tab |
-| 11:34:31–11:41:47 | Velvet 15 invoices | 17:04–17:11 IST | `Payment received for POS sale POS/… - ` | POS Dashboard Record Payment |
+| 29 May 16:18:41 | Gurukrupa VIMLA | 21:48 IST | `Payment for POS/26-27/765` | Customer Payment Tab |
+| 30 May 07:29:06–07:39:31 | Gurukrupa SHREEVASTAV + SANTOSH | 12:59–13:09 IST | `Payment for POS/…` | Customer Payment Tab (SANTOSH is `1131-2`) |
+| 30 May 11:34:31–11:41:47 | Velvet 15 invoices | 17:04–17:11 IST | `Payment received for POS sale POS/… - ` | POS Dashboard Record Payment |
 
-Same calendar day, same “receipt against remaining 0” shape, **different** clock and description. The 07:29–07:39 UTC note matches Gurukrupa only. Velvet is a later POS Dashboard burst.
+Same “receipt against remaining 0” shape. Gurukrupa 07:29–07:39 UTC is Customer Payment Tab (including SANTOSH at 07:39:31). Velvet is a later POS Dashboard burst. VIMLA is the previous evening, same Tab template.
 
 ---
 
@@ -96,8 +104,11 @@ Photographed POS/26-27/1903 (POS Dashboard reprint, A5 Gurukrupa):
 
 ## 6. Still needed before any repair
 
-- Paste 3: name the other **2 Gurukrupa** already-settled receipts (₹6,400).
-- Per-customer ledger reprint for those two, and at least five Velvet rows against source invoices (DOLLY/DIYA because tender + prior split; ANANYA because four hits; POS/85 because null customer).
-- Do **not** soft-delete 1128/1129 or the Velvet 1131–1145 batch until that hand-check.
+Gurukrupa paste 3 is complete (VIMLA / SHREEVASTAV / SANTOSH). Before any mutate:
+
+- Ledger reprint for VIMLA POS/765 and SANTOSH POS/717 (same standard as SHREEVASTAV PDF).
+- Do not touch sibling **RCP/26-27/1131-1** unless it independently has remaining_before 0.
+- At least five Velvet source invoices (DOLLY/DIYA, ANANYA, POS/85).
+- Do **not** soft-delete 1126 / 1128 / 1129 / 1131-2 or Velvet 1131–1145 until that hand-check.
 
 Paste files remain: `scripts/shreevastav-dup-*.sql`.

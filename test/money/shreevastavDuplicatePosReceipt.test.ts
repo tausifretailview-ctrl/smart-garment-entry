@@ -68,6 +68,12 @@ describe("live SQL-editor paste 19 Sep 2026 00:22 IST", () => {
     expect(1_500 + 3_000).toBe(4_500);
     expect(10_000 + 1_000).toBe(11_000);
   });
+
+  it("Gurukrupa paste 3: VIMLA ₹400 + SHREEVASTAV ₹3,100 + SANTOSH ₹6,000 = ₹9,500", () => {
+    expect(400 + 2_100 + 1_000 + 6_000).toBe(9_500);
+    expect(2_600 + 400).toBe(3_000);
+    expect(6_000 + 75_200).toBe(81_200);
+  });
 });
 
 describe("SHREEVASTAV ledger running balance", () => {
