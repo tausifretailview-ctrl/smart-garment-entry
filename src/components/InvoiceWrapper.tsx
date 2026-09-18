@@ -20,6 +20,7 @@ import { RetailTaxEzzyTemplate } from './invoice-templates/RetailTaxEzzyTemplate
 import { WholesaleA5Template } from './invoice-templates/WholesaleA5Template';
 import { A4ElectronicTemplate } from './invoice-templates/A4ElectronicTemplate';
 import { WholesaleGstA4Template } from './invoice-templates/WholesaleGstA4Template';
+import { KlearA4Template } from './invoice-templates/KlearA4Template';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
@@ -237,6 +238,22 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       enabled: !!orgId,
     });
 
+    const { data: orgSizeGroups = [] } = useQuery({
+      queryKey: ['invoice-size-groups', orgId],
+      queryFn: async () => {
+        if (!orgId) return [];
+        const { data, error } = await supabase
+          .from('size_groups')
+          .select('id, group_name, sizes')
+          .eq('organization_id', orgId);
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: STALE_SETTINGS,
+      refetchOnWindowFocus: false,
+      enabled: !!orgId,
+    });
+
     useEffect(() => {
       const source = useParentOrgSettings ? props.orgSettings : fetchedOrgSettings;
       if (source) setSettings(source);
@@ -322,7 +339,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       !isThermalFormat &&
       (templateForFormat === 'gift_tally' ||
         templateForFormat === 'a4-gst-classic' ||
-        templateForFormat === 'wholesale-gst-a4')
+        templateForFormat === 'wholesale-gst-a4' ||
+        templateForFormat === 'klear-a4')
     ) {
       format = 'a4';
     }
@@ -450,11 +468,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const defaultReceivingBank = pickDefaultReceivingBankAccount(orgBankAccounts);
     const receivingBankDetails = organizationBankAccountToInvoiceDetails(defaultReceivingBank);
     const resolvedBankDetails =
-      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4'
+      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4' || templateForFormat === 'klear-a4'
         ? receivingBankDetails || settings?.sale_settings?.bank_details
         : settings?.sale_settings?.bank_details;
     const resolvedShowBankDetails =
-      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4'
+      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4' || templateForFormat === 'klear-a4'
         ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
         : showBankDetails;
 
@@ -466,6 +484,16 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         cnAdjustDate: props.cnAdjustDate,
       }),
     );
+
+    const defaultSizeGroupId = String(
+      (settings?.product_settings as { default_size_group?: string } | undefined)?.default_size_group || "",
+    );
+    const defaultSizeGroup = (orgSizeGroups as Array<{ id: string; sizes?: unknown }>).find(
+      (g) => g.id === defaultSizeGroupId,
+    );
+    const sizeColumnHints = Array.isArray(defaultSizeGroup?.sizes)
+      ? (defaultSizeGroup!.sizes as unknown[]).map((s) => String(s))
+      : undefined;
 
     // Common props for all templates
     const commonProps = {
@@ -576,6 +604,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       printLogoOnPreprintedLetterhead: resolvePrintLogoOnPreprintedLetterhead(
         settings?.sale_settings,
       ),
+      sizeColumnHints,
     };
 
     // Select template component based on settings
@@ -894,6 +923,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <A4GstClassicInvoiceTemplate {...commonProps} />;
         case 'wholesale-gst-a4':
           return <WholesaleGstA4Template {...commonProps} />;
+        case 'klear-a4':
+          return <KlearA4Template {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
         case 'retail':
