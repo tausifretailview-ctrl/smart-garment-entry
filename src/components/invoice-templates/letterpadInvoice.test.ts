@@ -69,6 +69,47 @@ describe("letter-pad (preprinted) Note section", () => {
   });
 });
 
+describe("letter-pad GSTIN instead of State Code", () => {
+  it("prints the organization GSTIN from settings when present", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+        gstNumber: "27ABCDE1234F1Z5",
+      }),
+    );
+    expect(html).toContain("GSTIN:");
+    expect(html).toContain("27ABCDE1234F1Z5");
+    expect(html).not.toContain("State Code:");
+  });
+
+  it("omits GSTIN and State Code when the organization has no GST in settings", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+      }),
+    );
+    expect(html).not.toContain("GSTIN:");
+    expect(html).not.toContain("State Code:");
+  });
+
+  it("keeps State Code on standard Retail ERP (GSTIN already in the shop header)", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "standard",
+        format: "a4",
+        gstNumber: "27ABCDE1234F1Z5",
+      }),
+    );
+    expect(html).toContain("State Code:");
+    expect(html).toContain("<strong>State Code:</strong> 27");
+  });
+});
+
 describe("letter-pad A5 shop logo joins the column table", () => {
   it("puts the logo inside the page border, flush above BILL OF SUPPLY", () => {
     const html = renderToStaticMarkup(

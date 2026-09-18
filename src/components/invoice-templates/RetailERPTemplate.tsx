@@ -921,7 +921,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {gstNumber && !isRealTast && !isDc && (
                     <div style={{ display: "flex", borderBottom: B }}>
                       <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
-                        <strong>State Code:</strong> {gstNumber.substring(0, 2)}
+                        {isPreprinted ? (
+                          <>
+                            <strong>GSTIN:</strong> {gstNumber}
+                          </>
+                        ) : (
+                          <>
+                            <strong>State Code:</strong> {gstNumber.substring(0, 2)}
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
