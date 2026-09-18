@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  gurukrupaInvoiceAccountLines,
   invoicePreviousBalanceFromAccount,
   invoicePrintBalances,
   invoiceThisBillBalance,
@@ -79,5 +80,39 @@ describe("Gurukrupa invoice Prev Bal / Total Due vs customer account", () => {
       accountIncludesThisBill: true,
     });
     expect(printedFromOutstanding.totalDue).toBe(12_000);
+  });
+});
+
+describe("Gurukrupa A5 split Outstanding / Advance (POS/26-27/1903 SHREEVASTAV)", () => {
+  it("prints Outstanding and Advance separately; Total Due is outstanding − advance", () => {
+    const lines = gurukrupaInvoiceAccountLines({
+      previousBalance: 16_250,
+      thisBillBalance: 0,
+      unusedAdvance: 1_000,
+    });
+    expect(lines.outstanding).toBe(16_250);
+    expect(lines.advance).toBe(1_000);
+    expect(lines.totalDue).toBe(15_250);
+  });
+
+  it("includes this-bill Balance in Outstanding when the invoice is unpaid", () => {
+    const lines = gurukrupaInvoiceAccountLines({
+      previousBalance: 7_500,
+      thisBillBalance: 2_400,
+      unusedAdvance: 1_000,
+    });
+    expect(lines.outstanding).toBe(9_900);
+    expect(lines.advance).toBe(1_000);
+    expect(lines.totalDue).toBe(8_900);
+  });
+
+  it("does not let unused advance go negative", () => {
+    const lines = gurukrupaInvoiceAccountLines({
+      previousBalance: 16_250,
+      thisBillBalance: 0,
+      unusedAdvance: -50,
+    });
+    expect(lines.advance).toBe(0);
+    expect(lines.totalDue).toBe(16_250);
   });
 });

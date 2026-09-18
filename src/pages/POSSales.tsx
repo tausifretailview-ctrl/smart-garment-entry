@@ -94,7 +94,7 @@ import {
   unusedAdvanceFromBookings,
 } from "@/utils/posApplyAdvance";
 import { posFooterCustomerBalance } from "@/utils/customerAccountFacets";
-import { fetchInvoicePrintPreviousBalance } from "@/utils/customerAccountStateView";
+import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
 import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
 import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -659,18 +659,22 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
   };
 }
 
-async function resolvePosInvoicePreviousBalance(opts: {
+async function resolvePosInvoiceAccountFacets(opts: {
   organizationId?: string | null;
   customerId?: string | null;
   billTotal: number;
   receivedToday: number;
   accountIncludesThisBill: boolean;
   fallback?: number;
-}): Promise<number> {
+  fallbackUnusedAdvance?: number;
+}): Promise<{ previousBalance: number; unusedAdvance: number }> {
   const fallback = Math.round(Number(opts.fallback) || 0);
-  if (!opts.customerId || !opts.organizationId) return fallback;
+  const fallbackUnusedAdvance = Math.max(0, Math.round(Number(opts.fallbackUnusedAdvance) || 0));
+  if (!opts.customerId || !opts.organizationId) {
+    return { previousBalance: fallback, unusedAdvance: fallbackUnusedAdvance };
+  }
   try {
-    return await fetchInvoicePrintPreviousBalance(
+    return await fetchInvoicePrintAccountFacets(
       supabase,
       opts.organizationId,
       opts.customerId,
@@ -681,7 +685,7 @@ async function resolvePosInvoicePreviousBalance(opts: {
       },
     );
   } catch {
-    return fallback;
+    return { previousBalance: fallback, unusedAdvance: fallbackUnusedAdvance };
   }
 }
 
@@ -741,7 +745,7 @@ export default function POSSales() {
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
   // Customer balance hook — footer chip is invoice leftover, unused advance stays in Adv.
-  const { grossOutstanding: customerLedgerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+  const { grossOutstanding: customerLedgerBalance, unusedAdvanceTotal: customerUnusedAdvance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
     customerId || null,
     currentOrganization?.id || null
   );
@@ -1523,6 +1527,15 @@ export default function POSSales() {
 
         const effectiveFlat =
           flatRes.percentLooksClean ? Number(sale.flat_discount_amount) || 0 : flatRes.value;
+        const loadedAccount = await resolvePosInvoiceAccountFacets({
+          organizationId: currentOrganization?.id,
+          customerId: sale.customer_id,
+          billTotal: Number(sale.net_amount) || 0,
+          receivedToday: Number(sale.paid_amount) || 0,
+          accountIncludesThisBill: true,
+          fallback: 0,
+          fallbackUnusedAdvance: customerUnusedAdvance,
+        });
         setSavedInvoiceData({
           invoiceNumber: sale.sale_number,
           saleId: sale.id,
@@ -1540,14 +1553,8 @@ export default function POSSales() {
           customerName: sale.customer_name,
           customerPhone: sale.customer_phone,
           paidAmount: Number(sale.paid_amount) || 0,
-          previousBalance: await resolvePosInvoicePreviousBalance({
-            organizationId: currentOrganization?.id,
-            customerId: sale.customer_id,
-            billTotal: Number(sale.net_amount) || 0,
-            receivedToday: Number(sale.paid_amount) || 0,
-            accountIncludesThisBill: true,
-            fallback: 0,
-          }),
+          previousBalance: loadedAccount.previousBalance,
+          unusedAdvance: loadedAccount.unusedAdvance,
           cashAmount: Number(sale.cash_amount) || 0,
           upiAmount: Number(sale.upi_amount) || 0,
           cardAmount: Number(sale.card_amount) || 0,
@@ -4032,13 +4039,14 @@ export default function POSSales() {
         const snapSaleReturnAdjust = snap?.saleReturnAdjust ?? saleReturnAdjust;
         const snapPaidAmount =
           snap?.paidAmount ?? (paymentMethod === "pay_later" ? 0 : finalAmount);
-        const snapPreviousBalance = await resolvePosInvoicePreviousBalance({
+        const snapAccount = await resolvePosInvoiceAccountFacets({
           organizationId: currentOrganization?.id,
           customerId: snapCustomerId,
           billTotal: snapGrandTotal,
           receivedToday: snapPaidAmount,
           accountIncludesThisBill: true,
           fallback: customerBalance,
+          fallbackUnusedAdvance: customerUnusedAdvance,
         });
         const snapRoundOff = snap?.roundOff ?? roundOff;
         const snapSalesman = snap?.salesman ?? selectedSalesman ?? "";
@@ -4083,7 +4091,8 @@ export default function POSSales() {
           upiPaid: snapPaymentMethod === "upi" ? snapGrandTotal : 0,
           paymentMethod: snapPaymentMethod,
           paidAmount: snapPaidAmount,
-          previousBalance: snapPreviousBalance,
+          previousBalance: snapAccount.previousBalance,
+          unusedAdvance: snapAccount.unusedAdvance,
           roundOff: snapRoundOff,
           salesman: snapSalesman,
           taxType: snapTaxType,
@@ -4125,6 +4134,7 @@ export default function POSSales() {
       finalAmount,
       paymentMethod,
       customerBalance,
+      customerUnusedAdvance,
       roundOff,
       selectedSalesman,
       financerDetails,
@@ -4173,6 +4183,16 @@ export default function POSSales() {
       return;
     }
     
+    const estimateAccount = await resolvePosInvoiceAccountFacets({
+      organizationId: currentOrganization?.id,
+      customerId,
+      billTotal: finalAmount,
+      receivedToday: 0,
+      accountIncludesThisBill: false,
+      fallback: customerBalance,
+      fallbackUnusedAdvance: customerUnusedAdvance,
+    });
+
     const estimateData = {
       invoiceNumber: estimateNumber,
       saleId: null,
@@ -4189,14 +4209,8 @@ export default function POSSales() {
       creditApplied: creditApplied,
       notes: saleNotes || null,
       paidAmount: 0,
-      previousBalance: await resolvePosInvoicePreviousBalance({
-        organizationId: currentOrganization?.id,
-        customerId,
-        billTotal: finalAmount,
-        receivedToday: 0,
-        accountIncludesThisBill: false,
-        fallback: customerBalance,
-      }),
+      previousBalance: estimateAccount.previousBalance,
+      unusedAdvance: estimateAccount.unusedAdvance,
       isEstimate: true,
       taxType,
     };
@@ -4240,7 +4254,7 @@ export default function POSSales() {
         }
       }
     }, 150);
-  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, isDirectPrintEnabled, posBillFormat, directPrint, currentOrganization?.id, taxType]);
+  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, customerUnusedAdvance, isDirectPrintEnabled, posBillFormat, directPrint, currentOrganization?.id, taxType]);
 
   // Register estimate print in POS header and ref for keyboard shortcut
   useEffect(() => {
@@ -4693,6 +4707,16 @@ export default function POSSales() {
       
       const salesmanForPrint = selectedSalesman || (result as any)?.salesman || '';
 
+      const saveAccount = await resolvePosInvoiceAccountFacets({
+        organizationId: currentOrganization?.id,
+        customerId,
+        billTotal: finalAmount,
+        receivedToday: method === "pay_later" ? 0 : posTenderDue,
+        accountIncludesThisBill: true,
+        fallback: customerBalance,
+        fallbackUnusedAdvance: customerUnusedAdvance,
+      });
+
       // Store invoice data for print dialog BEFORE clearing the form
       const invoiceDataForPrint = {
         invoiceNumber: result.sale_number,
@@ -4714,14 +4738,8 @@ export default function POSSales() {
         creditAmount: creditApplied,
         notes: saleNotes || null,
         paidAmount: method === 'pay_later' ? 0 : posTenderDue,
-        previousBalance: await resolvePosInvoicePreviousBalance({
-          organizationId: currentOrganization?.id,
-          customerId,
-          billTotal: finalAmount,
-          receivedToday: method === "pay_later" ? 0 : posTenderDue,
-          accountIncludesThisBill: true,
-          fallback: customerBalance,
-        }),
+        previousBalance: saveAccount.previousBalance,
+        unusedAdvance: saveAccount.unusedAdvance,
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
@@ -4990,6 +5008,16 @@ export default function POSSales() {
       
       const salesmanForPrint = selectedSalesman || (result as any)?.salesman || '';
 
+      const mixAccount = await resolvePosInvoiceAccountFacets({
+        organizationId: currentOrganization?.id,
+        customerId,
+        billTotal: isRefund ? 0 : finalAmount,
+        receivedToday: paymentData.totalPaid,
+        accountIncludesThisBill: true,
+        fallback: customerBalance,
+        fallbackUnusedAdvance: customerUnusedAdvance,
+      });
+
       // Store invoice data BEFORE clearing the form (only for non-credit note cases)
       const invoiceDataForPrint = !isCreditNote ? {
         invoiceNumber: result.sale_number,
@@ -5013,14 +5041,8 @@ export default function POSSales() {
         creditApplied: creditApplied,
         notes: saleNotes || null,
         paidAmount: paymentData.totalPaid,
-        previousBalance: await resolvePosInvoicePreviousBalance({
-          organizationId: currentOrganization?.id,
-          customerId,
-          billTotal: isRefund ? 0 : finalAmount,
-          receivedToday: paymentData.totalPaid,
-          accountIncludesThisBill: true,
-          fallback: customerBalance,
-        }),
+        previousBalance: mixAccount.previousBalance,
+        unusedAdvance: mixAccount.unusedAdvance,
         pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
         pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
@@ -5458,6 +5480,7 @@ export default function POSSales() {
             }
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
+            unusedAdvance={savedInvoiceData?.unusedAdvance ?? customerUnusedAdvance ?? 0}
             roundOff={savedInvoiceData?.roundOff ?? roundOff}
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
             taxType={invoiceTaxType}
@@ -5725,6 +5748,15 @@ export default function POSSales() {
     isInitializingEditRef.current = false;
 
     // Set saved invoice data using actual stored values from DB
+    const navAccount = await resolvePosInvoiceAccountFacets({
+      organizationId: currentOrganization?.id,
+      customerId: sale.customer_id,
+      billTotal: Number(sale.net_amount) || 0,
+      receivedToday: Number(sale.paid_amount) || 0,
+      accountIncludesThisBill: true,
+      fallback: 0,
+      fallbackUnusedAdvance: customerUnusedAdvance,
+    });
     setSavedInvoiceData({
       invoiceNumber: sale.sale_number,
       saleId: sale.id,
@@ -5742,14 +5774,8 @@ export default function POSSales() {
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
       paidAmount: Number(sale.paid_amount) || 0,
-      previousBalance: await resolvePosInvoicePreviousBalance({
-        organizationId: currentOrganization?.id,
-        customerId: sale.customer_id,
-        billTotal: Number(sale.net_amount) || 0,
-        receivedToday: Number(sale.paid_amount) || 0,
-        accountIncludesThisBill: true,
-        fallback: 0,
-      }),
+      previousBalance: navAccount.previousBalance,
+      unusedAdvance: navAccount.unusedAdvance,
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
@@ -8667,6 +8693,7 @@ export default function POSSales() {
                 refundCash={savedInvoiceData?.refundCash || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
+                unusedAdvance={customerUnusedAdvance || 0}
                 roundOff={roundOff}
                 salesman={selectedSalesman || ''}
                 taxType={invoiceTaxType}
@@ -8856,6 +8883,7 @@ export default function POSSales() {
                 notes={savedInvoiceData.notes}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
+                unusedAdvance={savedInvoiceData.unusedAdvance ?? 0}
                 roundOff={savedInvoiceData.roundOff ?? 0}
                 salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
                 taxType={invoiceTaxType}

@@ -116,6 +116,7 @@ interface InvoiceWrapperProps {
   creditAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
+  unusedAdvance?: number;
   
   // Points
   pointsRedeemed?: number;
@@ -541,6 +542,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       creditAmount: props.creditAmount,
       paidAmount: props.paidAmount,
       previousBalance: props.previousBalance ?? 0,
+      unusedAdvance: props.unusedAdvance ?? 0,
       
       qrCodeUrl,
       upiId: resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice),

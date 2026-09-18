@@ -245,7 +245,11 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
                 cashPaid={sampleInvoiceData.cashPaid}
                 refundCash={sampleInvoiceData.refundCash}
                 upiPaid={sampleInvoiceData.upiPaid}
+                paidAmount={sampleInvoiceData.cashPaid}
+                cashAmount={sampleInvoiceData.cashPaid}
                 paymentMethod="cash"
+                previousBalance={previewTemplate === "gurukrupa" ? 16250 : undefined}
+                unusedAdvance={previewTemplate === "gurukrupa" ? 1000 : undefined}
                 taxType={
                   invoicePreviewChannel === "pos"
                     ? resolvePosDefaultTaxType(sale)

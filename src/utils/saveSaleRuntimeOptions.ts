@@ -13,6 +13,7 @@ export type PosWhatsAppPdfCaptureSnapshot = {
   paymentMethod: string;
   paidAmount: number;
   previousBalance: number;
+  unusedAdvance?: number;
   roundOff: number;
   salesman: string;
   taxType: string;

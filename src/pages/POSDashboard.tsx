@@ -29,7 +29,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
-import { fetchInvoicePrintPreviousBalance } from "@/utils/customerAccountStateView";
+import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1761,15 +1761,17 @@ const POSDashboard = () => {
       const saleDate = new Date(sale.sale_date);
 
       let financerDetails = null;
-      const [{ data: finData }, { data: customerData }, previousBalance] = await Promise.all([
+      const [{ data: finData }, { data: customerData }, accountFacets] = await Promise.all([
         supabase.from("sale_financer_details").select("*").eq("sale_id", sale.id).maybeSingle(),
         sale.customer_id
           ? supabase.from("customers").select("gst_number, transport_details").eq("id", sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
         (async () => {
-          if (!sale.customer_id || !currentOrganization?.id) return 0;
+          if (!sale.customer_id || !currentOrganization?.id) {
+            return { previousBalance: 0, unusedAdvance: 0 };
+          }
           try {
-            return await fetchInvoicePrintPreviousBalance(
+            return await fetchInvoicePrintAccountFacets(
               supabase,
               currentOrganization.id,
               sale.customer_id,
@@ -1780,7 +1782,7 @@ const POSDashboard = () => {
               },
             );
           } catch {
-            return 0;
+            return { previousBalance: 0, unusedAdvance: 0 };
           }
         })(),
       ]);
@@ -1832,7 +1834,8 @@ const POSDashboard = () => {
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
-        previousBalance: previousBalance ?? 0,
+        previousBalance: accountFacets.previousBalance ?? 0,
+        unusedAdvance: accountFacets.unusedAdvance ?? 0,
         salesman: sale.salesman || "",
         notes: sale.notes || "",
         taxType: normalizeGstTaxType(sale.tax_type),
@@ -4597,6 +4600,7 @@ const POSDashboard = () => {
             creditAmount={printData.creditAmount}
             paidAmount={printData.paidAmount}
             previousBalance={printData.previousBalance}
+            unusedAdvance={printData.unusedAdvance ?? 0}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
             taxType={normalizeGstTaxType(
