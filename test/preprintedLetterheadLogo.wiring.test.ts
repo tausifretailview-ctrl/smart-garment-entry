@@ -17,7 +17,18 @@ describe("preprinted letterhead logo wiring", () => {
     expect(template).toContain("retail-erp-preprinted-letterhead-logo");
     expect(template).toContain("{showPreprintedLetterheadLogo && (");
     expect(template).toContain("letterheadLogoBox.objectFit");
+    expect(template).toContain("preprintedPadTop");
+    expect(template).toContain("flexShrink: 0");
     expect(template).toContain("{!isPreprinted && (");
+    const joinBlock = template.slice(
+      template.indexOf('className="retail-erp-page-border"'),
+      template.indexOf("{/* ===== HEADER"),
+    );
+    expect(joinBlock.indexOf("retail-erp-page-border")).toBeLessThan(
+      joinBlock.indexOf("data-preprinted-letterhead-logo"),
+    );
+    expect(joinBlock).not.toContain('position: "absolute"');
+    expect(joinBlock).toContain('display: "block"');
   });
 
   it("passes the sale_settings flag through InvoiceWrapper", () => {

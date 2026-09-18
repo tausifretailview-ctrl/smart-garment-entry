@@ -171,8 +171,8 @@ export function shouldPrintPreprintedLetterheadLogo(opts: {
 
 /** Keep the banner inside the printer safe area (A5 top clip). */
 export const PREPRINTED_LETTERHEAD_LOGO_TOP_GAP = "4mm";
-/** Small air before the TAX INVOICE rule. */
-export const PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP = "2mm";
+/** Flush to the column-table top rule — no air between shop logo and BILL OF SUPPLY. */
+export const PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP = "0mm";
 
 export type PreprintedLetterheadLogoBox = {
   top: string;
@@ -183,24 +183,23 @@ export type PreprintedLetterheadLogoBox = {
 };
 
 export type PreprintedLetterheadLogoBoxOpts = {
-  /** Match page horizontal padding so the banner aligns with item table columns. */
+  /** Unused: in-flow banner is 100% of the bordered content box. */
   contentInsetLeft?: string;
   contentInsetRight?: string;
 };
 
-/** Stretch uploaded logo across the letterhead band, aligned with table column edges. */
+/**
+ * In-flow letterhead banner inside the invoice frame.
+ * Width matches the item table; height fills the 2in band down to the top rule.
+ */
 export function preprintedLetterheadLogoBox(
   letterheadGap = "2in",
-  opts?: PreprintedLetterheadLogoBoxOpts,
+  _opts?: PreprintedLetterheadLogoBoxOpts,
 ): PreprintedLetterheadLogoBox {
-  const left = opts?.contentInsetLeft ?? "0";
-  const right = opts?.contentInsetRight ?? "0";
-  const width =
-    left === "0" && right === "0" ? "100%" : `calc(100% - ${left} - ${right})`;
   return {
-    top: PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
-    left,
-    width,
+    top: "0",
+    left: "0",
+    width: "100%",
     height: `calc(${letterheadGap} - ${PREPRINTED_LETTERHEAD_LOGO_TOP_GAP} - ${PREPRINTED_LETTERHEAD_LOGO_BOTTOM_GAP})`,
     objectFit: "fill",
   };

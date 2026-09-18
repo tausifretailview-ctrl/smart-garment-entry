@@ -68,3 +68,40 @@ describe("letter-pad (preprinted) Note section", () => {
     expect(html).not.toContain(LETTERPAD_COMPOSITION_DECLARATION);
   });
 });
+
+describe("letter-pad A5 shop logo joins the column table", () => {
+  it("puts the logo inside the page border, flush above BILL OF SUPPLY", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+        logoUrl: "https://example.com/semme-letterhead.png",
+        printLogoOnPreprintedLetterhead: true,
+      }),
+    );
+    const borderAt = html.indexOf("retail-erp-page-border");
+    const logoAt = html.indexOf("data-preprinted-letterhead-logo");
+    const titleAt = html.indexOf("BILL OF SUPPLY");
+    expect(borderAt).toBeGreaterThan(-1);
+    expect(logoAt).toBeGreaterThan(borderAt);
+    expect(titleAt).toBeGreaterThan(logoAt);
+    expect(html).toContain("retail-erp-preprinted-letterhead-logo");
+    expect(html).toContain("padding-top:4mm");
+    expect(html).not.toMatch(
+      /retail-erp-preprinted-letterhead-logo[^>]*position:\s*absolute/,
+    );
+  });
+
+  it("keeps the 2in blank top when shop-logo print is off", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+      }),
+    );
+    expect(html).not.toContain("data-preprinted-letterhead-logo");
+    expect(html).toContain("padding-top:2in");
+  });
+});

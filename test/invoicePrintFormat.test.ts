@@ -328,27 +328,29 @@ describe('preprinted letterhead logo opt-in', () => {
     ).toBe(false);
   });
 
-  it('aligns the banner with table column edges using page content insets', () => {
+  it('places the banner in-flow at full table width, flush to the top rule', () => {
     const box = preprintedLetterheadLogoBox('2in', {
       contentInsetLeft: '8mm',
       contentInsetRight: '10mm',
     });
-    expect(box.width).toBe('calc(100% - 8mm - 10mm)');
-    expect(box.left).toBe('8mm');
+    expect(box.width).toBe('100%');
+    expect(box.left).toBe('0');
+    expect(box.top).toBe('0');
     expect(box.objectFit).toBe('fill');
-    expect(box.top).toBe(PREPRINTED_LETTERHEAD_LOGO_TOP_GAP);
-    expect(box.top).toBe('4mm');
-    expect(box.height).toContain('2in');
-    expect(box.height).toContain('4mm');
-    expect(box.height).toContain('2mm');
+    expect(box.height).toBe(
+      `calc(2in - ${PREPRINTED_LETTERHEAD_LOGO_TOP_GAP} - 0mm)`,
+    );
+    expect(PREPRINTED_LETTERHEAD_LOGO_TOP_GAP).toBe('4mm');
   });
 
-  it('uses A5 preprinted page padding for letterhead alignment', () => {
+  it('keeps the same in-flow box on A5 letterhead', () => {
     const box = preprintedLetterheadLogoBox('2in', {
       contentInsetLeft: '5.5mm',
       contentInsetRight: '7mm',
     });
-    expect(box.left).toBe('5.5mm');
-    expect(box.width).toBe('calc(100% - 5.5mm - 7mm)');
+    expect(box.left).toBe('0');
+    expect(box.width).toBe('100%');
+    expect(box.height).toContain('2in');
+    expect(box.height).toContain('4mm');
   });
 });
