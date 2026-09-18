@@ -9,7 +9,8 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
-import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
+import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
+import { handleEnterAsTab } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
@@ -1485,7 +1486,7 @@ const ProductEntry = () => {
           description: `Product "${formData.product_name}" updated successfully`,
         });
 
-        invalidateStockReportQueries(queryClient, currentOrganization?.id);
+        await invalidateProductDashboardQueries(queryClient, currentOrganization?.id);
 
         // Navigate back to product dashboard after edit
         orgNavigate("/products");
@@ -1621,7 +1622,7 @@ const ProductEntry = () => {
         }
 
         // Silent operation - no toast for product save
-        invalidateStockReportQueries(queryClient, currentOrganization.id);
+        await invalidateProductDashboardQueries(queryClient, currentOrganization.id);
 
         // Check if we need to navigate back to purchase entry
         const state = location.state as { returnToPurchase?: boolean };
@@ -1922,7 +1923,7 @@ const ProductEntry = () => {
       description,
     });
 
-    invalidateStockReportQueries(queryClient, currentOrganization.id);
+    await invalidateProductDashboardQueries(queryClient, currentOrganization.id);
     
     // Navigate to product dashboard to see imported products
     orgNavigate('/products');
@@ -1966,7 +1967,11 @@ const ProductEntry = () => {
               )}
             </div>
           </CardHeader>
-          <CardContent className="p-5 space-y-5 font-outfit">
+          <CardContent
+            className="p-5 space-y-5 font-outfit"
+            data-entry-form
+            onKeyDown={handleEnterAsTab}
+          >
             {/* Copy from Existing Product - only shown for new products */}
             {!editingProductId && (
               <div className="space-y-2" ref={copyDropdownRef}>
@@ -1992,6 +1997,7 @@ const ProductEntry = () => {
                         setCopySelectedIndex(prev => Math.max(prev - 1, 0));
                       } else if (e.key === "Enter" && copySelectedIndex >= 0) {
                         e.preventDefault();
+                        e.stopPropagation();
                         handleCopyFromProduct(copyResults[copySelectedIndex].id);
                       } else if (e.key === "Escape") {
                         setShowCopyDropdown(false);

@@ -125,25 +125,54 @@ export function buildProductDisplayName(product: {
   return parts.join('-') || product.product_name || '';
 }
 
+const ENTER_AS_TAB_FIELD_SELECTOR = [
+  'input:not([type="hidden"]):not([type="file"]):not([disabled]):not([tabindex="-1"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[role="combobox"]:not([disabled])',
+].join(", ");
+
+function isVisibleEnterAsTabField(el: HTMLElement): boolean {
+  if (el.closest("[data-skip-enter-as-tab]")) return false;
+  if (el.closest(".hidden")) return false;
+  if (el.hidden || el.closest("[hidden]")) return false;
+  if (el.tabIndex === -1) return false;
+  return true;
+}
+
 /**
  * Makes Enter key behave like Tab in form fields — ERP/Tally style.
- * Add onKeyDown={handleEnterAsTab} to any input or form wrapper.
+ * Add onKeyDown={handleEnterAsTab} to any input or form wrapper marked
+ * `form`, `[data-entry-form]`, or `[data-product-form]`.
  */
 export const handleEnterAsTab = (e: React.KeyboardEvent) => {
-  if (e.key !== 'Enter') return;
-  const tag = (e.target as HTMLElement).tagName;
-  if (tag === 'TEXTAREA' || tag === 'BUTTON') return;
-  e.preventDefault();
-  const form = (e.target as HTMLElement).closest('form, [data-entry-form]');
+  if (e.key !== "Enter" || e.altKey || e.ctrlKey || e.metaKey) return;
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+  const tag = target.tagName;
+  if (tag === "TEXTAREA") return;
+  const combobox =
+    target.getAttribute("role") === "combobox"
+      ? target
+      : (target.closest('[role="combobox"]') as HTMLElement | null);
+  if (tag === "BUTTON" && !combobox) return;
+  if (target.closest("[data-skip-enter-as-tab]")) return;
+
+  const form = target.closest("form, [data-entry-form], [data-product-form]");
   if (!form) return;
-  const fields = Array.from(
-    form.querySelectorAll<HTMLElement>(
-      'input:not([disabled]):not([type="hidden"]):not([readonly]), select:not([disabled]), textarea:not([disabled])'
-    )
+
+  e.preventDefault();
+  const current = combobox || target;
+  const fields = Array.from(form.querySelectorAll<HTMLElement>(ENTER_AS_TAB_FIELD_SELECTOR)).filter(
+    isVisibleEnterAsTabField,
   );
-  const idx = fields.indexOf(e.target as HTMLElement);
-  if (idx >= 0 && idx < fields.length - 1) {
-    (fields[idx + 1] as HTMLElement).focus();
+  const unique: HTMLElement[] = [];
+  for (const el of fields) {
+    if (!unique.includes(el)) unique.push(el);
+  }
+  const idx = unique.indexOf(current);
+  if (idx >= 0 && idx < unique.length - 1) {
+    unique[idx + 1].focus();
   }
 };
 
