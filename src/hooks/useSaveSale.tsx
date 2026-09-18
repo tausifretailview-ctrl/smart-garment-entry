@@ -183,6 +183,7 @@ function buildPosWhatsAppCaptureMeta(
       grandTotal: saleData.netAmount,
       paymentMethod: finalPaymentMethod,
       paidAmount: paidAmt,
+      previousBalance: 0,
       roundOff: saleData.roundOff,
       salesman: saleData.salesman || "",
       taxType: saleData.taxType || "inclusive",
