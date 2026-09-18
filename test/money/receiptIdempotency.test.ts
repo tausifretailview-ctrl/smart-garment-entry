@@ -1,0 +1,74 @@
+import { describe, expect, it } from "vitest";
+import {
+  DUPLICATE_RECEIPT_MESSAGE,
+  DuplicateReceiptSubmissionError,
+  RECEIPT_OVER_CREDIT_MESSAGE,
+  ReceiptOverCreditError,
+  describeReceiptGuardError,
+  isDuplicateReceiptSubmission,
+  isReceiptOverCreditRejection,
+  newReceiptSubmissionId,
+  receiptRequestId,
+  toReceiptGuardError,
+} from "../../src/utils/receiptIdempotency";
+
+describe("receipt idempotency keys", () => {
+  it("mints a distinct id per submission", () => {
+    const ids = new Set(Array.from({ length: 200 }, () => newReceiptSubmissionId()));
+    expect(ids.size).toBe(200);
+  });
+
+  it("is stable per voucher part within one submission (retry collides row-for-row)", () => {
+    const sub = "sub-1";
+    expect(receiptRequestId(sub, 0)).toBe(receiptRequestId(sub, 0));
+    expect(receiptRequestId(sub, 0)).not.toBe(receiptRequestId(sub, 1));
+    expect(receiptRequestId(sub, "ob")).not.toBe(receiptRequestId("sub-2", "ob"));
+  });
+
+  it("does NOT dedupe two deliberate payments on the same invoice/amount/method", () => {
+    // Legitimate pattern: cashier takes ₹500 now and another ₹500 later.
+    const first = receiptRequestId(newReceiptSubmissionId(), "sale-1");
+    const second = receiptRequestId(newReceiptSubmissionId(), "sale-1");
+    expect(first).not.toBe(second);
+  });
+});
+
+describe("receipt guard error mapping", () => {
+  const dupErr = {
+    code: "23505",
+    message:
+      'duplicate key value violates unique constraint "uq_voucher_entries_client_request_active"',
+  };
+  const capErr = {
+    code: "P0431",
+    message: "RECEIPT_OVER_CREDIT: invoice POS/26-27/765 is already settled to 9500",
+  };
+
+  it("detects the idempotency-key collision only", () => {
+    expect(isDuplicateReceiptSubmission(dupErr)).toBe(true);
+    expect(
+      isDuplicateReceiptSubmission({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "uq_voucher_entries_number_active"',
+      }),
+    ).toBe(false);
+    expect(isDuplicateReceiptSubmission(null)).toBe(false);
+  });
+
+  it("detects the server-side invoice cap rejection", () => {
+    expect(isReceiptOverCreditRejection(capErr)).toBe(true);
+    expect(isReceiptOverCreditRejection({ code: "23505", message: "x" })).toBe(false);
+  });
+
+  it("returns friendly, non-technical messages", () => {
+    expect(describeReceiptGuardError(dupErr)).toBe(DUPLICATE_RECEIPT_MESSAGE);
+    expect(describeReceiptGuardError(capErr)).toBe(RECEIPT_OVER_CREDIT_MESSAGE);
+    expect(describeReceiptGuardError(new Error("network"))).toBeNull();
+  });
+
+  it("maps to typed errors and passes unrelated errors through", () => {
+    expect(toReceiptGuardError(dupErr)).toBeInstanceOf(DuplicateReceiptSubmissionError);
+    expect(toReceiptGuardError(capErr)).toBeInstanceOf(ReceiptOverCreditError);
+    expect(toReceiptGuardError(new Error("timeout"))).toBeNull();
+  });
+});
