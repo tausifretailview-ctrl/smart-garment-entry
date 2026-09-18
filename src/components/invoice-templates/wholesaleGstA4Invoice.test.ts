@@ -114,6 +114,25 @@ describe("WholesaleGstA4Template", () => {
     expect(html).not.toContain("getswipe");
     expect(html).not.toContain("digitally signed");
     expect(html).not.toContain("Add: CGST @");
+    expect(html).toContain("wholesale-gst-a4-page-frame");
+    expect(html).toContain("TAX INVOICE");
+    expect(html).toContain("ORIGINAL FOR RECIPIENT");
+    expect(html).toContain("font-size:26px");
+    expect(html).toContain("font-size:22px");
+    expect(html).toContain("font-size:14px");
+    expect(html).toContain("font-size:13px");
+  });
+
+  it("keeps header type large enough to stay readable in Settings A4 preview", () => {
+    const src = readFileSync(resolve(here, "./WholesaleGstA4Template.tsx"), "utf8");
+    expect(src).toContain('fontSize: "26px"');
+    expect(src).toContain('fontSize: "22px"');
+    expect(src).toContain('letterSpacing: "2.2px"');
+    expect(src).not.toContain('color: "#444"');
+    expect(src).not.toContain('fontSize: "9px", fontWeight: 600');
+    const preview = readFileSync(resolve(here, "../settings/SettingsInvoicePreview.tsx"), "utf8");
+    expect(preview).toContain('previewTemplate === "wholesale-gst-a4"');
+    expect(preview).toContain("scale(0.78)");
   });
 
   it("uses A4 page size with visible overflow (does not clip like the A5 @page history)", () => {

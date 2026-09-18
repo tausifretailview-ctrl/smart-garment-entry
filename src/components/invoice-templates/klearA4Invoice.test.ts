@@ -97,6 +97,23 @@ describe("KlearA4Template", () => {
     expect(html).toContain("Amount in words");
     expect(html).not.toContain("Swipe");
     expect(html).not.toContain("digitally signed");
+    expect(html).toContain("klear-a4-page-frame");
+    expect(html).toContain("font-size:26px");
+    expect(html).toContain("font-size:16px");
+    expect(html).toContain("font-size:13px");
+    expect(html).toContain("font-size:12px");
+  });
+
+  it("keeps header type large enough to stay readable in Settings A4 preview", () => {
+    const src = readFileSync(resolve(here, "./KlearA4Template.tsx"), "utf8");
+    expect(src).toContain('fontSize: "26px"');
+    expect(src).toContain('fontSize: "16px"');
+    expect(src).toContain('fontSize: "13px"');
+    expect(src).not.toContain('fontSize: "8.5px"');
+    expect(src).not.toContain('fontSize: "9px", fontWeight: 700');
+    const preview = readFileSync(resolve(here, "../settings/SettingsInvoicePreview.tsx"), "utf8");
+    expect(preview).toContain('previewTemplate === "klear-a4"');
+    expect(preview).toContain("scale(0.78)");
   });
 
   it("uses A4 page size with visible overflow", () => {
