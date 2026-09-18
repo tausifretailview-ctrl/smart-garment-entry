@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { CreditNoteSrRegisterSource } from "@/utils/creditNoteSrRegister";
+import type {
+  CreditNoteSrRegisterSaleReturn,
+  CreditNoteSrRegisterSource,
+  CreditNoteSrRegisterVoucher,
+} from "@/utils/creditNoteSrRegister";
 
 const PAGE = 1000;
 
@@ -37,8 +41,8 @@ export async function fetchCreditNoteSrRegisterSource(
     };
   }
 
-  const saleReturns = await fetchPaged((from, to) =>
-    supabase
+  const saleReturns = await fetchPaged<CreditNoteSrRegisterSaleReturn>(async (from, to) => {
+    const { data, error } = await supabase
       .from("sale_returns")
       .select(
         "id, return_number, return_date, created_at, customer_id, net_amount, credit_status, linked_sale_id, credit_note_id, refund_type",
@@ -47,11 +51,15 @@ export async function fetchCreditNoteSrRegisterSource(
       .is("deleted_at", null)
       .order("return_date")
       .order("id")
-      .range(from, to),
-  );
+      .range(from, to);
+    return {
+      data: (data || []) as CreditNoteSrRegisterSaleReturn[],
+      error: error ? { message: error.message } : null,
+    };
+  });
 
-  const vouchers = await fetchPaged((from, to) =>
-    supabase
+  const vouchers = await fetchPaged<CreditNoteSrRegisterVoucher>(async (from, to) => {
+    const { data, error } = await supabase
       .from("voucher_entries")
       .select(
         "voucher_type, payment_method, description, reference_id, total_amount, voucher_date, created_at, voucher_number",
@@ -60,8 +68,12 @@ export async function fetchCreditNoteSrRegisterSource(
       .eq("voucher_type", "receipt")
       .is("deleted_at", null)
       .order("id")
-      .range(from, to),
-  );
+      .range(from, to);
+    return {
+      data: (data || []) as CreditNoteSrRegisterVoucher[],
+      error: error ? { message: error.message } : null,
+    };
+  });
 
   const saleIds = new Set<string>();
   const customerIds = new Set<string>();
