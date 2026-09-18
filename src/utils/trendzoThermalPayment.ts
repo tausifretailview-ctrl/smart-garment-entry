@@ -2,7 +2,7 @@
  * Trendzo 80mm payment + party-account rows.
  *
  * Mix bills used to print "CASH + CREDIT" with no amounts. Put the rupee
- * split on that same Payment line, and Prev Bal / Advance on one pair-row.
+ * split on one pair-row, and Prev Bal / Advance on one pair-row.
  */
 
 export type TrendzoPaymentLine = { label: string; amount: number };
@@ -43,15 +43,40 @@ export function buildTrendzoPaymentLines(opts: {
   return lines;
 }
 
-/** "CASH ₹2,000.00 + CREDIT ₹2,500.00" — mix details on one payment row. */
+/** "CASH + CREDIT" — keep the Payment | Paid row short so Paid is not clipped. */
 export function formatTrendzoPaymentModeLabel(
   lines: TrendzoPaymentLine[],
   paymentMethod?: string,
 ): string {
   if (lines.length > 0) {
-    return lines.map((line) => `${line.label} ${formatTrendzoMoney(line.amount)}`).join(" + ");
+    return lines.map((line) => line.label).join(" + ");
   }
   return (paymentMethod || "CASH").toUpperCase().replace(/_/g, " ");
+}
+
+function formatTrendzoPaymentPart(line: TrendzoPaymentLine): string {
+  return `${line.label} ${formatTrendzoMoney(line.amount)}`;
+}
+
+/**
+ * Mix rupee split on one pair-row: CASH ₹2,000.00 | CREDIT ₹2,500.00.
+ * Single-mode bills skip this — Paid already shows the amount.
+ */
+export function trendzoMixAmountPair(
+  lines: TrendzoPaymentLine[],
+): { left: string; right?: string } | null {
+  if (lines.length < 2) return null;
+  if (lines.length === 2) {
+    return {
+      left: formatTrendzoPaymentPart(lines[0]),
+      right: formatTrendzoPaymentPart(lines[1]),
+    };
+  }
+  const mid = Math.ceil(lines.length / 2);
+  return {
+    left: lines.slice(0, mid).map(formatTrendzoPaymentPart).join(" + "),
+    right: lines.slice(mid).map(formatTrendzoPaymentPart).join(" + "),
+  };
 }
 
 export function trendzoPartyAccountPair(opts: {
