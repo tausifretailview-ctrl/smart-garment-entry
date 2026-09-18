@@ -138,5 +138,9 @@ describe("WholesaleGstA4Template", () => {
     const picker = readFileSync(resolve(here, "../settings/InvoiceTemplateSelectItems.tsx"), "utf8");
     expect(picker).toContain('value="wholesale-gst-a4"');
     expect(picker).toContain("Wholesale GST A4");
+    expect(picker).toMatch(/<SelectLabel>A4 Size<\/SelectLabel>[\s\S]*value="wholesale-gst-a4"/);
+    const posForm = readFileSync(resolve(here, "../settings/PosSettingsForm.tsx"), "utf8");
+    expect(posForm).toContain("InvoiceTemplateSelectItems");
+    expect(posForm).not.toContain('paperGroups={posThermal ? "thermal-80mm" : "all"}');
   });
 });

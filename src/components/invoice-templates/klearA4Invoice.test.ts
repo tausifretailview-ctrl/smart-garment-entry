@@ -106,12 +106,18 @@ describe("KlearA4Template", () => {
     expect(src).not.toMatch(/@media print[\s\S]{0,400}overflow:\s*hidden/);
   });
 
-  it("is registered as klear-a4 and does not share the Babji item table", () => {
+  it("is registered as klear-a4 for every org on the A4 Sale/POS picker", () => {
     const wrapper = readFileSync(resolve(here, "../InvoiceWrapper.tsx"), "utf8");
     expect(wrapper).toContain("KlearA4Template");
     expect(wrapper).toContain("case 'klear-a4'");
     const picker = readFileSync(resolve(here, "../settings/InvoiceTemplateSelectItems.tsx"), "utf8");
     expect(picker).toContain('value="klear-a4"');
+    expect(picker).toContain("Klear A4");
+    expect(picker).toMatch(/<SelectLabel>A4 Size<\/SelectLabel>[\s\S]*value="klear-a4"/);
+    expect(picker).not.toMatch(/organization_id|orgSlug|org_id/);
+    const posForm = readFileSync(resolve(here, "../settings/PosSettingsForm.tsx"), "utf8");
+    expect(posForm).toContain("InvoiceTemplateSelectItems");
+    expect(posForm).not.toContain('paperGroups={posThermal ? "thermal-80mm" : "all"}');
     const printFormat = readFileSync(resolve(here, "../../utils/invoicePrintFormat.ts"), "utf8");
     expect(printFormat).toContain("'klear-a4'");
   });
