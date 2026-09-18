@@ -390,6 +390,8 @@ export function SettleCustomerAccountDialog({
       queryClient,
     });
 
+    const receiptSubmissionId = newReceiptSubmissionId();
+
     const plan = allocateSettleSources({
       openingBalanceRemaining: obForPlan,
       invoices: selectedInvoiceRows,
@@ -453,6 +455,7 @@ export function SettleCustomerAccountDialog({
           organizationId,
           referenceId: customerId,
           referenceType: "customer",
+          clientRequestId: receiptRequestId(receiptSubmissionId, "ob"),
           amount: plan.cashToOb,
           discountAmount: plan.discountToOb > 0.01 ? plan.discountToOb : undefined,
           discountReason: plan.discountToOb > 0.01 ? discountReason || undefined : undefined,
@@ -516,6 +519,7 @@ export function SettleCustomerAccountDialog({
           await createReceiptVoucher(supabase, {
             organizationId,
             referenceId: row.id,
+            clientRequestId: receiptRequestId(receiptSubmissionId, row.id),
             amount: row.cash,
             discountAmount: row.discount > 0.01 ? row.discount : undefined,
             discountReason: row.discount > 0.01 ? discountReason || undefined : undefined,

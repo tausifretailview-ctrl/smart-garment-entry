@@ -910,6 +910,8 @@ export function CustomerPaymentTab({
         queryClient,
       });
 
+      const receiptSubmissionId = newReceiptSubmissionId();
+
       let remainingCash = paymentAmount;
       let remainingDiscount = discountValue;
       /** Apply settlement to invoices/OB: use cash first, then discount (matches “received + waived” mentally). */
@@ -1024,6 +1026,7 @@ export function CustomerPaymentTab({
             organizationId,
             referenceId: referenceId!,
             referenceType: "customer",
+            clientRequestId: receiptRequestId(receiptSubmissionId, "ob"),
             voucherNumber: obVoucherNumber,
             voucherDate: format(voucherDate, "yyyy-MM-dd"),
             amount: openingBalanceCash,
@@ -1076,6 +1079,7 @@ export function CustomerPaymentTab({
           const created = await createReceiptVoucher(supabase, {
             organizationId,
             referenceId: processed.invoice.id,
+            clientRequestId: receiptRequestId(receiptSubmissionId, processed.invoice.id),
             voucherNumber: invoiceVoucherNumber,
             voucherDate: format(voucherDate, "yyyy-MM-dd"),
             amount: processed.cashApplied,
@@ -1125,6 +1129,7 @@ export function CustomerPaymentTab({
             ? referenceId!
             : processedInvoices[0]?.invoice.id || referenceId!,
           referenceType: isOpeningBalancePayment ? "customer" : "sale",
+          clientRequestId: receiptRequestId(receiptSubmissionId, "single"),
           voucherNumber: voucherNumber as string,
           voucherDate: format(voucherDate, "yyyy-MM-dd"),
           amount: paymentAmount,
