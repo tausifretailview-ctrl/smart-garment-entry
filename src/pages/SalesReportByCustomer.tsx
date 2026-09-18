@@ -20,6 +20,7 @@ import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend, Pie,
 import { Badge } from "@/components/ui/badge";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
+import { salesReportTimestamptzBounds } from "@/lib/localDayBounds";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 
 interface Sale {
@@ -67,8 +68,10 @@ async function fetchSalesForReport(
       .order("sale_date", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
-    if (filters.startDate) query = query.gte("sale_date", filters.startDate);
-    if (filters.endDate) query = query.lte("sale_date", filters.endDate);
+    if (filters.startDate && filters.endDate) {
+      const { startIso, endIso } = salesReportTimestamptzBounds(filters.startDate, filters.endDate);
+      query = query.gte("sale_date", startIso).lte("sale_date", endIso);
+    }
     if (filters.customerId) query = query.eq("customer_id", filters.customerId);
     if (filters.salesman) query = query.eq("salesman", filters.salesman);
 
@@ -101,6 +104,10 @@ const SalesReportByCustomer = () => {
 
   const startDateYmd = format(startDate, "yyyy-MM-dd");
   const endDateYmd = format(endDate, "yyyy-MM-dd");
+  const reportDateBounds = useMemo(
+    () => salesReportTimestamptzBounds(startDateYmd, endDateYmd),
+    [startDateYmd, endDateYmd],
+  );
 
   const salesReportFilterSnapshot = useMemo(
     () => ({
@@ -166,13 +173,13 @@ const SalesReportByCustomer = () => {
 
   // Fetch sales with lightweight query + caching
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, startDateYmd, endDateYmd],
+    queryKey: ["sales-report", currentOrganization?.id, selectedCustomerId, selectedSalesman, reportDateBounds.fromYmd, reportDateBounds.toYmd],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
       
       const filters: any = {};
-      filters.startDate = startDateYmd;
-      filters.endDate = endDateYmd;
+      filters.startDate = reportDateBounds.fromYmd;
+      filters.endDate = reportDateBounds.toYmd;
       if (selectedCustomerId !== "all") filters.customerId = selectedCustomerId;
       if (selectedSalesman !== "all") filters.salesman = selectedSalesman;
       
@@ -194,12 +201,12 @@ const SalesReportByCustomer = () => {
 
   // RPC-powered summary (single JSON response instead of downloading all rows)
   const { data: summary } = useQuery({
-    queryKey: ["sales-report-summary-rpc", currentOrganization?.id, startDateYmd, endDateYmd, selectedCustomerId],
+    queryKey: ["sales-report-summary-rpc", currentOrganization?.id, reportDateBounds.fromYmd, reportDateBounds.toYmd, selectedCustomerId],
     queryFn: async () => {
       if (!currentOrganization?.id) return null;
       const params: any = { p_organization_id: currentOrganization.id };
-      params.p_start_date = startDateYmd;
-      params.p_end_date = endDateYmd;
+      params.p_start_date = reportDateBounds.fromYmd;
+      params.p_end_date = reportDateBounds.toYmd;
       if (selectedCustomerId !== "all") params.p_customer_id = selectedCustomerId;
       const { data, error } = await supabase.rpc("get_sales_report_summary", params);
       if (error) throw error;
@@ -325,7 +332,17 @@ const SalesReportByCustomer = () => {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 bg-background z-50" align="start">
-                  <Calendar mode="single" selected={startDate} onSelect={(d) => { setStartDate(d!); resetPage(); }} initialFocus />
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(d) => {
+                      if (!d) return;
+                      setStartDate(d);
+                      if (d > endDate) setEndDate(d);
+                      resetPage();
+                    }}
+                    initialFocus
+                  />
                 </PopoverContent>
               </Popover>
             </div>
