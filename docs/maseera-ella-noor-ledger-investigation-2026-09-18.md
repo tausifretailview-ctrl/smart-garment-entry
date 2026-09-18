@@ -348,17 +348,90 @@ Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** f
 
 **Phase 1 landed** in `fetchCustomerLedgerTransactionsWithClient`: tracing memo instead of skip; remaining from allocated CN (`saleReturnConsumedForRemaining`); `cn_adjusted` dated from the CN voucher clock. `isSaleReturnConsumedAtBilling` is unchanged.
 
+There is **no Postgres migration**. This is a ledger queryFn change. Do not write money-row SQL.
+
+Sibling-CN fallback: if FIFO allocated 0 to a later SR but the linked invoice still has `credit_note_adjustment` receipts, consume 0 (keep leftover). Fall back to linked SRA only when that invoice has **no** CN receipt (SHAHIN / billing-absorb).
+
+Live reprint of ELLA NOOR / MASEERA is blocked here (anon `42501` on `customers`; `sale_returns` RLS returns `[]`). No `.env.test` staging service_role. Reconstruct + 3a worst-case splits are the verification that can run in this environment.
+
 Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql` is the combined reference. The SQL editor ran **only the last statement** on the 18 Sep 2026 paste (same class as the KS `DO $$` 42601 failure). Use one file per run:
 
-| Paste order | File | Class | Live result |
+| Paste order | File | Class | Live result (18 Sep 2026) |
 | --- | --- | --- | --- |
-| 1a | `scripts/maseera-pop-1a-dropped-sr-headline.sql` | adjusted + linked SRs (ledger skip / now memo) | **not pasted yet** |
-| 1b | `scripts/maseera-pop-1b-dropped-sr-cn-leftover.sql` | skip + CN leftover > 0.5 (Maseera CN/119 leftover is 0 — should be absent) | **not pasted yet** |
-| 2a | `scripts/maseera-pop-2a-misdated-cn-headline.sql` | `voucher_date` ≠ `sale_date` | **not pasted yet** |
-| 2b | `scripts/maseera-pop-2b-misdated-cn-sample.sql` | sample 200 of 2a (INV/3122 should appear) | **not pasted yet** |
-| 3a | `scripts/maseera-pop-3a-split-sra-detail.sql` | two+ SRs share one `linked_sale_id` | **not pasted yet** |
-| 3b | `scripts/maseera-pop-3b-split-sra-headline.sql` | headline counts for 3a | **11 customers / 4 orgs / 11 split invoices** (18 Sep 2026) |
+| 1a | `scripts/maseera-pop-1a-dropped-sr-headline.sql` | adjusted + linked SRs (ledger skip / now memo) | **300 rows / 13 orgs** (customer_count sum 265) |
+| 1b | `scripts/maseera-pop-1b-dropped-sr-cn-leftover.sql` | skip + CN leftover > 0.5 (Maseera CN/119 leftover is 0 — should be absent) | **21 rows / 4 orgs / 21 customers. MASEERA absent** |
+| 2a | `scripts/maseera-pop-2a-misdated-cn-headline.sql` | `voucher_date` ≠ `sale_date` | **116 rows / 108 invoices / 87 customers / 5 orgs** |
+| 2b | `scripts/maseera-pop-2b-misdated-cn-sample.sql` | sample 200 of 2a (INV/3122 should appear) | **116 rows (full 2a, under cap).** MASEERA INV/3122 = 09/09 vs RCP/4837 18/09 |
+| 3a | `scripts/maseera-pop-3a-split-sra-detail.sql` | two+ SRs share one `linked_sale_id` | **11 invoices** (detail of 3b) |
+| 3b | `scripts/maseera-pop-3b-split-sra-headline.sql` | headline counts for 3a | **11 customers / 4 orgs / 11 split invoices** |
 
-Query 3b is not Maseera-only. Paste 1a/1b/2a/2b/3a next; export CSV each time.
+Query 3b is not Maseera-only.
 
-Dual-run extract fixtures (`test/helpers/customerLedgerExtractDualRun.ts`) now include MASEERA and the cross-day CN-adjust date case (20 patterns). QueryFn body ↔ golden.txt ↔ generated inline must stay in sync; dual-run is the lock that both implementations emit SR/159 memo, SR/160 remaining ₹4,150, and `cn_adjusted` on `voucher_date`.
+### Live 1a — skip / memo class (300 rows)
+
+| Org | dropped_sr_rows | customers |
+| --- | ---: | ---: |
+| ELLA NOOR | 144 | 128 |
+| ALBELI FASHION LADIES WEAR | 73 | 67 |
+| VELVET EXCLUSIVE LADIES WEAR & BAGS | 30 | 26 |
+| KS FOOTWEAR | 27 | 21 |
+| SACCHI FASHION | 6 | 5 |
+| DEMO | 5 | 4 |
+| SAAJ SILK & DESIGNER SAREES | 4 | 4 |
+| Gurukrupa Silk Sarees | 3 | 3 |
+| RANAWAT'S BLING | 2 | 1 |
+| GOPI ETHNIC COLLECTION | 2 | 2 |
+| TIRTHA COSMETICS | 2 | 2 |
+| YOUR CHOICE GIFT & TOYS | 1 | 1 |
+| AAMAN | 1 | 1 |
+
+Phase 1 turns these into tracing memos (`credit: 0`) when remaining is 0. Not a money-row repair.
+
+### Live 1b — skip + leftover (21 rows)
+
+MASEERA is **not** in this set (CN/119 leftover is 0 after RCP/4838). Four orgs: ELLA NOOR 18, SACCHI 1, TIRTHA 1, VELVET 1.
+
+Eighteen ELLA NOOR rows have CN live remaining ≈ net (status `adjusted` + linked, CN unused). Phase 1 now treats allocated 0 **with CN receipts on the invoice** as leftover (not billing-absorb). Billing-absorb / SHAHIN still uses linked SRA when voucher total is 0.
+
+### Live 2a / 2b — CN Adjust date
+
+2a `IS DISTINCT FROM` compares raw `sale_date` to `voucher_date`. 2b is the full 116 rows (not truncated).
+
+Calendar-day split of 2b:
+
+- **100 true cross-day** (MASEERA class)
+- **16 same calendar day** (timestamptz `sale_date` vs date `voucher_date` — query noise, not a print-date bug)
+
+Cross-day by org: ELLA NOOR 79, KS FOOTWEAR 18, DEMO 1, VELVET 1, Gurukrupa 1. Distinct customers 76, invoices 92.
+
+Confirmed first 2b row: **MASEERA / INV/26-27/3122 / invoice 2026-09-09 / RCP/26-27/4837 voucher 2026-09-18 / ₹8,400**. ALMAS MOTIWALA INV/26-27/3064 is 15/09 vs 16/09 (RCP/4801).
+
+Phase 1 dates `cn_adjusted` from `voucher_date`, so the 100 cross-day rows reprint on the apply day.
+
+### Live 3a / 3b — shared `linked_sale_id` (11 invoices / 4 orgs)
+
+SRA **below** SR-net sum (banner undercount shape — allocated leftover, not full invoice SRA):
+
+| Org | Customer | Invoice | SRA | SR net sum | Returns |
+| --- | --- | --- | ---: | ---: | --- |
+| ELLA NOOR | MASEERA | INV/26-27/3123 | 10700 | 23250 | SR/159, SR/160 |
+| ELLA NOOR | DR.SADAF GODIL | INV/26-27/2988 | 3800 | 6500 | SR/79, SR/152 |
+| ELLA NOOR | AMRIN BAIG | INV/26-27/1324 | 3450 | 5400 | SR/59, SR/97 |
+| ELLA NOOR | Shaista Arif Reshmawala | INV/26-27/2676 | 12750 | 13000 | SR/129, SR/130 |
+
+Six more share a linked invoice with SRA ≈ SR-net (RUBINA, Saba Ali, SHUMAMA, Tanvi Taufu, KS FOOTWEAR `Ks`, RANAWAT SWAPN). ALBELI SHRADDHA has SRA **above** SR-net and a null `return_number` — not the Maseera undercount.
+
+### Live FIFO (SQL editor 18 Sep 2026 17:03 IST) — real nets, not worst-case
+
+| Customer | Returns (live net) | CN receipts | Phase 1 remaining | Worst-case estimate | Holds? |
+| --- | --- | --- | ---: | ---: | --- |
+| MASEERA | SR/159 ₹9,400; SR/160 ₹13,850 | 3122 ₹8,400 on **18/09**; 3123 ₹1,000+₹9,700 | SR/159 memo 0; SR/160 **₹4,150** | ₹4,150 | **Yes** |
+| DR.SADAF GODIL | SR/79 ₹3,800; SR/152 ₹2,700 | 2988 ₹1,100+₹2,700; **2971 ₹2,700** | both memo 0 (152 applied to 2971) | leftover ₹2,700 | **No — ₹0 leftover** |
+| AMRIN BAIG | SR/59 ₹3,450; SR/97 ₹1,950 | 1324 ₹1,500+₹1,950; **1052 ₹1,950** | both memo 0 (97 applied to 1052) | leftover ₹1,950 | **No — ₹0 leftover** |
+| Shaista Arif Reshmawala | SR/129 ₹7,550; SR/130 ₹5,450 | 2676 ₹7,550+₹5,200 same day | SR/129 memo 0; SR/130 **₹250** | leftover ₹250 | **Yes (on SR/130 net ₹5,450)** |
+
+Shaista also has standalone **SR/134 ₹3,900 pending** (no linked invoice) — not in the 3a pair. Unclaimed = ₹250 + ₹3,900.
+
+Pass-2 leftover CN on a *different* invoice is why SADAF/AMRIN are not Maseera-class remaining undercounts. Production Phase 1 (allocated > 0) covers all four without the sibling-allocated-0 fallback.
+
+Dual-run extract fixtures (`test/helpers/customerLedgerExtractDualRun.ts`) include MASEERA, the cross-day CN-adjust date case, and the Shaista-class later-leftover fixture. QueryFn body ↔ golden.txt ↔ generated inline must stay in sync.

@@ -31,16 +31,23 @@ export function saleReturnRemainingCredit(params: {
  * SRA are not each charged the full `sales.sale_return_adjust` (Maseera: SR/160
  * remaining ₹4,150, not ₹3,150).
  *
- * When no CN voucher matched this return (billing-absorb / SHAHIN — pending CN
- * applied on the bill with no `credit_note_adjustment` receipt), fall back to
- * min(net, linked invoice SRA) so the return is not also credited as pending.
+ * When this return’s allocated slice is 0:
+ * - CN receipts exist on the linked invoice but FIFO gave them to a sibling SR
+ *   (SADAF / AMRIN / Shaista later-row leftover) → consume 0, remaining = net.
+ * - No CN receipt on that invoice (billing-absorb / SHAHIN) → fall back to
+ *   min(net, linked invoice SRA) so the return is not also credited as pending.
  */
 export function saleReturnConsumedForRemaining(params: {
   allocatedAmount: number;
   absorbedOnLinkedInvoice: number;
+  linkedSaleCnVoucherTotal?: number;
 }): number {
   const allocated = Math.max(0, Number(params.allocatedAmount) || 0);
   if (allocated > 0.005) return allocated;
+  const voucherTotal = Number(params.linkedSaleCnVoucherTotal);
+  if (Number.isFinite(voucherTotal) && voucherTotal > 0.005) {
+    return 0;
+  }
   return Math.max(0, Number(params.absorbedOnLinkedInvoice) || 0);
 }
 
