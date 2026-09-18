@@ -23,6 +23,7 @@ import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxE
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
 import { A4ElectronicTemplate } from "@/components/invoice-templates/A4ElectronicTemplate";
 import { WholesaleGstA4Template } from "@/components/invoice-templates/WholesaleGstA4Template";
+import { KlearA4Template } from "@/components/invoice-templates/KlearA4Template";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
@@ -215,6 +216,7 @@ export default function PublicInvoiceView() {
       size: item.size,
       hsn: item.hsn_code || "",
       sp: item.mrp,
+      mrp: item.mrp,
       qty: item.quantity,
       rate: item.unit_price,
       total: item.line_total,
@@ -331,6 +333,7 @@ export default function PublicInvoiceView() {
       case 'gift_tally': return <GiftTallyInvoiceTemplate {...templateProps} />;
       case 'a4-gst-classic': return <A4GstClassicInvoiceTemplate {...templateProps} />;
       case 'wholesale-gst-a4': return <WholesaleGstA4Template {...templateProps} />;
+      case 'klear-a4': return <KlearA4Template {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;

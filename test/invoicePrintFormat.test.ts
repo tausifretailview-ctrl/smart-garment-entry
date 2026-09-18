@@ -69,9 +69,9 @@ describe('resolvePosBillFormat', () => {
     expect(resolvePosBillFormat('retail-erp', 'a5', 'a4')).toBe('a5');
   });
 
-  it('forces A4 for wholesale-gst-a4 even when POS thermal is selected', () => {
-    expect(resolvePosBillFormat('wholesale-gst-a4', 'thermal', 'thermal')).toBe('a4');
-    expect(resolveSaleBillFormat('wholesale-gst-a4', 'thermal', 'thermal')).toBe('a4');
+  it('forces A4 for klear-a4 even when POS thermal is selected', () => {
+    expect(resolvePosBillFormat('klear-a4', 'thermal', 'thermal')).toBe('a4');
+    expect(resolveSaleBillFormat('klear-a4', 'thermal', 'thermal')).toBe('a4');
   });
 
   it('forces thermal for kids-80mm template', () => {
