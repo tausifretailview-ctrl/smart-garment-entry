@@ -22,6 +22,7 @@ export type InvoiceTemplateId =
   | 'retail-erp-preprinted'
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
+  | 'wholesale-gst-a4'
   | 'kids-80mm'
   | 'kids-camp-80mm'
   | 'retail-pos-80mm'
@@ -54,7 +55,12 @@ export function resolvePosInvoiceTemplate(
 }
 
 /** A4-only invoice templates — always print on A4 portrait. */
-export const A4_ONLY_INVOICE_TEMPLATES = new Set(['real-tast', 'gift_tally', 'a4-gst-classic']);
+export const A4_ONLY_INVOICE_TEMPLATES = new Set([
+  'real-tast',
+  'gift_tally',
+  'a4-gst-classic',
+  'wholesale-gst-a4',
+]);
 
 /**
  * Real Tast Bill of Supply — full A4 portrait (210×297mm), zero page margin.
@@ -287,6 +293,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'tax-invoice',
   'tally-tax-invoice',
   'a4-gst-classic',
+  'wholesale-gst-a4',
   'a4-electronic',
   'retail',
   'retail-erp',

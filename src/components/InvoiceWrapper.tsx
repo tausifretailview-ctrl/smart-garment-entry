@@ -19,6 +19,7 @@ import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { RetailTaxEzzyTemplate } from './invoice-templates/RetailTaxEzzyTemplate';
 import { WholesaleA5Template } from './invoice-templates/WholesaleA5Template';
 import { A4ElectronicTemplate } from './invoice-templates/A4ElectronicTemplate';
+import { WholesaleGstA4Template } from './invoice-templates/WholesaleGstA4Template';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
 import { ThermalPrint80mm } from './ThermalPrint80mm';
 import { ThermalReceiptCompact } from './ThermalReceiptCompact';
@@ -83,6 +84,8 @@ interface InvoiceWrapperProps {
   // Invoice Details
   billNo: string;
   date: Date;
+  /** Sale due date — Wholesale GST A4 (and similar) invoice header. */
+  dueDate?: Date | string | null;
   
   // Customer Details
   customerName: string;
@@ -314,10 +317,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         format = 'a4';
       }
     }
-    // Gift Tally / classic A4 GST textile invoice — A4 only.
+    // Gift Tally / classic A4 GST / Wholesale GST A4 — A4 only.
     if (
       !isThermalFormat &&
-      (templateForFormat === 'gift_tally' || templateForFormat === 'a4-gst-classic')
+      (templateForFormat === 'gift_tally' ||
+        templateForFormat === 'a4-gst-classic' ||
+        templateForFormat === 'wholesale-gst-a4')
     ) {
       format = 'a4';
     }
@@ -445,11 +450,11 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     const defaultReceivingBank = pickDefaultReceivingBankAccount(orgBankAccounts);
     const receivingBankDetails = organizationBankAccountToInvoiceDetails(defaultReceivingBank);
     const resolvedBankDetails =
-      templateForFormat === 'gift_tally'
+      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4'
         ? receivingBankDetails || settings?.sale_settings?.bank_details
         : settings?.sale_settings?.bank_details;
     const resolvedShowBankDetails =
-      templateForFormat === 'gift_tally'
+      templateForFormat === 'gift_tally' || templateForFormat === 'wholesale-gst-a4'
         ? !!(receivingBankDetails || settings?.sale_settings?.bank_details)
         : showBankDetails;
 
@@ -473,6 +478,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       
       invoiceNumber: props.billNo,
       invoiceDate: props.date,
+      dueDate: props.dueDate,
       invoiceTime:
         templateForFormat === 'real-tast'
           ? undefined
@@ -886,6 +892,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <GiftTallyInvoiceTemplate {...commonProps} />;
         case 'a4-gst-classic':
           return <A4GstClassicInvoiceTemplate {...commonProps} />;
+        case 'wholesale-gst-a4':
+          return <WholesaleGstA4Template {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
         case 'retail':

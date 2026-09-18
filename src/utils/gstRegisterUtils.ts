@@ -162,6 +162,14 @@ export const formatGstStateLabel = (gstin?: string | null): string => {
   return "";
 };
 
+/** Place of Supply as `27-MAHARASHTRA` (code-first GST invoice convention). */
+export const formatPlaceOfSupplyFromGstin = (gstin?: string | null): string => {
+  const { name, code } = getStateFromGSTIN(gstin);
+  if (code && name) return `${code}-${name.toUpperCase()}`;
+  if (code) return code;
+  return "";
+};
+
 // Validate GSTIN format (basic validation)
 export const validateGSTIN = (gstin: string | null): boolean => {
   if (!gstin) return false;
