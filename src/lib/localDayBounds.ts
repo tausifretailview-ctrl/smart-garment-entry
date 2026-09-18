@@ -25,6 +25,23 @@ export function localDayBounds(startYmd: string, endYmd: string): {
   return { startIso, endIso };
 }
 
+/** Inclusive calendar range for reports — swaps inverted start/end. */
+export function normalizeYmdRange(startYmd: string, endYmd: string): { fromYmd: string; toYmd: string } {
+  return startYmd <= endYmd ? { fromYmd: startYmd, toYmd: endYmd } : { fromYmd: endYmd, toYmd: startYmd };
+}
+
+/** Timestamptz bounds for `sales.sale_date` list queries (POS IST timestamps). */
+export function salesReportTimestamptzBounds(startYmd: string, endYmd: string): {
+  startIso: string;
+  endIso: string;
+  fromYmd: string;
+  toYmd: string;
+} {
+  const { fromYmd, toYmd } = normalizeYmdRange(startYmd, endYmd);
+  const { startIso, endIso } = localDayBounds(fromYmd, toYmd);
+  return { startIso, endIso, fromYmd, toYmd };
+}
+
 /** Calendar yyyy-MM-dd for a sale row (browser local timezone). */
 export function saleRowCalendarYmd(sale: {
   sale_date?: string | null;
