@@ -2199,6 +2199,7 @@ export default function SalesInvoiceDashboard() {
           format={format}
           billNo={invoiceToPrint.sale_number}
           date={new Date(invoiceToPrint.sale_date)}
+          dueDate={invoiceToPrint.due_date || null}
           customerName={invoiceToPrint.customer_name}
           customerAddress={invoiceToPrint.customer_address || ""}
           customerMobile={invoiceToPrint.customer_phone || ""}
@@ -3624,6 +3625,7 @@ export default function SalesInvoiceDashboard() {
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
               date={new Date(invoiceToPrint.sale_date)}
+              dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}
               customerAddress={invoiceToPrint.customer_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}
@@ -5345,6 +5347,7 @@ export default function SalesInvoiceDashboard() {
               format={saleInvoiceWrapperFormat}
               billNo={invoiceToPrint.sale_number}
               date={new Date(invoiceToPrint.sale_date)}
+              dueDate={invoiceToPrint.due_date || null}
               customerName={invoiceToPrint.customer_name}
               customerAddress={invoiceToPrint.customer_address || ""}
               customerMobile={invoiceToPrint.customer_phone || ""}

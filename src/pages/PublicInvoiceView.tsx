@@ -22,6 +22,7 @@ import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTempl
 import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxEzzyTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
 import { A4ElectronicTemplate } from "@/components/invoice-templates/A4ElectronicTemplate";
+import { WholesaleGstA4Template } from "@/components/invoice-templates/WholesaleGstA4Template";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
@@ -198,6 +199,7 @@ export default function PublicInvoiceView() {
     logoPlacement: settings?.logo_placement || "left",
     invoiceNumber: sale.sale_number,
     invoiceDate: new Date(sale.sale_date),
+    dueDate: sale.due_date || null,
     customerName: sale.customer_name,
     customerAddress: sale.customer_address || "",
     customerMobile: sale.customer_phone || "",
@@ -328,6 +330,7 @@ export default function PublicInvoiceView() {
       case 'tally-tax-invoice': return <TallyTaxInvoiceTemplate {...templateProps} />;
       case 'gift_tally': return <GiftTallyInvoiceTemplate {...templateProps} />;
       case 'a4-gst-classic': return <A4GstClassicInvoiceTemplate {...templateProps} />;
+      case 'wholesale-gst-a4': return <WholesaleGstA4Template {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;

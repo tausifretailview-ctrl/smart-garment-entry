@@ -120,7 +120,8 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
       ? "thermal"
       : previewTemplate === "real-tast" ||
           previewTemplate === "gift_tally" ||
-          previewTemplate === "a4-gst-classic"
+          previewTemplate === "a4-gst-classic" ||
+          previewTemplate === "wholesale-gst-a4"
         ? "a4"
         : (previewPaper as "a4" | "a5-vertical" | "a5-horizontal" | "thermal");
   const previewScale =

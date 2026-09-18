@@ -108,6 +108,12 @@ export function InvoiceTemplateSelectItems({
             A4 GST Tax Invoice — Classic (with QR)
           </span>
         </SelectItem>
+        <SelectItem value="wholesale-gst-a4">
+          <span className="flex items-center gap-2">
+            <span className="text-sky-800 font-bold text-xs w-5">WGA</span>
+            Wholesale GST A4 — Tax Invoice (per-rate CGST/SGST)
+          </span>
+        </SelectItem>
         <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
         <SelectItem value="retail">
           <span className="flex items-center gap-2">
