@@ -3,8 +3,8 @@
 **Date:** 19 Sep 2026  
 **Org:** GURUKRUPA SILK SAREES (`e8fbf0d8-182c-4364-8570-96c756b72db8`)  
 **Customer:** SHREEVASTAV, phone 9819151882  
-**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:28 IST (`…00-22-48_2474`, `…00-23-33_612c`, `…00-23-50_8008`, paste 3 `…00-28-21_f03b`).  
-**This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1128 or RCP/1129.**
+**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:28 IST (`…00-22-48_2474`, `…00-23-33_612c`, `…00-23-50_8008`, paste 3 `…00-28-21_f03b`); ledger reprints `VIMLA_YADAV_Ledger_19-09-2026_034a.pdf` (00:31) and `SANTOSH_ZADE_Ledger_19-09-2026_40d9.pdf` (00:33).  
+**This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1126, RCP/1128, RCP/1129, or RCP/1131-2.**
 
 ---
 
@@ -102,12 +102,70 @@ Photographed POS/26-27/1903 (POS Dashboard reprint, A5 Gurukrupa):
 
 ---
 
-## 6. Still needed before any repair
+## 6. VIMLA YADAV PDF — 19 Sep 2026 00:31 (`…034a.pdf`)
 
-Gurukrupa paste 3 is complete (VIMLA / SHREEVASTAV / SANTOSH). Before any mutate:
+Phone 9869426163. One invoice. Same shape as DOLLY/DIYA: prior receipt + at-sale tender already equal net.
 
-- Ledger reprint for VIMLA POS/765 and SANTOSH POS/717 (same standard as SHREEVASTAV PDF).
-- Do not touch sibling **RCP/26-27/1131-1** unless it independently has remaining_before 0.
+| Time IST | Type | Ref | Debit | Credit | Running |
+| --- | --- | --- | ---: | ---: | --- |
+| 24/05 21:21 | Invoice | POS/26-27/765 | 3,000 | | 3,000 Dr |
+| 24/05 21:21 | Payment at sale | POS/26-27/765 | | 400 | 2,600 Dr |
+| 29/05 21:46 | Payment | RCP/26-27/**1125** | | 2,600 | 0 |
+| 29/05 21:48 | Payment | RCP/26-27/**1126** | | 400 | **400 Cr** |
+
+`remaining_before` (script 3): net − SRA − prior receipts − residual tender.
+
+- **1125:** 3,000 − 0 − 0 − 400 = **₹2,600**. Genuine. Settles the leftover. **Do not delete.**
+- **1126:** 3,000 − 0 − 2,600 − 400 = **₹0**. Duplicates the at-sale ₹400, two minutes after 1125. Paste 3 row. Description `Payment for POS/26-27/765` (Customer Payment Tab).
+
+Column totals Dr ₹3,000 / Cr ₹3,400 / **400 Cr**. Recon Outstanding **400 Cr**. Header `Customer owes ₹0 − Advance held ₹0 = Net ₹0` because canonical leftover on POS/765 is already 0 (the extra ₹400 is a sale-referenced receipt, not an unused-advance booking). Removing **only 1126** lands columns and recon on ₹0, matching the header.
+
+---
+
+## 7. SANTOSH ZADE PDF — 19 Sep 2026 00:33 (`…40d9.pdf`)
+
+Phone 9324531447. Hand-trace of every row. Three displayed totals are three different views of the same ledger, not a 9th outstanding formula.
+
+| Time IST | Type | Ref | Debit | Credit | Running |
+| --- | --- | --- | ---: | ---: | --- |
+| 01/01 13:38 | Invoice + at-sale | POS/25-26/282 | 1,200 | 1,200 | 0 |
+| 12/02 20:22 | Invoice | POS/25-26/717 | 81,200 | | 81,200 Dr |
+| 12/02 20:22 | Payment at sale | POS/25-26/717 | | 75,200 | 6,000 Dr |
+| 13/02 17:55 | Invoice | POS/25-26/723 | *(no debit in columns)* | | 6,000 Dr |
+| 13/02 17:55 | CN Adjust (memo) | POS/25-26/723 | | *(info) 12,800* | 6,000 Dr |
+| 13/02 18:36 | Payment | RCP/25-26/213 | | 6,000 | 0 |
+| 23/03 11:21 | Invoice | POS/25-26/1130 | 5,800 | | 5,800 Dr |
+| 25/03 18:12 | Payment | RCP/25-26/1618 | | 5,500 | **300 Dr** |
+| 30/05 **13:09** | Payment | RCP/26-27/**1131-1** | | 5,800 | 5,500 Cr |
+| 30/05 **13:09** | Payment | RCP/26-27/**1131-2** | | 6,000 | **11,500 Cr** |
+
+Column totals Dr ₹88,200 (= 1,200 + 81,200 + 5,800; POS/723 contributes 0) / Cr ₹99,700 / running **11,500 Cr**.
+
+`remaining_before` on the 30-May pair (same formula as script 3):
+
+- **1131-2** on POS/717: 81,200 − 0 − 6,000 (RCP/213) − 75,200 tender = **₹0**. Already-zero. Duplicates the leftover that RCP/213 already cleared. Paste 3 row. Suffix `-2` = multi-invoice Customer Payment Tab (`${voucherNumber}-${i+1}`).
+- **1131-1** on POS/1130: 5,800 − 0 − 5,500 (RCP/1618) − 0 tender = **₹300**. **Not** remaining_before 0. It is an overpay of the ₹300 leftover (₹5,800 on ₹300 due). Same save, different invoice. **Keep out of this delete set.**
+
+What each printed number is:
+
+| Surface | Amount | Arithmetic |
+| --- | ---: | --- |
+| Column running | 11,500 Cr | 88,200 − 99,700 |
+| Header `Customer owes` / Net | **5,500 Cr** | 11,500 − 6,000 (1131-2 already invisible to capped leftover; 1131-1 overpay remains) |
+| Recon / banner Outstanding | 24,300 Cr | 88,200 − **12,800 CN** − 99,700. Gap vs columns is exactly the POS/723 memo CN |
+
+Removing **only 1131-2**: columns 11,500 Cr → **5,500 Cr**, matching the header Net. Genuine leftover immediately before the 30-May save is the ₹300 Dr on POS/1130. Do not also delete 1131-1, RCP/213, or RCP/1618.
+
+The CN ₹12,800 recon-vs-column split is pre-existing (memo CN Adjust vs recon `invoiceCnApplied`). It is not this duplicate’s signature and is not a repair item here.
+
+---
+
+## 8. Still needed before any repair
+
+Gurukrupa named set is hand-traced from PDFs (VIMLA / SHREEVASTAV / SANTOSH). Before any mutate:
+
+- Do **not** touch sibling **RCP/26-27/1131-1** (remaining_before ₹300).
+- Do **not** touch VIMLA **RCP/26-27/1125** (remaining_before ₹2,600).
 - At least five Velvet source invoices (DOLLY/DIYA, ANANYA, POS/85).
 - Do **not** soft-delete 1126 / 1128 / 1129 / 1131-2 or Velvet 1131–1145 until that hand-check.
 
