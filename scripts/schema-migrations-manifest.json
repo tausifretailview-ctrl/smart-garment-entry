@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-17",
-  "count": 780,
-  "fileCount": 797,
+  "generatedAt": "2026-09-18",
+  "count": 781,
+  "fileCount": 798,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -783,7 +783,8 @@
     "20261218120000",
     "20261219120000",
     "20261219120100",
-    "20261220120000"
+    "20261220120000",
+    "20261221120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1582,7 +1583,8 @@
     "20261218120000_daily_salesman_incentive.sql",
     "20261219120000_fix_party_leftover_cn_refund_sign.sql",
     "20261219120100_sr_remaining_same_customer.sql",
-    "20261220120000_get_net_profit_kpis.sql"
+    "20261220120000_get_net_profit_kpis.sql",
+    "20261221120000_seed_organization_whatsapp_settings.sql"
   ],
   "duplicateVersions": [
     {
@@ -1706,6 +1708,10 @@
     }
   ],
   "critical": [
+    {
+      "version": "20261221120000",
+      "reason": "seed_organization_whatsapp_settings — live create_organization PERFORMs it (42883 / PGRST202)"
+    },
     {
       "version": "20261220120000",
       "reason": "get_net_profit_kpis totals-only NPA RPC; get_erp_dashboard_stats drops v_dashboard_gross_profit"

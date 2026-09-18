@@ -15,6 +15,7 @@
 -- Then diff against: ls supabase/migrations/*.sql
 --
 -- Critical versions that must be live (also in CRITICAL_SCHEMA_MIGRATIONS):
+--   20261221120000  seed_organization_whatsapp_settings (create_organization PERFORM)
 --   20261001140000  purchase line-qty sold-qty stock floor
 --   20260824120000  sale settlement / payment_status normalizer
 --   20260628120000  reconcile gross invoiced CN receipts
