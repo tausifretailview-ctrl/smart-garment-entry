@@ -4,6 +4,7 @@ import {
   isPosSaleDocument,
   isPosThermalBillFormat,
   isThermal80mmInvoiceTemplate,
+  paperPatchesForInvoiceTemplate,
   posInvoiceTemplateForBillFormat,
   resolvePosBillFormat,
   resolvePosBillFormatFromSaleSettings,
@@ -72,6 +73,23 @@ describe('resolvePosBillFormat', () => {
   it('forces A4 for klear-a4 even when POS thermal is selected', () => {
     expect(resolvePosBillFormat('klear-a4', 'thermal', 'thermal')).toBe('a4');
     expect(resolveSaleBillFormat('klear-a4', 'thermal', 'thermal')).toBe('a4');
+  });
+
+  it('selecting named A4 layouts from Sale or POS dropdowns patches paper to A4', () => {
+    expect(paperPatchesForInvoiceTemplate('klear-a4', 'sale')).toEqual({
+      invoice_paper_format: 'a4',
+      sales_bill_format: 'a4',
+    });
+    expect(paperPatchesForInvoiceTemplate('klear-a4', 'pos')).toEqual({
+      pos_bill_format: 'a4',
+    });
+    expect(paperPatchesForInvoiceTemplate('wholesale-gst-a4', 'sale')).toEqual({
+      invoice_paper_format: 'a4',
+      sales_bill_format: 'a4',
+    });
+    expect(paperPatchesForInvoiceTemplate('wholesale-gst-a4', 'pos')).toEqual({
+      pos_bill_format: 'a4',
+    });
   });
 
   it('forces thermal for kids-80mm template', () => {

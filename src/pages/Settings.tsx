@@ -3462,9 +3462,9 @@ export default function Settings() {
                         : settings.sale_settings?.invoice_template === 'a4-gst-classic'
                           ? 'A4 GST Classic matches textile/wholesale Tax Invoice layout — logo, UPI QR, Billed/Shipped, transport, GST summary table, bank bar and signature.'
                         : settings.sale_settings?.invoice_template === 'wholesale-gst-a4'
-                          ? 'Wholesale GST A4 is a B2B tax invoice with logo, customer GSTIN, per-rate CGST/SGST (or IGST) rows, bank details, UPI QR and editable terms. Paper is A4 only.'
+                          ? 'Wholesale GST A4 is a named A4 layout any organization can select — logo, customer GSTIN, per-rate CGST/SGST (or IGST) rows, bank details, UPI QR and editable terms. Paper is A4 only.'
                         : settings.sale_settings?.invoice_template === 'klear-a4'
-                          ? 'Klear A4 is a footwear wholesale tax invoice: products are grouped into one row with a quantity column per size, blended CGST/SGST, bank details and UPI QR. Paper is A4 only.'
+                          ? 'Klear A4 is a named A4 layout any organization can select — one row per product with a quantity column per size, blended CGST/SGST, bank details and UPI QR. Paper is A4 only.'
                         : settings.sale_settings?.invoice_template === 'modern-wholesale'
                           ? 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1).'
                           : `Sale: ${resolveSaleInvoiceTemplate(settings.sale_settings)} · POS: ${resolvePosInvoiceTemplate(settings.sale_settings)}`}
