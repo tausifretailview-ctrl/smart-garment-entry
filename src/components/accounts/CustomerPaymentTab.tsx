@@ -23,6 +23,7 @@ import { coerceToMap, safeMapGet } from "@/lib/coerceToMap";
 import { differenceInDays, format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { newReceiptSubmissionId, receiptRequestId } from "@/utils/receiptIdempotency";
 import { toast } from "sonner";
 import {
   deleteJournalEntryByReference,
