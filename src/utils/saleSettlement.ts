@@ -348,6 +348,9 @@ export async function createReceiptVoucher(
     if (params.createdBy) {
       insertRow.created_by = params.createdBy;
     }
+    if (params.clientRequestId) {
+      insertRow.client_request_id = params.clientRequestId;
+    }
 
     const { data, error } = await supabase
       .from("voucher_entries")
@@ -362,6 +365,9 @@ export async function createReceiptVoucher(
       throw new Error("Receipt voucher insert failed");
     }
     lastError = error;
+    // Duplicate submit / already-settled bill: never retry, surface plainly.
+    const guardError = toReceiptGuardError(error);
+    if (guardError) throw guardError;
     if (!isVoucherNumberUniqueViolation(error)) throw error;
   }
 
