@@ -23,6 +23,7 @@ export type InvoiceTemplateId =
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
   | 'wholesale-gst-a4'
+  | 'klear-a4'
   | 'kids-80mm'
   | 'kids-camp-80mm'
   | 'retail-pos-80mm'
@@ -60,6 +61,7 @@ export const A4_ONLY_INVOICE_TEMPLATES = new Set([
   'gift_tally',
   'a4-gst-classic',
   'wholesale-gst-a4',
+  'klear-a4',
 ]);
 
 /**
@@ -294,6 +296,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'tally-tax-invoice',
   'a4-gst-classic',
   'wholesale-gst-a4',
+  'klear-a4',
   'a4-electronic',
   'retail',
   'retail-erp',
