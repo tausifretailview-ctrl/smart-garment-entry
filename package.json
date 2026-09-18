@@ -39,7 +39,7 @@
   "build": {
     "appId": "com.ezzyerp.desktop",
     "productName": "EzzyERP",
-    "copyright": "Copyright \u00a9 2026 EzzyERP",
+    "copyright": "Copyright © 2026 EzzyERP",
     "icon": "build/icon.png",
     "directories": {
       "output": "release",
@@ -203,6 +203,8 @@
     "@vitejs/plugin-react-swc": "^3.11.0",
     "autoprefixer": "^10.4.21",
     "concurrently": "^10.0.1",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-orm": "^0.45.2",
     "electron": "^42.3.0",
     "electron-builder": "^26.8.1",
     "eslint": "^9.32.0",
@@ -212,6 +214,7 @@
     "jsdom": "^29.1.1",
     "lovable-tagger": "^1.1.11",
     "postcss": "^8.5.6",
+    "postgres": "^3.4.9",
     "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^3.4.17",
     "terser": "^5.46.0",
