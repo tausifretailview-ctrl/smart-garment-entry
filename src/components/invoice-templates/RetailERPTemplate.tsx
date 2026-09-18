@@ -13,6 +13,7 @@ import {
   retailErpLineDisplayRate,
 } from "@/utils/retailErpInvoicePrint";
 import {
+  PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
   preprintedLetterheadLogoBox,
   shouldPrintPreprintedLetterheadLogo,
 } from "@/utils/invoicePrintFormat";
@@ -138,8 +139,8 @@ interface RetailERPTemplateProps {
   financerDetails?: any;
   instagramLink?: string;
   /**
-   * Preprinted only. When true, print `logoUrl` scaled to fit the 2in top gap.
-   * Default false — orgs with physical letterpad paper keep a blank top.
+   * Preprinted only. When true, print `logoUrl` inside the invoice frame,
+   * flush with the column table. Default false — physical letterpad stays blank.
    */
   printLogoOnPreprintedLetterhead?: boolean;
   /** Real Tast — Bill of Supply A4 (no size, payment, balance, state code).
@@ -543,10 +544,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const preprintedPadX = isPreprintedA5 ? "5.5mm" : isPreprinted ? "8mm" : pad;
   const preprintedPadRight = isPreprintedA5 ? "7mm" : isPreprinted ? "10mm" : pad;
   const preprintedPadBottom = isPreprintedA5 ? "7mm" : isPreprinted ? "8mm" : pad;
-  const letterheadLogoBox = preprintedLetterheadLogoBox(letterheadGap, {
-    contentInsetLeft: isPreprinted ? preprintedPadX : "0",
-    contentInsetRight: isPreprinted ? preprintedPadRight : "0",
-  });
+  const letterheadLogoBox = preprintedLetterheadLogoBox(letterheadGap);
+  /** Logo-on: only a printer-safe top inset — banner lives inside the table frame. */
+  const preprintedPadTop = showPreprintedLetterheadLogo
+    ? PREPRINTED_LETTERHEAD_LOGO_TOP_GAP
+    : letterheadGap;
   // Same typography as standard Retail ERP — only top letterhead gap differs.
   const fsBody = isA4 ? "13px" : "12px";
   const fsHeader = isA4 ? "14px" : "12px";
@@ -766,9 +768,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               ...(isPreprintedAny || isA5Retail || isRealTast
                 ? { minHeight: pageH, height: pageH, maxHeight: pageH, overflow: "hidden" }
                 : {}),
-              // Preprinted: only top letterhead blank (2in); rest matches Retail ERP layout.
+              // Preprinted + logo: printer-safe top inset; banner sits inside the table frame.
+              // Preprinted without logo: 2in blank for physical letterpad paper.
               // A5: tight pad so the page border prints fully inside the sheet.
-              paddingTop: isPreprinted ? letterheadGap : isA5Retail ? "3mm" : pad,
+              paddingTop: isPreprinted ? preprintedPadTop : isA5Retail ? "3mm" : pad,
               paddingRight: isPreprinted ? preprintedPadRight : isA5Retail ? "3mm" : pad,
               paddingBottom: isPreprinted ? preprintedPadBottom : isA5Retail ? "5mm" : pad,
               paddingLeft: isPreprinted ? preprintedPadX : isA5Retail ? "3mm" : pad,
@@ -781,25 +784,6 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               overflow: isPreprintedAny || isA5Retail || isRealTast ? "hidden" : "visible",
             }}
           >
-            {showPreprintedLetterheadLogo && (
-              <img
-                data-preprinted-letterhead-logo=""
-                className="retail-erp-preprinted-letterhead-logo"
-                src={logoUrl}
-                alt=""
-                style={{
-                  position: "absolute",
-                  top: letterheadLogoBox.top,
-                  left: letterheadLogoBox.left,
-                  width: letterheadLogoBox.width,
-                  height: letterheadLogoBox.height,
-                  objectFit: letterheadLogoBox.objectFit,
-                  objectPosition: "center center",
-                  printColorAdjust: "exact",
-                  WebkitPrintColorAdjust: "exact",
-                }}
-              />
-            )}
             <div
               className="retail-erp-page-border"
               style={{
@@ -815,6 +799,24 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                 boxSizing: "border-box",
               }}
             >
+            {showPreprintedLetterheadLogo && (
+              <img
+                data-preprinted-letterhead-logo=""
+                className="retail-erp-preprinted-letterhead-logo"
+                src={logoUrl}
+                alt=""
+                style={{
+                  display: "block",
+                  width: letterheadLogoBox.width,
+                  height: letterheadLogoBox.height,
+                  objectFit: letterheadLogoBox.objectFit,
+                  objectPosition: "center center",
+                  flexShrink: 0,
+                  printColorAdjust: "exact",
+                  WebkitPrintColorAdjust: "exact",
+                }}
+              />
+            )}
 
               {/* ===== HEADER — Center Aligned (skipped for preprinted letterhead) ===== */}
               {!isPreprinted && (
@@ -1823,7 +1825,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             min-height: ${isPreprintedAny || isA5Retail ? pageH : "auto"} !important;
             height: ${isPreprintedAny || isA5Retail ? pageH : "auto"} !important;
             max-height: ${isPreprintedAny || isA5Retail ? pageH : "none"} !important;
-            padding-top: ${isPreprinted ? letterheadGap : pad} !important;
+            padding-top: ${isPreprinted ? preprintedPadTop : pad} !important;
             padding-right: ${isPreprinted ? preprintedPadRight : pad} !important;
             padding-bottom: ${isPreprinted ? preprintedPadBottom : isA5Retail ? "5mm" : pad} !important;
             padding-left: ${isPreprinted ? preprintedPadX : pad} !important;
@@ -1856,13 +1858,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             overflow: hidden !important;
           }
           .retail-erp-preprinted-letterhead-logo {
-            position: absolute !important;
-            top: ${letterheadLogoBox.top} !important;
-            left: ${letterheadLogoBox.left} !important;
-            width: ${letterheadLogoBox.width} !important;
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
             height: ${letterheadLogoBox.height} !important;
             object-fit: ${letterheadLogoBox.objectFit} !important;
             object-position: center center !important;
+            flex-shrink: 0 !important;
             print-color-adjust: exact !important;
             -webkit-print-color-adjust: exact !important;
           }
