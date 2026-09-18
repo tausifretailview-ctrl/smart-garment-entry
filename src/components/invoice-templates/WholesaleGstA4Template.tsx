@@ -172,8 +172,8 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
   const b = "1px solid #222";
   const cell: React.CSSProperties = {
     border: b,
-    padding: "4px 5px",
-    fontSize: "10px",
+    padding: "5px 6px",
+    fontSize: "11px",
     verticalAlign: "top",
     lineHeight: 1.35,
     color: "#111",
@@ -183,9 +183,17 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
     fontWeight: 700,
     textAlign: "center",
     backgroundColor: "#f3f4f6",
-    fontSize: "9.5px",
+    fontSize: "11px",
     WebkitPrintColorAdjust: "exact",
     printColorAdjust: "exact",
+  };
+  const metaCell: React.CSSProperties = {
+    border: b,
+    padding: "6px 8px",
+    fontSize: "12px",
+    verticalAlign: "middle",
+    lineHeight: 1.3,
+    color: "#111",
   };
 
   return (
@@ -196,7 +204,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         minHeight: "297mm",
         padding: "8mm",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: "11px",
+        fontSize: "12px",
         color: "#111",
         background: "#fff",
         boxSizing: "border-box",
@@ -215,6 +223,9 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
             padding: 0 !important;
             overflow: visible !important;
           }
+          .wholesale-gst-a4-page-frame {
+            min-height: auto !important;
+          }
           .wholesale-gst-a4-footer {
             page-break-inside: avoid;
             break-inside: avoid;
@@ -228,36 +239,80 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         }
       `}</style>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
-        <div style={{ fontWeight: 800, fontSize: "16px", letterSpacing: "0.8px" }}>{titleText}</div>
-        <div style={{ fontSize: "9px", fontWeight: 600, color: "#444" }}>ORIGINAL FOR RECIPIENT</div>
+      <div
+        className="wholesale-gst-a4-page-frame"
+        style={{
+          border: "2px solid #111",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr auto 1fr",
+          alignItems: "center",
+          padding: "8px 12px",
+          borderBottom: "2px solid #111",
+          background: "#f3f4f6",
+          WebkitPrintColorAdjust: "exact",
+          printColorAdjust: "exact",
+        }}
+      >
+        <div />
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: "22px",
+            letterSpacing: "2.2px",
+            textAlign: "center",
+            textTransform: "uppercase",
+          }}
+        >
+          {titleText}
+        </div>
+        <div style={{ textAlign: "right", fontSize: "13px", fontWeight: 700, color: "#111" }}>
+          ORIGINAL FOR RECIPIENT
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", marginBottom: "8px" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-start",
+          padding: "10px 12px",
+          borderBottom: b,
+        }}
+      >
         {logoUrl ? (
           <img
             src={logoUrl}
             alt=""
-            style={{ width: "72px", height: "72px", objectFit: "contain", flexShrink: 0 }}
+            style={{ width: "78px", height: "78px", objectFit: "contain", flexShrink: 0 }}
           />
         ) : null}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: "18px", fontWeight: 800, textTransform: "uppercase", lineHeight: 1.15 }}>
+          <div style={{ fontSize: "26px", fontWeight: 800, textTransform: "uppercase", lineHeight: 1.15 }}>
             {businessName}
           </div>
           {gstNumber ? (
-            <div style={{ marginTop: "2px", fontWeight: 700 }}>GSTIN: {gstNumber}</div>
+            <div style={{ marginTop: "4px", fontWeight: 800, fontSize: "14px" }}>GSTIN: {gstNumber}</div>
           ) : null}
           {address ? (
-            <div style={{ marginTop: "2px", whiteSpace: "pre-line", lineHeight: 1.35 }}>{address}</div>
+            <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 600, whiteSpace: "pre-line", lineHeight: 1.4 }}>
+              {address}
+            </div>
           ) : null}
-          <div style={{ marginTop: "2px" }}>
+          <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 700 }}>
             {mobile ? <span>Mobile: {mobile}</span> : null}
             {mobile && email ? <span> &nbsp;|&nbsp; </span> : null}
             {email ? <span>Email: {email}</span> : null}
           </div>
         </div>
-        <table style={{ borderCollapse: "collapse", width: "58mm", flexShrink: 0 }}>
+        <table style={{ borderCollapse: "collapse", width: "64mm", flexShrink: 0 }}>
           <tbody>
             {[
               ["Invoice #", invoiceNumber || "—"],
@@ -266,29 +321,45 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
               ["Due Date", formatInvoiceDate(dueDate)],
             ].map(([label, value]) => (
               <tr key={label}>
-                <td style={{ ...cell, fontWeight: 700, width: "48%", background: "#f8f8f8" }}>{label}</td>
-                <td style={{ ...cell, fontWeight: 600 }}>{value}</td>
+                <td style={{ ...metaCell, fontWeight: 700, width: "46%", background: "#f3f4f6" }}>{label}</td>
+                <td style={{ ...metaCell, fontWeight: 700 }}>{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div style={{ border: b, padding: "7px 8px", marginBottom: "8px" }}>
-        <div style={{ fontWeight: 800, fontSize: "10px", marginBottom: "3px", textTransform: "uppercase" }}>
+      <div style={{ borderBottom: b }}>
+        <div
+          style={{
+            background: "#f3f4f6",
+            padding: "6px 12px",
+            fontWeight: 800,
+            fontSize: "12px",
+            letterSpacing: "0.8px",
+            textTransform: "uppercase",
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}
+        >
           Customer Details
         </div>
-        <div style={{ fontWeight: 800, fontSize: "13px" }}>{customerName || "Walk-in Customer"}</div>
-        {customerGSTIN ? <div style={{ marginTop: "2px" }}>GSTIN: {customerGSTIN}</div> : null}
-        {customerAddress ? (
-          <div style={{ marginTop: "2px" }}>
-            <span style={{ fontWeight: 700 }}>Billing Address: </span>
-            <span style={{ whiteSpace: "pre-line" }}>{customerAddress}</span>
+        <div style={{ padding: "8px 12px", fontSize: "13px", lineHeight: 1.45 }}>
+          <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>
+            {customerName || "Walk-in Customer"}
           </div>
-        ) : null}
-        {customerMobile ? <div style={{ marginTop: "2px" }}>Ph: {customerMobile}</div> : null}
+          {customerGSTIN ? <div style={{ fontWeight: 700 }}>GSTIN: {customerGSTIN}</div> : null}
+          {customerAddress ? (
+            <div>
+              <span style={{ fontWeight: 700 }}>Billing Address: </span>
+              <span style={{ whiteSpace: "pre-line" }}>{customerAddress}</span>
+            </div>
+          ) : null}
+          {customerMobile ? <div>Ph: {customerMobile}</div> : null}
+        </div>
       </div>
 
+      <div style={{ padding: "8px 12px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <colgroup>
           <col style={{ width: "22px" }} />
@@ -323,7 +394,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 <td style={cell}>
                   <div style={{ fontWeight: 700 }}>{item.particulars}</div>
                   {(item.size || item.color) && (
-                    <div style={{ fontSize: "9px", color: "#333" }}>
+                    <div style={{ fontSize: "11px", color: "#333" }}>
                       {[item.color, item.size].filter(Boolean).join(" / ")}
                     </div>
                   )}
@@ -532,6 +603,8 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
           This is a computer generated invoice.
         </div>
       )}
+      </div>
+      </div>
       </div>
     </div>
   );

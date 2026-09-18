@@ -128,9 +128,11 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
   const previewScale =
     previewFormat === "thermal" || isThermal80mmInvoiceTemplate(previewTemplate)
       ? "scale(0.9)"
-      : previewFormat === "a4"
-        ? "scale(0.6)"
-        : "scale(0.72)";
+      : previewTemplate === "klear-a4" || previewTemplate === "wholesale-gst-a4"
+        ? "scale(0.78)"
+        : previewFormat === "a4"
+          ? "scale(0.6)"
+          : "scale(0.72)";
 
   return (
     <Card className="sticky top-2 h-fit">

@@ -100,6 +100,7 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
   address,
   mobile,
   gstNumber,
+  email,
   logoUrl,
   invoiceNumber,
   invoiceDate,
@@ -177,8 +178,8 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
   const b = "1px solid #222";
   const cell: React.CSSProperties = {
     border: b,
-    padding: "3px 3px",
-    fontSize: "8.5px",
+    padding: "4px 4px",
+    fontSize: "10px",
     verticalAlign: "middle",
     color: "#111",
   };
@@ -187,9 +188,17 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
     fontWeight: 700,
     textAlign: "center",
     backgroundColor: "#f3f4f6",
-    fontSize: "8.5px",
+    fontSize: "10px",
     WebkitPrintColorAdjust: "exact",
     printColorAdjust: "exact",
+  };
+  const metaCell: React.CSSProperties = {
+    border: b,
+    padding: "6px 8px",
+    fontSize: "12px",
+    verticalAlign: "middle",
+    color: "#111",
+    lineHeight: 1.3,
   };
 
   const productLabel = (row: { productName: string; color: string }) => {
@@ -208,7 +217,7 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
         minHeight: "297mm",
         padding: "8mm",
         fontFamily: "Arial, Helvetica, sans-serif",
-        fontSize: "10px",
+        fontSize: "12px",
         color: "#111",
         background: "#fff",
         boxSizing: "border-box",
@@ -227,6 +236,9 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
             padding: 0 !important;
             overflow: visible !important;
           }
+          .klear-a4-page-frame {
+            min-height: auto !important;
+          }
           .klear-a4-footer {
             page-break-inside: avoid;
             break-inside: avoid;
@@ -234,26 +246,72 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
         }
       `}</style>
 
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "9px", fontWeight: 700 }}>
-        <div>Tax Invoice</div>
-        <div>Credit Memo</div>
+      <div
+        className="klear-a4-page-frame"
+        style={{
+          border: "2px solid #111",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "8px 12px",
+          borderBottom: "2px solid #111",
+          background: "#f3f4f6",
+          WebkitPrintColorAdjust: "exact",
+          printColorAdjust: "exact",
+        }}
+      >
+        <div style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "0.4px" }}>Tax Invoice</div>
+        <div style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "0.4px" }}>Credit Memo</div>
       </div>
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "flex-start", marginTop: "6px" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: "12px",
+          alignItems: "flex-start",
+          padding: "10px 12px",
+          borderBottom: b,
+        }}
+      >
         {logoUrl ? (
-          <img src={logoUrl} alt="" style={{ width: "56px", height: "56px", objectFit: "contain" }} />
+          <img src={logoUrl} alt="" style={{ width: "72px", height: "72px", objectFit: "contain", flexShrink: 0 }} />
         ) : null}
-        <div style={{ flex: 1, textAlign: "center" }}>
-          <div style={{ fontSize: "20px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.4px" }}>
+        <div style={{ flex: 1, textAlign: "center", minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: "26px",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: "0.6px",
+              lineHeight: 1.15,
+            }}
+          >
             {businessName}
           </div>
-          {address ? <div style={{ marginTop: "2px", whiteSpace: "pre-line" }}>{address}</div> : null}
-          <div style={{ marginTop: "2px" }}>
+          {address ? (
+            <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 600, whiteSpace: "pre-line", lineHeight: 1.4 }}>
+              {address}
+            </div>
+          ) : null}
+          <div style={{ marginTop: "4px", fontSize: "13px", fontWeight: 700, lineHeight: 1.45 }}>
             {mobile ? <span>Mob.: {mobile}</span> : null}
             {gstNumber ? <span>{mobile ? "  |  " : ""}GSTIN: {gstNumber}</span> : null}
+            {email ? (
+              <span>
+                {mobile || gstNumber ? "  |  " : ""}Email: {email}
+              </span>
+            ) : null}
           </div>
         </div>
-        <table style={{ borderCollapse: "collapse", width: "58mm", flexShrink: 0 }}>
+        <table style={{ borderCollapse: "collapse", width: "64mm", flexShrink: 0 }}>
           <tbody>
             {[
               ["Bill No", invoiceNumber || "—"],
@@ -264,24 +322,42 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
               ["No. of Cartons", "—"],
             ].map(([label, value]) => (
               <tr key={label}>
-                <td style={{ ...cell, fontWeight: 700, width: "48%", background: "#f8f8f8" }}>{label}</td>
-                <td style={cell}>{value}</td>
+                <td style={{ ...metaCell, fontWeight: 700, width: "46%", background: "#f3f4f6" }}>{label}</td>
+                <td style={{ ...metaCell, fontWeight: 700 }}>{value}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div style={{ border: b, padding: "6px 8px", marginTop: "8px" }}>
-        <div style={{ fontWeight: 800, fontSize: "9px", textTransform: "uppercase" }}>Billed To</div>
-        <div style={{ fontWeight: 800, fontSize: "12px" }}>{customerName || "Walk-in Customer"}</div>
-        {customerGSTIN ? <div>GSTIN: {customerGSTIN}</div> : null}
-        {customerAddress ? <div style={{ whiteSpace: "pre-line" }}>Add.: {customerAddress}</div> : null}
-        <div>State: {placeOfSupply}</div>
-        {customerMobile ? <div>Mob.: {customerMobile}</div> : null}
+      <div style={{ borderBottom: b }}>
+        <div
+          style={{
+            background: "#f3f4f6",
+            padding: "6px 12px",
+            fontWeight: 800,
+            fontSize: "12px",
+            letterSpacing: "0.8px",
+            textTransform: "uppercase",
+            WebkitPrintColorAdjust: "exact",
+            printColorAdjust: "exact",
+          }}
+        >
+          Billed To
+        </div>
+        <div style={{ padding: "8px 12px", fontSize: "13px", lineHeight: 1.45 }}>
+          <div style={{ fontWeight: 800, fontSize: "16px", marginBottom: "3px" }}>
+            {customerName || "Walk-in Customer"}
+          </div>
+          {customerGSTIN ? <div style={{ fontWeight: 700 }}>GSTIN: {customerGSTIN}</div> : null}
+          {customerAddress ? <div style={{ whiteSpace: "pre-line" }}>Add.: {customerAddress}</div> : null}
+          <div>State: {placeOfSupply}</div>
+          {customerMobile ? <div>Mob.: {customerMobile}</div> : null}
+        </div>
       </div>
 
-      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: "8px" }}>
+      <div style={{ padding: "8px 12px 10px", flex: 1, display: "flex", flexDirection: "column" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", marginTop: "0" }}>
         <colgroup>
           <col style={{ width: "16%" }} />
           <col style={{ width: "9%" }} />
@@ -498,6 +574,8 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
             This is a computer generated invoice.
           </div>
         )}
+      </div>
+      </div>
       </div>
     </div>
   );
