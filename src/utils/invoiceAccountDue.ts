@@ -37,6 +37,25 @@ export function invoiceTotalDue(previousBalance: number, thisBillBalance: number
   return Number(previousBalance) + Number(thisBillBalance);
 }
 
+/**
+ * Gurukrupa A5 account lines: print Outstanding and Advance separately.
+ * Outstanding is live invoice leftover (Prev Bal + this-bill Balance).
+ * Total Due = outstanding − unused advance (net), so both facets stay visible.
+ */
+export function gurukrupaInvoiceAccountLines(opts: {
+  previousBalance: number;
+  thisBillBalance: number;
+  unusedAdvance: number;
+}): { outstanding: number; advance: number; totalDue: number } {
+  const outstanding = Math.round(invoiceTotalDue(opts.previousBalance, opts.thisBillBalance) * 100) / 100;
+  const advance = Math.max(0, Math.round((Number(opts.unusedAdvance) || 0) * 100) / 100);
+  return {
+    outstanding,
+    advance,
+    totalDue: Math.round((outstanding - advance) * 100) / 100,
+  };
+}
+
 /** Prev Bal + this-bill Balance + Total Due from one account snapshot. */
 export function invoicePrintBalances(opts: {
   accountOutstanding: number;

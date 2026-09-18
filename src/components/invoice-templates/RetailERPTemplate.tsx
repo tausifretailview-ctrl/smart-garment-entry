@@ -2,7 +2,11 @@ import React from "react";
 import { numberToWords } from "@/lib/utils";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
-import { invoiceThisBillBalance, invoiceTotalDue } from "@/utils/invoiceAccountDue";
+import {
+  gurukrupaInvoiceAccountLines,
+  invoiceThisBillBalance,
+  invoiceTotalDue,
+} from "@/utils/invoiceAccountDue";
 import {
   retailErpDisplayDiscount,
   retailErpLineDisplayRate,
@@ -73,6 +77,8 @@ interface RetailERPTemplateProps {
   creditAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
+  /** Unused customer advance (Gurukrupa A5 prints this separately from Outstanding). */
+  unusedAdvance?: number;
   pointsRedeemedAmount?: number;
 
   qrCodeUrl?: string;
@@ -178,6 +184,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   creditAmount,
   paidAmount = 0,
   previousBalance = 0,
+  unusedAdvance = 0,
   pointsRedeemedAmount = 0,
   qrCodeUrl,
   termsConditions = [],
@@ -227,8 +234,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const A5_RETAIL_SN_ROWS = 8;
   /** Real Tast A4: enough empty SN lines so the bordered sheet fills 297mm (old print). */
   const REAL_TAST_SN_ROWS = 16;
-  /** Gurukrupa A5: 10 SN lines — Amount in Words and Payment rows are omitted. */
-  const GURUKRUPA_SN_ROWS = 10;
+  /** Gurukrupa A5: 9 SN lines — extra footer row for Outstanding / Advance / Total Due. */
+  const GURUKRUPA_SN_ROWS = 9;
   const a5SnRows = isGurukrupa ? GURUKRUPA_SN_ROWS : A5_RETAIL_SN_ROWS;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? a5SnRows : 12;
   const TARGET_ROWS = isRealTast
@@ -509,7 +516,16 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       ? Math.min(billTotal, mixAppliedTotal)
       : Math.min(billTotal, settledPaid > 0 ? settledPaid : 0);
   const currentBalance = invoiceThisBillBalance(billTotal, receivedToday);
-  const totalDue = invoiceTotalDue(previousBalance, currentBalance);
+  const gurukrupaAccount = isGurukrupa
+    ? gurukrupaInvoiceAccountLines({
+        previousBalance,
+        thisBillBalance: currentBalance,
+        unusedAdvance,
+      })
+    : null;
+  const totalDue = gurukrupaAccount
+    ? gurukrupaAccount.totalDue
+    : invoiceTotalDue(previousBalance, currentBalance);
   const printDueColor = isGurukrupa ? "#000" : undefined;
   const billBalanceColor = printDueColor ?? (currentBalance > 0 ? "#dc2626" : "#16a34a");
   const accountDueColor = printDueColor ?? (totalDue > 0 ? "#dc2626" : "#16a34a");
@@ -1474,7 +1490,51 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Balance rows — hidden on Real Tast and Zaika */}
                   {!isRealTast && !isZaika && (
-                  isA5Retail ? (
+                  isGurukrupa ? (
+                    <div style={{ borderBottom: B, fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
+                      <div style={{ display: "flex", borderBottom: B }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            borderRight: B,
+                            padding: "3px 6px",
+                            textAlign: "center",
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          <strong>Received:</strong> ₹{fmt(receivedToday)}
+                        </div>
+                        <div style={{ flex: 1, padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                          <strong>Balance:</strong>{" "}
+                          <span style={{ color: billBalanceColor, fontWeight: 900 }}>
+                            ₹{fmt(currentBalance)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", borderBottom: B }}>
+                        <div
+                          style={{
+                            flex: 1,
+                            borderRight: B,
+                            padding: "3px 6px",
+                            textAlign: "center",
+                            lineHeight: 1.25,
+                          }}
+                        >
+                          <strong>Outstanding:</strong> ₹{fmt(gurukrupaAccount?.outstanding ?? 0)}
+                        </div>
+                        <div style={{ flex: 1, padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                          <strong>Advance:</strong> ₹{fmt(gurukrupaAccount?.advance ?? 0)}
+                        </div>
+                      </div>
+                      <div style={{ padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                        <strong>Total Due:</strong>{" "}
+                        <span style={{ color: accountDueColor, fontWeight: 900 }}>
+                          ₹{fmt(totalDue)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : isA5Retail ? (
                     <div style={{ borderBottom: B, fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
                       <div style={{ display: "flex", borderBottom: B }}>
                         <div

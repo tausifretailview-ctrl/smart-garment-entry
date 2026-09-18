@@ -100,6 +100,39 @@ export async function fetchCustomerAccountStateView(
   };
 }
 
+export type InvoicePrintAccountFacets = {
+  previousBalance: number;
+  unusedAdvance: number;
+};
+
+/**
+ * Prev Bal + unused advance for invoice print from live invoice leftover.
+ * Total Due in non-Gurukrupa templates is Prev Bal + this bill's unpaid Balance.
+ * Gurukrupa prints Outstanding and Advance separately.
+ */
+export async function fetchInvoicePrintAccountFacets(
+  client: SupabaseClient,
+  organizationId: string,
+  customerId: string | null | undefined,
+  opts: {
+    billTotal: number;
+    receivedToday: number;
+    accountIncludesThisBill: boolean;
+  },
+): Promise<InvoicePrintAccountFacets> {
+  if (!customerId || !organizationId) return { previousBalance: 0, unusedAdvance: 0 };
+  const view = await fetchCustomerAccountStateView(client, organizationId, customerId);
+  const thisBill = invoiceThisBillBalance(opts.billTotal, opts.receivedToday);
+  return {
+    previousBalance: invoicePreviousBalanceFromAccount({
+      accountOutstanding: view.outstanding,
+      thisBillBalance: thisBill,
+      accountIncludesThisBill: opts.accountIncludesThisBill,
+    }),
+    unusedAdvance: Math.max(0, Math.round(Number(view.unusedAdvance) || 0)),
+  };
+}
+
 /**
  * Prev Bal for POS / dashboard invoice print from live invoice leftover.
  * Total Due in the template is Prev Bal + this bill's unpaid Balance.
@@ -114,14 +147,8 @@ export async function fetchInvoicePrintPreviousBalance(
     accountIncludesThisBill: boolean;
   },
 ): Promise<number> {
-  if (!customerId || !organizationId) return 0;
-  const view = await fetchCustomerAccountStateView(client, organizationId, customerId);
-  const thisBill = invoiceThisBillBalance(opts.billTotal, opts.receivedToday);
-  return invoicePreviousBalanceFromAccount({
-    accountOutstanding: view.outstanding,
-    thisBillBalance: thisBill,
-    accountIncludesThisBill: opts.accountIncludesThisBill,
-  });
+  return (await fetchInvoicePrintAccountFacets(client, organizationId, customerId, opts))
+    .previousBalance;
 }
 
 export function formatAccountInr(n: number): string {
