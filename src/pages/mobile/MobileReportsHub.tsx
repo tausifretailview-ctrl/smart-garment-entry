@@ -96,6 +96,7 @@ export default function MobileReportsHub() {
         { icon: TrendingUp, label: "Profit Analysis", path: "/net-profit-analysis", desc: "Gross/Net profit" },
         { icon: FileText, label: "Account statement (audit)", path: "/customer-account-statement-audit", desc: "Audit register for comparison" },
         { icon: ShieldCheck, label: "Customer Audit", path: "/customer-audit-report", desc: "Verified customer outstanding" },
+        { icon: FileText, label: "CN / S-R Register", path: "/cn-sr-adjustment-register", desc: "Sale-return credit notes remaining" },
         { icon: Receipt, label: "GST Report", path: "/gst-reports", desc: "GST summaries" },
       ]
     },

@@ -123,6 +123,15 @@ const ALL_REPORTS: ReportItem[] = [
     permissionAlt: "sale_return",
   },
   {
+    icon: FileSpreadsheet,
+    label: "CN / S-R Adjustment Register",
+    path: "/cn-sr-adjustment-register",
+    desc: "Credit notes from sale returns, applied and remaining",
+    tab: "sales",
+    permission: "sale_return_dashboard",
+    permissionAlt: "sale_return",
+  },
+  {
     icon: LineChart,
     label: "Daily Sale Analysis",
     path: "/daily-sale-analysis",

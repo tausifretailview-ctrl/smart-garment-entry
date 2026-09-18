@@ -133,6 +133,9 @@ const ReportsHub = lazyWithRetry(() => import("./pages/ReportsHub"));
 const BusinessInsights = lazyWithRetry(() => import("./pages/BusinessInsights"));
 const CustomerLedgerPage = lazyWithRetry(() => import("./pages/CustomerLedgerPage"));
 const CustomerAuditReport = lazyWithRetry(() => import("./pages/CustomerAuditReport"));
+const CreditNoteSrAdjustmentRegister = lazyWithRetry(
+  () => import("./pages/CreditNoteSrAdjustmentRegister"),
+);
 const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
 const CustomerPointsReport = lazyWithRetry(() => import("./pages/CustomerPointsReport"));
 const CustomerAccountStatementAuditPage = lazyWithRetry(
@@ -1489,6 +1492,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerAuditReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="cn-sr-adjustment-register"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CreditNoteSrAdjustmentRegister />
                       </Layout>
                     </ProtectedRoute>
                   }

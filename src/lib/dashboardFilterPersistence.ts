@@ -35,6 +35,7 @@ export const WINDOW_FILTER_IDS = {
   itemWiseStock: "item-wise-stock",
   stockAgeing: "stock-ageing",
   expenseSalaryReport: "expense-salary-report",
+  cnSrAdjustmentRegister: "cn-sr-adjustment-register",
   einvoiceReport: "einvoice-report",
   customerAuditReport: "customer-audit-report",
   customerLedgerReport: "customer-ledger-report",

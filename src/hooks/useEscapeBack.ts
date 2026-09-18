@@ -51,6 +51,7 @@ const BACK_MAP: Record<string, string> = {
   "sales-report":             "/",
   "salesman-commission":      "/",
   "expense-salary-report":    "/",
+  "cn-sr-adjustment-register": "/",
   "customer-account-statement":       "/",
   "customer-account-statement-audit": "/",
   "customer-balance-activity":        "/",
