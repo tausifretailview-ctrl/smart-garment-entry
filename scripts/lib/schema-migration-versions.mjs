@@ -8,6 +8,10 @@ export const MIGRATION_VERSION_RE = /^(\d{14})_/;
 /** Critical fixes that must be applied live — called out first in drift reports. */
 export const CRITICAL_SCHEMA_MIGRATIONS = [
   {
+    version: "20261221120000",
+    reason: "seed_organization_whatsapp_settings — live create_organization PERFORMs it (42883 / PGRST202)",
+  },
+  {
     version: "20261220120000",
     reason: "get_net_profit_kpis totals-only NPA RPC; get_erp_dashboard_stats drops v_dashboard_gross_profit",
   },

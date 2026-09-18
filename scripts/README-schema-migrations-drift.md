@@ -64,7 +64,7 @@ Production is refused unless you pass `--allow-production` or set `ALLOW_PRODUCT
 
 ## What it reports
 
-1. **CRITICAL** versions in `CRITICAL_SCHEMA_MIGRATIONS` (purchase stock floor, settlement normalizer, CN reconcile) that are not live.
+1. **CRITICAL** versions in `CRITICAL_SCHEMA_MIGRATIONS` (WhatsApp org-create seed, purchase stock floor, settlement normalizer, CN reconcile) that are not live.
 2. In repo, not live — committed SQL that never ran.
 3. In live, not repo — applied outside git.
 

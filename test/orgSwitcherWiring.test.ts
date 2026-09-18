@@ -97,4 +97,14 @@ describe("create_organization safety (self-serve additional org)", () => {
     expect(page).not.toMatch(/You already have an organization/);
     expect(page).not.toMatch(/platform_create_organization/);
   });
+
+  it("WhatsApp seed restore does not rewrite create_organization", async () => {
+    const restore = await readFile(
+      path.join(ROOT, "supabase/migrations/20261221120000_seed_organization_whatsapp_settings.sql"),
+      "utf8",
+    );
+    expect(restore).toMatch(/CREATE OR REPLACE FUNCTION public\.seed_organization_whatsapp_settings/);
+    expect(restore).not.toMatch(/CREATE OR REPLACE FUNCTION public\.create_organization/);
+    expect(restore).not.toMatch(/CREATE OR REPLACE FUNCTION public\.platform_create_organization/);
+  });
 });
