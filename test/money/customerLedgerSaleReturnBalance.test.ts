@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   allocateCnAdjustmentsToSaleReturns,
+  saleReturnConsumedForRemaining,
   saleReturnRemainingCredit,
   saleReturnRunningBalanceCredit,
   walkLedgerSignedBalance,
@@ -65,5 +66,34 @@ describe("allocateCnAdjustmentsToSaleReturns — leftover on linked SRs", () => 
       { "inv-3009": "INV/26-27/3009", "inv-3064": "INV/26-27/3064" },
     );
     expect(map["sr-153"].applied).toBe(6500);
+  });
+});
+
+describe("saleReturnConsumedForRemaining", () => {
+  it("Maseera: uses allocated ₹9,700, not full linked SRA ₹10,700", () => {
+    expect(
+      saleReturnConsumedForRemaining({
+        allocatedAmount: 9_700,
+        absorbedOnLinkedInvoice: 10_700,
+      }),
+    ).toBe(9_700);
+    expect(
+      saleReturnRemainingCredit({
+        grossNetAmount: 13_850,
+        consumedAmount: saleReturnConsumedForRemaining({
+          allocatedAmount: 9_700,
+          absorbedOnLinkedInvoice: 10_700,
+        }),
+      }),
+    ).toBe(4_150);
+  });
+
+  it("billing-absorb / SHAHIN: no CN voucher → consume linked SRA so remaining is 0", () => {
+    expect(
+      saleReturnConsumedForRemaining({
+        allocatedAmount: 0,
+        absorbedOnLinkedInvoice: 2_000,
+      }),
+    ).toBe(2_000);
   });
 });

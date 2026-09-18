@@ -344,6 +344,8 @@ Next (when asked): population SQL results, then a remainingCredit change that us
 
 ## Phase 0 fixtures (no production code)
 
-Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** figures (SR/159 memo credit 0; SR/160 remaining / banner / Unclaimed all ₹4,150; `cn_adjusted` date = voucher_date). They are **RED** against current `fetchCustomerLedgerTransactionsWithClient` until Phase 1.
+Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** figures (SR/159 memo credit 0; SR/160 remaining / banner / Unclaimed all ₹4,150; `cn_adjusted` date = voucher_date).
 
-Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql`.
+**Phase 1 landed** in `fetchCustomerLedgerTransactionsWithClient`: tracing memo instead of skip; remaining from allocated CN (`saleReturnConsumedForRemaining`); `cn_adjusted` dated from the CN voucher clock. `isSaleReturnConsumedAtBilling` is unchanged.
+
+Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql`. Query 3b live paste 18 Sep 2026: **11 customers / 4 orgs / 11 split invoices**.
