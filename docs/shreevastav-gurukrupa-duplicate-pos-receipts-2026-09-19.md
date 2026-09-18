@@ -172,3 +172,5 @@ Gurukrupa named set is hand-traced from PDFs (VIMLA / SHREEVASTAV / SANTOSH). Be
 - Do **not** soft-delete 1126 / 1128 / 1129 / 1131-2 or Velvet 1131–1145 until that hand-check.
 
 Paste files remain: `scripts/shreevastav-dup-*.sql`.
+
+The 18 Sep org-wide audit in `docs/duplicate-receipt-audit-2026-09-18.md` first missed at-sale tender on these three Gurukrupa bills (VIMLA called clean, SHREEVASTAV over-credit ₹2,100, SANTOSH 717 called unpaid). Those Gurukrupa rows now follow this PDF reconstruction. Velvet STEP 1 in that audit is a separate hand-check.
