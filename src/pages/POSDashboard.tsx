@@ -140,6 +140,11 @@ import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import {
+  describeReceiptGuardError,
+  newReceiptSubmissionId,
+  receiptRequestId,
+} from "@/utils/receiptIdempotency";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import {
   getEffectivePaidAmountForPosDashboard,
@@ -2200,6 +2205,9 @@ const POSDashboard = () => {
 
     let insertedVoucherId: string | null = null;
     const isAdvanceApply = paymentMode === "advance";
+    // One id per submit: a retry of THIS submit is rejected by the DB, a new
+    // deliberate payment gets a new id and is never blocked.
+    const receiptSubmissionId = newReceiptSubmissionId();
 
     try {
       let voucherData = "";
@@ -2268,6 +2276,7 @@ const POSDashboard = () => {
           description: receiptDescription,
           voucherDate: voucherDateYmd,
           createdBy: user?.id ?? null,
+          clientRequestId: receiptRequestId(receiptSubmissionId, saleId),
         });
         insertedVoucherId = created.id;
         voucherData = created.voucher_number;
@@ -2371,9 +2380,10 @@ const POSDashboard = () => {
           // Best-effort restore sale row from remaining vouchers.
         }
       }
+      const guardMessage = describeReceiptGuardError(error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to record payment",
+        title: guardMessage ? "Payment not recorded" : "Error",
+        description: guardMessage || error.message || "Failed to record payment",
         variant: "destructive",
       });
     } finally {

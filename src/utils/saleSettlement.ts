@@ -14,6 +14,7 @@ import {
   type CreditNoteLiveRow,
 } from "@/utils/saleReturnCnBalance";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
+import { toReceiptGuardError } from "@/utils/receiptIdempotency";
 
 /**
  * DB is authoritative for payment_status on persisted sales:
@@ -92,6 +93,12 @@ export type CreateReceiptVoucherParams = {
   createdBy?: string | null;
   /** Default `sale` — invoice-linked receipts must use `sale` to avoid mis-tagged customer rows. */
   referenceType?: "sale" | "customer";
+  /**
+   * Idempotency key for this voucher within one user submit
+   * ({@link receiptRequestId}). A retry of the same submit is rejected by
+   * `uq_voucher_entries_client_request_active` instead of double-crediting.
+   */
+  clientRequestId?: string | null;
   /**
    * Internal: skip {@link ensureAtSaleTenderReceipt}. Set only by the backfill itself
    * (and by callers that are recording the at-sale tender as this very receipt).
@@ -341,6 +348,9 @@ export async function createReceiptVoucher(
     if (params.createdBy) {
       insertRow.created_by = params.createdBy;
     }
+    if (params.clientRequestId) {
+      insertRow.client_request_id = params.clientRequestId;
+    }
 
     const { data, error } = await supabase
       .from("voucher_entries")
@@ -355,6 +365,9 @@ export async function createReceiptVoucher(
       throw new Error("Receipt voucher insert failed");
     }
     lastError = error;
+    // Duplicate submit / already-settled bill: never retry, surface plainly.
+    const guardError = toReceiptGuardError(error);
+    if (guardError) throw guardError;
     if (!isVoucherNumberUniqueViolation(error)) throw error;
   }
 

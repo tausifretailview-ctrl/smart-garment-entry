@@ -22,6 +22,11 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  describeReceiptGuardError,
+  newReceiptSubmissionId,
+  receiptRequestId,
+} from "@/utils/receiptIdempotency";
+import {
   deleteJournalEntryByReference,
   recordCustomerReceiptJournalEntry,
   recordExpenseVoucherJournalEntry,
@@ -508,6 +513,8 @@ function CustomerPaymentForm({
         }
       };
 
+      const receiptSubmissionId = newReceiptSubmissionId();
+
       try {
         if (!isOpeningBalancePayment && processedInvoices.length > 0) {
           for (let i = 0; i < processedInvoices.length; i++) {
@@ -526,6 +533,7 @@ function CustomerPaymentForm({
                 description: desc,
                 total_amount: p.amountApplied,
                 payment_method: paymentMethod,
+                client_request_id: receiptRequestId(receiptSubmissionId, p.invoice.id),
               })
               .select("id")
               .single();
@@ -561,6 +569,7 @@ function CustomerPaymentForm({
               description: desc,
               total_amount: paymentAmount,
               payment_method: paymentMethod,
+              client_request_id: receiptRequestId(receiptSubmissionId, "single"),
             })
             .select("id")
             .single();
@@ -645,7 +654,7 @@ function CustomerPaymentForm({
       }
       resetForm();
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(describeReceiptGuardError(e) || e.message),
   });
 
   return (

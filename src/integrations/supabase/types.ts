@@ -7836,6 +7836,7 @@ export type Database = {
       voucher_entries: {
         Row: {
           category: string | null
+          client_request_id: string | null
           created_at: string | null
           created_by: string | null
           deleted_at: string | null
@@ -7860,6 +7861,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          client_request_id?: string | null
           created_at?: string | null
           created_by?: string | null
           deleted_at?: string | null
@@ -7884,6 +7886,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          client_request_id?: string | null
           created_at?: string | null
           created_by?: string | null
           deleted_at?: string | null

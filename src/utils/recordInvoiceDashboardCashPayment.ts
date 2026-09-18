@@ -4,6 +4,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import { recordCustomerReceiptJournalEntry } from "@/utils/accounting/journalService";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { createReceiptVoucher } from "@/utils/saleSettlement";
+import { newReceiptSubmissionId, receiptRequestId } from "@/utils/receiptIdempotency";
 
 export type BulkCashPaymentInvoice = {
   id: string;
@@ -55,6 +56,8 @@ export async function recordInvoiceFullCashPayment(
     createdBy?: string | null;
     paymentDate?: Date;
     narrationSuffix?: string;
+    /** Idempotency scope; one per user submit (bulk runs pass a shared id). */
+    submissionId?: string;
   },
 ): Promise<RecordInvoiceCashPaymentResult> {
   const { organizationId, invoice, createdBy, paymentDate = new Date(), narrationSuffix } =
@@ -78,6 +81,10 @@ export async function recordInvoiceFullCashPayment(
       referenceId: invoice.id,
       amount: outstanding,
       paymentMethod: "cash",
+      clientRequestId: receiptRequestId(
+        params.submissionId || newReceiptSubmissionId(),
+        invoice.id,
+      ),
       description: `Payment received for invoice ${invoice.sale_number}${suffix}`,
       voucherDate: payYmd,
       createdBy: createdBy ?? null,
