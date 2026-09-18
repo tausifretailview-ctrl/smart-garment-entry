@@ -75,6 +75,31 @@ export function invalidateStockReportQueries(
   invalidateStatusBarSummary(queryClient, organizationId);
 }
 
+/**
+ * Product Dashboard catalog + KPI tiles use refetchOnMount: false, so a stale
+ * mark alone is not enough after Product Entry save — refetch inactive queries too.
+ */
+export function invalidateProductDashboardQueries(
+  queryClient: QueryClient,
+  organizationId?: string,
+) {
+  const opts = { refetchType: "all" as const };
+  const catalog = queryClient.invalidateQueries({
+    queryKey: organizationId ? ["product-catalog", organizationId] : ["product-catalog"],
+    ...opts,
+  });
+  const stats = queryClient.invalidateQueries({
+    queryKey: organizationId ? ["product-dashboard-stats", organizationId] : ["product-dashboard-stats"],
+    ...opts,
+  });
+  const filters = queryClient.invalidateQueries({
+    queryKey: organizationId ? ["product-filter-options", organizationId] : ["product-filter-options"],
+    ...opts,
+  });
+  invalidateStockReportQueries(queryClient, organizationId);
+  return Promise.all([catalog, stats, filters]);
+}
+
 /** Purchase bill list + summary tiles + shared dashboard stats. */
 export function invalidatePurchaseDashboardQueries(
   queryClient: QueryClient,

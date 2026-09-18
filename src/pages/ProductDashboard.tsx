@@ -49,7 +49,7 @@ import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { ProductRelationDialog } from "@/components/ProductRelationDialog";
-import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
+import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ProductImageGallery, ProductImage } from "@/components/ProductImageGallery";
@@ -881,12 +881,7 @@ const ProductDashboard = () => {
   }, [debouncedSearch, productRows, fetchVariantsForProduct]);
 
   const refreshProductDashboard = useCallback(async () => {
-    invalidateStockReportQueries(queryClient, currentOrganization?.id);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["product-catalog", currentOrganization?.id] }),
-      queryClient.invalidateQueries({ queryKey: ["product-dashboard-stats", currentOrganization?.id] }),
-      queryClient.invalidateQueries({ queryKey: ["product-filter-options", currentOrganization?.id] }),
-    ]);
+    await invalidateProductDashboardQueries(queryClient, currentOrganization?.id);
   }, [queryClient, currentOrganization?.id]);
 
   const fetchProductVariants = refreshProductDashboard;

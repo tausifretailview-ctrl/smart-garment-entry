@@ -14,7 +14,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
-import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
+import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalculatorInput } from "@/components/ui/calculator-input";
@@ -2318,7 +2318,7 @@ export const ProductEntryDialog = ({
         description: `Product "${formData.product_name}" created`,
       });
 
-      invalidateStockReportQueries(queryClient, currentOrganization.id);
+      invalidateProductDashboardQueries(queryClient, currentOrganization.id);
 
       // Save last product details for quick entry next time
       saveLastProductDetails();
