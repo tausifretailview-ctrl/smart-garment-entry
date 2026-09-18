@@ -10011,10 +10011,6 @@ export type Database = {
         Args: { p_end_date: string; p_org_id: string; p_start_date: string }
         Returns: Json
       }
-      get_net_profit_kpis: {
-        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
-        Returns: Json
-      }
       get_expense_by_category: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
@@ -10125,6 +10121,10 @@ export type Database = {
         }[]
       }
       get_net_profit_aggregates: {
+        Args: { p_from_date: string; p_org_id: string; p_to_date: string }
+        Returns: Json
+      }
+      get_net_profit_kpis: {
         Args: { p_from_date: string; p_org_id: string; p_to_date: string }
         Returns: Json
       }
@@ -11022,6 +11022,10 @@ export type Database = {
         Returns: {
           sale_id: string
         }[]
+      }
+      seed_organization_whatsapp_settings: {
+        Args: { p_organization_id: string }
+        Returns: undefined
       }
       set_whatsapp_send_provider: {
         Args: { p_organization_id: string; p_send_provider: string }
