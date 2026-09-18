@@ -20,9 +20,12 @@
    - no remaining duplicate active names in the org
    - no active variants on soft-deleted products
    - stock totals by `LOWER(TRIM(product_name))` unchanged
-3. Apply migration
-   `supabase/migrations/20261120120000_unique_active_product_name_per_org.sql`
-   (fails closed if any org still has duplicate active names).
+3. Unique-name index (SQL editor). The migration file uses `DO $$`, which
+   this SQL editor rejects (`42601 unterminated dollar-quoted string`).
+   Paste `scripts/unique-active-product-name-per-org-sql-editor.sql` instead
+   (plain `CREATE UNIQUE INDEX`, no dollar quotes). Optional first:
+   `scripts/unique-active-product-name-dup-check.sql` — expect 0 rows.
+   `CREATE UNIQUE INDEX` still fail-closes if any org has leftover duplicates.
 
 ## App fix (no DB required)
 
