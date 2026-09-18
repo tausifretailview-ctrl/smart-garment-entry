@@ -3,6 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  describeReceiptGuardError,
+  newReceiptSubmissionId,
+  receiptRequestId,
+} from "@/utils/receiptIdempotency";
 import { useSettings } from "@/hooks/useSettings";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
@@ -559,9 +564,11 @@ export default function PaymentsDashboard() {
       }
 
       // Create voucher entry
+      const receiptSubmissionId = newReceiptSubmissionId();
       const { error: voucherEntryError } = await supabase
         .from('voucher_entries')
         .insert({
+          client_request_id: receiptRequestId(receiptSubmissionId, selectedInvoice.id),
           organization_id: currentOrganization?.id,
           voucher_type: 'receipt',
           voucher_number: voucherNumber,
