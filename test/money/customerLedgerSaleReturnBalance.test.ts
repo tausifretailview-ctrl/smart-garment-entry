@@ -96,4 +96,14 @@ describe("saleReturnConsumedForRemaining", () => {
       }),
     ).toBe(2_000);
   });
+
+  it("sibling took the CN receipts: allocated 0 but voucher total > 0 → consume 0", () => {
+    expect(
+      saleReturnConsumedForRemaining({
+        allocatedAmount: 0,
+        absorbedOnLinkedInvoice: 12_750,
+        linkedSaleCnVoucherTotal: 12_750,
+      }),
+    ).toBe(0);
+  });
 });

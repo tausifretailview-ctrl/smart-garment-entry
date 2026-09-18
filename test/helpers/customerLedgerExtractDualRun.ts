@@ -5,6 +5,7 @@ import type { CustomerLedgerTransaction } from "@/utils/customerLedgerTransactio
 import {
   buildCrossDayCnAdjustDb,
   buildMaseeraLedgerDb,
+  buildSharedSraLaterLeftoverDb,
 } from "./maseeraLedgerFixture";
 
 const ORG = "org-ledger-extract-dual-run";
@@ -636,6 +637,19 @@ function buildDb(): { db: LedgerDb; cases: DualRunCase[] } {
   importRebased(
     buildCrossDayCnAdjustDb(),
     "cross-day CN adjust dated from voucher_date",
+  );
+
+  importRebased(
+    buildSharedSraLaterLeftoverDb({
+      org: "ignored",
+      customer: "c-shaista-class",
+      saleId: "inv-shaista-class",
+      saleNumber: "INV/26-27/2676-CLASS",
+      sra: 12_750,
+      earlierNet: 12_750,
+      laterNet: 250,
+    }),
+    "shared SRA later leftover (Shaista class)",
   );
 
   return {

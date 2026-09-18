@@ -775,11 +775,15 @@
             : 0;
           const unusedAmount = Math.max(0, amount - appliedAmount);
           // Prefer FIFO-allocated CN amounts (Maseera: two SRs sharing one invoice SRA).
-          // Fall back to linked-invoice SRA only when no CN voucher matched — billing
-          // absorb / SHAHIN, so we still emit a tracing memo instead of pending credit.
+          // Fall back to linked-invoice SRA only when that invoice has no CN receipt
+          // (billing absorb / SHAHIN). If CN receipts exist but FIFO allocated them
+          // to a sibling SR, consume 0 so the leftover row keeps its remaining.
           const consumedAmount = saleReturnConsumedForRemaining({
             allocatedAmount: appliedAmount,
             absorbedOnLinkedInvoice: absorbedOnInvoice,
+            linkedSaleCnVoucherTotal: linkedSaleId
+              ? cnVoucherBySaleId[linkedSaleId] || 0
+              : 0,
           });
           // Remaining after CN application — for CN Available / status / recon
           // saleReturns (t.credit). Must NOT drive the running Balance column.

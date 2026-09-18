@@ -299,6 +299,153 @@ export async function fetchMaseeraLedger() {
   );
 }
 
+/**
+ * Worst-case 3a undercount split: earlier SR absorbs the whole shared-invoice
+ * SRA; later SR is the pool leftover. Live per-SR nets were not in the paste —
+ * this only locks the helper against charging that leftover the full SRA.
+ */
+export function buildSharedSraLaterLeftoverDb(params: {
+  org: string;
+  customer: string;
+  saleId: string;
+  saleNumber: string;
+  sra: number;
+  earlierNet: number;
+  laterNet: number;
+  voucherDate?: string;
+}): LedgerDb {
+  const saleDate = "2026-09-01";
+  const voucherDate = params.voucherDate || "2026-09-06";
+  return {
+    customers: [
+      {
+        id: params.customer,
+        organization_id: params.org,
+        opening_balance: 0,
+        deleted_at: null,
+      },
+    ],
+    sales: [
+      {
+        id: params.saleId,
+        organization_id: params.org,
+        customer_id: params.customer,
+        sale_number: params.saleNumber,
+        sale_type: "invoice",
+        sale_date: saleDate,
+        created_at: `${saleDate}T10:00:00.000Z`,
+        net_amount: params.sra,
+        paid_amount: 0,
+        sale_return_adjust: params.sra,
+        payment_status: "completed",
+        is_cancelled: false,
+        cash_amount: 0,
+        card_amount: 0,
+        upi_amount: 0,
+        payment_method: "pay_later",
+        deleted_at: null,
+      },
+    ],
+    voucher_entries: [
+      {
+        id: `${params.saleId}-cn`,
+        organization_id: params.org,
+        voucher_type: "receipt",
+        reference_type: "sale",
+        reference_id: params.saleId,
+        voucher_date: voucherDate,
+        voucher_number: `RCP-${params.saleId}`,
+        total_amount: params.sra,
+        discount_amount: 0,
+        payment_method: "credit_note_adjustment",
+        description: `Credit note adjusted (Rs. ${params.sra}) against ${params.saleNumber}`,
+        created_at: `${voucherDate}T12:00:00.000Z`,
+        deleted_at: null,
+      },
+    ],
+    customer_advances: [],
+    customer_balance_adjustments: [],
+    sale_returns: [
+      {
+        id: `${params.saleId}-sr-earlier`,
+        customer_id: params.customer,
+        organization_id: params.org,
+        return_number: `SR-EARLIER-${params.saleNumber}`,
+        return_date: voucherDate,
+        net_amount: params.earlierNet,
+        credit_status: "adjusted",
+        linked_sale_id: params.saleId,
+        refund_type: null,
+        credit_note_id: `${params.saleId}-cn-earlier`,
+        credit_available_balance: 0,
+        created_at: `${voucherDate}T11:00:00.000Z`,
+        deleted_at: null,
+      },
+      {
+        id: `${params.saleId}-sr-later`,
+        customer_id: params.customer,
+        organization_id: params.org,
+        return_number: `SR-LATER-${params.saleNumber}`,
+        return_date: voucherDate,
+        net_amount: params.laterNet,
+        credit_status: "partially_adjusted",
+        linked_sale_id: params.saleId,
+        refund_type: null,
+        credit_note_id: `${params.saleId}-cn-later`,
+        credit_available_balance: params.laterNet,
+        created_at: `${voucherDate}T11:01:00.000Z`,
+        deleted_at: null,
+      },
+    ],
+    credit_notes: [
+      {
+        id: `${params.saleId}-cn-earlier`,
+        customer_id: params.customer,
+        organization_id: params.org,
+        credit_note_number: `CN-EARLIER-${params.saleNumber}`,
+        issue_date: voucherDate,
+        credit_amount: params.earlierNet,
+        used_amount: params.earlierNet,
+        status: "used",
+        notes: "earlier",
+        sale_id: params.saleId,
+        created_at: `${voucherDate}T11:00:00.000Z`,
+        deleted_at: null,
+      },
+      {
+        id: `${params.saleId}-cn-later`,
+        customer_id: params.customer,
+        organization_id: params.org,
+        credit_note_number: `CN-LATER-${params.saleNumber}`,
+        issue_date: voucherDate,
+        credit_amount: params.laterNet,
+        used_amount: 0,
+        status: "open",
+        notes: "later leftover",
+        sale_id: params.saleId,
+        created_at: `${voucherDate}T11:01:00.000Z`,
+        deleted_at: null,
+      },
+    ],
+    advance_refunds: [],
+  };
+}
+
+export async function fetchSharedSraLaterLeftoverLedger(
+  params: Parameters<typeof buildSharedSraLaterLeftoverDb>[0],
+) {
+  const client = createFakeLedgerClient(buildSharedSraLaterLeftoverDb(params)) as unknown as Parameters<
+    typeof fetchCustomerLedgerTransactionsWithClient
+  >[0];
+  return fetchCustomerLedgerTransactionsWithClient(
+    client,
+    params.org,
+    params.customer,
+    { startDate: null, endDate: null },
+    0,
+  );
+}
+
 export async function fetchCrossDayCnAdjustLedger() {
   const client = createFakeLedgerClient(buildCrossDayCnAdjustDb()) as unknown as Parameters<
     typeof fetchCustomerLedgerTransactionsWithClient

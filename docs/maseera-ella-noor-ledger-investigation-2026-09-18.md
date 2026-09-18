@@ -348,6 +348,12 @@ Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** f
 
 **Phase 1 landed** in `fetchCustomerLedgerTransactionsWithClient`: tracing memo instead of skip; remaining from allocated CN (`saleReturnConsumedForRemaining`); `cn_adjusted` dated from the CN voucher clock. `isSaleReturnConsumedAtBilling` is unchanged.
 
+There is **no Postgres migration**. This is a ledger queryFn change. Do not write money-row SQL.
+
+Sibling-CN fallback: if FIFO allocated 0 to a later SR but the linked invoice still has `credit_note_adjustment` receipts, consume 0 (keep leftover). Fall back to linked SRA only when that invoice has **no** CN receipt (SHAHIN / billing-absorb).
+
+Live reprint of ELLA NOOR / MASEERA is blocked here (anon `42501` on `customers`; `sale_returns` RLS returns `[]`). No `.env.test` staging service_role. Reconstruct + 3a worst-case splits are the verification that can run in this environment.
+
 Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql` is the combined reference. The SQL editor ran **only the last statement** on the 18 Sep 2026 paste (same class as the KS `DO $$` 42601 failure). Use one file per run:
 
 | Paste order | File | Class | Live result (18 Sep 2026) |
@@ -385,7 +391,7 @@ Phase 1 turns these into tracing memos (`credit: 0`) when remaining is 0. Not a 
 
 MASEERA is **not** in this set (CN/119 leftover is 0 after RCP/4838). Four orgs: ELLA NOOR 18, SACCHI 1, TIRTHA 1, VELVET 1.
 
-Eighteen ELLA NOOR rows have CN live remaining ≈ net (status `adjusted` + linked, CN unused). That is a different shape from Maseera: skip hid a leftover that Unclaimed still sums. Residual risk after Phase 1: if allocated CN is 0, `saleReturnConsumedForRemaining` falls back to linked invoice SRA and can still zero the leftover. Do not treat 1b as self-corrected without a reprint.
+Eighteen ELLA NOOR rows have CN live remaining ≈ net (status `adjusted` + linked, CN unused). Phase 1 now treats allocated 0 **with CN receipts on the invoice** as leftover (not billing-absorb). Billing-absorb / SHAHIN still uses linked SRA when voucher total is 0.
 
 ### Live 2a / 2b — CN Adjust date
 

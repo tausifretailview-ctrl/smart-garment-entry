@@ -26,9 +26,10 @@ function isProductionUrl(url: string | undefined): boolean {
 describe("customer ledger extract — fixture dual-run", () => {
   it("matches desktop inline element-by-element across ledger patterns (incl. running balance)", async () => {
     const { caseCount, caseIds, failures } = await runFixtureDualRun();
-    expect(caseCount).toBeGreaterThanOrEqual(20);
+    expect(caseCount).toBeGreaterThanOrEqual(21);
     expect(caseIds).toContain(MASEERA_CUSTOMER);
     expect(caseIds).toContain(CROSS_DAY_CUSTOMER);
+    expect(caseIds).toContain("c-shaista-class");
     if (failures.length) {
       const detail = failures
         .map((f) => `  ${f.id} (${f.label})\n    ${f.diffs.join("\n    ")}`)
