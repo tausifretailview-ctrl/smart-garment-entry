@@ -242,14 +242,31 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
                 discount={sampleInvoiceData.discount}
                 grandTotal={sampleInvoiceData.grandTotal}
                 tenderAmount={sampleInvoiceData.tenderAmount}
-                cashPaid={sampleInvoiceData.cashPaid}
+                cashPaid={
+                  previewTemplate === "trendzo-pos-80mm" ? 4000 : sampleInvoiceData.cashPaid
+                }
                 refundCash={sampleInvoiceData.refundCash}
                 upiPaid={sampleInvoiceData.upiPaid}
-                paidAmount={sampleInvoiceData.cashPaid}
-                cashAmount={sampleInvoiceData.cashPaid}
-                paymentMethod="cash"
-                previousBalance={previewTemplate === "gurukrupa" ? 16250 : undefined}
-                unusedAdvance={previewTemplate === "gurukrupa" ? 1000 : undefined}
+                paidAmount={
+                  previewTemplate === "trendzo-pos-80mm"
+                    ? sampleInvoiceData.grandTotal
+                    : sampleInvoiceData.cashPaid
+                }
+                cashAmount={
+                  previewTemplate === "trendzo-pos-80mm" ? 4000 : sampleInvoiceData.cashPaid
+                }
+                creditAmount={previewTemplate === "trendzo-pos-80mm" ? 4935 : undefined}
+                paymentMethod={previewTemplate === "trendzo-pos-80mm" ? "mix" : "cash"}
+                previousBalance={
+                  previewTemplate === "gurukrupa" || previewTemplate === "trendzo-pos-80mm"
+                    ? 16250
+                    : undefined
+                }
+                unusedAdvance={
+                  previewTemplate === "gurukrupa" || previewTemplate === "trendzo-pos-80mm"
+                    ? 1000
+                    : undefined
+                }
                 taxType={
                   invoicePreviewChannel === "pos"
                     ? resolvePosDefaultTaxType(sale)
