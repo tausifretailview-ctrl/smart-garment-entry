@@ -1,0 +1,531 @@
+-- =============================================================================
+-- KS FOOTWEAR — duplicate product masters MUTATE
+-- Paste this entire file into the Supabase SQL editor as ONE run.
+-- Tag: [ks_dup_masters_20260918]
+-- Org: 4bc73037-e877-4123-9261-eb6e3876698c (KS FOOTWEAR)
+--
+-- NOT a supabase/migrations schema file. Do not put this in the Lovable
+-- migration runner. SQL editor only. One organization. Soft-delete only.
+--
+-- Preflight already reviewed (P0.4 CSV 2026-09-18): 84/100 pending SO lines
+-- have family name+size stock while bound variant stock is 0/null.
+-- P0.2 duplicate-name groups were not uploaded; this script still fail-closes
+-- if stock totals by name_key change or duplicate active names remain.
+--
+-- What it does:
+--   Merge duplicate active products that share LOWER(TRIM(product_name)).
+--   Canonical = most sold qty, then most stock, then earliest created_at.
+--   Transfers stock_qty, remaps FKs (sale/purchase/SO/PO/returns/etc.),
+--   soft-deletes source masters. session_replication_role=replica so
+--   purchase stock triggers do not double-count.
+--
+-- After COMMIT succeeds (Messages: "KS Footwear consolidation OK"):
+--   1) Re-run the post-check at the bottom — expect 0 rows.
+--   2) Optionally paste unique-active-product-name-per-org.txt (step 2).
+-- =============================================================================
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PHASE 1 — MUTATE (single transaction; review Phase 0 first)
+-- Paste from BEGIN through COMMIT into the SQL editor as one run.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+BEGIN;
+
+-- Disable USER triggers for this transaction only. Remapping purchase_items.sku_id
+-- otherwise fires handle_purchase_item_update, which:
+--   1) adjusts stock_qty again (would double-count after our manual transfer)
+--   2) inserts purchase_sku_change_in/out — not in stock_movements_movement_type_check
+SET LOCAL session_replication_role = replica;
+
+DO $$
+DECLARE
+  v_org uuid := '4bc73037-e877-4123-9261-eb6e3876698c';
+  v_org_name text;
+  v_stock_before jsonb;
+  v_stock_after jsonb;
+  v_dup_masters_left integer;
+  v_orphan_variants integer;
+  v_merged integer := 0;
+  v_variants_moved integer;
+  v_variants_merged integer;
+  v_combined_colors text;
+  r RECORD;
+  v_src_variant RECORD;
+  v_target_variant_id uuid;
+  v_source_name text;
+  v_target_name text;
+  v_leftover integer;
+BEGIN
+  -- session_replication_role is transaction-local (SET LOCAL above); confirm
+  IF current_setting('session_replication_role', true) IS DISTINCT FROM 'replica' THEN
+    RAISE EXCEPTION 'session_replication_role must be replica for this repair (got %)',
+      current_setting('session_replication_role', true);
+  END IF;
+
+  CREATE TEMP TABLE _ks_sources_deleted (
+    product_id uuid PRIMARY KEY
+  ) ON COMMIT DROP;
+
+  SELECT name INTO v_org_name FROM public.organizations WHERE id = v_org;
+  IF v_org_name IS NULL THEN
+    RAISE EXCEPTION 'KS Footwear org % not found — aborting', v_org;
+  END IF;
+
+  SELECT COALESCE(jsonb_object_agg(name_key, total_stock), '{}'::jsonb)
+  INTO v_stock_before
+  FROM (
+    SELECT
+      LOWER(TRIM(p.product_name)) AS name_key,
+      COALESCE(SUM(pv.stock_qty), 0)::bigint AS total_stock
+    FROM public.products p
+    JOIN public.product_variants pv
+      ON pv.product_id = p.id
+     AND pv.organization_id = p.organization_id
+     AND pv.deleted_at IS NULL
+    WHERE p.organization_id = v_org
+      AND p.deleted_at IS NULL
+    GROUP BY LOWER(TRIM(p.product_name))
+    HAVING COUNT(DISTINCT p.id) > 1
+  ) s;
+
+  RAISE NOTICE 'Consolidating duplicate masters for % (%)', v_org_name, v_org;
+  RAISE NOTICE 'Stock snapshot (duplicate name keys): %', v_stock_before;
+
+  FOR r IN
+    WITH scored AS (
+      SELECT
+        p.id,
+        p.product_name,
+        LOWER(TRIM(p.product_name)) AS name_key,
+        COALESCE((
+          SELECT SUM(si.quantity)
+          FROM public.sale_items si
+          JOIN public.sales s ON s.id = si.sale_id
+          WHERE si.product_id = p.id AND si.deleted_at IS NULL
+            AND s.deleted_at IS NULL AND s.organization_id = p.organization_id
+        ), 0) AS sold_qty,
+        COALESCE((
+          SELECT SUM(pv.stock_qty) FROM public.product_variants pv
+          WHERE pv.product_id = p.id AND pv.organization_id = p.organization_id
+            AND pv.deleted_at IS NULL
+        ), 0) AS stock_qty,
+        p.created_at
+      FROM public.products p
+      WHERE p.organization_id = v_org
+        AND p.deleted_at IS NULL
+    ),
+    ranked AS (
+      SELECT *,
+        ROW_NUMBER() OVER (
+          PARTITION BY name_key
+          ORDER BY sold_qty DESC, stock_qty DESC, created_at ASC, id ASC
+        ) AS rn,
+        COUNT(*) OVER (PARTITION BY name_key) AS group_size,
+        FIRST_VALUE(id) OVER (
+          PARTITION BY name_key
+          ORDER BY sold_qty DESC, stock_qty DESC, created_at ASC, id ASC
+        ) AS canonical_id
+      FROM scored
+    )
+    SELECT id AS source_id, canonical_id AS target_id, name_key, product_name AS source_name
+    FROM ranked
+    WHERE group_size > 1
+      AND rn > 1
+    ORDER BY name_key, rn
+  LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM public.products
+      WHERE id = r.target_id AND organization_id = v_org AND deleted_at IS NULL
+    ) OR NOT EXISTS (
+      SELECT 1 FROM public.products
+      WHERE id = r.source_id AND organization_id = v_org AND deleted_at IS NULL
+    ) THEN
+      RAISE NOTICE 'Skip stale pair target=% source=%', r.target_id, r.source_id;
+      CONTINUE;
+    END IF;
+
+    SELECT product_name INTO v_target_name
+    FROM public.products WHERE id = r.target_id;
+    v_source_name := r.source_name;
+    v_variants_moved := 0;
+    v_variants_merged := 0;
+
+    -- Inline merge (no assert_org_member — SQL editor has no JWT).
+    -- Match color+size with NULL-safe COALESCE (NULL size must still merge).
+    FOR v_src_variant IN
+      SELECT *
+      FROM public.product_variants
+      WHERE product_id = r.source_id
+        AND deleted_at IS NULL
+    LOOP
+      SELECT id INTO v_target_variant_id
+      FROM public.product_variants
+      WHERE product_id = r.target_id
+        AND deleted_at IS NULL
+        AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+        AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
+      LIMIT 1;
+
+      IF v_target_variant_id IS NOT NULL THEN
+        UPDATE public.product_variants
+        SET stock_qty = COALESCE(stock_qty, 0) + COALESCE(v_src_variant.stock_qty, 0),
+            opening_qty = COALESCE(opening_qty, 0) + COALESCE(v_src_variant.opening_qty, 0),
+            updated_at = NOW()
+        WHERE id = v_target_variant_id
+          AND organization_id = v_org;
+
+        UPDATE public.sale_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+        UPDATE public.purchase_items SET sku_id = v_target_variant_id
+        WHERE sku_id = v_src_variant.id;
+        UPDATE public.sale_return_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+        UPDATE public.purchase_return_items SET sku_id = v_target_variant_id
+        WHERE sku_id = v_src_variant.id;
+        UPDATE public.quotation_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+        UPDATE public.sale_order_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+        UPDATE public.purchase_order_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+        UPDATE public.delivery_challan_items SET variant_id = v_target_variant_id
+        WHERE variant_id = v_src_variant.id;
+
+        -- batch_stock: unique (variant_id, bill_number) — merge qty then drop conflicts
+        UPDATE public.batch_stock bs
+        SET quantity = bs.quantity + src.quantity,
+            updated_at = NOW()
+        FROM public.batch_stock src
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND bs.organization_id = v_org
+          AND bs.variant_id = v_target_variant_id
+          AND bs.bill_number = src.bill_number;
+
+        DELETE FROM public.batch_stock src
+        USING public.batch_stock tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.bill_number = src.bill_number;
+
+        UPDATE public.batch_stock
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        UPDATE public.stock_movements
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        -- customer_product_prices: unique (org, customer, variant) — keep target row
+        DELETE FROM public.customer_product_prices src
+        USING public.customer_product_prices tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.customer_id = src.customer_id;
+
+        UPDATE public.customer_product_prices
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        -- stock_alerts: open alert unique per variant — drop source if target already open
+        DELETE FROM public.stock_alerts src
+        USING public.stock_alerts tgt
+        WHERE src.organization_id = v_org
+          AND src.variant_id = v_src_variant.id
+          AND src.resolved_at IS NULL
+          AND tgt.organization_id = v_org
+          AND tgt.variant_id = v_target_variant_id
+          AND tgt.resolved_at IS NULL;
+
+        UPDATE public.stock_alerts
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        UPDATE public.stock_settlement_scans
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+        UPDATE public.stock_settlement_zero_items
+        SET variant_id = v_target_variant_id
+        WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+        UPDATE public.product_variants
+        SET deleted_at = NOW(),
+            active = false,
+            stock_qty = 0,
+            updated_at = NOW()
+        WHERE id = v_src_variant.id;
+
+        v_variants_merged := v_variants_merged + 1;
+      ELSE
+        BEGIN
+          UPDATE public.product_variants
+          SET product_id = r.target_id,
+              organization_id = v_org,
+              updated_at = NOW()
+          WHERE id = v_src_variant.id
+            AND deleted_at IS NULL;
+          v_variants_moved := v_variants_moved + 1;
+        EXCEPTION
+          WHEN unique_violation THEN
+            -- Same color+size+barcode already on target — fold stock and soft-delete
+            SELECT id INTO v_target_variant_id
+            FROM public.product_variants
+            WHERE product_id = r.target_id
+              AND deleted_at IS NULL
+              AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+              AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
+              AND COALESCE(barcode, '') = COALESCE(v_src_variant.barcode, '')
+            LIMIT 1;
+
+            IF v_target_variant_id IS NULL THEN
+              SELECT id INTO v_target_variant_id
+              FROM public.product_variants
+              WHERE product_id = r.target_id
+                AND deleted_at IS NULL
+                AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
+                AND COALESCE(size, '') = COALESCE(v_src_variant.size, '')
+              LIMIT 1;
+            END IF;
+
+            IF v_target_variant_id IS NULL THEN
+              RAISE EXCEPTION
+                'Cannot reassign variant % onto product % (unique conflict, no merge target)',
+                v_src_variant.id, r.target_id;
+            END IF;
+
+            UPDATE public.product_variants
+            SET stock_qty = COALESCE(stock_qty, 0) + COALESCE(v_src_variant.stock_qty, 0),
+                opening_qty = COALESCE(opening_qty, 0) + COALESCE(v_src_variant.opening_qty, 0),
+                updated_at = NOW()
+            WHERE id = v_target_variant_id;
+
+            UPDATE public.sale_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_items SET sku_id = v_target_variant_id
+            WHERE sku_id = v_src_variant.id;
+            UPDATE public.sale_return_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_return_items SET sku_id = v_target_variant_id
+            WHERE sku_id = v_src_variant.id;
+            UPDATE public.quotation_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.sale_order_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.purchase_order_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.delivery_challan_items SET variant_id = v_target_variant_id
+            WHERE variant_id = v_src_variant.id;
+            UPDATE public.stock_movements
+            SET variant_id = v_target_variant_id
+            WHERE organization_id = v_org AND variant_id = v_src_variant.id;
+
+            UPDATE public.product_variants
+            SET deleted_at = NOW(),
+                active = false,
+                stock_qty = 0,
+                updated_at = NOW()
+            WHERE id = v_src_variant.id;
+
+            v_variants_merged := v_variants_merged + 1;
+        END;
+      END IF;
+    END LOOP;
+
+    -- Belt-and-braces: no active variant may remain on the source before soft-delete
+    SELECT COUNT(*) INTO v_leftover
+    FROM public.product_variants
+    WHERE product_id = r.source_id
+      AND deleted_at IS NULL;
+
+    IF v_leftover > 0 THEN
+      -- Fold any leftover stock into target (by color+size), then soft-delete leftovers
+      UPDATE public.product_variants tgt
+      SET stock_qty = tgt.stock_qty + src.stock_qty,
+          opening_qty = COALESCE(tgt.opening_qty, 0) + COALESCE(src.opening_qty, 0),
+          updated_at = NOW()
+      FROM public.product_variants src
+      WHERE src.product_id = r.source_id
+        AND src.deleted_at IS NULL
+        AND tgt.product_id = r.target_id
+        AND tgt.deleted_at IS NULL
+        AND COALESCE(tgt.color, '') = COALESCE(src.color, '')
+        AND COALESCE(tgt.size, '') = COALESCE(src.size, '');
+
+      UPDATE public.product_variants
+      SET deleted_at = NOW(),
+          active = false,
+          stock_qty = 0,
+          updated_at = NOW()
+      WHERE product_id = r.source_id
+        AND deleted_at IS NULL;
+    END IF;
+
+    UPDATE public.sale_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.purchase_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.sale_return_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.purchase_return_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.quotation_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.sale_order_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.purchase_order_items SET product_id = r.target_id WHERE product_id = r.source_id;
+    UPDATE public.delivery_challan_items SET product_id = r.target_id WHERE product_id = r.source_id;
+
+    UPDATE public.product_images
+    SET product_id = r.target_id
+    WHERE product_id = r.source_id;
+
+    SELECT STRING_AGG(DISTINCT v.color, ', ' ORDER BY v.color)
+    INTO v_combined_colors
+    FROM public.product_variants v
+    WHERE v.product_id = r.target_id
+      AND v.organization_id = v_org
+      AND v.deleted_at IS NULL
+      AND v.color IS NOT NULL;
+
+    UPDATE public.products
+    SET color = v_combined_colors,
+        updated_at = NOW()
+    WHERE id = r.target_id
+      AND organization_id = v_org;
+
+    UPDATE public.products
+    SET deleted_at = NOW(),
+        updated_at = NOW()
+    WHERE id = r.source_id
+      AND organization_id = v_org
+      AND deleted_at IS NULL;
+
+    INSERT INTO _ks_sources_deleted (product_id)
+    VALUES (r.source_id)
+    ON CONFLICT DO NOTHING;
+
+    INSERT INTO public.audit_logs (
+      organization_id, entity_type, entity_id, action, old_values, new_values
+    )
+    VALUES (
+      v_org,
+      'product',
+      r.target_id,
+      'PRODUCT_MERGED',
+      jsonb_build_object(
+        'source_product_id', r.source_id,
+        'source_product_name', v_source_name,
+        'via', 'consolidate-ks-footwear-duplicate-masters.sql [ks_dup_masters_20260918]'
+      ),
+      jsonb_build_object(
+        'variants_moved', v_variants_moved,
+        'variants_merged', v_variants_merged,
+        'target_product_name', v_target_name
+      )
+    );
+
+    v_merged := v_merged + 1;
+    RAISE NOTICE 'Merged % → % (%) moved=% merged_skus=%',
+      r.source_id, r.target_id, r.name_key, v_variants_moved, v_variants_merged;
+  END LOOP;
+
+  RAISE NOTICE 'Pair merges completed: %', v_merged;
+
+  -- Zero leftover qty on soft-deleted variants (display hygiene)
+  UPDATE public.product_variants pv
+  SET stock_qty = 0,
+      active = false,
+      updated_at = NOW()
+  WHERE pv.organization_id = v_org
+    AND pv.deleted_at IS NOT NULL
+    AND COALESCE(pv.stock_qty, 0) <> 0
+    AND pv.product_id IN (
+      SELECT id FROM public.products
+      WHERE organization_id = v_org
+        AND deleted_at IS NOT NULL
+    );
+
+  -- ── Assertions ──────────────────────────────────────────────────────────
+  SELECT COUNT(*) INTO v_dup_masters_left
+  FROM (
+    SELECT LOWER(TRIM(product_name)) AS name_key
+    FROM public.products
+    WHERE organization_id = v_org
+      AND deleted_at IS NULL
+    GROUP BY LOWER(TRIM(product_name))
+    HAVING COUNT(*) > 1
+  ) x;
+
+  IF v_dup_masters_left > 0 THEN
+    RAISE EXCEPTION 'Assertion failed: % duplicate active product-name groups remain',
+      v_dup_masters_left;
+  END IF;
+
+  SELECT COUNT(*) INTO v_orphan_variants
+  FROM public.product_variants pv
+  JOIN _ks_sources_deleted d ON d.product_id = pv.product_id
+  WHERE pv.deleted_at IS NULL;
+
+  IF v_orphan_variants > 0 THEN
+    RAISE EXCEPTION
+      'Assertion failed: % active variants still point at products soft-deleted in this run',
+      v_orphan_variants;
+  END IF;
+
+  -- Informational: pre-existing orphans in this org (not fail)
+  SELECT COUNT(*) INTO v_leftover
+  FROM public.product_variants pv
+  JOIN public.products p ON p.id = pv.product_id
+  WHERE p.organization_id = v_org
+    AND p.deleted_at IS NOT NULL
+    AND pv.deleted_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM _ks_sources_deleted d WHERE d.product_id = p.id
+    );
+
+  IF v_leftover > 0 THEN
+    RAISE NOTICE
+      'Note: % pre-existing active variants on historically soft-deleted products (outside this merge) — not failing',
+      v_leftover;
+  END IF;
+
+  SELECT COALESCE(jsonb_object_agg(name_key, total_stock), '{}'::jsonb)
+  INTO v_stock_after
+  FROM (
+    SELECT
+      LOWER(TRIM(p.product_name)) AS name_key,
+      COALESCE(SUM(pv.stock_qty), 0)::bigint AS total_stock
+    FROM public.products p
+    JOIN public.product_variants pv
+      ON pv.product_id = p.id
+     AND pv.organization_id = p.organization_id
+     AND pv.deleted_at IS NULL
+    WHERE p.organization_id = v_org
+      AND p.deleted_at IS NULL
+      AND LOWER(TRIM(p.product_name)) IN (
+        SELECT jsonb_object_keys(v_stock_before)
+      )
+    GROUP BY LOWER(TRIM(p.product_name))
+  ) s;
+
+  IF v_stock_after IS DISTINCT FROM v_stock_before THEN
+    RAISE EXCEPTION
+      'Assertion failed: stock totals by name_key changed. before=% after=%',
+      v_stock_before, v_stock_after;
+  END IF;
+
+  RAISE NOTICE 'KS Footwear consolidation OK (% merges). Stock preserved.', v_merged;
+END $$;
+
+-- Restored automatically at COMMIT; set explicitly for clarity if more statements follow
+SET LOCAL session_replication_role = origin;
+
+COMMIT;
+
+-- Post-check: expect 0 rows
+SELECT
+  LOWER(TRIM(product_name)) AS name_key,
+  COUNT(*) AS active_masters
+FROM public.products
+WHERE organization_id = '4bc73037-e877-4123-9261-eb6e3876698c'
+  AND deleted_at IS NULL
+GROUP BY LOWER(TRIM(product_name))
+HAVING COUNT(*) > 1;
