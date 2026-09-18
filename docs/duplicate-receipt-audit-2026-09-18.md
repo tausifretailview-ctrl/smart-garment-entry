@@ -31,25 +31,28 @@ from its own ledger history, not inferred from a pattern.
 | VELVET | SURESH | POS/26-27/378 | 1,977 | BCK/dcf49184 Phase-4 backfill (11-May) | RCP/26-27/1142 | 1,977.00 |
 | VELVET | ANANYA TRIPATHI | POS/26-27/70 | 1,500 | RCP/26-27/11 (07-May) | RCP/26-27/1138 | 1,500.00 |
 | VELVET | RUCHI | POS/26-27/292 | 570 | RCP/26-27/8 (28-Apr) | RCP/26-27/1141 | 570.00 |
-| GURUKRUPA | SANTOSH ZADE | POS/25-26/1130 | 5,800 | RCP/25-26/1618 ₹5,500 (25-Mar) | RCP/26-27/1131-1 ₹5,800 | 5,500.00 |
-| GURUKRUPA | SHREEVASTAV | POS/25-26/875 | 3,100 | RCP/25-26/799 ₹2,100 (05-Mar) | RCP/26-27/1128 ₹2,100 + 1129 ₹1,000 | 2,100.00 |
+| GURUKRUPA | VIMLA YADAV | POS/26-27/765 | 3,000 | at-sale ₹400 + RCP/1125 ₹2,600 | RCP/26-27/1126 ₹400 | 400.00 |
+| GURUKRUPA | SHREEVASTAV | POS/25-26/875 | 3,100 | at-sale ₹1,000 + RCP/799 ₹2,100 (05-Mar) | RCP/26-27/1128 ₹2,100 + 1129 ₹1,000 | 3,100.00 |
+| GURUKRUPA | SANTOSH ZADE | POS/25-26/717 | 81,200 | at-sale ₹75,200 + RCP/213 ₹6,000 | RCP/26-27/1131-2 ₹6,000 | 6,000.00 |
 
-**Confirmed total: 16 bills, ₹78,942.10** — VELVET ₹71,342.10 (14 bills), GURUKRUPA ₹7,600 (2 bills).
+**Confirmed already-zero total: 17 bills, ₹80,842.10** — VELVET ₹71,342.10 (14 bills), GURUKRUPA ₹9,500 (3 bills / 4 receipts).
 
-Notes on the two partial cases: SANTOSH ZADE's March receipt was ₹5,500, the May re-entry was the full
-₹5,800 → real over-credit ₹5,500, not ₹5,800. SHREEVASTAV's March receipt was ₹2,100, the May pair
-totalled ₹3,100 → ₹1,000 of that was genuinely owed; real over-credit ₹2,100, not ₹3,100.
+Gurukrupa rows are locked from 19 Sep 2026 ledger PDFs (`VIMLA_YADAV_Ledger_19-09-2026_034a`, `SANTOSH_ZADE_Ledger_19-09-2026_40d9`, SHREEVASTAV `…dc1e`). The first draft of this table missed **at-sale tender**, so it treated VIMLA 1126 and SANTOSH 1131-2 as clean and understated SHREEVASTAV by ₹1,000. Full traces: `docs/shreevastav-gurukrupa-duplicate-pos-receipts-2026-09-19.md`. **Do not delete 1125 or sibling 1131-1.**
+
+### Overpay, not already-zero (keep out of the remaining_before=0 set)
+
+| Org | Customer | Bill | Why it is not this signature |
+|---|---|---|---|
+| GURUKRUPA | SANTOSH ZADE | POS/25-26/1130 | Leftover was ₹300 after RCP/1618 ₹5,500. RCP/1131-1 ₹5,800 (same Tab save as 1131-2) overpays by ₹5,500. `remaining_before` ₹300 ≠ 0. |
 
 ### Signature matches that are NOT duplicates (hand-cleared)
 
 | Org | Customer | Bill | Why it is clean |
 |---|---|---|---|
 | VELVET | DOLLY JAIN | POS/26-27/454 | ₹4,500 bill, two genuine ₹1,500 instalments (24-Apr + 30-May); ₹1,500 still owed. Equal-amount instalment, not a duplicate. |
-| GURUKRUPA | VIMLA YADAV | POS/26-27/765 | ₹2,600 + ₹400 on the same evening = exactly ₹3,000 split tender. |
 | GURUKRUPA | SHREEVASTAV | POS/26-27/767 | Single ₹5,600 receipt, bill ₹5,600. |
 | GURUKRUPA | SANTOSH GAIKWAD | POS/26-27/354 | Single ₹21,600 receipt, bill ₹21,600. |
 | GURUKRUPA | JYOTI KOLI | POS/26-27/218 | ₹2,900 against a ₹3,900 bill — under-collected, opposite direction. |
-| GURUKRUPA | SANTOSH ZADE | POS/25-26/717 | ₹6,000 twice, but bill is ₹81,200 with only ₹12,000 received — no over-credit; separate issue: `paid_amount` says 81,200 while receipts total 12,000. |
 
 ### The NULL-customer row
 VELVET POS/26-27/85 (₹15,862, walk-in, no `customer_id`). The duplicate is real, but because the sale
