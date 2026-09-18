@@ -24,6 +24,26 @@ export function saleReturnRemainingCredit(params: {
   return Math.max(0, Number(params.grossNetAmount) || 0) - Math.max(0, Number(params.consumedAmount) || 0);
 }
 
+/**
+ * How much of a sale return is already consumed for recon remaining / CN available.
+ *
+ * Prefer FIFO-allocated CN voucher amounts so two returns that share one invoice
+ * SRA are not each charged the full `sales.sale_return_adjust` (Maseera: SR/160
+ * remaining ₹4,150, not ₹3,150).
+ *
+ * When no CN voucher matched this return (billing-absorb / SHAHIN — pending CN
+ * applied on the bill with no `credit_note_adjustment` receipt), fall back to
+ * min(net, linked invoice SRA) so the return is not also credited as pending.
+ */
+export function saleReturnConsumedForRemaining(params: {
+  allocatedAmount: number;
+  absorbedOnLinkedInvoice: number;
+}): number {
+  const allocated = Math.max(0, Number(params.allocatedAmount) || 0);
+  if (allocated > 0.005) return allocated;
+  return Math.max(0, Number(params.absorbedOnLinkedInvoice) || 0);
+}
+
 export type SaleReturnCnAllocRow = {
   id: string;
   net_amount?: number | null;

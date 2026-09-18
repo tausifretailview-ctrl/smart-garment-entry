@@ -344,6 +344,21 @@ Next (when asked): population SQL results, then a remainingCredit change that us
 
 ## Phase 0 fixtures (no production code)
 
-Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** figures (SR/159 memo credit 0; SR/160 remaining / banner / Unclaimed all ₹4,150; `cn_adjusted` date = voucher_date). They are **RED** against current `fetchCustomerLedgerTransactionsWithClient` until Phase 1.
+Tests in `test/money/maseeraLedgerReconstruction.test.ts` lock the **correct** figures (SR/159 memo credit 0; SR/160 remaining / banner / Unclaimed all ₹4,150; `cn_adjusted` date = voucher_date).
 
-Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql`.
+**Phase 1 landed** in `fetchCustomerLedgerTransactionsWithClient`: tracing memo instead of skip; remaining from allocated CN (`saleReturnConsumedForRemaining`); `cn_adjusted` dated from the CN voucher clock. `isSaleReturnConsumedAtBilling` is unchanged.
+
+Read-only population SQL: `scripts/maseera-ledger-population-scope-20260918.sql` is the combined reference. The SQL editor ran **only the last statement** on the 18 Sep 2026 paste (same class as the KS `DO $$` 42601 failure). Use one file per run:
+
+| Paste order | File | Class | Live result |
+| --- | --- | --- | --- |
+| 1a | `scripts/maseera-pop-1a-dropped-sr-headline.sql` | adjusted + linked SRs (ledger skip / now memo) | **not pasted yet** |
+| 1b | `scripts/maseera-pop-1b-dropped-sr-cn-leftover.sql` | skip + CN leftover > 0.5 (Maseera CN/119 leftover is 0 — should be absent) | **not pasted yet** |
+| 2a | `scripts/maseera-pop-2a-misdated-cn-headline.sql` | `voucher_date` ≠ `sale_date` | **not pasted yet** |
+| 2b | `scripts/maseera-pop-2b-misdated-cn-sample.sql` | sample 200 of 2a (INV/3122 should appear) | **not pasted yet** |
+| 3a | `scripts/maseera-pop-3a-split-sra-detail.sql` | two+ SRs share one `linked_sale_id` | **not pasted yet** |
+| 3b | `scripts/maseera-pop-3b-split-sra-headline.sql` | headline counts for 3a | **11 customers / 4 orgs / 11 split invoices** (18 Sep 2026) |
+
+Query 3b is not Maseera-only. Paste 1a/1b/2a/2b/3a next; export CSV each time.
+
+Dual-run extract fixtures (`test/helpers/customerLedgerExtractDualRun.ts`) now include MASEERA and the cross-day CN-adjust date case (20 patterns). QueryFn body ↔ golden.txt ↔ generated inline must stay in sync; dual-run is the lock that both implementations emit SR/159 memo, SR/160 remaining ₹4,150, and `cn_adjusted` on `voucher_date`.

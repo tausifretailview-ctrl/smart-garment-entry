@@ -194,6 +194,7 @@
       // same sale, applied amount is allocated in chronological order up to
       // each SR's net_amount.
       const cnVoucherBySaleId: Record<string, number> = {};
+      const cnAdjustClockBySaleId: Record<string, { date: string; timestamp: string | null }> = {};
       (vouchersData || []).forEach((v: any) => {
         if (v.voucher_type !== 'receipt') return;
         const desc = (v.description || '').toLowerCase();
@@ -203,6 +204,17 @@
         if (!isCn || !v.reference_id) return;
         cnVoucherBySaleId[v.reference_id] =
           (cnVoucherBySaleId[v.reference_id] || 0) + (Number(v.total_amount) || 0);
+        const voucherDate = String(v.voucher_date || "").slice(0, 10);
+        const createdAt = v.created_at ? String(v.created_at) : null;
+        const prev = cnAdjustClockBySaleId[v.reference_id];
+        const prevKey = prev ? `${prev.date}\t${prev.timestamp || ""}` : "";
+        const nextKey = `${voucherDate}\t${createdAt || ""}`;
+        if (!prev || nextKey > prevKey) {
+          cnAdjustClockBySaleId[v.reference_id] = {
+            date: voucherDate || String(v.voucher_date || ""),
+            timestamp: createdAt,
+          };
+        }
       });
 
       const srAppliedMap = allocateCnAdjustmentsToSaleReturns(
@@ -551,10 +563,11 @@
           });
 
           if (!isCancelled && saleReturnAdjust > 0) {
+            const cnClock = cnAdjustClockBySaleId[sale.id];
             allTransactions.push({
               id: `${sale.id}-cn-applied`,
-              date: sale.sale_date,
-              timestamp: item.timestamp || null,
+              date: cnClock?.date || sale.sale_date,
+              timestamp: cnClock?.timestamp || item.timestamp || null,
               type: 'cn_adjusted',
               reference: sale.sale_number,
               description: `↳ CN / S/R adjusted on ${sale.sale_number} (pending CN applied to bill)`,
@@ -761,22 +774,21 @@
             ? Math.min(amount, Number(linkedSale.sale_return_adjust || 0))
             : 0;
           const unusedAmount = Math.max(0, amount - appliedAmount);
-          // The amount is "consumed" if it was absorbed on a directly-linked invoice
-          // (sale_return_adjust) OR if FIFO distribution in srAppliedMap matched it
-          // to a credit_note_adjustment voucher on a different invoice (orphan SR
-          // with credit_status='adjusted'/'partially_adjusted' but linked_sale_id NULL).
-          // Without this guard the SR gets double-credited: once via the invoice's
-          // sale_return_adjust net-down, again as a standalone CN credit line.
-          const consumedAmount = Math.max(absorbedOnInvoice, appliedAmount);
+          // Prefer FIFO-allocated CN amounts (Maseera: two SRs sharing one invoice SRA).
+          // Fall back to linked-invoice SRA only when no CN voucher matched — billing
+          // absorb / SHAHIN, so we still emit a tracing memo instead of pending credit.
+          const consumedAmount = saleReturnConsumedForRemaining({
+            allocatedAmount: appliedAmount,
+            absorbedOnLinkedInvoice: absorbedOnInvoice,
+          });
           // Remaining after CN application — for CN Available / status / recon
           // saleReturns (t.credit). Must NOT drive the running Balance column.
-          const remainingCredit = Math.max(0, amount - consumedAmount);
+          const remainingCredit = saleReturnRemainingCredit({
+            grossNetAmount: amount,
+            consumedAmount,
+          });
 
-          // Skip SRs fully absorbed on a linked invoice via sales.sale_return_adjust
-          // (pending CN applied on Sales Dashboard — same as buildAuditRows / balance RPC).
-          if (String(sr.credit_status || '').toLowerCase() === 'adjusted' && linkedSaleId) {
-            return;
-          }
+          // Tracing memo instead of omitting adjusted+linked SRs (SR/159 class).
           if (remainingCredit <= 0 && consumedAmount > 0) {
             const memoSaleNumber =
               (absorbedOnInvoice > 0 && linkedSale?.sale_number) ||

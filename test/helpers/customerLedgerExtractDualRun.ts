@@ -2,6 +2,10 @@ import { createFakeLedgerClient, type LedgerDb } from "./fakeLedgerSupabase";
 import { fetchCustomerLedgerTransactionsWithClient } from "@/utils/customerLedgerTransactions";
 import { fetchCustomerLedgerTransactionsDesktopInline } from "../../scripts/lib/customerLedgerRetailInline.generated";
 import type { CustomerLedgerTransaction } from "@/utils/customerLedgerTransactions";
+import {
+  buildCrossDayCnAdjustDb,
+  buildMaseeraLedgerDb,
+} from "./maseeraLedgerFixture";
 
 const ORG = "org-ledger-extract-dual-run";
 
@@ -83,6 +87,25 @@ function voucher(partial: Record<string, unknown>): Record<string, unknown> {
     created_at: `${partial.voucher_date || "2026-04-01"}T11:00:00.000Z`,
     ...partial,
   };
+}
+
+const LEDGER_TABLES = [
+  "customers",
+  "sales",
+  "voucher_entries",
+  "customer_advances",
+  "customer_balance_adjustments",
+  "sale_returns",
+  "credit_notes",
+  "advance_refunds",
+] as const;
+
+function rebaseLedgerOrg(db: LedgerDb, organizationId: string): LedgerDb {
+  const out: LedgerDb = {};
+  for (const table of LEDGER_TABLES) {
+    out[table] = (db[table] || []).map((row) => ({ ...row, organization_id: organizationId }));
+  }
+  return out;
 }
 
 export type DualRunCase = {
@@ -585,6 +608,36 @@ function buildDb(): { db: LedgerDb; cases: DualRunCase[] } {
     }),
   );
 
+  const importRebased = (extra: LedgerDb, label: string) => {
+    const rebased = rebaseLedgerOrg(extra, ORG);
+    customers.push(...(rebased.customers || []));
+    sales.push(...(rebased.sales || []));
+    voucher_entries.push(...(rebased.voucher_entries || []));
+    customer_advances.push(...(rebased.customer_advances || []));
+    customer_balance_adjustments.push(...(rebased.customer_balance_adjustments || []));
+    sale_returns.push(...(rebased.sale_returns || []));
+    credit_notes.push(...(rebased.credit_notes || []));
+    advance_refunds.push(...(rebased.advance_refunds || []));
+    const first = rebased.customers?.[0];
+    cases.push({
+      id: String(first?.id || ""),
+      label,
+      openingBalance: Number(first?.opening_balance || 0),
+    });
+  };
+
+  // 19. MASEERA reconstructed ledger (memo SR/159 + allocated remaining + voucher_date)
+  importRebased(
+    buildMaseeraLedgerDb(),
+    "MASEERA reconstructed ledger (SR memo + allocated remaining + voucher_date)",
+  );
+
+  // 20. Invoice day 1, CN adjustment voucher nine days later
+  importRebased(
+    buildCrossDayCnAdjustDb(),
+    "cross-day CN adjust dated from voucher_date",
+  );
+
   return {
     db: {
       customers,
@@ -602,6 +655,7 @@ function buildDb(): { db: LedgerDb; cases: DualRunCase[] } {
 
 export async function runFixtureDualRun(): Promise<{
   caseCount: number;
+  caseIds: string[];
   failures: { id: string; label: string; diffs: string[] }[];
 }> {
   const { db, cases } = buildDb();
@@ -629,5 +683,5 @@ export async function runFixtureDualRun(): Promise<{
     if (diffs.length) failures.push({ id: c.id, label: c.label, diffs });
   }
 
-  return { caseCount: cases.length, failures };
+  return { caseCount: cases.length, caseIds: cases.map((c) => c.id), failures };
 }

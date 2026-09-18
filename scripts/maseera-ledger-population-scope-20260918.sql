@@ -1,6 +1,16 @@
--- MASEERA-class ledger population scope — READ ONLY.
--- Run in SQL editor. Do not mutate. This environment has no tenant DB access.
--- Org filter optional: set v_org in the first CTE or leave NULL for all orgs.
+-- MASEERA-class ledger population scope — READ ONLY combined reference.
+-- Do not mutate. This environment has no tenant DB access.
+--
+-- SQL EDITOR: this file has six SELECTs. The editor often runs ONLY THE LAST
+-- statement (18 Sep 2026 paste returned query 3b only: 11 / 4 / 11).
+-- Paste ONE split file per run, in this order:
+--   scripts/maseera-pop-1a-dropped-sr-headline.sql
+--   scripts/maseera-pop-1b-dropped-sr-cn-leftover.sql
+--   scripts/maseera-pop-2a-misdated-cn-headline.sql
+--   scripts/maseera-pop-2b-misdated-cn-sample.sql
+--   scripts/maseera-pop-3a-split-sra-detail.sql
+--   scripts/maseera-pop-3b-split-sra-headline.sql   (already live: 11/4/11)
+-- Do not click Format SQL first. No DO $$ blocks.
 
 -- 1. Customers whose ledger currently DROPS a sale-return row
 --    (credit_status = adjusted AND linked_sale_id set, not deleted).
