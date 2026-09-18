@@ -421,4 +421,17 @@ SRA **below** SR-net sum (banner undercount shape — allocated leftover, not fu
 
 Six more share a linked invoice with SRA ≈ SR-net (RUBINA, Saba Ali, SHUMAMA, Tanvi Taufu, KS FOOTWEAR `Ks`, RANAWAT SWAPN). ALBELI SHRADDHA has SRA **above** SR-net and a null `return_number` — not the Maseera undercount.
 
-Dual-run extract fixtures (`test/helpers/customerLedgerExtractDualRun.ts`) now include MASEERA and the cross-day CN-adjust date case (20 patterns). QueryFn body ↔ golden.txt ↔ generated inline must stay in sync; dual-run is the lock that both implementations emit SR/159 memo, SR/160 remaining ₹4,150, and `cn_adjusted` on `voucher_date`.
+### Live FIFO (SQL editor 18 Sep 2026 17:03 IST) — real nets, not worst-case
+
+| Customer | Returns (live net) | CN receipts | Phase 1 remaining | Worst-case estimate | Holds? |
+| --- | --- | --- | ---: | ---: | --- |
+| MASEERA | SR/159 ₹9,400; SR/160 ₹13,850 | 3122 ₹8,400 on **18/09**; 3123 ₹1,000+₹9,700 | SR/159 memo 0; SR/160 **₹4,150** | ₹4,150 | **Yes** |
+| DR.SADAF GODIL | SR/79 ₹3,800; SR/152 ₹2,700 | 2988 ₹1,100+₹2,700; **2971 ₹2,700** | both memo 0 (152 applied to 2971) | leftover ₹2,700 | **No — ₹0 leftover** |
+| AMRIN BAIG | SR/59 ₹3,450; SR/97 ₹1,950 | 1324 ₹1,500+₹1,950; **1052 ₹1,950** | both memo 0 (97 applied to 1052) | leftover ₹1,950 | **No — ₹0 leftover** |
+| Shaista Arif Reshmawala | SR/129 ₹7,550; SR/130 ₹5,450 | 2676 ₹7,550+₹5,200 same day | SR/129 memo 0; SR/130 **₹250** | leftover ₹250 | **Yes (on SR/130 net ₹5,450)** |
+
+Shaista also has standalone **SR/134 ₹3,900 pending** (no linked invoice) — not in the 3a pair. Unclaimed = ₹250 + ₹3,900.
+
+Pass-2 leftover CN on a *different* invoice is why SADAF/AMRIN are not Maseera-class remaining undercounts. Production Phase 1 (allocated > 0) covers all four without the sibling-allocated-0 fallback.
+
+Dual-run extract fixtures (`test/helpers/customerLedgerExtractDualRun.ts`) include MASEERA, the cross-day CN-adjust date case, and the Shaista-class later-leftover fixture. QueryFn body ↔ golden.txt ↔ generated inline must stay in sync.
