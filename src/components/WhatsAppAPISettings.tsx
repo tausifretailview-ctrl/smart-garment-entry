@@ -115,7 +115,7 @@ function WhatsAppWebhookConfigSection() {
             variant="outline"
             size="sm"
             onClick={() => {
-              navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
+              void navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
               toast.success("Webhook URL copied!");
             }}
           >
@@ -133,7 +133,7 @@ function WhatsAppWebhookConfigSection() {
             variant="outline"
             size="sm"
             onClick={() => {
-              navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
+              void navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
               toast.success("Verify token copied!");
             }}
           >
@@ -746,7 +746,7 @@ export const WhatsAppAPISettings = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
+                            void navigator.clipboard.writeText(WHATSAPP_WEBHOOK_URL);
                             toast.success("Webhook URL copied!");
                           }}
                         >
@@ -764,7 +764,7 @@ export const WhatsAppAPISettings = () => {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
+                            void navigator.clipboard.writeText(WHATSAPP_WEBHOOK_VERIFY_TOKEN);
                             toast.success("Verify token copied!");
                           }}
                         >
