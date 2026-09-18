@@ -254,6 +254,13 @@
   margin: 2px 0;
 }
 
+/* Mix CASH ₹x + CREDIT ₹y is longer than labels-only; wrap this row, not header pairs. */
+.trendzo-pos-thermal-receipt-80mm .tz-payment .tz-pair-left {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+}
+
 .trendzo-pos-thermal-receipt-80mm .tz-upi-qr {
   text-align: center;
   margin: 4px 0 2px;

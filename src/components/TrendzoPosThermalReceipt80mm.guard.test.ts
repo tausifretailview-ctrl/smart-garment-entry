@@ -56,6 +56,26 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toMatch(/\.tz-header-ids \{[\s\S]*white-space:\s*nowrap/);
   });
 
+  it("prints mix payment amounts and Prev Bal / Advance on one pair-row each", () => {
+    expect(tsx).toContain("formatTrendzoPaymentModeLabel");
+    expect(tsx).toContain("trendzoPartyAccountPair");
+    expect(tsx).toContain("previousBalance");
+    expect(tsx).toContain("unusedAdvance");
+    expect(tsx).not.toContain("tz-payment-grid");
+
+    const wrapper = readFileSync(join(here, "InvoiceWrapper.tsx"), "utf8");
+    const trendzoCase = wrapper.slice(
+      wrapper.indexOf("templateForFormat === 'trendzo-pos-80mm'"),
+      wrapper.indexOf("templateForFormat === 'kids-camp-80mm'"),
+    );
+    expect(trendzoCase).toContain("previousBalance={props.previousBalance ?? 0}");
+    expect(trendzoCase).toContain("unusedAdvance={props.unusedAdvance ?? 0}");
+    expect(trendzoCase).toContain("creditPaid={props.creditAmount}");
+    expect(trendzoCase).toContain("cashPaid={props.cashPaid || props.cashAmount}");
+
+    expect(css).toMatch(/\.tz-payment \.tz-pair-left \{[\s\S]*white-space:\s*normal/);
+  });
+
   it("uses larger body type than the original 11/9px receipt", () => {
     expect(css).toMatch(/\.thermal-receipt \{[\s\S]*font-size: 13px;/);
     expect(css).toMatch(/\.tz-terms-list \{[\s\S]*font-size: 11px;/);

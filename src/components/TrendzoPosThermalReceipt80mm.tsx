@@ -7,6 +7,12 @@ import { buildUpiPayLink } from "@/lib/upiPayLink";
 import { resolveCompanyUpiId } from "@/utils/companyUpi";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { formatTrendzoThermalItemLine } from "@/utils/trendzoThermalItemLine";
+import {
+  buildTrendzoPaymentLines,
+  formatTrendzoMoney,
+  formatTrendzoPaymentModeLabel,
+  trendzoPartyAccountPair,
+} from "@/utils/trendzoThermalPayment";
 import "@/styles/trendzo-pos-thermal-receipt.css";
 
 export interface TrendzoPosThermalItem {
@@ -52,6 +58,8 @@ interface TrendzoPosThermalReceipt80mmProps {
   cardPaid?: number;
   creditPaid?: number;
   paidAmount?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   refundCash?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   salesman?: string;
@@ -68,11 +76,7 @@ const TRENDZO_DEFAULT_TERMS = [
 ];
 
 const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
-
-const fmtMoney = (n: number): string => {
-  const value = Number.isFinite(n) ? n : 0;
-  return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-};
+const fmtMoney = formatTrendzoMoney;
 
 function PairRow({ left, right }: { left?: React.ReactNode; right?: React.ReactNode }) {
   if (!left && !right) return null;
@@ -115,6 +119,8 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
+    previousBalance = 0,
+    unusedAdvance = 0,
     refundCash = 0,
     documentType = "pos",
     salesman,
@@ -241,15 +247,19 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
   const youSaved = savedFromMrp > 0 ? savedFromMrp : discount > 0 ? discount : 0;
 
-  const paymentModeLabel = (() => {
-    const parts: string[] = [];
-    if (cashPaid > 0) parts.push("CASH");
-    if (upiPaid > 0) parts.push("UPI");
-    if (cardPaid > 0) parts.push("CARD");
-    if (creditPaid > 0) parts.push("CREDIT");
-    if (parts.length > 0) return parts.join(" + ");
-    return (paymentMethod || "CASH").toUpperCase().replace(/_/g, " ");
-  })();
+  const paymentLines = buildTrendzoPaymentLines({
+    cashPaid,
+    upiPaid,
+    cardPaid,
+    creditPaid,
+    paidAmount: totalPaid,
+    paymentMethod,
+  });
+  const paymentModeLabel = formatTrendzoPaymentModeLabel(paymentLines, paymentMethod);
+  const partyAccountPair = trendzoPartyAccountPair({
+    previousBalance,
+    unusedAdvance,
+  });
 
   if (!settings) {
     return (
@@ -352,6 +362,9 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           left={<>Payment: {paymentModeLabel}</>}
           right={<>Paid {fmtMoney(totalPaid > 0 ? totalPaid : grandTotal)}</>}
         />
+        {partyAccountPair ? (
+          <PairRow left={partyAccountPair.left} right={partyAccountPair.right} />
+        ) : null}
         <AmountRow label="Balance / Due" amount={balanceDue} show={balanceDue > 0.5} />
         <AmountRow label="Return Amount" amount={refundCash} />
         <AmountRow label="You Saved" amount={youSaved} show={youSaved > 0} />
