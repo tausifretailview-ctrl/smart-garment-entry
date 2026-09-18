@@ -237,6 +237,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     permission: "reports_hub",
   },
   {
+    id: "nav-cn-sr-register",
+    group: "Go to",
+    label: "CN / S-R Adjustment Register",
+    subtitle: "Sale-return credit notes, applied and remaining",
+    icon: RotateCcw,
+    path: "/cn-sr-adjustment-register",
+    keywords: ["credit note", "sale return", "cn", "sr", "adjustment", "remaining"],
+    permission: "sale_return_dashboard",
+  },
+  {
     id: "nav-settings",
     group: "Go to",
     label: "Settings",

@@ -28,6 +28,7 @@ const MENU_PERMISSION_BY_PATH: Record<string, string> = {
   "sale-return-entry": "sale_return",
   "sale-returns": "sale_return_dashboard",
   "sale-return-dashboard": "sale_return_dashboard",
+  "cn-sr-adjustment-register": "sale_return_dashboard",
   "advance-booking-dashboard": "advance_booking_dashboard",
   "discount-scheme-dashboard": "discount_scheme_dashboard",
   "purchase-entry": "purchase_bill",
