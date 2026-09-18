@@ -3,6 +3,7 @@ import {
   runFixtureDualRun,
   diffLedgerRows,
 } from "../helpers/customerLedgerExtractDualRun";
+import { CROSS_DAY_CUSTOMER, MASEERA_CUSTOMER } from "../helpers/maseeraLedgerFixture";
 import { fetchCustomerLedgerTransactionsWithClient } from "@/utils/customerLedgerTransactions";
 import { fetchCustomerLedgerTransactionsDesktopInline } from "../../scripts/lib/customerLedgerRetailInline.generated";
 import {
@@ -24,8 +25,10 @@ function isProductionUrl(url: string | undefined): boolean {
 
 describe("customer ledger extract — fixture dual-run", () => {
   it("matches desktop inline element-by-element across ledger patterns (incl. running balance)", async () => {
-    const { caseCount, failures } = await runFixtureDualRun();
-    expect(caseCount).toBeGreaterThanOrEqual(15);
+    const { caseCount, caseIds, failures } = await runFixtureDualRun();
+    expect(caseCount).toBeGreaterThanOrEqual(20);
+    expect(caseIds).toContain(MASEERA_CUSTOMER);
+    expect(caseIds).toContain(CROSS_DAY_CUSTOMER);
     if (failures.length) {
       const detail = failures
         .map((f) => `  ${f.id} (${f.label})\n    ${f.diffs.join("\n    ")}`)
