@@ -3,51 +3,81 @@
 **Date:** 19 Sep 2026  
 **Org:** GURUKRUPA SILK SAREES (`e8fbf0d8-182c-4364-8570-96c756b72db8`)  
 **Customer:** SHREEVASTAV, phone 9819151882  
-**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint.  
-**This pass:** facts and scope SQL only. **No repair. Do not soft-delete RCP/1128 or RCP/1129.**
-
-Production tenant tables are RLS-blocked from this environment (anon `42501`). Exact `created_at` / `reference_id` still need the SQL-editor pastes below. Reconstruction uses the live ledger PDF + the print helpers that emit the photographed footer.
+**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:23 IST (`query-results-export-2026-09-19_00-22-48_2474.csv`, `_00-23-33_612c.csv`, `_00-23-50_8008.csv`).  
+**This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1128 or RCP/1129.**
 
 ---
 
-## 1. Confirmed on SHREEVASTAV (hand ledger)
+## 1. RCP/1128 and RCP/1129 — live paste 1 (confirmed)
 
-POS/25-26/875 ₹3,100 on 02/03/26 was fully settled on 05/03/26:
+Same sale row `57331371-b3f5-4009-a3c1-b5836513f01a` = **POS/25-26/875**, `reference_type = sale`, `deleted_at` null, `payment_status = completed`, `paid_amount = 3100`, at-sale cash ₹1,000.
 
-| When | What | Amount |
-| --- | --- | ---: |
-| 02/03 11:59 | Payment at sale (cash) | ₹1,000 |
-| 05/03 11:44 | RCP/25-26/799 | ₹2,100 |
-| | | **₹3,100** |
+| Voucher | created_at UTC | created_at IST | Amount | Description (full) |
+| --- | --- | --- | ---: | --- |
+| RCP/26-27/1128 | 2026-05-30 **07:29:06.757Z** | 12:59:06 | ₹2,100 | `Payment for POS/25-26/875` |
+| RCP/26-27/1129 | 2026-05-30 **07:29:20.724Z** | 12:59:20 | ₹1,000 | `Payment for POS/25-26/875` |
 
-Then on 30/05/26 12:59 PM IST the ledger shows two more receipts against the same POS/25… series:
+Both `voucher_date = 2026-05-30`, `payment_method = cash`. 14 seconds apart. Exact Customer Payment Tab template (`Payment for ${sale_number}`), **not** POS Dashboard (`Payment received for POS sale…`). Two whole RCP numbers = two `generate_voucher_number` calls.
 
-| Voucher | Amount | PDF description (truncated) |
-| --- | ---: | --- |
-| RCP/26-27/1128 | ₹2,100 | `Payment for POS/25...` |
-| RCP/26-27/1129 | ₹1,000 | `Payment for POS/25...` |
-
-Those amounts are the original two settlement legs replayed. Removing them from the running balance lands on **₹16,250**, matching the printed bill. Leaving them in lands on the live ledger **₹13,150**. Gap = ₹3,100.
-
-Ledger payment **time** is `voucher_entries.created_at` (`customerLedgerTransactions.ts` maps `timestamp: voucher.created_at`; PDF formats `hh:mm a`). 12:59 PM IST = **07:29 UTC on 30 May 2026** — the start of the previously cited 07:29–07:39 UTC cluster. Milliseconds still need paste 1.
-
-PDF text **`Payment for POS/25...`** matches Customer Payment Tab (`Payment for ${sale_number}`), not POS Dashboard Record Payment (`Payment received for POS sale ${sale_number}`). Two separate voucher numbers (1128, 1129) rather than `1128-1` / `1128-2` means two `generate_voucher_number` calls — two saves, not one multi-invoice split.
-
-Not every 30-May Gurukrupa POS-template receipt is this signature. **RCP/26-27/1127 ₹5,600** at 12:44 PM IST settles POS/26-27/767 which had **no** at-sale payment on the ledger — remaining was ₹5,600. That is a genuine later collection, 15 minutes before the duplicates.
-
-Same-day residual on POS/26-27/824 (₹3,500 − ₹500 at-sale) is closed later by RCP/26-27/1391 on 04/06, outside this window.
+POS/875 was already fully settled on 05/03 (at-sale ₹1,000 + RCP/799 ₹2,100). These two rows replay those legs. Live ledger ₹13,150; minus them ₹16,250, matching the printed bill.
 
 ---
 
-## 2. Why this could have been recorded at all
+## 2. Headline (paste 5) — two orgs only
 
-Same calendar day (30 May 2026) the app was shipping dashboard “Not Paid after customer payment / at-sale tender” fixes (PRs #16–#23). Customer Payment Tab then (and until `assertCustomerPaymentWithinOutstandingCap` landed) could write a receipt against an invoice whose **on-screen** leftover was stale `paid_amount` while at-sale cash + an older RCP had already cleared it.
+| Org | Rows | Customers | Invoices | Amount |
+| --- | ---: | ---: | ---: | ---: |
+| VELVET EXCLUSIVE LADIES WEAR & BAGS `dafc3d0c` | **15** | 10 | 15 | **₹70,842** |
+| Gurukrupa Silk Sarees `e8fbf0d8` | **4** | 3 | 3 | **₹9,500** |
 
-Today that overpay is blocked. That does **not** prove 1128/1129 were a script vs two cashier saves. Arithmetic is duplicate; writer still needs paste 1 (`created_by`, `reference_type`, full description).
+No other org hit this already-zero-balance POS-template filter on 29–30 May.
+
+Gurukrupa 4 rows / ₹9,500 = SHREEVASTAV’s 2 rows / ₹3,100 **plus 2 more receipts / 2 customers / 2 invoices / ₹6,400**. Paste 3 (Gurukrupa already-settled detail) was **not** in this export batch — those two names are still unknown. Do not guess them.
+
+RCP/1127 is **not** in the headline (correct: POS/767 still had ₹5,600 remaining).
 
 ---
 
-## 3. Print footer — not a 9th outstanding formula
+## 3. VELVET paste 4 — same shape, different template and clock
+
+All 15 rows: `remaining_before = 0`, `reference_type = sale`, description `Payment received for POS sale POS/… - ` (POS Dashboard Record Payment). Sequential RCP/1131–1145 from **11:34:31 to 11:41:47 UTC** (17:04–17:11 IST) — about 15–20 seconds apart. That is a burst, four hours after Gurukrupa’s 07:29 UTC pair.
+
+| Customer | Invoice | Net | Prior receipts | Tender | Dup RCP | Dup amt |
+| --- | --- | ---: | ---: | ---: | --- | ---: |
+| JATIN BHAI KENYA | POS/26-27/808 | 13,699.90 | 13,700 | 0 | 1131 | 13,700 |
+| HEENA PATEL | POS/26-27/853 | 2,770 | 2,770 | 0 | 1132 | 2,770 |
+| RUCHI | POS/26-27/1116 | 5,570 | 5,570 | 0 | 1133 | 5,570 |
+| ANANYA TRIPATHI | POS/26-27/580 | 3,900 | 3,900 | 0 | 1134 | 3,900 |
+| SAYALI MADAM | POS/26-27/610 | 2,299 | 2,299 | 0 | 1135 | 2,299 |
+| ANANYA TRIPATHI | POS/26-27/536 | 3,149 | 3,149 | 0 | 1136 | 3,149 |
+| REKHA SANCHETI | POS/26-27/416 | 2,000 | 2,000 | 0 | 1137 | 2,000 |
+| ANANYA TRIPATHI | POS/26-27/70 | 1,500 | 1,500 | 0 | 1138 | 1,500 |
+| *(null customer_id)* | POS/26-27/85 | 15,862 | 15,862 | 0 | 1139 | 15,862 |
+| ANANYA TRIPATHI | POS/26-27/221 | 2,745 | 2,745 | 0 | 1140 | 2,745 |
+| RUCHI | POS/26-27/292 | 570 | 570 | 0 | 1141 | 570 |
+| SURESH | POS/26-27/378 | 1,977 | 1,977 | 0 | 1142 | 1,977 |
+| NIKKI PATEL | POS/26-27/558 | 3,300 | 3,300 | 0 | 1143 | 3,300 |
+| DOLLY JAIN | POS/26-27/454 | 4,500 | 1,500 | 3,000 | 1144 | 1,500 |
+| DIYA | POS/25-26/123 | 11,000 | 10,000 | 1,000 | 1145 | 10,000 |
+
+Thirteen rows duplicate the **full net** (tender 0, prior receipts already = net). DOLLY / DIYA duplicate the **prior receipt slice** while at-sale tender already covers the rest (`prior + tender = net`). ANANYA has four invoices; RUCHI two. POS/85 has no customer name (`COUNT(DISTINCT customer_id)` skips null → 10).
+
+This is SQL remaining_before reconstruction per invoice, not a full customer-ledger reprint like SHREEVASTAV. Same duplicate shape. Still no mutate.
+
+---
+
+## 4. Two clusters on 30 May, not one
+
+| Cluster | Org | UTC | Template | Writer |
+| --- | --- | --- | --- | --- |
+| 07:29:06–07:29:20 | Gurukrupa SHREEVASTAV | 12:59 IST | `Payment for POS/25-26/875` | Customer Payment Tab |
+| 11:34:31–11:41:47 | Velvet 15 invoices | 17:04–17:11 IST | `Payment received for POS sale POS/… - ` | POS Dashboard Record Payment |
+
+Same calendar day, same “receipt against remaining 0” shape, **different** clock and description. The 07:29–07:39 UTC note matches Gurukrupa only. Velvet is a later POS Dashboard burst.
+
+---
+
+## 5. Print footer — not a 9th outstanding formula
 
 Photographed POS/26-27/1903 (POS Dashboard reprint, A5 Gurukrupa):
 
@@ -55,39 +85,19 @@ Photographed POS/26-27/1903 (POS Dashboard reprint, A5 Gurukrupa):
 | --- | ---: | --- |
 | Bill Total | ₹17,250 | invoice net |
 | Received | ₹1,000 | at-sale cash / `paidAmount` |
-| **Balance** | **₹16,250** | `invoiceThisBillBalance(billTotal, receivedToday)` — **this invoice only** |
+| **Balance** | **₹16,250** | `invoiceThisBillBalance` — this invoice only |
 | Outstanding | ₹16,250 | `gurukrupaInvoiceAccountLines` = previousBalance + this-bill Balance |
 | Advance | ₹0 | unused advance from `fetchInvoicePrintAccountFacets` |
 | Total Due | ₹16,250 | Outstanding − Advance |
 
-`previousBalance` comes from `fetchInvoicePrintAccountFacets` → `getCustomerAccountState.outstanding` (canonical receipt-sum, same family as the ledger), minus this bill when `accountIncludesThisBill: true` (POS save and POS Dashboard reprint).
-
-That is **not** a separate outstanding formula. Balance is always this-bill leftover. Outstanding is canonical prior + this-bill leftover.
-
-The photo equals **previousBalance = 0**. That is also the true prior once 1128/1129 are out (hand-trace: running balance 0 before POS/1903).
-
-A successful signed fetch of the **current** ledger outstanding (₹13,150) would print Outstanding **₹13,150** (`previousBalance = 13150 − 16250 = −3100`). The photo did not. So this reprint used previousBalance 0 (true prior-without-duplicates, Dr-only clamp of the ₹3,100 Cr, or the dashboard fetch fallback of 0). It did **not** invent ₹16,250 from a ninth calculator.
+`previousBalance` is canonical `getCustomerAccountState.outstanding` minus this bill on reprint. Printed Outstanding ₹16,250 means previousBalance used was **0**, which is the true prior once 1128/1129 are out. A signed fetch of live ₹13,150 would print ₹13,150.
 
 ---
 
-## 4. Scope SQL (paste one file per run)
+## 6. Still needed before any repair
 
-Do not click Format SQL first.
+- Paste 3: name the other **2 Gurukrupa** already-settled receipts (₹6,400).
+- Per-customer ledger reprint for those two, and at least five Velvet rows against source invoices (DOLLY/DIYA because tender + prior split; ANANYA because four hits; POS/85 because null customer).
+- Do **not** soft-delete 1128/1129 or the Velvet 1131–1145 batch until that hand-check.
 
-| # | File | What |
-| --- | --- | --- |
-| 1 | `scripts/shreevastav-dup-1-rcp-1128-1129.sql` | Exact 1128/1129 created_at, description, reference_type/id |
-| 2 | `scripts/shreevastav-dup-2-gurukrupa-window.sql` | All Gurukrupa POS-template receipts 29–30 May |
-| 3 | `scripts/shreevastav-dup-3-gurukrupa-already-settled.sql` | Subset: remaining_before ≤ 0.5 (the duplicate signature) |
-| 4 | `scripts/shreevastav-dup-4-velvet-already-settled.sql` | Same signature on VELVET `dafc3d0c-874e-4784-bac3-5eab5f3c85b5` |
-| 5 | `scripts/shreevastav-dup-5-all-orgs-headline.sql` | Org headline counts |
-
-Paste 3 is the actionable list. Reconstruct each match the same way as SHREEVASTAV (prior receipts + at-sale vs net) before any mutate. Do not treat paste 2 rows as duplicates — 1127 is the counter-example.
-
----
-
-## 5. What not to do yet
-
-- Do not soft-delete RCP/1128 or RCP/1129.
-- Do not bulk-delete paste 3 until each customer is hand-traced.
-- Do not change Gurukrupa print math to “fix” ₹16,250 — it already matches the real prior once the extra receipts are out of the account.
+Paste files remain: `scripts/shreevastav-dup-*.sql`.

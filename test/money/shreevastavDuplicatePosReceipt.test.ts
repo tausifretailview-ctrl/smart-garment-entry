@@ -46,6 +46,30 @@ describe("SHREEVASTAV POS/875 settlement before 30 May", () => {
   });
 });
 
+describe("live SQL-editor paste 19 Sep 2026 00:22 IST", () => {
+  it("1128/1129 created_at is 07:29 UTC, Customer Payment Tab description, same sale", () => {
+    const rcp1128At = new Date("2026-05-30T07:29:06.757454Z");
+    const rcp1129At = new Date("2026-05-30T07:29:20.724903Z");
+    expect(rcp1128At.toISOString().startsWith("2026-05-30T07:29:06")).toBe(true);
+    expect(rcp1129At.getTime() - rcp1128At.getTime()).toBe(13_967);
+    expect("Payment for POS/25-26/875".startsWith("Payment received for POS sale")).toBe(false);
+  });
+
+  it("headline: Gurukrupa 4 rows ₹9,500; Velvet 15 rows ₹70,842", () => {
+    expect(4).toBe(4);
+    expect(3_100 + 6_400).toBe(9_500);
+    expect(
+      13_700 + 2_770 + 5_570 + 3_900 + 2_299 + 3_149 + 2_000 + 1_500 + 15_862 +
+        2_745 + 570 + 1_977 + 3_300 + 1_500 + 10_000,
+    ).toBe(70_842);
+  });
+
+  it("Velvet DOLLY/DIYA: prior + tender already equals net before the new RCP", () => {
+    expect(1_500 + 3_000).toBe(4_500);
+    expect(10_000 + 1_000).toBe(11_000);
+  });
+});
+
 describe("SHREEVASTAV ledger running balance", () => {
   it("live PDF ends at ₹13,150 with the two 30-May duplicates", () => {
     expect(
