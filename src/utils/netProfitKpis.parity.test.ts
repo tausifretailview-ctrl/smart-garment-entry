@@ -279,10 +279,10 @@ function expectWithinTolerance(sql: NetProfitKpis, engine: NetProfitKpis) {
 }
 
 describe("npaTimestampBounds", () => {
-  it("matches loadProfitDataset PostgREST strings", () => {
+  it("uses IST day bounds so early/late POS bills stay on the business day", () => {
     expect(npaTimestampBounds("2026-09-16", "2026-09-16")).toEqual({
-      fromTimestamp: "2026-09-16",
-      toTimestamp: "2026-09-16T23:59:59",
+      fromTimestamp: "2026-09-16T00:00:00.000+05:30",
+      toTimestamp: "2026-09-16T23:59:59.999+05:30",
     });
   });
 });
