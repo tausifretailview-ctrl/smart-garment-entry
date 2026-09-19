@@ -112,8 +112,14 @@
 .en-menu-link {
   display: block; width: 100%; text-align: left;
   background: none; border: 0; border-bottom: 1px solid rgba(32, 30, 29, 0.1);
-  padding: 18px 0; font-size: 26px; color: var(--en-ink); cursor: pointer;
+  padding: 16px 0; font-size: 22px; color: var(--en-ink); cursor: pointer;
 }
+.en-close { font-size: 26px; line-height: 1; }
+.en-menu-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 32px; }
+.en-menu-foot .en-btn { width: 100%; max-width: 340px; }
+.en-menu-contact { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; min-height: 44px; }
+.en-menu-contact svg { flex: 0 0 auto; color: #25d366; }
+.en-menu-address { font-size: 15px; line-height: 1.55; color: var(--en-ink-2); max-width: 32ch; }
 .en-search-input {
   flex: 1; min-width: 0; border: 0; background: none;
   font-size: 19px; color: var(--en-ink); padding: 10px 0;
@@ -264,11 +270,33 @@
 .en-tab {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   min-height: 60px; background: none; border: 0; cursor: pointer; color: var(--en-muted);
+  text-decoration: none;
 }
 .en-tab span { font-size: 11px; letter-spacing: 0.1em; }
 .en-tab[aria-current="true"] { color: var(--en-accent-deep); }
+.en-tab-wa, .en-tab-wa:hover { color: #1da851; }
 .en-tab-ico { position: relative; display: flex; }
 .en-tab-ico .en-badge { top: -5px; right: -9px; min-width: 16px; height: 16px; font-size: 10px; }
+
+/* ---------- the repo's floating social bubbles ----------
+   StorefrontFloatingSocial renders outside .en-home, as a sibling inside
+   .ella-store. On mobile it sat on top of the tab bar and the colophon, so it
+   is hidden there — WhatsApp now lives in the tab bar instead. On desktop it
+   stays, with its glyphs sized so they cannot overflow their circles. */
+
+.ella-store .storefront-floating-social { display: none; }
+@media (min-width: 1024px) {
+  .ella-store .storefront-floating-social {
+    display: flex; flex-direction: column; gap: 12px;
+    position: fixed; right: 24px; bottom: 24px; z-index: 45;
+  }
+  .ella-store .storefront-floating-social-btn {
+    width: 52px; height: 52px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 10px rgba(45, 43, 43, 0.28);
+  }
+  .ella-store .storefront-floating-social-icon { width: 24px; height: 24px; display: block; }
+}
 
 /* ---------- skeleton ---------- */
 
@@ -279,3 +307,34 @@
 .en-skel-box.line { height: 14px; margin-top: 10px; }
 .en-skel-box.head { height: 44px; max-width: 420px; }
 @keyframes en-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* ---------- mobile type scale ----------
+   The serif runs large by default; below 640px it is stepped down so copy
+   sets in comfortable lines instead of two or three words per line. */
+
+@media (max-width: 640px) {
+  .en-home { font-size: 15px; }
+  .en-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
+  .en-hero { padding-top: 12px; gap: 22px; }
+  .en-hero-copy { padding: 4px 0 0; gap: 14px; }
+  .en-hero h1 { font-size: 34px; line-height: 1.06; }
+  .en-lead { font-size: 16px; line-height: 1.45; }
+  .en-figure { aspect-ratio: 3 / 4; }
+  .en-btn { width: 100%; min-height: 50px; padding: 15px 22px; font-size: 12px; letter-spacing: 0.16em; }
+  .en-actions { gap: 10px; }
+  .en-promises { gap: 20px; padding-top: 40px; }
+  .en-promise p { font-size: 15px; line-height: 1.45; }
+  .en-section { padding-top: 44px; }
+  .en-section-head h2 { font-size: 26px; }
+  .en-grid { gap: 22px 12px; }
+  .en-card-name { font-size: 15px; }
+  .en-card-price { font-size: 14px; }
+  .en-card-code { font-size: 10px; letter-spacing: 0.16em; }
+  .en-col h3 { font-size: 22px; }
+  .en-col p { font-size: 15px; }
+  .en-steps { gap: 4px 14px; }
+  .en-steps p { font-size: 15px; line-height: 1.45; margin-bottom: 14px; }
+  .en-footer-grid { gap: 26px; }
+  .en-footer-col { font-size: 15px; }
+  .en-colophon { padding-bottom: 32px; line-height: 1.5; }
+}
