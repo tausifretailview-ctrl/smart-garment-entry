@@ -25,7 +25,7 @@ Rejected attempts do not insert a voucher. There is no fire table. So (1) and (2
 
 **Not yet observable from queryable tables.** Last night’s rehearsal (rolled-back T1/T4) is still the only named fire. A real double-click or settled-bill attempt would raise `23505` or `P0431` and leave no extra receipt. Those exceptions are not stored in-app.
 
-Paste query **A** (trigger/index still on) and, if `track_functions` is on, query **E**. A positive function `calls` count only proves the trigger ran on inserts, not that it rejected anyone.
+Paste query **A** (trigger/index still on) and, if `track_functions` is on, query **E**. A positive function `calls` count only proves the trigger ran on inserts, not that it rejected anyone. Query **E** must read `fn_stats.calls` from `pg_stat_user_functions` — `pg_proc` has no `calls` column (SQL-editor 42703 if rewritten to `p.calls`). If the editor stops on E, A–D still ran; scroll the result tabs or re-run A–D alone.
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 

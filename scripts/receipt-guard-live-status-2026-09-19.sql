@@ -121,10 +121,16 @@ ORDER BY rows DESC;
 
 -- E. Optional: function-call counter (only filled if track_functions is on).
 --    Does NOT prove a reject — every voucher INSERT calls the trigger.
+--    trigger_calls comes from pg_stat_user_functions; stats_reset_at from
+--    pg_stat_database. pg_proc has neither column.
 SELECT
-  p.proname,
-  s.calls,
-  s.stats_reset
-FROM pg_proc p
-LEFT JOIN pg_stat_user_functions s ON s.funcid = p.oid
-WHERE p.proname = 'enforce_receipt_within_invoice_cap';
+  proc.proname AS function_name,
+  fn_stats.calls AS trigger_calls,
+  db_stats.stats_reset AS stats_reset_at
+FROM pg_catalog.pg_proc AS proc
+LEFT JOIN pg_catalog.pg_stat_user_functions AS fn_stats
+  ON fn_stats.funcid = proc.oid
+LEFT JOIN pg_catalog.pg_stat_database AS db_stats
+  ON db_stats.datname = current_database()
+WHERE proc.proname = 'enforce_receipt_within_invoice_cap'
+  AND proc.pronamespace = 'public'::regnamespace;

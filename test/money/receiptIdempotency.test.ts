@@ -88,5 +88,8 @@ describe("live-status SQL — do not roll the guard back", () => {
     expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
     expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
     expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+    expect(sql).toContain("fn_stats.calls");
+    expect(sql).toContain("db_stats.stats_reset");
+    expect(sql).not.toMatch(/^\s+p\.calls,/m);
   });
 });
