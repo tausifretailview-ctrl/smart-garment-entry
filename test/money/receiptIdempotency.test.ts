@@ -143,4 +143,18 @@ describe("live-status SQL — do not roll the guard back", () => {
     expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
     expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
   });
+
+  it("POS-search Due follow-up stays read-only and calls the C-SNAP RPC", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const sql = await readFile(
+      new URL("../../scripts/shreevastav-pos-search-due-14650.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("get_customer_financial_snapshot");
+    expect(sql).toContain("9819151882");
+    expect(sql).toContain("e8fbf0d8-182c-4364-8570-96c756b72db8");
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
+    expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
+    expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+  });
 });
