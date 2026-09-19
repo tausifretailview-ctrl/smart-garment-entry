@@ -25,7 +25,15 @@ Rejected attempts do not insert a voucher. There is no fire table. So (1) and (2
 
 **Not yet observable from queryable tables.** Last night’s rehearsal (rolled-back T1/T4) is still the only named fire. A real double-click or settled-bill attempt would raise `23505` or `P0431` and leave no extra receipt. Those exceptions are not stored in-app.
 
-Paste query **A** (trigger/index still on) and, if `track_functions` is on, query **E**. A positive function `calls` count only proves the trigger ran on inserts, not that it rejected anyone. Query **E** must read `fn_stats.calls` from `pg_stat_user_functions` — `pg_proc` has no `calls` column (SQL-editor 42703 if rewritten to `p.calls`). If the editor stops on E, A–D still ran; scroll the result tabs or re-run A–D alone.
+**Query E paste** (`query-results-export-2026-09-19_13-49-03_0038.csv`, 19 Sep 2026 13:49 IST):
+
+| function_name | stats_reset_at | trigger_calls |
+| --- | --- | --- |
+| `enforce_receipt_within_invoice_cap` | 2025-11-04 02:17:06+00 | *(empty)* |
+
+The function **exists** on production `pg_proc`. Empty `trigger_calls` means `track_functions` is off (`pg_stat_user_functions` has no row) — not that the trigger never ran. `stats_reset_at` is the database-wide stats clock (project age), not go-live. Query E cannot name a real-world block.
+
+A–D remain the overnight traffic answers. Re-run **A–D only** (stop before E) if those result tabs were lost when E first 42703’d.
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 
