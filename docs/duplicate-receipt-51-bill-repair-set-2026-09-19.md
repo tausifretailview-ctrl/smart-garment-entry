@@ -94,6 +94,7 @@ Live overlap paste 19 Sep 2026 20:10 IST (`docs/ssot-51-bill-overlap-live-2026-0
 
 - SHREEVASTAV / VIMLA / DIYA: SNAP still drops at-sale on the repaired bill (`paid_amount` still holds tender, so C-JS gap is 1000 / 400 / 1000 — glance *may* match leftover; POS search will not). SHREEVASTAV sibling POS/824 ₹500 live.
 - HEENA POS/853 and ANANYA’s four tender-0 dups sit on **sibling** SNAP-drop (₹9,686 and ₹2,416). They are not safe tender-0 repairs.
-- SANTOSH 1131-1 leftover-overpay is a different defect. All-time 51 still unscanned.
+- SANTOSH 1131-1 leftover-overpay is a different defect. **SANTOSH_SEPARATE** — do not fold into SNAP groups.
+- Full leftover-sum + sibling scan not yet pasted: `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`. No mutate until that CSV is locked. SHREEVASTAV / VIMLA / DIYA are **NEEDS_BUCKET_G**, not repair-sufficient.
 
 Two-tier SSOT: leftover is invoice-level only. Customer/org canonical source must be **built**, not picked from C-PARTY/C-REC/C-STMT/C-AUDIT/C-OB-SALES. See `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`. Still no money-row write in this commit.

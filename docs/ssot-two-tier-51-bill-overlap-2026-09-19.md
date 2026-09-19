@@ -79,7 +79,7 @@ Sibling SNAP-drop rows in the same CSV (includes the repaired bill when it itsel
 
 **Answer to “any of the 51-set bills on SNAP/C-JS accounts?”** For this May already-zero named set: **yes.** HEENA and ANANYA look like safe tender-0 full-net dups on the repaired row and are **not** — sibling SNAP-drop is live. SHREEVASTAV / VIMLA / DIYA drop on the repaired bill itself. Live C-JS `paid_amount` still holds tender on those three, so glance *may* match leftover after delete; POS search will not.
 
-This paste is **not** the all-time 51. Those remaining rows stay **WAIT** until the same scan exists for them.
+This paste is **not** the all-time 51. Full leftover-sum + sibling SNAP-drop scan: `docs/ssot-51-full-sibling-scan-2026-09-19.md` / `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`. **SHREEVASTAV / VIMLA / DIYA are NEEDS_BUCKET_G**, not repair-sufficient. SANTOSH stays separate. No mutate until that paste is locked.
 
 ### Named bills — after duplicate gone, mutate not started
 
