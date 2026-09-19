@@ -151,7 +151,7 @@ customer_totals AS (
   SELECT
     customer_id,
     SUM(snap_drop) AS customer_snap_drop,
-    COUNT(*) FILTER (WHERE snap_drop > 0) AS customer_snap_bills,
+    COUNT(*) FILTER (WHERE snap_drop > 0.5) AS customer_snap_bills,
     COUNT(*) FILTER (WHERE is_repair_bill) AS repair_bill_count
   FROM customer_sales_drop
   GROUP BY customer_id
@@ -202,7 +202,7 @@ classified AS (
         OR s.sale_number IN ('POS/25-26/717', 'POS/25-26/1130')
         THEN 'SANTOSH_SEPARATE'
       WHEN s.customer_id IS NULL THEN 'WALK_IN_NO_CUSTOMER'
-      WHEN COALESCE(ct.customer_snap_drop, 0) > 0 THEN 'NEEDS_BUCKET_G'
+      WHEN COALESCE(ct.customer_snap_drop, 0) > 0.5 THEN 'NEEDS_BUCKET_G'   -- ₹0.5: paise rounding (442 vs 441.995) is not a drop
       ELSE 'REPAIR_SUFFICIENT_SNAP'
     END AS gate
   FROM shaped s
@@ -289,5 +289,5 @@ SELECT
   csd.tender_residual
 FROM customer_sales_drop csd
 WHERE csd.is_repair_bill = false
-  AND csd.snap_drop > 0
+  AND csd.snap_drop > 0.5
 ORDER BY 1, 2 NULLS LAST, 4 NULLS LAST, 3 NULLS LAST;

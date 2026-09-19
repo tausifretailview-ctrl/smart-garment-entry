@@ -101,7 +101,8 @@ function gateCustomer(customerId: string | null, sales: Sale[]): Gate {
     return "SANTOSH_SEPARATE";
   }
   if (customerId == null) return "WALK_IN_NO_CUSTOMER";
-  if (customerSnapDropAfterRepair(sales) > 0) return "NEEDS_BUCKET_G";
+  // ₹0.5 tolerance: 1b55c8fa POS/26-27/1919 (tender 442, net 442.005) "dropped" ₹0.005 in the v3 paste.
+  if (customerSnapDropAfterRepair(sales) > 0.5) return "NEEDS_BUCKET_G";
   return "REPAIR_SUFFICIENT_SNAP";
 }
 
@@ -373,5 +374,39 @@ describe("v3 — partial GREATEST drop (receipts_after below tender) was invisib
       expect(snapDrop(s, eff)).toBe(expected);
       expect(Math.max(0, ledger - snap)).toBe(expected);
     }
+  });
+});
+
+describe("v3 live paste (22:24 IST) — tolerance and the moves it caused", () => {
+  it("paise rounding is not a bucket-(g) drop: 1b55c8fa stays B", () => {
+    const sales: Sale[] = [
+      { saleNumber: "POS/26-27/1919", tender: 442, receiptsLive: 442, netDue: 442.005 },
+      { saleNumber: "POS/26-27/1971", tender: 1_203, receiptsLive: 1_203, netDue: 1_203 },
+    ];
+    expect(customerSnapDropAfterRepair(sales)).toBeCloseTo(0.005, 3);
+    expect(gateCustomer("1b55c8fa", sales)).toBe("REPAIR_SUFFICIENT_SNAP");
+  });
+
+  it("ANANYA moves to B: her 1788 'sibling drop' was a same-day dual-write", () => {
+    // v2 saw tender 2,416 + receipts 12,416 on 14,832 and charged a 2,416 drop. The 2,416
+    // receipt is dated the sale day, so residual tender is 0 and there is nothing to drop.
+    const s1788: Sale = { saleNumber: "POS/26-27/1788", tender: 2_416, receiptsLive: 12_416, receiptsSameDay: 2_416, netDue: 14_832 };
+    expect(overCreditLedger(s1788)).toBe(0);
+    expect(snapDrop(s1788, 12_416)).toBe(0);
+    expect(gateCustomer(ANANYA, [s1788, { saleNumber: "POS/26-27/221", tender: 0, receiptsLive: 5_490, netDue: 2_745 }])).toBe(
+      "REPAIR_SUFFICIENT_SNAP",
+    );
+  });
+
+  it("ELLA NOOR POS/26-27/93 — the ensureAtSaleTenderReceipt example — leaves the population entirely", () => {
+    const s: Sale = { saleNumber: "POS/26-27/93", tender: 4_000, receiptsLive: 20_900, receiptsSameDay: 4_000, netDue: 20_900 };
+    expect(overCreditLedger(s)).toBe(0);
+    expect(shape(s)).toBe("NOT_OVER_CREDITED");
+  });
+
+  it("22:24 headline: 85 receipt-bearing bills / ₹2,80,818.51; A 17 customers (30 bills, ₹75,703), B 43 (51, ₹1,75,880)", () => {
+    expect(30 + 51 + 2 + 2).toBe(85);
+    expect(Math.round(75_702.99 + 175_879.51 + 11_500 + 17_736)).toBe(280_819);
+    // vs v2: 6 dual-write bills (₹16,290) left; ANANYA + 2 others left A; DOLLY, 22e086fa, 32d34671, 9c324a1a joined A
   });
 });
