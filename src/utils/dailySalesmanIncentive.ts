@@ -203,7 +203,14 @@ export function aggregateDailySalesmanIncentive(params: {
 
 /** ADEEBAAREEBA (slug adeebaareeba) — UI gate until config row is loaded. */
 export const ADEEBAAREEBA_ORG_ID = "b230c582-4f0b-420f-b18b-bef26c2f5ce8";
+/** ADEEBA AREEBA STUDIO (slug adeeba-areeba-studio) — same incentive rules. */
+export const ADEEBAAREEBA_STUDIO_ORG_ID = "0dac440f-e962-4f27-a38d-71c81f9c52b7";
+
+export const DAILY_INCENTIVE_UI_ORG_IDS = [
+  ADEEBAAREEBA_ORG_ID,
+  ADEEBAAREEBA_STUDIO_ORG_ID,
+] as const;
 
 export function isDailyIncentiveUiOrg(organizationId: string | null | undefined): boolean {
-  return organizationId === ADEEBAAREEBA_ORG_ID;
+  return (DAILY_INCENTIVE_UI_ORG_IDS as readonly string[]).includes(organizationId ?? "");
 }
