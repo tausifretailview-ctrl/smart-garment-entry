@@ -143,9 +143,11 @@ Supplier track unchanged (S-JS vs S-PARTY vs S-ORG vs S-OB). Out of this ELLA NO
 
 ## Which formula is long-term truth
 
-**Logic:** C-RECON-LEDGER / C-JS (Almas ₹0, Farhaan −₹100, unused advance as a facet, all-invoice CN, refund adds then leftover CN offsets).
+**Logic (this-bill / payment target):** invoice leftover (`reconcileSaleInvoiceWithSplit`). SHREEVASTAV print + Select Invoices ₹16,250. **Not** proven as Customer Balances / KPI SSOT — leftover is per-invoice; list/KPI still need opening + CN/SR pool + unused advance (aggregator not built).
 
-**Vehicle:** one **SQL set-based** function (evolve `_get_customer_party_balances_rows` or a new `_customer_balance_canonical_rows`) so 7,772 KPI cards stay one query.
+**Logic (lifetime customer, demoted as reference):** C-JS / C-RECON-LEDGER still match Farhaan −₹100. On SHREEVASTAV C-JS glance is **₹14,150** (wrong). Do not treat C-JS as the print’s customer total.
+
+**Vehicle:** one **SQL set-based** function (evolve `_get_customer_party_balances_rows` or a new `_customer_balance_canonical_rows`) so 7,772 KPI cards stay one query. That function should **compose** leftover (or equivalent per-invoice remaining) plus customer-level legs — not `SUM(leftover)` alone, and not C-SNAP’s `GREATEST(0, tender − receipts)` drift (bucket g).
 
 **Not** JS-per-page as SSOT. **Not** “make C-PARTY match C-SNAP unused netting and call it done” — that already happened on overlap and still disagrees with ledger unused-advance semantics.
 

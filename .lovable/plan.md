@@ -6,9 +6,11 @@ No RPC, data, or app code changes in this pass.
 
 ## Step 1 (first priority) — the printed bill, and whether it can be fooled
 
-Already traced: the printed POS bill's Prev Bal / Balance / Total Due block is **not a ninth formula**. It calls `fetchInvoicePrintAccountFacets` (`src/utils/customerAccountStateView.ts`), which loads the customer's raw transaction bundle and runs `getCustomerAccountState` — the C-JS family — then subtracts the current bill via the `invoiceAccountDue` helpers. Print shows Outstanding (invoice leftover), never Net Position, which is a legitimate difference from net-of-advance surfaces.
+Already traced: the printed POS bill's this-bill **Balance / Total Due ₹16,250** is **invoice leftover** (`reconcileSaleInvoiceWithSplit` / `invoiceThisBillBalance`), the same family as Payment Receipt Select Invoices and Sales Invoice Dashboard. It is **not** proof that C-JS is right.
 
-The open question answered before anything else: **is C-JS structurally protected from duplicate-receipt double counting, or did Shreevastav's printed ₹16,250 come out right by luck?** Method: read the receipt-crediting path in `customerBalanceCore` (per-invoice cap vs raw voucher sum), then replay Shreevastav's real vouchers plus variants where the duplicate lands differently (different date, different invoice, unallocated). Definitive verdict reported to you as soon as it is known, not held for the final report.
+Print `previousBalance` still comes from C-JS (`getCustomerAccountState`) minus this bill. On SHREEVASTAV that C-JS outstanding is **₹14,150** (₹2,100 short). Gurukrupa Outstanding/Total Due then **adds this-bill leftover**, so the photographed ₹16,250 can be correct while glance C-JS is wrong.
+
+**C-JS is not structurally protected from duplicate receipts.** It sums voucher credits (1128 and 1129 both count) and only adds at-sale via `computePaidAmountDrift` when `max(paid_amount, tender) > voucherSum`. On POS/875 that gap is 0, so 1129 is absorbed as the GREATEST replacement for discarded at-sale and **1128 still over-credits ₹2,100**. Verdict: printed this-bill leftover was not luck; C-JS glance **was** fooled. Full replay: `docs/shreevastav-pos-search-due-14650-2026-09-19.md`.
 
 ## Step 2 (second priority) — 30-May duplicate-receipt sweep
 
@@ -22,7 +24,7 @@ Coverage is stated explicitly in the report: exact number of customers tested, h
 
 ## Step 4 — classify every disagreement by shape
 
-(a) FIFO-split SRA, (b) dropped sale-return rows, (c) mis-dated CN-adjust vouchers, (d) duplicate receipt on an already-settled invoice, (e) unused-advance netting (legitimate — reported separately, excluded from the drift count), (f) genuinely new.
+(a) FIFO-split SRA, (b) dropped sale-return rows, (c) mis-dated CN-adjust vouchers, (d) duplicate receipt on an already-settled invoice, (e) unused-advance netting (legitimate — reported separately, excluded from the drift count), (f) genuinely new, **(g) C-SNAP compound GREATEST + `paid_at_sale_drift` miss** (two independent effects on one customer's signed total — SHREEVASTAV POS search ₹14,650 = leftover ₹16,250 − 875 GREATEST ₹2,100 + 824 dropped at-sale ₹500; do **not** fold into (d) or FIFO-split).
 
 ## Step 5 — hand-verify anything new
 
@@ -30,7 +32,15 @@ For bucket (f) only, verify 3–5 real customers line by line against actual inv
 
 ## Step 6 — migration-order recommendation
 
-Which families converge first and in what order, and which may legitimately keep computing something different. Outstanding vs Net Position is the known legitimate case; the report states explicitly whether any other family qualifies or whether the rest is bug-class.
+Working order (SHREEVASTAV 19 Sep 2026 — pending leftover-aggregator scope):
+
+1. **This-bill / Select Invoices / print Balance** → invoice leftover (`reconcileSaleInvoiceWithSplit`). Matched POS/1903 print ₹16,250. **Not** yet Customer Balances list or KPI cards: leftover is per-invoice; `SUM(open leftovers)` omits opening, unused advance, unclaimed CN/SR, unallocated receipts. That aggregator is real work, not a rename.
+2. **C-JS demoted** from reliable reference. Live glance ₹14,150. After 1128/1129 repair it *may* hit ₹16,250 only if `paid_amount` still carries 875’s at-sale so drift restores it; a GREATEST rewrite to ₹2,100 leaves C-JS at ₹17,250.
+3. **C-RECON-LEDGER** should hit ₹16,250 after the duplicate-row repair (13,150 + 3,100).
+4. **C-SNAP does not** converge after that repair. Drift `GREATEST(0, tender − sale receipts)` still drops 875 at-sale (RCP/799 remains) **and** 824 at-sale → predicted **₹17,750**. Bucket (g) needs its own fix.
+5. Outstanding vs Net Position remains the known *legitimate* split (unused advance). GREATEST vs leftover vs SNAP-drift are bug-class, not facets.
+
+Full write-up: `docs/shreevastav-pos-search-due-14650-2026-09-19.md` migration-order section.
 
 ## Step 7 — measure KS FOOTWEAR and VELVET
 
