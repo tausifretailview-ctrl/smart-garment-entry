@@ -21,6 +21,11 @@
 --   REPAIR_SUFFICIENT_SNAP — no SNAP drop anywhere on the customer after repair
 --                            (still not a mutate green light — reprints / hand-check)
 --
+-- v3 (after the 22:01 dry-run review): same-day receipts are netted against at-sale
+-- tender (printed-ledger rule). v2 counted a POS dual-write (cash_amount + same-day
+-- receipt) as over-credit and as a SNAP drop — both wrong. The 21:09 CSV is v2 output
+-- and its A/B split is PROVISIONAL until this v3 is pasted.
+--
 -- v2 (21:09 IST paste, 456 rows): first run gated PER BILL, so 54572eba had one
 -- bill in each group. Now the gate is per customer. Also adds `shape` so the
 -- tender-only rows (at-sale cash > net, receipts = 0, nothing to delete) and the
@@ -43,6 +48,7 @@ sale_base AS (
     s.organization_id,
     s.customer_id,
     s.sale_number,
+    (s.sale_date AT TIME ZONE 'Asia/Kolkata')::date AS sale_day,
     COALESCE(s.net_amount, 0) AS net_amount,
     COALESCE(s.sale_return_adjust, 0) AS sra,
     COALESCE(s.paid_amount, 0) AS paid_amount,
@@ -55,15 +61,23 @@ sale_base AS (
     AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
     AND s.organization_id IN (SELECT id FROM org_ids)
 ),
+-- v3: same-day receipts are netted against at-sale tender, the way the printed
+-- Customer Ledger does (CustomerLedgerPage residualPaymentAtSaleTender, same-day
+-- voucher_date only). A POS bill that dual-writes cash_amount AND a same-day
+-- receipt is NOT over-credited; the 21:09 (v2) paste counted it twice.
 receipts AS (
   SELECT
     ve.organization_id,
     ve.reference_id AS sale_id,
-    SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))) AS amt
+    SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0))) AS amt,
+    SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)))
+      FILTER (WHERE ve.voucher_date IS NOT DISTINCT FROM sb.sale_day) AS amt_same_day
   FROM public.voucher_entries ve
+  JOIN sale_base sb
+    ON sb.id::text = ve.reference_id::text
+   AND sb.organization_id = ve.organization_id
   WHERE ve.deleted_at IS NULL
     AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
-    AND ve.organization_id IN (SELECT id FROM org_ids)
     AND NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
   GROUP BY ve.organization_id, ve.reference_id
 ),
@@ -71,10 +85,14 @@ sale_cash AS (
   SELECT
     sb.*,
     COALESCE(r.amt, 0) AS receipts_live,
+    COALESCE(r.amt_same_day, 0) AS receipts_same_day,
+    GREATEST(0::numeric, sb.tender - COALESCE(r.amt_same_day, 0)) AS tender_residual,
     GREATEST(0::numeric, sb.net_amount - sb.sra) AS net_due,
     GREATEST(
       0::numeric,
-      COALESCE(r.amt, 0) + sb.tender - GREATEST(0::numeric, sb.net_amount - sb.sra)
+      COALESCE(r.amt, 0)
+        + GREATEST(0::numeric, sb.tender - COALESCE(r.amt_same_day, 0))
+        - GREATEST(0::numeric, sb.net_amount - sb.sra)
     ) AS over_credit_ledger,
     GREATEST(
       0::numeric,
@@ -105,6 +123,7 @@ customer_sales AS (
     sc.customer_id,
     sc.sale_number,
     sc.tender,
+    sc.tender_residual,
     sc.receipts_live,
     sc.over_credit_ledger,
     CASE
@@ -116,13 +135,15 @@ customer_sales AS (
   JOIN repair_customers rc ON rc.customer_id = sc.customer_id
   LEFT JOIN repair_bills rb ON rb.id = sc.id
 ),
+-- Bucket (g): SNAP credits GREATEST(0, tender − all sale receipts). The at-sale money it
+-- fails to credit is tender_residual − that drift. Zero on a dual-written bill (residual 0).
 customer_sales_drop AS (
   SELECT
     cs.*,
-    CASE
-      WHEN cs.tender > 0.005 AND cs.receipts_effective >= cs.tender THEN cs.tender
-      ELSE 0
-    END AS snap_drop
+    GREATEST(
+      0::numeric,
+      cs.tender_residual - GREATEST(0::numeric, cs.tender - cs.receipts_effective)
+    ) AS snap_drop
   FROM customer_sales cs
 ),
 -- Customer-level SNAP drop AFTER repair: every sale (repair bill or not).
@@ -139,16 +160,16 @@ shaped AS (
   SELECT
     rb.*,
     rb.receipts_live - rb.net_due AS receipt_over,   -- > 1 → receipts alone exceed the bill
-    CASE
-      WHEN rb.tender > 0.005 AND rb.receipts_after >= rb.tender THEN rb.tender
-      ELSE 0
-    END AS snap_drop_self,
+    GREATEST(
+      0::numeric,
+      rb.tender_residual - GREATEST(0::numeric, rb.tender - rb.receipts_after)
+    ) AS snap_drop_self,
     CASE
       WHEN rb.receipts_live <= 0.005 THEN 'TENDER_ONLY_OVER'          -- no receipt to delete
       WHEN rb.net_due <= 0.005      THEN 'NET_DUE_ZERO'               -- fully returned; refund, not dup
       WHEN rb.tender <= 0.005 AND abs(rb.receipts_live - 2 * rb.net_due) <= 1
                                     THEN 'EXACT_DOUBLE_RECEIPT'
-      WHEN rb.tender > 0.005 AND rb.receipts_after <= 0.005
+      WHEN rb.tender_residual > 0.005 AND rb.receipts_after <= 0.005
                                     THEN 'RECEIPT_DUPLICATES_AT_SALE_TENDER'
       WHEN rb.receipts_live - rb.net_due > 1
                                     THEN 'RECEIPT_OVER_PARTIAL'
@@ -174,6 +195,8 @@ classified AS (
     COALESCE(ct.repair_bill_count, 1) AS customer_repair_bills,
     s.shape,
     s.receipt_over,
+    s.receipts_same_day,
+    s.tender_residual,
     CASE
       WHEN s.customer_id = '1167547a-2ef1-4931-8993-2cb21ebcb619'::uuid
         OR s.sale_number IN ('POS/25-26/717', 'POS/25-26/1130')
@@ -201,7 +224,9 @@ SELECT
   NULL::int AS sibling_snap_bills,
   NULL::int AS customer_repair_bills,
   NULL::text AS shape,
-  NULL::numeric AS receipt_over
+  NULL::numeric AS receipt_over,
+  NULL::numeric AS receipts_same_day,
+  NULL::numeric AS tender_residual
 FROM classified
 UNION ALL
 SELECT
@@ -220,7 +245,9 @@ SELECT
   sibling_snap_bills,
   customer_repair_bills,
   shape,
-  receipt_over
+  receipt_over,
+  receipts_same_day,
+  tender_residual
 FROM classified
 UNION ALL
 SELECT
@@ -236,7 +263,7 @@ SELECT
   MAX(sibling_snap_drop),
   NULL, NULL,
   string_agg(shape, '+' ORDER BY sale_number),
-  NULL
+  NULL, NULL, NULL
 FROM classified
 WHERE customer_id IS NOT NULL
 GROUP BY customer_id, gate
@@ -257,7 +284,9 @@ SELECT
   NULL,
   NULL,
   NULL,
-  NULL
+  NULL,
+  NULL,
+  csd.tender_residual
 FROM customer_sales_drop csd
 WHERE csd.is_repair_bill = false
   AND csd.snap_drop > 0

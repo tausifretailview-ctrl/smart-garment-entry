@@ -6,6 +6,16 @@ The 20:10 IST 18-bill scan proved bucket (g) is live on HEENA and ANANYA sibling
 
 Tables-only paste: `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`. No JWT. No `organizations.deleted_at`.
 
+> **PROVISIONAL (added after the 22:01 IST dry-run review).** The 21:09 paste below was
+> produced by v2 of the SQL, which (a) added the **full** at-sale tender to receipts — a POS
+> bill that dual-writes `cash_amount` and a same-day receipt, or carries the app's own
+> `Counter payment received for sale …` backfill, is *not* over-credited (the printed ledger
+> nets same-day receipts against tender) — and (b) counted a SNAP drop only when
+> `receipts_after ≥ tender`, missing the partial GREATEST hole (`0 < receipts_after < tender`
+> drops `receipts_after`). v3 of the SQL fixes both. The 91 / A 14 / B 49 numbers stand only
+> until v3 is pasted; expect the population to shrink and some B customers to move to A.
+> Details: `docs/ssot-step2-dry-run-v1-review-2026-09-19.md`.
+
 ---
 
 ## Correction — SHREEVASTAV / VIMLA / DIYA are not “repair sufficient”
@@ -109,8 +119,9 @@ The 5 NET_DUE_ZERO rows sit inside B by the SNAP gate but must be **pulled out o
 
 ### Order, once the hold lifts
 
-1. Materialise the 51 by `sale_number` and diff against the 91. Anything in the 51 but not in the 91, or vice versa, is explained before step 2. → paste `scripts/ssot-step1-materialise-51-vs-91-2026-09-19.sql`; notes in `docs/ssot-step1-51-vs-91-reconciliation-2026-09-19.md`. **Awaiting CSV.**
-2. B minus NET_DUE_ZERO minus DOLLY: customer-atomic dry-run, 5 hand-checks across different shapes, tag `[dup_receipt_repair_20260919]`, soft delete, invariant digest. → dry-run prepared, read-only: `scripts/ssot-step2-group-b-dry-run-2026-09-19.sql` (leg rule locked in `test/money/ssotStep2GroupBLegWalk.test.ts`). Not run until step 1 is reviewed. Mutate script not written.
+0. **Re-paste this scan as v3** (same-day netting + partial GREATEST drop). The A/B split above is v2 and provisional. Nothing below is cut until the v3 CSV is in.
+1. Materialise the 51 by `sale_number` and diff against the v3 set. Anything in the 51 but not in the set, or vice versa, is explained before step 2. → paste `scripts/ssot-step1-materialise-51-vs-91-2026-09-19.sql` (rule-corrected); notes in `docs/ssot-step1-51-vs-91-reconciliation-2026-09-19.md`. **Awaiting CSV.**
+2. B minus NET_DUE_ZERO minus DOLLY: customer-atomic dry-run **v2**, 5 hand-checks across different shapes, tag `[dup_receipt_repair_20260919]`, soft delete by `voucher_entries.id`, invariant digest. → `scripts/ssot-step2-group-b-dry-run-2026-09-19.sql` (v2: only `DUP_DOUBLE_SUBMIT` / `DUP_TENDER_REKEYED` legs delete; everything else holds — rule locked in `test/money/ssotStep2GroupBLegWalk.test.ts`). The v1 dry-run was pasted 22:01 and reviewed in `docs/ssot-step2-dry-run-v1-review-2026-09-19.md`: membership matched (49 / 57 / ₹1,75,636.51) but 20 of its 46 delete legs matched nothing and were not duplicates. Mutate script not written.
 3. A: **not until** SNAP `paid_at_sale_drift` (bucket g) is fixed; then the same dry-run. Repairing A now moves the wrong number from the ledger to POS search.
 4. Santosh: own thread.
 5. Tender-only 365: separate population, separate design (it is at-sale cash keyed high, not a receipt).
