@@ -3,6 +3,12 @@
 **Date:** 19 Sep 2026  
 **This pass:** correct one named row before historical repair proceeds. **Do not soft-delete anything.**
 
+> **Retired 19 Sep 23:00 IST — the "51 bills / ₹2,99,467" headline below is history, not a
+> target.** Step 1 (`docs/ssot-step1-51-vs-91-reconciliation-2026-09-19.md`) replays the old rule
+> to exactly 51 bills at ₹1,63,086; no rule reproduces ₹2,99,467. Current populations live in
+> `docs/ssot-three-pastes-review-2026-09-19-22-24.md` (85 bills / ₹2,80,818; Tier 1 = 11 rows /
+> ₹62,916 approved, not yet executed — `docs/ssot-tier1-hand-checks-2026-09-19.md`).
+
 Headline on `main` after the CN-vs-SRA resize: **51 bills / ₹2,98,467**.  
 SHREEVASTAV (GURUKRUPA `e8fbf0d8…`, POS/25-26/875) was in that set at **₹2,100**.  
 Correct entry: **₹3,100**. New headline: **51 bills / ₹2,99,467**.

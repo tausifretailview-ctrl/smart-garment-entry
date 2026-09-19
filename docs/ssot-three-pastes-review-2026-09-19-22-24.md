@@ -53,8 +53,10 @@ Gate moves, v2 → v3:
 
 **The count 51 reproduces exactly** under the reconstructed old rule. The rupee figure does
 not: those 51 bills sum to ₹1,63,086 under their own rule, not ₹2,99,467, and no rule tried
-reproduces ₹2,99,467. Treat "₹2,99,467" as an unreconciled hand figure; the population is
-now defined by `sale_number` in the Step 1 CSV.
+reproduces ₹2,99,467. **"51 bills / ₹2,99,467" is formally retired (23:00 IST):** the count
+was real under a rule that could not see the GREATEST hole, the rupee figure was never a
+computed value. The population is now defined by `sale_number` in the Step 1 CSV and the v3
+scan; the headline is not to be cited again except as history.
 
 - **3 bills in the old 51 that are not real** — all `aacca229` (ELLA NOOR INV/25-26/585,
   /856, /1194): the only "receipts" are advance-application memos (₹21,000 / ₹5,050 /
@@ -134,4 +136,10 @@ largest), POS/26-27/808 (30 May batch, card), INV/26-27/1621 (₹250, one minute
 invariant digest. Tier 2 waits for the shop. Group A waits for bucket (g). Santosh,
 tender-only, `balance_adjustment` batch: parked.
 
-Mutate script not yet written. Hold stays until this split is approved.
+**Split approved ~23:00 IST.** Tier 1 hand-checks with live rows: `docs/ssot-tier1-hand-checks-2026-09-19.md`.
+Script (dry-run Block A, guarded REHEARSE/EXECUTE soft-delete Block B, digest Block C):
+`scripts/ssot-tier1-dup-double-submit-repair-2026-09-19.sql`; the 11 ids are locked against
+this paste in `test/money/ssotTier1RepairSet.test.ts`. **Not executed** — go-ahead is a
+separate, clear-headed step. Tier 2 is a report only:
+`docs/ssot-tier2-tender-rekeyed-report-2026-09-19.md` + `scripts/ssot-tier2-tender-rekeyed-report-2026-09-19.sql`.
+Tag lands in `notes` (the June-repair audit column), not `description` (printed on receipts).
