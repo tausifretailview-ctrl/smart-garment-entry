@@ -285,7 +285,9 @@ export async function loadProfitDataset(
 ): Promise<ProfitDataset> {
   // Business day is IST — naive date strings would be read as UTC and drop
   // early-morning / late-evening POS bills (e.g. 12:12 AM IST = prior UTC day).
-  const { fromTimestamp, toTimestamp } = npaTimestampBounds(fromDate, toDate);
+  // Kept inline (same shape as npaTimestampBounds) to avoid an import cycle.
+  const fromTimestamp = `${fromDate}T00:00:00.000+05:30`;
+  const toTimestamp = `${toDate}T23:59:59.999+05:30`;
   const { data: sales, error: salesError } = await supabase
     .from("sales")
     .select(
