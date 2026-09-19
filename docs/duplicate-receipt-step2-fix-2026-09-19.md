@@ -1,6 +1,10 @@
-# Step 2 — duplicate-receipt root-cause fix (built, NOT deployed)
+# Step 2 — duplicate-receipt root-cause fix (LIVE)
 
-Follows `docs/duplicate-receipt-steps-1-3-2026-09-19.md`. Built and tested; deployment held per instruction.
+Follows `docs/duplicate-receipt-steps-1-3-2026-09-19.md`.
+
+**Production status (19 Sep 2026):** live since Lovable commit `6652716da` (18 Sep 2026 20:10:54 UTC). Do **not** roll back the unique index or `trg_enforce_receipt_within_invoice_cap`. Historical 51-bill repair is still held.
+
+Live-status queries: `scripts/receipt-guard-live-status-2026-09-19.sql`.
 
 ## Pre-ship safety check: does a DB uniqueness key reject legitimate patterns?
 
@@ -75,6 +79,5 @@ hand-check **₹16,250 Dr**. See `docs/duplicate-receipt-51-bill-repair-set-2026
 
 ## Held
 
-- Deployment (awaiting go-ahead).
-- Historical repair of the over-credited bills — until the fix is live and verified.
+- Historical repair of the over-credited bills — guard is live; do not reverse 1128/1129 or the rest of the 51 until the hand-check set is signed off.
 - The 9-way convergence comparison and the C-JS per-invoice credit cap (Step 3 proper).

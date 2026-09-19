@@ -72,3 +72,21 @@ describe("receipt guard error mapping", () => {
     expect(toReceiptGuardError(new Error("timeout"))).toBeNull();
   });
 });
+
+describe("live-status SQL — do not roll the guard back", () => {
+  it("pastes the go-live window and never drops the trigger or unique index", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const sql = await readFile(
+      new URL("../../scripts/receipt-guard-live-status-2026-09-19.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("2026-09-18 20:10:54");
+    expect(sql).toContain("uq_voucher_entries_client_request_active");
+    expect(sql).toContain("trg_enforce_receipt_within_invoice_cap");
+    expect(sql).toContain("remaining_before");
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
+    expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
+    expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+  });
+});
