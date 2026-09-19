@@ -146,7 +146,7 @@ group_b_bills AS (
   SELECT rb.*
   FROM repair_bills rb
   JOIN customer_snap cs ON cs.customer_id = rb.customer_id
-  WHERE cs.snap_drop_after <= 0.005
+  WHERE cs.snap_drop_after <= 0.5   -- same tolerance as the v3 scan gate
     AND rb.customer_id NOT IN (SELECT id FROM excluded_customers)
     AND rb.shape <> 'NET_DUE_ZERO'
 ),

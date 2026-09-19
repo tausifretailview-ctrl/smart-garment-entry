@@ -15,6 +15,13 @@ Tables-only paste: `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`. No JWT. N
 > drops `receipts_after`). v3 of the SQL fixes both. The 91 / A 14 / B 49 numbers stand only
 > until v3 is pasted; expect the population to shrink and some B customers to move to A.
 > Details: `docs/ssot-step2-dry-run-v1-review-2026-09-19.md`.
+>
+> **v3 pasted 22:24 IST** (`docs/ssot-51-full-sibling-scan-v3-live-2026-09-19-22-24-37.csv`):
+> 85 receipt-bearing bills / ₹2,80,818.51; **A 17 customers / 30 bills / ₹75,703**,
+> **B 45 / 55 / ₹1,77,525** (after the ₹0.5 rounding tolerance), Santosh 2, walk-in 2. Six
+> dual-write bills (₹16,290) left; ANANYA moved to B; DOLLY, `32d34671`, `22e086fa`,
+> `9c324a1a` moved to A. Full read-out and the Step 1 / dry-run v2 results:
+> `docs/ssot-three-pastes-review-2026-09-19-22-24.md`.
 
 ---
 
