@@ -15,6 +15,7 @@
   --en-accent-deep: #006786;
   --en-accent-2: #d6006c;
   --en-pad: clamp(16px, 4vw, 48px);
+  --en-tabbar: 61px; /* height of the fixed mobile tab bar; 0 on desktop below */
 
   background: var(--en-paper);
   color: var(--en-ink);
@@ -26,7 +27,7 @@
 }
 
 @media (min-width: 1024px) {
-  .en-home { padding-bottom: 0; }
+  .en-home { padding-bottom: 0; --en-tabbar: 0px; }
 }
 
 .en-home *,
@@ -95,6 +96,69 @@
   display: flex; align-items: center; justify-content: center;
 }
 
+/* ---------- hero slider ---------- */
+
+.en-slider { position: relative; width: 100%; overflow: hidden; background: var(--en-ink); }
+.en-slider-track {
+  display: flex; width: 100%;
+  transition: transform 0.62s cubic-bezier(0.22, 0.61, 0.36, 1);
+  touch-action: pan-y;
+}
+@media (prefers-reduced-motion: reduce) { .en-slider-track { transition: none; } }
+.en-slide {
+  position: relative; flex: 0 0 100%; width: 100%;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: min(125vw, calc(72dvh - var(--en-tabbar)));
+  overflow: hidden; background: #2a2726;
+}
+@media (min-width: 760px) { .en-slide { min-height: min(56vw, 78dvh); } }
+.en-slide img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 28%; }
+.en-slide-scrim { z-index: 1; }
+.en-slide-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(16, 14, 14, 0.9) 4%, rgba(16, 14, 14, 0.72) 38%, rgba(16, 14, 14, 0.5) 70%, rgba(16, 14, 14, 0.34) 100%);
+}
+.en-slide-copy {
+  position: relative; z-index: 2; width: 100%;
+  display: flex; flex-direction: column; align-items: flex-start; gap: clamp(10px, 1.4vw, 16px);
+  padding: clamp(40px, 8vw, 72px) clamp(18px, 5vw, 64px) calc(clamp(34px, 5vw, 56px) + var(--en-tabbar));
+  max-width: 720px;
+}
+.en-slide-kicker { font-size: clamp(10px, 2.3vw, 12px); letter-spacing: 0.32em; text-transform: uppercase; color: #fff; }
+.en-slide-copy h1 {
+  margin: 0; color: #fff; font-weight: 600; letter-spacing: -0.01em; line-height: 1.05;
+  font-size: clamp(30px, 6.6vw, 60px); text-wrap: balance;
+}
+.en-slide-copy h1 em { font-weight: 400; }
+.en-slide-copy p {
+  margin: 0; max-width: 40ch; color: #fff;
+  font-size: clamp(14px, 2.9vw, 18px); line-height: 1.45; text-wrap: pretty;
+}
+.en-btn-paper { background: var(--en-paper); color: var(--en-ink); margin-top: 6px; }
+.en-btn-paper:hover { background: #fff; color: var(--en-ink); }
+
+.en-dots {
+  position: absolute; z-index: 3; left: 0; right: 0; bottom: calc(clamp(14px, 2vw, 22px) + var(--en-tabbar));
+  display: flex; justify-content: center; gap: 9px;
+}
+.en-dot {
+  width: 8px; height: 8px; padding: 0; border: 0; border-radius: 4px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.46);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+.en-dot[aria-current="true"] { width: 22px; background: #fff; }
+
+.en-slider-arrow {
+  display: none; position: absolute; z-index: 3; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 48px; border-radius: 50%; cursor: pointer;
+  align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.42); background: rgba(16, 14, 14, 0.28); color: #fff;
+}
+.en-slider-arrow:hover { background: rgba(16, 14, 14, 0.62); }
+.en-slider-prev { left: 18px; }
+.en-slider-next { right: 18px; }
+@media (min-width: 1024px) { .en-slider-arrow { display: flex; } }
+
 /* ---------- persistent search bar (mobile only) ---------- */
 
 .en-searchbar { padding: 0 var(--en-pad) 12px; }
@@ -122,12 +186,15 @@
 .en-overlay-body { flex: 1; overflow: auto; padding: var(--en-pad); }
 .en-overlay-body a { display: block; }
 .en-menu-link {
-  display: block; width: 100%; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  width: 100%; min-height: 56px; text-align: left;
   background: none; border: 0; border-bottom: 1px solid rgba(32, 30, 29, 0.1);
-  padding: 16px 0; font-size: 22px; color: var(--en-ink); cursor: pointer;
+  padding: 17px 2px 17px 0; font-size: 21px; color: var(--en-ink); cursor: pointer;
 }
+.en-menu-link:hover { color: var(--en-accent-deep); }
+.en-menu-link svg { flex: 0 0 auto; color: var(--en-faint); }
 .en-close { font-size: 26px; line-height: 1; }
-.en-menu-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 32px; }
+.en-menu-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin-top: 34px; }
 .en-menu-foot .en-btn { width: 100%; max-width: 340px; }
 .en-menu-contact { display: inline-flex; align-items: center; gap: 10px; font-size: 16px; min-height: 44px; }
 .en-menu-contact svg { flex: 0 0 auto; color: #25d366; }
@@ -142,21 +209,10 @@
 }
 .en-chiplink:hover { border-color: var(--en-accent); color: var(--en-accent-deep); }
 
-/* ---------- hero ---------- */
+/* ---------- shared copy blocks ---------- */
 
-.en-hero {
-  display: grid; grid-template-columns: 1fr; align-items: center;
-  gap: clamp(20px, 4vw, 56px);
-  padding-top: clamp(20px, 3vw, 40px);
-}
-@media (min-width: 760px) { .en-hero { grid-template-columns: 1fr 1fr; } }
 .en-hero-copy { display: flex; flex-direction: column; gap: clamp(14px, 2vw, 22px); padding: clamp(8px, 3vw, 40px) 0; }
 .en-eyebrow { font-size: 11px; letter-spacing: 0.34em; text-transform: uppercase; color: var(--en-accent-deep); }
-.en-hero h1 {
-  margin: 0; font-weight: 600; letter-spacing: -0.01em; line-height: 1.02;
-  font-size: clamp(38px, 6.4vw, 74px); text-wrap: balance;
-}
-.en-hero h1 em { font-weight: 400; }
 .en-lead { margin: 0; max-width: 46ch; font-size: clamp(16px, 1.6vw, 19px); color: var(--en-ink-2); text-wrap: pretty; }
 .en-figure { position: relative; width: 100%; aspect-ratio: 4 / 5; overflow: hidden; background: var(--en-surface); }
 .en-figure img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 22%; }
@@ -356,9 +412,7 @@
 @media (max-width: 640px) {
   .en-home { font-size: 15px; }
   .en-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
-  .en-hero { padding-top: 12px; gap: 22px; }
   .en-hero-copy { padding: 4px 0 0; gap: 14px; }
-  .en-hero h1 { font-size: 34px; line-height: 1.06; }
   .en-lead { font-size: 16px; line-height: 1.45; }
   .en-figure { aspect-ratio: 3 / 4; }
   .en-btn { width: 100%; min-height: 50px; padding: 15px 22px; font-size: 12px; letter-spacing: 0.16em; }
