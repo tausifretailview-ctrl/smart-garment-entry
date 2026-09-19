@@ -1,6 +1,12 @@
 -- Phase 2 — Net Profit / Gross Profit COGS forensics (Ella Noor + KS Footwear)
 -- Run in Supabase SQL Editor (postgres). One org per run: set org_id / dates in params CTE.
 --
+-- Editor tips:
+--   • Each numbered section is a SEPARATE run — do not select multiple sections at once.
+--   • Always include the full "WITH params AS" through the final semicolon for that section.
+--   • §5-full often returns "Server error" (timeout) — skip it; use §5-lite + top-variants file.
+--   • Prefer: scripts/net-profit-cogs-phase2-top-variants.sql (single file, Ctrl+A, Run).
+--
 -- Phase 1 recap (Sept 2026, live RPC, IST bounds applied):
 --   Ella Noor  3fdca631-1e0c-4417-9704-421f5129ff67  net 1854300  COGS 2200274  GP -345974  inv 292
 --   KS Footwear 4bc73037-e877-4123-9261-eb6e3876698c  net 134963   COGS 1149138  GP -1014175 inv 434
