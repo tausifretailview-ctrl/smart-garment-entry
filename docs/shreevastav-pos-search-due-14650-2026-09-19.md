@@ -35,7 +35,17 @@ posFooterCustomerBalance(grossOutstandingFromFinancialSnapshot(snap))
 
 Catalog **C21** already named this surface C-SNAP. It is **not** a ninth family. The inventory line still said `outstandingDr`; live code reads **`grossOutstandingDr`**.
 
-SQL editor has **no JWT**. Per-customer `get_customer_financial_snapshot(id, org)` still runs `assert_org_member` → **42501 Authentication required** (same as `get_customer_true_outstanding`). Live `get_customer_financial_snapshot_all` may wrap the same path. **Click Clear**, then paste `scripts/shreevastav-pos-search-due-14650.sql` — **tables only, zero RPCs**. Last grid is reconstructed C-SNAP signed (expect ≈ ₹14,650). If the editor still shows `ORDER BY` on line 44, the old 45-line paste is still in the buffer.
+SQL editor has **no JWT**. Per-customer `get_customer_financial_snapshot(id, org)` still runs `assert_org_member` → **42501 Authentication required** (same as `get_customer_true_outstanding`). Live paste 19 Sep 2026 18:10 IST (`query-results-export-2026-09-19_18-10-08_2ff6.csv`) used the tables-only file: **no RPC**, reconstructed C-SNAP signed = **₹14,650** = POS search Due.
+
+| Component | Amount |
+| --- | ---: |
+| opening / adj / SRA / pending SR / CN / refunds / advances | ₹0 |
+| total_invoiced | ₹34,350 |
+| receipt_payments | ₹13,800 |
+| paid_at_sale_drift | ₹5,900 |
+| **reconstructed_snap_signed = reconstructed_gross_outstanding_dr** | **₹14,650** |
+
+`34,350 − 13,800 − 5,900 = 14,650`. Unused advance ₹0, so gross = signed. That is C21, not a ninth family.
 
 ---
 

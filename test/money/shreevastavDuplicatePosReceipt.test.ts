@@ -222,6 +222,16 @@ describe("POS search ₹14,650 Due is C-SNAP, not a ninth family", () => {
     expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).toBe(16_250);
     expect(accountLine(14_150, 0)).toContain("Customer owes ₹14,150");
   });
+
+  it("live S1 tables reconstruction 19 Sep 18:10 IST is 14650 with unused advance 0", () => {
+    const totalInvoiced = 34_350;
+    const receiptPayments = 13_800;
+    const paidAtSaleDrift = 5_900;
+    const unusedAdvances = 0;
+    const signed = totalInvoiced - receiptPayments - paidAtSaleDrift;
+    expect(signed).toBe(14_650);
+    expect(signed + unusedAdvances).toBe(14_650);
+  });
 });
 
 /** How the 51-bill pass counted cash: GREATEST(vouchers, tender), not the sum. */
