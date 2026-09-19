@@ -1,13 +1,17 @@
 -- Phase 2 §1 — Top variants by COGS (FAST, single statement)
 -- Run the ENTIRE file in SQL Editor (Ctrl+A in this tab, then Run).
--- Change org_id / dates only in params.
+-- Change org_id / dates only in params, then SAVE before Run.
+--
+-- Org IDs (verify org_name column in export before interpreting rows):
+--   Ella Noor:   3fdca631-1e0c-4417-9704-421f5129ff67
+--   KS Footwear: 4bc73037-e877-4123-9261-eb6e3876698c
 --
 -- Skips §5-full (often times out). Uses net_after_discount || line_total like §5-lite.
 -- Purchase avg: RPC-style (all purchase_items rows for SKU) + org-bills-only for drift.
 
 WITH params AS (
   SELECT
-    '4bc73037-e877-4123-9261-eb6e3876698c'::uuid AS org_id,  -- KS Footwear
+    '3fdca631-1e0c-4417-9704-421f5129ff67'::uuid AS org_id,  -- <<< CHANGE ME
     '2026-09-01'::date AS d_from,
     '2026-09-30'::date AS d_to
 ),
@@ -75,6 +79,10 @@ variant_avg_org AS (
   GROUP BY pi.sku_id
 )
 SELECT
+  p.org_id,
+  o.name AS org_name,
+  p.d_from AS period_from,
+  p.d_to AS period_to,
   fv.variant_id,
   pr.product_name,
   pv.barcode,
@@ -114,6 +122,7 @@ SELECT
 FROM focus_variants fv
 JOIN public.product_variants pv ON pv.id = fv.variant_id
 CROSS JOIN params p
+JOIN public.organizations o ON o.id = p.org_id
 LEFT JOIN public.products pr ON pr.id = pv.product_id AND pr.organization_id = p.org_id
 LEFT JOIN variant_avg_rpc varpc ON varpc.sku_id = fv.variant_id
 LEFT JOIN variant_avg_org varorg ON varorg.sku_id = fv.variant_id
