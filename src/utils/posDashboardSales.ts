@@ -1268,16 +1268,30 @@ const POS_DASHBOARD_MODE_CORRECT_SELECT =
   "id, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, net_amount, paid_amount, payment_status, payment_method, sale_number, cash_amount, card_amount, upi_amount, sale_return_adjust, round_off, is_cancelled";
 
 /**
+ * Money actually settled across the filtered range: net sale minus SR adjustment
+ * minus what is still outstanding. Used to spot understated mode totals.
+ */
+function posDashboardSettledPaidTotal(stats: PosDashboardSummaryStats): number {
+  return (
+    Number(stats.netSale || 0) -
+    Number(stats.totalSaleReturnAdjust || 0) -
+    Number(stats.totalBalance || 0)
+  );
+}
+
+/**
  * When mix over-tender inflated cash_amount, RPC SUM(cash_amount) exceeds net sale.
- * Recompute mode totals with the same display cap used by table rows.
+ * The mirror case: money collected later as a receipt voucher (e.g. ₹4,000 cash at the
+ * counter + ₹16,900 UPI receipt the same day) never lands in sales.cash/card/upi_amount,
+ * so the RPC mode sums fall short of what was actually settled.
+ * Either way, recompute mode totals with the same display logic used by table rows.
  */
 async function correctPosDashboardModeTotalsIfNeeded(
   client: SupabaseClient,
   filters: PosDashboardFilters,
   rpcStats: PosDashboardSummaryStats,
 ): Promise<PosDashboardSummaryStats> {
-  const modeSum = rpcStats.totalCash + rpcStats.totalCard + rpcStats.totalUpi;
-  if (modeSum <= rpcStats.netSale + 1) return rpcStats;
+  if (!posDashboardModeTotalsNeedCorrection(rpcStats)) return rpcStats;
 
   try {
     const rows = await scanPosDashboardSummaryRows(
@@ -1304,7 +1318,9 @@ async function correctPosDashboardModeTotalsIfNeeded(
 
 export function posDashboardModeTotalsNeedCorrection(stats: PosDashboardSummaryStats): boolean {
   const modeSum = stats.totalCash + stats.totalCard + stats.totalUpi;
-  return modeSum > stats.netSale + 1;
+  if (modeSum > stats.netSale + 1) return true;
+  // Understated: receipts collected after the bill are not in the sale tender columns.
+  return posDashboardSettledPaidTotal(stats) > modeSum + 1;
 }
 
 /**
