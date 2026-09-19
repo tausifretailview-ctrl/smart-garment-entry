@@ -12,7 +12,7 @@
  * neutral "Made to order" flag when the ERP reports zero on hand.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type TouchEvent } from "react";
 import type { PublicStorefrontMenu } from "@/lib/websiteTypes";
 import type { PublicStorefrontSection } from "@/lib/websiteSections";
 import { whatsappShareUrl } from "@/lib/storefrontShare";
@@ -51,6 +51,35 @@ const PROMISES = [
   ["Made for you", "Formal and bridal pieces are cut to your measurements in 3–4 weeks."],
   ["Easy shopping", "Secure UPI, cards and COD up to ₹10,000. Seven-day exchange on eligible pieces."],
 ];
+
+const HERO_COPY = [
+  {
+    kicker: "In studio now",
+    title: "Everyday chikankari,",
+    titleEm: "festive formals.",
+    body: "Hand-worked pieces cut in our atelier \u2014 stock reads straight from the studio rack.",
+    cta: "Shop ready to wear",
+    target: "ready",
+  },
+  {
+    kicker: "Festive 2026",
+    title: "Organza, pearl work,",
+    titleEm: "and a little shine.",
+    body: "Occasion pieces finished by hand, dispatched within 48 hours.",
+    cta: "Explore formals",
+    target: "formals",
+  },
+  {
+    kicker: "Made for you",
+    title: "Your measurements,",
+    titleEm: "our craftsmanship.",
+    body: "Bridal and formal wear cut to fit. A 30% advance reserves your production slot.",
+    cta: "Start your order",
+    target: "made-to-order",
+  },
+];
+
+const SLIDE_MS = 5200;
 
 const CATEGORY_TILES = [
   { id: "ready", label: "Ready to wear" },
@@ -165,7 +194,10 @@ export function EllaStorefrontHome({
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [slide, setSlide] = useState(0);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const heldRef = useRef(false);
+  const touchXRef = useRef(0);
 
   useEffect(() => {
     setActive((current) => nav.find((n) => n.id === current?.id) || nav[0]);
@@ -198,6 +230,27 @@ export function EllaStorefrontHome({
   }, [products, query]);
 
   const hero = products.find((p) => p.images.length > 0);
+
+  useEffect(() => {
+    if (!isEllaHomeNav(active) || menuOpen || searchOpen) return;
+    const id = window.setInterval(() => {
+      if (!heldRef.current) setSlide((n) => (n + 1) % HERO_COPY.length);
+    }, SLIDE_MS);
+    return () => window.clearInterval(id);
+  }, [active, menuOpen, searchOpen]);
+
+  const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    heldRef.current = true;
+    touchXRef.current = e.touches[0].clientX;
+  };
+
+  const onTouchEnd = (e: TouchEvent<HTMLDivElement>) => {
+    heldRef.current = false;
+    const dx = e.changedTouches[0].clientX - touchXRef.current;
+    if (Math.abs(dx) < 40) return;
+    setSlide((n) => (n + (dx < 0 ? 1 : HERO_COPY.length - 1)) % HERO_COPY.length);
+  };
+
   const location = storefrontLocationLine(address);
   const waHref = whatsapp ? whatsappShareUrl(`Hi ${shopName}, I'd like to ask about a piece.`, whatsapp) : null;
 
@@ -217,6 +270,13 @@ export function EllaStorefrontHome({
   };
 
   const byId = (id: string) => nav.find((n) => n.id === id) || nav[0];
+
+  const photos = products.filter((p) => p.images.length > 0);
+  const heroSlides = HERO_COPY.map((copy, i) => ({
+    ...copy,
+    photo: photos[i]?.images[0] || hero?.images[0],
+    go: () => (copy.target === "made-to-order" ? onOpenGeneralEnquire() : select(byId(copy.target))),
+  }));
 
   return (
     <div className="en-home">
@@ -292,9 +352,13 @@ export function EllaStorefrontHome({
             {nav.map((item) => (
               <button key={item.id} type="button" className="en-menu-link" onClick={() => select(item)}>
                 {item.label}
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+                  <path d="m9.5 5.5 6.5 6.5-6.5 6.5" />
+                </svg>
               </button>
             ))}
             <div className="en-menu-foot">
+              <span className="en-eyebrow">The studio</span>
               <button type="button" className="en-btn" onClick={onOpenGeneralEnquire}>
                 Start your order
               </button>
@@ -323,7 +387,8 @@ export function EllaStorefrontHome({
             />
             <button type="button" className="en-linkbtn" onClick={() => setSearchOpen(false)}>
               Close
-            </button>          </div>
+            </button>
+          </div>
           <div className="en-overlay-body">
             {query.trim() ? (
               <p className="en-eyebrow" style={{ marginTop: 0 }}>
@@ -356,32 +421,65 @@ export function EllaStorefrontHome({
 
       {onHome ? (
         <>
-          <section className="en-wrap">
-            <div className="en-hero">
-              <div className="en-hero-copy">
-                <span className="en-eyebrow">In studio now</span>
-                <h1>
-                  Everyday chikankari,
-                  <br />
-                  <em>festive formals.</em>
-                </h1>
-                <p className="en-lead">
-                  Hand-worked pieces cut in our atelier. What you see here is genuinely available — stock reads
-                  straight from the studio rack.
-                </p>
-                <div className="en-actions">
-                  <button type="button" className="en-btn" onClick={() => select(byId("ready"))}>
-                    Shop ready to wear
-                  </button>
-                  <button type="button" className="en-btn en-btn-outline" onClick={onOpenGeneralEnquire}>
-                    Made to order
-                  </button>
+          <section className="en-slider">
+            <div
+              className="en-slider-track"
+              style={{ transform: `translate3d(${-100 * slide}%, 0, 0)` }}
+              onTouchStart={onTouchStart}
+              onTouchEnd={onTouchEnd}
+            >
+              {heroSlides.map((s, i) => (
+                <div className="en-slide" key={s.kicker}>
+                  {s.photo ? <img src={s.photo} alt="" loading={i === 0 ? "eager" : "lazy"} /> : null}
+                  <span className="en-slide-scrim" />
+                  <div className="en-slide-copy">
+                    <span className="en-slide-kicker">{s.kicker}</span>
+                    <h1>
+                      {s.title}
+                      <br />
+                      <em>{s.titleEm}</em>
+                    </h1>
+                    <p>{s.body}</p>
+                    <button type="button" className="en-btn en-btn-paper" onClick={s.go}>
+                      {s.cta}
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="en-figure">
-                {hero ? <img src={hero.images[0]} alt={hero.name} /> : <span className="en-empty">Studio photograph</span>}
-              </div>
+              ))}
             </div>
+
+            <div className="en-dots">
+              {heroSlides.map((s, i) => (
+                <button
+                  key={s.kicker}
+                  type="button"
+                  className="en-dot"
+                  aria-label={`Slide ${i + 1}`}
+                  aria-current={i === slide}
+                  onClick={() => setSlide(i)}
+                />
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="en-slider-arrow en-slider-prev"
+              aria-label="Previous slide"
+              onClick={() => setSlide((n) => (n - 1 + heroSlides.length) % heroSlides.length)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                <path d="M19 12H6" />
+                <path d="m11.5 6-6 6 6 6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="en-slider-arrow en-slider-next"
+              aria-label="Next slide"
+              onClick={() => setSlide((n) => (n + 1) % heroSlides.length)}
+            >
+              <ArrowIcon />
+            </button>
           </section>
 
           <section className="en-wrap">
