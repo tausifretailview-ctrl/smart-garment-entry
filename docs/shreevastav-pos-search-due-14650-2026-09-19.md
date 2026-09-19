@@ -35,6 +35,8 @@ posFooterCustomerBalance(grossOutstandingFromFinancialSnapshot(snap))
 
 Catalog **C21** already named this surface C-SNAP. It is **not** a ninth family. The inventory line still said `outstandingDr`; live code reads **`grossOutstandingDr`**.
 
+SQL editor: do **not** call per-customer `get_customer_financial_snapshot(id, org)` — live still runs `assert_org_member` → **42501 Authentication required** (same as `get_customer_true_outstanding`). Paste `scripts/shreevastav-pos-search-due-14650.sql` (tables first, then `get_customer_financial_snapshot_all`).
+
 ---
 
 ## 2. ₹1,600 vs true ₹16,250

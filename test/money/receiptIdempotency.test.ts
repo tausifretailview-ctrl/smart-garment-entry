@@ -150,9 +150,14 @@ describe("live-status SQL — do not roll the guard back", () => {
       new URL("../../scripts/shreevastav-pos-search-due-14650.sql", import.meta.url),
       "utf8",
     );
-    expect(sql).toContain("get_customer_financial_snapshot");
+    expect(sql).toContain("get_customer_financial_snapshot_all");
+    expect(sql).not.toMatch(/FROM public\.get_customer_financial_snapshot\s*\(/);
+    expect(sql).toContain("assert_org_member");
     expect(sql).toContain("9819151882");
     expect(sql).toContain("e8fbf0d8-182c-4364-8570-96c756b72db8");
+    expect(sql.indexOf("FROM public.sales sl")).toBeLessThan(
+      sql.indexOf("FROM public.get_customer_financial_snapshot_all"),
+    );
     expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
     expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
     expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
