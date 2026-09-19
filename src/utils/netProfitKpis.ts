@@ -78,9 +78,16 @@ export function netProfitKpisFromTotals(
   };
 }
 
-/** Same date strings loadProfitDataset sends to PostgREST. */
+/**
+ * IST calendar-day bounds loadProfitDataset sends to PostgREST.
+ * The business day is Asia/Kolkata — naive strings would be read as UTC and
+ * silently drop POS bills billed before 05:30 IST / after 00:00 IST rollover.
+ */
 export function npaTimestampBounds(fromDate: string, toDate: string) {
-  return { fromTimestamp: fromDate, toTimestamp: `${toDate}T23:59:59` };
+  return {
+    fromTimestamp: `${fromDate}T00:00:00.000+05:30`,
+    toTimestamp: `${toDate}T23:59:59.999+05:30`,
+  };
 }
 
 export async function fetchNetProfitKpis(
