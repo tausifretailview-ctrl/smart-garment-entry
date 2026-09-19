@@ -52,6 +52,13 @@ const PROMISES = [
   ["Easy shopping", "Secure UPI, cards and COD up to ₹10,000. Seven-day exchange on eligible pieces."],
 ];
 
+const CATEGORY_TILES = [
+  { id: "ready", label: "Ready to wear" },
+  { id: "formals", label: "Formals" },
+  { id: "bridal", label: "Bridal" },
+  { id: "made-to-order", label: "Made to order" },
+];
+
 const STEPS = [
   ["01", "Choose your style", "Select the silhouette you love and reserve your production slot."],
   ["02", "Share your measurements", "Send them on WhatsApp or save them to your profile. We’ll confirm them within two days."],
@@ -99,6 +106,15 @@ function UserIcon() {
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
       <circle cx="12" cy="8" r="4" />
       <path d="M4.5 20c1.4-3.6 4.2-5.4 7.5-5.4s6.1 1.8 7.5 5.4" />
+    </svg>
+  );
+}
+
+function ArrowIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M5 12h13" />
+      <path d="m12.5 6 6 6-6 6" />
     </svg>
   );
 }
@@ -254,6 +270,13 @@ export function EllaStorefrontHome({
             {cartCount > 0 ? <span className="en-badge">{cartCount}</span> : null}
           </button>
         </div>
+
+        <div className="en-searchbar">
+          <button type="button" className="en-searchbar-btn" onClick={() => setSearchOpen(true)}>
+            <SearchIcon />
+            <span>Search style code, fabric or occasion</span>
+          </button>
+        </div>
       </header>
 
       {menuOpen ? (
@@ -369,6 +392,32 @@ export function EllaStorefrontHome({
                   <p>{body}</p>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="en-wrap en-section">
+            <div className="en-section-head">
+              <h2>Shop by category</h2>
+            </div>
+            <div className="en-tiles">
+              {CATEGORY_TILES.map((tile, i) => {
+                const photo = products[i + 1]?.images[0] || products[0]?.images[0];
+                return (
+                  <button
+                    key={tile.id}
+                    type="button"
+                    className="en-tile"
+                    onClick={() => (tile.id === "made-to-order" ? onOpenGeneralEnquire() : select(byId(tile.id)))}
+                  >
+                    {photo ? <img src={photo} alt="" loading="lazy" /> : <span className="en-empty">Photo</span>}
+                    <span className="en-tile-scrim" />
+                    <span className="en-tile-label">
+                      <b>{tile.label}</b>
+                      <ArrowIcon />
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </section>
         </>
