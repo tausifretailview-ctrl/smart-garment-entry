@@ -77,6 +77,23 @@ function BagIcon() {
   );
 }
 
+function HangerIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <path d="M12 8.5a2.2 2.2 0 1 1 2.2-2.2" />
+      <path d="M12 8.5v2L3.8 16.1a1.2 1.2 0 0 0 .7 2.2h15a1.2 1.2 0 0 0 .7-2.2L12 10.5" />
+    </svg>
+  );
+}
+
+function WhatsAppGlyph() {
+  return (
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.9-4.44 9.9-9.9S17.5 2 12.04 2Zm5.8 14.1c-.25.7-1.43 1.33-1.98 1.38-.53.05-1.02.24-3.45-.72-2.9-1.14-4.74-4.1-4.88-4.29-.14-.19-1.16-1.54-1.16-2.94s.73-2.09.99-2.37c.26-.29.57-.36.76-.36l.54.01c.17 0 .41-.07.64.49.24.57.8 1.97.87 2.11.07.14.12.31.02.5-.1.19-.14.31-.29.48-.14.17-.3.37-.43.5-.14.14-.29.29-.12.57.17.29.74 1.22 1.59 1.98 1.09.97 2.01 1.27 2.3 1.41.29.14.45.12.62-.07.17-.19.72-.84.91-1.13.19-.29.38-.24.64-.14.26.09 1.66.78 1.94.93.29.14.48.21.55.33.07.12.07.69-.18 1.39Z" />
+    </svg>
+  );
+}
+
 function UserIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
@@ -244,7 +261,7 @@ export function EllaStorefrontHome({
           <div className="en-overlay-head">
             <span className="en-eyebrow">Menu</span>
             <div className="en-spacer" />
-            <button type="button" className="en-icon" aria-label="Close" onClick={() => setMenuOpen(false)}>
+            <button type="button" className="en-icon en-close" aria-label="Close" onClick={() => setMenuOpen(false)}>
               ×
             </button>
           </div>
@@ -254,12 +271,17 @@ export function EllaStorefrontHome({
                 {item.label}
               </button>
             ))}
-            <div style={{ marginTop: 36, display: "flex", flexDirection: "column", gap: 14, fontSize: 15 }}>
-              <button type="button" className="en-linkbtn" onClick={onOpenGeneralEnquire}>
-                Start a made-to-order enquiry
+            <div className="en-menu-foot">
+              <button type="button" className="en-btn" onClick={onOpenGeneralEnquire}>
+                Start your order
               </button>
-              {waHref ? <a href={waHref}>WhatsApp the studio</a> : null}
-              {address ? <span style={{ color: "var(--en-ink-2)" }}>{address}</span> : null}
+              {waHref ? (
+                <a className="en-menu-contact" href={waHref}>
+                  <WhatsAppGlyph />
+                  WhatsApp the studio
+                </a>
+              ) : null}
+              {address ? <span className="en-menu-address">{address}</span> : null}
             </div>
           </div>
         </div>
@@ -278,8 +300,7 @@ export function EllaStorefrontHome({
             />
             <button type="button" className="en-linkbtn" onClick={() => setSearchOpen(false)}>
               Close
-            </button>
-          </div>
+            </button>          </div>
           <div className="en-overlay-body">
             {query.trim() ? (
               <p className="en-eyebrow" style={{ marginTop: 0 }}>
@@ -517,7 +538,7 @@ export function EllaStorefrontHome({
       <nav className="en-tabs">
         <button type="button" className="en-tab" aria-current={!onHome} onClick={() => select(byId("new-in"))}>
           <span className="en-tab-ico">
-            <BagIcon />
+            <HangerIcon />
           </span>
           <span>Shop</span>
         </button>
@@ -534,12 +555,21 @@ export function EllaStorefrontHome({
           </span>
           <span>Bag</span>
         </button>
-        <button type="button" className="en-tab" onClick={onOpenGeneralEnquire}>
-          <span className="en-tab-ico">
-            <UserIcon />
-          </span>
-          <span>Enquire</span>
-        </button>
+        {waHref ? (
+          <a className="en-tab en-tab-wa" href={waHref} target="_blank" rel="noreferrer">
+            <span className="en-tab-ico">
+              <WhatsAppGlyph />
+            </span>
+            <span>WhatsApp</span>
+          </a>
+        ) : (
+          <button type="button" className="en-tab" onClick={onOpenGeneralEnquire}>
+            <span className="en-tab-ico">
+              <UserIcon />
+            </span>
+            <span>Enquire</span>
+          </button>
+        )}
       </nav>
     </div>
   );

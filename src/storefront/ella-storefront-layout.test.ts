@@ -5,9 +5,10 @@ import { describe, expect, it } from "vitest";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
-describe("Ella Noor desktop storefront layout", () => {
-  it("uses a full-width shell with the HTML mock header, home, and footer", async () => {
+describe("Ella Noor storefront layout", () => {
+  it("keeps sheet chrome in ella-storefront.css and wires editorial en-home", async () => {
     const css = await readFile(path.join(ROOT, "src/storefront/ella-storefront.css"), "utf8");
+    const homeCss = await readFile(path.join(ROOT, "src/storefront/ella-home.css"), "utf8");
     const home = await readFile(path.join(ROOT, "src/storefront/EllaStorefrontHome.tsx"), "utf8");
     const root = await readFile(path.join(ROOT, "src/storefront/EllaStorefront.tsx"), "utf8");
     const app = await readFile(path.join(ROOT, "src/storefront/StorefrontApp.tsx"), "utf8");
@@ -33,25 +34,34 @@ describe("Ella Noor desktop storefront layout", () => {
     expect(css).toMatch(/\.ella-site-header\s*\{[^}]*position:\s*relative/);
     expect(css).not.toMatch(/\.ella-site-header\s*\{[^}]*position:\s*sticky/);
 
-    expect(home).toMatch(/ella-chrome/);
-    expect(home).toMatch(/ella-site-header/);
-    expect(home).toMatch(/ella-site-nav/);
+    expect(homeCss).toMatch(/^\.en-home/m);
+    expect(homeCss).toMatch(/@media \(min-width: 1024px\)/);
+    expect(homeCss).toMatch(/\.en-tabs/);
+    expect(homeCss).toMatch(/@media \(min-width: 1024px\) \{\s*\.en-tabs \{ display: none; \}/);
+    expect(homeCss).toMatch(/\.ella-store \.storefront-floating-social \{ display: none; \}/);
+    expect(homeCss).toMatch(/\.storefront-floating-social-icon \{ width: 24px; height: 24px/);
+
+    expect(home).toMatch(/import "\.\/ella-home\.css"/);
+    expect(home).toMatch(/className="en-home"/);
+    expect(home).toMatch(/className="en-tabs"/);
+    expect(home).toMatch(/className="en-footer"/);
     expect(home).toMatch(/resolveEllaHeaderNav/);
     expect(home).toMatch(/isEllaHomeNav/);
-    expect(home).toMatch(/goHome\(\)/);
-    expect(css).toMatch(/grid-template-columns:\s*minmax\(240px,\s*380px\)\s*minmax\(320px,\s*480px\)/);
-    expect(css).toMatch(/max-width:\s*380px/);
-    expect(home).toMatch(/ella-site-footer/);
+    expect(home).toMatch(/applyEllaFilters/);
+    expect(home).toMatch(/Photo coming soon/);
+    expect(home).toMatch(/Made to order/);
+    expect(home).not.toMatch(/ella-chrome/);
+    expect(home).not.toMatch(/goHome\(\)/);
+
+    expect(home).toMatch(/View all pieces/);
+    expect(home).toMatch(/Shop ready to wear/);
+    expect(home).toMatch(/aria-label="Instagram"/);
+    expect(home).toMatch(/en-tab-wa/);
+    expect(home).toMatch(/WhatsApp/);
+
     expect(root).toMatch(/menus=\{menus\}/);
     expect(app).toMatch(/menus=\{menuTree\}/);
     expect(root).toMatch(/onNavigate/);
-    expect(home).toMatch(/Search by style code, colour or fabric/);
-    expect(home).toMatch(/New arrivals/);
-    expect(home).toMatch(/View all/);
-    expect(home).toMatch(/Shop ready to wear/);
-    expect(home).toMatch(/Cut for you, in four steps/);
-    expect(home).toMatch(/ella-collection-page/);
-    expect(home).toMatch(/aria-label="Instagram"/);
     expect(root).toMatch(/StorefrontFloatingSocial/);
   });
 
