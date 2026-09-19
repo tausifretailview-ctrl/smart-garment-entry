@@ -11,7 +11,7 @@
 
 ## Open (blocked on user decision)
 - [x] Deploy the Step 2 fix — LIVE in production since 2026-09-18 20:10 UTC. Do not roll it back.
-- [ ] Repair the 51 historically over-credited bills (₹2,99,467) — **WAIT** until the full-51 sibling SNAP-drop paste is locked (`docs/ssot-51-full-sibling-scan-2026-09-19.md`). SHREEVASTAV / VIMLA / DIYA / HEENA / ANANYA are NEEDS_BUCKET_G. SANTOSH is separate (1131-1).
+- [ ] Repair the 51 historically over-credited bills (₹2,99,467) — **WAIT**. Full sibling scan pasted 19 Sep 21:09 IST (`docs/ssot-51-full-sibling-scan-2026-09-19.md`): receipt-bearing population is 91 bills / ₹2,98,108 (₹ matches, count does not — materialise the 51 by `sale_number` first). Customer-level split: **A NEEDS_BUCKET_G 14 customers / 25 bills** (SHREEVASTAV, VIMLA, DIYA, ANANYA + 10; ₹28,116 at-sale cash SNAP still drops after a perfect repair) — blocked on the SNAP `paid_at_sale_drift` fix. **B REPAIR_SUFFICIENT_SNAP 49 customers / 57 bills** after 5 NET_DUE_ZERO refund rows and DOLLY are excluded; customer-atomic (HEENA = all of 853/1488/1594/1714). SANTOSH separate (1131-1). 365 tender-only over-credit rows (no receipt) are a different population.
 - [ ] Step 3 proper: per-invoice credit cap in `getCustomerAccountState` (printed balance).
 - [ ] Re-check the 132 artefact-inflated UNDERSTATED_PAID findings; consider netting CN against `sale_return_adjust` in `detect_settlement_drift`.
 - [ ] 9-way convergence comparison (held). Formula audit: **none** of C-PARTY/C-REC/C-STMT/C-AUDIT/C-OB-SALES is a confirmed customer-level source.

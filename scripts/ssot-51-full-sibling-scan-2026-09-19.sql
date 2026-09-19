@@ -13,12 +13,19 @@
 -- SNAP drop (bucket g): tender > 0.005 AND receipts_effective >= tender.
 -- Sibling = any OTHER sale on the same customer (even if not in the repair set).
 --
--- Gates:
+-- Gates (CUSTOMER-level — a customer is NEEDS_BUCKET_G if ANY of her bills is):
 --   SANTOSH_SEPARATE       — POS/717 customer; 1131-1 leftover-overpay, not A/B
 --   WALK_IN_NO_CUSTOMER    — no customer_id (Velvet POS/85)
---   NEEDS_BUCKET_G         — SNAP drop on repaired bill after OR any sibling
---   REPAIR_SUFFICIENT_SNAP — no SNAP drop on self after and no sibling SNAP drop
---                            (still not a mutate green light — reprints / full paste)
+--   NEEDS_BUCKET_G         — SNAP drop survives on ANY sale of the customer after
+--                            every repair bill has its over-credit removed
+--   REPAIR_SUFFICIENT_SNAP — no SNAP drop anywhere on the customer after repair
+--                            (still not a mutate green light — reprints / hand-check)
+--
+-- v2 (21:09 IST paste, 456 rows): first run gated PER BILL, so 54572eba had one
+-- bill in each group. Now the gate is per customer. Also adds `shape` so the
+-- tender-only rows (at-sale cash > net, receipts = 0, nothing to delete) and the
+-- NET_DUE_ZERO rows (receipt standing on a fully-returned bill — refund, not a
+-- duplicate) can be separated from the receipt-bearing duplicate population.
 --
 -- Four orgs that built the 51 headline: GURUKRUPA, VELVET, ELLA NOOR, KS FOOTWEAR.
 
@@ -118,43 +125,65 @@ customer_sales_drop AS (
     END AS snap_drop
   FROM customer_sales cs
 ),
-sibling_totals AS (
+-- Customer-level SNAP drop AFTER repair: every sale (repair bill or not).
+customer_totals AS (
   SELECT
     customer_id,
-    SUM(snap_drop) FILTER (WHERE is_repair_bill = false) AS sibling_snap_drop,
-    COUNT(*) FILTER (WHERE is_repair_bill = false AND snap_drop > 0) AS sibling_snap_bills
+    SUM(snap_drop) AS customer_snap_drop,
+    COUNT(*) FILTER (WHERE snap_drop > 0) AS customer_snap_bills,
+    COUNT(*) FILTER (WHERE is_repair_bill) AS repair_bill_count
   FROM customer_sales_drop
   GROUP BY customer_id
 ),
-classified AS (
+shaped AS (
   SELECT
-    rb.sale_number,
-    rb.customer_id,
-    rb.tender,
-    rb.paid_amount,
-    rb.receipts_live,
-    rb.over_credit_ledger,
-    rb.over_credit_greatest,
-    rb.receipts_after,
+    rb.*,
+    rb.receipts_live - rb.net_due AS receipt_over,   -- > 1 → receipts alone exceed the bill
     CASE
       WHEN rb.tender > 0.005 AND rb.receipts_after >= rb.tender THEN rb.tender
       ELSE 0
     END AS snap_drop_self,
-    COALESCE(st.sibling_snap_drop, 0) AS sibling_snap_drop,
-    COALESCE(st.sibling_snap_bills, 0) AS sibling_snap_bills,
     CASE
-      WHEN rb.customer_id = '1167547a-2ef1-4931-8993-2cb21ebcb619'::uuid
-        OR rb.sale_number IN ('POS/25-26/717', 'POS/25-26/1130')
+      WHEN rb.receipts_live <= 0.005 THEN 'TENDER_ONLY_OVER'          -- no receipt to delete
+      WHEN rb.net_due <= 0.005      THEN 'NET_DUE_ZERO'               -- fully returned; refund, not dup
+      WHEN rb.tender <= 0.005 AND abs(rb.receipts_live - 2 * rb.net_due) <= 1
+                                    THEN 'EXACT_DOUBLE_RECEIPT'
+      WHEN rb.tender > 0.005 AND rb.receipts_after <= 0.005
+                                    THEN 'RECEIPT_DUPLICATES_AT_SALE_TENDER'
+      WHEN rb.receipts_live - rb.net_due > 1
+                                    THEN 'RECEIPT_OVER_PARTIAL'
+      ELSE 'MIXED_TENDER_PLUS_RECEIPT_OVER'
+    END AS shape
+  FROM repair_bills rb
+),
+classified AS (
+  SELECT
+    s.sale_number,
+    s.customer_id,
+    s.tender,
+    s.paid_amount,
+    s.receipts_live,
+    s.over_credit_ledger,
+    s.over_credit_greatest,
+    s.receipts_after,
+    s.snap_drop_self,
+    -- drop on every OTHER sale of the customer (siblings AND other repair bills, post-repair)
+    COALESCE(ct.customer_snap_drop, 0) - s.snap_drop_self AS sibling_snap_drop,
+    COALESCE(ct.customer_snap_bills, 0)
+      - CASE WHEN s.snap_drop_self > 0 THEN 1 ELSE 0 END AS sibling_snap_bills,
+    COALESCE(ct.repair_bill_count, 1) AS customer_repair_bills,
+    s.shape,
+    s.receipt_over,
+    CASE
+      WHEN s.customer_id = '1167547a-2ef1-4931-8993-2cb21ebcb619'::uuid
+        OR s.sale_number IN ('POS/25-26/717', 'POS/25-26/1130')
         THEN 'SANTOSH_SEPARATE'
-      WHEN rb.customer_id IS NULL THEN 'WALK_IN_NO_CUSTOMER'
-      WHEN (
-        (rb.tender > 0.005 AND rb.receipts_after >= rb.tender)
-        OR COALESCE(st.sibling_snap_drop, 0) > 0
-      ) THEN 'NEEDS_BUCKET_G'
+      WHEN s.customer_id IS NULL THEN 'WALK_IN_NO_CUSTOMER'
+      WHEN COALESCE(ct.customer_snap_drop, 0) > 0 THEN 'NEEDS_BUCKET_G'
       ELSE 'REPAIR_SUFFICIENT_SNAP'
     END AS gate
-  FROM repair_bills rb
-  LEFT JOIN sibling_totals st ON st.customer_id = rb.customer_id
+  FROM shaped s
+  LEFT JOIN customer_totals ct ON ct.customer_id = s.customer_id
 )
 SELECT
   'headline'::text AS section,
@@ -167,9 +196,12 @@ SELECT
   COUNT(*) FILTER (WHERE gate = 'REPAIR_SUFFICIENT_SNAP')::numeric AS over_credit_ledger,
   COUNT(*) FILTER (WHERE gate = 'SANTOSH_SEPARATE')::numeric AS over_credit_greatest,
   COUNT(*) FILTER (WHERE gate = 'WALK_IN_NO_CUSTOMER')::numeric AS receipts_after,
-  NULL::numeric AS snap_drop_self,
-  NULL::numeric AS sibling_snap_drop,
-  NULL::int AS sibling_snap_bills
+  COUNT(*) FILTER (WHERE receipts_live > 0.005)::numeric AS snap_drop_self,       -- receipt-bearing bills
+  SUM(over_credit_ledger) FILTER (WHERE receipts_live > 0.005) AS sibling_snap_drop, -- their over-credit
+  NULL::int AS sibling_snap_bills,
+  NULL::int AS customer_repair_bills,
+  NULL::text AS shape,
+  NULL::numeric AS receipt_over
 FROM classified
 UNION ALL
 SELECT
@@ -185,8 +217,29 @@ SELECT
   receipts_after,
   snap_drop_self,
   sibling_snap_drop,
-  sibling_snap_bills
+  sibling_snap_bills,
+  customer_repair_bills,
+  shape,
+  receipt_over
 FROM classified
+UNION ALL
+SELECT
+  'customer',
+  gate,
+  NULL,
+  customer_id,
+  COUNT(*)::numeric,                                   -- repair bills on this customer
+  SUM(over_credit_ledger),                             -- customer over-credit
+  COUNT(*) FILTER (WHERE receipts_live > 0.005)::numeric,
+  NULL, NULL, NULL,
+  SUM(snap_drop_self),
+  MAX(sibling_snap_drop),
+  NULL, NULL,
+  string_agg(shape, '+' ORDER BY sale_number),
+  NULL
+FROM classified
+WHERE customer_id IS NOT NULL
+GROUP BY customer_id, gate
 UNION ALL
 SELECT
   'sibling',
@@ -201,8 +254,11 @@ SELECT
   csd.receipts_effective,
   csd.snap_drop,
   NULL,
+  NULL,
+  NULL,
+  NULL,
   NULL
 FROM customer_sales_drop csd
 WHERE csd.is_repair_bill = false
   AND csd.snap_drop > 0
-ORDER BY 1, 2 NULLS LAST, 3 NULLS LAST;
+ORDER BY 1, 2 NULLS LAST, 4 NULLS LAST, 3 NULLS LAST;

@@ -79,7 +79,7 @@ Sibling SNAP-drop rows in the same CSV (includes the repaired bill when it itsel
 
 **Answer to “any of the 51-set bills on SNAP/C-JS accounts?”** For this May already-zero named set: **yes.** HEENA and ANANYA look like safe tender-0 full-net dups on the repaired row and are **not** — sibling SNAP-drop is live. SHREEVASTAV / VIMLA / DIYA drop on the repaired bill itself. Live C-JS `paid_amount` still holds tender on those three, so glance *may* match leftover after delete; POS search will not.
 
-This paste is **not** the all-time 51. Full leftover-sum + sibling SNAP-drop scan: `docs/ssot-51-full-sibling-scan-2026-09-19.md` / `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`. **SHREEVASTAV / VIMLA / DIYA are NEEDS_BUCKET_G**, not repair-sufficient. SANTOSH stays separate. No mutate until that paste is locked.
+This paste is **not** the all-time 51. Full leftover-sum + sibling SNAP-drop scan: `docs/ssot-51-full-sibling-scan-2026-09-19.md` / `scripts/ssot-51-full-sibling-scan-2026-09-19.sql`, pasted 21:09 IST. **SHREEVASTAV / VIMLA / DIYA / ANANYA are NEEDS_BUCKET_G** (14 customers / 25 bills in all). **HEENA is not**: 1488 / 1594 / 1714 are receipt-on-at-sale duplicates themselves (tender = receipt = net), so the ₹9,686 "sibling drop" disappears when all four of her bills are repaired together — she is REPAIR_SUFFICIENT_SNAP only as a 4-bill customer-atomic repair. SANTOSH stays separate. No mutate.
 
 ### Named bills — after duplicate gone, mutate not started
 
@@ -98,7 +98,7 @@ This paste is **not** the all-time 51. Full leftover-sum + sibling SNAP-drop sca
 **Do not start the 51-bill mutate.** Split later:
 
 1. **WAIT SNAP formula** — repaired bill itself drops: SHREEVASTAV 875, VIMLA 765, DIYA 123. Live `paid_amount` holds tender (C-JS gap 1000 / 400 / 1000) so glance *may* match leftover; POS search will not. SHREEVASTAV also sibling 824 ₹500.
-2. **WAIT sibling SNAP** — HEENA (853 looks tender-0; siblings 1488+1594+1714 = ₹9,686) and ANANYA (four tender-0 dups; sibling 1788 ₹2,416). Live paste 20:10 IST.
+2. **WAIT sibling SNAP** — ANANYA (four tender-0 dups; sibling 1788 ₹2,416, `over_credit = 0`, nothing to delete). HEENA was here at 20:10 IST; the 21:09 full scan shows 1488+1594+1714 (₹9,686) are duplicates in their own right and she moves to customer-atomic B — repair 853 alone and the ₹9,686 stays.
 3. **WAIT other** — SANTOSH 1131-1 leftover-overpay (not SNAP). Velvet five-invoice reprint still required.
 4. **Walk-in POS/85** — no customer ledger; still held with that reprint gate.
 5. All-time 51 still unscanned.
