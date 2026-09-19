@@ -39,7 +39,17 @@ A–D remain the overnight traffic answers. Re-run **A–D only** (stop before E
 
 **No evidence of a false reject, and the unique key cannot create one.** A new submit mints a new UUID (`newReceiptSubmissionId`); only a retry of the *same* click collides. The cap fires only when existing non-CN sale receipts + incoming > `net_amount` + ₹1.
 
-This environment cannot see toast-only failures. Query **B** is the accept path: if receipts since 20:10 UTC exist — especially rows with `client_request_id` — genuine payments are landing. Rows *without* the key are old clients / Electron / Android caches, not a rollback.
+This environment cannot see toast-only failures.
+
+**Query B paste** (`query-results-export-2026-09-19_13-50-58_e8af.csv`, 19 Sep 2026 13:50 IST):
+
+| receipts_since_golive | with_submit_key | without_submit_key | orgs | first_at UTC | last_at UTC |
+| ---: | ---: | ---: | ---: | --- | --- |
+| **14** | **0** | **14** | 1 | 2026-09-19 06:42:26 | 2026-09-19 08:17:48 |
+
+Fourteen receipts landed this morning on one org (12:12–13:47 IST). The settled-bill cap did **not** blanket-block this traffic — genuine payments are flowing.
+
+None of the 14 carry `client_request_id`. The duplicate-click unique index was **idle** on this traffic (nothing to collide). That is expected for writers that never pass a submit key (POS at-sale / `ensureAtSaleTenderReceipt` / school-fee / cashier report) **or** for a cached Electron/Android/PWA client on the six Record Payment screens. It is **not** a rollback: the column and Vercel bundle are live. Next paste (`scripts/receipt-guard-live-status-B2-ACD-2026-09-19.sql`) names the 14 (B2) plus A / C / D.
 
 ### 3. Any NEW duplicate-receipt pattern since go-live?
 
