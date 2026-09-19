@@ -283,14 +283,17 @@ export async function loadProfitDataset(
   fromDate: string,
   toDate: string,
 ): Promise<ProfitDataset> {
+  // Business day is IST — naive date strings would be read as UTC and drop
+  // early-morning / late-evening POS bills (e.g. 12:12 AM IST = prior UTC day).
+  const { fromTimestamp, toTimestamp } = npaTimestampBounds(fromDate, toDate);
   const { data: sales, error: salesError } = await supabase
     .from("sales")
     .select(
       "id, sale_number, sale_date, customer_id, customer_name, salesman, payment_method, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, sale_return_adjust",
     )
     .eq("organization_id", organizationId)
-    .gte("sale_date", fromDate)
-    .lte("sale_date", `${toDate}T23:59:59`)
+    .gte("sale_date", fromTimestamp)
+    .lte("sale_date", toTimestamp)
     .is("deleted_at", null)
     .eq("is_cancelled", false)
     .or("payment_status.is.null,payment_status.neq.cancelled")
@@ -324,8 +327,8 @@ export async function loadProfitDataset(
       "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date",
     )
     .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", `${toDate}T23:59:59`)
+    .gte("return_date", fromTimestamp)
+    .lte("return_date", toTimestamp)
     .is("deleted_at", null);
 
   if (returnsError) throw returnsError;
