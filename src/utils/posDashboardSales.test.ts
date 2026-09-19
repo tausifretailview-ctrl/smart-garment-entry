@@ -260,6 +260,101 @@ describe("POS dashboard mix / unpaid filters", () => {
       }),
     ).toBe(true);
   });
+
+  // ELLA NOOR POS/26-27/93: ₹4,000 counter cash + ₹16,900 UPI receipt on a ₹20,900 bill.
+  // RPC mode sums only see the ₹4,000, so the KPI strip must recompute.
+  it("detects understated mode totals when money came in as a later receipt", () => {
+    expect(
+      posDashboardModeTotalsNeedCorrection({
+        totalBills: 2,
+        totalQty: 6,
+        totalAmount: 25550,
+        totalDiscount: 1700,
+        netSale: 23850,
+        completedCount: 2,
+        completedAmount: 23850,
+        pendingCount: 0,
+        pendingAmount: 0,
+        holdCount: 0,
+        holdAmount: 0,
+        refundCount: 0,
+        refundAmount: 0,
+        creditNoteCount: 0,
+        creditNoteAmount: 0,
+        totalCash: 6950,
+        totalCard: 0,
+        totalUpi: 0,
+        totalBalance: 0,
+        totalSaleReturnAdjust: 0,
+        totalRoundOff: 0,
+        cashBillCount: 2,
+        cardBillCount: 0,
+        upiBillCount: 0,
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves matching mode totals alone", () => {
+    expect(
+      posDashboardModeTotalsNeedCorrection({
+        totalBills: 1,
+        totalQty: 1,
+        totalAmount: 1000,
+        totalDiscount: 0,
+        netSale: 1000,
+        completedCount: 1,
+        completedAmount: 1000,
+        pendingCount: 0,
+        pendingAmount: 0,
+        holdCount: 0,
+        holdAmount: 0,
+        refundCount: 0,
+        refundAmount: 0,
+        creditNoteCount: 0,
+        creditNoteAmount: 0,
+        totalCash: 1000,
+        totalCard: 0,
+        totalUpi: 0,
+        totalBalance: 0,
+        totalSaleReturnAdjust: 0,
+        totalRoundOff: 0,
+        cashBillCount: 1,
+        cardBillCount: 0,
+        upiBillCount: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not chase unpaid bills — outstanding money is not a mode gap", () => {
+    expect(
+      posDashboardModeTotalsNeedCorrection({
+        totalBills: 1,
+        totalQty: 1,
+        totalAmount: 5000,
+        totalDiscount: 0,
+        netSale: 5000,
+        completedCount: 0,
+        completedAmount: 0,
+        pendingCount: 1,
+        pendingAmount: 5000,
+        holdCount: 0,
+        holdAmount: 0,
+        refundCount: 0,
+        refundAmount: 0,
+        creditNoteCount: 0,
+        creditNoteAmount: 0,
+        totalCash: 0,
+        totalCard: 0,
+        totalUpi: 0,
+        totalBalance: 5000,
+        totalSaleReturnAdjust: 0,
+        totalRoundOff: 0,
+        cashBillCount: 0,
+        cardBillCount: 0,
+        upiBillCount: 0,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("POS dashboard voucher lookback", () => {
