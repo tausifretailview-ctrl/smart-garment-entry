@@ -39,7 +39,7 @@ The function **exists** on production `pg_proc`. Empty `trigger_calls` means `tr
 | --- | --- | --- |
 | **true** | **true** | **true** |
 
-Column, unique index, and trigger are all still installed and enabled. Do **not** roll them back. C / C2 / D were not in this export (SQL editor first-tab only). Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first so the first tab is the SHREEVASTAV already-zero check).
+Column, unique index, and trigger are all still installed and enabled. Do **not** roll them back.
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 
@@ -71,7 +71,7 @@ No POS Dashboard, Customer Payment Tab, Floating Payments, Payments Dashboard, S
 - Sales Invoice Dashboard **dialog** (`SalesInvoiceDashboard.tsx`) calls `createReceiptVoucher` **without** `clientRequestId`. (Bulk cash `recordInvoiceFullCashPayment` does pass a key; this morning’s rows are the dialog — UPI “Received in: SHEZA AMANI A/C” and cash.)
 - `consumeAdvanceFIFO` also omits the key.
 
-The duplicate-click unique index cannot fire on this traffic. The settled-bill **cap trigger still applies** to the 12 cash/UPI rows. Query A is **true / true / true**. Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first).
+The duplicate-click unique index cannot fire on this traffic. The settled-bill **cap trigger still applies** to the 12 cash/UPI rows. Query A is **true / true / true**. C2 is **0 rows** (holding).
 
 Cash/UPI named rows (IST = UTC+5:30):
 
@@ -90,16 +90,15 @@ Cash/UPI named rows (IST = UTC+5:30):
 | 08:17:48 | 4891 | INV/26-27/3137 | cash | 9,700 |
 | 09:14:45 | 4897 | INV/26-27/3014 | upi | 4,500 |
 
-INV/3132 three UPI in 42 seconds (₹8,950 + ₹1,800 + ₹1,200) and INV/3131 UPI then cash are **split/mix until C says otherwise** — different amounts, not the same-click SHREEVASTAV shape. INV/3113 two advances 1.4s apart (ADV/458 + ADV/595) is the known legitimate FIFO pattern.
+INV/3132 three UPI in 42 seconds (₹8,950 + ₹1,800 + ₹1,200) and INV/3131 UPI then cash are **split/mix** — C2 did not flag them as already-zero. INV/3113 two advances 1.4s apart (ADV/458 + ADV/595) is the known legitimate FIFO pattern.
 
 ### 3. Any NEW duplicate-receipt pattern since go-live?
 
-**Cannot finish without query C.** Query **C** is the same `remaining_before <= 0.5` signature as the 30-May leak, restricted to `created_at >= 2026-09-18 20:10:54+00`. **C2** is the same minus `advance_adjustment` (SHREEVASTAV cash/UPI shape).
+**No. C2 returned 0 rows.** Screenshot 19 Sep 2026 ~15:11 IST, first result of `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 is the first SELECT; same first-tab behavior as the Query A export). Pane: “Query succeeded. No rows returned.”
 
-- **0 rows** → the leak is holding (or nobody tried that shape). Combined with query **B** > 0, the guard is working in traffic.
-- **Any row** → a leak after go-live; inspect `client_request_id` and description before blaming the trigger.
+C2 is the 30-May leak signature (`remaining_before <= 0.5`) on cash/card/UPI only, `created_at >= 2026-09-18 20:10:54+00`. Zero rows = no new SHREEVASTAV-shape already-zero receipt since go-live. Combined with Query B/B2 > 0, genuine payments are flowing and that leak is holding.
 
-Query **D** must be 0 (same `client_request_id` reused on two live rows). A hit would mean the unique index is not enforcing.
+Query **D** (second SELECT, reused `client_request_id`) was not exported. It must be 0 while `with_submit_key` is 0; a hit would mean the unique index is not enforcing. Optional: run only the D SELECT in `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` if a second Results tab is needed.
 
 ---
 
