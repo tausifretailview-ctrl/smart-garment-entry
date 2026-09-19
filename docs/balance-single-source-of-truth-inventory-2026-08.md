@@ -235,6 +235,8 @@ Full identity: `docs/shreevastav-pos-search-due-14650-2026-09-19.md`.
 
 **Post-1128/1129 repair (not started):** leftover stays 16,250; ledger → 16,250; C-JS → 16,250 only if 875 `paid_amount` still carries at-sale (else 17,250); C-SNAP → **17,750** (875 and 824 at-sale still dropped). SNAP drift is an independent fix.
 
+**Two tiers (19 Sep follow-up):** leftover = invoice-level only. Customer/org SSOT must be **built**. C-PARTY/C-REC share SNAP drift — do not select them because they match C-SNAP on ELLA. 51-bill mutate still **WAIT** (VIMLA/DIYA same SNAP-drop as 875). `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`.
+
 ## Phase 2 (after sign-off, not this PR)
 
 1. Cross-screen equality in `npm run test:money` for Sana Nasir, Farhaan Fab, Shumama Baireli, Sangamn Fashion — every inventory row, same number.
