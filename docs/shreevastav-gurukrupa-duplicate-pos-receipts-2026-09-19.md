@@ -3,8 +3,8 @@
 **Date:** 19 Sep 2026  
 **Org:** GURUKRUPA SILK SAREES (`e8fbf0d8-182c-4364-8570-96c756b72db8`)  
 **Customer:** SHREEVASTAV, phone 9819151882  
-**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:28 IST (`…00-22-48_2474`, `…00-23-33_612c`, `…00-23-50_8008`, paste 3 `…00-28-21_f03b`); ledger reprints `VIMLA_YADAV_Ledger_19-09-2026_034a.pdf` (00:31) and `SANTOSH_ZADE_Ledger_19-09-2026_40d9.pdf` (00:33).  
-**This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1126, RCP/1128, RCP/1129, or RCP/1131-2.**
+**Evidence:** `SHREEVASTAV_Ledger_19-09-2026_dc1e.pdf` / `…a29d.pdf` generated 19 Sep 2026 00:01; POS A5 tax invoice POS/26-27/1903 photographed from POS Dashboard reprint; SQL-editor pastes 19 Sep 2026 00:22–00:28 IST (`…00-22-48_2474`, `…00-23-33_612c`, `…00-23-50_8008`, paste 3 `…00-28-21_f03b`); ledger reprints `VIMLA_YADAV_Ledger_19-09-2026_034a.pdf` (00:31) and `SANTOSH_ZADE_Ledger_19-09-2026_40d9.pdf` (00:33).  
+**This pass:** facts and scope only. **No repair. Do not soft-delete RCP/1126, RCP/1128, RCP/1129, or RCP/1131-2.** 51-bill set row is ₹3,100, hand-check ₹16,250 — see `docs/duplicate-receipt-51-bill-repair-set-2026-09-19.md`.
 
 ---
 
@@ -174,3 +174,11 @@ Gurukrupa named set is hand-traced from PDFs (VIMLA / SHREEVASTAV / SANTOSH). Be
 Paste files remain: `scripts/shreevastav-dup-*.sql`.
 
 The 18 Sep org-wide audit in `docs/duplicate-receipt-audit-2026-09-18.md` first missed at-sale tender on these three Gurukrupa bills (VIMLA called clean, SHREEVASTAV over-credit ₹2,100, SANTOSH 717 called unpaid). Those Gurukrupa rows now follow this PDF reconstruction. Velvet STEP 1 in that audit is a separate hand-check.
+
+---
+
+## 9. 51-bill repair set — do not proceed at ₹2,100
+
+The later CN-netted population (51 bills / ₹2,98,467) put POS/875 at **₹2,100** because `LEAST(net, GREATEST(receipt_vouchers, tender))` drops the ₹1,000 at-sale once RCP/799 exists. 1129 then looks like leftover. Both 1128 and 1129 are already-zero. Correct row **₹3,100**; headline **₹2,99,467**. Post-repair target **₹16,250 Dr**. Repairing 1128 only lands ₹15,250 and misses the printed invoice.
+
+Confirmed again on `SHREEVASTAV_Ledger_19-09-2026_a29d.pdf` (00:01): running after 1129 is ₹3,100 Cr; live Outstanding ₹13,150 Dr.

@@ -65,8 +65,13 @@ Maseera artefact). Against the open drift log:
 The 290 criticals stand. Roughly half the UNDERSTATED_PAID warnings must be re-checked
 before being treated as real.
 
-Population re-sized with CN netted against SR-adjust: **51 bills / ₹2,98,467** genuinely
-over-credited (naive count 53 / ₹3,06,217).
+Population re-sized with CN netted against SR-adjust: **51 bills / ₹2,99,467** genuinely
+over-credited (naive count 53 / ₹3,06,217; then +₹1,000 for SHREEVASTAV POS/875).
+
+SHREEVASTAV was first entered at ₹2,100 because `GREATEST(receipt_vouchers, at_sale_tender)`
+discards her ₹1,000 at-sale cash once RCP/799 exists, so RCP/1129 looked like leftover.
+Both 1128 and 1129 are already-zero duplicates. Correct row **₹3,100**; post-repair
+hand-check **₹16,250 Dr**. See `docs/duplicate-receipt-51-bill-repair-set-2026-09-19.md`.
 
 ## Held
 

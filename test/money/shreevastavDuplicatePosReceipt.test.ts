@@ -196,6 +196,40 @@ describe("POS/26-27/1903 print footer — not a 9th outstanding formula", () => 
   });
 });
 
+/** How the 51-bill pass counted cash: GREATEST(vouchers, tender), not the sum. */
+function settlementGreatestOverCredit(vouchers: number, tender: number, net: number): number {
+  return Math.max(0, Math.max(vouchers, tender) - net);
+}
+
+function ledgerOverCredit(vouchers: number, tender: number, net: number): number {
+  return Math.max(0, vouchers + tender - net);
+}
+
+describe("51-bill repair set — SHREEVASTAV is ₹3,100 not the GREATEST artefact ₹2,100", () => {
+  const vouchers875 = RCP_799 + RCP_1128 + RCP_1129;
+
+  it("GREATEST(receipts, tender) is how the later pass cut her to ₹2,100", () => {
+    expect(Math.max(vouchers875, AT_SALE_875)).toBe(5_200);
+    expect(vouchers875 - POS_875).toBe(2_100);
+    expect(settlementGreatestOverCredit(vouchers875, AT_SALE_875, POS_875)).toBe(2_100);
+  });
+
+  it("ledger adds at-sale + receipts, so both 1128 and 1129 are over-credit ₹3,100", () => {
+    expect(ledgerOverCredit(vouchers875, AT_SALE_875, POS_875)).toBe(3_100);
+    expect(RCP_1128 + RCP_1129).toBe(3_100);
+  });
+
+  it("repairing only 1128 lands ₹15,250; both receipts land on the printed ₹16,250", () => {
+    const live = 13_150;
+    expect(live + RCP_1128).toBe(15_250);
+    expect(live + RCP_1128 + RCP_1129).toBe(16_250);
+  });
+
+  it("51-bill headline moves ₹2,98,467 → ₹2,99,467; still 51 bills", () => {
+    expect(298_467 + 1_000).toBe(299_467);
+  });
+});
+
 const POS_765 = 3_000;
 const AT_SALE_765 = 400;
 const RCP_1125 = 2_600;
