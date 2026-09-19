@@ -11,7 +11,7 @@
 
 ## Open (blocked on user decision)
 - [ ] Deploy the Step 2 fix (built, not deployed — awaiting go-ahead).
-- [ ] Verify in production for a period, then repair the 51 historically over-credited bills (₹2,98,467).
+- [ ] Verify in production for a period, then repair the 51 historically over-credited bills (₹2,99,467). SHREEVASTAV POS/875 is ₹3,100 (1128+1129), hand-check ₹16,250 — not the GREATEST-artefact ₹2,100.
 - [ ] Step 3 proper: per-invoice credit cap in `getCustomerAccountState` (printed balance).
 - [ ] Re-check the 132 artefact-inflated UNDERSTATED_PAID findings; consider netting CN against `sale_return_adjust` in `detect_settlement_drift`.
 - [ ] 9-way convergence comparison (held).
