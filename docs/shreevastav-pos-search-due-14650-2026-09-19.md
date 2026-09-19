@@ -142,4 +142,4 @@ Do not start the mutate here. Predicted SHREEVASTAV numbers **after both duplica
 
 Earlier line “C-SNAP still reads ₹16,750 after repair” was **understated**. SNAP drift does not read `paid_amount`. RCP/799 stays on 875, so 875 at-sale stays dropped too. Independent SNAP-drift fix required even after the 51-bill row is cleaned.
 
-**SSOT implication:** converge **invoice leftover** first as the payment / this-bill canon. Do not migrate Customer Balances / KPI onto leftover until the aggregator in §1 exists. Do not use C-JS as the reference while GREATEST/tender-absorb still fires. Do not assume C-SNAP equals leftover after duplicate repair.
+**SSOT implication (two tiers):** leftover is the **invoice-level** canon (payment / this-bill / print). It is **not** the customer/org canon — that aggregator is unbuilt; none of C-PARTY / C-REC / C-STMT / C-AUDIT / C-OB-SALES is confirmed clean (C-PARTY/C-SNAP/C-REC share SNAP drift). Do not start the 51-bill mutate: SHREEVASTAV / VIMLA / DIYA SNAP-drop survives the delete. Full overlap: `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`.

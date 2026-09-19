@@ -145,7 +145,7 @@ Supplier track unchanged (S-JS vs S-PARTY vs S-ORG vs S-OB). Out of this ELLA NO
 
 **Logic (this-bill / payment target):** invoice leftover (`reconcileSaleInvoiceWithSplit`). SHREEVASTAV print + Select Invoices ₹16,250. **Not** proven as Customer Balances / KPI SSOT — leftover is per-invoice; list/KPI still need opening + CN/SR pool + unused advance (aggregator not built).
 
-**Logic (lifetime customer, demoted as reference):** C-JS / C-RECON-LEDGER still match Farhaan −₹100. On SHREEVASTAV C-JS glance is **₹14,150** (wrong). Do not treat C-JS as the print’s customer total.
+**Logic (lifetime customer, demoted as reference):** C-JS / C-RECON-LEDGER still match Farhaan −₹100. On SHREEVASTAV C-JS glance is **₹14,150** (wrong). Do not treat C-JS as the print’s customer total. C-PARTY / C-REC / C-STMT / C-AUDIT / C-OB-SALES are **not** confirmed customer-level truth either (SNAP drift shared by C-PARTY/C-REC; C-AUDIT = C-JS; C-OB-SALES known wrong; C-STMT SQL not in repo). **Build** the aggregator; do not select a family.
 
 **Vehicle:** one **SQL set-based** function (evolve `_get_customer_party_balances_rows` or a new `_customer_balance_canonical_rows`) so 7,772 KPI cards stay one query. That function should **compose** leftover (or equivalent per-invoice remaining) plus customer-level legs — not `SUM(leftover)` alone, and not C-SNAP’s `GREATEST(0, tender − receipts)` drift (bucket g).
 

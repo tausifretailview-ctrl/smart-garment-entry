@@ -18,7 +18,7 @@ For orgs GURUKRUPA (e8fbf0d8…) and dafc3d0c…, find every receipt in the 29�
 
 ## Step 3 — run every formula against real ELLA NOOR customers
 
-A throwaway read-only harness computes, per customer: C-JS, C-RECON-LEDGER, C-PARTY, C-SNAP, C-REC/C-TRUE, C-STMT, C-AUDIT, C-OB-SALES and the print value. Any two sources differing by more than ₹1 is flagged.
+A throwaway read-only harness **was never executed** (held; SQL editor 42501 on per-customer RPCs). Substitute: source formulas + named reconstructions in `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`. Verdict: **none** of C-PARTY / C-REC / C-STMT / C-AUDIT / C-OB-SALES is a confirmed customer-level ground truth. Do not treat family-vs-family equality (ELLA C-PARTY = C-SNAP) as a lock.
 
 Coverage is stated explicitly in the report: exact number of customers tested, how they were chosen, and what share of the org and of total receivable value they represent — so "N customers drift" is never ambiguous. Full population where row counts allow; otherwise a stratified sample weighted to customers with returns, credit notes, advances and multi-receipt invoices, with that rule written out.
 
@@ -30,17 +30,19 @@ Coverage is stated explicitly in the report: exact number of customers tested, h
 
 For bucket (f) only, verify 3–5 real customers line by line against actual invoices, returns, receipts and advances before calling it a confirmed bug.
 
-## Step 6 — migration-order recommendation
+## Step 6 — migration-order recommendation (two tiers)
 
-Working order (SHREEVASTAV 19 Sep 2026 — pending leftover-aggregator scope):
+Working order (19 Sep 2026 — `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`):
 
-1. **This-bill / Select Invoices / print Balance** → invoice leftover (`reconcileSaleInvoiceWithSplit`). Matched POS/1903 print ₹16,250. **Not** yet Customer Balances list or KPI cards: leftover is per-invoice; `SUM(open leftovers)` omits opening, unused advance, unclaimed CN/SR, unallocated receipts. That aggregator is real work, not a rename.
-2. **C-JS demoted** from reliable reference. Live glance ₹14,150. After 1128/1129 repair it *may* hit ₹16,250 only if `paid_amount` still carries 875’s at-sale so drift restores it; a GREATEST rewrite to ₹2,100 leaves C-JS at ₹17,250.
-3. **C-RECON-LEDGER** should hit ₹16,250 after the duplicate-row repair (13,150 + 3,100).
-4. **C-SNAP does not** converge after that repair. Drift `GREATEST(0, tender − sale receipts)` still drops 875 at-sale (RCP/799 remains) **and** 824 at-sale → predicted **₹17,750**. Bucket (g) needs its own fix.
-5. Outstanding vs Net Position remains the known *legitimate* split (unused advance). GREATEST vs leftover vs SNAP-drift are bug-class, not facets.
+**Tier 1 — invoice-level (confirmed):** this-bill / Select Invoices / print Balance → leftover (`reconcileSaleInvoiceWithSplit`). POS/1903 print ₹16,250.
 
-Full write-up: `docs/shreevastav-pos-search-due-14650-2026-09-19.md` migration-order section.
+**Tier 2 — customer/org-level (must be built, not selected):** leftover does **not** generalize. None of C-PARTY, C-REC/C-TRUE, C-STMT, C-AUDIT, C-OB-SALES is confirmed clean against a hand-reconstructed customer total. C-PARTY/C-SNAP/C-REC share SNAP `GREATEST(0, tender−receipts)` (bucket g). C-JS/C-AUDIT share GREATEST absorb. C-OB-SALES is known wrong. C-STMT SQL is not in this repo. Installing C-PARTY because it matches C-SNAP on ELLA overlap installs the SNAP bug into KPI cards.
+
+Do **not** start the 51-bill mutate. Named overlap: SHREEVASTAV / VIMLA / DIYA stay **WAIT** (SNAP drop survives the delete). Velvet tender=0 still needs a sibling SNAP-drop scan. Repairing 1128/1129 alone leaves C-JS at ₹16,250 or ₹17,250 and C-SNAP at **₹17,750**.
+
+The Step 3 9-way live harness was **never run** (held; no JWT). Formula + named reconstructions substitute until an org-member paste exists.
+
+Full write-up: `docs/shreevastav-pos-search-due-14650-2026-09-19.md` and `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`.
 
 ## Step 7 — measure KS FOOTWEAR and VELVET
 
