@@ -11,6 +11,7 @@ export const DEFAULT_LABEL_FIELD_LABELS: Record<FieldKey, string> = {
   size: "Size",
   price: "Sale Price",
   mrp: "MRP",
+  saleDiscPercent: "Dis %",
   qty: "Qty",
   customText: "Custom Text",
   barcode: "Barcode",
@@ -32,6 +33,19 @@ const CONFIG_META_KEYS = new Set([
 
 export function isDesignerFieldKey(key: string): key is FieldKey {
   return !CONFIG_META_KEYS.has(key);
+}
+
+/** Label text for stored Sale Disc %. Blank when null/0 so tags do not imply DIS: 0%. */
+export function formatLabelSaleDiscPercent(value: number | null | undefined): string {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const shown = Number.isInteger(n) ? String(n) : String(n);
+  return `DIS: ${shown}%`;
+}
+
+export function isLabelSaleDiscPercentEmpty(value: number | null | undefined): boolean {
+  const n = Number(value);
+  return !Number.isFinite(n) || n <= 0;
 }
 
 export function getLabelFieldRawContent(
@@ -61,6 +75,8 @@ export function getLabelFieldRawContent(
       return item.qty ? `${item.qty} ${getUOMLabel(item.uom)}` : "";
     case "mrp":
       return item.mrp != null && !Number.isNaN(Number(item.mrp)) ? `MRP: ${item.mrp}` : "";
+    case "saleDiscPercent":
+      return formatLabelSaleDiscPercent(item.sale_disc_percent);
     case "barcodeText":
       return item.barcode || "";
     case "billNumber":
@@ -105,6 +121,8 @@ export function isLabelFieldDataEmpty(
       return !item.qty;
     case "mrp":
       return item.mrp == null || Number.isNaN(Number(item.mrp));
+    case "saleDiscPercent":
+      return isLabelSaleDiscPercentEmpty(item.sale_disc_percent);
     case "barcodeText":
       return !item.barcode?.trim();
     case "billNumber":

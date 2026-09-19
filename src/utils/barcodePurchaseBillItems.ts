@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
+import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
 
 /** Query param on /barcode-printing — survives hard reload (router state does not). */
 export const BARCODE_PRINT_PURCHASE_BILL_QUERY = "purchaseBillId";
@@ -27,6 +28,7 @@ export type BarcodePrintPurchaseItem = {
   gst_per?: number;
   uom?: string;
   supplier_invoice_no?: string;
+  sale_disc_percent?: number | null;
 };
 
 function hasDisplayValue(value?: string | null): value is string {
@@ -128,6 +130,17 @@ export async function fetchBarcodePrintItemsForBill(
     uom: item.uom || undefined,
     supplier_invoice_no: supplierInvoiceNo,
   }));
+
+  const discMap = await fetchSaleDiscPercentBySkuId(
+    organizationId,
+    items.map((i) => i.sku_id).filter((id): id is string => Boolean(id)),
+  );
+  for (const item of items) {
+    if (item.sku_id) {
+      const n = discMap.get(item.sku_id);
+      if (n != null) item.sale_disc_percent = n;
+    }
+  }
 
   return {
     items,

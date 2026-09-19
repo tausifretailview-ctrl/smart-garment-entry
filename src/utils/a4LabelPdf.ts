@@ -1,6 +1,7 @@
 import { PDFDocument, PDFName, rgb } from 'pdf-lib';
 import JsBarcode from 'jsbarcode';
 import { LabelDesignConfig, LabelFieldConfig, LabelItem, FieldKey } from '@/types/labelTypes';
+import { formatLabelSaleDiscPercent } from '@/utils/labelDesignerPlaceholders';
 import {
   computeA4SheetMargins,
   resolveA4LayoutGap,
@@ -51,6 +52,7 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case 'size': return item.size || '';
     case 'price': return `Rs.${item.sale_price}`;
     case 'mrp': return item.mrp ? `MRP: ${item.mrp}` : '';
+    case 'saleDiscPercent': return formatLabelSaleDiscPercent(item.sale_disc_percent);
     case 'qty': return item.qty ? `${item.qty} ${item.uom || 'NOS'}` : '';
     case 'barcodeText': return item.barcode || '';
     case 'billNumber': return item.bill_number || '';
@@ -288,6 +290,7 @@ export const generateA4LabelPdf = async (
           size: item.size,
           mrp: item.mrp,
           salePrice: item.sale_price,
+          saleDiscPercent: item.sale_disc_percent,
           barcode: item.barcode,
           billNumber: item.bill_number,
           purchaseCode: item.purchase_code,

@@ -35,6 +35,11 @@ describe("labelStyle opt-in safety", () => {
     expect(isBoutiqueGridLabelStyle(KIDSZONE_50X40_LABEL_CONFIG)).toBe(false);
   });
 
+  it("does not auto-enable Dis % on boutique grid presets", () => {
+    expect(BOUTIQUE_GRID_LABEL_CONFIG.saleDiscPercent?.show).not.toBe(true);
+    expect(BOUTIQUE_GRID_LABEL_CONFIG.fieldOrder).not.toContain("saleDiscPercent");
+  });
+
   it("does not lock Boutique Grid like kidszone (field toggles must persist)", () => {
     expect(isFixedBuiltinLabelPreset("boutique-grid")).toBe(false);
     expect(isFixedBuiltinLabelPreset("Boutique Grid")).toBe(false);

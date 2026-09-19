@@ -7,6 +7,7 @@ import {
 } from "@/types/labelTypes";
 import { getUOMLabel } from "@/constants/uom";
 import { getCustomTextFields, usesCustomTextFields } from "@/utils/labelCustomText";
+import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
 import type { ProductFieldsConfig } from "@/utils/productFieldSettingsForLabels";
 import {
   filterLabelFieldKeys,
@@ -45,6 +46,7 @@ const getFieldContent = (key: FieldKey, item: LabelItem, customTextValue?: strin
     case "price": return `Rs.${item.sale_price}`;
     case "qty": return item.qty ? `${item.qty} ${getUOMLabel(item.uom)}` : "";
     case "mrp": return item.mrp ? `MRP: ${item.mrp}` : "";
+    case "saleDiscPercent": return formatLabelSaleDiscPercent(item.sale_disc_percent);
     case "barcodeText": return item.barcode || "";
     case "billNumber": return item.bill_number || "";
     case "supplierCode": return item.supplier_code || "";
@@ -79,6 +81,7 @@ export function PrecisionLabelPreview({
     color: item.color,
     size: item.size,
     mrp: item.mrp,
+    saleDiscPercent: item.sale_disc_percent,
     salePrice: item.sale_price,
     barcode: item.barcode,
     billNumber: item.bill_number,

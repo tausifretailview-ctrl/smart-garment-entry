@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-18",
-  "count": 782,
-  "fileCount": 799,
+  "generatedAt": "2026-09-19",
+  "count": 783,
+  "fileCount": 800,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -785,7 +785,8 @@
     "20261219120000",
     "20261219120100",
     "20261220120000",
-    "20261221120000"
+    "20261221120000",
+    "20261222120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1586,7 +1587,8 @@
     "20261219120000_fix_party_leftover_cn_refund_sign.sql",
     "20261219120100_sr_remaining_same_customer.sql",
     "20261220120000_get_net_profit_kpis.sql",
-    "20261221120000_seed_organization_whatsapp_settings.sql"
+    "20261221120000_seed_organization_whatsapp_settings.sql",
+    "20261222120000_products_pricing_sale_disc_percent.sql"
   ],
   "duplicateVersions": [
     {

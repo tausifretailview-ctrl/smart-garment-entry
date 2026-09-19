@@ -1,4 +1,5 @@
 import JsBarcode from "jsbarcode";
+import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
 
 // Render barcode as inline SVG string for crisp vector output on all printers
 const renderBarcodeToSVG = (code: string, height: number = 30, width: number = 1.5): string => {
@@ -44,6 +45,7 @@ interface BarcodeItem {
   business_name?: string;
   supplier_code?: string;
   supplier_invoice_no?: string;
+  sale_disc_percent?: number | null;
 }
 
 interface LabelFieldConfig {
@@ -72,6 +74,7 @@ interface LabelConfig {
   supplierCode: LabelFieldConfig;
   purchaseCode: LabelFieldConfig;
   supplierInvoiceNo?: LabelFieldConfig;
+  saleDiscPercent?: LabelFieldConfig;
   fieldOrder: string[];
   barcodeHeight?: number;
   barcodeWidth?: number;
@@ -112,7 +115,7 @@ const sheetPresets: Record<string, { cols: number; rows?: number; width: string;
 
 // Check if config has absolute positioning (x/y defined)
 const hasAbsolutePositioning = (config: LabelConfig): boolean => {
-  const fields = ['brand', 'businessName', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'];
+  const fields = ['brand', 'businessName', 'productName', 'color', 'style', 'size', 'price', 'mrp', 'saleDiscPercent', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'];
   return fields.some(fieldKey => {
     const field = config[fieldKey as keyof LabelConfig] as LabelFieldConfig | undefined;
     return field && (field.x !== undefined || field.y !== undefined);
@@ -140,6 +143,7 @@ const getAbsolutePositionedLabelHTML = (
     size: { content: item.size || '', key: 'size' },
     price: { content: priceContent, key: 'price' },
     mrp: { content: item.mrp ? `MRP ₹${item.mrp}` : '', key: 'mrp' },
+    saleDiscPercent: { content: formatLabelSaleDiscPercent(item.sale_disc_percent), key: 'saleDiscPercent' },
     barcode: { content: item.barcode, key: 'barcode' },
     barcodeText: { content: item.barcode, key: 'barcodeText' },
     billNumber: { content: item.bill_number || '', key: 'billNumber' },

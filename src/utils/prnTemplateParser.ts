@@ -5,6 +5,8 @@
  * with actual product data for pixel-perfect label printing.
  */
 
+import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
+
 export interface LabelDataForPRN {
   productName?: string;
   brand?: string;
@@ -12,6 +14,8 @@ export interface LabelDataForPRN {
   color?: string;
   mrp?: number;
   salePrice?: number;
+  /** Stored products.pricing_sale_disc_percent — print via {DISPERCENT}. */
+  saleDiscPercent?: number | null;
   barcode?: string;
   billNumber?: string;
   purchaseCode?: string;
@@ -39,6 +43,7 @@ export const SUPPORTED_PLACEHOLDERS = [
   '{MRP}',
   '{PRICE}',
   '{SALEPRICE}',
+  '{DISPERCENT}',
   '{BARCODE}',
   '{BILLNO}',
   '{BILLNUMBER}',
@@ -83,6 +88,7 @@ export const mergePRNTemplate = (
   result = result.replace(/\{MRP\}/gi, data.mrp ? `₹${data.mrp}` : '');
   result = result.replace(/\{PRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '');
   result = result.replace(/\{SALEPRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '');
+  result = result.replace(/\{DISPERCENT\}/gi, formatLabelSaleDiscPercent(data.saleDiscPercent));
   result = result.replace(/\{BARCODE\}/gi, data.barcode || '');
   result = result.replace(/\{BILLNO\}/gi, data.billNumber || '');
   result = result.replace(/\{BILLNUMBER\}/gi, data.billNumber || '');

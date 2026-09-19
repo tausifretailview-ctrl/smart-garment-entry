@@ -38,6 +38,7 @@ import {
 } from '@/utils/prnTemplateParser';
 import { toast } from 'sonner';
 import { LabelFieldConfig, LabelDesignConfig } from '@/types/labelTypes';
+import { formatLabelSaleDiscPercent } from '@/utils/labelDesignerPlaceholders';
 
 interface DirectPrintDialogProps {
   open: boolean;
@@ -49,6 +50,7 @@ interface DirectPrintDialogProps {
     color?: string;
     mrp?: number;
     salePrice?: number;
+    saleDiscPercent?: number | null;
     barcode?: string;
     billNumber?: string;
     purchaseCode?: string;
@@ -373,6 +375,7 @@ export const DirectPrintDialog = ({
         color: firstItem.color,
         mrp: firstItem.mrp,
         salePrice: firstItem.salePrice,
+        saleDiscPercent: firstItem.saleDiscPercent,
         barcode: firstItem.barcode,
         billNumber: firstItem.billNumber,
         purchaseCode: firstItem.purchaseCode,
@@ -391,6 +394,7 @@ export const DirectPrintDialog = ({
       preview = preview.replace(/\{MRP\}/gi, data.mrp ? `₹${data.mrp}` : '[MRP]');
       preview = preview.replace(/\{PRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '[PRICE]');
       preview = preview.replace(/\{SALEPRICE\}/gi, data.salePrice ? `₹${data.salePrice}` : '[PRICE]');
+      preview = preview.replace(/\{DISPERCENT\}/gi, formatLabelSaleDiscPercent(data.saleDiscPercent) || '[DISPERCENT]');
       preview = preview.replace(/\{BARCODE\}/gi, data.barcode || '[BARCODE]');
       preview = preview.replace(/\{BILLNO\}/gi, data.billNumber || '[BILLNO]');
       preview = preview.replace(/\{BILLNUMBER\}/gi, data.billNumber || '[BILLNO]');
@@ -419,6 +423,7 @@ export const DirectPrintDialog = ({
           data: {
             productName: item.productName, brand: item.brand, size: item.size,
             color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            saleDiscPercent: item.saleDiscPercent,
             barcode: item.barcode, billNumber: item.billNumber,
             purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelDataForPRN,
@@ -453,6 +458,7 @@ export const DirectPrintDialog = ({
           data: {
             productName: item.productName, brand: item.brand, businessName,
             size: item.size, color: item.color, mrp: item.mrp, salePrice: item.salePrice,
+            saleDiscPercent: item.saleDiscPercent,
             barcode: item.barcode, billNumber: item.billNumber,
             purchaseCode: item.purchaseCode, supplierCode: item.supplierCode, style: item.style,
           } as LabelData,
@@ -464,6 +470,7 @@ export const DirectPrintDialog = ({
             productName: templateConfig.productName, color: templateConfig.color,
             style: templateConfig.style, size: templateConfig.size,
             price: templateConfig.price, mrp: templateConfig.mrp,
+            saleDiscPercent: templateConfig.saleDiscPercent,
             barcode: templateConfig.barcode, barcodeText: templateConfig.barcodeText,
             billNumber: templateConfig.billNumber, supplierCode: templateConfig.supplierCode,
             purchaseCode: templateConfig.purchaseCode,
