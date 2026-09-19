@@ -4460,6 +4460,7 @@ export type Database = {
           id: string
           image_url: string | null
           organization_id: string
+          pricing_sale_disc_percent: number | null
           product_name: string
           product_type: string
           purchase_discount_type: string | null
@@ -4468,7 +4469,6 @@ export type Database = {
           requires_imei: boolean
           sale_discount_type: string | null
           sale_discount_value: number | null
-          pricing_sale_disc_percent: number | null
           sale_gst_percent: number | null
           size_group_id: string | null
           status: string | null
@@ -4492,6 +4492,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           organization_id: string
+          pricing_sale_disc_percent?: number | null
           product_name: string
           product_type?: string
           purchase_discount_type?: string | null
@@ -4500,7 +4501,6 @@ export type Database = {
           requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
-          pricing_sale_disc_percent?: number | null
           sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null
@@ -4524,6 +4524,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           organization_id?: string
+          pricing_sale_disc_percent?: number | null
           product_name?: string
           product_type?: string
           purchase_discount_type?: string | null
@@ -4532,7 +4533,6 @@ export type Database = {
           requires_imei?: boolean
           sale_discount_type?: string | null
           sale_discount_value?: number | null
-          pricing_sale_disc_percent?: number | null
           sale_gst_percent?: number | null
           size_group_id?: string | null
           status?: string | null
