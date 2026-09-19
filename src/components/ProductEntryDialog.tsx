@@ -10,6 +10,10 @@ import {
 } from "@/utils/productRequiresImei";
 import { supabase } from "@/integrations/supabase/client";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
+import {
+  isMissingPricingSaleDiscPercentColumn,
+  omitPricingSaleDiscPercentField,
+} from "@/utils/pricingSaleDiscPercentColumn";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +26,8 @@ import { Label } from "@/components/ui/label";
 import {
   applyPurchaseMarkupPricing,
   calcSaleFromMrp,
+  normalizePricingSaleDiscPercent,
+  pricingSaleDiscPercentInputValue,
 } from "@/utils/productPricingCalc";
 import {
   resolveGarmentGstForLine,
@@ -1498,6 +1504,9 @@ export const ProductEntryDialog = ({
         default_mrp: undefined,
         colors: copiedColors,
       }));
+      setPricingDiscPercent(
+        pricingSaleDiscPercentInputValue((product as any).pricing_sale_disc_percent),
+      );
 
       const copiedVariants = (product.product_variants || [])
         .filter((v: any) => v.active !== false && !v.deleted_at)
@@ -2216,6 +2225,7 @@ export const ProductEntryDialog = ({
         purchase_discount_value: formData.default_pur_discount || null,
         sale_discount_type: formData.default_sale_discount ? 'percent' : null,
         sale_discount_value: formData.default_sale_discount || null,
+        pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
         status: formData.status,
         organization_id: currentOrganization.id,
         created_in_purchase: createdInPurchase === true,
@@ -2226,10 +2236,19 @@ export const ProductEntryDialog = ({
           : (formData.size_group_id && sizeGroups.some(g => g.id === formData.size_group_id) ? formData.size_group_id : null),
       };
       
-      const { data: productData, error: productError } = await insertProductsPreferringPurchaseFlag(
+      let { data: productData, error: productError } = await insertProductsPreferringPurchaseFlag(
         [productPayload as Record<string, unknown>],
         { select: "*", single: true },
       );
+
+      if (productError && isMissingPricingSaleDiscPercentColumn(productError)) {
+        const retry = await insertProductsPreferringPurchaseFlag(
+          [omitPricingSaleDiscPercentField(productPayload as Record<string, unknown>)],
+          { select: "*", single: true },
+        );
+        productData = retry.data;
+        productError = retry.error;
+      }
 
       if (productError) throw productError;
 

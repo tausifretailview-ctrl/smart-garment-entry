@@ -100,6 +100,7 @@ export function DraggableLabelCanvas({
     color: item.color,
     size: item.size,
     mrp: item.mrp,
+    saleDiscPercent: item.sale_disc_percent,
     salePrice: item.sale_price,
     barcode: item.barcode,
     billNumber: item.bill_number,

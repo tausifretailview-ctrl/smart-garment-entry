@@ -18,7 +18,13 @@ import { Label } from "@/components/ui/label";
 import {
   applyPurchaseMarkupPricing,
   calcSaleFromMrp,
+  normalizePricingSaleDiscPercent,
+  pricingSaleDiscPercentInputValue,
 } from "@/utils/productPricingCalc";
+import {
+  isMissingPricingSaleDiscPercentColumn,
+  omitPricingSaleDiscPercentField,
+} from "@/utils/pricingSaleDiscPercentColumn";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -772,6 +778,9 @@ const ProductEntry = () => {
           sale_discount_type: (product as any).sale_discount_type || null,
           sale_discount_value: (product as any).sale_discount_value || 0,
         });
+        setPricingDiscPercent(
+          pricingSaleDiscPercentInputValue((product as any).pricing_sale_disc_percent),
+        );
 
         // Set image preview if exists
         if (product.image_url) {
@@ -1327,14 +1336,26 @@ const ProductEntry = () => {
           purchase_discount_value: formData.purchase_discount_value || 0,
           sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
           sale_discount_value: formData.sale_discount_value || 0,
+          pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
         };
         
-        const { data, error: productError } = await supabase
+        let { data, error: productError } = await supabase
           .from("products")
           .update(productPayload)
           .eq("id", editingProductId)
           .select()
           .single();
+
+        if (productError && isMissingPricingSaleDiscPercentColumn(productError)) {
+          const retry = await supabase
+            .from("products")
+            .update(omitPricingSaleDiscPercentField(productPayload))
+            .eq("id", editingProductId)
+            .select()
+            .single();
+          data = retry.data;
+          productError = retry.error;
+        }
 
         if (productError) throw productError;
         productData = data;
@@ -1516,12 +1537,23 @@ const ProductEntry = () => {
           purchase_discount_value: formData.purchase_discount_value || 0,
           sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
           sale_discount_value: formData.sale_discount_value || 0,
+          pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
         };
-        const { data, error: productError } = await supabase
+        let { data, error: productError } = await supabase
           .from("products")
           .insert([productPayload])
           .select()
           .single();
+
+        if (productError && isMissingPricingSaleDiscPercentColumn(productError)) {
+          const retry = await supabase
+            .from("products")
+            .insert([omitPricingSaleDiscPercentField(productPayload)])
+            .select()
+            .single();
+          data = retry.data;
+          productError = retry.error;
+        }
 
         if (productError) throw productError;
         productData = data;

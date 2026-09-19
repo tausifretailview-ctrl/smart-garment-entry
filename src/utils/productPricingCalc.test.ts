@@ -3,6 +3,7 @@ import {
   applyPurchaseMarkupPricing,
   calcMarkedUpPrice,
   calcSaleFromMrp,
+  normalizePricingSaleDiscPercent,
 } from "./productPricingCalc";
 
 describe("productPricingCalc", () => {
@@ -70,5 +71,11 @@ describe("productPricingCalc", () => {
     it("treats non-finite disc as 0", () => {
       expect(calcSaleFromMrp(1000, Number.NaN)).toBe(1000);
     });
+  });
+
+  it("normalizePricingSaleDiscPercent is for labels, not POS sale_discount_value", () => {
+    expect(normalizePricingSaleDiscPercent("25")).toBe(25);
+    expect(normalizePricingSaleDiscPercent("")).toBeNull();
+    expect(normalizePricingSaleDiscPercent(0)).toBeNull();
   });
 });

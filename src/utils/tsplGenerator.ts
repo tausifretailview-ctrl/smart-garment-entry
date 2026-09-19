@@ -1,6 +1,8 @@
 // TSPL Command Generator for TSC Thermal Printers
 // Generates raw TSPL/TSPL2 commands for direct printing
 
+import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
+
 export interface TSPLLabelConfig {
   width: number; // in mm
   height: number; // in mm
@@ -49,6 +51,7 @@ export interface LabelData {
   supplierCode?: string;
   supplierInvoiceNo?: string;
   style?: string;
+  saleDiscPercent?: number | null;
 }
 
 // Template field configuration (matches LabelFieldConfig in BarcodePrinting)
@@ -86,6 +89,7 @@ export interface TSPLTemplateConfig {
   supplierCode: TSPLFieldConfig;
   purchaseCode: TSPLFieldConfig;
   supplierInvoiceNo?: TSPLFieldConfig;
+  saleDiscPercent?: TSPLFieldConfig;
   fieldOrder: string[];
   barcodeHeight?: number;
   barcodeWidth?: number;
@@ -370,7 +374,7 @@ const getTextHeightDots = (fontSize: number, bold: boolean = false): number => {
 };
 
 /** Fields that stack below the barcode — Y is derived from barcode bottom, not template Y. */
-const POST_BARCODE_FIELD_KEYS = ['price', 'barcodeText', 'mrp'] as const;
+const POST_BARCODE_FIELD_KEYS = ['price', 'barcodeText', 'mrp', 'saleDiscPercent'] as const;
 
 export interface LabelBarcodeLayout {
   barcodeYDots: number;
@@ -526,6 +530,7 @@ const getFieldContent = (fieldKey: string, data: LabelData): string => {
     case 'size': return data.size || '';
     case 'price': return data.salePrice ? `Rs.${data.salePrice}` : '';
     case 'mrp': return data.mrp ? `MRP Rs.${data.mrp}` : '';
+    case 'saleDiscPercent': return formatLabelSaleDiscPercent(data.saleDiscPercent);
     case 'barcodeText': return data.barcode || '';
     case 'billNumber': return data.billNumber || '';
     case 'supplierCode': return data.supplierCode || '';

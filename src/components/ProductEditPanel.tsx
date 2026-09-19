@@ -30,7 +30,13 @@ import { resolveVariantColor } from "@/utils/resolveVariantColor";
 import {
   applyPurchaseMarkupPricing,
   calcSaleFromMrp,
+  normalizePricingSaleDiscPercent,
+  pricingSaleDiscPercentInputValue,
 } from "@/utils/productPricingCalc";
+import {
+  isMissingPricingSaleDiscPercentColumn,
+  omitPricingSaleDiscPercentField,
+} from "@/utils/pricingSaleDiscPercentColumn";
 
 interface LineItem {
   temp_id: string;
@@ -231,7 +237,9 @@ const ProductEditPanel = ({
         setModifiedFields(new Set());
         setHasUnsavedChanges(false);
         setSaved(false);
-        setPricingDiscPercent("");
+        setPricingDiscPercent(
+          pricingSaleDiscPercentInputValue((data as { pricing_sale_disc_percent?: number | null }).pricing_sale_disc_percent),
+        );
         setLastMarkupPct(null);
       }
 
@@ -343,9 +351,7 @@ const ProductEditPanel = ({
 
       // Update product master (product-wide fields only — NOT colour)
       // Color is variant-level: see product_variants update below.
-      const { error } = await supabase
-        .from("products")
-        .update({
+      const productPatch = {
           product_name: form.product_name?.toUpperCase(),
           brand: form.brand || null,
           category: form.category || null,
@@ -357,9 +363,21 @@ const ProductEditPanel = ({
           default_sale_price: form.default_sale_price,
           purchase_gst_percent: form.purchase_gst_percent,
           sale_gst_percent: form.sale_gst_percent,
+          pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
           updated_at: new Date().toISOString(),
-        })
+      };
+      let { error } = await supabase
+        .from("products")
+        .update(productPatch)
         .eq("id", item.product_id);
+
+      if (error && isMissingPricingSaleDiscPercentColumn(error)) {
+        const retry = await supabase
+          .from("products")
+          .update(omitPricingSaleDiscPercentField(productPatch))
+          .eq("id", item.product_id);
+        error = retry.error;
+      }
 
       if (error) throw error;
 

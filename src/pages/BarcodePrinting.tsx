@@ -172,6 +172,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useProductFieldSettings } from "@/hooks/useSettings";
 import { entryPageShellClass } from "@/lib/entryPageLayout";
 import { LabelFieldConfig, LabelDesignConfig, LabelItem, LabelTemplate, FieldKey } from "@/types/labelTypes";
+import { formatLabelSaleDiscPercent } from "@/utils/labelDesignerPlaceholders";
 import { PrecisionThermalPrint } from "@/components/precision-barcode/PrecisionThermalPrint";
 import { PrecisionThermalRowPreview } from "@/components/precision-barcode/PrecisionThermalRowPreview";
 import { PrecisionA4SheetPrint } from "@/components/precision-barcode/PrecisionA4SheetPrint";
@@ -209,6 +210,7 @@ import {
   resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
 import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
+import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
 
 const precisionPresetStorageKey = (orgId: string) => `precision_active_preset_${orgId}`;
 
@@ -308,7 +310,7 @@ const mergeLabelField = (
 // Helper function to ensure all fields are in fieldOrder (for migrating old configs)
 const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesignConfig => {
   const allFields: FieldKey[] = [
-    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty',
+    'businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'saleDiscPercent', 'qty',
     'customText', 'barcode', 'barcodeText', 'billNumber', 'supplierCode', 'purchaseCode', 'supplierInvoiceNo'
   ];
 
@@ -326,6 +328,7 @@ const ensureCompleteFieldOrder = (config: Partial<LabelDesignConfig>): LabelDesi
     size: mergeLabelField(config.size, base.size),
     price: mergeLabelField(config.price, base.price),
     mrp: mergeLabelField(config.mrp, base.mrp),
+    saleDiscPercent: mergeLabelField(config.saleDiscPercent, base.saleDiscPercent!),
     qty: mergeLabelField(config.qty, base.qty),
     customText: mergeLabelField(config.customText, base.customText),
     barcode: mergeLabelField(config.barcode, base.barcode),
@@ -363,6 +366,7 @@ interface SearchResult {
   size: string;
   sale_price: number;
   mrp?: number;
+  sale_disc_percent?: number | null;
   barcode: string;
   stock_qty: number;
   supplier_code?: string;
@@ -847,6 +851,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         case 'style': return sampleItem.style || '';
         case 'price': return `Rs.${sampleItem.sale_price}`;
         case 'mrp': return sampleItem.mrp ? `MRP: ${sampleItem.mrp}` : '';
+        case 'saleDiscPercent': return formatLabelSaleDiscPercent(sampleItem.sale_disc_percent);
         case 'customText': return labelConfig.customTextValue || '';
         case 'barcodeText': return sampleItem.barcode || '';
         case 'billNumber': return sampleItem.bill_number ? `Bill: ${sampleItem.bill_number}` : '';
@@ -866,6 +871,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
       case 'style': return 'Style: Classic';
       case 'price': return 'Rs.999';
       case 'mrp': return 'MRP: 1299';
+      case 'saleDiscPercent': return 'DIS: 25%';
       case 'customText': return labelConfig.customTextValue || 'Custom Text';
       case 'barcodeText': return '12345678';
       case 'billNumber': return 'Bill: BILL001';
@@ -1480,6 +1486,7 @@ export default function BarcodePrinting() {
     size: { show: true, fontSize: 8, bold: false, x: 0, y: 8, width: 50 },
     price: { show: true, fontSize: 8, bold: true, x: 25, y: 8, width: 50 },
     mrp: { show: false, fontSize: 8, bold: false, x: 0, y: 12, width: 50 },
+    saleDiscPercent: { show: false, fontSize: 7, bold: false, x: 25, y: 12, width: 50 },
     qty: { show: false, fontSize: 7, bold: false, x: 25, y: 12, width: 20 },
     customText: { show: false, fontSize: 8, bold: false, x: 25, y: 12, width: 50 },
     barcode: { show: true, fontSize: 8, bold: false, x: 0, y: 16, width: 100 },
@@ -1487,7 +1494,7 @@ export default function BarcodePrinting() {
     billNumber: { show: false, fontSize: 6, bold: false, x: 0, y: 31, width: 100 },
     supplierCode: { show: true, fontSize: 7, bold: false, x: 0, y: 28, width: 50 },
     purchaseCode: { show: false, fontSize: 7, bold: false, x: 25, y: 28, width: 50 },
-    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
+    fieldOrder: ['businessName', 'brand', 'productName', 'category', 'size', 'price', 'mrp', 'saleDiscPercent', 'qty', 'customText', 'barcode', 'barcodeText', 'supplierCode', 'purchaseCode', 'billNumber', 'color', 'style'],
   });
 
   // Label template state
@@ -3530,8 +3537,19 @@ export default function BarcodePrinting() {
           bill_number: item.bill_number || "",
           supplier_code: item.supplier_code || "",
           supplier_invoice_no: item.supplier_invoice_no || "",
+          sale_disc_percent: item.sale_disc_percent ?? null,
         };
       });
+
+      const discMap = await fetchSaleDiscPercentBySkuId(
+        currentOrganization.id,
+        items.map((i) => i.sku_id).filter((id): id is string => Boolean(id)),
+      );
+      for (const row of items) {
+        if (row.sku_id && discMap.has(row.sku_id)) {
+          row.sale_disc_percent = discMap.get(row.sku_id);
+        }
+      }
 
       // Replace entire print list (do not append to products already on the page)
       setLabelItems(items);
@@ -3777,7 +3795,16 @@ export default function BarcodePrinting() {
           supplier_code: supplierCodeMap.get(v.id) || "",
           pur_price: v.pur_price || 0,
           uom: v.products?.uom || "NOS",
+          sale_disc_percent: null,
         }));
+
+        const discMap = await fetchSaleDiscPercentBySkuId(
+          currentOrganization.id,
+          results.map((r) => r.id),
+        );
+        for (const row of results) {
+          if (discMap.has(row.id)) row.sale_disc_percent = discMap.get(row.id);
+        }
 
         setSearchResults(results);
 
@@ -3840,6 +3867,7 @@ export default function BarcodePrinting() {
       qty: 1,
       uom: result.uom || 'NOS',
       supplier_code: result.supplier_code || '',
+      sale_disc_percent: result.sale_disc_percent ?? null,
     };
 
     setLabelItems([...labelItems, newItem]);
@@ -4099,9 +4127,20 @@ export default function BarcodePrinting() {
             supplier_invoice_no: billData.supplier_invoice_no || '',
             qty: item.qty,
             uom: variantInfo.uom || 'NOS',
-            supplier_code: supplierCode
+            supplier_code: supplierCode,
+            sale_disc_percent: null,
           };
         });
+
+      const discBySku = await fetchSaleDiscPercentBySkuId(
+        currentOrganization.id,
+        loadedItems.map((i) => i.sku_id).filter((id): id is string => Boolean(id)),
+      );
+      for (const row of loadedItems) {
+        if (row.sku_id && discBySku.has(row.sku_id)) {
+          row.sale_disc_percent = discBySku.get(row.sku_id);
+        }
+      }
 
       if (loadedItems.length === 0) {
         toast.error("Could not load product details for items in this bill");
@@ -4467,28 +4506,7 @@ export default function BarcodePrinting() {
       setBottomOffset(preset.bottomOffset || 0);
       setRightOffset(preset.rightOffset || 0);
       if (preset.labelConfig) {
-        // Ensure the loaded config has all required properties with defaults
-        const mergedConfig: LabelDesignConfig = {
-          brand: preset.labelConfig.brand || { show: true, fontSize: 9, bold: true },
-          businessName: preset.labelConfig.businessName || { show: false, fontSize: 8, bold: true },
-          productName: preset.labelConfig.productName || { show: true, fontSize: 9, bold: true },
-          category: preset.labelConfig.category || { show: false, fontSize: 8, bold: false },
-          color: preset.labelConfig.color || { show: false, fontSize: 8, bold: false },
-          style: preset.labelConfig.style || { show: false, fontSize: 8, bold: false },
-          size: preset.labelConfig.size || { show: true, fontSize: 9, bold: false },
-          price: preset.labelConfig.price || { show: true, fontSize: 9, bold: true },
-          mrp: preset.labelConfig.mrp || { show: false, fontSize: 9, bold: false },
-          qty: preset.labelConfig.qty || { show: false, fontSize: 7, bold: false },
-          customText: preset.labelConfig.customText || { show: false, fontSize: 8, bold: false },
-          barcode: preset.labelConfig.barcode || { show: true, fontSize: 9, bold: false },
-          barcodeText: preset.labelConfig.barcodeText || { show: true, fontSize: 7, bold: false },
-          billNumber: preset.labelConfig.billNumber || { show: true, fontSize: 7, bold: false },
-          supplierCode: preset.labelConfig.supplierCode || { show: true, fontSize: 7, bold: false },
-          purchaseCode: preset.labelConfig.purchaseCode || { show: false, fontSize: 7, bold: false },
-          fieldOrder: preset.labelConfig.fieldOrder || ['businessName', 'brand', 'productName', 'category', 'color', 'style', 'size', 'price', 'mrp', 'qty', 'customText', 'barcode', 'billNumber', 'barcodeText', 'supplierCode', 'purchaseCode'],
-          customTextValue: preset.labelConfig.customTextValue || '',
-        };
-        setLabelConfig(mergedConfig);
+        setLabelConfig(ensureCompleteFieldOrder(preset.labelConfig));
       }
       setSelectedDesignPreset(presetName);
       toast.success(`Loaded design preset "${presetName}"`);
@@ -5030,6 +5048,8 @@ export default function BarcodePrinting() {
           return `Rs.${item.sale_price}`;
         case 'mrp':
           return item.mrp ? `MRP: ${item.mrp}` : '';
+        case 'saleDiscPercent':
+          return formatLabelSaleDiscPercent(item.sale_disc_percent);
         case 'barcode':
           return barcode;
         case 'barcodeText': 
@@ -5077,6 +5097,7 @@ export default function BarcodePrinting() {
             color: item.color,
             size: item.size,
             mrp: item.mrp,
+            saleDiscPercent: item.sale_disc_percent,
             salePrice: item.sale_price,
             barcode,
             billNumber: item.bill_number,
@@ -7502,7 +7523,7 @@ export default function BarcodePrinting() {
                       const templateName = v.replace("builtin_", "");
                       const builtIn = builtInLabelTemplates.find(t => t.name === templateName);
                       if (builtIn) {
-                        setLabelConfig(builtIn.config);
+                        setLabelConfig(ensureCompleteFieldOrder(builtIn.config));
                         setSelectedLabelTemplate(templateName);
                         toast.success(`Loaded template "${templateName}"`);
                       }
@@ -8730,6 +8751,7 @@ export default function BarcodePrinting() {
           color: item.color,
           mrp: item.mrp,
           salePrice: item.sale_price,
+          saleDiscPercent: item.sale_disc_percent,
           barcode: item.barcode,
           billNumber: item.bill_number,
           purchaseCode: item.purchase_code,

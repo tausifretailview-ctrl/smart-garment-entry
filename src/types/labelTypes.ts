@@ -69,6 +69,8 @@ export interface LabelDesignConfig {
   size: LabelFieldConfig;
   price: LabelFieldConfig;
   mrp: LabelFieldConfig;
+  /** MRP pricing Sale Disc % — picker label "Dis %". Default show:false. */
+  saleDiscPercent?: LabelFieldConfig;
   qty: LabelFieldConfig;
   customText: LabelFieldConfig;
   barcode: LabelFieldConfig;
@@ -101,6 +103,8 @@ export interface LabelItem {
   size: string;
   sale_price: number;
   mrp?: number;
+  /** Stored products.pricing_sale_disc_percent — not recomputed from MRP/sale. */
+  sale_disc_percent?: number | null;
   pur_price?: number;
   gst_per?: number;
   purchase_code?: string;
