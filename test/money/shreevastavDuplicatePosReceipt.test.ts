@@ -196,6 +196,34 @@ describe("POS/26-27/1903 print footer — not a 9th outstanding formula", () => 
   });
 });
 
+describe("POS search ₹14,650 Due is C-SNAP, not a ninth family", () => {
+  const thisBill1903 = POS_1903 - AT_SALE_1903; // 16,250
+  const greatest875OverCredit = settlementGreatestOverCredit(
+    RCP_799 + RCP_1128 + RCP_1129,
+    AT_SALE_875,
+    POS_875,
+  ); // 2,100
+  const pos824AtSaleDroppedInSnapDrift = AT_SALE_824; // 500
+
+  it("₹1,600 = 875 GREATEST over-credit minus 824 at-sale dropped by SNAP drift", () => {
+    expect(greatest875OverCredit).toBe(2_100);
+    expect(thisBill1903 - greatest875OverCredit + pos824AtSaleDroppedInSnapDrift).toBe(14_650);
+    expect(thisBill1903 - 14_650).toBe(1_600);
+  });
+
+  it("is not “only 1128” (that is C-JS ₹14,150) and not both dups (ledger ₹13,150)", () => {
+    expect(thisBill1903 - RCP_1128).toBe(14_150);
+    expect(thisBill1903 - RCP_1128 - RCP_1129).toBe(13_150);
+    expect(14_650).not.toBe(14_150);
+    expect(14_650).not.toBe(13_150);
+  });
+
+  it("Payment Receipt Select Invoices pending is this-bill leftover, not customer C-JS", () => {
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).toBe(16_250);
+    expect(accountLine(14_150, 0)).toContain("Customer owes ₹14,150");
+  });
+});
+
 /** How the 51-bill pass counted cash: GREATEST(vouchers, tender), not the sum. */
 function settlementGreatestOverCredit(vouchers: number, tender: number, net: number): number {
   return Math.max(0, Math.max(vouchers, tender) - net);

@@ -104,7 +104,7 @@ Intended canons today are conventions, not enforcement. Several files' comments 
 | C18 | Customer Payment — selected customer banner | `CustomerPaymentTab.tsx` | C-JS (`useCustomerBalance`) | JS | **Right** |
 | C19 | Floating Payments — customer outstanding | `src/components/FloatingPayments.tsx` | C-JS (`useCustomerBalance`) then aligned picker | JS + SQL | **Right post step 3** |
 | C20 | POS — selected customer chip | `src/pages/POSSales.tsx` | C-JS (`useCustomerBalance`) | JS | **Right** |
-| C21 | POS — customer search dropdown | `useCustomerBalances` in `src/hooks/useCustomerSearch.tsx` | C-SNAP (`outstandingDr`, first 20 ids) | SQL | Snapshot path |
+| C21 | POS — customer search dropdown | `useCustomerBalances` in `src/hooks/useCustomerSearch.tsx` | C-SNAP (`grossOutstandingDr` via `get_customer_financial_snapshot_batch`, first 20 ids). Display: `posFooterCustomerBalance(grossOutstandingFromFinancialSnapshot)`. | SQL | Snapshot path. SHREEVASTAV 19 Sep 2026 live **₹14,650** vs true this-bill **₹16,250** / C-JS glance **₹14,150** / ledger **₹13,150** — see `docs/shreevastav-pos-search-due-14650-2026-09-19.md`. Not a 9th family. |
 | C22 | POS — WhatsApp invoice caption Outstanding Balance | `POSSales.tsx` | C-SNAP (`fetchCustomerFinancialSnapshot.netPosition`) | SQL | Snapshot path (not C-OB-SALES) |
 | C23 | POS Dashboard — WhatsApp outstanding | `src/pages/POSDashboard.tsx` | C-SNAP | SQL | Snapshot path (not C-OB-SALES) |
 | C24 | Sales Invoice — header due/credit | `src/pages/SalesInvoice.tsx` | C-JS | JS | **Right** |
