@@ -109,8 +109,8 @@ The 5 NET_DUE_ZERO rows sit inside B by the SNAP gate but must be **pulled out o
 
 ### Order, once the hold lifts
 
-1. Materialise the 51 by `sale_number` and diff against the 91. Anything in the 51 but not in the 91, or vice versa, is explained before step 2.
-2. B minus NET_DUE_ZERO minus DOLLY: customer-atomic dry-run, 5 hand-checks, tag `[dup_receipt_repair_20260919]`, soft delete, invariant digest.
+1. Materialise the 51 by `sale_number` and diff against the 91. Anything in the 51 but not in the 91, or vice versa, is explained before step 2. → paste `scripts/ssot-step1-materialise-51-vs-91-2026-09-19.sql`; notes in `docs/ssot-step1-51-vs-91-reconciliation-2026-09-19.md`. **Awaiting CSV.**
+2. B minus NET_DUE_ZERO minus DOLLY: customer-atomic dry-run, 5 hand-checks across different shapes, tag `[dup_receipt_repair_20260919]`, soft delete, invariant digest. → dry-run prepared, read-only: `scripts/ssot-step2-group-b-dry-run-2026-09-19.sql` (leg rule locked in `test/money/ssotStep2GroupBLegWalk.test.ts`). Not run until step 1 is reviewed. Mutate script not written.
 3. A: **not until** SNAP `paid_at_sale_drift` (bucket g) is fixed; then the same dry-run. Repairing A now moves the wrong number from the ledger to POS search.
 4. Santosh: own thread.
 5. Tender-only 365: separate population, separate design (it is at-sale cash keyed high, not a receipt).
