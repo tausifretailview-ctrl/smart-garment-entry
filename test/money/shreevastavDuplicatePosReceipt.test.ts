@@ -234,6 +234,79 @@ describe("POS search ₹14,650 Due is C-SNAP, not a ninth family", () => {
   });
 });
 
+describe("invoice leftover is not a customer-level SSOT (scope)", () => {
+  it("this-bill leftover matches print ₹16,250 and does not include opening/advance/CN legs", () => {
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).toBe(16_250);
+    // reconcileSaleInvoiceWithSplit / invoiceThisBillBalance take one sale's net and tender.
+    // Customer Balances / KPI still need opening, unused advance, unclaimed CN — not SUM(leftover).
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).not.toBe(14_150);
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).not.toBe(13_150);
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).not.toBe(14_650);
+  });
+});
+
+describe("C-JS demoted — glance ₹14,150 is not the print", () => {
+  it("C-JS is leftover minus 875 GREATEST over-credit ₹2,100, not both dups", () => {
+    const leftover = POS_1903 - AT_SALE_1903;
+    expect(leftover - RCP_1128).toBe(14_150);
+    expect(accountLine(14_150, 0)).toContain("Customer owes ₹14,150");
+    expect(14_150).not.toBe(leftover);
+  });
+});
+
+describe("bucket (g) C-SNAP compound GREATEST + drift — not folded into duplicate-receipt", () => {
+  it("₹14,650 = leftover − 875 GREATEST ₹2,100 + 824 dropped at-sale ₹500", () => {
+    const leftover = POS_1903 - AT_SALE_1903;
+    const greatest875 = settlementGreatestOverCredit(
+      RCP_799 + RCP_1128 + RCP_1129,
+      AT_SALE_875,
+      POS_875,
+    );
+    expect(greatest875).toBe(2_100);
+    expect(leftover - greatest875 + AT_SALE_824).toBe(14_650);
+    expect(14_650).not.toBe(14_150);
+    expect(14_650).not.toBe(13_150);
+  });
+});
+
+describe("after 1128/1129 repair — four families do not all converge", () => {
+  const leftover = 16_250;
+  const liveLedger = 13_150;
+  const liveSnapInvoiced = 34_350;
+  const liveSnapReceipts = 13_800;
+  const liveSnapDrift = 5_900;
+
+  it("leftover stays ₹16,250 (1903 never referenced the duplicates)", () => {
+    expect(invoiceThisBillBalance(POS_1903, AT_SALE_1903)).toBe(leftover);
+  });
+
+  it("ledger converges: 13,150 + 3,100 = ₹16,250", () => {
+    expect(liveLedger + RCP_1128 + RCP_1129).toBe(leftover);
+  });
+
+  it("C-JS converges to ₹16,250 only if 875 paid_amount still carries at-sale (drift gap ₹1,000)", () => {
+    const receiptsAfter = liveSnapReceipts - RCP_1128 - RCP_1129;
+    // Live C-JS 14150 = 34350 − 13800 − 6400 (drift includes 824 ₹500).
+    const liveJsDrift = liveSnapInvoiced - 13_800 - 14_150;
+    expect(liveJsDrift).toBe(6_400);
+    const jsIfPaidHoldsTender = liveSnapInvoiced - receiptsAfter - (liveJsDrift + AT_SALE_875);
+    expect(jsIfPaidHoldsTender).toBe(leftover);
+    const jsIfGreatestRewritePaid = liveSnapInvoiced - receiptsAfter - liveJsDrift;
+    expect(jsIfGreatestRewritePaid).toBe(17_250);
+  });
+
+  it("C-SNAP does not converge: drift still drops 875 and 824 at-sale → ₹17,750", () => {
+    const receiptsAfter = liveSnapReceipts - RCP_1128 - RCP_1129;
+    expect(Math.max(0, AT_SALE_875 - RCP_799)).toBe(0);
+    expect(Math.max(0, AT_SALE_824 - RCP_1391)).toBe(0);
+    const snapAfter = liveSnapInvoiced - receiptsAfter - liveSnapDrift;
+    expect(snapAfter).toBe(17_750);
+    expect(leftover + AT_SALE_875 + AT_SALE_824).toBe(17_750);
+    expect(snapAfter).not.toBe(leftover);
+    expect(snapAfter).not.toBe(16_750);
+  });
+});
+
 /** How the 51-bill pass counted cash: GREATEST(vouchers, tender), not the sum. */
 function settlementGreatestOverCredit(vouchers: number, tender: number, net: number): number {
   return Math.max(0, Math.max(vouchers, tender) - net);

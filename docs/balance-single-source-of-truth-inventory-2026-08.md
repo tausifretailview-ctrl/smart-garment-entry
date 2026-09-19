@@ -216,6 +216,25 @@ Each step is its own PR, its own `npm run test:money` run, and reports back befo
 
 Do not delete `enrichPartyRowsWithCanonicalBalance` in step 1 or 2.
 
+## SHREEVASTAV 19 Sep 2026 — leftover / C-JS / C-SNAP correction
+
+Full identity: `docs/shreevastav-pos-search-due-14650-2026-09-19.md`.
+
+| Surface | Live | Family | vs printed this-bill ₹16,250 |
+|---|---:|---|---|
+| Select Invoices / Sales Invoice Dashboard / print Balance | 16,250 | **invoice leftover** (`reconcileSaleInvoiceWithSplit`) | match |
+| Account at a glance / C-JS | 14,150 | C-JS | **₹2,100 short** (GREATEST absorbs 1129; 1128 still over-credits) |
+| Ledger recon | 13,150 | C-RECON-LEDGER | ₹3,100 short (both dups as sum) |
+| POS search Due | 14,650 | C-SNAP **bucket (g)** | ₹1,600 net (875 GREATEST −2,100 **and** 824 drift +500) |
+
+**C-JS is demoted** from “reliable reference” for this account. Farhaan −₹100 C-JS lock is unchanged. SHREEVASTAV glance C-JS is not the print number.
+
+**Leftover is not a drop-in for C02 Customer Balances / KPI cards.** `reconcileSaleInvoiceWithSplit` is one sale. `SUM(open leftovers)` omits opening, unused advance, unclaimed CN/SR, unallocated receipts. C15 already sums a simpler leftover for aging then **overwrites the headline with C-SNAP**. Promoting leftover to list/KPI needs a customer-level aggregator — real work.
+
+**Bucket (g)** (do not fold into duplicate-receipt): C-SNAP compound GREATEST + `paid_at_sale_drift` miss on one signed total.
+
+**Post-1128/1129 repair (not started):** leftover stays 16,250; ledger → 16,250; C-JS → 16,250 only if 875 `paid_amount` still carries at-sale (else 17,250); C-SNAP → **17,750** (875 and 824 at-sale still dropped). SNAP drift is an independent fix.
+
 ## Phase 2 (after sign-off, not this PR)
 
 1. Cross-screen equality in `npm run test:money` for Sana Nasir, Farhaan Fab, Shumama Baireli, Sangamn Fashion — every inventory row, same number.
