@@ -88,5 +88,26 @@ describe("live-status SQL — do not roll the guard back", () => {
     expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
     expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
     expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+    expect(sql).toContain("fn_stats.calls");
+    expect(sql).toContain("db_stats.stats_reset");
+    expect(sql).not.toMatch(/^\s+p\.calls,/m);
+  });
+
+  it("B2-ACD follow-up names the 14 receipts and stays read-only", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const sql = await readFile(
+      new URL("../../scripts/receipt-guard-live-status-B2-ACD-2026-09-19.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("2026-09-18 20:10:54");
+    expect(sql).toContain("Name the 14 receipts");
+    expect(sql).toContain("remaining_before");
+    expect(sql).toContain("customer_payment");
+    expect(sql).toContain("uq_voucher_entries_client_request_active");
+    expect(sql).toContain("trg_enforce_receipt_within_invoice_cap");
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
+    expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
+    expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
   });
 });

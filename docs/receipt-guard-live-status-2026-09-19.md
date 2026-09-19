@@ -25,13 +25,31 @@ Rejected attempts do not insert a voucher. There is no fire table. So (1) and (2
 
 **Not yet observable from queryable tables.** Last night’s rehearsal (rolled-back T1/T4) is still the only named fire. A real double-click or settled-bill attempt would raise `23505` or `P0431` and leave no extra receipt. Those exceptions are not stored in-app.
 
-Paste query **A** (trigger/index still on) and, if `track_functions` is on, query **E**. A positive function `calls` count only proves the trigger ran on inserts, not that it rejected anyone.
+**Query E paste** (`query-results-export-2026-09-19_13-49-03_0038.csv`, 19 Sep 2026 13:49 IST):
+
+| function_name | stats_reset_at | trigger_calls |
+| --- | --- | --- |
+| `enforce_receipt_within_invoice_cap` | 2025-11-04 02:17:06+00 | *(empty)* |
+
+The function **exists** on production `pg_proc`. Empty `trigger_calls` means `track_functions` is off (`pg_stat_user_functions` has no row) — not that the trigger never ran. `stats_reset_at` is the database-wide stats clock (project age), not go-live. Query E cannot name a real-world block.
+
+A–D remain the overnight traffic answers. Re-run **A–D only** (stop before E) if those result tabs were lost when E first 42703’d.
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 
 **No evidence of a false reject, and the unique key cannot create one.** A new submit mints a new UUID (`newReceiptSubmissionId`); only a retry of the *same* click collides. The cap fires only when existing non-CN sale receipts + incoming > `net_amount` + ₹1.
 
-This environment cannot see toast-only failures. Query **B** is the accept path: if receipts since 20:10 UTC exist — especially rows with `client_request_id` — genuine payments are landing. Rows *without* the key are old clients / Electron / Android caches, not a rollback.
+This environment cannot see toast-only failures.
+
+**Query B paste** (`query-results-export-2026-09-19_13-50-58_e8af.csv`, 19 Sep 2026 13:50 IST):
+
+| receipts_since_golive | with_submit_key | without_submit_key | orgs | first_at UTC | last_at UTC |
+| ---: | ---: | ---: | ---: | --- | --- |
+| **14** | **0** | **14** | 1 | 2026-09-19 06:42:26 | 2026-09-19 08:17:48 |
+
+Fourteen receipts landed this morning on one org (12:12–13:47 IST). The settled-bill cap did **not** blanket-block this traffic — genuine payments are flowing.
+
+None of the 14 carry `client_request_id`. The duplicate-click unique index was **idle** on this traffic (nothing to collide). That is expected for writers that never pass a submit key (POS at-sale / `ensureAtSaleTenderReceipt` / school-fee / cashier report) **or** for a cached Electron/Android/PWA client on the six Record Payment screens. It is **not** a rollback: the column and Vercel bundle are live. Next paste (`scripts/receipt-guard-live-status-B2-ACD-2026-09-19.sql`) names the 14 (B2) plus A / C / D.
 
 ### 3. Any NEW duplicate-receipt pattern since go-live?
 

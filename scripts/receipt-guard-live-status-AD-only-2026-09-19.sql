@@ -1,7 +1,8 @@
 -- =============================================================================
--- Receipt guard live status — since 2026-09-18 20:10:54 UTC (Lovable go-live)
--- READ ONLY. Paste this entire file as ONE run. Do not click Format SQL first.
+-- Receipt guard live status A–D only (E already pasted 19 Sep 13:49 IST).
+-- READ ONLY. Paste as ONE run. Do not click Format SQL first.
 -- Do not DROP the trigger or unique index. Do not mutate money rows.
+-- Go-live: 2026-09-18 20:10:54 UTC
 -- =============================================================================
 
 -- A. Guard still installed (column + unique index + trigger)
@@ -24,7 +25,6 @@ SELECT
   ) AS trigger_live_and_enabled;
 
 -- B. Successful receipts since go-live — genuine payments are flowing
---    (a reject leaves NO row, so this is the accept path only)
 SELECT
   COUNT(*) AS receipts_since_golive,
   COUNT(*) FILTER (WHERE ve.client_request_id IS NOT NULL) AS with_submit_key,
@@ -37,9 +37,7 @@ WHERE ve.deleted_at IS NULL
   AND LOWER(COALESCE(ve.voucher_type, '')) = 'receipt'
   AND ve.created_at >= TIMESTAMPTZ '2026-09-18 20:10:54+00';
 
--- C. NEW already-zero POS-template duplicates since go-live
---    remaining_before <= 0.5 = the leak the guard is meant to stop.
---    Zero rows = holding. Any row = a leak after go-live.
+-- C. NEW already-zero duplicates since go-live (0 rows = holding)
 SELECT
   ve.organization_id,
   ve.voucher_number,
@@ -118,19 +116,3 @@ WHERE ve.deleted_at IS NULL
 GROUP BY 1, 2
 HAVING COUNT(*) > 1
 ORDER BY rows DESC;
-
--- E. Optional: function-call counter (only filled if track_functions is on).
---    Does NOT prove a reject — every voucher INSERT calls the trigger.
---    trigger_calls comes from pg_stat_user_functions; stats_reset_at from
---    pg_stat_database. pg_proc has neither column.
-SELECT
-  proc.proname AS function_name,
-  fn_stats.calls AS trigger_calls,
-  db_stats.stats_reset AS stats_reset_at
-FROM pg_catalog.pg_proc AS proc
-LEFT JOIN pg_catalog.pg_stat_user_functions AS fn_stats
-  ON fn_stats.funcid = proc.oid
-LEFT JOIN pg_catalog.pg_stat_database AS db_stats
-  ON db_stats.datname = current_database()
-WHERE proc.proname = 'enforce_receipt_within_invoice_cap'
-  AND proc.pronamespace = 'public'::regnamespace;

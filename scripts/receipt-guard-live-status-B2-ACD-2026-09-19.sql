@@ -1,10 +1,10 @@
 -- =============================================================================
--- Receipt guard live status — since 2026-09-18 20:10:54 UTC (Lovable go-live)
--- READ ONLY. Paste this entire file as ONE run. Do not click Format SQL first.
--- Do not DROP the trigger or unique index. Do not mutate money rows.
+-- Receipt guard — after query B paste (14 receipts, 0 submit keys, 1 org).
+-- READ ONLY. Paste as ONE run. Do not click Format SQL first.
+-- Do not DROP the trigger. Do not mutate money rows.
 -- =============================================================================
 
--- A. Guard still installed (column + unique index + trigger)
+-- A. Guard still installed
 SELECT
   EXISTS (
     SELECT 1 FROM information_schema.columns
@@ -23,25 +23,31 @@ SELECT
       AND tgenabled <> 'D'
   ) AS trigger_live_and_enabled;
 
--- B. Successful receipts since go-live — genuine payments are flowing
---    (a reject leaves NO row, so this is the accept path only)
+-- B2. Name the 14 receipts (which writer / screen / org)
 SELECT
-  COUNT(*) AS receipts_since_golive,
-  COUNT(*) FILTER (WHERE ve.client_request_id IS NOT NULL) AS with_submit_key,
-  COUNT(*) FILTER (WHERE ve.client_request_id IS NULL) AS without_submit_key,
-  COUNT(DISTINCT ve.organization_id) AS orgs,
-  MIN(ve.created_at) AS first_at,
-  MAX(ve.created_at) AS last_at
+  o.name AS org_name,
+  ve.created_at,
+  ve.voucher_number,
+  ve.reference_type,
+  ve.payment_method,
+  LEFT(ve.description, 80) AS description,
+  s.sale_number,
+  ve.total_amount,
+  ve.client_request_id IS NOT NULL AS has_submit_key
 FROM public.voucher_entries ve
+LEFT JOIN public.organizations o
+  ON o.id = ve.organization_id
+LEFT JOIN public.sales s
+  ON s.id = ve.reference_id
+ AND s.organization_id = ve.organization_id
 WHERE ve.deleted_at IS NULL
   AND LOWER(COALESCE(ve.voucher_type, '')) = 'receipt'
-  AND ve.created_at >= TIMESTAMPTZ '2026-09-18 20:10:54+00';
+  AND ve.created_at >= TIMESTAMPTZ '2026-09-18 20:10:54+00'
+ORDER BY ve.created_at, ve.voucher_number;
 
--- C. NEW already-zero POS-template duplicates since go-live
---    remaining_before <= 0.5 = the leak the guard is meant to stop.
---    Zero rows = holding. Any row = a leak after go-live.
+-- C. NEW already-zero duplicates since go-live (0 rows = holding)
 SELECT
-  ve.organization_id,
+  o.name AS org_name,
   ve.voucher_number,
   ve.created_at,
   ve.total_amount,
@@ -64,6 +70,8 @@ JOIN public.sales s
   ON s.id = ve.reference_id
  AND s.organization_id = ve.organization_id
  AND s.deleted_at IS NULL
+LEFT JOIN public.organizations o
+  ON o.id = ve.organization_id
 LEFT JOIN LATERAL (
   SELECT SUM(COALESCE(p.total_amount, 0) + COALESCE(p.discount_amount, 0)) AS receipt_sum
   FROM public.voucher_entries p
@@ -90,9 +98,9 @@ WHERE ve.deleted_at IS NULL
   AND ve.created_at >= TIMESTAMPTZ '2026-09-18 20:10:54+00'
   AND COALESCE(ve.payment_method, '') IS DISTINCT FROM 'credit_note_adjustment'
   AND (
-    ve.description ILIKE 'Payment for POS%'
+    ve.description ILIKE 'Payment for %'
     OR ve.description ILIKE 'Payment received for POS sale%'
-    OR ve.reference_type IN ('sale', 'SALE', 'CustomerReceipt')
+    OR ve.reference_type IN ('sale', 'SALE', 'CustomerReceipt', 'customer', 'customer_payment')
   )
   AND GREATEST(
     COALESCE(s.net_amount, 0) - COALESCE(s.sale_return_adjust, 0)
@@ -106,31 +114,14 @@ WHERE ve.deleted_at IS NULL
   ) <= 0.5
 ORDER BY ve.created_at, ve.voucher_number;
 
--- D. Same-submit key reused (unique index should make this 0)
+-- D. Same-submit key reused (expect 0 while with_submit_key is 0)
 SELECT
-  ve.organization_id,
   ve.client_request_id,
   COUNT(*) AS rows
 FROM public.voucher_entries ve
 WHERE ve.deleted_at IS NULL
   AND ve.client_request_id IS NOT NULL
   AND ve.created_at >= TIMESTAMPTZ '2026-09-18 20:10:54+00'
-GROUP BY 1, 2
+GROUP BY 1
 HAVING COUNT(*) > 1
 ORDER BY rows DESC;
-
--- E. Optional: function-call counter (only filled if track_functions is on).
---    Does NOT prove a reject — every voucher INSERT calls the trigger.
---    trigger_calls comes from pg_stat_user_functions; stats_reset_at from
---    pg_stat_database. pg_proc has neither column.
-SELECT
-  proc.proname AS function_name,
-  fn_stats.calls AS trigger_calls,
-  db_stats.stats_reset AS stats_reset_at
-FROM pg_catalog.pg_proc AS proc
-LEFT JOIN pg_catalog.pg_stat_user_functions AS fn_stats
-  ON fn_stats.funcid = proc.oid
-LEFT JOIN pg_catalog.pg_stat_database AS db_stats
-  ON db_stats.datname = current_database()
-WHERE proc.proname = 'enforce_receipt_within_invoice_cap'
-  AND proc.pronamespace = 'public'::regnamespace;
