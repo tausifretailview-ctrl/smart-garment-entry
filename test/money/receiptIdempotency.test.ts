@@ -110,4 +110,37 @@ describe("live-status SQL — do not roll the guard back", () => {
     expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
     expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
   });
+
+  it("ACD follow-up stays read-only and splits advance FIFO from cash/UPI already-zero", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const sql = await readFile(
+      new URL("../../scripts/receipt-guard-live-status-ACD-2026-09-19.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("2026-09-18 20:10:54");
+    expect(sql).toContain("remaining_before");
+    expect(sql).toContain("advance_adjustment");
+    expect(sql).toContain("C2. SHREEVASTAV shape only");
+    expect(sql).toContain("uq_voucher_entries_client_request_active");
+    expect(sql).toContain("trg_enforce_receipt_within_invoice_cap");
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
+    expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
+    expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+  });
+
+  it("C2D follow-up puts the cash/UPI already-zero check first and stays read-only", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const sql = await readFile(
+      new URL("../../scripts/receipt-guard-live-status-C2D-2026-09-19.sql", import.meta.url),
+      "utf8",
+    );
+    expect(sql).toContain("2026-09-18 20:10:54");
+    expect(sql.indexOf("C2. SHREEVASTAV shape")).toBeLessThan(sql.indexOf("-- D. Same-submit key"));
+    expect(sql).toContain("remaining_before");
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+TRIGGER/);
+    expect(sql.toUpperCase()).not.toMatch(/DROP\s+INDEX/);
+    expect(sql.toUpperCase()).not.toMatch(/\bDELETE\b/);
+    expect(sql.toUpperCase()).not.toMatch(/\bUPDATE\b/);
+  });
 });

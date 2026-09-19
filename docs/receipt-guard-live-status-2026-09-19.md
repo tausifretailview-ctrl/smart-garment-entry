@@ -33,7 +33,13 @@ Rejected attempts do not insert a voucher. There is no fire table. So (1) and (2
 
 The function **exists** on production `pg_proc`. Empty `trigger_calls` means `track_functions` is off (`pg_stat_user_functions` has no row) — not that the trigger never ran. `stats_reset_at` is the database-wide stats clock (project age), not go-live. Query E cannot name a real-world block.
 
-A–D remain the overnight traffic answers. Re-run **A–D only** (stop before E) if those result tabs were lost when E first 42703’d.
+**Query A paste** (`query-results-export-2026-09-19_14-51-39_344f.csv`, 19 Sep 2026 14:51 IST):
+
+| column_live | unique_index_live | trigger_live_and_enabled |
+| --- | --- | --- |
+| **true** | **true** | **true** |
+
+Column, unique index, and trigger are all still installed and enabled. Do **not** roll them back. C / C2 / D were not in this export (SQL editor first-tab only). Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first so the first tab is the SHREEVASTAV already-zero check).
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 
@@ -49,11 +55,46 @@ This environment cannot see toast-only failures.
 
 Fourteen receipts landed this morning on one org (12:12–13:47 IST). The settled-bill cap did **not** blanket-block this traffic — genuine payments are flowing.
 
-None of the 14 carry `client_request_id`. The duplicate-click unique index was **idle** on this traffic (nothing to collide). That is expected for writers that never pass a submit key (POS at-sale / `ensureAtSaleTenderReceipt` / school-fee / cashier report) **or** for a cached Electron/Android/PWA client on the six Record Payment screens. It is **not** a rollback: the column and Vercel bundle are live. Next paste (`scripts/receipt-guard-live-status-B2-ACD-2026-09-19.sql`) names the 14 (B2) plus A / C / D.
+None of the 14 carry `client_request_id`.
+
+**Query B2 paste** (`query-results-export-2026-09-19_14-46-54_9d68.csv`, 19 Sep 2026 14:46 IST): **21** live receipts, still **one org = ELLA NOOR**, still **0 submit keys**. Seven more landed after the Query B cutoff (08:17–09:16 UTC / 13:47–14:46 IST).
+
+| Writer | Rows | Vouchers |
+| --- | ---: | --- |
+| Sales Invoice Dashboard dialog (`Payment received for invoice INV/…`) | 12 | RCP/4878–4884, 4888–4891, 4897 |
+| `consumeAdvanceFIFO` (`Adjusted from advance balance for invoice (advance ADV/…)`) | 9 | RCP/4885–4887, 4892–4896, 4898 |
+
+No POS Dashboard, Customer Payment Tab, Floating Payments, Payments Dashboard, Settle Customer Account, or Gurukrupa traffic in this window.
+
+0 keys is **expected from source**, not a rollback and not only a cached client:
+
+- Sales Invoice Dashboard **dialog** (`SalesInvoiceDashboard.tsx`) calls `createReceiptVoucher` **without** `clientRequestId`. (Bulk cash `recordInvoiceFullCashPayment` does pass a key; this morning’s rows are the dialog — UPI “Received in: SHEZA AMANI A/C” and cash.)
+- `consumeAdvanceFIFO` also omits the key.
+
+The duplicate-click unique index cannot fire on this traffic. The settled-bill **cap trigger still applies** to the 12 cash/UPI rows. Query A is **true / true / true**. Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first).
+
+Cash/UPI named rows (IST = UTC+5:30):
+
+| UTC | RCP | Invoice | Method | ₹ |
+| --- | --- | --- | --- | ---: |
+| 06:42:26 | 4878 | INV/26-27/3133 | upi | 2,750 |
+| 06:43:05 | 4879 | INV/26-27/3078 | upi | 4,750 |
+| 06:43:59 | 4880 | INV/26-27/3132 | upi | 8,950 |
+| 06:44:18 | 4881 | INV/26-27/3132 | upi | 1,800 |
+| 06:44:41 | 4882 | INV/26-27/3132 | upi | 1,200 |
+| 06:46:00 | 4883 | INV/26-27/3131 | upi | 2,950 |
+| 06:46:37 | 4884 | INV/26-27/3131 | cash | 2,800 |
+| 08:06:55 | 4888 | INV/26-27/3135 | cash | 16,000 |
+| 08:11:13 | 4889 | INV/26-27/3134 | cash | 2,950 |
+| 08:11:22 | 4890 | INV/26-27/3136 | cash | 4,700 |
+| 08:17:48 | 4891 | INV/26-27/3137 | cash | 9,700 |
+| 09:14:45 | 4897 | INV/26-27/3014 | upi | 4,500 |
+
+INV/3132 three UPI in 42 seconds (₹8,950 + ₹1,800 + ₹1,200) and INV/3131 UPI then cash are **split/mix until C says otherwise** — different amounts, not the same-click SHREEVASTAV shape. INV/3113 two advances 1.4s apart (ADV/458 + ADV/595) is the known legitimate FIFO pattern.
 
 ### 3. Any NEW duplicate-receipt pattern since go-live?
 
-**Cannot finish without the SQL-editor paste.** Query **C** is the same `remaining_before <= 0.5` signature as the 30-May leak, restricted to `created_at >= 2026-09-18 20:10:54+00`.
+**Cannot finish without query C.** Query **C** is the same `remaining_before <= 0.5` signature as the 30-May leak, restricted to `created_at >= 2026-09-18 20:10:54+00`. **C2** is the same minus `advance_adjustment` (SHREEVASTAV cash/UPI shape).
 
 - **0 rows** → the leak is holding (or nobody tried that shape). Combined with query **B** > 0, the guard is working in traffic.
 - **Any row** → a leak after go-live; inspect `client_request_id` and description before blaming the trigger.
