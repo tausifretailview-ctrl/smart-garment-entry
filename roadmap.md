@@ -11,7 +11,7 @@
 
 ## Open (blocked on user decision)
 - [x] Deploy the Step 2 fix — LIVE in production since 2026-09-18 20:10 UTC. Do not roll it back.
-- [ ] Repair the 51 historically over-credited bills (₹2,99,467) — **WAIT**. Duplicate removal does not restore C-JS/C-SNAP on mixed at-sale accounts (SHREEVASTAV / VIMLA / DIYA). Two-tier SSOT: leftover is invoice-level only; customer SSOT must be built. `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`.
+- [ ] Repair the 51 historically over-credited bills (₹2,99,467) — **WAIT** until the full-51 sibling SNAP-drop paste is locked (`docs/ssot-51-full-sibling-scan-2026-09-19.md`). SHREEVASTAV / VIMLA / DIYA / HEENA / ANANYA are NEEDS_BUCKET_G. SANTOSH is separate (1131-1).
 - [ ] Step 3 proper: per-invoice credit cap in `getCustomerAccountState` (printed balance).
 - [ ] Re-check the 132 artefact-inflated UNDERSTATED_PAID findings; consider netting CN against `sale_return_adjust` in `detect_settlement_drift`.
 - [ ] 9-way convergence comparison (held). Formula audit: **none** of C-PARTY/C-REC/C-STMT/C-AUDIT/C-OB-SALES is a confirmed customer-level source.
