@@ -10,7 +10,7 @@
 - [x] Step 3 pre-audit: CN+SR-adjust artefact inflates 132/267 UNDERSTATED_PAID warnings; the 290 OVERSTATED_PAID criticals are clean.
 
 ## Open (blocked on user decision)
-- [ ] Deploy the Step 2 fix (built, not deployed — awaiting go-ahead).
+- [x] Deploy the Step 2 fix — LIVE in production since 2026-09-18 20:10 UTC. Do not roll it back.
 - [ ] Verify in production for a period, then repair the 51 historically over-credited bills (₹2,99,467). SHREEVASTAV POS/875 is ₹3,100 (1128+1129), hand-check ₹16,250 — not the GREATEST-artefact ₹2,100.
 - [ ] Step 3 proper: per-invoice credit cap in `getCustomerAccountState` (printed balance).
 - [ ] Re-check the 132 artefact-inflated UNDERSTATED_PAID findings; consider netting CN against `sale_return_adjust` in `detect_settlement_drift`.
