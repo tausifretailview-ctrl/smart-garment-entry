@@ -18,11 +18,17 @@ So the old rule, as best it can be reconstructed:
 OLD_51  over = receipts_cn_netted − (net − SRA) > 1
 ```
 
-and the confirmed set:
+and the confirmed set (rule corrected after the 22:01 dry-run review — same-day receipts
+are netted against tender the way the printed ledger does; the 21:09 scan added full tender
+and therefore over-counted POS dual-writes):
 
 ```
-SET_91  over = receipts_memo_excl + tender − (net − SRA) > 1, receipts_memo_excl > 0
+tender_residual = GREATEST(0, tender − receipts dated the sale day)
+SET_91  over = receipts_memo_excl + tender_residual − (net − SRA) > 1, receipts_memo_excl > 0
 ```
+
+"91" is the v2 count and will move once the v3 full scan is pasted; the name is kept so the
+files line up.
 
 ## What the 21:09 CSV already says about the diff (before the live paste)
 

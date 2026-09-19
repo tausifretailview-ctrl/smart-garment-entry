@@ -12,10 +12,12 @@
 --           receipts ('advance_adjustment', 'Adjusted from advance balance…') ARE
 --           counted as cash under this definition.
 --
---   SET_91  over_credit = receipts_memo_excl + tender − (net − SRA) > 1, receipts > 0
+--   SET_91  over_credit = receipts_memo_excl + tender_residual − (net − SRA) > 1, receipts > 0
 --           receipts_memo_excl uses public._is_settlement_memo_receipt (CN AND advance
---           memos excluded). At-sale tender IS added (leftover-sum, the way the ledger
---           and the printed bill add it).
+--           memos excluded). tender_residual = GREATEST(0, tender − same-day receipts):
+--           at-sale tender is added the way the printed Customer Ledger adds it — net of
+--           any receipt dated the sale day (POS dual-write / materialised counter payment).
+--           v2 of this file added the FULL tender; that double-counted dual-written bills.
 --
 -- The 51-row list was never committed — only the headline (51 / ₹2,99,467). This
 -- paste rebuilds it from the same rule on today's data, so today's OLD_51 count may
@@ -45,6 +47,7 @@ sale_base AS (
     s.organization_id,
     s.customer_id,
     s.sale_number,
+    (s.sale_date AT TIME ZONE 'Asia/Kolkata')::date AS sale_day,
     GREATEST(0::numeric, COALESCE(s.net_amount, 0) - COALESCE(s.sale_return_adjust, 0)) AS net_due,
     COALESCE(s.paid_amount, 0) AS paid_amount,
     GREATEST(COALESCE(s.cash_amount, 0), 0)
@@ -73,11 +76,17 @@ receipts AS (
                 AND COALESCE(ve.payment_method, '') IS DISTINCT FROM 'credit_note_adjustment')
       AS advance_memo_counted_by_old,
     COUNT(*) FILTER (WHERE NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description))
-      AS cash_receipt_rows
+      AS cash_receipt_rows,
+    SUM(GREATEST(0::numeric, COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)))
+      FILTER (WHERE NOT public._is_settlement_memo_receipt(ve.payment_method, ve.description)
+                AND ve.voucher_date IS NOT DISTINCT FROM sb.sale_day)
+      AS receipts_same_day
   FROM public.voucher_entries ve
+  JOIN sale_base sb
+    ON sb.id::text = ve.reference_id::text
+   AND sb.organization_id = ve.organization_id
   WHERE ve.deleted_at IS NULL
     AND lower(COALESCE(ve.voucher_type, '')) = 'receipt'
-    AND ve.organization_id IN (SELECT id FROM org_ids)
   GROUP BY ve.organization_id, ve.reference_id
 ),
 measured AS (
@@ -87,8 +96,15 @@ measured AS (
     COALESCE(r.receipts_memo_excl, 0)         AS receipts_memo_excl,
     COALESCE(r.advance_memo_counted_by_old, 0) AS advance_memo_counted_by_old,
     COALESCE(r.cash_receipt_rows, 0)          AS cash_receipt_rows,
-    GREATEST(0::numeric, COALESCE(r.receipts_cn_netted, 0) - sb.net_due)            AS over_old_51,
-    GREATEST(0::numeric, COALESCE(r.receipts_memo_excl, 0) + sb.tender - sb.net_due) AS over_set_91
+    COALESCE(r.receipts_same_day, 0)          AS receipts_same_day,
+    GREATEST(0::numeric, sb.tender - COALESCE(r.receipts_same_day, 0)) AS tender_residual,
+    GREATEST(0::numeric, COALESCE(r.receipts_cn_netted, 0) - sb.net_due) AS over_old_51,
+    GREATEST(
+      0::numeric,
+      COALESCE(r.receipts_memo_excl, 0)
+        + GREATEST(0::numeric, sb.tender - COALESCE(r.receipts_same_day, 0))
+        - sb.net_due
+    ) AS over_set_91
   FROM sale_base sb
   LEFT JOIN receipts r
     ON r.sale_id::text = sb.id::text
@@ -111,13 +127,13 @@ diffed AS (
       WHEN f.in_old_51 AND NOT f.in_set_91 THEN
         CASE
           WHEN f.advance_memo_counted_by_old > 0.005
-           AND f.receipts_memo_excl + f.tender - f.net_due <= 1
+           AND f.receipts_memo_excl + f.tender_residual - f.net_due <= 1
             THEN 'OLD_ONLY_ADVANCE_MEMO'
           ELSE 'OLD_ONLY_OTHER'
         END
       WHEN NOT f.in_old_51 AND f.in_set_91 THEN
         CASE
-          WHEN f.receipts_memo_excl - f.net_due <= 1 AND f.tender > 0.005
+          WHEN f.receipts_memo_excl - f.net_due <= 1 AND f.tender_residual > 0.005
             THEN 'NEW_ONLY_AT_SALE_TENDER'
           ELSE 'NEW_ONLY_OTHER'
         END
@@ -125,7 +141,7 @@ diffed AS (
     CASE
       WHEN f.net_due <= 0.005 THEN 'NET_DUE_ZERO'
       WHEN f.tender <= 0.005 AND abs(f.receipts_memo_excl - 2 * f.net_due) <= 1 THEN 'EXACT_DOUBLE_RECEIPT'
-      WHEN f.tender > 0.005 AND f.receipts_memo_excl - f.over_set_91 <= 0.005 THEN 'RECEIPT_DUPLICATES_AT_SALE_TENDER'
+      WHEN f.tender_residual > 0.005 AND f.receipts_memo_excl - f.over_set_91 <= 0.005 THEN 'RECEIPT_DUPLICATES_AT_SALE_TENDER'
       WHEN f.receipts_memo_excl - f.net_due > 1 THEN 'RECEIPT_OVER_PARTIAL'
       ELSE 'MIXED_TENDER_PLUS_RECEIPT_OVER'
     END AS shape
@@ -149,7 +165,9 @@ SELECT
   NULL::numeric AS receipts_memo_excl,
   NULL::numeric AS advance_memo_counted_by_old,
   NULL::numeric AS net_due,
-  NULL::numeric AS paid_amount
+  NULL::numeric AS paid_amount,
+  NULL::numeric AS receipts_same_day,
+  NULL::numeric AS tender_residual
 FROM diffed
 UNION ALL
 SELECT
@@ -163,7 +181,7 @@ SELECT
   NULL,
   SUM(over_set_91),
   NULL, NULL, NULL,
-  NULL, NULL, NULL, NULL, NULL, NULL
+  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM diffed
 GROUP BY diff_reason
 UNION ALL
@@ -183,15 +201,18 @@ SELECT
   receipts_memo_excl,
   advance_memo_counted_by_old,
   net_due,
-  paid_amount
+  paid_amount,
+  receipts_same_day,
+  tender_residual
 FROM diffed
 ORDER BY 1, 2 NULLS LAST, 4 NULLS LAST;
 
 -- Column map for 'bill' rows (UNION reuses headline names):
 --   old_51_count  = 1 if in OLD_51          old_51_rupees = over-credit under OLD_51
 --   set_91_count  = 1 if in SET_91          set_91_rupees = over-credit under SET_91
--- Expected today from the 21:09 paste: BOTH ≈ 48 (₹1,62,086 under OLD_51 rule),
--- NEW_ONLY_AT_SALE_TENDER ≈ 43 (29 receipt-on-at-sale + 14 mixed), OLD_ONLY_* = whatever
--- advance-memo rows the old headline counted as cash (cannot be seen from the 21:09 CSV).
+-- The 21:09 (v2) paste, replayed on the OLD_51 rule, gives BOTH ≈ 48 (₹1,62,086) and
+-- NEW_ONLY_AT_SALE_TENDER ≈ 43 — but v2 added FULL tender, so some of those 43 are POS
+-- dual-writes that this v3 rule will drop. Expect NEW_ONLY to shrink. OLD_ONLY_* = the
+-- advance-memo rows the old headline counted as cash (not visible in any CSV so far).
 -- If OLD_51 headline does not reproduce 51 / ₹2,99,467, the difference is the rows that
 -- moved since 18 Sep plus the memo-counting rule — list them, do not average them away.

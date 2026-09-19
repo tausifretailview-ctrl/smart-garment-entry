@@ -8,6 +8,12 @@
  * repair bill on her account has its over-credit removed, ANY of her sales still
  * drops at-sale cash in SNAP. Tender-only rows and NET_DUE_ZERO rows are split
  * off before gating — neither is a receipt to delete.
+ *
+ * v3 (after the 22:01 dry-run review): receipts dated the sale day are netted
+ * against at-sale tender first (printed-ledger rule, CustomerLedgerPage
+ * residualPaymentAtSaleTender). A POS dual-write is neither over-credit nor a
+ * SNAP drop. The v2 cases below keep receiptsSameDay = 0 and are unchanged; the
+ * 21:09 population itself is PROVISIONAL until the v3 SQL is pasted.
  */
 import { describe, expect, it } from "vitest";
 
@@ -24,6 +30,8 @@ type Sale = {
   receiptsLive: number;
   /** net_amount − sale_return_adjust, floored at 0 */
   netDue: number;
+  /** cash receipts whose voucher_date = sale day (IST); netted against tender. v3. */
+  receiptsSameDay?: number;
 };
 
 type Gate =
@@ -41,16 +49,25 @@ type Shape =
   | "MIXED_TENDER_PLUS_RECEIPT_OVER"
   | "NOT_OVER_CREDITED";
 
+function tenderResidual(s: Sale): number {
+  return Math.max(0, s.tender - (s.receiptsSameDay ?? 0));
+}
+
 function overCreditLedger(s: Sale): number {
-  return Math.max(0, s.receiptsLive + s.tender - s.netDue);
+  return Math.max(0, s.receiptsLive + tenderResidual(s) - s.netDue);
 }
 
 function receiptsAfterRepair(s: Sale): number {
   return Math.max(0, s.receiptsLive - overCreditLedger(s));
 }
 
-function snapDrop(tender: number, receiptsEffective: number): number {
-  return tender > 0.005 && receiptsEffective >= tender ? tender : 0;
+/**
+ * Bucket (g): SNAP credits GREATEST(0, tender − all sale receipts). The at-sale
+ * money it fails to credit is tender_residual − that drift. With no same-day
+ * receipt this is the v2 rule (drop = tender once receipts ≥ tender).
+ */
+function snapDrop(s: Sale, receiptsEffective: number): number {
+  return Math.max(0, tenderResidual(s) - Math.max(0, s.tender - receiptsEffective));
 }
 
 function shape(s: Sale): Shape {
@@ -61,7 +78,7 @@ function shape(s: Sale): Shape {
   if (s.tender <= 0.005 && Math.abs(s.receiptsLive - 2 * s.netDue) <= 1) {
     return "EXACT_DOUBLE_RECEIPT";
   }
-  if (s.tender > 0.005 && receiptsAfterRepair(s) <= 0.005) {
+  if (tenderResidual(s) > 0.005 && receiptsAfterRepair(s) <= 0.005) {
     return "RECEIPT_DUPLICATES_AT_SALE_TENDER";
   }
   if (s.receiptsLive - s.netDue > 1) return "RECEIPT_OVER_PARTIAL";
@@ -72,7 +89,7 @@ function shape(s: Sale): Shape {
 function customerSnapDropAfterRepair(sales: Sale[]): number {
   return sales.reduce((sum, s) => {
     const effective = overCreditLedger(s) > 1 ? receiptsAfterRepair(s) : s.receiptsLive;
-    return sum + snapDrop(s.tender, effective);
+    return sum + snapDrop(s, effective);
   }, 0);
 }
 
@@ -166,7 +183,7 @@ describe("HEENA moves to B — only as a 4-bill customer repair", () => {
   it("repairing only 853 (the 51-list row) leaves ₹9,686 dropped — same as the 20:10 scan", () => {
     const drop = heena.reduce((sum, s) => {
       const effective = s.saleNumber === "POS/26-27/853" ? receiptsAfterRepair(s) : s.receiptsLive;
-      return sum + snapDrop(s.tender, effective);
+      return sum + snapDrop(s, effective);
     }, 0);
     expect(drop).toBe(6_290 + 2_547 + 849);
     expect(drop).toBe(9_686);
@@ -198,7 +215,7 @@ describe("gate is per customer, not per bill", () => {
       { saleNumber: "POS/26-27/1023", tender: 200, receiptsLive: 0, netDue: 0 },
     ];
     expect(receiptsAfterRepair(sales[0])).toBe(5_000);
-    expect(snapDrop(2_500, 5_000)).toBe(2_500);
+    expect(snapDrop(sales[0], 5_000)).toBe(2_500);
     expect(shape(sales[1])).toBe("TENDER_ONLY_OVER");
     expect(gateCustomer(MIXED_54572, sales)).toBe("NEEDS_BUCKET_G");
   });
@@ -217,13 +234,16 @@ describe("NET_DUE_ZERO is a refund shape, never a receipt delete", () => {
     expect(receiptRepairEligible(s)).toBe(false);
   });
 
-  it("DOLLY leaves B entirely once 459/478 are excluded (454 is genuine instalments)", () => {
+  it("DOLLY is excluded by name; under v3 her 454 (tender 3,000 + receipts 1,500 after) is also a partial GREATEST drop", () => {
     const dolly: Sale[] = [
       { saleNumber: "POS/26-27/454", tender: 3_000, receiptsLive: 3_000, netDue: 4_500 },
       { saleNumber: "POS/26-27/459", tender: 0, receiptsLive: 1_599, netDue: 0 },
       { saleNumber: "POS/26-27/478", tender: 0, receiptsLive: 1_599, netDue: 0 },
     ];
-    expect(gateCustomer(DOLLY, dolly)).toBe("REPAIR_SUFFICIENT_SNAP");
+    // v2 said drop 0 because receipts_after 1,500 < tender 3,000. SNAP credits
+    // GREATEST(1,500, 3,000) = 3,000; the ledger credits 3,000 + 1,500 = 4,500. Drop 1,500.
+    expect(snapDrop(dolly[0], 1_500)).toBe(1_500);
+    expect(gateCustomer(DOLLY, dolly)).toBe("NEEDS_BUCKET_G");
     const eligible = dolly.filter(receiptRepairEligible);
     // 454 over-credit 1,500 is the hand-cleared equal-instalment case, not a duplicate
     expect(eligible.map((s) => s.saleNumber)).toEqual(["POS/26-27/454"]);
@@ -284,5 +304,74 @@ describe("group totals from the 21:09 paste", () => {
   it("91 receipt-bearing = 25 A + 62 B + 2 Santosh + 2 walk-in", () => {
     expect(25 + 62 + 2 + 2).toBe(91);
     expect(86_738 + 182_134.51 + 11_500 + 17_736).toBeCloseTo(298_108.51, 2);
+  });
+});
+
+describe("v3 — same-day receipts are netted against tender before anything else", () => {
+  it("POS dual-write (tender 442, same-day receipt 442, net 442) is not over-credited and drops nothing", () => {
+    const s: Sale = { saleNumber: "POS/26-27/1919", tender: 442, receiptsLive: 442, receiptsSameDay: 442, netDue: 442 };
+    expect(tenderResidual(s)).toBe(0);
+    expect(overCreditLedger(s)).toBe(0);
+    expect(shape(s)).toBe("NOT_OVER_CREDITED");
+    expect(snapDrop(s, s.receiptsLive)).toBe(0);
+    expect(gateCustomer("c", [s])).toBe("REPAIR_SUFFICIENT_SNAP");
+  });
+
+  it("the same bill with the receipt dated a later day is a ₹442 over-credit (re-keyed tender)", () => {
+    const s: Sale = { saleNumber: "POS/26-27/1919", tender: 442, receiptsLive: 442, receiptsSameDay: 0, netDue: 442 };
+    expect(overCreditLedger(s)).toBe(442);
+    expect(shape(s)).toBe("RECEIPT_DUPLICATES_AT_SALE_TENDER");
+    // after the receipt is removed nothing is left for SNAP to drop
+    expect(snapDrop(s, receiptsAfterRepair(s))).toBe(0);
+  });
+
+  it("Shreevastav 875 under v3 is identical to v2: no same-day receipt, drop 1,000 survives repair", () => {
+    const s: Sale = { saleNumber: "POS/25-26/875", tender: 1_000, receiptsLive: 5_200, receiptsSameDay: 0, netDue: 3_100 };
+    expect(overCreditLedger(s)).toBe(3_100);
+    expect(receiptsAfterRepair(s)).toBe(2_100);
+    expect(snapDrop(s, 2_100)).toBe(1_000);
+    expect(gateCustomer(SHREE, [s])).toBe("NEEDS_BUCKET_G");
+  });
+
+  it("mixed bill: tender 7,000, later receipts 7,000 + 5,000 on 12,000 — after repair SNAP still drops 5,000", () => {
+    const s: Sale = { saleNumber: "POS/26-27/2442", tender: 7_000, receiptsLive: 12_000, receiptsSameDay: 0, netDue: 12_000 };
+    expect(overCreditLedger(s)).toBe(7_000);
+    expect(receiptsAfterRepair(s)).toBe(5_000);
+    // SNAP drift = max(0, 7,000 − 5,000) = 2,000 credited; 5,000 of counter cash lost → Group A
+    expect(snapDrop(s, 5_000)).toBe(5_000);
+    expect(gateCustomer("073e0fa7", [s])).toBe("NEEDS_BUCKET_G");
+  });
+
+  it("partial dual-write: tender 10,400 (cash 2,000 + card 8,400), same-day card receipt 8,400 → residual 2,000, no over-credit", () => {
+    const s: Sale = { saleNumber: "POS/26-27/1947", tender: 10_400, receiptsLive: 8_400, receiptsSameDay: 8_400, netDue: 10_400 };
+    expect(tenderResidual(s)).toBe(2_000);
+    expect(overCreditLedger(s)).toBe(0);
+    expect(snapDrop(s, 8_400)).toBe(0);
+  });
+});
+
+describe("v3 — partial GREATEST drop (receipts_after below tender) was invisible to v2", () => {
+  it("POS/25-26/1214-class: tender 6,100, receipts 3,750 after repair, net 9,850 → ledger paid in full, SNAP still owes 3,750", () => {
+    const s: Sale = { saleNumber: "POS/25-26/1214", tender: 6_100, receiptsLive: 4_000, netDue: 9_850 };
+    expect(overCreditLedger(s)).toBe(250);
+    expect(receiptsAfterRepair(s)).toBe(3_750);
+    // v2 formula: receipts_after < tender → 0. v3: min(receipts_after, tender) = 3,750.
+    expect(snapDrop(s, 3_750)).toBe(3_750);
+    expect(gateCustomer("32d34671", [s])).toBe("NEEDS_BUCKET_G");
+  });
+
+  it("drop = ledger credit − SNAP credit = receipts + residual − GREATEST(receipts, tender)", () => {
+    const cases: Array<[Sale, number, number]> = [
+      [{ saleNumber: "a", tender: 1_000, receiptsLive: 2_100, netDue: 3_100 }, 2_100, 1_000],
+      [{ saleNumber: "b", tender: 3_000, receiptsLive: 1_500, netDue: 4_500 }, 1_500, 1_500],
+      [{ saleNumber: "c", tender: 0, receiptsLive: 5_000, netDue: 5_000 }, 5_000, 0],
+      [{ saleNumber: "d", tender: 500, receiptsLive: 500, receiptsSameDay: 500, netDue: 500 }, 500, 0],
+    ];
+    for (const [s, eff, expected] of cases) {
+      const ledger = eff + tenderResidual(s);
+      const snap = Math.max(eff, s.tender);
+      expect(snapDrop(s, eff)).toBe(expected);
+      expect(Math.max(0, ledger - snap)).toBe(expected);
+    }
   });
 });
