@@ -82,10 +82,25 @@ SELECT
   voucher_number AS receipt, voucher_date AS receipt_day, receipt_created_ist, receipt_method, receipt_amount,
   receipt_written_by, paid_by, description,
   (voucher_date - sale_day) AS days_after_sale,
-  CASE WHEN lower(COALESCE(receipt_method, '')) <> '' AND lower(COALESCE(sale_payment_method, '')) <> ''
-            AND lower(receipt_method) <> lower(sale_payment_method)
-       THEN 'method differs (' || sale_payment_method || ' at sale vs ' || receipt_method || ' on receipt)'
-       ELSE 'same / blank' END AS method_hint,
+  -- Compare the receipt method with the tender COLUMNS, not sales.payment_method: the 00:40 paste
+  -- showed BEENA SHAH POS/26-27/851 with payment_method = 'cash' but the ₹1,595 under upi_amount.
+  CASE
+    WHEN lower(COALESCE(receipt_method, '')) = '' THEN 'receipt method blank'
+    WHEN (CASE WHEN cash_amount > 0 THEN 1 ELSE 0 END + CASE WHEN card_amount > 0 THEN 1 ELSE 0 END
+        + CASE WHEN upi_amount > 0 THEN 1 ELSE 0 END) > 1 THEN 'split tender at sale'
+    WHEN (lower(receipt_method) = 'cash' AND cash_amount > 0)
+      OR (lower(receipt_method) = 'card' AND card_amount > 0)
+      OR (lower(receipt_method) = 'upi'  AND upi_amount  > 0) THEN 'same method'
+    ELSE 'METHOD DIFFERS: tender in '
+         || CASE WHEN cash_amount > 0 THEN 'cash_amount' WHEN card_amount > 0 THEN 'card_amount'
+                 WHEN upi_amount > 0 THEN 'upi_amount' ELSE 'none' END
+         || ' vs receipt ' || receipt_method
+  END AS method_hint,
+  CASE WHEN (lower(COALESCE(sale_payment_method, '')) = 'cash' AND cash_amount = 0 AND tender > 0)
+         OR (lower(COALESCE(sale_payment_method, '')) = 'card' AND card_amount = 0 AND tender > 0)
+         OR (lower(COALESCE(sale_payment_method, '')) = 'upi'  AND upi_amount  = 0 AND tender > 0)
+       THEN 'sales.payment_method=' || sale_payment_method || ' but amount is under another column'
+       ELSE 'consistent' END AS sale_row_hint,
   leg_kind,
   'A: receipt ' || voucher_number || ' re-keyed money already taken on ' || sale_day::text
     || ' → soft-delete receipt; day book ' || voucher_date::text || ' −₹' || receipt_amount::text AS explanation_a,

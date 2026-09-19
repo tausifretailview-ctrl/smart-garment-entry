@@ -106,6 +106,53 @@ describe("Tier 1 set derived from the dry-run v2 paste", () => {
   });
 });
 
+describe("Block A live paste 20 Sep 00:41 IST", () => {
+  const live = parseCsv(
+    readFileSync(
+      path.resolve(here, "../../docs/ssot-tier1-block-a-dry-run-live-2026-09-20-00-41-18.csv"),
+      "utf8",
+    ),
+  );
+  const liveRows = live.filter((r) => r.section === "row");
+  const headline = live.find((r) => r.section === "headline")!;
+
+  it("headline is ALL_OK at 11 rows / 10 customers / 62916 with every gate true", () => {
+    expect(headline.delete_voucher).toBe("ALL_OK");
+    expect(headline.sale_number).toBe("11 rows / 10 customers");
+    expect(Number(headline.amount)).toBe(62916);
+    expect(Number(headline.tender)).toBe(0);
+    expect(Number(headline.live_receipt_rows)).toBe(22); // exactly two cash receipts per bill
+    expect(Number(headline.receipts_others)).toBe(62916); // keep legs equal delete legs
+    expect(Number(headline.over_after)).toBeCloseTo(0.1, 6); // JATIN's paise only
+    for (const k of ["found", "live", "sale_live", "keep_leg_live", "row_ok"]) expect(headline[k]).toBe("true");
+  });
+
+  it("the 11 live rows are the same ids, vouchers, bills and amounts as the SQL and the dry-run", () => {
+    expect(liveRows).toHaveLength(11);
+    const byId = new Map(blockA.map((v) => [v.id, v]));
+    for (const r of liveRows) {
+      const v = byId.get(r.voucher_id);
+      expect(v, `${r.delete_voucher} (${r.voucher_id}) is not in the SQL`).toBeDefined();
+      expect(r.delete_voucher).toBe(v!.voucher);
+      expect(r.sale_number).toBe(v!.sale);
+      expect(Number(r.amount)).toBe(v!.amount);
+      expect(r.keep_voucher_number).toBe(v!.keep);
+      expect(r.row_ok).toBe("true");
+      expect(Number(r.tender)).toBe(0);
+      expect(Number(r.live_receipt_rows)).toBe(2);
+      expect(r.status_live).toBe("completed");
+      expect(Math.abs(Number(r.paid_live) - Number(r.net_due))).toBeLessThanOrEqual(0.5);
+      expect(Number(r.over_after)).toBeGreaterThanOrEqual(-0.5);
+      expect(Number(r.over_after)).toBeLessThanOrEqual(1);
+      // the keep leg was written BEFORE the delete leg on every bill
+      expect(new Date(r.keep_created_ist).getTime()).toBeLessThan(new Date(r.delete_created_ist).getTime());
+    }
+    expect(new Set(liveRows.map((r) => r.customer_id)).size).toBe(10);
+    expect(liveRows.filter((r) => r.org_name === "ELLA NOOR")).toHaveLength(4);
+    expect(liveRows.filter((r) => r.org_name.startsWith("VELVET"))).toHaveLength(7);
+  });
+});
+
 describe("scripts/ssot-tier1-dup-double-submit-repair-2026-09-19.sql", () => {
   it("Block A VALUES lists exactly the 11 Tier 1 ids with the paste's voucher number, bill and amount", () => {
     expect(blockA).toHaveLength(11);

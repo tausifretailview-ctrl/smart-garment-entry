@@ -5,6 +5,16 @@ for an explicit go-ahead after these five checks are read with a clear head. Not
 document is summarised — every number below is the live row from the 22:25 IST dry-run v2
 paste (`docs/ssot-step2-group-b-dry-run-v2-live-2026-09-19-22-25-17.csv`). Timestamps IST.
 
+> **Block A pasted 20 Sep 00:41 IST** (`docs/ssot-tier1-block-a-dry-run-live-2026-09-20-00-41-18.csv`):
+> headline **`11 rows / 10 customers` · amount 62916 · `ALL_OK`**; every one of the 11 rows
+> `found / live / sale_live / keep_leg_live / row_ok = true`; `live_receipt_rows` 22 (exactly two
+> cash receipts per bill — nothing else on any of them); `receipts_others` sums to 62,916.00
+> (the keep legs equal the delete legs to the rupee); `over_after` sums to 0.10 (JATIN's paise).
+> The four previously unnamed rows are all ELLA NOOR: **Moshin Khan** INV/25-26/821, **Farha
+> Nilofer** INV/26-27/1089, **Mumtaz Memon** INV/26-27/1117, **ASHARAF TOOFANI-Sheza Amani**
+> INV/26-27/1621. Live paid/status matched the CSV on all 11. Still nothing written — Block C
+> (before) and Block B in `REHEARSE` are the next pastes; `EXECUTE` only after the go-ahead.
+
 Script: `scripts/ssot-tier1-dup-double-submit-repair-2026-09-19.sql` (Block A dry-run,
 Block B rehearse/execute, Block C digest). Set locked in `test/money/ssotTier1RepairSet.test.ts`.
 
@@ -24,10 +34,10 @@ v3 full scan (no SNAP drop on any bill after repair).
 | 5 | `1ad6cd52` REKHA SANCHETI (Velvet) | POS/26-27/416 | 2,000 | RCP/26-27/6#dedfea962 · 25 Apr 21:33 | **RCP/26-27/1137** · 30 May 17:08 · cash | 2,000 | 35 d (batch) | 2,000 → 2,000 |
 | 6 | `c25acad2` SURESH (Velvet) | POS/26-27/378 | 1,977 | BCK/dcf49184/13df2d · vdate 19 Apr (Phase-4 backfill, written 12 May 01:54) · cash | **RCP/26-27/1142** · 30 May 17:10 · cash | 1,977 | 41 d (batch) | 1,977 → 1,977 |
 | 7 | `721fd1c2` NIKKI PATEL (Velvet) | POS/26-27/558 | 3,300 | RCP/26-27/9#dfab7999b · 29 Apr 16:58 | **RCP/26-27/1143** · 30 May 17:10 · cash | 3,300 | 31 d (batch) | 3,300 → 3,300 |
-| 8 | `2fcbb26b` (ELLA NOOR a/c) | INV/26-27/1089 | 5,250 | RCP/26-27/2442 · 1 Jul 21:13 · upi | **RCP/26-27/2442#d791657cc** · 1 Jul 21:13 · upi | 5,250 | same minute, same number | 5,250 → 5,250 |
-| 9 | `933ba20a` (SHEZA AMANI a/c) | INV/26-27/1117 | 3,150 | RCP/26-27/2858 · 14 Jul 17:17 · upi (vdate 13 Jul) | **RCP/26-27/2859** · 14 Jul 17:17 · upi (vdate 13 Jul) | 3,150 | same minute | 3,150 → 3,150 |
-| 10 | `526460c5` | INV/26-27/1621 | 250 | RCP/26-27/1836 · 16 Jun 20:37 · cash (sale day) | **RCP/26-27/1838** · 16 Jun 20:38 · cash | 250 | 1 min | 250 → 250 |
-| 11 | `fd857b39` | INV/25-26/821 | 24,850 | RCP/25-26/936 · 7 Mar 22:13 (sale day) | **RCP/25-26/937** · 7 Mar 22:28 | 24,850 | 15 min | 24,850 → 24,850 |
+| 8 | `2fcbb26b` Farha Nilofer (ELLA NOOR) | INV/26-27/1089 | 5,250 | RCP/26-27/2442 · 1 Jul 21:13 · upi | **RCP/26-27/2442#d791657cc** · 1 Jul 21:13 · upi | 5,250 | same minute, same number | 5,250 → 5,250 |
+| 9 | `933ba20a` Mumtaz Memon (ELLA NOOR) | INV/26-27/1117 | 3,150 | RCP/26-27/2858 · 14 Jul 17:17 · upi (vdate 13 Jul) | **RCP/26-27/2859** · 14 Jul 17:17 · upi (vdate 13 Jul) | 3,150 | same minute | 3,150 → 3,150 |
+| 10 | `526460c5` ASHARAF TOOFANI-Sheza Amani (ELLA NOOR) | INV/26-27/1621 | 250 | RCP/26-27/1836 · 16 Jun 20:37 · cash (sale day) | **RCP/26-27/1838** · 16 Jun 20:38 · cash | 250 | 1 min | 250 → 250 |
+| 11 | `fd857b39` Moshin Khan (ELLA NOOR) | INV/25-26/821 | 24,850 | RCP/25-26/936 · 7 Mar 22:13 (sale day) | **RCP/25-26/937** · 7 Mar 22:28 | 24,850 | 15 min | 24,850 → 24,850 |
 
 Sum of the Delete column: 13,700 + 5,570 + 570 + 2,299 + 2,000 + 1,977 + 3,300 + 5,250 +
 3,150 + 250 + 24,850 = **62,916**. Distinct customers: 10 (RUCHI has two bills).
@@ -45,7 +55,7 @@ customer-atomic), 1134/1136/1138/1140 ANANYA (HOLD via bill 1787), 1139 walk-in 
 
 ## The five named hand-checks
 
-### 1. INV/26-27/1089 — same voucher number written twice (`2fcbb26b`, ELLA NOOR)
+### 1. INV/26-27/1089 — same voucher number written twice (`2fcbb26b` Farha Nilofer, ELLA NOOR)
 
 | | Keep | Delete |
 |---|---|---|
@@ -64,7 +74,7 @@ twice in one minute. That is a single-click/double-submit signature, not a re-ke
 `#d791657cc` leaves 5,250 = net. No receipt with a "clean" number disappears from the
 customer's hands: the printed receipt is RCP/26-27/2442, which stays.
 
-### 2. INV/25-26/821 — the largest row, 15 minutes apart (`fd857b39`)
+### 2. INV/25-26/821 — the largest row, 15 minutes apart (`fd857b39` Moshin Khan, ELLA NOOR)
 
 | | Keep | Delete |
 |---|---|---|
@@ -103,7 +113,7 @@ The keep leg already over-covers the bill by ₹0.10 (card charged a round 13,70
 the delete: receipts 13,700 vs net 13,699.90 → over by ₹0.10, inside the 0.5 tolerance;
 `paid_amount` stays 13,699.90. 1131 is the **first** row of the Velvet 17:04–17:10 burst.
 
-### 4. INV/26-27/1621 — ₹250, one minute apart, sale day (`526460c5`)
+### 4. INV/26-27/1621 — ₹250, one minute apart, sale day (`526460c5` ASHARAF TOOFANI-Sheza Amani, ELLA NOOR)
 
 | | Keep | Delete |
 |---|---|---|
@@ -149,18 +159,17 @@ bill on her account is in any scan population.
   day, written 12 May 01:54) — the system-generated receipt that stands in for the legacy
   POS counter payment. It is the only record of the 19 Apr payment and must stay; 1142 is
   the echo.
-- Two ELLA NOOR-account rows (#1, #9) and two unnamed customers (#4, #11) have no customer
-  name in the CSV; Block A prints `org_name` / `customer_name` live so they can be read off
-  before the go-ahead.
+- The four `INV/` rows had no customer name in the dry-run CSV; the 00:41 Block A paste names
+  them (Moshin Khan, Farha Nilofer, Mumtaz Memon, ASHARAF TOOFANI-Sheza Amani — all ELLA NOOR).
 - HEENA's clean double **RCP/26-27/1132 (₹2,770 on POS/26-27/853)** is Tier-1 shape but
   sits in Tier 2 with her three `DUP_TENDER_REKEYED` bills under customer-atomicity — same
   situation as ANANYA's ₹11,294. Both are named follow-ups in `roadmap.md`.
 
 ## Protocol for the go-ahead (not tonight)
 
-1. Paste **Block A** → expect headline `11 rows / 10 customers`, amount 62916.00, `ALL_OK`;
-   read the 11 `row` lines against the table above (voucher numbers, amounts, `over_after`
-   in [−0.5, 1], `row_ok = true` everywhere). Save the CSV.
+1. ~~Paste **Block A**~~ **Done 20 Sep 00:41 IST — `ALL_OK`, 11 / 10 / 62916, every row_ok true**
+   (`docs/ssot-tier1-block-a-dry-run-live-2026-09-20-00-41-18.csv`). Re-paste on the day of the
+   go-ahead if it is not the same session, since the guard reads live state.
 2. Paste **Block C** → save the before digest.
 3. Paste **Block B** as written (`v_mode = 'REHEARSE'`) → expect the error text
    `REHEARSAL OK (rolled back, nothing written). 11 rows / 10 customers / ₹62916 …`.
