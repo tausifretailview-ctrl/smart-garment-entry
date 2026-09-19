@@ -41,7 +41,7 @@ drift = max(0, max(paid_amount, tender) − voucherSum)   -- only when gap > 0
 
 **GREATEST rewrite:** after the duplicate is gone, if `paid_amount ≤ remaining receipts` while tender is not a voucher, gap = 0 and C-JS also drops at-sale. If `paid_amount` still holds tender (SHREEVASTAV 875 live `paid_amount = 3100`), C-JS can land on leftover **on that bill** while SNAP does not.
 
-The full 51 **roster is not in this repo** (headline only: 51 / ₹2,99,467). Named bills that **are** in the repair conversation are classified below. Any unnamed row is **WAIT** until the tables-only scan in `scripts/ssot-51-bill-cjs-csnap-overlap-2026-09-19.sql` is pasted.
+The full 51 **roster is not in this repo** (headline only: 51 / ₹2,99,467). Named bills that **are** in the repair conversation are classified below. Any unnamed row is **WAIT** until the tables-only scan in `scripts/ssot-51-bill-cjs-csnap-overlap-2026-09-19.sql` is pasted. First paste hit **42703** (`organizations.deleted_at` does not exist) — that filter is gone; org ids are literals.
 
 ### Named bills — after duplicate gone, mutate not started
 
