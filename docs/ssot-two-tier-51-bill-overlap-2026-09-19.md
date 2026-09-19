@@ -41,7 +41,45 @@ drift = max(0, max(paid_amount, tender) − voucherSum)   -- only when gap > 0
 
 **GREATEST rewrite:** after the duplicate is gone, if `paid_amount ≤ remaining receipts` while tender is not a voucher, gap = 0 and C-JS also drops at-sale. If `paid_amount` still holds tender (SHREEVASTAV 875 live `paid_amount = 3100`), C-JS can land on leftover **on that bill** while SNAP does not.
 
-The full 51 **roster is not in this repo** (headline only: 51 / ₹2,99,467). Named bills that **are** in the repair conversation are classified below. Any unnamed row is **WAIT** until the tables-only scan in `scripts/ssot-51-bill-cjs-csnap-overlap-2026-09-19.sql` is pasted. First paste hit **42703** (`organizations.deleted_at` does not exist) — that filter is gone; org ids are literals.
+The all-time 51 **roster is still not in this repo** (headline only: 51 / ₹2,99,467). The 29–30 May already-zero named set **is** locked live: SQL editor paste 19 Sep 2026 20:10 IST (`docs/ssot-51-bill-overlap-live-2026-09-19-20-10-57.csv`). First paste hit **42703** (`organizations.deleted_at`); retry used literal org ids.
+
+### Live paste 20:10 IST — 18 unique bills (POS/875 listed twice = 1128 and 1129)
+
+`snap_drop_after > 0` = SNAP still drops at-sale after the duplicate is excluded. Live `paid_amount` on 875/765/123 still holds tender, so **C-JS gap is positive** (the ₹17,250 GREATEST-rewrite path did **not** fire on these rows). SNAP still wrong.
+
+| sale_number | Customer (id prefix) | tender | paid_amount | receipts_after | snap_drop_after | cjs_gap_after | Gate |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| POS/25-26/875 ×2 | SHREEVASTAV `3a4ef881` | 1,000 | **3,100** | 2,100 | **1,000** | **1,000** | **WAIT** SNAP (+ sibling 824 ₹500) |
+| POS/26-27/765 | VIMLA `c085667a` | 400 | **3,000** | 2,600 | **400** | **400** | **WAIT** SNAP |
+| POS/25-26/123 | DIYA `ff3547a1` | 1,000 | **11,000** | 10,000 | **1,000** | **1,000** | **WAIT** SNAP |
+| POS/25-26/717 | SANTOSH `1167547a` | 75,200 | 81,200 | 6,000 | 0 (drift 69,200) | 75,200 | **WAIT** 1131-1 overpay (not SNAP) |
+| POS/26-27/454 | DOLLY `bc266355` | 3,000 | 3,000 | 1,500 | 0 (drift 1,500) | 1,500 | No SNAP-drop sibling in this scan; still held with Velvet reprints |
+| POS/26-27/853 | HEENA `dde74df8` | 0 | 2,770 | 2,770 | 0 | 0 | **WAIT customer** — siblings 1488 ₹6,290 + 1594 ₹2,547 + 1714 ₹849 = **₹9,686** SNAP-drop |
+| POS/26-27/221, 536, 580, 70 | ANANYA `0616f278` | 0 | = receipts_after | = half of live | 0 | 0 | **WAIT customer** — sibling POS/1788 **₹2,416** SNAP-drop |
+| POS/26-27/1116, 292 | RUCHI `71b043b8` | 0 | = receipts_after | | 0 | 0 | No SNAP-drop sibling in this scan |
+| POS/26-27/378 | SURESH `c25acad2` | 0 | | | 0 | 0 | No SNAP-drop sibling in this scan |
+| POS/26-27/416 | REKHA `1ad6cd52` | 0 | | | 0 | 0 | No SNAP-drop sibling in this scan |
+| POS/26-27/558 | NIKKI `721fd1c2` | 0 | | | 0 | 0 | No SNAP-drop sibling in this scan |
+| POS/26-27/610 | SAYALI `ae7d0c17` | 0 | | | 0 | 0 | No SNAP-drop sibling in this scan |
+| POS/26-27/808 | JATIN `8538501f` | 0 | 13,699.90 | 13,700 | 0 | **−0.10** (rounding) | No SNAP-drop sibling in this scan |
+| POS/26-27/85 | *(null customer_id)* | 0 | 15,862 | 15,862 | 0 | 0 | Walk-in — no C-JS/C-SNAP customer |
+
+Sibling SNAP-drop rows in the same CSV (includes the repaired bill when it itself drops):
+
+| sale_number | customer | snap_drop | Notes |
+| --- | --- | ---: | --- |
+| POS/25-26/875 | SHREEVASTAV | 1,000 | self |
+| POS/26-27/824 | SHREEVASTAV | **500** | POS/824 class — live lock |
+| POS/26-27/765 | VIMLA | 400 | self |
+| POS/25-26/123 | DIYA | 1,000 | self |
+| POS/26-27/1488 | HEENA | 6,290 | **new** — tender-0 repair bill 853 sits on this account |
+| POS/26-27/1594 | HEENA | 2,547 | **new** |
+| POS/26-27/1714 | HEENA | 849 | **new** |
+| POS/26-27/1788 | ANANYA | 2,416 | **new** — her four tender-0 dups sit on this account |
+
+**Answer to “any of the 51-set bills on SNAP/C-JS accounts?”** For this May already-zero named set: **yes.** HEENA and ANANYA look like safe tender-0 full-net dups on the repaired row and are **not** — sibling SNAP-drop is live. SHREEVASTAV / VIMLA / DIYA drop on the repaired bill itself. Live C-JS `paid_amount` still holds tender on those three, so glance *may* match leftover after delete; POS search will not.
+
+This paste is **not** the all-time 51. Those remaining rows stay **WAIT** until the same scan exists for them.
 
 ### Named bills — after duplicate gone, mutate not started
 
@@ -59,9 +97,11 @@ The full 51 **roster is not in this repo** (headline only: 51 / ₹2,99,467). Na
 
 **Do not start the 51-bill mutate.** Split later:
 
-1. **WAIT for C-JS + C-SNAP formula fixes** — any customer with SNAP-drop on the repaired bill **or** a sibling (SHREEVASTAV, VIMLA, DIYA; plus whoever the SQL flags).
-2. **Still WAIT for a sibling scan** — tender=0 full-net dups (most Velvet). Bill-level SNAP is idle; customer POS Due can still be bucket (g) from another invoice.
-3. **Walk-in POS/85** — no customer ledger; still held with the Velvet five-invoice reprint gate.
+1. **WAIT SNAP formula** — repaired bill itself drops: SHREEVASTAV 875, VIMLA 765, DIYA 123. Live `paid_amount` holds tender (C-JS gap 1000 / 400 / 1000) so glance *may* match leftover; POS search will not. SHREEVASTAV also sibling 824 ₹500.
+2. **WAIT sibling SNAP** — HEENA (853 looks tender-0; siblings 1488+1594+1714 = ₹9,686) and ANANYA (four tender-0 dups; sibling 1788 ₹2,416). Live paste 20:10 IST.
+3. **WAIT other** — SANTOSH 1131-1 leftover-overpay (not SNAP). Velvet five-invoice reprint still required.
+4. **Walk-in POS/85** — no customer ledger; still held with that reprint gate.
+5. All-time 51 still unscanned.
 
 ---
 

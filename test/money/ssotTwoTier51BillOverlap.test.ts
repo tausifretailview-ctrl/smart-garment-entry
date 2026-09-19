@@ -1,3 +1,10 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { getCustomerAccountState } from "@/utils/customerBalanceCore";
+import { computeCustomerOutstanding as computeAuditOutstanding } from "@/utils/customerAuditMath";
+import { invoiceThisBillBalance } from "@/utils/invoiceAccountDue";
+
 /**
  * Two-tier SSOT + 51-bill overlap (no mutate).
  *
@@ -6,10 +13,6 @@
  * After duplicate removal those two still disagree with leftover on mixed
  * at-sale + later-receipt bills.
  */
-import { describe, expect, it } from "vitest";
-import { getCustomerAccountState } from "@/utils/customerBalanceCore";
-import { computeCustomerOutstanding as computeAuditOutstanding } from "@/utils/customerAuditMath";
-import { invoiceThisBillBalance } from "@/utils/invoiceAccountDue";
 
 const AT_SALE_875 = 1_000;
 const RCP_799 = 2_100;
@@ -191,5 +194,77 @@ describe("customer/org-level families — none selected as SSOT", () => {
     const js = getCustomerAccountState(farhaanCore);
     expect(js.balance).toBeCloseTo(-100, 0);
     expect(snapDrop(AT_SALE_875, RCP_799)).not.toBe(0);
+  });
+});
+
+/** Live SQL editor paste 19 Sep 2026 20:10 IST — May already-zero named set, not the all-time 51. */
+describe("live overlap CSV 20:10 IST", () => {
+  const HEENA = "dde74df8-fe5d-48c8-a010-d33f290b98bc";
+  const ANANYA = "0616f278-8878-45fb-9dd4-ea899dfeb039";
+  const SHREE = "3a4ef881-e561-4c0e-9764-1c8e903fe109";
+  const text = readFileSync(
+    resolve(__dirname, "../../docs/ssot-51-bill-overlap-live-2026-09-19-20-10-57.csv"),
+    "utf8",
+  );
+  const lines = text.trim().split(/\n/);
+  const header = lines[0].split(";");
+  const rows = lines.slice(1).filter(Boolean).map((line) => {
+    const cols = line.split(";");
+    const o: Record<string, string> = {};
+    header.forEach((h, i) => {
+      o[h] = cols[i] ?? "";
+    });
+    return o;
+  });
+  const num = (row: Record<string, string>, key: string) => {
+    const raw = (row[key] || "").trim();
+    if (!raw) return 0;
+    return Number(raw);
+  };
+  const named = rows.filter((r) => r.section === "named_bill");
+  const siblings = rows.filter((r) => r.section === "sibling_snap_drop");
+
+  it("18 unique named bills (POS/875 twice for 1128 and 1129)", () => {
+    const sales = new Set(named.map((r) => r.sale_number));
+    expect(named.filter((r) => r.sale_number === "POS/25-26/875")).toHaveLength(2);
+    expect(sales.size).toBe(18);
+  });
+
+  it("direct SNAP-drop on the repaired bill: 875 ₹1,000, 765 ₹400, 123 ₹1,000", () => {
+    const drop = (sale: string) =>
+      num(named.find((r) => r.sale_number === sale)!, "snap_drop_after");
+    expect(drop("POS/25-26/875")).toBe(1_000);
+    expect(drop("POS/26-27/765")).toBe(400);
+    expect(drop("POS/25-26/123")).toBe(1_000);
+  });
+
+  it("live paid_amount still holds tender — C-JS gap positive, GREATEST rewrite did not fire", () => {
+    const row875 = named.find((r) => r.sale_number === "POS/25-26/875")!;
+    expect(num(row875, "paid_amount")).toBe(3_100);
+    expect(num(row875, "cjs_gap_after")).toBe(1_000);
+    expect(num(named.find((r) => r.sale_number === "POS/26-27/765")!, "cjs_gap_after")).toBe(400);
+    expect(num(named.find((r) => r.sale_number === "POS/25-26/123")!, "cjs_gap_after")).toBe(1_000);
+  });
+
+  it("SHREEVASTAV sibling POS/824 SNAP-drop ₹500 is live", () => {
+    const row = siblings.find((r) => r.sale_number === "POS/26-27/824")!;
+    expect(row.customer_id).toBe(SHREE);
+    expect(num(row, "snap_drop_after")).toBe(500);
+  });
+
+  it("HEENA tender-0 repair bill 853 sits on ₹9,686 sibling SNAP-drop", () => {
+    expect(num(named.find((r) => r.sale_number === "POS/26-27/853")!, "tender")).toBe(0);
+    const extra = siblings.filter(
+      (r) => r.customer_id === HEENA && r.sale_number !== "POS/26-27/853",
+    );
+    const sales = extra.map((r) => r.sale_number).sort();
+    expect(sales).toEqual(["POS/26-27/1488", "POS/26-27/1594", "POS/26-27/1714"]);
+    expect(extra.reduce((s, r) => s + num(r, "snap_drop_after"), 0)).toBe(9_686);
+  });
+
+  it("ANANYA four tender-0 dups sit on sibling POS/1788 SNAP-drop ₹2,416", () => {
+    const row = siblings.find((r) => r.sale_number === "POS/26-27/1788")!;
+    expect(row.customer_id).toBe(ANANYA);
+    expect(num(row, "snap_drop_after")).toBe(2_416);
   });
 });

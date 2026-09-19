@@ -90,10 +90,10 @@ This pass does **not** re-measure the other 50. The same `GREATEST` hole can und
 
 Do **not** start the historical mutate.
 
-SHREEVASTAV ₹3,100 / leftover hand-check ₹16,250 is necessary but **not sufficient**. Duplicate removal alone does not restore C-JS / C-SNAP customer display:
+Live overlap paste 19 Sep 2026 20:10 IST (`docs/ssot-51-bill-overlap-live-2026-09-19-20-10-57.csv`) — May already-zero named set:
 
-- SHREEVASTAV / VIMLA / DIYA: C-SNAP `GREATEST(0, tender − remaining receipts)` still drops at-sale after the duplicate is gone (**WAIT**).
-- SHREEVASTAV C-JS is a separate GREATEST-writer fork (₹16,250 vs ₹17,250); C-SNAP stays **₹17,750**.
-- Velvet tender=0 full-net dups still need a sibling SNAP-drop scan plus the five-invoice reprint.
+- SHREEVASTAV / VIMLA / DIYA: SNAP still drops at-sale on the repaired bill (`paid_amount` still holds tender, so C-JS gap is 1000 / 400 / 1000 — glance *may* match leftover; POS search will not). SHREEVASTAV sibling POS/824 ₹500 live.
+- HEENA POS/853 and ANANYA’s four tender-0 dups sit on **sibling** SNAP-drop (₹9,686 and ₹2,416). They are not safe tender-0 repairs.
+- SANTOSH 1131-1 leftover-overpay is a different defect. All-time 51 still unscanned.
 
 Two-tier SSOT: leftover is invoice-level only. Customer/org canonical source must be **built**, not picked from C-PARTY/C-REC/C-STMT/C-AUDIT/C-OB-SALES. See `docs/ssot-two-tier-51-bill-overlap-2026-09-19.md`. Still no money-row write in this commit.
