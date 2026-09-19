@@ -33,7 +33,13 @@ Rejected attempts do not insert a voucher. There is no fire table. So (1) and (2
 
 The function **exists** on production `pg_proc`. Empty `trigger_calls` means `track_functions` is off (`pg_stat_user_functions` has no row) — not that the trigger never ran. `stats_reset_at` is the database-wide stats clock (project age), not go-live. Query E cannot name a real-world block.
 
-A–D remain the overnight traffic answers. Re-run **A–D only** (stop before E) if those result tabs were lost when E first 42703’d.
+**Query A paste** (`query-results-export-2026-09-19_14-51-39_344f.csv`, 19 Sep 2026 14:51 IST):
+
+| column_live | unique_index_live | trigger_live_and_enabled |
+| --- | --- | --- |
+| **true** | **true** | **true** |
+
+Column, unique index, and trigger are all still installed and enabled. Do **not** roll them back. C / C2 / D were not in this export (SQL editor first-tab only). Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first so the first tab is the SHREEVASTAV already-zero check).
 
 ### 2. Has it rejected a genuine payment on any of the six screens?
 
@@ -65,7 +71,7 @@ No POS Dashboard, Customer Payment Tab, Floating Payments, Payments Dashboard, S
 - Sales Invoice Dashboard **dialog** (`SalesInvoiceDashboard.tsx`) calls `createReceiptVoucher` **without** `clientRequestId`. (Bulk cash `recordInvoiceFullCashPayment` does pass a key; this morning’s rows are the dialog — UPI “Received in: SHEZA AMANI A/C” and cash.)
 - `consumeAdvanceFIFO` also omits the key.
 
-The duplicate-click unique index cannot fire on this traffic. The settled-bill **cap trigger still applies** to the 12 cash/UPI rows. Next paste (`scripts/receipt-guard-live-status-ACD-2026-09-19.sql`) is A / C / C2 / D.
+The duplicate-click unique index cannot fire on this traffic. The settled-bill **cap trigger still applies** to the 12 cash/UPI rows. Query A is **true / true / true**. Next paste is `scripts/receipt-guard-live-status-C2D-2026-09-19.sql` (C2 first).
 
 Cash/UPI named rows (IST = UTC+5:30):
 
