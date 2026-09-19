@@ -262,8 +262,9 @@ describe("aggregateDailySalesmanIncentive", () => {
 });
 
 describe("org gate", () => {
-  it("only ADEEBAAREEBA is UI-gated", () => {
+  it("only ADEEBAAREEBA orgs are UI-gated", () => {
     expect(isDailyIncentiveUiOrg(ADEEBAAREEBA_ORG_ID)).toBe(true);
+    expect(isDailyIncentiveUiOrg("0dac440f-e962-4f27-a38d-71c81f9c52b7")).toBe(true);
     expect(isDailyIncentiveUiOrg("other")).toBe(false);
   });
 });
