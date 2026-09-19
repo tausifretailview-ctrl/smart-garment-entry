@@ -8,6 +8,13 @@
       "when": 1789761811411,
       "tag": "0000_receipt_idempotency_key_and_invoice_cap_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789824620567,
+      "tag": "0001_net_profit_kpis_ist_day_bounds",
+      "breakpoints": true
     }
   ]
 }
