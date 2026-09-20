@@ -168,9 +168,25 @@ export default function SalesmanCommission() {
   const categories = [...new Set(products.map((p: any) => p.category).filter(Boolean))].sort();
   const styles = [...new Set(products.map((p: any) => p.style).filter(Boolean))].sort();
 
+  // Commission rows are a point-in-time snapshot created when a sale is
+  // made, and are never cleaned up if that sale is later cancelled/deleted
+  // (confirmed: POS/26-27/283 was deleted 2026-09-20 15:22 but its two
+  // commission rows, ₹4,224.30 + ₹4,383.70, remained and were still
+  // counted as real revenue). saleItems above already excludes deleted
+  // sale_items — reuse it to drop any commission row whose sale no longer
+  // has live items, rather than firing an extra query.
+  const liveSaleIdsWithItems = useMemo(
+    () => new Set(saleItems.map((si: any) => si.sale_id)),
+    [saleItems],
+  );
+  const commissionsForLiveSales = useMemo(
+    () => commissions.filter((c: any) => !c.sale_id || liveSaleIdsWithItems.has(c.sale_id)),
+    [commissions, liveSaleIdsWithItems],
+  );
+
   const enrichedCommissions = useMemo(
-    () => enrichCommissionsWithSaleItems(commissions, saleItems),
-    [commissions, saleItems],
+    () => enrichCommissionsWithSaleItems(commissionsForLiveSales, saleItems),
+    [commissionsForLiveSales, saleItems],
   );
 
   const filteredCommissions = useMemo(() => {
