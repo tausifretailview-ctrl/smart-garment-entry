@@ -252,11 +252,7 @@ export default function Accounts() {
     }
     orgNavigate("/");
   }, [navigate, orgNavigate]);
-  const {
-    summary: receivablesSummary,
-    isLoading: receivablesSummaryLoading,
-    isFetching: receivablesSummaryFetching,
-  } = useOrganizationReceivablesSummary(currentOrganization?.id);
+  const [heavyMoneyQueriesReady, setHeavyMoneyQueriesReady] = useState(false);
   const queryClient = useQueryClient();
   const { isAdmin, isPlatformAdmin } = useUserRoles();
   useNavPerfPage(PERF_PATH);
@@ -265,7 +261,7 @@ export default function Accounts() {
   const urlCustomerId = searchParams.get("customer");
   const [selectedTab, setSelectedTab] = useState(urlTab || "customer-ledger");
   const [visitedTabs, setVisitedTabs] = useState<Set<string>>(
-    () => new Set([urlTab || "customer-ledger"]),
+    () => new Set(urlTab ? [urlTab] : []),
   );
   const shouldMountTab = useCallback(
     (tab: string) => visitedTabs.has(tab),
@@ -292,10 +288,17 @@ export default function Accounts() {
   );
 
   useEffect(() => {
-    const tab = urlTab || "customer-ledger";
-    if (tab !== selectedTab) setSelectedTab(tab);
-    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set([...prev, tab])));
+    if (!urlTab) return;
+    if (urlTab !== selectedTab) setSelectedTab(urlTab);
+    setVisitedTabs((prev) => (prev.has(urlTab) ? prev : new Set([...prev, urlTab])));
   }, [urlTab, selectedTab]);
+
+  useEffect(() => {
+    if (selectedTab !== "customer-ledger" || !heavyMoneyQueriesReady) return;
+    setVisitedTabs((prev) =>
+      prev.has("customer-ledger") ? prev : new Set([...prev, "customer-ledger"]),
+    );
+  }, [selectedTab, heavyMoneyQueriesReady]);
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accounts,
@@ -363,6 +366,23 @@ export default function Accounts() {
     },
     enabled: !!currentOrganization?.id,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  useEffect(() => {
+    if (!currentOrganization?.id || dashboardStatsLoading) {
+      setHeavyMoneyQueriesReady(false);
+      return;
+    }
+    const id = window.setTimeout(() => setHeavyMoneyQueriesReady(true), 80);
+    return () => clearTimeout(id);
+  }, [currentOrganization?.id, dashboardStatsLoading]);
+
+  const {
+    summary: receivablesSummary,
+    isLoading: receivablesSummaryLoading,
+    isFetching: receivablesSummaryFetching,
+  } = useOrganizationReceivablesSummary(currentOrganization?.id, {
+    enabled: !!currentOrganization?.id && heavyMoneyQueriesReady,
   });
 
   useNavPerfQueryWatch("accounts-dashboard-metrics", PERF_PATH, {

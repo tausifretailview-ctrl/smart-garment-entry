@@ -11,13 +11,20 @@ import {
 vi.mock("@/utils/fetchAllRows", () => ({
   fetchAllCustomers: vi.fn(),
   fetchAllCustomerPartyBalances: vi.fn(),
-  fetchCustomerPhoneMap: vi.fn(),
+  fetchCustomerPhonesByIds: vi.fn(),
+  customerPhoneMapFromDirectory: vi.fn((customers: Array<{ id: string; phone?: string | null }>) => {
+    const map = new Map<string, string>();
+    for (const c of customers) {
+      if (c.id) map.set(c.id, c.phone ?? "");
+    }
+    return map;
+  }),
 }));
 
 import {
   fetchAllCustomers,
   fetchAllCustomerPartyBalances,
-  fetchCustomerPhoneMap,
+  fetchCustomerPhonesByIds,
 } from "@/utils/fetchAllRows";
 import type { CustomerPartyBalanceRpcRow } from "@/utils/fetchAllRows";
 import type { CustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
@@ -146,7 +153,6 @@ describe("alignPartyRowWithSnapshot", () => {
 
 describe("fetchCustomerPartyBalancesPayload", () => {
   it("returns searchable customer rows when party RPC times out", async () => {
-    vi.mocked(fetchCustomerPhoneMap).mockResolvedValue(new Map([["c1", "9999999999"]]));
     vi.mocked(fetchAllCustomers).mockResolvedValue([
       {
         id: "c1",
@@ -174,8 +180,19 @@ describe("fetchCustomerPartyBalancesPayload", () => {
   });
 
   it("returns full party rows when RPC succeeds", async () => {
-    vi.mocked(fetchCustomerPhoneMap).mockResolvedValue(new Map([["c1", "8888888888"]]));
-    vi.mocked(fetchAllCustomers).mockResolvedValue([]);
+    vi.mocked(fetchAllCustomers).mockResolvedValue([
+      {
+        id: "c1",
+        customer_name: "NIXC FOOTWEAR",
+        phone: "8888888888",
+        email: null,
+        gst_number: null,
+        address: null,
+        opening_balance: 0,
+        points_balance: null,
+        discount_percent: null,
+      },
+    ]);
     vi.mocked(fetchAllCustomerPartyBalances).mockResolvedValue([
       {
         customer_id: "c1",

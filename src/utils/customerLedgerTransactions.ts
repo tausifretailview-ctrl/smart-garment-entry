@@ -131,11 +131,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     salesQuery = salesQuery.lte("sale_date", endDateStr);
   }
 
-  const { data: salesData, error: salesError } = await salesQuery.order("sale_date", { ascending: true });
-
-  if (salesError) throw salesError;
-
-  // Build voucher query - fetch all payments for ANY of this customer's invoices
   let vouchersQuery = supabase
     .from("voucher_entries")
     .select("*")
@@ -143,7 +138,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     .is("deleted_at", null)
     .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
 
-  // Apply date filters to vouchers
   if (startDate) {
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     vouchersQuery = vouchersQuery.gte("voucher_date", startDateStr);
@@ -153,11 +147,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     vouchersQuery = vouchersQuery.lte("voucher_date", endDateStr);
   }
 
-  const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: true });
-
-  if (vouchersError) throw vouchersError;
-
-  // Also fetch opening balance payments (reference_type = 'customer')
   let openingBalanceQuery = supabase
     .from("voucher_entries")
     .select("*")
@@ -173,9 +162,68 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
   }
 
-  const { data: openingBalancePayments, error: openingError } = await openingBalanceQuery.order("voucher_date", { ascending: true });
+  let advancesQuery = supabase
+    .from("customer_advances")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId);
 
+  if (startDate) {
+    advancesQuery = advancesQuery.gte("advance_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    advancesQuery = advancesQuery.lte("advance_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  let adjustmentsQuery = (supabase as any)
+    .from("customer_balance_adjustments")
+    .select("*")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId);
+
+  if (startDate) {
+    adjustmentsQuery = adjustmentsQuery.gte("adjustment_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    adjustmentsQuery = adjustmentsQuery.lte("adjustment_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  let saleReturnsQuery = supabase
+    .from("sale_returns")
+    .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, credit_note_id, created_at")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (startDate) {
+    saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    saleReturnsQuery = saleReturnsQuery.lte("return_date", format(endDate, 'yyyy-MM-dd'));
+  }
+
+  const [
+    { data: salesData, error: salesError },
+    { data: vouchersData, error: vouchersError },
+    { data: openingBalancePayments, error: openingError },
+    { data: advancesData, error: advancesError },
+    { data: adjustmentsData, error: adjustmentsError },
+    { data: saleReturnsData, error: saleReturnsError },
+  ] = await Promise.all([
+    salesQuery.order("sale_date", { ascending: true }),
+    vouchersQuery.order("voucher_date", { ascending: true }),
+    openingBalanceQuery.order("voucher_date", { ascending: true }),
+    advancesQuery.order("advance_date", { ascending: true }),
+    adjustmentsQuery.order("created_at", { ascending: true }),
+    saleReturnsQuery.order("return_date", { ascending: true }),
+  ]);
+
+  if (salesError) throw salesError;
+  if (vouchersError) throw vouchersError;
   if (openingError) throw openingError;
+  if (advancesError) throw advancesError;
+  if (adjustmentsError) throw adjustmentsError;
+  if (saleReturnsError) throw saleReturnsError;
 
   // Merge invoice payments and opening balance payments
   // Exclude payment-type (refund) vouchers for sale returns — they are already
@@ -193,60 +241,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       }
       return true;
     });
-
-  // Fetch customer advances
-  let advancesQuery = supabase
-    .from("customer_advances")
-    .select("*")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId);
-
-  if (startDate) {
-    advancesQuery = advancesQuery.gte("advance_date", format(startDate, 'yyyy-MM-dd'));
-  }
-  if (endDate) {
-    advancesQuery = advancesQuery.lte("advance_date", format(endDate, 'yyyy-MM-dd'));
-  }
-
-  const { data: advancesData, error: advancesError } = await advancesQuery.order("advance_date", { ascending: true });
-
-  if (advancesError) throw advancesError;
-
-  // Fetch balance adjustments
-  let adjustmentsQuery = (supabase as any)
-    .from("customer_balance_adjustments")
-    .select("*")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId);
-
-  if (startDate) {
-    adjustmentsQuery = adjustmentsQuery.gte("adjustment_date", format(startDate, 'yyyy-MM-dd'));
-  }
-  if (endDate) {
-    adjustmentsQuery = adjustmentsQuery.lte("adjustment_date", format(endDate, 'yyyy-MM-dd'));
-  }
-
-  const { data: adjustmentsData, error: adjustmentsError } = await adjustmentsQuery.order("created_at", { ascending: true });
-
-  if (adjustmentsError) throw adjustmentsError;
-
-  // Fetch ALL sale returns for this customer (all statuses)
-  let saleReturnsQuery = supabase
-    .from("sale_returns")
-    .select("id, return_number, return_date, net_amount, credit_status, linked_sale_id, refund_type, credit_note_id, created_at")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (startDate) {
-    saleReturnsQuery = saleReturnsQuery.gte("return_date", format(startDate, 'yyyy-MM-dd'));
-  }
-  if (endDate) {
-    saleReturnsQuery = saleReturnsQuery.lte("return_date", format(endDate, 'yyyy-MM-dd'));
-  }
-
-  const { data: saleReturnsData, error: saleReturnsError } = await saleReturnsQuery.order("return_date", { ascending: true });
-  if (saleReturnsError) throw saleReturnsError;
 
   // Include sale-return refund payment vouchers even when they still point to an old/orphan customer_id.
   // We map by return_number mentioned in voucher description.

@@ -864,6 +864,13 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
   );
 }
 
+function quickStockSearchReady(rawQuery: string): boolean {
+  const term = rawQuery.trim();
+  if (!term) return false;
+  if (isStockReportBarcodeLikeSearch(term)) return true;
+  return term.length >= 2;
+}
+
 // Floating Stock Report Dialog
 export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { currentOrganization } = useOrganization();
@@ -892,74 +899,6 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     return () => clearTimeout(t);
   }, [searchQuery, open]);
 
-  // Small local cache for instant preview while the authoritative server search runs.
-  // Never use this alone for totals — orgs with >1000 variants under-count (e.g. FLK53 101 vs 131).
-  const { data: allProducts } = useQuery({
-    queryKey: ["floating-stock-products", currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(`
-          id,
-          barcode,
-          size,
-          color,
-          stock_qty,
-          sale_price,
-          mrp,
-          pur_price,
-          product:products!inner(
-            id,
-            product_name,
-            brand,
-            category,
-            style,
-            product_type,
-            deleted_at
-          )
-        `)
-        .eq("organization_id", currentOrganization.id)
-        .eq("products.organization_id", currentOrganization.id)
-        .is("products.deleted_at", null)
-        .is("deleted_at", null)
-        .eq("active", true)
-        .neq("products.product_type", "service")
-        .order("stock_qty", { ascending: false })
-        .limit(1000);
-
-      if (error) throw error;
-      // Service variants carry virtual 999999 stock — exclude from Quick Stock
-      // (same convention as Stock Report / Closing Stock RPCs).
-      return excludeServiceVariants(data || []);
-    },
-    enabled: !!currentOrganization?.id && open,
-    staleTime: STALE_LIVE,
-  });
-
-  const localPreview = useMemo(() => {
-    const q = searchQuery.trim();
-    if (q.length < 1) return [];
-    return excludeServiceVariants(allProducts || [])
-      .filter((item: any) =>
-        matchesProductSearchFields(
-          {
-            product_name: item.product?.product_name,
-            brand: item.product?.brand,
-            category: item.product?.category,
-            style: item.product?.style,
-            barcode: item.barcode,
-            color: item.color,
-            size: item.size,
-          },
-          q,
-        ),
-      )
-      .slice(0, 100);
-  }, [allProducts, searchQuery]);
-
-  // Authoritative search — always runs (do not skip when localPreview has partial hits).
   const {
     data: serverData,
     isFetching: isSearching,
@@ -967,28 +906,40 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   } = useQuery({
     queryKey: ["floating-stock-search", currentOrganization?.id, debouncedQuery],
     queryFn: async () => {
-      if (!currentOrganization?.id || debouncedQuery.length < 1) return [];
+      if (!currentOrganization?.id || !quickStockSearchReady(debouncedQuery)) return [];
       return searchQuickStockVariants(currentOrganization.id, debouncedQuery);
     },
-    enabled: !!currentOrganization?.id && open && debouncedQuery.length >= 1,
+    enabled:
+      !!currentOrganization?.id &&
+      open &&
+      quickStockSearchReady(debouncedQuery),
     staleTime: STALE_LIVE,
     refetchOnWindowFocus: false,
   });
 
-  const querySettled = debouncedQuery.length >= 1 && debouncedQuery === searchQuery.trim() && serverFetched;
-  const displayData = querySettled ? (serverData || []) : localPreview;
-  const showSearching = searchQuery.trim().length >= 1 && !querySettled;
+  const querySettled =
+    quickStockSearchReady(debouncedQuery) &&
+    debouncedQuery === searchQuery.trim() &&
+    serverFetched;
+  const displayData = querySettled ? serverData || [] : [];
+  const showSearching = quickStockSearchReady(searchQuery.trim()) && !querySettled;
+  const skipSupplierLookup = isStockReportBarcodeLikeSearch(searchQuery.trim());
 
   // Fetch supplier names for filtered variants
   const [supplierMap, setSupplierMap] = useState<Record<string, string>>({});
   const displayIdsKey = displayData.map((item: any) => item.id).join(",");
   useEffect(() => {
-    if (!displayData.length || !currentOrganization?.id) {
+    if (
+      skipSupplierLookup ||
+      !displayData.length ||
+      !currentOrganization?.id ||
+      !querySettled
+    ) {
       setSupplierMap({});
       return;
     }
 
-    const variantIds = displayData.map((item: any) => item.id);
+    const variantIds = displayData.slice(0, 20).map((item: any) => item.id).slice(0, 50);
 
     void (async () => {
       try {
@@ -997,7 +948,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           .select("sku_id, purchase_bills:purchase_bills!inner(supplier_name)")
           .in("sku_id", variantIds)
           .is("deleted_at", null)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .limit(50);
 
         const map: Record<string, string> = {};
         (data || []).forEach((row: any) => {
@@ -1010,7 +962,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
         /* ignore */
       }
     })();
-  }, [currentOrganization?.id, displayIdsKey]);
+  }, [currentOrganization?.id, displayIdsKey, querySettled, skipSupplierLookup]);
 
   // Service/combo virtual stock (999999) must not inflate these — those aren't
   // physically-held units (FLEXI LS 100 MIX turned 215 real pcs into 10,00,214).
