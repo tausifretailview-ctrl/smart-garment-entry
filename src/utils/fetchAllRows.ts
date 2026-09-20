@@ -728,11 +728,10 @@ export async function fetchAllVariants(organizationId: string) {
  * Handles large datasets by batching sale IDs and paginating results.
  */
 export async function fetchAllSaleItems(saleIds: string[]) {
-  const allRows: any[] = [];
   const batchSize = 500; // Smaller batch for .in() queries
 
-  for (let i = 0; i < saleIds.length; i += batchSize) {
-    const batchIds = saleIds.slice(i, i + batchSize);
+  async function fetchBatch(batchIds: string[]) {
+    const rows: any[] = [];
     let offset = 0;
     const pageSize = 1000;
     let hasMore = true;
@@ -754,27 +753,36 @@ export async function fetchAllSaleItems(saleIds: string[]) {
       }
 
       if (data && data.length > 0) {
-        allRows.push(...data);
+        rows.push(...data);
         offset += pageSize;
         hasMore = data.length === pageSize;
       } else {
         hasMore = false;
       }
     }
+
+    return rows;
   }
 
-  return allRows;
+  const batches: string[][] = [];
+  for (let i = 0; i < saleIds.length; i += batchSize) {
+    batches.push(saleIds.slice(i, i + batchSize));
+  }
+
+  // Batches are independent (disjoint sale_id sets) — safe to fetch concurrently.
+  // Pages within a batch stay sequential since .range() depends on the prior page's count.
+  const batchResults = await Promise.all(batches.map(fetchBatch));
+  return batchResults.flat();
 }
 
 /**
  * Fetch all purchase items for given variant IDs using range pagination.
  */
 export async function fetchAllPurchaseItems(variantIds: string[]) {
-  const allRows: any[] = [];
   const batchSize = 500;
 
-  for (let i = 0; i < variantIds.length; i += batchSize) {
-    const batchIds = variantIds.slice(i, i + batchSize);
+  async function fetchBatch(batchIds: string[]) {
+    const rows: any[] = [];
     let offset = 0;
     const pageSize = 1000;
     let hasMore = true;
@@ -794,16 +802,24 @@ export async function fetchAllPurchaseItems(variantIds: string[]) {
       }
 
       if (data && data.length > 0) {
-        allRows.push(...data);
+        rows.push(...data);
         offset += pageSize;
         hasMore = data.length === pageSize;
       } else {
         hasMore = false;
       }
     }
+
+    return rows;
   }
 
-  return allRows;
+  const batches: string[][] = [];
+  for (let i = 0; i < variantIds.length; i += batchSize) {
+    batches.push(variantIds.slice(i, i + batchSize));
+  }
+
+  const batchResults = await Promise.all(batches.map(fetchBatch));
+  return batchResults.flat();
 }
 
 /**

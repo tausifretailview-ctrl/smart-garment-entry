@@ -195,17 +195,22 @@ async function buildVariantCostMaps(
   organizationId: string,
   variantIds: string[],
 ): Promise<VariantCostMaps> {
-  const allVariants: { id: string; pur_price: number | null; product_id: string }[] = [];
   const variantBatchSize = 500;
+  const variantBatches: string[][] = [];
   for (let i = 0; i < variantIds.length; i += variantBatchSize) {
-    const batchIds = variantIds.slice(i, i + variantBatchSize);
-    const { data: batchVariants } = await supabase
-      .from("product_variants")
-      .select("id, pur_price, product_id")
-      .eq("organization_id", organizationId)
-      .in("id", batchIds);
-    if (batchVariants) allVariants.push(...batchVariants);
+    variantBatches.push(variantIds.slice(i, i + variantBatchSize));
   }
+  const variantBatchResults = await Promise.all(
+    variantBatches.map((batchIds) =>
+      supabase
+        .from("product_variants")
+        .select("id, pur_price, product_id")
+        .eq("organization_id", organizationId)
+        .in("id", batchIds)
+        .then(({ data }) => data ?? []),
+    ),
+  );
+  const allVariants = variantBatchResults.flat();
   const variantMap = new Map(allVariants.map((v) => [v.id, v]));
 
   const purchaseItems = await fetchAllPurchaseItems(variantIds);
@@ -279,20 +284,37 @@ export async function loadProfitDataset(
   fromDate: string,
   toDate: string,
 ): Promise<ProfitDataset> {
-  const { data: sales, error: salesError } = await supabase
+  const fromTimestamp = `${fromDate}T00:00:00.000+05:30`;
+  const toTimestamp = `${toDate}T23:59:59.999+05:30`;
+
+  const salesQuery = supabase
     .from("sales")
     .select(
       "id, sale_number, sale_date, customer_id, customer_name, salesman, payment_method, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, sale_return_adjust",
     )
     .eq("organization_id", organizationId)
-    .gte("sale_date", fromDate)
-    .lte("sale_date", `${toDate}T23:59:59`)
+    .gte("sale_date", fromTimestamp)
+    .lte("sale_date", toTimestamp)
     .is("deleted_at", null)
     .eq("is_cancelled", false)
     .or("payment_status.is.null,payment_status.neq.cancelled")
     .or("sale_type.is.null,sale_type.neq.sale_return");
 
+  const returnsQuery = supabase
+    .from("sale_returns")
+    .select(
+      "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date",
+    )
+    .eq("organization_id", organizationId)
+    .gte("return_date", fromTimestamp)
+    .lte("return_date", toTimestamp)
+    .is("deleted_at", null);
+
+  const [{ data: sales, error: salesError }, { data: returns, error: returnsError }] =
+    await Promise.all([salesQuery, returnsQuery]);
+
   if (salesError) throw salesError;
+  if (returnsError) throw returnsError;
 
   type SaleRow = {
     id: string;
@@ -313,18 +335,6 @@ export async function loadProfitDataset(
   const saleById = new Map(saleRows.map((s) => [s.id, s]));
   const saleByNumber = new Map(saleRows.map((s) => [s.sale_number, s]));
   const saleItems = saleRows.length ? await fetchAllSaleItems(saleRows.map((s) => s.id)) : [];
-
-  const { data: returns, error: returnsError } = await supabase
-    .from("sale_returns")
-    .select(
-      "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date",
-    )
-    .eq("organization_id", organizationId)
-    .gte("return_date", fromDate)
-    .lte("return_date", `${toDate}T23:59:59`)
-    .is("deleted_at", null);
-
-  if (returnsError) throw returnsError;
 
   type ReturnHeader = {
     id: string;
