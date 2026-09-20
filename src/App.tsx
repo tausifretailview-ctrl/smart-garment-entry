@@ -143,6 +143,7 @@ const CustomerAccountStatementAuditPage = lazyWithRetry(
 );
 const CustomerBalanceActivityPage = lazyWithRetry(() => import("./pages/CustomerBalanceActivityPage"));
 const CustomerPartyBalancesPage = lazyWithRetry(() => import("./pages/CustomerPartyBalancesPage"));
+const CustomerOutstandingReport = lazyWithRetry(() => import("./pages/CustomerOutstandingReport"));
 const AccountsPaymentsPage = lazyWithRetry(() => import("./pages/AccountsPaymentsPage"));
 const SupplierPartyBalancesPage = lazyWithRetry(() => import("./pages/SupplierPartyBalancesPage"));
 const OrphanedProductsPage = lazyWithRetry(() => import("./pages/OrphanedProductsPage"));
@@ -1450,6 +1451,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerPartyBalancesPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-outstanding-report"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerOutstandingReport />
                       </Layout>
                     </ProtectedRoute>
                   }
