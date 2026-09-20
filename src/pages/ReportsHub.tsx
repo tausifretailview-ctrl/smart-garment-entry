@@ -292,6 +292,14 @@ const ALL_REPORTS: ReportItem[] = [
     permission: "customer_ledger",
   },
   {
+    icon: ClipboardList,
+    label: "Customer Outstanding",
+    path: "/customer-outstanding-report",
+    desc: "Sr No, name, balance — grand total only",
+    tab: "accounts",
+    permission: "customer_ledger",
+  },
+  {
     icon: FileText,
     label: "Customer Statement",
     path: "/customer-account-statement",
