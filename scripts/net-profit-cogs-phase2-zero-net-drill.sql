@@ -4,6 +4,10 @@
 -- Use after top-variants export shows net_sales ≈ 0 but total_cogs > 0.
 -- Ella examples: AM-A02 (0266df53-…), IQA-A01 (086c8944-…)
 -- KS examples: PUL82 / 0040009670 (e7f634f8-…)
+--
+-- net_line_simple = COALESCE(net_after_discount, line_total) — matches stored column when NAD is 0.
+-- net_line_economic = NULLIF(NAD,0) else line_total — flags invoice lines with NAD=0 but line_total>0.
+-- Org KPI (get_net_profit_kpis) uses full header allocation; neither column equals RPC line net exactly.
 
 -- =============================================================================
 -- A) Summary — how many lines are zero-net with COGS in period
@@ -79,7 +83,12 @@ line_base AS (
 line_net AS (
   SELECT
     lb.*,
-    COALESCE(lb.net_after_discount::numeric, lb.line_total, 0)::numeric AS net_line_simple
+    COALESCE(lb.net_after_discount::numeric, lb.line_total, 0)::numeric AS net_line_simple,
+    COALESCE(
+      NULLIF(lb.net_after_discount::numeric, 0),
+      NULLIF(lb.line_total, 0),
+      0
+    )::numeric AS net_line_economic
   FROM line_base lb
 ),
 sold_variants AS (
@@ -117,11 +126,23 @@ SELECT
   COUNT(*)::int AS sale_line_count,
   COUNT(*) FILTER (
     WHERE ABS(lc.net_line_simple) <= p.net_tolerance AND lc.cogs > 0
-  )::int AS zero_net_positive_cogs_lines,
+  )::int AS zero_net_simple_positive_cogs_lines,
+  COUNT(*) FILTER (
+    WHERE ABS(lc.net_line_economic) <= p.net_tolerance AND lc.cogs > 0
+  )::int AS zero_net_economic_positive_cogs_lines,
+  COUNT(*) FILTER (
+    WHERE COALESCE(lc.net_after_discount::numeric, 0) = 0
+      AND lc.line_total > p.net_tolerance
+      AND lc.cogs > 0
+  )::int AS nad_zero_line_total_positive_cogs_lines,
   ROUND(COALESCE(SUM(lc.cogs) FILTER (
     WHERE ABS(lc.net_line_simple) <= p.net_tolerance
-  ), 0)::numeric, 2) AS cogs_on_zero_net_lines,
+  ), 0)::numeric, 2) AS cogs_on_zero_net_simple_lines,
+  ROUND(COALESCE(SUM(lc.cogs) FILTER (
+    WHERE COALESCE(lc.net_after_discount::numeric, 0) = 0 AND lc.line_total > p.net_tolerance
+  ), 0)::numeric, 2) AS cogs_on_nad_zero_line_total_pos_lines,
   ROUND(COALESCE(SUM(lc.net_line_simple), 0)::numeric, 2) AS sum_net_simple_all_lines,
+  ROUND(COALESCE(SUM(lc.net_line_economic), 0)::numeric, 2) AS sum_net_economic_all_lines,
   ROUND(COALESCE(SUM(lc.cogs), 0)::numeric, 2) AS sum_cogs_all_lines
 FROM line_cogs lc
 CROSS JOIN params p
@@ -200,7 +221,12 @@ line_base AS (
 line_net AS (
   SELECT
     lb.*,
-    COALESCE(lb.net_after_discount::numeric, lb.line_total, 0)::numeric AS net_line_simple
+    COALESCE(lb.net_after_discount::numeric, lb.line_total, 0)::numeric AS net_line_simple,
+    COALESCE(
+      NULLIF(lb.net_after_discount::numeric, 0),
+      NULLIF(lb.line_total, 0),
+      0
+    )::numeric AS net_line_economic
   FROM line_base lb
 ),
 sold_variants AS (
@@ -244,6 +270,7 @@ SELECT
   lc.line_total,
   lc.net_after_discount,
   lc.net_line_simple,
+  lc.net_line_economic,
   lc.discount_share,
   lc.round_off_share,
   lc.header_gross,
@@ -251,11 +278,18 @@ SELECT
   lc.header_flat,
   lc.header_points,
   ROUND(lc.cogs, 2) AS cogs,
-  ROUND(lc.net_line_simple - lc.cogs, 2) AS line_gp_simple
+  ROUND(lc.net_line_simple - lc.cogs, 2) AS line_gp_simple,
+  ROUND(lc.net_line_economic - lc.cogs, 2) AS line_gp_economic
 FROM line_cogs lc
 CROSS JOIN params p
 JOIN public.organizations o ON o.id = p.org_id
-WHERE ABS(lc.net_line_simple) <= p.net_tolerance
-  AND lc.cogs > 0
+WHERE (
+    (ABS(lc.net_line_simple) <= p.net_tolerance AND lc.cogs > 0)
+    OR (
+      COALESCE(lc.net_after_discount::numeric, 0) = 0
+      AND lc.line_total > p.net_tolerance
+      AND lc.cogs > 0
+    )
+  )
 ORDER BY lc.cogs DESC, lc.sale_date DESC
 LIMIT 100;

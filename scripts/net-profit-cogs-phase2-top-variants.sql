@@ -6,7 +6,8 @@
 --   Ella Noor:   3fdca631-1e0c-4417-9704-421f5129ff67
 --   KS Footwear: 4bc73037-e877-4123-9261-eb6e3876698c
 --
--- Skips §5-full (often times out). Uses net_after_discount || line_total like §5-lite.
+-- Skips §5-full (often times out).
+-- net_sales = economic line net (NULLIF(NAD,0) else line_total); net_sales_simple = COALESCE(NAD, line_total).
 -- Purchase avg: RPC-style (all purchase_items rows for SKU) + org-bills-only for drift.
 
 WITH params AS (
@@ -38,7 +39,14 @@ by_variant AS (
   SELECT
     si.variant_id,
     SUM(COALESCE(si.quantity, 0))::numeric AS qty_sold,
-    SUM(COALESCE(si.net_after_discount::numeric, si.line_total, 0))::numeric AS net_sales
+    SUM(COALESCE(si.net_after_discount::numeric, si.line_total, 0))::numeric AS net_sales_simple,
+    SUM(
+      COALESCE(
+        NULLIF(si.net_after_discount::numeric, 0),
+        NULLIF(si.line_total, 0),
+        0
+      )
+    )::numeric AS net_sales
   FROM public.sale_items si
   JOIN period_sales ps ON ps.id = si.sale_id
   CROSS JOIN params p
@@ -50,7 +58,7 @@ by_variant AS (
 ),
 -- Limit purchase_items scan: variants with highest qty in period (COGS drivers)
 focus_variants AS (
-  SELECT variant_id, qty_sold, net_sales
+  SELECT variant_id, qty_sold, net_sales, net_sales_simple
   FROM by_variant
   ORDER BY qty_sold DESC
   LIMIT 150
@@ -89,6 +97,7 @@ SELECT
   pv.size,
   pv.color,
   fv.qty_sold,
+  ROUND(fv.net_sales_simple, 2) AS net_sales_simple,
   ROUND(fv.net_sales, 2) AS net_sales,
   ROUND(
     fv.qty_sold * COALESCE(
