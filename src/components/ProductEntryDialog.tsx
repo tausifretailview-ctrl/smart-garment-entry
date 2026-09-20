@@ -1266,7 +1266,11 @@ export const ProductEntryDialog = ({
     });
     setColorInput("");
     setMarkupPercent("");
-    setPricingDiscPercent("");
+    setPricingDiscPercent(
+      pricingSaleDiscPercentInputValue(
+        (lastProduct as { pricing_sale_disc_percent?: number | null }).pricing_sale_disc_percent,
+      ),
+    );
     setSelectedSizes([]);
     setDisabledSizes(new Set());
     setCustomSizes([]);
@@ -1377,7 +1381,7 @@ export const ProductEntryDialog = ({
   // Save current product details to localStorage for next time
   const saveLastProductDetails = () => {
     try {
-      const toStore: Partial<ProductForm> = {
+      const toStore: Partial<ProductForm> & { pricing_sale_disc_percent?: number | null } = {
         product_name: formData.product_name,
         category: formData.category,
         brand: formData.brand,
@@ -1392,6 +1396,10 @@ export const ProductEntryDialog = ({
         default_sale_price: formData.default_sale_price,
         default_mrp: formData.default_mrp,
         requires_imei: formData.requires_imei,
+        // Carried forward alongside MRP/Sale Price for consistent sequential
+        // entry — previously reset to blank here while the priced fields it
+        // derives from still carried over, which looked inconsistent.
+        pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
       };
       localStorage.setItem(LAST_PRODUCT_KEY, JSON.stringify(toStore));
       if (mobileERPMode?.enabled) {
