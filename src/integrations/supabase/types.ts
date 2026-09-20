@@ -9336,20 +9336,35 @@ export type Database = {
         Args: { p_draft_data: Json; p_product_id: string }
         Returns: boolean
       }
-      _get_customer_party_balances_rows: {
-        Args: { p_organization_id: string; p_search?: string }
-        Returns: {
-          out_advance_available: number
-          out_customer_id: string
-          out_customer_name: string
-          out_direction: string
-          out_net_position: number
-          out_net_receivable: number
-          out_signed_balance: number
-          out_total_cr: number
-          out_total_dr: number
-        }[]
-      }
+      _get_customer_party_balances_rows:
+        | {
+            Args: { p_organization_id: string }
+            Returns: {
+              out_advance_available: number
+              out_customer_id: string
+              out_customer_name: string
+              out_direction: string
+              out_net_position: number
+              out_net_receivable: number
+              out_signed_balance: number
+              out_total_cr: number
+              out_total_dr: number
+            }[]
+          }
+        | {
+            Args: { p_organization_id: string; p_search?: string }
+            Returns: {
+              out_advance_available: number
+              out_customer_id: string
+              out_customer_name: string
+              out_direction: string
+              out_net_position: number
+              out_net_receivable: number
+              out_signed_balance: number
+              out_total_cr: number
+              out_total_dr: number
+            }[]
+          }
       _get_customer_party_balances_rows_v2: {
         Args: { p_organization_id: string }
         Returns: {
@@ -9420,6 +9435,13 @@ export type Database = {
       _next_supplier_invoice_in_series: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      _org_sale_receipt_settlement_by_sale: {
+        Args: { p_organization_id: string }
+        Returns: {
+          sale_id: string
+          settled_amt: number
+        }[]
       }
       _org_sale_return_balance_remaining: {
         Args: { p_organization_id: string }
