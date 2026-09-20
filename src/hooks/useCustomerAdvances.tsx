@@ -139,50 +139,12 @@ export function useCustomerAdvances(organizationId: string | null) {
     },
   });
 
-  // Apply advance to an invoice (FIFO logic)
+  /** @deprecated Use consumeAdvanceFIFO — this path wrote used_amount without advance_adjustment vouchers. */
   const applyAdvance = useMutation({
-    mutationFn: async ({ customerId, amountToApply }: { customerId: string; amountToApply: number }) => {
-      // Get available advances in FIFO order
-      const { data: availableAdvances, error: fetchError } = await supabase
-        .from("customer_advances")
-        .select("*")
-        .eq("customer_id", customerId)
-        .eq("organization_id", organizationId!)
-        .in("status", ["active", "partially_used"])
-        .order("advance_date", { ascending: true });
-
-      if (fetchError) throw fetchError;
-
-      let remainingAmount = amountToApply;
-      const updates: { id: string; newUsedAmount: number; newStatus: string }[] = [];
-
-      for (const advance of availableAdvances || []) {
-        if (remainingAmount <= 0) break;
-
-        const available = advance.amount - advance.used_amount;
-        const toUse = Math.min(available, remainingAmount);
-
-        const newUsedAmount = advance.used_amount + toUse;
-        const newStatus = newUsedAmount >= advance.amount ? "fully_used" : "partially_used";
-
-        updates.push({ id: advance.id, newUsedAmount, newStatus });
-        remainingAmount -= toUse;
-      }
-
-      // Apply updates
-      for (const update of updates) {
-        const { error } = await supabase
-          .from("customer_advances")
-          .update({
-            used_amount: update.newUsedAmount,
-            status: update.newStatus,
-          })
-          .eq("id", update.id);
-
-        if (error) throw error;
-      }
-
-      return { appliedAmount: amountToApply - remainingAmount };
+    mutationFn: async (_params: { customerId: string; amountToApply: number }) => {
+      throw new Error(
+        "applyAdvance is disabled — use consumeAdvanceFIFO so advance_adjustment vouchers and used_amount stay in sync.",
+      );
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["customer-advances"] });

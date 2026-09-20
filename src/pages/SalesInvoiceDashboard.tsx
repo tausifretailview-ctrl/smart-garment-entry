@@ -107,8 +107,6 @@ import { InvoiceHistoryDialog } from "@/components/InvoiceHistoryDialog";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useCustomerAdvances } from "@/hooks/useCustomerAdvances";
-import { BulkAdvanceAdjustDialog } from "@/components/BulkAdvanceAdjustDialog";
-import { SettleCustomerAccountDialog } from "@/components/SettleCustomerAccountDialog";
 import { InvoiceDashboardBulkBar } from "@/components/sales-invoice-dashboard/InvoiceDashboardBulkBar";
 import {
   invoiceOutstandingAmount,
@@ -539,12 +537,6 @@ export default function SalesInvoiceDashboard() {
   const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(currentOrganization?.id || null);
   
   // Bulk advance adjust state
-  const [showBulkAdvanceDialog, setShowBulkAdvanceDialog] = useState(false);
-  const [bulkAdvanceCustomer, setBulkAdvanceCustomer] = useState<{ id: string; name: string } | null>(null);
-  const [bulkAdvanceBalance, setBulkAdvanceBalance] = useState<number>(0);
-  const [showSettleDialog, setShowSettleDialog] = useState(false);
-  const [settleCustomerId, setSettleCustomerId] = useState<string | null>(null);
-  const [settleCustomerName, setSettleCustomerName] = useState("");
 
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -1142,7 +1134,7 @@ export default function SalesInvoiceDashboard() {
   const showItemHsn = saleSettings?.show_item_hsn ?? false;
   const showItemMrp = saleSettings?.show_item_mrp ?? saleSettings?.show_mrp_column ?? false;
 
-  // Detect single filtered customer for bulk advance button
+  // Single customer on current page (KPI tooltip when search narrows to one party)
   const filteredCustomer = useMemo(() => {
     if (!debouncedSearch || !paginatedInvoices.length) return null;
     const customerIds = new Set(
@@ -1154,26 +1146,6 @@ export default function SalesInvoiceDashboard() {
     }
     return null;
   }, [debouncedSearch, paginatedInvoices]);
-
-  // Fetch combined advance + credit balance for filtered customer
-  useEffect(() => {
-    if (filteredCustomer?.id && currentOrganization?.id) {
-      const fetchCombinedBalance = async () => {
-        try {
-          const customerId = filteredCustomer.id;
-          const bookingBalance = await getAvailableAdvanceBalance(customerId);
-          // Only true unused advance bookings are spendable. Customer overpayments / refund liabilities
-          // must be returned via Refund or converted into an explicit Advance booking — not silently re-spent.
-          setBulkAdvanceBalance(bookingBalance);
-        } catch {
-          setBulkAdvanceBalance(0);
-        }
-      };
-      fetchCombinedBalance();
-    } else {
-      setBulkAdvanceBalance(0);
-    }
-  }, [filteredCustomer?.id, currentOrganization?.id, invoicesUpdatedAt]);
 
   // Stock restoration is now handled automatically by database triggers
   // No need for manual stock restoration code
@@ -4149,37 +4121,6 @@ export default function SalesInvoiceDashboard() {
                   </div>
                 </PopoverContent>
               </Popover>
-              {filteredCustomer && (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 text-sm border-emerald-400 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-medium gap-1.5 flex-shrink-0"
-                    onClick={() => {
-                      setSettleCustomerId(filteredCustomer.id);
-                      setSettleCustomerName(filteredCustomer.name || "");
-                      setShowSettleDialog(true);
-                    }}
-                  >
-                    <Receipt className="h-3.5 w-3.5" />
-                    Settle Account
-                  </Button>
-                  {bulkAdvanceBalance > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 text-sm border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium gap-1.5 flex-shrink-0"
-                      onClick={() => {
-                        setBulkAdvanceCustomer(filteredCustomer);
-                        setShowBulkAdvanceDialog(true);
-                      }}
-                    >
-                      <IndianRupee className="h-3.5 w-3.5" />
-                      Adjust Advance ₹{bulkAdvanceBalance.toLocaleString("en-IN")}
-                    </Button>
-                  )}
-                </>
-              )}
               <div id="erp-toolbar-portal" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             </div>
             <div className="flex-1 min-h-0 flex flex-col">
@@ -5446,38 +5387,6 @@ export default function SalesInvoiceDashboard() {
           </>
         )}
 
-        {/* Bulk Advance Adjust Dialog */}
-        {bulkAdvanceCustomer && (
-          <BulkAdvanceAdjustDialog
-            open={showBulkAdvanceDialog}
-            onOpenChange={setShowBulkAdvanceDialog}
-            customerId={bulkAdvanceCustomer.id}
-            customerName={bulkAdvanceCustomer.name}
-            organizationId={currentOrganization?.id || ""}
-            userId={user?.id}
-            onComplete={() => {
-              invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
-              // Re-fetch advance balance
-              if (filteredCustomer?.id) {
-                getAvailableAdvanceBalance(filteredCustomer.id).then(setBulkAdvanceBalance).catch(() => setBulkAdvanceBalance(0));
-              }
-            }}
-          />
-        )}
-
-        <SettleCustomerAccountDialog
-          open={showSettleDialog}
-          onOpenChange={setShowSettleDialog}
-          customerId={settleCustomerId}
-          customerName={settleCustomerName}
-          organizationId={currentOrganization?.id || ""}
-          onSuccess={() => {
-            setShowSettleDialog(false);
-            invalidateSalesQueriesNow(queryClient, currentOrganization?.id);
-            void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-            queryClient.invalidateQueries({ queryKey: ["sales-invoices"] });
-          }}
-        />
       </div>
   );
 }
