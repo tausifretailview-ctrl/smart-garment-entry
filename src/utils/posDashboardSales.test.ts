@@ -6,12 +6,14 @@ import {
   applyPosDashboardFilters,
   buildPosDashboardPaymentMethodOrFilter,
   buildPosDashboardSummaryScopeFilters,
+  computePosDashboardSummaryStats,
   patchPosDashboardSalePayment,
   posDashboardModeTotalsNeedCorrection,
   posDashboardSummaryLooksValid,
   posSaleMatchesCreditNoteDashboardFilter,
   reconcilePosDashboardUnpaidCounts,
   resolvePosDashboardVoucherLookbackFrom,
+  shouldRecomputePosDashboardBalanceFromRows,
   type PosDashboardFilters,
   type PosDashboardSummaryStats,
 } from "./posDashboardSales";
@@ -228,6 +230,68 @@ describe("POS dashboard mix / unpaid filters", () => {
       upiBillCount: 1,
     });
     expect(reconciled.pendingCount).toBe(1);
+  });
+
+  it("recomputes balance KPIs from rows when search narrows scope and RPC ignores at-sale cash", () => {
+    const filters: PosDashboardFilters = { ...baseFilters(), search: "shreevas" };
+    const rpcStats: PosDashboardSummaryStats = {
+      totalBills: 5,
+      totalQty: 14,
+      totalAmount: 44200,
+      totalDiscount: 9975,
+      netSale: 34350,
+      completedCount: 3,
+      completedAmount: 14000,
+      pendingCount: 2,
+      pendingAmount: 17250,
+      holdCount: 0,
+      holdAmount: 0,
+      refundCount: 0,
+      refundAmount: 0,
+      creditNoteCount: 0,
+      creditNoteAmount: 0,
+      totalCash: 8500,
+      totalCard: 8600,
+      totalUpi: 0,
+      totalBalance: 17250,
+      totalSaleReturnAdjust: 0,
+      totalRoundOff: 0,
+      cashBillCount: 4,
+      cardBillCount: 2,
+      upiBillCount: 0,
+    };
+    expect(shouldRecomputePosDashboardBalanceFromRows(filters, rpcStats)).toBe(true);
+
+    const stats = computePosDashboardSummaryStats([
+      {
+        net_amount: 17250,
+        paid_amount: 0,
+        payment_status: "partial",
+        payment_method: "multiple",
+        cash_amount: 1000,
+        card_amount: 0,
+        upi_amount: 0,
+        sale_return_adjust: 0,
+        gross_amount: 23000,
+        discount_amount: 5750,
+      },
+      {
+        net_amount: 3500,
+        paid_amount: 3500,
+        payment_status: "completed",
+        payment_method: "multiple",
+        cash_amount: 500,
+        card_amount: 3000,
+        upi_amount: 0,
+        sale_return_adjust: 0,
+        gross_amount: 3500,
+        discount_amount: 0,
+      },
+    ]);
+    expect(stats.totalBalance).toBe(16250);
+    expect(stats.pendingAmount).toBe(16250);
+    expect(stats.pendingCount).toBe(1);
+    expect(stats.completedCount).toBe(1);
   });
 
   it("detects when RPC mode totals need background correction", () => {
