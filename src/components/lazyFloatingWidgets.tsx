@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import type { ComponentProps, ComponentType } from "react";
 import { LazyChunkGate } from "@/components/LazyChunkGate";
+import { useChat } from "@/contexts/ChatContext";
 
 type PaymentsProps = ComponentProps<typeof import("@/components/FloatingPayments").FloatingPayments>;
 type CashTallyProps = ComponentProps<typeof import("@/components/FloatingCashTally").FloatingCashTally>;
@@ -110,8 +112,27 @@ export function LazyFloatingSaleReport(props: SaleReportProps) {
   );
 }
 
-/** Idle-mounted chat chrome — loading + Retry so a stale chunk is not a silent blank. */
+/**
+ * Deferred chat chrome — the actual open/close button lives in the sidebar
+ * (AppSidebar.tsx, via useChat().setIsOpen). This component's only job is
+ * to lazily mount the chat panel's code. It used to start that download
+ * eagerly on every page load ("idle-mounted"), which on a slow connection
+ * meant a "Loading chat…" card could silently compete for bandwidth and
+ * then pop in on whatever page the user had since navigated to.
+ * Now it only starts loading once the user actually opens the chat from
+ * the sidebar (isOpen becomes true for the first time), and stays mounted
+ * after that so closing/reopening doesn't reload it.
+ */
 export function LazyFloatingChatButton() {
+  const { isOpen } = useChat();
+  const [hasEverOpened, setHasEverOpened] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) setHasEverOpened(true);
+  }, [isOpen]);
+
+  if (!hasEverOpened) return null;
+
   return (
     <LazyChunkGate
       variant="corner"
