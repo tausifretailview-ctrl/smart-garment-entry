@@ -3243,26 +3243,39 @@ Thank you for choosing us!`;
         if (deleteError) throw deleteError;
 
         // Step 2: Insert updated sale items (triggers stock deduction)
-        const saleItems = filledItems.map(item => ({
-          sale_id: editingInvoiceId,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode || null,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.salePrice,
-          mrp: item.mrp,
-          discount_percent: saleItemDiscountPercentForPersist(
-            item.salePrice * getMtrMultiplier(item),
-            item.discountPercent,
-            item.discountAmount,
-          ),
-          gst_percent: item.gstPercent,
-          line_total: item.lineTotal,
-          hsn_code: item.hsnCode || null,
-        }));
+        const saleItems = filledItems.map(item => {
+          const itemGross = item.lineTotal;
+          const discountShare = persistedGrossAmount > 0
+            ? (itemGross / persistedGrossAmount) * (flatDiscountAmount || 0)
+            : 0;
+          const roundOffShare = persistedGrossAmount > 0
+            ? (itemGross / persistedGrossAmount) * (roundOff || 0)
+            : 0;
+          const netAfterDiscount = itemGross - discountShare + roundOffShare;
+          return {
+            sale_id: editingInvoiceId,
+            product_id: item.productId,
+            variant_id: item.variantId,
+            product_name: item.productName,
+            size: item.size,
+            barcode: item.barcode || null,
+            color: item.color || null,
+            quantity: item.quantity,
+            unit_price: item.salePrice,
+            mrp: item.mrp,
+            discount_percent: saleItemDiscountPercentForPersist(
+              item.salePrice * getMtrMultiplier(item),
+              item.discountPercent,
+              item.discountAmount,
+            ),
+            gst_percent: item.gstPercent,
+            line_total: item.lineTotal,
+            hsn_code: item.hsnCode || null,
+            discount_share: Math.round(discountShare * 100) / 100,
+            round_off_share: Math.round(roundOffShare * 100) / 100,
+            net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+          };
+        });
 
         let itemsError: unknown = null;
         try {
@@ -3455,26 +3468,39 @@ Thank you for choosing us!`;
           );
         }
 
-        const saleItems = filledItems.map(item => ({
-          sale_id: saleData.id,
-          product_id: item.productId,
-          variant_id: item.variantId,
-          product_name: item.productName,
-          size: item.size,
-          barcode: item.barcode || null,
-          color: item.color || null,
-          quantity: item.quantity,
-          unit_price: item.salePrice,
-          mrp: item.mrp,
-          discount_percent: saleItemDiscountPercentForPersist(
-            item.salePrice * getMtrMultiplier(item),
-            item.discountPercent,
-            item.discountAmount,
-          ),
-          gst_percent: item.gstPercent,
-          line_total: item.lineTotal,
-          hsn_code: item.hsnCode || null,
-        }));
+        const saleItems = filledItems.map(item => {
+          const itemGross = item.lineTotal;
+          const discountShare = persistedGrossAmount > 0
+            ? (itemGross / persistedGrossAmount) * (flatDiscountAmount || 0)
+            : 0;
+          const roundOffShare = persistedGrossAmount > 0
+            ? (itemGross / persistedGrossAmount) * (roundOff || 0)
+            : 0;
+          const netAfterDiscount = itemGross - discountShare + roundOffShare;
+          return {
+            sale_id: saleData.id,
+            product_id: item.productId,
+            variant_id: item.variantId,
+            product_name: item.productName,
+            size: item.size,
+            barcode: item.barcode || null,
+            color: item.color || null,
+            quantity: item.quantity,
+            unit_price: item.salePrice,
+            mrp: item.mrp,
+            discount_percent: saleItemDiscountPercentForPersist(
+              item.salePrice * getMtrMultiplier(item),
+              item.discountPercent,
+              item.discountAmount,
+            ),
+            gst_percent: item.gstPercent,
+            line_total: item.lineTotal,
+            hsn_code: item.hsnCode || null,
+            discount_share: Math.round(discountShare * 100) / 100,
+            round_off_share: Math.round(roundOffShare * 100) / 100,
+            net_after_discount: Math.round(netAfterDiscount * 100) / 100,
+          };
+        });
 
         await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
