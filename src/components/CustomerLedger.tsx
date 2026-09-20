@@ -1689,6 +1689,21 @@ export function CustomerLedger({
 
     const finalBalance = transactions[transactions.length - 1]?.balance ?? 0;
     const netInvoiced = grossInvoiced - invoiceCnApplied - saleReturns;
+    // Cap advance applied at what was genuinely ever available (booked minus
+    // refunded). used_amount on customer_advances rows is already correctly
+    // capped per-row (createAdvanceRefund / consumeAdvanceFIFO both enforce
+    // available = amount - used_amount), but a refund and a later invoice
+    // application can independently sum to more than the pool ever held in
+    // total — e.g. an advance refunded in full, then a *different* advance
+    // batch legitimately consumed, can still leave the raw voucher sum here
+    // exceeding (booked - refunded) in aggregate. Capping here keeps this
+    // reconciliation's Outstanding consistent with the raw transaction
+    // ledger above it (which already excludes advance_application rows from
+    // the running balance and is therefore immune to this drift).
+    const advanceAppliedCapped = Math.min(
+      advanceApplied,
+      Math.max(0, advanceCredit - advanceRefunded),
+    );
     const invoiceOutstanding = computeInvoiceOutstandingFromReconciliation({
       opening,
       grossInvoiced,
@@ -1696,7 +1711,7 @@ export function CustomerLedger({
       saleReturns,
       paymentsCash,
       paymentsDiscount,
-      advanceApplied,
+      advanceApplied: advanceAppliedCapped,
       adjustments,
       cnRefunded,
     });
@@ -1709,7 +1724,7 @@ export function CustomerLedger({
       paymentsCash,
       paymentsDiscount,
       invoiceCnApplied,
-      advanceApplied,
+      advanceApplied: advanceAppliedCapped,
       advanceCredit,
       advanceRefunded,
       cnRefunded,
