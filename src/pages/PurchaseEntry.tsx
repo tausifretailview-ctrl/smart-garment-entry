@@ -5327,10 +5327,14 @@ const PurchaseEntry = () => {
       return;
     }
 
+    let purchaseSavePhase = "validation";
+    const purchaseSaveStartedAt = Date.now();
+
     // Universal EAN: fork sibling SKU when bill line sale price tier differs from matched variant.
     let billLinesForSave = lineItems;
     const tierResolveOrgId = currentOrganization?.id;
     if (tierResolveOrgId) {
+      purchaseSavePhase = "price-tier-resolve";
       billLinesForSave = await resolvePurchaseLineItemsForPriceTiers(
         tierResolveOrgId,
         lineItems,
@@ -5995,6 +5999,7 @@ const PurchaseEntry = () => {
         }
 
         let billDataResult: any = null;
+        purchaseSavePhase = "save_purchase_bill_with_items_atomic";
         const { data: atomicBill, error: atomicError } = await (supabase as any).rpc(
           "save_purchase_bill_with_items_atomic",
           {
@@ -6009,6 +6014,7 @@ const PurchaseEntry = () => {
         } else if (atomicError && !isMissingAtomicSaveRpc(atomicError)) {
           throw atomicError;
         } else {
+          purchaseSavePhase = "create-legacy-chunked-insert";
           // Legacy fallback until migration is applied on the target Supabase project.
           const { data: newBillNo, error: billNoError } = await supabase.rpc(
             "generate_purchase_bill_number_atomic",
@@ -6316,6 +6322,12 @@ const PurchaseEntry = () => {
           organizationId: currentOrganization?.id,
           additionalContext: {
             lineItemsCount: lineItems.length,
+            totalQty: lineItems.reduce((sum, row) => sum + (Number(row.qty) || 0), 0),
+            importLineCount: lineItems.filter((row) =>
+              String((row as { temp_id?: string }).temp_id || "").startsWith("import_"),
+            ).length,
+            savePhase: purchaseSavePhase,
+            saveElapsedMs: Date.now() - purchaseSaveStartedAt,
             isEditMode,
             editingBillId,
             supplierInvoice: billData.supplier_invoice_no,
