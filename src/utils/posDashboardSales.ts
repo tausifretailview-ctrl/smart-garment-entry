@@ -22,6 +22,7 @@ import {
 } from "@/utils/customerBalanceUtils";
 import {
   getEffectivePaidAmountForPosDashboard,
+  getPosDashboardDisplayOutstanding,
   getPosPaymentModeDisplayAmounts,
   getPosSaleOutstandingBalance,
   isHoldLikePosSale,
@@ -1074,7 +1075,7 @@ export function computePosDashboardSummaryStats(
     ).length,
     pendingAmount: nonHoldSales
       .filter((sale) => !isPosSalePaidCompleted(sale))
-      .reduce((sum, sale) => sum + getPosSaleOutstandingBalance(sale), 0),
+      .reduce((sum, sale) => sum + getPosDashboardDisplayOutstanding(sale), 0),
     holdCount: holdSales.length,
     holdAmount: holdSales.reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
     refundCount: nonHoldSales.filter((sale) => Number((sale as { refund_amount?: number }).refund_amount || 0) > 0).length,
@@ -1116,7 +1117,7 @@ export function computePosDashboardSummaryStats(
       return { totalCash, totalCard, totalUpi, cashBillCount, cardBillCount, upiBillCount };
     })(),
     totalBalance: nonHoldSales.reduce(
-      (sum, sale) => sum + getPosSaleOutstandingBalance(sale),
+      (sum, sale) => sum + getPosDashboardDisplayOutstanding(sale),
       0,
     ),
     totalSaleReturnAdjust: nonHoldSales.reduce(
@@ -1291,6 +1292,62 @@ export function posDashboardModeTotalsNeedCorrection(stats: PosDashboardSummaryS
   return modeSum > stats.netSale + 1;
 }
 
+/** When true, re-scan sales and overlay balance KPIs with table-row settlement math. */
+export function shouldRecomputePosDashboardBalanceFromRows(
+  filters: PosDashboardFilters,
+  rpcStats: PosDashboardSummaryStats,
+): boolean {
+  if (rpcStats.pendingCount <= 0 || rpcStats.totalBalance <= 0.01) return false;
+  if (filters.customerId || filters.search.trim()) return true;
+  if (rpcStats.totalBills > 0 && rpcStats.totalBills <= 750) return true;
+  return false;
+}
+
+/**
+ * RPC outstanding can ignore at-sale tender when paid_amount lags (partial POS cash).
+ * Recompute balance / pending KPIs with the same helpers as table Balance column.
+ */
+async function reconcilePosDashboardSummaryBalanceFromScan(
+  client: SupabaseClient,
+  filters: PosDashboardFilters,
+  rpcStats: PosDashboardSummaryStats,
+): Promise<PosDashboardSummaryStats> {
+  if (!shouldRecomputePosDashboardBalanceFromRows(filters, rpcStats)) {
+    return rpcStats;
+  }
+
+  try {
+    const rows = await scanPosDashboardSummaryRows(
+      client,
+      filters,
+      POS_DASHBOARD_MODE_CORRECT_SELECT,
+    );
+    if (rows.length === 0) return rpcStats;
+
+    const balanceStats = computePosDashboardSummaryStats(rows);
+    if (
+      Math.abs(balanceStats.totalBalance - rpcStats.totalBalance) <= 0.01 &&
+      Math.abs(balanceStats.pendingAmount - rpcStats.pendingAmount) <= 0.01 &&
+      balanceStats.pendingCount === rpcStats.pendingCount &&
+      balanceStats.completedCount === rpcStats.completedCount
+    ) {
+      return rpcStats;
+    }
+
+    return {
+      ...rpcStats,
+      totalBalance: balanceStats.totalBalance,
+      pendingAmount: balanceStats.pendingAmount,
+      pendingCount: balanceStats.pendingCount,
+      completedCount: balanceStats.completedCount,
+      completedAmount: balanceStats.completedAmount,
+    };
+  } catch (err) {
+    console.warn("POS dashboard balance correction skipped:", err);
+    return rpcStats;
+  }
+}
+
 /**
  * Recompute cash/card/UPI totals when mix over-tender inflated RPC mode sums.
  * Call in a background query — can scan the full filtered range.
@@ -1323,14 +1380,24 @@ export async function fetchPosDashboardSummary(
     try {
       const rpcStats = await fetchPosDashboardSummaryViaRpc(client, summaryFilters);
       if (options?.correctModeTotals === false) {
-        return reconcilePosDashboardUnpaidCounts(rpcStats);
+        const balanceOnly = await reconcilePosDashboardSummaryBalanceFromScan(
+          client,
+          summaryFilters,
+          rpcStats,
+        );
+        return reconcilePosDashboardUnpaidCounts(balanceOnly);
       }
-      const corrected = await correctPosDashboardModeTotalsIfNeeded(
+      const modeCorrected = await correctPosDashboardModeTotalsIfNeeded(
         client,
         summaryFilters,
         rpcStats,
       );
-      return reconcilePosDashboardUnpaidCounts(corrected);
+      const balanceCorrected = await reconcilePosDashboardSummaryBalanceFromScan(
+        client,
+        summaryFilters,
+        modeCorrected,
+      );
+      return reconcilePosDashboardUnpaidCounts(balanceCorrected);
     } catch (err) {
       if (!isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })) {
         console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);
