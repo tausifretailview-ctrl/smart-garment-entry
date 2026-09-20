@@ -9337,7 +9337,7 @@ export type Database = {
         Returns: boolean
       }
       _get_customer_party_balances_rows: {
-        Args: { p_organization_id: string }
+        Args: { p_organization_id: string; p_search?: string }
         Returns: {
           out_advance_available: number
           out_customer_id: string
@@ -9954,7 +9954,7 @@ export type Database = {
         }[]
       }
       get_customer_party_balances: {
-        Args: { p_organization_id: string }
+        Args: { p_organization_id: string; p_search?: string }
         Returns: {
           advance_available: number
           customer_id: string
