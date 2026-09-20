@@ -1,7 +1,9 @@
+import type { QueryClient } from "@tanstack/react-query";
 import { facetsFromInvoiceOutstanding } from "@/utils/customerAccountFacets";
+import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
+import { supabase } from "@/integrations/supabase/client";
 import {
   fetchAllCustomerPartyBalances,
-  fetchAllCustomers,
   type CustomerPartyBalanceRpcRow,
 } from "@/utils/fetchAllRows";
 import { isStatementTimeout } from "@/utils/statementTimeout";
@@ -119,23 +121,55 @@ export async function enrichLedgerListRowsWithCanonicalBalance(
   });
 }
 
+export type BuildCustomerLedgerListOptions = {
+  /** Server-side name/phone filter (party RPC p_search). Min 2 chars from UI. */
+  search?: string | null;
+  /** Reuse org-ledger-customers cache from Accounts / Outstanding tabs. */
+  queryClient?: QueryClient;
+};
+
+async function fetchLedgerDirectoryCustomers(
+  organizationId: string,
+  search: string | null,
+  queryClient?: QueryClient,
+) {
+  if (search) {
+    const safe = search.replace(/[%_,()]/g, " ").trim();
+    const { data, error } = await supabase
+      .from("customers")
+      .select(
+        "id, customer_name, phone, email, gst_number, address, opening_balance, points_balance, discount_percent",
+      )
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .or(`customer_name.ilike.%${safe}%,phone.ilike.%${safe}%`)
+      .order("customer_name")
+      .limit(500);
+    if (error) throw error;
+    return data || [];
+  }
+  return fetchOrgLedgerCustomersReference(organizationId, queryClient);
+}
+
 /**
  * Fast customer list for Customer Ledger — one party-balances RPC + customer directory.
  * Replaces per-customer JS recompute from full-org sales/voucher crawls on initial paint.
  */
 export async function buildCustomerLedgerListFromPartyBalances(
   organizationId: string,
+  options?: BuildCustomerLedgerListOptions,
 ): Promise<CustomerLedgerListRow[]> {
-  const customers = await fetchAllCustomers(organizationId);
+  const serverSearch = options?.search?.trim() || null;
 
-  let partyRows: CustomerPartyBalanceRpcRow[] = [];
-  try {
-    partyRows = await fetchAllCustomerPartyBalances(organizationId);
-  } catch (error) {
-    // Large orgs (e.g. KS Footwear): party RPC can timeout while the customer
-    // directory is fine. Still return a searchable list (opening balance only).
-    if (!isStatementTimeout(error)) throw error;
-  }
+  const [customers, partyRowsResult] = await Promise.all([
+    fetchLedgerDirectoryCustomers(organizationId, serverSearch, options?.queryClient),
+    fetchAllCustomerPartyBalances(organizationId, serverSearch).catch((error) => {
+      if (isStatementTimeout(error)) return [] as CustomerPartyBalanceRpcRow[];
+      throw error;
+    }),
+  ]);
+
+  const partyRows = partyRowsResult;
 
   const partyByCustomer = new Map<string, CustomerPartyBalanceRpcRow>(
     partyRows.map((row) => [row.customer_id, row]),

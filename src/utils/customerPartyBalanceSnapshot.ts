@@ -4,9 +4,10 @@ import {
   facetsFromPartySignedBalance,
 } from "@/utils/customerAccountFacets";
 import {
+  customerPhoneMapFromDirectory,
   fetchAllCustomerPartyBalances,
   fetchAllCustomers,
-  fetchCustomerPhoneMap,
+  fetchCustomerPhonesByIds,
   type CustomerPartyBalanceRpcRow,
 } from "@/utils/fetchAllRows";
 import {
@@ -169,13 +170,51 @@ function alignedRowsFromCustomerDirectory(
   });
 }
 
+export type FetchCustomerPartyBalancesPayloadOptions = {
+  /** Server-side ILIKE on customer name/phone before balance aggregation. */
+  search?: string | null;
+};
+
 export async function fetchCustomerPartyBalancesPayload(
   organizationId: string,
+  options?: FetchCustomerPartyBalancesPayloadOptions,
 ): Promise<CustomerPartyBalancesPayload> {
-  const [phoneMap, customers] = await Promise.all([
-    fetchCustomerPhoneMap(organizationId),
-    fetchAllCustomers(organizationId),
-  ]);
+  const serverSearch = options?.search?.trim() || null;
+
+  if (serverSearch) {
+    try {
+      const partyRows = await fetchAllCustomerPartyBalances(organizationId, serverSearch);
+      const phoneMap = await fetchCustomerPhonesByIds(
+        organizationId,
+        partyRows.map((row) => row.customer_id),
+      );
+      return {
+        rows: alignedRowsFromPartyRpc(partyRows, phoneMap),
+        partyBalancesComplete: true,
+      };
+    } catch (error) {
+      if (!isStatementTimeout(error)) throw error;
+      const { data: customers, error: custError } = await supabase
+        .from("customers")
+        .select("id, customer_name, phone, opening_balance")
+        .eq("organization_id", organizationId)
+        .is("deleted_at", null)
+        .or(
+          `customer_name.ilike.%${serverSearch.replace(/[%_,()]/g, " ").trim()}%,phone.ilike.%${serverSearch.replace(/[%_,()]/g, " ").trim()}%`,
+        )
+        .order("customer_name")
+        .limit(500);
+      if (custError) throw custError;
+      const phoneMap = customerPhoneMapFromDirectory(customers || []);
+      return {
+        rows: alignedRowsFromCustomerDirectory(customers || [], phoneMap),
+        partyBalancesComplete: false,
+      };
+    }
+  }
+
+  const customers = await fetchAllCustomers(organizationId);
+  const phoneMap = customerPhoneMapFromDirectory(customers);
 
   try {
     const partyRows = await fetchAllCustomerPartyBalances(organizationId);

@@ -305,6 +305,14 @@ export function CustomerLedger({
   const embeddedSingleCustomer = embedMode && Boolean(preSelectedCustomerId);
   const [, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedListSearch, setDebouncedListSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedListSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const serverListSearch = debouncedListSearch.length >= 2 ? debouncedListSearch : null;
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(() => {
     if (embeddedSingleCustomer && preSelectedCustomerId && preSelectedCustomerName?.trim()) {
       return buildEmbeddedCustomerStub(
@@ -555,10 +563,14 @@ export function CustomerLedger({
       selectedAcademicYearId,
       startDate ? format(startDate, "yyyy-MM-dd") : null,
       endDate ? format(endDate, "yyyy-MM-dd") : null,
+      serverListSearch ?? "",
     ],
     queryFn: async () => {
       if (!isSchool) {
-        return buildCustomerLedgerListFromPartyBalances(organizationId);
+        return buildCustomerLedgerListFromPartyBalances(organizationId, {
+          search: serverListSearch,
+          queryClient,
+        });
       }
 
       // Fetch ALL customers using range pagination (bypasses 1000-row limit)
@@ -1302,21 +1314,39 @@ export function CustomerLedger({
     queryFn: async () => {
       if (!selectedCustomer) return [];
 
-      // Get all sales for this customer to get reference IDs
-      const { data: customerSales, error: salesError } = await supabase
-        .from("sales")
-        .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
-        .eq("customer_id", selectedCustomer.id)
-        .is("deleted_at", null)
-        .neq("payment_status", "hold")
-        .eq("is_cancelled", false);
+      let openingBalanceQuery = supabase
+        .from("voucher_entries")
+        .select("*")
+        .eq("reference_type", "customer")
+        .eq("reference_id", selectedCustomer.id)
+        .in("voucher_type", ["receipt", "payment"])
+        .is("deleted_at", null);
+
+      if (startDate) {
+        openingBalanceQuery = openingBalanceQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
+      }
+      if (endDate) {
+        openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
+      }
+
+      const [{ data: customerSales, error: salesError }, { data: openingBalancePayments, error: openingError }] =
+        await Promise.all([
+          supabase
+            .from("sales")
+            .select("id, sale_number, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_date, payment_method, payment_status, sale_return_adjust")
+            .eq("customer_id", selectedCustomer.id)
+            .is("deleted_at", null)
+            .neq("payment_status", "hold")
+            .eq("is_cancelled", false),
+          openingBalanceQuery.order("voucher_date", { ascending: false }),
+        ]);
 
       if (salesError) throw salesError;
+      if (openingError) throw openingError;
 
       const saleIds = customerSales?.map(s => s.id) || [];
       const saleMap = new Map(customerSales?.map(s => [s.id, s]) || []);
 
-      // Fetch voucher payments (recorded via Record Payment)
       let vouchersQuery = supabase
         .from("voucher_entries")
         .select("*")
@@ -1334,26 +1364,6 @@ export function CustomerLedger({
       const { data: vouchersData, error: vouchersError } = await vouchersQuery.order("voucher_date", { ascending: false });
 
       if (vouchersError) throw vouchersError;
-
-      // Fetch opening balance payments (reference_type = 'customer')
-      let openingBalanceQuery = supabase
-        .from("voucher_entries")
-        .select("*")
-        .eq("reference_type", "customer")
-        .eq("reference_id", selectedCustomer.id)
-        .in("voucher_type", ["receipt", "payment"])
-        .is("deleted_at", null);
-
-      if (startDate) {
-        openingBalanceQuery = openingBalanceQuery.gte("voucher_date", format(startDate, 'yyyy-MM-dd'));
-      }
-      if (endDate) {
-        openingBalanceQuery = openingBalanceQuery.lte("voucher_date", format(endDate, 'yyyy-MM-dd'));
-      }
-
-      const { data: openingBalancePayments, error: openingError } = await openingBalanceQuery.order("voucher_date", { ascending: false });
-
-      if (openingError) throw openingError;
 
       // Cash/card/UPI receipt totals only (exclude advance/CN memos) for residual at-sale.
       const voucherCashBySaleId: Record<string, number> = {};

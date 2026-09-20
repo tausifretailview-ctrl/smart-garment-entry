@@ -43,7 +43,9 @@ import { QuietRefreshHint } from "@/components/QuietRefreshBar";
 import { cn } from "@/lib/utils";
 import {
   fetchCustomerPartyBalancesPayload,
+  fetchCustomerPartyBalanceOrgWindow,
   enrichPartyRowsWithCanonicalBalance,
+  CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY,
   PARTY_BALANCE_CANONICAL_ENRICH_MAX,
   partyBalanceRowFacets,
   type CustomerPartyBalanceAlignedRow,
@@ -86,6 +88,14 @@ export default function CustomerPartyBalancesPage() {
   const { orgNavigate } = useOrgNavigation();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const serverSearch = debouncedSearch.length >= 2 ? debouncedSearch : null;
   const [showSettled, setShowSettled] = useState(false);
   const [directionFilter, setDirectionFilter] = useState<PartyDirectionFilter>("all");
   const [page, setPage] = useState(1);
@@ -129,22 +139,38 @@ export default function CustomerPartyBalancesPage() {
   const deferLedgerCustomerStub = ledgerOpeningBalance !== 0;
 
   const { data: partyPayload, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["customer-party-balances", orgId],
+    queryKey: ["customer-party-balances", orgId, serverSearch ?? ""],
     enabled: !!orgId,
     staleTime: 60_000,
-    queryFn: async () => fetchCustomerPartyBalancesPayload(orgId!),
+    queryFn: async () =>
+      fetchCustomerPartyBalancesPayload(orgId!, { search: serverSearch }),
+  });
+
+  const { data: orgWindowTotals } = useQuery({
+    queryKey: [CUSTOMER_PARTY_BALANCE_ORG_WINDOW_QUERY_KEY, orgId],
+    queryFn: () => fetchCustomerPartyBalanceOrgWindow(orgId!),
+    enabled: !!orgId && !!serverSearch,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const rows = partyPayload?.rows ?? [];
   const partyBalancesComplete = partyPayload?.partyBalancesComplete !== false;
 
   const { summary: orgReceivablesSummary } = useOrganizationReceivablesSummary(orgId, {
-    enabled: !!orgId && !partyBalancesComplete,
+    enabled: !!orgId && (!partyBalancesComplete || !!serverSearch),
   });
 
   /** Outstanding (unnetted) / Credit pool / Net — same facets as Customer Ledger. */
   const orgTotals = useMemo(() => {
-    if (!partyBalancesComplete) {
+    if (!partyBalancesComplete || serverSearch) {
+      if (serverSearch && orgWindowTotals) {
+        return {
+          totalOutstandingDr: orgReceivablesSummary.grossReceivableDr,
+          totalCreditPoolCr: orgReceivablesSummary.customerCreditPoolCr,
+          netReceivable: orgWindowTotals.netReceivable,
+        };
+      }
       return {
         totalOutstandingDr: orgReceivablesSummary.grossReceivableDr,
         totalCreditPoolCr: orgReceivablesSummary.customerCreditPoolCr,
@@ -158,7 +184,7 @@ export default function CustomerPartyBalancesPage() {
       totalCreditPoolCr: t.totalCreditPoolCr,
       netReceivable: t.netReceivable,
     };
-  }, [rows, partyBalancesComplete, orgReceivablesSummary]);
+  }, [rows, partyBalancesComplete, orgReceivablesSummary, serverSearch, orgWindowTotals]);
 
   const filteredRows = useMemo(
     () =>

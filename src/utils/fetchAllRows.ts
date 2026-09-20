@@ -56,17 +56,56 @@ export type CustomerPartyBalanceRpcRow = {
 /**
  * Fetch all rows from get_customer_party_balances (PostgREST default cap is 1000).
  */
+export function customerPhoneMapFromDirectory(
+  customers: ReadonlyArray<{ id: string; phone?: string | null }>,
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const row of customers) {
+    if (row.id) map.set(row.id, row.phone ?? "");
+  }
+  return map;
+}
+
+/** Phones for a bounded id set (search-scoped party rows). */
+export async function fetchCustomerPhonesByIds(
+  organizationId: string,
+  customerIds: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!organizationId || customerIds.length === 0) return map;
+
+  const uniqueIds = [...new Set(customerIds)];
+  const CHUNK = 200;
+  for (let i = 0; i < uniqueIds.length; i += CHUNK) {
+    const chunk = uniqueIds.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, phone")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .in("id", chunk);
+    if (error) throw error;
+    for (const row of data || []) {
+      if (row.id) map.set(row.id, row.phone ?? "");
+    }
+  }
+  return map;
+}
+
 export async function fetchAllCustomerPartyBalances(
   organizationId: string,
+  search?: string | null,
 ): Promise<CustomerPartyBalanceRpcRow[]> {
   const allRows: CustomerPartyBalanceRpcRow[] = [];
   let offset = 0;
   const pageSize = 1000;
+  const trimmedSearch = search?.trim() || null;
 
   while (true) {
     const { data, error } = await supabase
       .rpc("get_customer_party_balances", {
         p_organization_id: organizationId,
+        p_search: trimmedSearch,
       })
       .range(offset, offset + pageSize - 1);
 
