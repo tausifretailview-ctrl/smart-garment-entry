@@ -1,0 +1,9 @@
+-- Apply order (one file per Run in SQL editor):
+--   1. apply-guard-section-a-helpers.sql
+--   2. apply-guard-section-b-customer-advances-trigger.sql
+--   3. apply-guard-section-c-voucher-guard.sql   (retry alone if 40P01)
+--   4. supabase/migrations/20260920210000_customer_advances_used_within_amount_check.sql (quiet window)
+--
+-- Verify:
+--   SELECT proname FROM pg_proc WHERE proname LIKE '%customer_advance%'
+--     OR proname IN ('guard_customer_advances_used_amount', 'guard_advance_over_application');

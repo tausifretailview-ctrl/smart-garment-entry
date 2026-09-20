@@ -712,20 +712,6 @@ export function CustomerPaymentTab({
       const amountToApply = Math.min(advanceBalance, totalOutstanding);
       if (amountToApply <= 0) throw new Error("No advance balance to apply");
       
-      // FIFO advance consumption
-      const { data: availableAdvances } = await supabase
-        .from("customer_advances")
-        .select("*")
-        .eq("customer_id", referenceId)
-        .eq("organization_id", organizationId)
-        .in("status", ["active", "partially_used"])
-        .order("advance_date", { ascending: true });
-      const advanceSnapshots = (availableAdvances || []).map((a: any) => ({
-        id: a.id as string,
-        used_amount: Number(a.used_amount || 0),
-        status: String(a.status || "active"),
-      }));
-
       const { data: acctAdv } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
@@ -824,12 +810,6 @@ export function CustomerPaymentTab({
             .from("sales")
             .update({ paid_amount: s.prevPaid, payment_status: s.prevStatus })
             .eq("id", s.id);
-        }
-        for (const snap of advanceSnapshots) {
-          await supabase
-            .from("customer_advances")
-            .update({ used_amount: snap.used_amount, status: snap.status })
-            .eq("id", snap.id);
         }
         throw advErr;
       }

@@ -526,57 +526,54 @@ export async function consumeAdvanceFIFO(
 
   let remaining = room;
 
-  const { data: advances, error: fetchErr } = await supabase
-    .from("customer_advances")
-    .select("id, amount, used_amount, advance_number, status")
-    .eq("customer_id", params.customerId)
-    .eq("organization_id", params.organizationId)
-    .in("status", ["active", "partially_used"])
-    .order("advance_date", { ascending: true })
-    .order("created_at", { ascending: true });
-
-  if (fetchErr) throw fetchErr;
-  if (!advances?.length) return { consumed: 0, vouchers: [] };
-
   const voucherIds: string[] = [];
   const voucherDate = params.voucherDate || new Date().toISOString().split("T")[0];
 
-  for (const adv of advances) {
-    if (remaining <= 0.01) break;
-    const available = (Number(adv.amount) || 0) - (Number(adv.used_amount) || 0);
-    if (available <= 0.01) continue;
-
-    const consume = Math.min(available, remaining);
-    remaining -= consume;
-
-    const newUsed = (Number(adv.used_amount) || 0) + consume;
-    const advAmount = Number(adv.amount) || 0;
-    const { error: updErr } = await supabase
+  // One voucher per iteration; refetch after each INSERT so used_amount reflects
+  // trg_sync_customer_advances_used (single writer — no app-side used_amount bump).
+  while (remaining > 0.01) {
+    const { data: advances, error: fetchErr } = await supabase
       .from("customer_advances")
-      .update({
-        used_amount: newUsed,
-        status: newUsed >= advAmount - 0.01 ? "fully_used" : "partially_used",
-      })
-      .eq("id", adv.id);
-    if (updErr) throw updErr;
+      .select("id, amount, used_amount, advance_number, status")
+      .eq("customer_id", params.customerId)
+      .eq("organization_id", params.organizationId)
+      .in("status", ["active", "partially_used"])
+      .order("advance_date", { ascending: true })
+      .order("created_at", { ascending: true });
 
-    // OB description: never embed an invoice number (sync_sale_payment_status_from_receipts).
-    const description = targetOb
-      ? `Adjusted from advance balance for Opening Balance (advance ${adv.advance_number || adv.id})`
-      : `Adjusted from advance balance for invoice (advance ${adv.advance_number || adv.id})`;
+    if (fetchErr) throw fetchErr;
+    if (!advances?.length) break;
 
-    const voucher = await createReceiptVoucher(supabase, {
-      organizationId: params.organizationId,
-      referenceId: targetOb ? params.customerId : params.saleId!,
-      referenceType: targetOb ? "customer" : "sale",
-      amount: consume,
-      paymentMethod: "advance_adjustment",
-      description,
-      voucherDate,
-      shopName: params.shopName,
-      createdBy: params.createdBy,
-    });
-    voucherIds.push(voucher.id);
+    let consumedThisPass = false;
+    for (const adv of advances) {
+      if (remaining <= 0.01) break;
+      const available = (Number(adv.amount) || 0) - (Number(adv.used_amount) || 0);
+      if (available <= 0.01) continue;
+
+      const consume = Math.min(available, remaining);
+      remaining -= consume;
+      consumedThisPass = true;
+
+      const description = targetOb
+        ? `Adjusted from advance balance for Opening Balance (advance ${adv.advance_number || adv.id})`
+        : `Adjusted from advance balance for invoice (advance ${adv.advance_number || adv.id})`;
+
+      const voucher = await createReceiptVoucher(supabase, {
+        organizationId: params.organizationId,
+        referenceId: targetOb ? params.customerId : params.saleId!,
+        referenceType: targetOb ? "customer" : "sale",
+        amount: consume,
+        paymentMethod: "advance_adjustment",
+        description,
+        voucherDate,
+        shopName: params.shopName,
+        createdBy: params.createdBy,
+      });
+      voucherIds.push(voucher.id);
+      break;
+    }
+
+    if (!consumedThisPass) break;
   }
 
   return { consumed: room - remaining, vouchers: voucherIds };
