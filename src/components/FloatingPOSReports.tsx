@@ -725,40 +725,11 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
   const scanMatches = await searchQuickStockByBarcodeScan(orgId, term);
   if (scanMatches.length > 0) return excludeServiceVariants(scanMatches);
 
-  // 1) Exact barcode (scanner / numeric paste)
-  const exact = await supabase
-    .from("product_variants")
-    .select(QUICK_STOCK_VARIANT_SELECT)
-    .eq("organization_id", orgId)
-    .eq("products.organization_id", orgId)
-    .is("products.deleted_at", null)
-    .is("deleted_at", null)
-    .eq("active", true)
-    .neq("products.product_type", "service")
-    .eq("barcode", term)
-    .limit(50);
-  if (exact.data && exact.data.length > 0) return excludeServiceVariants(exact.data);
+  // 1) Exact barcode, 2) numeric partial barcode, and 3) product-name match each
+  // depend only on the input term, not on one another's results — run concurrently
+  // and apply the same priority (exact barcode > numeric partial > product match).
+  const isNumericPartialCandidate = /^\d{4,}$/.test(term);
 
-  // 2) Numeric partial barcode
-  if (/^\d{4,}$/.test(term)) {
-    const barcodeQ = await supabase
-      .from("product_variants")
-      .select(QUICK_STOCK_VARIANT_SELECT)
-      .eq("organization_id", orgId)
-      .eq("products.organization_id", orgId)
-      .is("products.deleted_at", null)
-      .is("deleted_at", null)
-      .eq("active", true)
-      .neq("products.product_type", "service")
-      .ilike("barcode", `%${safeTerm}%`)
-      .limit(200);
-    if (barcodeQ.data && barcodeQ.data.length > 0) {
-      return excludeServiceVariants(barcodeQ.data);
-    }
-  }
-
-  // 3) Product-level match → all variants (paginated). Prefer this over size/color
-  //    so a product code like FLK53 is never truncated by a 100-row variant OR.
   const tokens = safeTerm
     .toLowerCase()
     .split(/[\s-]+/)
@@ -768,25 +739,58 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
   const expanded = expandProductSearchTerms(primary);
   const productOr = buildProductTextOrFilter(expanded);
 
+  const [exact, numericPartial, prodQ] = await Promise.all([
+    supabase
+      .from("product_variants")
+      .select(QUICK_STOCK_VARIANT_SELECT)
+      .eq("organization_id", orgId)
+      .eq("products.organization_id", orgId)
+      .is("products.deleted_at", null)
+      .is("deleted_at", null)
+      .eq("active", true)
+      .neq("products.product_type", "service")
+      .eq("barcode", term)
+      .limit(50),
+    isNumericPartialCandidate
+      ? supabase
+          .from("product_variants")
+          .select(QUICK_STOCK_VARIANT_SELECT)
+          .eq("organization_id", orgId)
+          .eq("products.organization_id", orgId)
+          .is("products.deleted_at", null)
+          .is("deleted_at", null)
+          .eq("active", true)
+          .neq("products.product_type", "service")
+          .ilike("barcode", `%${safeTerm}%`)
+          .limit(200)
+      : Promise.resolve({ data: [] as any[] }),
+    productOr
+      ? supabase
+          .from("products")
+          .select("id, product_name, brand, category, style")
+          .eq("organization_id", orgId)
+          .is("deleted_at", null)
+          .neq("product_type", "service")
+          .or(productOr)
+          .limit(100)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
+
+  if (exact.data && exact.data.length > 0) return excludeServiceVariants(exact.data);
+
+  if (numericPartial.data && numericPartial.data.length > 0) {
+    return excludeServiceVariants(numericPartial.data);
+  }
+
+  // 3) Product-level match → all variants (paginated). Prefer this over size/color
+  //    so a product code like FLK53 is never truncated by a 100-row variant OR.
   let products: Array<{
     id: string;
     product_name?: string | null;
     brand?: string | null;
     category?: string | null;
     style?: string | null;
-  }> = [];
-
-  if (productOr) {
-    const prodQ = await supabase
-      .from("products")
-      .select("id, product_name, brand, category, style")
-      .eq("organization_id", orgId)
-      .is("deleted_at", null)
-      .neq("product_type", "service")
-      .or(productOr)
-      .limit(100);
-    products = prodQ.data || [];
-  }
+  }> = prodQ.data || [];
 
   // NOTE: no product-level AND-filter here. Colour and size live on
   // product_variants, so requiring every token to match product_name/brand/
