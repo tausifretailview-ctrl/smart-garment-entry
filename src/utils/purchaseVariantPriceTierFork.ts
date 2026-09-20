@@ -280,7 +280,8 @@ async function fetchSkuIdsWithPostedHistory(
       fetchInIdChunks(unique, async (chunk) => {
         const { data, error } = await supabase
           .from("purchase_items")
-          .select("sku_id")
+          .select("sku_id, purchase_bills!inner(organization_id)")
+          .eq("purchase_bills.organization_id", organizationId)
           .in("sku_id", chunk)
           .is("deleted_at", null);
         if (error) throw error;

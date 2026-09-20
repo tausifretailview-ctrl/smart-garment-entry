@@ -9,6 +9,10 @@ const migration = readFileSync(
   join(root, "supabase/migrations/20261208120000_purchase_line_barcode_match_existing_sku.sql"),
   "utf8",
 );
+const setBasedRematchMigration = readFileSync(
+  join(root, "supabase/migrations/20260920143000_purchase_atomic_save_set_based_rematch.sql"),
+  "utf8",
+);
 const rpcCaller = readFileSync(join(root, "src/pages/PurchaseEntry.tsx"), "utf8");
 const fork = readFileSync(join(root, "src/utils/purchaseVariantPriceTierFork.ts"), "utf8");
 
@@ -19,7 +23,10 @@ describe("purchase line barcode must match stocked item (server-side)", () => {
     expect(migration).toContain("line % barcode % differs from stocked item barcode");
     expect(migration).toContain("CREATE TRIGGER trg_purchase_item_match_existing_barcode");
     expect(migration).toContain("resolve_purchase_line_existing_barcode");
-    expect(migration).not.toMatch(/app\.bulk_purchase_insert.*RETURN NEW/);
+    expect(setBasedRematchMigration).toMatch(/app\.bulk_purchase_insert.*RETURN NEW/s);
+    expect(setBasedRematchMigration).not.toContain(
+      "CROSS JOIN LATERAL public.resolve_purchase_line_existing_barcode",
+    );
   });
 
   it("client save resolver rematches an incoming line barcode to the live item", () => {

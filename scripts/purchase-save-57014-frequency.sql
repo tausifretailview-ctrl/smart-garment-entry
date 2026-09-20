@@ -87,3 +87,11 @@ WHERE created_at >= TIMESTAMPTZ '2026-08-27 16:00:00+00'
     OR error_message ILIKE '%57014%'
     OR error_message ILIKE '%canceling statement due to statement timeout%'
   );
+
+-- 5) Row-level detail for a specific org (replace slug)
+-- SELECT created_at, error_code, LEFT(error_message, 240), additional_context
+-- FROM public.app_error_logs
+-- WHERE operation = 'purchase_bill_save'
+--   AND organization_id = (SELECT id FROM public.organizations WHERE slug = 'mumlove' LIMIT 1)
+--   AND (error_code = '57014' OR error_message ILIKE '%statement timeout%')
+-- ORDER BY created_at DESC LIMIT 20;
