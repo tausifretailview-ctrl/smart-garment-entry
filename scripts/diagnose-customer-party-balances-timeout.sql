@@ -5,9 +5,20 @@
 -- Prefer: SET statement_timeout = '120s';  (editor HTTP limit may still kill long ANALYZE)
 --
 -- KS Footwear (POS): 4bc73037-e877-4123-9261-eb6e3876698c
+-- After 20260920170000_voucher_reference_id_balance_perf.sql: block 2a is legacy-only;
+-- block 2b/2c reflect production grouped uuid joins.
 
 -- =============================================================================
--- 0) Volume (cheap — run first)
+-- 0) Volume + indexes (cheap — run first)
+-- =============================================================================
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename = 'voucher_entries'
+  AND indexdef ILIKE '%reference_id%';
+
+-- =============================================================================
+-- 0b) Volume counts
 -- =============================================================================
 SELECT
   (SELECT COUNT(*) FROM public.sales s
