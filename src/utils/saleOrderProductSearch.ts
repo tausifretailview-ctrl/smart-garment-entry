@@ -335,6 +335,7 @@ export async function searchSaleOrderVariants(
         .is("deleted_at", null)
         .eq("organization_id", orgId)
         .or(barcodeOrTerms)
+        .order("stock_qty", { ascending: false })
         .limit(50)
     : { data: [] as any[] };
 
@@ -354,6 +355,7 @@ export async function searchSaleOrderVariants(
         .is("deleted_at", null)
         .eq("organization_id", orgId)
         .in("product_id", chunk)
+        .order("stock_qty", { ascending: false })
         .limit(120);
       productVariants.push(...(data || []));
     }
@@ -376,6 +378,7 @@ export async function searchSaleOrderVariants(
         .is("deleted_at", null)
         .eq("organization_id", orgId)
         .or(fuzzyOr)
+        .order("stock_qty", { ascending: false })
         .limit(50);
       productVariants = fuzzyVariants || [];
     }
