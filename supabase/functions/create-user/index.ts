@@ -54,11 +54,17 @@ Deno.serve(async (req) => {
     if (!userId) throw new Error("User created but id missing from auth response")
 
     // Assign to org (POS UI role is stored as "user")
+    // p_caller_id is required here: this call goes through the SERVICE_ROLE
+    // client above, so there's no request JWT and auth.uid() inside the RPC
+    // would be NULL. Pass the already-JWT-verified caller explicitly so the
+    // RPC's own platform_admin check runs against the real caller instead
+    // of unconditionally failing.
     const effectiveRole = role === "pos" ? "user" : role
     const { error: assignErr } = await supabaseAdmin.rpc("platform_assign_user_to_org", {
       p_user_email: email,
       p_org_id: orgId,
       p_role: effectiveRole,
+      p_caller_id: caller.id,
     })
     if (assignErr) throw assignErr
 
