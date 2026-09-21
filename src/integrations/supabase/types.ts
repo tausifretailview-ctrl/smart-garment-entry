@@ -10787,6 +10787,7 @@ export type Database = {
       }
       platform_assign_user_to_org: {
         Args: {
+          p_caller_id?: string
           p_org_id: string
           p_role?: Database["public"]["Enums"]["app_role"]
           p_user_email: string
