@@ -45,5 +45,8 @@ describe("Gurukrupa POS A5 invoice", () => {
 
     expect(template).toContain("retailErpLineDisplayRate");
     expect(template).toContain("billedUnitRate = isGurukrupa");
+    expect(template).toMatch(/showSizeCol = .*!isGurukrupa/);
+    expect(template).toContain('label: "DIS"');
+    expect(template).toContain('key: "dis"');
   });
 });
