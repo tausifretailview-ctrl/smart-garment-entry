@@ -47,7 +47,9 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     const header = src("src/components/Header.tsx");
     expect(header).toContain("SizeStockDialog");
     expect(header).not.toContain("LazySizeStockDialog");
-    expect(header).toContain("LazyFloatingStockReport");
+    expect(header).toMatch(/from "@\/components\/FloatingStockReport"/);
+    expect(header).toContain("FloatingStockReport");
+    expect(header).not.toContain("LazyFloatingStockReport");
     expect(header).toContain("LazyFloatingSaleReport");
     const pos = src("src/components/POSLayout.tsx");
     expect(pos).toContain("LazyFloatingPayments");
@@ -55,6 +57,8 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     const widgets = src("src/components/lazyFloatingWidgets.tsx");
     expect(widgets).not.toContain("SizeStockDialog");
     expect(widgets).not.toContain("LazySizeStockDialog");
+    expect(widgets).not.toContain("FloatingStockReport");
+    expect(widgets).not.toContain("LazyFloatingStockReport");
   });
 
   it("Layout shells lazy-load chat (drops dompurify from erpBootstrap)", () => {

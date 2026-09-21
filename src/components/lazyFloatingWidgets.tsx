@@ -5,9 +5,6 @@ import { useChat } from "@/contexts/ChatContext";
 
 type PaymentsProps = ComponentProps<typeof import("@/components/FloatingPayments").FloatingPayments>;
 type CashTallyProps = ComponentProps<typeof import("@/components/FloatingCashTally").FloatingCashTally>;
-type StockReportProps = ComponentProps<
-  typeof import("@/components/FloatingPOSReports").FloatingStockReport
->;
 type SaleReportProps = ComponentProps<typeof import("@/components/FloatingPOSReports").FloatingSaleReport>;
 
 type OpenProps = { open: boolean; onOpenChange: (open: boolean) => void };
@@ -17,9 +14,6 @@ const loadFloatingPayments = () =>
 
 const loadFloatingCashTally = () =>
   import("@/components/FloatingCashTally").then((m) => ({ default: m.FloatingCashTally }));
-
-const loadFloatingStockReport = () =>
-  import("@/components/FloatingPOSReports").then((m) => ({ default: m.FloatingStockReport }));
 
 const loadFloatingSaleReport = () =>
   import("@/components/FloatingPOSReports").then((m) => ({ default: m.FloatingSaleReport }));
@@ -81,19 +75,6 @@ export function LazyFloatingCashTally(props: CashTallyProps) {
       title="Cash tally"
       loadingMessage="Loading cash tally…"
       errorTitle="Could not open cash tally"
-      componentProps={props}
-    />
-  );
-}
-
-export function LazyFloatingStockReport(props: StockReportProps) {
-  return (
-    <OpenDialogGate
-      open={props.open}
-      loader={loadFloatingStockReport}
-      title="Quick stock"
-      loadingMessage="Loading stock report…"
-      errorTitle="Could not open stock report"
       componentProps={props}
     />
   );
