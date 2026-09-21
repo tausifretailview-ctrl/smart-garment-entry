@@ -52,8 +52,37 @@ const VASTRAKALA_DEFAULT_TERMS = [
 
 const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
 
-function layoutForPaper(paper: PosThermalPaper) {
+/** Line 1 = segment before first '-'; line 2 = rest (+ optional notes) on one row. */
+export function splitVastrakalaParticulars(
+  particulars: string,
+  itemNotes?: string,
+): { head: string; detailLine: string } {
+  const raw = (particulars || "").trim();
+  const notes = (itemNotes || "").trim();
+  if (!raw) {
+    return { head: "", detailLine: notes };
+  }
+  const dash = raw.indexOf("-");
+  if (dash <= 0) {
+    return { head: raw, detailLine: notes };
+  }
+  const head = raw.slice(0, dash).trim();
+  let detailLine = raw.slice(dash + 1).trim();
+  if (notes && !detailLine.includes(notes)) {
+    detailLine = detailLine ? `${detailLine} ${notes}` : notes;
+  }
+  return { head, detailLine };
+}
+
+function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
   const is58 = paper === "58mm";
+  const itemGridColumns = showMrp
+    ? is58
+      ? "4mm minmax(0, 1fr) 7mm 14mm 17mm"
+      : "5mm minmax(0, 1fr) 8mm 18mm 22mm"
+    : is58
+      ? "4mm minmax(0, 1fr) 7mm 17mm"
+      : "5mm minmax(0, 1fr) 8mm 22mm";
   return {
     paperWidth: is58 ? "48mm" : "76mm",
     padding: is58 ? "1.5mm 1mm" : "2mm 1.5mm",
@@ -62,8 +91,15 @@ function layoutForPaper(paper: PosThermalPaper) {
     subFont: is58 ? "10px" : "13px",
     netFont: is58 ? "13px" : "16px",
     logoMax: is58 ? "14mm" : "20mm",
+    itemGridColumns,
   };
 }
+
+const itemNumStyle: React.CSSProperties = {
+  textAlign: "right",
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
+};
 
 export const VastrakalaThermalReceipt80mm = React.forwardRef<
   HTMLDivElement,
@@ -90,7 +126,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     thermalPaper = "80mm",
     showMrp = true,
   } = props;
-  const layout = useMemo(() => layoutForPaper(thermalPaper), [thermalPaper]);
+  const layout = useMemo(() => layoutForPaper(thermalPaper, showMrp), [thermalPaper, showMrp]);
   const { data: orgSettings } = useSettings();
   const [settings, setSettings] = useState<Record<string, unknown> | null>(null);
 
@@ -225,49 +261,62 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       <div style={dashed} />
 
       <div
+        className="vk-items-head"
         style={{
           display: "grid",
-          gridTemplateColumns: showMrp ? "7mm 1fr 9mm 15mm 17mm" : "7mm 1fr 9mm 17mm",
-          columnGap: "1mm",
+          gridTemplateColumns: layout.itemGridColumns,
+          columnGap: "0.8mm",
           fontWeight: 800,
         }}
       >
         <span>NO</span>
         <span>PARTICULARS</span>
-        <span style={{ textAlign: "right" }}>QTY</span>
-        {showMrp ? <span style={{ textAlign: "right" }}>MRP</span> : null}
-        <span style={{ textAlign: "right" }}>AMOUNT</span>
+        <span style={itemNumStyle}>QTY</span>
+        {showMrp ? <span style={itemNumStyle}>MRP</span> : null}
+        <span style={itemNumStyle}>AMOUNT</span>
       </div>
       <div style={dashed} />
-      {items.map((item, i) => (
-        <div
-          key={i}
-          style={{
-            display: "grid",
-            gridTemplateColumns: showMrp ? "7mm 1fr 9mm 15mm 17mm" : "7mm 1fr 9mm 17mm",
-            columnGap: "1mm",
-            alignItems: "start",
-            marginBottom: 2,
-            fontWeight: 700,
-          }}
-        >
-          <span>{item.sr ?? i + 1}</span>
-          <span style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
-            {item.particulars}
-            {item.itemNotes?.trim() ? (
-              <>
-                <br />
-                {item.itemNotes.trim()}
-              </>
+      {items.map((item, i) => {
+        const { head, detailLine } = splitVastrakalaParticulars(item.particulars, item.itemNotes);
+        const qtyCol = 3;
+        const mrpCol = 4;
+        const amtCol = showMrp ? 5 : 4;
+        const rowSpan = detailLine ? ("1 / span 2" as const) : undefined;
+        return (
+          <div
+            key={i}
+            className="vk-items-row"
+            style={{
+              display: "grid",
+              gridTemplateColumns: layout.itemGridColumns,
+              columnGap: "0.8mm",
+              alignItems: "start",
+              marginBottom: 3,
+              fontWeight: 700,
+            }}
+          >
+            <span style={{ gridColumn: 1, gridRow: rowSpan }}>{item.sr ?? i + 1}</span>
+            <span style={{ gridColumn: 2, gridRow: 1, minWidth: 0, lineHeight: 1.15 }}>
+              {head || item.particulars}
+            </span>
+            {detailLine ? (
+              <span
+                className="vk-item-detail"
+                style={{ gridColumn: 2, gridRow: 2, minWidth: 0, lineHeight: 1.15 }}
+              >
+                {detailLine}
+              </span>
             ) : null}
-          </span>
-          <span style={{ textAlign: "right" }}>{item.qty}</span>
-          {showMrp ? (
-            <span style={{ textAlign: "right" }}>{fmtDec(Number(item.mrp) || Number(item.rate) || 0)}</span>
-          ) : null}
-          <span style={{ textAlign: "right" }}>{fmtDec(item.total)}</span>
-        </div>
-      ))}
+            <span style={{ ...itemNumStyle, gridColumn: qtyCol, gridRow: rowSpan }}>{item.qty}</span>
+            {showMrp ? (
+              <span style={{ ...itemNumStyle, gridColumn: mrpCol, gridRow: rowSpan }}>
+                {fmtDec(Number(item.mrp) || Number(item.rate) || 0)}
+              </span>
+            ) : null}
+            <span style={{ ...itemNumStyle, gridColumn: amtCol, gridRow: rowSpan }}>{fmtDec(item.total)}</span>
+          </div>
+        );
+      })}
 
       <div style={dashed} />
 
