@@ -48,5 +48,7 @@ describe("Gurukrupa POS A5 invoice", () => {
     expect(template).toMatch(/showSizeCol = .*!isGurukrupa/);
     expect(template).toContain('label: "SP"');
     expect(template).toContain('key: "salePrice"');
+    expect(template).toContain("isGurukrupa && showQtyCol");
+    expect(template).toMatch(/isGurukrupa\s*\?\s*"13%"/);
   });
 });
