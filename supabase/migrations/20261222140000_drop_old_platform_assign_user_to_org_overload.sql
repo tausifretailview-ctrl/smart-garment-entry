@@ -1,0 +1,14 @@
+-- 20261222130000 added platform_assign_user_to_org(text, uuid, app_role, uuid)
+-- via CREATE OR REPLACE FUNCTION. Because Postgres identifies a function by
+-- name + argument types, that did NOT replace the original
+-- platform_assign_user_to_org(text, uuid, app_role) — it created a second,
+-- overloaded function alongside it. With both signatures live (each having
+-- defaults for their trailing params), a call like
+--   platform_assign_user_to_org(p_user_email => ..., p_org_id => ..., p_role => ...)
+-- became ambiguous: Postgres can't tell whether to use the 3-arg original
+-- or the 4-arg version with p_caller_id defaulted, and raises
+-- "Could not choose the best candidate function between: ...".
+--
+-- Drop the original 3-arg overload so only the corrected 4-arg version
+-- (with the p_caller_id fix from 20261222130000) remains.
+DROP FUNCTION IF EXISTS public.platform_assign_user_to_org(text, uuid, app_role);
