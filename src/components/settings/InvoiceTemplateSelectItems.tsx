@@ -55,6 +55,12 @@ export function InvoiceTemplateSelectItems({
           Trendzo POS — Professional 80mm retail receipt
         </span>
       </SelectItem>
+      <SelectItem value="vastrakala-80mm">
+        <span className="flex items-center gap-2">
+          <span className="text-rose-700 font-bold text-xs w-5">VK</span>
+          Vastrakala — Ladies Wear 80mm (MRP &amp; Discount)
+        </span>
+      </SelectItem>
     </SelectGroup>
   );
 

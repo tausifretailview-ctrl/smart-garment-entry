@@ -3447,6 +3447,8 @@ export default function Settings() {
                         ? 'Kids 80mm prints on 80mm thermal roll — product name, size, qty, sale price, MRP total, fixed footer & terms.'
                         : settings.sale_settings?.invoice_template === 'kids-camp-80mm'
                         ? 'Kids Camp prints on 80mm thermal roll — boxed GST invoice with barcode/HSN, cash/card/Paytm split, and 5%/18%/28% tax table.'
+                        : settings.sale_settings?.invoice_template === 'vastrakala-80mm'
+                        ? 'Vastrakala prints on 80mm thermal roll — logo, shop name, Instagram, NO/Particulars/Qty/MRP/Amount table, Tot Qty, Total Amt, MRP-based Discount, Net Amt, and terms. Toggle Show MRP Column above to turn the MRP/Discount figures on or off.'
                         : settings.sale_settings?.invoice_template === 'retail-erp-dc'
                           ? 'Retail ERP style DC matches Retail ERP layout without HSN, organization GSTIN, customer GSTIN, or GST tax lines. Title prints as Delivery Challan (A5).'
                         : settings.sale_settings?.invoice_template === 'zaika'
