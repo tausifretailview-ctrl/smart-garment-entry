@@ -54,6 +54,8 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
     body .kids-thermal-receipt-80mm *,
     body .kids-camp-thermal-receipt-80mm,
     body .kids-camp-thermal-receipt-80mm *,
+    body .vastrakala-thermal-receipt-80mm,
+    body .vastrakala-thermal-receipt-80mm *,
     body .credit-note-print-source,
     body .credit-note-print-source *,
     body .credit-note-print,
@@ -73,8 +75,8 @@ export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = INVOICE_PRINT_VISIB
 /** Override global index.css / InvoicePrint.css page-break rules on thermal receipts. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   @media print {
-    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm),
-    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm) *,
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm, .vastrakala-thermal-receipt-80mm),
+    .invoice-print-root:has(.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm, .vastrakala-thermal-receipt-80mm) *,
     .print-thermal,
     .thermal-print-80mm,
     .thermal-receipt-container,
@@ -83,11 +85,13 @@ export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
     .modern-thermal-receipt,
     .kids-thermal-receipt-80mm,
     .kids-camp-thermal-receipt-80mm,
+    .vastrakala-thermal-receipt-80mm,
     .thermal-print-80mm *,
     .thermal-receipt-container *,
     .modern-thermal-receipt *,
     .kids-thermal-receipt-80mm *,
     .kids-camp-thermal-receipt-80mm *,
+    .vastrakala-thermal-receipt-80mm *,
     .invoice-print.invoice-format-thermal-receipt * {
       page-break-inside: auto !important;
       break-inside: auto !important;
@@ -149,6 +153,7 @@ export function buildThermalReceiptPrintCss(
   .modern-thermal-receipt,
   .kids-thermal-receipt-80mm,
   .kids-camp-thermal-receipt-80mm,
+  .vastrakala-thermal-receipt-80mm,
   .tvs-thermal-receipt-80mm {
     width: ${contentWidth} !important;
     max-width: ${contentWidth} !important;
@@ -166,8 +171,16 @@ export function buildThermalReceiptPrintCss(
     font-family: "Courier New", Courier, monospace !important;
     font-weight: 700 !important;
   }
+  .vastrakala-thermal-receipt-80mm {
+    width: ${paper === '58mm' ? '48mm' : '76mm'} !important;
+    max-width: ${paper === '58mm' ? '48mm' : '76mm'} !important;
+    font-family: "Arial Black", Arial, Helvetica, sans-serif !important;
+    font-size: ${paper === '58mm' ? '11px' : '14px'} !important;
+    font-weight: 700 !important;
+  }
   .kids-thermal-receipt-80mm[data-thermal-paper="58mm"],
   .kids-camp-thermal-receipt-80mm[data-thermal-paper="58mm"],
+  .vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"],
   .thermal-print-80mm[data-thermal-paper="58mm"] {
     width: 48mm !important;
     max-width: 48mm !important;
@@ -177,7 +190,8 @@ export function buildThermalReceiptPrintCss(
   }
   .thermal-print-80mm *,
   .kids-thermal-receipt-80mm *,
-  .kids-camp-thermal-receipt-80mm * {
+  .kids-camp-thermal-receipt-80mm *,
+  .vastrakala-thermal-receipt-80mm * {
     box-sizing: border-box !important;
   }
   .kids-thermal-receipt-80mm .kids-thermal-particulars {
@@ -223,7 +237,7 @@ export function receiptElectronPageSizeMicrons(
 }
 
 export function isThermalReceiptHtml(html: string): boolean {
-  return /thermal-print-80mm|thermal-receipt-container|modern-thermal-receipt|kids-thermal-receipt-80mm|kids-camp-thermal-receipt-80mm/i.test(
+  return /thermal-print-80mm|thermal-receipt-container|modern-thermal-receipt|kids-thermal-receipt-80mm|kids-camp-thermal-receipt-80mm|vastrakala-thermal-receipt-80mm/i.test(
     html,
   );
 }

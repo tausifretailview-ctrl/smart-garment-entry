@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
+import "@/styles/vastrakala-thermal-receipt.css";
 
 export interface VastrakalaThermalItem {
   sr?: number;
@@ -54,12 +55,13 @@ const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00
 function layoutForPaper(paper: PosThermalPaper) {
   const is58 = paper === "58mm";
   return {
-    paperWidth: is58 ? "48mm" : "72mm",
-    padding: is58 ? "1.5mm 1mm" : "2mm 2.5mm",
-    baseFont: is58 ? "10px" : "12px",
-    headerFont: is58 ? "14px" : "17px",
-    subFont: is58 ? "9px" : "11px",
-    logoMax: is58 ? "14mm" : "18mm",
+    paperWidth: is58 ? "48mm" : "76mm",
+    padding: is58 ? "1.5mm 1mm" : "2mm 1.5mm",
+    baseFont: is58 ? "11px" : "14px",
+    headerFont: is58 ? "16px" : "20px",
+    subFont: is58 ? "10px" : "13px",
+    netFont: is58 ? "13px" : "16px",
+    logoMax: is58 ? "14mm" : "20mm",
   };
 }
 
@@ -149,9 +151,10 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     padding: layout.padding,
     backgroundColor: "#fff",
     color: "#000",
-    fontFamily: "'Courier New', Courier, monospace",
+    fontFamily: "'Arial Black', Arial, Helvetica, sans-serif",
     fontSize: layout.baseFont,
-    lineHeight: 1.25,
+    fontWeight: 700,
+    lineHeight: 1.22,
     letterSpacing: 0,
     boxSizing: "border-box",
     WebkitPrintColorAdjust: "exact",
@@ -187,24 +190,24 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             }}
           />
         ) : null}
-        <div style={{ fontWeight: 700, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
+        <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
           {businessName}
         </div>
-        <div style={{ fontWeight: 600, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}>
           LADIES WEAR
         </div>
         {address ? (
-          <div style={{ fontWeight: 400, whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
+          <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
         ) : null}
-        {mobile ? <div style={{ fontWeight: 400 }}>CONTACT : {mobile}</div> : null}
+        {mobile ? <div style={{ fontWeight: 700 }}>CONTACT : {mobile}</div> : null}
         {instagramHandle ? (
-          <div style={{ fontWeight: 400, marginTop: 1 }}>{instagramHandle}</div>
+          <div style={{ fontWeight: 700, marginTop: 1 }}>{instagramHandle}</div>
         ) : null}
       </div>
 
       <div style={dashed} />
 
-      <div>
+      <div style={{ fontWeight: 700 }}>
         <div>
           NAME: {(customerName || "CASH").toUpperCase()}
           {customerPhone?.trim() ? `-${customerPhone.trim()}` : ""}
@@ -224,9 +227,9 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: showMrp ? "6mm 1fr 8mm 14mm 16mm" : "6mm 1fr 8mm 16mm",
+          gridTemplateColumns: showMrp ? "7mm 1fr 9mm 15mm 17mm" : "7mm 1fr 9mm 17mm",
           columnGap: "1mm",
-          fontWeight: 700,
+          fontWeight: 800,
         }}
       >
         <span>NO</span>
@@ -241,10 +244,11 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           key={i}
           style={{
             display: "grid",
-            gridTemplateColumns: showMrp ? "6mm 1fr 8mm 14mm 16mm" : "6mm 1fr 8mm 16mm",
+            gridTemplateColumns: showMrp ? "7mm 1fr 9mm 15mm 17mm" : "7mm 1fr 9mm 17mm",
             columnGap: "1mm",
             alignItems: "start",
             marginBottom: 2,
+            fontWeight: 700,
           }}
         >
           <span>{item.sr ?? i + 1}</span>
@@ -267,7 +271,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700 }}>
         <div>
           <div>Tot.QTY : {totalQty}</div>
           {paymentLines.map((line) => (
@@ -281,20 +285,22 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           {mrpDiscount > 0 ? <div>DISCOUNT : {fmtDec(mrpDiscount)}</div> : null}
           {saleReturnAdjust > 0 ? <div>S/R : {fmtDec(saleReturnAdjust)}</div> : null}
           {roundOff !== 0 ? <div>ROUND : {fmtDec(roundOff)}</div> : null}
-          <div style={{ fontWeight: 700 }}>NET AMT. : {fmtDec(grandTotal)}</div>
+          <div className="vk-net-amt" style={{ fontWeight: 900, fontSize: layout.netFont }}>
+            NET AMT. : {fmtDec(grandTotal)}
+          </div>
         </div>
       </div>
 
       <div style={dashed} />
 
-      <div>
-        <div style={{ fontWeight: 700 }}>TERMS:</div>
+      <div style={{ fontWeight: 700 }}>
+        <div style={{ fontWeight: 800 }}>TERMS:</div>
         {termsToPrint.map((term) => (
           <div key={term}>* {term}</div>
         ))}
       </div>
 
-      <div style={{ textAlign: "center", fontWeight: 700, marginTop: 6 }}>
+      <div style={{ textAlign: "center", fontWeight: 900, marginTop: 6, fontSize: layout.subFont }}>
         THANK YOU !!! VISIT AGAIN !!!
       </div>
     </div>

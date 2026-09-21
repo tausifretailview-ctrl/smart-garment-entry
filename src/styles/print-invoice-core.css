@@ -613,19 +613,35 @@
   .invoice-print-source.thermal-paper-58 .kids-thermal-receipt-80mm,
   .invoice-print-source.thermal-paper-58 .kids-camp-thermal-receipt-80mm,
   .invoice-print-source.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
+  .invoice-print-source.thermal-paper-58 .vastrakala-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .thermal-print-80mm,
   .print-dialog.thermal-paper-58 .thermal-receipt-container,
   .print-dialog.thermal-paper-58 .modern-thermal-receipt,
   .print-dialog.thermal-paper-58 .kids-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .kids-camp-thermal-receipt-80mm,
-  .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm {
+  .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
+  .print-dialog.thermal-paper-58 .vastrakala-thermal-receipt-80mm {
     width: 48mm !important;
     max-width: 48mm !important;
     font-size: 10px !important;
   }
 
+  .vastrakala-thermal-receipt-80mm.thermal-print-80mm,
+  .vastrakala-thermal-receipt-80mm.thermal-receipt-container {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 2mm 1.5mm !important;
+    font-family: "Arial Black", Arial, Helvetica, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    -webkit-font-smoothing: antialiased !important;
+    letter-spacing: 0 !important;
+  }
+
   .invoice-print-source.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
-  .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm {
+  .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
+  .invoice-print-source.thermal-paper-58 .vastrakala-thermal-receipt-80mm,
+  .print-dialog.thermal-paper-58 .vastrakala-thermal-receipt-80mm {
     font-size: 11px !important;
   }
 

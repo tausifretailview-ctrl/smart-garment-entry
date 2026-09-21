@@ -70,8 +70,9 @@ export const extractInvoiceHTML = (
     ref.classList.contains('modern-thermal-receipt') ||
     ref.classList.contains('kids-thermal-receipt-80mm') ||
     ref.classList.contains('kids-camp-thermal-receipt-80mm') ||
+    ref.classList.contains('vastrakala-thermal-receipt-80mm') ||
     !!ref.querySelector(
-      '.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm',
+      '.thermal-print-80mm, .thermal-receipt-container, .modern-thermal-receipt, .kids-thermal-receipt-80mm, .kids-camp-thermal-receipt-80mm, .vastrakala-thermal-receipt-80mm',
     );
   const thermalPaper: PosThermalPaper = isThermal
     ? (options?.thermalPaper ?? detectThermalPaperFromElement(ref))

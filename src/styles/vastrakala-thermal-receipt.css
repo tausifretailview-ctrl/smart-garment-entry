@@ -1,0 +1,53 @@
+/* Vastrakala — bold ladies-wear 80mm receipt (screen + print) */
+
+.vastrakala-thermal-receipt-80mm.thermal-print-80mm,
+.vastrakala-thermal-receipt-80mm.thermal-receipt-container {
+  width: 76mm !important;
+  max-width: 76mm !important;
+  padding: 2mm 1.5mm !important;
+  font-family: "Arial Black", Arial, Helvetica, sans-serif !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 1.22 !important;
+  letter-spacing: 0 !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+.vastrakala-thermal-receipt-80mm.thermal-print-80mm *,
+.vastrakala-thermal-receipt-80mm.thermal-receipt-container * {
+  font-weight: inherit;
+}
+
+.vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"].thermal-print-80mm,
+.vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"].thermal-receipt-container {
+  width: 48mm !important;
+  max-width: 48mm !important;
+  padding: 1.5mm 1mm !important;
+  font-size: 11px !important;
+}
+
+.vastrakala-thermal-receipt-80mm .vk-net-amt {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+.vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"] .vk-net-amt {
+  font-size: 13px !important;
+}
+
+@media print {
+  .vastrakala-thermal-receipt-80mm.thermal-print-80mm,
+  .vastrakala-thermal-receipt-80mm.thermal-receipt-container {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+  }
+
+  .invoice-print-source.thermal-paper-58 .vastrakala-thermal-receipt-80mm,
+  .print-dialog.thermal-paper-58 .vastrakala-thermal-receipt-80mm {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    font-size: 11px !important;
+  }
+}
