@@ -293,7 +293,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Retail ERP: list/MRP in Rate, net in Amount.
   // Gurukrupa: cashier unit price in Rate (POS edit unit price must not reprint old sale_price).
   const billedUnitRate = isGurukrupa;
-  /** Gurukrupa: list/MRP in Rate + DIS column; net in Amount (POS unit price stays on item.rate). */
+  /** Gurukrupa: list/MRP in Rate + SP (net unit after discount); line total in Amount. */
   const getDisplayBaseRate = (item: InvoiceItem) =>
     isGurukrupa
       ? retailErpLineDisplayRate(item, false)
@@ -637,7 +637,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     });
   }
   if (isGurukrupa) {
-    cols.push({ key: "dis", label: "DIS", width: "10%", align: "right" });
+    cols.push({ key: "salePrice", label: "SP", width: "10%", align: "right" });
   }
   cols.push({
     key: "amount",
@@ -725,7 +725,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     if (key === "barcode") {
       return isA4 ? "11px" : isA5Retail ? "8px" : "10px";
     }
-    if (key === "rate" || key === "amount" || key === "dis") {
+    if (key === "rate" || key === "amount" || key === "salePrice") {
       return isA4 ? "12px" : isA5Retail ? "9px" : "11px";
     }
     // description
@@ -1049,7 +1049,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                             ...(isRealTast &&
                             (c.key === "rate" ||
                               c.key === "amount" ||
-                              c.key === "dis" ||
+                              c.key === "salePrice" ||
                               c.key === "qty" ||
                               c.key === "hsn")
                               ? {
@@ -1219,14 +1219,19 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                   </div>
                                 );
                                 break;
-                              case "dis":
-                                content =
-                                  lineDisc > 0.005 ? (
-                                    <span>{fmt(lineDisc)}</span>
-                                  ) : (
-                                    "\u00A0"
-                                  );
+                              case "salePrice": {
+                                const netLine =
+                                  itemGlobalIdx >= 0
+                                    ? lineNetAmounts[itemGlobalIdx] ?? item.total
+                                    : item.total;
+                                const qtySp = Number(item.qty) || 1;
+                                const netUnit =
+                                  qtySp > 0
+                                    ? netLine / qtySp
+                                    : Number(item.rate) || getDisplayBaseRate(item);
+                                content = <span>{fmt(netUnit)}</span>;
                                 break;
+                              }
                               case "gst": content = ""; break;
                               case "amount": {
                                 const netAmt =
