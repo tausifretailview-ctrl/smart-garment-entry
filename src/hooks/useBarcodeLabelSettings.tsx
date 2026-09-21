@@ -189,31 +189,44 @@ export function useBarcodeLabelSettings() {
         if (error) throw error;
       }
 
-      const { data: orgPresets, error: presetLookupError } = await supabase
-        .from("printer_presets")
-        .select("id, name")
-        .eq("organization_id", orgId);
-      if (presetLookupError) throw presetLookupError;
-
-      const presetIds = (orgPresets || [])
-        .filter((row) => labelDesignNamesMatch(row.name, template.name))
-        .map((row) => row.id);
-
-      if (presetIds.length > 0) {
-        const { data: updatedPresets, error: syncError } = await supabase
+      // Printer-preset sync is a secondary convenience step — if it fails,
+      // the template itself has already been saved successfully above.
+      // Previously a sync failure here threw and made the whole save
+      // report as failed, even though the design was safely persisted,
+      // which is why re-opening the designer could look like nothing had
+      // saved and prompted a full redesign.
+      try {
+        const { data: orgPresets, error: presetLookupError } = await supabase
           .from("printer_presets")
-          .update({
-            label_config: template.config as any,
-            label_width: template.labelWidth || null,
-            label_height: template.labelHeight || null,
-          })
-          .in("id", presetIds)
-          .eq("organization_id", orgId)
-          .select("id");
-        if (syncError) throw syncError;
-        if (!updatedPresets || updatedPresets.length === 0) {
-          throw new Error("Printer preset was not updated");
+          .select("id, name")
+          .eq("organization_id", orgId);
+        if (presetLookupError) throw presetLookupError;
+
+        const presetIds = (orgPresets || [])
+          .filter((row) => labelDesignNamesMatch(row.name, template.name))
+          .map((row) => row.id);
+
+        if (presetIds.length > 0) {
+          const { data: updatedPresets, error: syncError } = await supabase
+            .from("printer_presets")
+            .update({
+              label_config: template.config as any,
+              label_width: template.labelWidth || null,
+              label_height: template.labelHeight || null,
+            })
+            .in("id", presetIds)
+            .eq("organization_id", orgId)
+            .select("id");
+          if (syncError) throw syncError;
+          if (!updatedPresets || updatedPresets.length === 0) {
+            throw new Error("Printer preset was not updated");
+          }
         }
+      } catch (syncErr) {
+        console.error("Label template saved, but printer preset sync failed:", syncErr);
+        toast.warning(
+          `"${template.name}" saved, but the linked printer preset may still show the old design — reselect it if printing looks outdated.`,
+        );
       }
 
       await fetchSettings();

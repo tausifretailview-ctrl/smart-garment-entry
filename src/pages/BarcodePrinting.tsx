@@ -31,7 +31,7 @@ import {
   resolveBarcodeSlotMm,
 } from "@/utils/barcodeLabelLayout";
 import type { LabelData, TSPLTemplateConfig } from "@/utils/tsplGenerator";
-import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History } from "lucide-react";
+import { Check, Save, Trash2, GripVertical, Eye, Download, RefreshCw, Edit, Printer, AlertTriangle, Plus, Loader2, ChevronDown, ChevronLeft, Search, Package, History, Maximize2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import type jsPDFType from "jspdf";
@@ -1541,6 +1541,7 @@ export default function BarcodePrinting() {
   const [purchaseCodeExtraPercent, setPurchaseCodeExtraPercent] = useState(10);
   const [defaultUom, setDefaultUom] = useState("NOS");
   const [isDirectPrintDialogOpen, setIsDirectPrintDialogOpen] = useState(false);
+  const [showFullscreenDesigner, setShowFullscreenDesigner] = useState(false);
   const [precisionSettings, setPrecisionSettings] = useState({
     enabled: false,
     xOffset: 0,
@@ -8251,6 +8252,18 @@ export default function BarcodePrinting() {
                   ✕
                 </Button>
               )}
+              {!isPrecisionFootwearMode(precisionSettings.printMode) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs px-2"
+                  onClick={() => setShowFullscreenDesigner(true)}
+                  title="Open Label Designer in a full-screen window"
+                >
+                  <Maximize2 className="h-3.5 w-3.5 mr-1.5" />
+                  Label Designer
+                </Button>
+              )}
             </div>
             </div>
 
@@ -8350,6 +8363,108 @@ export default function BarcodePrinting() {
         </TabsContent>
       </Tabs>
       </main>
+
+      {/* Independent, full-screen Label Designer — same component and save
+          logic as the embedded panel above, just given proper room to work
+          instead of a cramped in-page panel. */}
+      <Dialog open={showFullscreenDesigner} onOpenChange={setShowFullscreenDesigner}>
+        <DialogContent className="max-w-[98vw] w-full h-[95vh] max-h-[95vh] flex flex-col p-4">
+          <DialogHeader className="shrink-0">
+            <DialogTitle>Label Designer</DialogTitle>
+            <DialogDescription>
+              Design and save your label layout. Changes here are the same design used on the
+              main Barcode Printing page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-hidden">
+            {(!precisionConfigReady || isLoadingSettings) ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+                <span className="text-sm text-muted-foreground">Loading label design...</span>
+              </div>
+            ) : !isPrecisionFootwearMode(precisionSettings.printMode) ? (
+            <PrecisionLabelDesigner
+              labelWidth={effectivePrecisionLabelWidth}
+              labelHeight={effectivePrecisionLabelHeight}
+              config={effectivePrecisionLabelConfig}
+              thermalCols={getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols)}
+              horizontalGap={isThermalMultiUp() ? getThermalMultiUpGap() : 0}
+              onConfigChange={(cfg) =>
+                setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
+              }
+              sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
+              defaultUom={defaultUom}
+              productFieldSettings={productFieldSettings}
+              onSave={async () => {
+                if (!currentOrganization?.id) return;
+                try {
+                  if (autoSaveTimerRef.current) {
+                    clearTimeout(autoSaveTimerRef.current);
+                    autoSaveTimerRef.current = null;
+                  }
+                  const templateName = activePrecisionTemplateBaseName || "";
+                  const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
+                  const fixedDims = getFixedBuiltinLabelDimensions(templateName);
+                  const configToSave = fixedConfig
+                    ?? (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
+                  const saveWidth = fixedDims?.width ?? precisionSettings.labelWidth;
+                  const saveHeight = fixedDims?.height ?? precisionSettings.labelHeight;
+                  await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
+
+                  if (activePrecisionTemplateName) {
+                    const success = await autoSavePrecisionConfig(
+                      activePrecisionTemplateName,
+                      configToSave,
+                      saveWidth,
+                      saveHeight,
+                      currentOrganization.id,
+                      { force: true },
+                    );
+
+                    if (!success) {
+                      toast.error("Failed to save label design");
+                      return;
+                    }
+
+                    try {
+                      await refreshDbPresetsFromServer();
+                    } catch (refreshErr) {
+                      console.warn("Failed to refresh printer presets after save:", refreshErr);
+                    }
+
+                    markLabelDesignBaselineSaved(configToSave, activePrecisionTemplateName);
+
+                    const cleanName = activePrecisionTemplateName.startsWith("preset:")
+                      ? activePrecisionTemplateName.replace("preset:", "")
+                      : activePrecisionTemplateName;
+                    const targetLabel = activePrecisionTemplateName.startsWith("preset:")
+                      ? `preset "${cleanName}"`
+                      : `template "${cleanName}"`;
+
+                    toast.success(`Design saved & ${targetLabel} updated`);
+                  } else {
+                    toast.success("Label design saved successfully");
+                  }
+                } catch (error) {
+                  console.error("Failed to save label design:", error);
+                  toast.error("Failed to save label design");
+                }
+              }}
+            />
+            ) : (
+              <FootwearPanelDesigner
+                design={footwearDesign}
+                onChange={handleFootwearDesignChange}
+                onSave={handleFootwearDesignSave}
+                isSaving={savingFootwearDesign}
+                sampleItem={labelItems.length > 0 ? labelItems[0] : undefined}
+                businessName={businessName}
+                className="flex-1 min-h-0"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Sticky print bar — always visible without scrolling */}
       <footer className="barcode-print-footer shrink-0 border-t-2 border-emerald-500/50 bg-slate-900 text-white px-3 py-2 flex flex-wrap items-center gap-2 shadow-[0_-6px_24px_rgba(0,0,0,0.35)]">
