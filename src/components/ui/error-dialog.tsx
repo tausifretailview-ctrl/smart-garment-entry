@@ -22,13 +22,18 @@ const iconMap = {
 };
 
 const colorMap = {
-  error: "text-red-500",
+  // "error" intentionally uses the brand primary color, not red — a plain
+  // validation/permission message (e.g. "Missing required fields") looked
+  // like a critical failure in solid red and worried users. Genuinely
+  // destructive confirmations (delete, etc.) are separate components and
+  // are unaffected by this.
+  error: "text-primary",
   warning: "text-amber-500",
   info: "text-blue-500",
 };
 
 const titleBarMap = {
-  error: "bg-red-600 text-white",
+  error: "bg-primary text-primary-foreground",
   warning: "bg-amber-500 text-white",
   info: "bg-blue-600 text-white",
 };
@@ -106,7 +111,7 @@ export function ErrorDialog({
               ref={okButtonRef}
               onClick={() => onOpenChange(false)}
               className="min-w-[88px]"
-              variant={severity === "error" ? "destructive" : "default"}
+              variant="default"
             >
               {okLabel}
             </Button>
