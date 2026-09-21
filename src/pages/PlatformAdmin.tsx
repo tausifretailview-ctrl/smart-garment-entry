@@ -701,7 +701,7 @@ export default function PlatformAdmin() {
       toast.success(
         userRole === "pos"
           ? "POS-only user created — Saleem-style menu rights applied"
-          : "User created and assigned successfully!",
+          : "User created successfully",
       );
       setCreateUserOpen(false);
       setUserEmail("");
