@@ -293,8 +293,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Retail ERP: list/MRP in Rate, net in Amount.
   // Gurukrupa: cashier unit price in Rate (POS edit unit price must not reprint old sale_price).
   const billedUnitRate = isGurukrupa;
+  /** Gurukrupa: list/MRP in Rate + DIS column; net in Amount (POS unit price stays on item.rate). */
   const getDisplayBaseRate = (item: InvoiceItem) =>
-    retailErpLineDisplayRate(item, billedUnitRate);
+    isGurukrupa
+      ? retailErpLineDisplayRate(item, false)
+      : retailErpLineDisplayRate(item, billedUnitRate);
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
   const propRoundOff = Number(roundOff ?? 0);
   const propDiscount = Math.max(0, Number(discount || 0));
@@ -575,7 +578,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // DC: never show HSN (Delivery Challan style).
   const showHSNCol = showHSN && !isDc;
   const showBarcodeCol = !isRealTast && !isZaika;
-  const showSizeCol = !isRealTast && !isZaika;
+  const showSizeCol = !isRealTast && !isZaika && !isGurukrupa;
   const showQtyCol = !isZaika;
   const showRateCol = !isZaika;
 
@@ -601,7 +604,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           : isA5Retail
             ? showHSNCol
               ? "28%"
-              : "35%"
+              : isGurukrupa
+                ? "41%"
+                : "35%"
             : showHSNCol
               ? "26%"
               : "33%",
@@ -627,9 +632,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     cols.push({
       key: "rate",
       label: "RATE",
-      width: isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
+      width: isGurukrupa ? "11%" : isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
       align: "right",
     });
+  }
+  if (isGurukrupa) {
+    cols.push({ key: "dis", label: "DIS", width: "10%", align: "right" });
   }
   cols.push({
     key: "amount",
@@ -643,7 +651,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
         ? showHSNCol
           ? "12%"
           : "13%"
-        : "23%",
+        : isGurukrupa
+          ? "18%"
+          : "23%",
     align: "right",
   });
 
@@ -715,7 +725,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     if (key === "barcode") {
       return isA4 ? "11px" : isA5Retail ? "8px" : "10px";
     }
-    if (key === "rate" || key === "amount") {
+    if (key === "rate" || key === "amount" || key === "dis") {
       return isA4 ? "12px" : isA5Retail ? "9px" : "11px";
     }
     // description
@@ -1011,7 +1021,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     const itemGlobalIdx = item ? pageStartSr + srCounter - 1 : -1;
                     const lineDisc =
                       itemGlobalIdx >= 0 ? lineBillDiscounts[itemGlobalIdx] ?? 0 : 0;
-                    const rowHasDisc = lineDisc > 0.005;
+                    const rowHasDisc = !isGurukrupa && lineDisc > 0.005;
                     const isBlankRow = !item;
                     return (
                       <tr
@@ -1037,7 +1047,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 }
                               : {}),
                             ...(isRealTast &&
-                            (c.key === "rate" || c.key === "amount" || c.key === "qty" || c.key === "hsn")
+                            (c.key === "rate" ||
+                              c.key === "amount" ||
+                              c.key === "dis" ||
+                              c.key === "qty" ||
+                              c.key === "hsn")
                               ? {
                                   padding: isA4 ? "2px 3px" : cellBase.padding,
                                   fontFamily: "ui-monospace, Consolas, Monaco, monospace",
@@ -1197,13 +1211,21 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                 content = (
                                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", lineHeight: "1.15" }}>
                                     <span>{fmt(getDisplayBaseRate(item))}</span>
-                                    {showDiscountOnRate && !isRealTast && (Number(item.discountPercent || 0) > 0) && (
+                                    {showDiscountOnRate && !isRealTast && !isGurukrupa && (Number(item.discountPercent || 0) > 0) && (
                                       <span style={{ fontSize: isA4 ? "10px" : "8px", color: "#b45309" }}>
                                         -{Number(item.discountPercent).toFixed(0)}%
                                       </span>
                                     )}
                                   </div>
                                 );
+                                break;
+                              case "dis":
+                                content =
+                                  lineDisc > 0.005 ? (
+                                    <span>{fmt(lineDisc)}</span>
+                                  ) : (
+                                    "\u00A0"
+                                  );
                                 break;
                               case "gst": content = ""; break;
                               case "amount": {
@@ -1223,7 +1245,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                                       justifyContent: "center",
                                     }}
                                   >
-                                    {!isRealTast && lineDisc > 0.005 && (
+                                    {!isRealTast && !isGurukrupa && lineDisc > 0.005 && (
                                       <span
                                         style={{
                                           fontSize: fsDiscMedium,
