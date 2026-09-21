@@ -9307,7 +9307,19 @@ export type Database = {
         Args: { p_bill_id: string }
         Returns: undefined
       }
+      _customer_advance_applied_from_vouchers: {
+        Args: {
+          p_customer_id: string
+          p_exclude_voucher_id?: string
+          p_organization_id: string
+        }
+        Returns: number
+      }
       _customer_advance_available: {
+        Args: { p_customer_id: string; p_organization_id: string }
+        Returns: number
+      }
+      _customer_advance_pool_cap: {
         Args: { p_customer_id: string; p_organization_id: string }
         Returns: number
       }
