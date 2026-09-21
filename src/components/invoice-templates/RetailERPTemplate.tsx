@@ -605,7 +605,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             ? showHSNCol
               ? "28%"
               : isGurukrupa
-                ? "41%"
+                ? "42%"
                 : "35%"
             : showHSNCol
               ? "26%"
@@ -632,7 +632,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
     cols.push({
       key: "rate",
       label: "RATE",
-      width: isGurukrupa ? "11%" : isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
+      width: isGurukrupa ? "12%" : isRealTast ? (showHSNCol ? "11%" : "12%") : "12%",
       align: "right",
     });
   }
@@ -652,7 +652,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
           ? "12%"
           : "13%"
         : isGurukrupa
-          ? "18%"
+          ? "13%"
           : "23%",
     align: "right",
   });
@@ -1303,7 +1303,78 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
 
                   {/* Totals row */}
                   <tr style={{ borderTop: B2 }}>
-                    {showQtyCol ? (
+                    {isGurukrupa && showQtyCol ? (
+                      (() => {
+                        const pageLines = pageItems.filter(Boolean) as InvoiceItem[];
+                        const pageQty = pageLines.reduce((s, i) => s + (i.qty || 0), 0);
+                        const pageRateTot = pageLines.reduce(
+                          (s, i) => s + getDisplayBaseRate(i) * (Number(i.qty) || 0),
+                          0,
+                        );
+                        const pageAmtTot = pageLines.reduce((s, i) => s + Number(i.total || 0), 0);
+                        const qtyIdx = Math.max(1, cols.findIndex((c) => c.key === "qty"));
+                        const tailCols = cols.slice(qtyIdx);
+                        const baseTd = (align: "left" | "center" | "right", last: boolean): React.CSSProperties => ({
+                          ...cellBase,
+                          fontWeight: "bold",
+                          borderTop: B2,
+                          fontSize: fsTotals,
+                          height: isA4 ? "26px" : "20px",
+                          textAlign: align,
+                          borderRight: last ? "none" : B,
+                          fontVariantNumeric: "tabular-nums",
+                        });
+                        return (
+                          <>
+                            <td colSpan={qtyIdx} style={baseTd("left", false)}>
+                              {isLastPage
+                                ? `Total Qty: ${totalQty}`
+                                : `Page ${pageIndex + 1} — Continued...`}
+                            </td>
+                            {tailCols.map((c, ti) => {
+                              const last = ti === tailCols.length - 1;
+                              if (c.key === "qty") {
+                                return (
+                                  <td key={c.key} style={baseTd("center", last)}>
+                                    {isLastPage ? totalQty : pageQty}
+                                  </td>
+                                );
+                              }
+                              if (c.key === "rate") {
+                                return (
+                                  <td key={c.key} style={baseTd("right", last)}>
+                                    {fmt(isLastPage ? displaySubTotal : pageRateTot)}
+                                  </td>
+                                );
+                              }
+                              if (c.key === "salePrice") {
+                                return (
+                                  <td key={c.key} style={baseTd("right", last)}>
+                                    {"\u00A0"}
+                                  </td>
+                                );
+                              }
+                              if (c.key === "amount") {
+                                return (
+                                  <td key={c.key} style={baseTd("right", last)}>
+                                    {fmt(
+                                      isLastPage
+                                        ? items.reduce((s, i) => s + Number(i.total || 0), 0)
+                                        : pageAmtTot,
+                                    )}
+                                  </td>
+                                );
+                              }
+                              return (
+                                <td key={c.key} style={baseTd(c.align, last)}>
+                                  {"\u00A0"}
+                                </td>
+                              );
+                            })}
+                          </>
+                        );
+                      })()
+                    ) : showQtyCol ? (
                       <>
                     <td
                       colSpan={cols.findIndex(c => c.key === "qty")}
