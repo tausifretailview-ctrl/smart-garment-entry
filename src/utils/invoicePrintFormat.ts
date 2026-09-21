@@ -28,6 +28,7 @@ export type InvoiceTemplateId =
   | 'kids-camp-80mm'
   | 'retail-pos-80mm'
   | 'trendzo-pos-80mm'
+  | 'vastrakala-80mm'
   | 'real-tast';
 
 export type SaleSettingsTemplateSlice = {
@@ -211,6 +212,7 @@ export const THERMAL_ONLY_INVOICE_TEMPLATES = new Set([
   'kids-camp-80mm',
   'retail-pos-80mm',
   'trendzo-pos-80mm',
+  'vastrakala-80mm',
 ]);
 
 export function isThermal80mmInvoiceTemplate(template?: string | null): boolean {

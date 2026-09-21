@@ -35,6 +35,7 @@ import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import { KidsCampThermalReceipt80mm } from './KidsCampThermalReceipt80mm';
 import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
 import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
+import { VastrakalaThermalReceipt80mm } from './VastrakalaThermalReceipt80mm';
 import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
 import QRCode from 'qrcode';
 import { resolveCompanyUpiId, resolveInvoiceUpiId } from '@/utils/companyUpi';
@@ -742,6 +743,40 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               settingsOverride={settings}
+            />
+          );
+        }
+        if (templateForFormat === 'vastrakala-80mm') {
+          return (
+            <VastrakalaThermalReceipt80mm
+              billNo={props.billNo}
+              date={props.date}
+              customerName={props.customerName}
+              customerPhone={props.customerMobile}
+              items={props.items.map((item, idx) => ({
+                sr: idx + 1,
+                particulars: item.particulars,
+                itemNotes: item.itemNotes,
+                mrp: item.mrp ?? item.sp,
+                qty: item.qty,
+                rate: item.rate,
+                total: item.total,
+              }))}
+              subTotal={props.subTotal}
+              discount={props.discount}
+              saleReturnAdjust={props.saleReturnAdjust}
+              roundOff={props.roundOff}
+              grandTotal={props.grandTotal}
+              paymentMethod={props.paymentMethod}
+              cashPaid={props.cashPaid || props.cashAmount}
+              upiPaid={props.upiPaid || props.upiAmount}
+              cardPaid={props.cardAmount}
+              creditPaid={props.creditAmount}
+              paidAmount={props.paidAmount}
+              documentType={props.documentType || 'pos'}
+              salesman={props.salesman}
+              thermalPaper={thermalPaper}
+              showMrp={props.showMRP ?? true}
             />
           );
         }
