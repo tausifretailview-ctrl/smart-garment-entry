@@ -3292,16 +3292,23 @@ export default function POSSales() {
     };
 
     const applyDiscRsToServiceItem = (item: CartItem, discRs?: number): CartItem => {
-      if (!discRs || discRs <= 0) return item;
-      const baseAmount = item.mrp * item.quantity;
-      const mappedPercent = baseAmount > 0 ? Math.min(100, (discRs / baseAmount) * 100) : 0;
-      const withDisc = {
-        ...item,
-        discountPercent: Number(mappedPercent.toFixed(4)),
-        discountAmount: 0,
-        rateAuthority: "discount" as const,
-      };
-      const withGst = applyPosGarmentGstToItem(withDisc, garmentGstSettings);
+      // Garment/service GST auto-bump must run on every add — not only when a
+      // line discount was also entered. It used to sit behind the `!discRs`
+      // early return below, so a service added at a price above the org's
+      // threshold with no discount kept the product master's slab GST (e.g.
+      // 5%) instead of bumping to 18% at add-time.
+      let working = item;
+      if (discRs && discRs > 0) {
+        const baseAmount = item.mrp * item.quantity;
+        const mappedPercent = baseAmount > 0 ? Math.min(100, (discRs / baseAmount) * 100) : 0;
+        working = {
+          ...item,
+          discountPercent: Number(mappedPercent.toFixed(4)),
+          discountAmount: 0,
+          rateAuthority: "discount" as const,
+        };
+      }
+      const withGst = applyPosGarmentGstToItem(working, garmentGstSettings);
       return { ...withGst, netAmount: calculatePosCartLineNet(withGst) };
     };
 
