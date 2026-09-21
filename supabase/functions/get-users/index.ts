@@ -79,7 +79,7 @@ serve(async (req) => {
     // Also check organization_members for admin role
     const { data: orgAdminCheck } = await supabaseAdmin
       .from("organization_members")
-      .select("role")
+      .select("role, organization_id")
       .eq("user_id", user.id)
       .eq("role", "admin");
 
@@ -88,6 +88,25 @@ serve(async (req) => {
         JSON.stringify({ error: "Forbidden - Admin access required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Only a true platform_admin (user_roles) sees every user on the platform —
+    // used by Platform Admin / Organization Management. Everyone else who
+    // passed the check above (an org-level admin/manager) gets the directory
+    // scoped to users who share at least one organization with them: those
+    // callers (POS Dashboard salesman filter, Employee Master, User Rights,
+    // Sales/Item-Wise report filters, User Management) only ever needed their
+    // own org's users and were filtering this same "all platform users"
+    // payload down client-side — returning everyone here was an unnecessary
+    // cross-tenant disclosure, not a required behavior.
+    const isPlatformAdmin = (roleCheck || []).some((r) => r.role === "platform_admin");
+    let scopedOrgIds: string[] | null = null;
+    if (!isPlatformAdmin) {
+      const { data: myMemberships } = await supabaseAdmin
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id);
+      scopedOrgIds = (myMemberships || []).map((m) => m.organization_id).filter(Boolean);
     }
 
     // Get all users from auth. listUsers() defaults to a 50-user page size —
@@ -114,8 +133,27 @@ serve(async (req) => {
       throw rolesError;
     }
 
+    // Non-platform-admin callers only get users who share an organization
+    // with them (see scopedOrgIds above).
+    let visibleUsers = users;
+    if (scopedOrgIds) {
+      if (scopedOrgIds.length === 0) {
+        visibleUsers = [];
+      } else {
+        const { data: coMembers, error: coMembersError } = await supabaseAdmin
+          .from("organization_members")
+          .select("user_id")
+          .in("organization_id", scopedOrgIds);
+        if (coMembersError) {
+          throw coMembersError;
+        }
+        const visibleIds = new Set((coMembers || []).map((m) => m.user_id));
+        visibleUsers = users.filter((u) => visibleIds.has(u.id));
+      }
+    }
+
     // Combine user data with roles
-    const usersWithRoles = users.map((user) => ({
+    const usersWithRoles = visibleUsers.map((user) => ({
       id: user.id,
       email: user.email,
       created_at: user.created_at,

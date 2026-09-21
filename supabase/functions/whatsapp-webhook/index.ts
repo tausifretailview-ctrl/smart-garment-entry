@@ -866,10 +866,26 @@ Deno.serve(async (req) => {
         // Not JSON or no challenge field — continue normal processing
       }
 
-      // Validate Meta webhook signature
+      // Validate Meta webhook signature. Meta's own payload envelope is
+      // `{ object: 'whatsapp_business_account', entry: [...] }` — that shape
+      // (or an `x-hub-signature-256` header) means the caller is claiming to
+      // be Meta, so without META_APP_SECRET we have no way to verify it and
+      // must reject rather than silently trust a forgeable payload. Requests
+      // that don't look like Meta's envelope are left alone here — those are
+      // third-party providers (WappConnect etc.) which were never signed
+      // with META_APP_SECRET in the first place, so this doesn't change
+      // their behavior.
       const appSecret = Deno.env.get('META_APP_SECRET');
+      const signature = req.headers.get('x-hub-signature-256');
+      let looksLikeMetaPayload = false;
+      try {
+        const probe = JSON.parse(rawBody);
+        looksLikeMetaPayload = !!(probe && (probe.object === 'whatsapp_business_account' || Array.isArray(probe.entry)));
+      } catch (_) {
+        // not JSON — handled below by the normal JSON.parse(rawBody), which will throw too
+      }
+
       if (appSecret) {
-        const signature = req.headers.get('x-hub-signature-256');
         if (!signature) {
           console.error('Missing x-hub-signature-256 header');
           return new Response('Unauthorized', { status: 401 });
@@ -892,8 +908,14 @@ Deno.serve(async (req) => {
           console.error('Invalid webhook signature');
           return new Response('Unauthorized', { status: 401 });
         }
+      } else if (signature || looksLikeMetaPayload) {
+        // Claims to be a Meta webhook (has the header or the Meta envelope
+        // shape) but there's no secret configured to verify it against —
+        // fail closed instead of the previous "skip validation" fallback.
+        console.error('META_APP_SECRET not configured - rejecting Meta-shaped webhook payload that cannot be verified');
+        return new Response('Unauthorized', { status: 401 });
       } else {
-        console.warn('META_APP_SECRET not configured - skipping webhook signature validation');
+        console.warn('META_APP_SECRET not configured - accepting non-Meta (third-party provider) payload without signature validation');
       }
 
       const body = JSON.parse(rawBody);
