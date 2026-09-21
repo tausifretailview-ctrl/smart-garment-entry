@@ -26,6 +26,13 @@
   font-size: 11px !important;
 }
 
+.vastrakala-thermal-receipt-80mm .vk-item-detail {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+}
+
 .vastrakala-thermal-receipt-80mm .vk-net-amt {
   font-size: 16px !important;
   font-weight: 900 !important;
