@@ -797,8 +797,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             <div
               className="retail-erp-page-border"
               style={{
-                border: B2,
-                outline: isA5Retail ? B2 : undefined,
+                border: isPreprinted ? B : B2,
+                outline: isA5Retail && !isPreprinted ? B2 : undefined,
                 outlineOffset: isA5Retail ? "-2px" : undefined,
                 flex: 1,
                 minHeight: 0,
@@ -875,30 +875,48 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
               </div>
               )}
 
-              {/* ===== Document title — flush, no gap ===== */}
-              <div style={{ textAlign: "center", fontWeight: "bold", fontSize: titleFs, borderBottom: B2, padding: "1px 0", lineHeight: "1.2", margin: 0, textTransform: "uppercase", letterSpacing: "1px" }}>
-                {(() => {
-                  const customTitle = documentTitle?.trim() || "";
-                  // Retail ERP DC (POS): Bill of Supply — ignore settings "TAX INVOICE" override.
-                  const dcTitle =
-                    !customTitle || /^TAX\s*INVOICE$/i.test(customTitle)
-                      ? "BILL OF SUPPLY"
-                      : customTitle;
-                  const docTitle =
-                    grandTotal < 0
-                      ? "CREDIT NOTE"
+              {/* ===== Document title — letter-pad uses Sale → Invoice document title (blank = hidden) ===== */}
+              {(() => {
+                const customTitle = documentTitle?.trim() || "";
+                const dcTitle =
+                  !customTitle || /^TAX\s*INVOICE$/i.test(customTitle)
+                    ? "BILL OF SUPPLY"
+                    : customTitle;
+                const docTitle =
+                  grandTotal < 0
+                    ? "CREDIT NOTE"
+                    : isPreprinted
+                      ? customTitle || null
                       : isDc
                         ? dcTitle
                         : isNoGst
-                          ? (customTitle || "BILL OF SUPPLY")
+                          ? customTitle || "BILL OF SUPPLY"
                           : isRealTast
-                            ? (customTitle || "BILL OF SUPPLY")
+                            ? customTitle || "BILL OF SUPPLY"
                             : "TAX INVOICE";
-                  return itemPages.length > 1
+                if (!docTitle) return null;
+                const docTitleDisplay =
+                  itemPages.length > 1
                     ? `${docTitle}${pageIndex > 0 ? ` (Page ${pageIndex + 1} of ${itemPages.length})` : ""}`
                     : docTitle;
-                })()}
-              </div>
+                return (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontWeight: "bold",
+                      fontSize: titleFs,
+                      borderBottom: isPreprinted ? B : B2,
+                      padding: "1px 0",
+                      lineHeight: "1.2",
+                      margin: 0,
+                      textTransform: "uppercase",
+                      letterSpacing: "1px",
+                    }}
+                  >
+                    {docTitleDisplay}
+                  </div>
+                );
+              })()}
 
               {/* ===== BILL TO + INVOICE INFO — boxed sub-grid ===== */}
               <div style={{ display: "flex", borderBottom: B2, fontSize: fsHeader, lineHeight: 1.3 }}>
@@ -930,10 +948,17 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   </div>
                   {gstNumber && !isRealTast && !isDc && (
                     <div style={{ display: "flex", borderBottom: B }}>
-                      <div style={{ flex: 1, padding: isA4 ? "2px 8px" : "2px 6px", fontSize: fsCustDetail }}>
+                      <div
+                        style={{
+                          flex: 1,
+                          padding: isA4 ? "2px 8px" : "2px 6px",
+                          fontSize: fsCustDetail,
+                          fontWeight: isPreprinted ? 700 : undefined,
+                        }}
+                      >
                         {isPreprinted ? (
                           <>
-                            <strong>GSTIN:</strong> {gstNumber}
+                            <strong>GSTIN: {gstNumber}</strong>
                           </>
                         ) : (
                           <>
@@ -1872,7 +1897,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
             ${isPreprintedAny || isA5Retail ? "page-break-inside: avoid !important; break-inside: avoid !important;" : ""}
           }
           .retail-erp-page-border {
-            border: 2px solid #000 !important;
+            border: ${isPreprinted ? "1px solid #000" : "2px solid #000"} !important;
             box-sizing: border-box !important;
             /* Keep bottom edge inside printable area (A5 content is dense). */
             margin-bottom: ${isA5Retail && !isPreprinted ? "0.5mm" : "0"} !important;

@@ -119,6 +119,7 @@ describe("letter-pad A5 shop logo joins the column table", () => {
         format: "a5-vertical",
         logoUrl: "https://example.com/semme-letterhead.png",
         printLogoOnPreprintedLetterhead: true,
+        documentTitle: "BILL OF SUPPLY",
       }),
     );
     const borderAt = html.indexOf("retail-erp-page-border");
@@ -132,6 +133,43 @@ describe("letter-pad A5 shop logo joins the column table", () => {
     expect(html).not.toMatch(
       /retail-erp-preprinted-letterhead-logo[^>]*position:\s*absolute/,
     );
+  });
+
+  it("uses Sale invoice document title on letter-pad (e.g. TAX INVOICE)", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+        documentTitle: "Tax Invoice",
+      }),
+    );
+    expect(html).toContain("Tax Invoice");
+    expect(html).not.toContain("BILL OF SUPPLY");
+  });
+
+  it("hides the title row when document title is blank on letter-pad", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+        documentTitle: "",
+      }),
+    );
+    expect(html).not.toContain("BILL OF SUPPLY");
+  });
+
+  it("prints letter-pad GSTIN in bold", () => {
+    const html = renderToStaticMarkup(
+      createElement(RetailERPTemplate, {
+        ...baseProps,
+        variant: "preprinted",
+        format: "a5-vertical",
+        gstNumber: "27AUFPC9088H1ZB",
+      }),
+    );
+    expect(html).toContain("<strong>GSTIN: 27AUFPC9088H1ZB</strong>");
   });
 
   it("keeps the 2in blank top when shop-logo print is off", () => {
