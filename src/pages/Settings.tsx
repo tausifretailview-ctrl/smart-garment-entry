@@ -3684,7 +3684,7 @@ export default function Settings() {
                         placeholder="e.g. BILL OF SUPPLY, CATERING SERVICE, TAX INVOICE"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Shown below your business name on A4 invoices (Real Tast template). Leave blank for default BILL OF SUPPLY.
+                        Real Tast A4: shown below your business name (blank → BILL OF SUPPLY). Letter-pad / preprinted: shown below the logo (blank → no title line). Examples: TAX INVOICE, CASH MEMO, BILL OF SUPPLY.
                       </p>
                     </div>
 
