@@ -679,11 +679,7 @@ function AddProducts({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
- cursor/website-add-products-stock-pages-2cad
         subtitle="Only products with stock on hand are listed — search, pick a store section, set a website price if needed, and publish"
-        
-        subtitle="Unpublished ERP products with stock on hand — search, pick a section, set a website price if needed, and publish"
- main
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
