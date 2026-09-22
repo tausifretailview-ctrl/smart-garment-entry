@@ -523,18 +523,37 @@ function AddProducts({
     enabled: !!orgId,
     staleTime: STALE_LIVE,
     queryFn: async () => {
+      const PICKER_SCAN_LIMIT = 200;
+      const PICKER_DISPLAY_LIMIT = 80;
       let q = supabase
         .from("products")
         .select("id, product_name, brand, category, image_url, default_sale_price")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .order("product_name")
-        .limit(80);
+        .limit(PICKER_SCAN_LIMIT);
       const term = search.trim();
       if (term) q = q.ilike("product_name", `%${term}%`);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as CatalogProduct[];
+      const candidates = (data || []) as CatalogProduct[];
+      if (candidates.length === 0) return [];
+
+      const ids = candidates.map((p) => p.id);
+      const { data: variantRows, error: variantError } = await supabase
+        .from("product_variants")
+        .select("product_id, sale_price, stock_qty")
+        .eq("organization_id", orgId!)
+        .in("product_id", ids)
+        .is("deleted_at", null);
+      if (variantError) throw variantError;
+
+      const stockByProduct = aggregateWebsiteVariantStock(
+        (variantRows || []) as Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>,
+      );
+      return candidates
+        .filter((p) => (stockByProduct[p.id]?.qty ?? 0) > 0)
+        .slice(0, PICKER_DISPLAY_LIMIT);
     },
   });
 
@@ -628,7 +647,7 @@ function AddProducts({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
-        subtitle="Search ERP products, pick a store section, set a website price if needed, and publish to the public catalogue"
+        subtitle="Unpublished ERP products with stock on hand — search, pick a section, set a website price if needed, and publish"
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -750,7 +769,9 @@ function AddProducts({
             {rows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
-                  {productsQuery.isLoading ? "Loading…" : "No unpublished products match."}
+                  {productsQuery.isLoading
+                    ? "Loading…"
+                    : "No unpublished in-stock products match."}
                 </TableCell>
               </TableRow>
             ) : null}
