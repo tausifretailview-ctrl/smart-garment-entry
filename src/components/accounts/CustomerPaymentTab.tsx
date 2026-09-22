@@ -1592,21 +1592,27 @@ export function CustomerPaymentTab({
                   setAmount("");
                 }}
                 isLoading={
-                  customersWithBalanceLoading ||
-                  (trimmedCustomerSearch.length >= 2 && searchedCustomersLoading)
+                  trimmedCustomerSearch.length >= 2
+                    ? searchedCustomersLoading && customerPickerOptions.length === 0
+                    : customersWithBalanceLoading
                 }
-                loadingMessage="Loading customers with balance..."
+                loadingMessage={
+                  trimmedCustomerSearch.length >= 2
+                    ? "Searching customers..."
+                    : "Loading customers with balance..."
+                }
                 emptyMessage={
-                  customersWithBalanceError
-                    ? "Could not load customers — close and reopen, or retry"
-                    : trimmedCustomerSearch.length >= 2 &&
-                        !customersWithBalanceLoading &&
-                        !searchedCustomersLoading &&
-                        customerPickerOptions.length === 0
-                      ? "No customer with outstanding balance matches your search"
-                      : customerPickerOptions.length === 0
-                        ? "No customers with outstanding balance"
-                        : "No customer found"
+                  trimmedCustomerSearch.length >= 2
+                    ? searchedCustomersLoading
+                      ? "Searching customers..."
+                      : "No customer with outstanding balance matches your search"
+                    : customersWithBalanceError
+                      ? "Could not load customers — close and reopen, or retry"
+                      : customersWithBalanceLoading
+                        ? "Loading customers with balance..."
+                        : customerPickerOptions.length === 0
+                          ? "No customers with outstanding balance"
+                          : "No customer found"
                 }
                 showOutstanding
               />

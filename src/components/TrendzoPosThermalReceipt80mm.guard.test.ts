@@ -58,6 +58,7 @@ describe("Trendzo POS thermal receipt layout", () => {
 
   it("prints mix payment amounts and Prev Bal / Advance on one pair-row each", () => {
     expect(tsx).toContain("formatTrendzoPaymentModeLabel");
+    expect(tsx).toContain("trendzoMixAmountPair");
     expect(tsx).toContain("trendzoPartyAccountPair");
     expect(tsx).toContain("previousBalance");
     expect(tsx).toContain("unusedAdvance");

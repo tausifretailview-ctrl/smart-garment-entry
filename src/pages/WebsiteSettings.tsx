@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   ExternalLink,
   GripVertical,
@@ -509,6 +511,8 @@ function AddProducts({
   const [websitePrices, setWebsitePrices] = useState<Record<string, string>>({});
   const [rowSections, setRowSections] = useState<Record<string, string>>({});
   const [publishSectionId, setPublishSectionId] = useState("");
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
   const publishedIds = useMemo(() => new Set(listings.map((l) => l.product_id)), [listings]);
   const sectionsQuery = useWebsiteSections(orgId);
   const sections = activeWebsiteSections(sectionsQuery.data?.sections ?? []);
@@ -578,14 +582,42 @@ function AddProducts({
       const ids = rows.map((p) => p.id);
       const { data, error } = await supabase
         .from("product_variants")
-        .select("product_id, size, color")
+        .select("product_id, size, color, stock_qty")
         .eq("organization_id", orgId!)
         .in("product_id", ids)
         .is("deleted_at", null);
       if (error) throw error;
-      return aggregateVariantRows((data || []) as { product_id: string; size?: string | null; color?: string | null }[]);
+      const vrows = (data || []) as {
+        product_id: string;
+        size?: string | null;
+        color?: string | null;
+        stock_qty?: number | null;
+      }[];
+      const stockById: Record<string, number> = {};
+      for (const v of vrows) {
+        stockById[v.product_id] = (stockById[v.product_id] ?? 0) + (Number(v.stock_qty) || 0);
+      }
+      return {
+        labels: aggregateVariantRows(vrows),
+        stockById,
+      };
     },
   });
+
+  // Only products with stock on hand; stock totals arrive with the variants,
+  // so hold the list empty (with a loading hint) until they resolve.
+  const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
+  const inStockRows = stockReady
+    ? rows.filter((p) => (variantsQuery.data?.stockById[p.id] ?? 0) > 0)
+    : [];
+
+  useEffect(() => {
+    setPage(0);
+  }, [search, orgId]);
+
+  const pageCount = Math.max(1, Math.ceil(inStockRows.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageRows = inStockRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   const publish = useMutation({
     mutationFn: async () => {
@@ -657,7 +689,7 @@ function AddProducts({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
-        subtitle="Unpublished ERP products with stock on hand — search, pick a section, set a website price if needed, and publish"
+        subtitle="Only products with stock on hand are listed — search, pick a store section, set a website price if needed, and publish"
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -698,9 +730,46 @@ function AddProducts({
           </div>
         }
         footer={
+cursor/voucher-reference-id-balance-perf
           <span className="text-xs text-muted-foreground">
             {rows.length} in-stock unpublished product{rows.length === 1 ? "" : "s"} shown
           </span>
+
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">
+              {inStockRows.length} in-stock unpublished product{inStockRows.length === 1 ? "" : "s"} shown
+            </span>
+            {pageCount > 1 ? (
+              <span className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Prev
+                </Button>
+                <span className="px-1 text-xs text-muted-foreground">
+                  Page {safePage + 1} of {pageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            ) : null}
+          </div>
+main
         }
       >
         <Table className="w-full min-w-max">
@@ -717,9 +786,9 @@ function AddProducts({
             <InsightsStaticTh label="Website price" className="text-right w-28" />
           </InsightsTableHeader>
           <TableBody>
-            {rows.map((p) => {
+            {pageRows.map((p) => {
               const variantMeta = lookupMap<{ sizesLabel: string; colorsLabel: string }>(
-                variantsQuery.data,
+                variantsQuery.data?.labels,
                 p.id,
               );
               const stockQty = lookupMap<{ qty: number; price: number | null }>(pickerStock, p.id)?.qty ?? 0;
@@ -783,12 +852,17 @@ function AddProducts({
               </TableRow>
             );
             })}
-            {rows.length === 0 ? (
+            {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
+cursor/voucher-reference-id-balance-perf
                 <TableCell colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading
+=======
+                <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                  {productsQuery.isLoading || !stockReady
+main
                     ? "Loading…"
-                    : "No unpublished in-stock products match."}
+                    : "No in-stock unpublished products match."}
                 </TableCell>
               </TableRow>
             ) : null}

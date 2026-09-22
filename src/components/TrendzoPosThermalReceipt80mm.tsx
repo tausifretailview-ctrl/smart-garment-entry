@@ -11,6 +11,7 @@ import {
   buildTrendzoPaymentLines,
   formatTrendzoMoney,
   formatTrendzoPaymentModeLabel,
+  trendzoMixAmountPair,
   trendzoPartyAccountPair,
 } from "@/utils/trendzoThermalPayment";
 import "@/styles/trendzo-pos-thermal-receipt.css";
@@ -256,6 +257,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     paymentMethod,
   });
   const paymentModeLabel = formatTrendzoPaymentModeLabel(paymentLines, paymentMethod);
+  const mixAmountPair = trendzoMixAmountPair(paymentLines);
   const partyAccountPair = trendzoPartyAccountPair({
     previousBalance,
     unusedAdvance,
@@ -362,6 +364,9 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           left={<>Payment: {paymentModeLabel}</>}
           right={<>Paid {fmtMoney(totalPaid > 0 ? totalPaid : grandTotal)}</>}
         />
+        {mixAmountPair ? (
+          <PairRow left={mixAmountPair.left} right={mixAmountPair.right} />
+        ) : null}
         {partyAccountPair ? (
           <PairRow left={partyAccountPair.left} right={partyAccountPair.right} />
         ) : null}
