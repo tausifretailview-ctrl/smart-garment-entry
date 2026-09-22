@@ -67,6 +67,12 @@ import {
   buildStandardLabelDocument,
   printBarcodeViaDesktop,
 } from '@/utils/barcodeDesktopPrint';
+import {
+  ensureLabelNarrowFontLoaded,
+  LABEL_NARROW_FONT_FACE_CSS,
+  LABEL_NARROW_FONT_FAMILY,
+  previewFontFamilyStyle,
+} from '@/utils/labelFontFace';
 import { isElectron } from "@/utils/appPrint";
 import {
   assertPrintTargetSafe,
@@ -209,6 +215,11 @@ import {
   isRanawatBlingPresetName,
   resolveRanawatBlingLabelConfig,
 } from "@/constants/ranawatBlingLabelTemplate";
+import {
+  RETAIL_NARROW_TEMPLATE_NAME,
+  isRetailNarrowPresetName,
+  resolveRetailNarrowLabelConfig,
+} from "@/constants/retailNarrowLabelTemplate";
 import { upsertPrinterPresetRow } from "@/utils/printerPresetDbCompat";
 import { fetchSaleDiscPercentBySkuId } from "@/utils/pricingSaleDiscPercentLookup";
 
@@ -257,6 +268,14 @@ const resolvePresetLabelConfig = (
       return ensureCompleteFieldOrder(stored);
     }
     return resolveRanawatBlingLabelConfig();
+  }
+  // Retail Narrow is an editable starting design (never locked): resolve the
+  // built-in only when nothing saved exists under that name.
+  if (isRetailNarrowPresetName(presetName)) {
+    if (stored && (stored.fieldOrder?.length || stored.businessName || stored.barcode)) {
+      return ensureCompleteFieldOrder(stored);
+    }
+    return resolveRetailNarrowLabelConfig();
   }
   return ensureCompleteFieldOrder(stored || {});
 };
@@ -681,6 +700,9 @@ function DraggablePreviewField({ fieldKey, labelConfig, businessName, sampleItem
   const style: React.CSSProperties = {
     fontSize: `${fontSize}px`,
     fontWeight: field.bold ? 'bold' : 'normal',
+    // Condensed (or any designer) font previews only when explicitly set —
+    // undefined keeps the container Arial default, pixel-identical to before.
+    ...previewFontFamilyStyle(field.fontFamily),
     textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
     margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
     whiteSpace: 'nowrap',
@@ -898,6 +920,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
               height: '100%',
             }}
           >
+            <style>{LABEL_NARROW_FONT_FACE_CSS}</style>
             {visibleFields.map((fieldKey) => (
               <DraggablePreviewField
                 key={fieldKey}
@@ -927,6 +950,7 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         height: '100%',
       }}
     >
+      <style>{LABEL_NARROW_FONT_FACE_CSS}</style>
       {labelConfig.fieldOrder.map((fieldKey) => {
         const field = labelConfig[fieldKey] as LabelFieldConfig;
         if (!field.show) return null;
@@ -941,6 +965,9 @@ function LivePreviewLabel({ labelConfig, businessName, onConfigChange, editable 
         const style: React.CSSProperties = {
           fontSize: `${fontSize}px`,
           fontWeight: field.bold ? 'bold' : 'normal',
+          // Condensed (or any designer) font previews only when explicitly set —
+          // undefined keeps the container Arial default, pixel-identical to before.
+          ...previewFontFamilyStyle(field.fontFamily),
           textAlign: (field.textAlign || 'center') as 'left' | 'center' | 'right',
           margin: `${pt}px ${pr}px ${pb}px ${pl}px`,
           whiteSpace: 'nowrap',
@@ -1082,6 +1109,7 @@ function SortableFieldItem({ fieldKey, labelConfig, setLabelConfig, fieldLabels 
               <SelectItem value="Verdana">Verdana</SelectItem>
               <SelectItem value="Tahoma">Tahoma</SelectItem>
               <SelectItem value="Trebuchet MS">Trebuchet MS</SelectItem>
+              <SelectItem value={LABEL_NARROW_FONT_FAMILY}>Arial Narrow / Condensed</SelectItem>
             </SelectContent>
           </Select>
           
@@ -5890,6 +5918,10 @@ export default function BarcodePrinting() {
     // Classic mode: Generate labels in the print area (for on-screen preview)
     generatePreview("printArea");
 
+    // Condensed (EzzyNarrow) glyphs must be ready before the desktop document
+    // is built or window.print runs — 3s timeout, then print anyway.
+    await ensureLabelNarrowFontLoaded();
+
     if (isThermal1Up() || isThermalMultiUp()) {
       const labelW =
         sheetType === "custom"
@@ -6221,6 +6253,10 @@ export default function BarcodePrinting() {
           }));
 
           await new Promise(resolve => setTimeout(resolve, 200));
+
+          // Condensed (EzzyNarrow) glyphs must be ready before html2canvas
+          // capture — 3s timeout, then capture anyway.
+          await ensureLabelNarrowFontLoaded();
 
           const html2canvas = await loadHtml2Canvas();
           const canvas = await html2canvas(wrapper, {
@@ -8141,6 +8177,7 @@ export default function BarcodePrinting() {
                       if (
                         preset ||
                         isRanawatBlingPresetName(presetName) ||
+                        isRetailNarrowPresetName(presetName) ||
                         isFixedBuiltinLabelPreset(presetName) ||
                         isBoutiqueGridPresetName(presetName)
                       ) {
@@ -8201,6 +8238,9 @@ export default function BarcodePrinting() {
                         </SelectItem>
                         <SelectItem value={`preset:${RANAWAT_BLING_TEMPLATE_NAME}`} className="text-xs">
                           BLING JEWELLERY LABEL (100×15mm 1UP)
+                        </SelectItem>
+                        <SelectItem value={`preset:${RETAIL_NARROW_TEMPLATE_NAME}`} className="text-xs">
+                          Retail Narrow (50×25mm) — condensed, editable
                         </SelectItem>
                       </>
                     )}
@@ -8971,6 +9011,7 @@ export default function BarcodePrinting() {
       )}
 
       {!precisionSettings.enabled && printPageActive && <style>{`
+        ${LABEL_NARROW_FONT_FACE_CSS}
         #printArea {
           width: ${isThermal1Up() ? `${sheetType === "custom" ? customWidth : parseFloat(sheetPresets[sheetType].width)}mm` : '210mm'};
           min-height: ${isThermal1Up() ? `${sheetType === "custom" ? customHeight : parseFloat(sheetPresets[sheetType].height)}mm` : '297mm'};

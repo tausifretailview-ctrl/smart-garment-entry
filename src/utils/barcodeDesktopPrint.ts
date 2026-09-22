@@ -4,6 +4,7 @@ import {
   isDesktopBarcodePrintConfigured,
   isElectron,
 } from "@/utils/appPrint";
+import { LABEL_NARROW_FONT_FACE_CSS } from "@/utils/labelFontFace";
 
 export { buildPrecisionLabelDocument } from "@/utils/precisionLabelPrintDocument";
 
@@ -12,6 +13,7 @@ export function buildStandardLabelDocument(
   opts: { pageWidthMm: number; pageHeightMm: number; extraHeadStyles: string },
 ): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    ${LABEL_NARROW_FONT_FACE_CSS}
     @page { size: ${opts.pageWidthMm}mm ${opts.pageHeightMm}mm; margin: 0; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {

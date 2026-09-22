@@ -1,3 +1,5 @@
+import { LABEL_NARROW_FONT_FACE_CSS } from "@/utils/labelFontFace";
+
 export function buildPrecisionLabelDocument(
   labelInnerHtml: string,
   opts: {
@@ -23,6 +25,7 @@ export function buildPrecisionLabelDocument(
     : ".precision-print-area > .precision-thermal-page, .precision-print-area > div";
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    ${LABEL_NARROW_FONT_FACE_CSS}
     @page { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
     @page :first { size: ${pageSize}; margin: 0 !important; padding: 0 !important; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
