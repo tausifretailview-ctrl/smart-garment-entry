@@ -9,6 +9,9 @@ export const LABEL_DESIGNER_FONT_FAMILIES = [
   "Verdana",
   "Tahoma",
   "Trebuchet MS",
+  // Condensed option for thermal roll labels (HTML print path only).
+  // Real Arial Narrow wins when installed on the PC, else bundled EzzyNarrow.
+  "'Arial Narrow', 'EzzyNarrow', sans-serif",
 ] as const;
 
 export type LabelDesignerFontFamily = (typeof LABEL_DESIGNER_FONT_FAMILIES)[number];
@@ -46,6 +49,12 @@ export function mapLabelFontFamilyToPdfGroup(
     primary === "serif"
   ) {
     return "times";
+  }
+
+  // Arial Narrow / EzzyNarrow (condensed thermal option) → Helvetica group.
+  // A4 vector PDF output is unchanged for now.
+  if (primary.includes("arial narrow") || primary.includes("ezzynarrow")) {
+    return "helvetica";
   }
 
   // Arial, Verdana, Tahoma, Trebuchet, Helvetica, Comic Sans (legacy), sans-serif → Helvetica

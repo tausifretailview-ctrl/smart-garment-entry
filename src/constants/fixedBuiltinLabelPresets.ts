@@ -17,6 +17,10 @@ import {
   BOUTIQUE_GRID_DIMENSIONS,
   resolveBoutiqueGridLabelConfig,
 } from "@/constants/boutiqueGridLabelTemplate";
+import {
+  isRetailNarrowPresetName,
+  RETAIL_NARROW_50X25_DIMENSIONS,
+} from "@/constants/retailNarrowLabelTemplate";
 
 /**
  * Truly locked layouts (kidszone / jewellery): designer edits are discarded
@@ -45,6 +49,8 @@ export function getFixedBuiltinLabelDimensions(
   if (isKidszonePresetName(name)) return { ...KIDSZONE_50X40_DIMENSIONS };
   if (isJewelleryPresetName(name)) return { ...JEWELLERY_100X15_DIMENSIONS };
   if (isBoutiqueGridPresetName(name)) return { ...BOUTIQUE_GRID_DIMENSIONS };
+  // Retail Narrow is editable (not locked) but ships with 50×25 dims.
+  if (isRetailNarrowPresetName(name)) return { ...RETAIL_NARROW_50X25_DIMENSIONS };
   // BLING JEWELLERY LABEL: layout defaults to 100×15 but dimensions are user-editable per org.
   return null;
 }
@@ -56,6 +62,7 @@ export function fixedBuiltinPresetLabel(name: string | null | undefined): string
     return "Boutique Grid (50×38mm) — STYLE BOUTIQUE / KEY:VALUE";
   }
   if (isRanawatBlingPresetName(name)) return "BLING JEWELLERY LABEL (100×15mm default, editable)";
+  if (isRetailNarrowPresetName(name)) return "Retail Narrow (50×25mm) — condensed, editable";
   return null;
 }
 
