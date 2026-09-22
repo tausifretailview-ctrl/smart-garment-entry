@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
+import { splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
 import "@/styles/vastrakala-thermal-receipt.css";
 
 export interface VastrakalaThermalItem {
@@ -72,6 +73,38 @@ export function splitVastrakalaParticulars(
     detailLine = detailLine ? `${detailLine} ${notes}` : notes;
   }
   return { head, detailLine };
+}
+
+function VastrakalaHeaderBrandText({
+  title,
+  tagline,
+  headerFont,
+  subFont,
+}: {
+  title: string;
+  tagline: string;
+  headerFont: string;
+  subFont: string;
+}) {
+  return (
+    <>
+      <div style={{ fontWeight: 900, fontSize: headerFont, letterSpacing: "0.5px", lineHeight: 1.1 }}>
+        {title}
+      </div>
+      <div
+        className="vk-header-tagline"
+        style={{
+          fontWeight: 800,
+          fontSize: subFont,
+          letterSpacing: "0.3px",
+          marginTop: 1,
+          lineHeight: 1.15,
+        }}
+      >
+        {tagline}
+      </div>
+    </>
+  );
 }
 
 function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
@@ -146,7 +179,10 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     terms_list?: string[];
   };
 
-  const businessName = String(settings?.business_name || "STORE NAME").toUpperCase();
+  const shopHeader = useMemo(
+    () => splitVastrakalaShopHeader(String(settings?.business_name || "STORE NAME")),
+    [settings?.business_name],
+  );
   const address = String(settings?.address || "").trim();
   const mobile = String(settings?.mobile_number || settings?.owner_phone || "").trim();
   const logoUrl = billSettings.logo_url?.trim() || "";
@@ -239,25 +275,23 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               }}
             />
             <div style={{ textAlign: "center", minWidth: 0 }}>
-              <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
-                {businessName}
-              </div>
-              <div
-                style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}
-              >
-                LADIES WEAR
-              </div>
+              <VastrakalaHeaderBrandText
+                title={shopHeader.title}
+                tagline={shopHeader.tagline}
+                headerFont={layout.headerFont}
+                subFont={layout.subFont}
+              />
             </div>
             <span className="vk-header-logo-spacer" aria-hidden />
           </div>
         ) : (
           <div style={{ textAlign: "center", marginBottom: 2 }}>
-            <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
-              {businessName}
-            </div>
-            <div style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}>
-              LADIES WEAR
-            </div>
+            <VastrakalaHeaderBrandText
+              title={shopHeader.title}
+              tagline={shopHeader.tagline}
+              headerFont={layout.headerFont}
+              subFont={layout.subFont}
+            />
           </div>
         )}
         <div style={{ textAlign: "center" }}>
