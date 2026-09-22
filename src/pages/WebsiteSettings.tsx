@@ -533,7 +533,7 @@ function AddProducts({
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .order("product_name")
-        .limit(80);
+        .limit(500);
       const term = search.trim();
       if (term) q = q.ilike("product_name", `%${term}%`);
       const { data, error } = await q;
@@ -551,19 +551,23 @@ function AddProducts({
     staleTime: STALE_LIVE,
     queryFn: async () => {
       const ids = rows.map((p) => p.id);
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("product_id, size, color, stock_qty")
-        .eq("organization_id", orgId!)
-        .in("product_id", ids)
-        .is("deleted_at", null);
-      if (error) throw error;
-      const vrows = (data || []) as {
+      // Chunk the IN-list so large catalogues don't blow past URL length limits.
+      const vrows: {
         product_id: string;
         size?: string | null;
         color?: string | null;
         stock_qty?: number | null;
-      }[];
+      }[] = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("product_id, size, color, stock_qty")
+          .eq("organization_id", orgId!)
+          .in("product_id", ids.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (error) throw error;
+        vrows.push(...((data || []) as typeof vrows));
+      }
       const stockById: Record<string, number> = {};
       for (const v of vrows) {
         stockById[v.product_id] = (stockById[v.product_id] ?? 0) + (Number(v.stock_qty) || 0);
@@ -575,11 +579,18 @@ function AddProducts({
     },
   });
 
-  // Only products with stock on hand; stock totals arrive with the variants,
-  // so hold the list empty (with a loading hint) until they resolve.
+  // Only products with stock on hand. A product with variant rows summing to
+  // zero is hidden; a product with no variant rows at all is kept (no stock
+  // signal either way — hiding it made sellable products vanish). Stock totals
+  // arrive with the variants, so hold the list empty until they resolve.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
-    ? rows.filter((p) => (variantsQuery.data?.stockById[p.id] ?? 0) > 0)
+    ? rows.filter((p) => {
+        const stock = variantsQuery.data?.stockById[p.id];
+        // No variant rows at all → no stock signal → keep the product.
+        if (stock == null) return true;
+        return stock > 0;
+      })
     : [];
 
   useEffect(() => {
@@ -744,6 +755,7 @@ function AddProducts({
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
+            <InsightsStaticTh label="Stock" className="text-right" />
             <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
@@ -780,6 +792,9 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
+                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
+                  {variantsQuery.data?.stockById[p.id] ?? "—"}
+                </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
                   {sections.length > 0 ? (
                     <WebsiteSectionSelect
@@ -812,7 +827,7 @@ function AddProducts({
             })}
             {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading || !stockReady
                     ? "Loading…"
                     : "No in-stock unpublished products match."}
