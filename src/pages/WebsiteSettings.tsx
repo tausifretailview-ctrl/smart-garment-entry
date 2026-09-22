@@ -544,7 +544,12 @@ function AddProducts({
       const { data, error } = await q;
       if (error) throw error;
       const candidates = (data || []) as CatalogProduct[];
-      if (candidates.length === 0) return [];
+      if (candidates.length === 0) {
+        return {
+          products: [] as CatalogProduct[],
+          stock: {} as Record<string, { qty: number; price: number | null }>,
+        };
+      }
 
       const ids = candidates.map((p) => p.id);
       const { data: variantRows, error: variantError } = await supabase
