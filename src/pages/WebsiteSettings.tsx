@@ -530,8 +530,7 @@ function AddProducts({
     enabled: !!orgId,
     staleTime: STALE_LIVE,
     queryFn: async () => {
-      const PICKER_SCAN_LIMIT = 200;
-      const PICKER_DISPLAY_LIMIT = 80;
+      const PICKER_SCAN_LIMIT = 500;
       let q = supabase
         .from("products")
         .select("id, product_name, brand, category, image_url, default_sale_price")
@@ -552,20 +551,27 @@ function AddProducts({
       }
 
       const ids = candidates.map((p) => p.id);
-      const { data: variantRows, error: variantError } = await supabase
-        .from("product_variants")
-        .select("product_id, sale_price, stock_qty")
-        .eq("organization_id", orgId!)
-        .in("product_id", ids)
-        .is("deleted_at", null);
-      if (variantError) throw variantError;
+      // Chunk the IN-list so large catalogues don't blow past URL length limits.
+      const variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }> = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data: chunk, error: variantError } = await supabase
+          .from("product_variants")
+          .select("product_id, sale_price, stock_qty")
+          .eq("organization_id", orgId!)
+          .in("product_id", ids.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (variantError) throw variantError;
+        variantRows.push(...((chunk || []) as typeof variantRows));
+      }
 
-      const stockByProduct = aggregateWebsiteVariantStock(
-        (variantRows || []) as Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>,
-      );
-      const products = candidates
-        .filter((p) => (stockByProduct[p.id]?.qty ?? 0) > 0)
-        .slice(0, PICKER_DISPLAY_LIMIT);
+      const stockByProduct = aggregateWebsiteVariantStock(variantRows);
+      // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
+      // No display cap here — client-side pagination shows the full list.
+      const products = candidates.filter((p) => {
+        const entry = stockByProduct[p.id];
+        if (!entry) return true;
+        return (entry.qty ?? 0) > 0;
+      });
       const stock: Record<string, { qty: number; price: number | null }> = {};
       for (const p of products) {
         const row = stockByProduct[p.id];
@@ -585,19 +591,22 @@ function AddProducts({
     staleTime: STALE_LIVE,
     queryFn: async () => {
       const ids = rows.map((p) => p.id);
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("product_id, size, color, stock_qty")
-        .eq("organization_id", orgId!)
-        .in("product_id", ids)
-        .is("deleted_at", null);
-      if (error) throw error;
-      const vrows = (data || []) as {
+      const vrows: {
         product_id: string;
         size?: string | null;
         color?: string | null;
         stock_qty?: number | null;
-      }[];
+      }[] = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("product_id, size, color, stock_qty")
+          .eq("organization_id", orgId!)
+          .in("product_id", ids.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (error) throw error;
+        vrows.push(...((data || []) as typeof vrows));
+      }
       const stockById: Record<string, number> = {};
       for (const v of vrows) {
         stockById[v.product_id] = (stockById[v.product_id] ?? 0) + (Number(v.stock_qty) || 0);
@@ -609,11 +618,15 @@ function AddProducts({
     },
   });
 
-  // Only products with stock on hand; stock totals arrive with the variants,
-  // so hold the list empty (with a loading hint) until they resolve.
+  // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
+  // Hold the list empty (with a loading hint) until variants resolve.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
-    ? rows.filter((p) => (variantsQuery.data?.stockById[p.id] ?? 0) > 0)
+    ? rows.filter((p) => {
+        const stock = variantsQuery.data?.stockById[p.id];
+        if (stock == null) return true;
+        return stock > 0;
+      })
     : [];
 
   useEffect(() => {
