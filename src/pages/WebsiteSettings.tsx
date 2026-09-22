@@ -544,7 +544,12 @@ function AddProducts({
       const { data, error } = await q;
       if (error) throw error;
       const candidates = (data || []) as CatalogProduct[];
-      if (candidates.length === 0) return [];
+      if (candidates.length === 0) {
+        return {
+          products: [] as CatalogProduct[],
+          stock: {} as Record<string, { qty: number; price: number | null }>,
+        };
+      }
 
       const ids = candidates.map((p) => p.id);
       const { data: variantRows, error: variantError } = await supabase
@@ -730,11 +735,6 @@ function AddProducts({
           </div>
         }
         footer={
-cursor/voucher-reference-id-balance-perf
-          <span className="text-xs text-muted-foreground">
-            {rows.length} in-stock unpublished product{rows.length === 1 ? "" : "s"} shown
-          </span>
-
           <div className="flex w-full items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
               {inStockRows.length} in-stock unpublished product{inStockRows.length === 1 ? "" : "s"} shown
@@ -769,7 +769,6 @@ cursor/voucher-reference-id-balance-perf
               </span>
             ) : null}
           </div>
-main
         }
       >
         <Table className="w-full min-w-max">
@@ -854,13 +853,8 @@ main
             })}
             {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-cursor/voucher-reference-id-balance-perf
                 <TableCell colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
-                  {productsQuery.isLoading
-=======
-                <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading || !stockReady
-main
                     ? "Loading…"
                     : "No in-stock unpublished products match."}
                 </TableCell>
