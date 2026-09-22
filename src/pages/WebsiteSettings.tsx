@@ -527,18 +527,43 @@ function AddProducts({
     enabled: !!orgId,
     staleTime: STALE_LIVE,
     queryFn: async () => {
+      const PICKER_SCAN_LIMIT = 500;
       let q = supabase
         .from("products")
         .select("id, product_name, brand, category, image_url, default_sale_price")
         .eq("organization_id", orgId!)
         .is("deleted_at", null)
         .order("product_name")
-        .limit(500);
+        .limit(PICKER_SCAN_LIMIT);
       const term = search.trim();
       if (term) q = q.ilike("product_name", `%${term}%`);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as CatalogProduct[];
+      const candidates = (data || []) as CatalogProduct[];
+      if (candidates.length === 0) return [];
+
+      const ids = candidates.map((p) => p.id);
+      // Chunk the IN-list so large catalogues don't blow past URL length limits.
+      const variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }> = [];
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data: chunk, error: variantError } = await supabase
+          .from("product_variants")
+          .select("product_id, sale_price, stock_qty")
+          .eq("organization_id", orgId!)
+          .in("product_id", ids.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (variantError) throw variantError;
+        variantRows.push(...((chunk || []) as typeof variantRows));
+      }
+
+      const stockByProduct = aggregateWebsiteVariantStock(variantRows);
+      // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
+      // Client-side pagination below shows the full filtered list (no display cap).
+      return candidates.filter((p) => {
+        const entry = stockByProduct[p.id];
+        if (!entry) return true;
+        return (entry.qty ?? 0) > 0;
+      });
     },
   });
 
