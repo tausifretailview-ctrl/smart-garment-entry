@@ -223,6 +223,7 @@ export default function WebsiteSettingsPage() {
               <AddProducts
                 orgId={orgId}
                 listings={listings}
+                onGoToSections={() => handleTabChange("sections")}
                 onChanged={() => {
                   queryClient.invalidateQueries({ queryKey: ["website_products", orgId] });
                   queryClient.invalidateQueries({ queryKey: ["website_sections", orgId] });
@@ -497,10 +498,12 @@ function StoreProfile({
 function AddProducts({
   orgId,
   listings,
+  onGoToSections,
   onChanged,
 }: {
   orgId?: string;
   listings: WebsiteProduct[];
+  onGoToSections?: () => void;
   onChanged: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -555,13 +558,20 @@ function AddProducts({
       const stockByProduct = aggregateWebsiteVariantStock(
         (variantRows || []) as Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>,
       );
-      return candidates
+      const products = candidates
         .filter((p) => (stockByProduct[p.id]?.qty ?? 0) > 0)
         .slice(0, PICKER_DISPLAY_LIMIT);
+      const stock: Record<string, { qty: number; price: number | null }> = {};
+      for (const p of products) {
+        const row = stockByProduct[p.id];
+        if (row) stock[p.id] = row;
+      }
+      return { products, stock };
     },
   });
 
-  const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
+  const rows = (productsQuery.data?.products ?? []).filter((p) => !publishedIds.has(p.id));
+  const pickerStock = productsQuery.data?.stock ?? {};
   const rowIds = rows.map((p) => p.id).join(",");
 
   const variantsQuery = useQuery({
@@ -692,7 +702,7 @@ function AddProducts({
                 className="h-9 w-56 pl-8 text-sm border-slate-200 bg-white"
               />
             </div>
-            {sections.length > 0 ? (
+            {sections.length > 0 || onGoToSections ? (
               <WebsiteSectionSelect
                 sections={sections}
                 value={publishSectionId}
@@ -704,6 +714,7 @@ function AddProducts({
                     return next;
                   });
                 }}
+                onAddNew={onGoToSections}
                 className="h-9"
                 emptyLabel="Section"
               />
@@ -719,6 +730,11 @@ function AddProducts({
           </div>
         }
         footer={
+cursor/voucher-reference-id-balance-perf
+          <span className="text-xs text-muted-foreground">
+            {rows.length} in-stock unpublished product{rows.length === 1 ? "" : "s"} shown
+          </span>
+
           <div className="flex w-full items-center justify-between gap-2">
             <span className="text-xs text-muted-foreground">
               {inStockRows.length} in-stock unpublished product{inStockRows.length === 1 ? "" : "s"} shown
@@ -753,6 +769,7 @@ function AddProducts({
               </span>
             ) : null}
           </div>
+main
         }
       >
         <Table className="w-full min-w-max">
@@ -763,6 +780,7 @@ function AddProducts({
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
+            <InsightsStaticTh label="Stock" className="text-right w-16" />
             <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
@@ -773,6 +791,7 @@ function AddProducts({
                 variantsQuery.data?.labels,
                 p.id,
               );
+              const stockQty = lookupMap<{ qty: number; price: number | null }>(pickerStock, p.id)?.qty ?? 0;
               return (
               <TableRow key={p.id} className={INSIGHTS_BODY_ROW}>
                 <TableCell className={INSIGHTS_BODY_CELL}>
@@ -799,12 +818,16 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-mono tabular-nums")}>
+                  {stockQty.toLocaleString("en-IN")}
+                </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
-                  {sections.length > 0 ? (
+                  {sections.length > 0 || onGoToSections ? (
                     <WebsiteSectionSelect
                       sections={sections}
                       value={rowSections[p.id] || publishSectionId}
                       onChange={(id) => setRowSections((prev) => ({ ...prev, [p.id]: id }))}
+                      onAddNew={onGoToSections}
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
@@ -831,8 +854,13 @@ function AddProducts({
             })}
             {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
+cursor/voucher-reference-id-balance-perf
+                <TableCell colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                  {productsQuery.isLoading
+=======
                 <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading || !stockReady
+main
                     ? "Loading…"
                     : "No in-stock unpublished products match."}
                 </TableCell>
