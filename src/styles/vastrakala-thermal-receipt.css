@@ -26,6 +26,17 @@
   font-size: 11px !important;
 }
 
+.vastrakala-thermal-receipt-80mm .vk-header-logo-spacer {
+  display: block;
+  width: 100%;
+  min-height: 1px;
+}
+
+.vastrakala-thermal-receipt-80mm .vk-header-logo {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
 .vastrakala-thermal-receipt-80mm .vk-item-detail {
   white-space: nowrap;
   overflow: hidden;

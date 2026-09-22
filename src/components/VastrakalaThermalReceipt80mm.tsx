@@ -212,33 +212,63 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       data-thermal-paper={thermalPaper}
       style={base}
     >
-      <div style={{ textAlign: "center" }}>
+      <div className="vk-header">
         {logoUrl ? (
-          <img
-            src={logoUrl}
-            alt=""
+          <div
+            className="vk-header-brand-row"
             style={{
-              display: "block",
-              margin: "0 auto 2px",
-              maxHeight: layout.logoMax,
-              maxWidth: "70%",
-              objectFit: "contain",
+              display: "grid",
+              gridTemplateColumns: `${layout.logoMax} minmax(0, 1fr) ${layout.logoMax}`,
+              alignItems: "center",
+              columnGap: "0.5mm",
+              marginBottom: 2,
             }}
-          />
-        ) : null}
-        <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
-          {businessName}
+          >
+            <img
+              src={logoUrl}
+              alt=""
+              className="vk-header-logo"
+              style={{
+                display: "block",
+                maxHeight: layout.logoMax,
+                maxWidth: layout.logoMax,
+                width: "100%",
+                height: "auto",
+                objectFit: "contain",
+                justifySelf: "start",
+              }}
+            />
+            <div style={{ textAlign: "center", minWidth: 0 }}>
+              <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
+                {businessName}
+              </div>
+              <div
+                style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}
+              >
+                LADIES WEAR
+              </div>
+            </div>
+            <span className="vk-header-logo-spacer" aria-hidden />
+          </div>
+        ) : (
+          <div style={{ textAlign: "center", marginBottom: 2 }}>
+            <div style={{ fontWeight: 900, fontSize: layout.headerFont, letterSpacing: "0.5px" }}>
+              {businessName}
+            </div>
+            <div style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}>
+              LADIES WEAR
+            </div>
+          </div>
+        )}
+        <div style={{ textAlign: "center" }}>
+          {address ? (
+            <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
+          ) : null}
+          {mobile ? <div style={{ fontWeight: 700 }}>CONTACT : {mobile}</div> : null}
+          {instagramHandle ? (
+            <div style={{ fontWeight: 700, marginTop: 1 }}>{instagramHandle}</div>
+          ) : null}
         </div>
-        <div style={{ fontWeight: 800, fontSize: layout.subFont, letterSpacing: "1px", marginTop: 1 }}>
-          LADIES WEAR
-        </div>
-        {address ? (
-          <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
-        ) : null}
-        {mobile ? <div style={{ fontWeight: 700 }}>CONTACT : {mobile}</div> : null}
-        {instagramHandle ? (
-          <div style={{ fontWeight: 700, marginTop: 1 }}>{instagramHandle}</div>
-        ) : null}
       </div>
 
       <div style={dashed} />
