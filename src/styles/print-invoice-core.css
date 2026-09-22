@@ -631,9 +631,9 @@
     width: 76mm !important;
     max-width: 76mm !important;
     padding: 2mm 1.5mm !important;
-    font-family: "Arial Black", Arial, Helvetica, sans-serif !important;
-    font-size: 14px !important;
-    font-weight: 700 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 12px !important;
+    font-weight: 400 !important;
     -webkit-font-smoothing: antialiased !important;
     letter-spacing: 0 !important;
   }
@@ -642,7 +642,7 @@
   .print-dialog.thermal-paper-58 .trendzo-pos-thermal-receipt-80mm,
   .invoice-print-source.thermal-paper-58 .vastrakala-thermal-receipt-80mm,
   .print-dialog.thermal-paper-58 .vastrakala-thermal-receipt-80mm {
-    font-size: 11px !important;
+    font-size: 10px !important;
   }
 
   /* Trendzo POS — sans-serif layout; do not inherit global thermal monospace bold */
