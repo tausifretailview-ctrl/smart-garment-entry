@@ -832,15 +832,9 @@ function AddProducts({
             {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={9} className="px-3 py-10 text-center text-sm text-muted-foreground">
-                  cursor/website-add-products-stock-pages-2cad
                   {productsQuery.isLoading || !stockReady
                     ? "Loading…"
                     : "No in-stock unpublished products match."}
-
-                  {productsQuery.isLoading
-                    ? "Loading…"
-                    : "No unpublished in-stock products match."}
- main
                 </TableCell>
               </TableRow>
             ) : null}
