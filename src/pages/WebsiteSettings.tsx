@@ -49,6 +49,11 @@ import {
   whatsappShareUrl,
 } from "@/lib/storefrontShare";
 import { classifyStorefrontStock, formatStorefrontPrice, aggregateWebsiteVariantStock } from "@/lib/storefrontStock";
+import {
+  fetchAllProductVariantStockRows,
+  fetchOrgProductsByIds,
+  fetchOrgProductsForWebsitePicker,
+} from "@/utils/fetchAllRows";
 import { aggregateVariantRows } from "@/lib/storefrontVariantSummary";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
@@ -530,19 +535,41 @@ function AddProducts({
     enabled: !!orgId,
     staleTime: STALE_LIVE,
     queryFn: async () => {
-      const PICKER_SCAN_LIMIT = 500;
-      let q = supabase
-        .from("products")
-        .select("id, product_name, brand, category, image_url, default_sale_price")
-        .eq("organization_id", orgId!)
-        .is("deleted_at", null)
-        .order("product_name")
-        .limit(PICKER_SCAN_LIMIT);
       const term = search.trim();
-      if (term) q = q.ilike("product_name", `%${term}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      const candidates = (data || []) as CatalogProduct[];
+      const productSelect = "id, product_name, brand, category, image_url, default_sale_price";
+
+      let candidates: CatalogProduct[];
+      let variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>;
+
+      if (!term) {
+        // Stock-first: every in-stock product, not only the first N names alphabetically.
+        variantRows = await fetchAllProductVariantStockRows(orgId!);
+        const stockByProductAll = aggregateWebsiteVariantStock(variantRows);
+        const idsWithStock = Object.keys(stockByProductAll).filter((id) => stockByProductAll[id].qty > 0);
+        candidates = (await fetchOrgProductsByIds(orgId!, idsWithStock, productSelect)) as CatalogProduct[];
+        candidates.sort((a, b) => (a.product_name ?? "").localeCompare(b.product_name ?? "", "en"));
+      } else {
+        candidates = (await fetchOrgProductsForWebsitePicker(orgId!, term, productSelect)) as CatalogProduct[];
+        if (candidates.length === 0) {
+          return {
+            products: [] as CatalogProduct[],
+            stock: {} as Record<string, { qty: number; price: number | null }>,
+          };
+        }
+        const ids = candidates.map((p) => p.id);
+        variantRows = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data: chunk, error: variantError } = await supabase
+            .from("product_variants")
+            .select("product_id, sale_price, stock_qty")
+            .eq("organization_id", orgId!)
+            .in("product_id", ids.slice(i, i + 100))
+            .is("deleted_at", null);
+          if (variantError) throw variantError;
+          variantRows.push(...((chunk || []) as typeof variantRows));
+        }
+      }
+
       if (candidates.length === 0) {
         return {
           products: [] as CatalogProduct[],
@@ -550,29 +577,14 @@ function AddProducts({
         };
       }
 
-      const ids = candidates.map((p) => p.id);
-      // Chunk the IN-list so large catalogues don't blow past URL length limits.
-      const variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }> = [];
-      for (let i = 0; i < ids.length; i += 100) {
-        const { data: chunk, error: variantError } = await supabase
-          .from("product_variants")
-          .select("product_id, sale_price, stock_qty")
-          .eq("organization_id", orgId!)
-          .in("product_id", ids.slice(i, i + 100))
-          .is("deleted_at", null);
-        if (variantError) throw variantError;
-        variantRows.push(...((chunk || []) as typeof variantRows));
-      }
-
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
-      // Proven-zero-stock hides; no variant rows at all keeps (no stock signal)
+      // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
       // Client-side pagination below shows the full filtered list (no display cap).
       const products = candidates.filter((p) => {
         const entry = stockByProduct[p.id];
         if (!entry) return true;
         return (entry.qty ?? 0) > 0;
       });
-
       const stock: Record<string, { qty: number; price: number | null }> = {};
       for (const p of products) {
         const row = stockByProduct[p.id];
@@ -633,6 +645,28 @@ function AddProducts({
       })
     : [];
 
+  const stockListSummary = useMemo(() => {
+    const stockById = variantsQuery.data?.stockById;
+    if (!stockReady || !stockById) return null;
+    let totalUnits = 0;
+    let unknownStockProducts = 0;
+    let zeroStockLeaks = 0;
+    for (const p of inStockRows) {
+      const stock = stockById[p.id];
+      if (stock == null) {
+        unknownStockProducts += 1;
+        continue;
+      }
+      if (stock <= 0) zeroStockLeaks += 1;
+      totalUnits += stock;
+    }
+    return {
+      totalUnits,
+      unknownStockProducts,
+      zeroStockLeaks,
+    };
+  }, [stockReady, variantsQuery.data?.stockById, inStockRows]);
+
   useEffect(() => {
     setPage(0);
   }, [search, orgId]);
@@ -640,6 +674,17 @@ function AddProducts({
   const pageCount = Math.max(1, Math.ceil(inStockRows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = inStockRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  const pageStockSummary = useMemo(() => {
+    const stockById = variantsQuery.data?.stockById;
+    if (!stockReady || !stockById) return null;
+    let totalUnits = 0;
+    for (const p of pageRows) {
+      const stock = stockById[p.id];
+      if (stock != null && stock > 0) totalUnits += stock;
+    }
+    return totalUnits;
+  }, [stockReady, variantsQuery.data?.stockById, pageRows]);
 
   const publish = useMutation({
     mutationFn: async () => {
@@ -753,8 +798,36 @@ function AddProducts({
         }
         footer={
           <div className="flex w-full items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
-              {inStockRows.length} in-stock unpublished product{inStockRows.length === 1 ? "" : "s"} shown
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {!stockReady ? (
+                "Loading stock totals…"
+              ) : (
+                <>
+                  {inStockRows.length} in-stock unpublished product
+                  {inStockRows.length === 1 ? "" : "s"} shown
+                  {stockListSummary ? (
+                    <>
+                      {" · "}
+                      <span className="font-medium text-foreground">
+                        {stockListSummary.totalUnits.toLocaleString("en-IN")} units in this list
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        (unpublished only; published stock is on Catalogue)
+                      </span>
+                      {pageCount > 1 && pageStockSummary != null ? (
+                        <> (this page: {pageStockSummary.toLocaleString("en-IN")})</>
+                      ) : null}
+                      {stockListSummary.unknownStockProducts > 0 ? (
+                        <> · {stockListSummary.unknownStockProducts} without variant stock yet</>
+                      ) : null}
+                      {stockListSummary.zeroStockLeaks > 0 ? (
+                        <> · {stockListSummary.zeroStockLeaks} at zero (unexpected)</>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              )}
             </span>
             {pageCount > 1 ? (
               <span className="flex items-center gap-1">
@@ -807,7 +880,10 @@ function AddProducts({
                 variantsQuery.data?.labels,
                 p.id,
               );
-              const stockQty = lookupMap<{ qty: number; price: number | null }>(pickerStock, p.id)?.qty ?? 0;
+              const stockFromVariants = variantsQuery.data?.stockById[p.id];
+              const stockQty =
+                stockFromVariants ??
+                lookupMap<{ qty: number; price: number | null }>(pickerStock, p.id)?.qty;
               return (
               <TableRow key={p.id} className={INSIGHTS_BODY_ROW}>
                 <TableCell className={INSIGHTS_BODY_CELL}>
@@ -835,7 +911,7 @@ function AddProducts({
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-mono tabular-nums")}>
-                  {stockQty.toLocaleString("en-IN")}
+                  {stockQty != null ? stockQty.toLocaleString("en-IN") : "—"}
                 </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
                   {sections.length > 0 || onGoToSections ? (

@@ -686,6 +686,109 @@ export async function fetchCustomerReceiptVouchers(organizationId: string) {
   return allRows;
 }
 
+export type ProductVariantStockRow = {
+  product_id: string;
+  sale_price: number | null;
+  stock_qty: number | null;
+};
+
+/** All variant stock rows for an org (paginated). Used by website Add-products picker. */
+export async function fetchAllProductVariantStockRows(organizationId: string): Promise<ProductVariantStockRow[]> {
+  const allRows: ProductVariantStockRow[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("product_id, sale_price, stock_qty")
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching variant stock rows:", error);
+      throw error;
+    }
+
+    if (!data?.length) break;
+    allRows.push(...(data as ProductVariantStockRow[]));
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
+/** Products by id, scoped to org and non-deleted. Batches large id lists. */
+export async function fetchOrgProductsByIds(
+  organizationId: string,
+  productIds: string[],
+  selectFields = "id, product_name, brand, category, image_url, default_sale_price",
+) {
+  if (productIds.length === 0) return [];
+
+  const allRows: any[] = [];
+  const batchSize = 500;
+
+  for (let i = 0; i < productIds.length; i += batchSize) {
+    const batchIds = productIds.slice(i, i + batchSize);
+    const { data, error } = await supabase
+      .from("products")
+      .select(selectFields)
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .in("id", batchIds);
+
+    if (error) {
+      console.error("Error fetching org products by IDs:", error);
+      throw error;
+    }
+    if (data) allRows.push(...data);
+  }
+
+  return allRows;
+}
+
+/**
+ * Paginated product list for website picker search (no row cap).
+ */
+export async function fetchOrgProductsForWebsitePicker(
+  organizationId: string,
+  searchTerm: string,
+  selectFields = "id, product_name, brand, category, image_url, default_sale_price",
+) {
+  const allRows: any[] = [];
+  let offset = 0;
+  const pageSize = 1000;
+  const term = searchTerm.trim();
+
+  while (true) {
+    let q = supabase
+      .from("products")
+      .select(selectFields)
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .order("product_name")
+      .order("id")
+      .range(offset, offset + pageSize - 1);
+    if (term) q = q.ilike("product_name", `%${term}%`);
+
+    const { data, error } = await q;
+    if (error) {
+      console.error("Error fetching website picker products:", error);
+      throw error;
+    }
+    if (!data?.length) break;
+    allRows.push(...data);
+    if (data.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return allRows;
+}
+
 /**
  * Fetch all product variants for an organization using range pagination.
  */
