@@ -86,7 +86,8 @@ export function buildPosSalePersistPayload(params: {
     flatDiscountAmount: params.totals.flatDiscountAmount,
     saleReturnAdjust: params.saleReturnAdjust,
     roundOff: params.roundOff,
-    netAmount: params.totals.finalAmount,
+    // Rule B: persist the full bill. Payable (finalAmount) is tender only.
+    netAmount: params.totals.billAmount,
     creditApplied: params.creditApplied,
     salesman: params.salesman || null,
     notes: params.notes || null,

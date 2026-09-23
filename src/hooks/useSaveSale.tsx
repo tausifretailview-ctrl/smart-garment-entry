@@ -13,6 +13,7 @@ import { uploadWappConnectInvoicePdfFromBase64 } from "@/utils/wappConnectPdfUrl
 import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import {
+  applyCreditNoteFifoToSale,
   computeExchangeRefundDue,
   derivePaidAndStatus,
   getAvailableCN,
@@ -21,6 +22,7 @@ import {
   preSaveInvariants,
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
+import { newPosCreditIdempotencyKey } from "@/utils/applyPosCredit";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { posTenderDueAfterAdvance } from "@/utils/posApplyAdvance";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
@@ -93,7 +95,7 @@ interface SaleData {
   /**
    * Existing advance booking to consume after save via consumeAdvanceFIFO.
    * Reduces cashier tender only — do not subtract from persisted net_amount
-   * and do not pass into derivePaidAndStatus.advanceApplied (that slot is CN).
+   * and do not add it to paid_amount. Credit is applied after insert via apply_pos_credit.
    */
   advanceApplied?: number;
   refundAmount?: number;
@@ -625,59 +627,21 @@ export const useSaveSale = () => {
         break;
       }
 
+      // One return row stays partly used. Do not split a leftover sale_return.
       const consumeAmt = roundMoney(remaining);
-      const leftoverAmt = roundMoney(srAmt - consumeAmt);
-      const srGross = roundMoney(Number(sr.gross_amount) || srAmt);
-      const srGst = roundMoney(Number(sr.gst_amount) || 0);
-      const ratio = srAmt > 0 ? consumeAmt / srAmt : 0;
-      const consumedGross = roundMoney(srGross * ratio);
-      const consumedGst = roundMoney(srGst * ratio);
-      const leftoverGross = roundMoney(srGross - consumedGross);
-      const leftoverGst = roundMoney(srGst - consumedGst);
-
-      const cnIdSplit = ensuredCnId || String((sr as { credit_note_id?: string | null }).credit_note_id || "").trim();
-      const clearCnFromConsumedRow = Boolean(cnIdSplit && leftoverAmt > 0.01);
-
+      const newAvail = roundMoney(srAmt - consumeAmt);
       await supabase
         .from('sale_returns')
         .update({
-          net_amount: consumeAmt,
-          gross_amount: consumedGross,
-          gst_amount: consumedGst,
-          credit_status: 'adjusted',
+          credit_available_balance: newAvail,
+          credit_status: newAvail <= 0.01 ? 'adjusted' : 'partially_adjusted',
           linked_sale_id: params.saleId,
-          credit_available_balance: 0,
-          notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Partially adjusted in POS sale`,
-          ...(clearCnFromConsumedRow ? { credit_note_id: null } : cnIdSplit ? { credit_note_id: cnIdSplit } : {}),
-        } as never)
+          ...(ensuredCnId ? { credit_note_id: ensuredCnId } : {}),
+        })
         .eq('id', sr.id);
-
-      if (leftoverAmt > 0.01) {
-        await supabase.from('sale_returns').insert({
-          organization_id: sr.organization_id,
-          customer_id: sr.customer_id,
-          customer_name: sr.customer_name,
-          refund_type: sr.refund_type || 'credit_note',
-          payment_method: (sr as { payment_method?: string | null }).payment_method ?? null,
-          return_date: sr.return_date,
-          return_number: null,
-          original_sale_number: sr.original_sale_number || null,
-          credit_note_id: cnIdSplit || null,
-          credit_status: 'pending',
-          linked_sale_id: null,
-          gross_amount: leftoverGross,
-          gst_amount: leftoverGst,
-          net_amount: leftoverAmt,
-          credit_available_balance: leftoverAmt,
-          notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Pending balance after partial POS adjustment`,
-        } as any);
-        if (cnIdSplit) {
-          await setLinkedCreditNoteAmount(cnIdSplit, leftoverAmt);
-        }
-      } else if (cnIdSplit) {
-        await markCreditNoteFullyUsedForSrAdjust(cnIdSplit);
+      if (ensuredCnId && newAvail <= 0.01) {
+        await markCreditNoteFullyUsedForSrAdjust(ensuredCnId);
       }
-
       remaining = 0;
       break;
     }
@@ -687,6 +651,82 @@ export const useSaveSale = () => {
         `Could only absorb ₹${roundMoney(targetAmount - remaining).toLocaleString("en-IN")} of ₹${targetAmount.toLocaleString("en-IN")} sale-return adjust. Reduce S/R adjust or free credit-note balance first.`,
       );
     }
+  };
+
+  /**
+   * After the sale row exists with the full net and tender-only paid, apply
+   * credit through apply_pos_credit. Awaited. A failure leaves the bill pending.
+   */
+  const applyPosBillCredit = async (args: {
+    customerId: string | null | undefined;
+    saleId: string;
+    netAmount: number;
+    paidAmount: number;
+    saleReturnAdjust: number;
+    creditApplied: number;
+    consumeSrAmount: number;
+    idempotencyKey?: string | null;
+  }): Promise<{
+    creditApplyError: string | null;
+    creditIdempotencyKey: string | null;
+    creditApplyAmount: number;
+  }> => {
+    const empty = {
+      creditApplyError: null as string | null,
+      creditIdempotencyKey: null as string | null,
+      creditApplyAmount: 0,
+    };
+    const requested = roundMoney((args.saleReturnAdjust || 0) + (args.creditApplied || 0));
+    const outstanding = roundMoney(Math.max(0, (args.netAmount || 0) - (args.paidAmount || 0)));
+    const amount = roundMoney(Math.min(requested, outstanding));
+    const excess = roundMoney(Math.max(0, (args.consumeSrAmount || 0) - (args.saleReturnAdjust || 0)));
+    if ((amount <= 0.01 && excess <= 0.01) || !args.customerId || !currentOrganization?.id) {
+      return empty;
+    }
+    const key = args.idempotencyKey || newPosCreditIdempotencyKey();
+    let creditApplyError: string | null = null;
+    if (amount > 0.01) {
+      try {
+        const { returns: cnPool } = await getAvailableCN(
+          supabase,
+          args.customerId,
+          currentOrganization.id,
+          { includeUnlinkedAdjusted: true },
+        );
+        if (!cnPool.length) {
+          throw new Error("No credit note balance available for this customer");
+        }
+        await applyCreditNoteFifoToSale(supabase, {
+          organizationId: currentOrganization.id,
+          saleId: args.saleId,
+          amount,
+          cnPool,
+          adjustedBy: user?.id ?? null,
+          notes: "POS credit apply",
+          idempotencyKey: key,
+        });
+      } catch (err) {
+        creditApplyError = err instanceof Error ? err.message : "Could not apply credit to this bill.";
+        console.error("POS credit apply failed:", err);
+      }
+    }
+    if (!creditApplyError && excess > 0.01) {
+      try {
+        await consumeSaleReturnAdjustments({
+          customerId: args.customerId,
+          saleId: args.saleId,
+          adjustmentAmount: excess,
+        });
+      } catch (err) {
+        creditApplyError = err instanceof Error ? err.message : "Could not settle exchange credit.";
+        console.error("POS exchange credit consume failed:", err);
+      }
+    }
+    return {
+      creditApplyError,
+      creditIdempotencyKey: amount > 0.01 ? key : null,
+      creditApplyAmount: amount,
+    };
   };
 
   type SavePaymentMethod = 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later';
@@ -745,8 +785,16 @@ export const useSaveSale = () => {
     let paidAmt = 0;
     let refundAmt = saleData.refundAmount || 0;
     let finalPaymentMethod: string = paymentMethod;
+    const payableBeforeAdvance = Math.max(
+      0,
+      roundMoney(
+        (saleData.netAmount || 0) -
+          (saleData.saleReturnAdjust || 0) -
+          (saleData.creditApplied || 0),
+      ),
+    );
     const tenderDue = posTenderDueAfterAdvance(
-      saleData.netAmount,
+      payableBeforeAdvance,
       saleData.advanceApplied || 0,
     );
 
@@ -797,11 +845,11 @@ export const useSaveSale = () => {
       issueCreditNote: !!paymentBreakdown?.issueCreditNote,
     });
     if (exchange.isExchangeRefund) {
-      paidAmt = Math.max(0, saleData.netAmount || 0);
+      // Refund is money out. Tender paid stays 0; the bill net stays the full bill.
+      paidAmt = 0;
       cashAmt = 0;
       cardAmt = 0;
       upiAmt = 0;
-      // Persist cash refund on sales.refund_amount (carrier for dashboard / ledger).
       refundAmt = exchange.cashRefund;
     } else if (paymentBreakdown?.issueCreditNote) {
       refundAmt = 0;
@@ -819,9 +867,11 @@ export const useSaveSale = () => {
 
     const { paidAmount, paymentStatus } = derivePaidAndStatus({
       netAmount: saleData.netAmount,
-      saleReturnAdjust: saleData.saleReturnAdjust || 0,
+      // Credit is not on the row until apply_pos_credit succeeds. Status stays
+      // pending so a failed apply leaves a visible balance.
+      saleReturnAdjust: 0,
       cashReceived,
-      advanceApplied: saleData.creditApplied || 0,
+      advanceApplied: 0,
       cnApplied: 0,
       discountGiven: saleData.pointsRedeemedAmount || 0,
       paymentMethod,
@@ -1055,7 +1105,9 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: saleData.saleReturnAdjust,
+          // POS credit is added by apply_pos_credit after insert. Writing it here
+          // would double sale_return_adjust.
+          sale_return_adjust: saleType === "pos" ? 0 : saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
@@ -1122,23 +1174,18 @@ export const useSaveSale = () => {
         }
       }
 
-      // Mark consumed sale_return(s) as adjusted and link to this sale.
-      // Exchange excess (cash refund / CN): consume applied + excess so leftover
-      // pending SR credit does not remain after the overflow was settled.
-      const srConsumeAmount = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
-      if (srConsumeAmount > 0 && saleData.customerId) {
-        const runSrConsume = () =>
-          consumeSaleReturnAdjustments({
-            customerId: saleData.customerId!,
-            saleId: sale.id,
-            adjustmentAmount: srConsumeAmount,
-          });
-        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
-        } else {
-          await runSrConsume();
-        }
-      }
+      // Credit is awaited. A failure is returned to the cashier with the same
+      // idempotency key — never fire-and-forget a money write.
+      const creditResult = await applyPosBillCredit({
+        customerId: saleData.customerId,
+        saleId: sale.id,
+        netAmount: saleData.netAmount,
+        paidAmount: paidAmt,
+        saleReturnAdjust: saleData.saleReturnAdjust || 0,
+        creditApplied: saleData.creditApplied || 0,
+        consumeSrAmount: consumeSrAmount || 0,
+        idempotencyKey: runtimeOptions?.creditIdempotencyKey,
+      });
 
       try {
         const recomputed = await applyRecomputedSalePaymentState(
@@ -1506,7 +1553,7 @@ export const useSaveSale = () => {
         })();
       }
 
-      return { ...sale, pointsAwarded };
+      return { ...sale, pointsAwarded, ...creditResult };
     } catch (error: any) {
       if (insertedSaleIdForRollback) {
         const saleId = insertedSaleIdForRollback;
@@ -1769,43 +1816,16 @@ export const useSaveSale = () => {
             const srAmt = roundMoney(Number(sr.net_amount) || 0);
 
             if (srAmt > newSRA + 0.01) {
-              const ratio = srAmt > 0 ? newSRA / srAmt : 0;
-              const consumedGross = roundMoney((Number(sr.gross_amount) || srAmt) * ratio);
-              const consumedGst = roundMoney((Number(sr.gst_amount) || 0) * ratio);
               const leftoverAmt = roundMoney(srAmt - newSRA);
-              const leftoverGross = roundMoney((Number(sr.gross_amount) || srAmt) - consumedGross);
-              const leftoverGst = roundMoney((Number(sr.gst_amount) || 0) - consumedGst);
-
               await supabase
                 .from('sale_returns')
                 .update({
-                  net_amount: newSRA,
-                  gross_amount: consumedGross,
-                  gst_amount: consumedGst,
-                  credit_available_balance: 0,
+                  credit_status: 'partially_adjusted',
+                  linked_sale_id: saleId,
+                  credit_available_balance: leftoverAmt,
                   notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Reduced after invoice edit (was ${srAmt})`,
                 })
                 .eq('id', sr.id);
-
-              if (leftoverAmt > 0.01) {
-                await supabase.from('sale_returns').insert({
-                  organization_id: sr.organization_id,
-                  customer_id: sr.customer_id,
-                  customer_name: sr.customer_name,
-                  refund_type: sr.refund_type || 'credit_note',
-                  payment_method: (sr as { payment_method?: string | null }).payment_method ?? null,
-                  return_date: sr.return_date,
-                  return_number: null,
-                  original_sale_number: sr.original_sale_number || null,
-                  credit_note_id: sr.credit_note_id || null,
-                  credit_status: 'pending',
-                  linked_sale_id: null,
-                  gross_amount: leftoverGross,
-                  gst_amount: leftoverGst,
-                  net_amount: leftoverAmt,
-                  notes: `Pending balance after invoice ${existingSale?.sale_number || saleId} edit`,
-                } as any);
-              }
             }
           }
         }
@@ -1957,17 +1977,11 @@ export const useSaveSale = () => {
 
       const srConsumeAmountUpdate = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
       if (srConsumeAmountUpdate > 0 && saleData.customerId) {
-        const runSrConsume = () =>
-          consumeSaleReturnAdjustments({
-            customerId: saleData.customerId!,
-            saleId: sale.id,
-            adjustmentAmount: srConsumeAmountUpdate,
-          });
-        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
-        } else {
-          await runSrConsume();
-        }
+        await consumeSaleReturnAdjustments({
+          customerId: saleData.customerId,
+          saleId: sale.id,
+          adjustmentAmount: srConsumeAmountUpdate,
+        });
       }
 
       try {
@@ -2347,7 +2361,7 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: saleData.saleReturnAdjust,
+          sale_return_adjust: 0,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
@@ -2406,21 +2420,16 @@ export const useSaveSale = () => {
         }
       }
 
-      // Mark consumed sale_return(s) as adjusted and link to this sale (resume-held path)
-      const srConsumeAmountResume = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
-      if (srConsumeAmountResume > 0 && saleData.customerId) {
-        const runSrConsume = () =>
-          consumeSaleReturnAdjustments({
-            customerId: saleData.customerId!,
-            saleId: sale.id,
-            adjustmentAmount: srConsumeAmountResume,
-          });
-        if (runtimeOptions?.nonBlockingSaleReturnConsume) {
-          void runSrConsume().catch((srErr) => console.error('Failed to mark SR as adjusted:', srErr));
-        } else {
-          await runSrConsume();
-        }
-      }
+      const creditResult = await applyPosBillCredit({
+        customerId: saleData.customerId,
+        saleId: sale.id,
+        netAmount: saleData.netAmount,
+        paidAmount: paidAmt,
+        saleReturnAdjust: saleData.saleReturnAdjust || 0,
+        creditApplied: saleData.creditApplied || 0,
+        consumeSrAmount: consumeSrAmount || 0,
+        idempotencyKey: runtimeOptions?.creditIdempotencyKey,
+      });
 
       try {
         const recomputed = await applyRecomputedSalePaymentState(
@@ -2448,7 +2457,7 @@ export const useSaveSale = () => {
         saleSnapshot: toPosDashboardSaleSeed(sale as Record<string, unknown>, totalQty),
       });
 
-      return sale;
+      return { ...sale, ...creditResult };
     } catch (error: any) {
       console.error('Error resuming held sale:', error);
       toast({

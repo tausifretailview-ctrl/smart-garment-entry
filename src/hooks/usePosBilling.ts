@@ -475,7 +475,7 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
     [items, totals, saleReturnAdjust, roundOff, creditApplied, taxType],
   );
 
-  const maxSrFromBill = maxSaleReturnAdjustForPayable(totals.finalAmount, saleReturnAdjust);
+  const maxSrFromBill = maxSaleReturnAdjustForPayable(totals.billAmount, 0);
 
   return {
     items,

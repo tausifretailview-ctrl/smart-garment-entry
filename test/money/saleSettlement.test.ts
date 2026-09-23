@@ -84,9 +84,8 @@ describe("derivePaidAndStatus — POS / sales settlement", () => {
     expect(paymentStatus).toBe("pending");
   });
 
-  it("does not double-count sale_return_adjust in settlement (net already post-SRA)", () => {
-    // net 1000 is payable after SRA; sr 1000 must NOT make zero-cash look completed.
-    const { paymentStatus } = derivePaidAndStatus({
+  it("settles sale_return_adjust against the full net and keeps paid as tender", () => {
+    const { paymentStatus, paidAmount } = derivePaidAndStatus({
       netAmount: 1000,
       saleReturnAdjust: 1000,
       cashReceived: 0,
@@ -94,6 +93,33 @@ describe("derivePaidAndStatus — POS / sales settlement", () => {
       cnApplied: 0,
       discountGiven: 0,
     });
+    expect(paidAmount).toBe(0);
+    expect(paymentStatus).toBe("completed");
+  });
+
+  it("does not add a credit-note voucher that is already in sale_return_adjust", () => {
+    const { paymentStatus, paidAmount } = derivePaidAndStatus({
+      netAmount: 800,
+      saleReturnAdjust: 500,
+      cashReceived: 300,
+      advanceApplied: 0,
+      cnApplied: 500,
+      discountGiven: 0,
+    });
+    expect(paidAmount).toBe(300);
+    expect(paymentStatus).toBe("completed");
+  });
+
+  it("leaves a full-credit bill pending until sale_return_adjust is recorded", () => {
+    const { paymentStatus, paidAmount } = derivePaidAndStatus({
+      netAmount: 250,
+      saleReturnAdjust: 0,
+      cashReceived: 0,
+      advanceApplied: 0,
+      cnApplied: 0,
+      discountGiven: 0,
+    });
+    expect(paidAmount).toBe(0);
     expect(paymentStatus).toBe("pending");
   });
 });
@@ -116,13 +142,13 @@ describe("derivePaidAndStatus — outstanding balance", () => {
 });
 
 describe("normalizeSaleReturnAdjustAgainstBill", () => {
-  it("caps S/R that would drive net negative and restores net to 0", () => {
+  it("caps S/R to the full bill and leaves net unchanged", () => {
     const result = normalizeSaleReturnAdjustAgainstBill({
-      netAmount: -5000,
+      netAmount: 10000,
       saleReturnAdjust: 15000,
     });
     expect(result.saleReturnAdjust).toBe(10000);
-    expect(result.netAmount).toBe(0);
+    expect(result.netAmount).toBe(10000);
     expect(result.excess).toBe(5000);
     expect(result.wasCapped).toBe(true);
   });
@@ -145,9 +171,9 @@ describe("normalizeSaleReturnAdjustAgainstBill", () => {
 });
 
 describe("computeExchangeRefundDue — keep net≥0 + explicit refund", () => {
-  it("after bill cap: net=0, sra=applied, explicit refund is the excess", () => {
+  it("full bill plus explicit refund is the excess", () => {
     const result = computeExchangeRefundDue({
-      netAmount: 0,
+      netAmount: 2000,
       saleReturnAdjust: 2000,
       explicitRefundAmount: 500,
     });
@@ -170,7 +196,7 @@ describe("computeExchangeRefundDue — keep net≥0 + explicit refund", () => {
 
   it("equal exchange: no refund due", () => {
     const result = computeExchangeRefundDue({
-      netAmount: 0,
+      netAmount: 2000,
       saleReturnAdjust: 2000,
       explicitRefundAmount: 0,
     });
@@ -180,7 +206,7 @@ describe("computeExchangeRefundDue — keep net≥0 + explicit refund", () => {
 
   it("partial S/R under bill: not an exchange refund", () => {
     const result = computeExchangeRefundDue({
-      netAmount: 500,
+      netAmount: 2000,
       saleReturnAdjust: 1500,
       explicitRefundAmount: 0,
     });

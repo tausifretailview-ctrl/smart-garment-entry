@@ -76,18 +76,17 @@ export function computePosBillTotals(input: ComputePosBillTotalsInput): PosBillT
 
   // CRITICAL: Inclusive totalGst is an extracted breakdown only (tax already in price).
   // Never add posGst.totalGst on inclusive / no_gst — would overcharge the customer.
+  // Rule B: this is the full bill. Sale-return and credit are not subtracted here.
   const amountBeforeRoundOff =
     input.taxType === "exclusive"
-      ? posGst.taxableSubtotal -
-        flatDiscountAmount -
-        saleReturnAdjust -
-        creditApplied +
-        posGst.totalGst
-      : totals.subtotal - flatDiscountAmount - saleReturnAdjust - creditApplied;
+      ? posGst.taxableSubtotal - flatDiscountAmount + posGst.totalGst
+      : totals.subtotal - flatDiscountAmount;
 
   const calculatedRoundOff = Math.round(amountBeforeRoundOff) - amountBeforeRoundOff;
   const pointsRedemptionValue = redeem(pointsToRedeem);
-  const finalAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
+  const billAmount = amountBeforeRoundOff + roundOff - pointsRedemptionValue;
+  const payable = billAmount - saleReturnAdjust - creditApplied;
+  const finalAmount = payable;
   const amountBeforeCredit = finalAmount + creditApplied;
 
   return {
@@ -105,6 +104,8 @@ export function computePosBillTotals(input: ComputePosBillTotalsInput): PosBillT
     amountBeforeRoundOff,
     calculatedRoundOff,
     pointsRedemptionValue,
+    billAmount,
+    payable,
     finalAmount,
     amountBeforeCredit,
   };

@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyPosCredit, newPosCreditIdempotencyKey, posCreditChunkKey } from "@/utils/applyPosCredit";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import {
   creditNoteLiveRemaining,
@@ -47,17 +48,17 @@ export function derivePaidAndStatus(params: {
     cnApplied,
     discountGiven,
     paymentMethod,
+    saleReturnAdjust,
   } = params;
 
-  // `netAmount` is the payable AFTER sale_return_adjust (see preSaveInvariants:
-  // "net_amount is payable after S/R adjust"). The billing return is therefore
-  // already baked into `netAmount`; it must NOT be added to `totalSettled` again,
-  // otherwise an adjusted-but-unpaid invoice (e.g. net 1,000 with sr 1,000 and
-  // ₹0 cash) is wrongly marked "completed". `saleReturnAdjust` is accepted for
-  // signature compatibility but intentionally excluded from settlement.
-  const totalSettled = cashReceived + advanceApplied + cnApplied + discountGiven;
-
-  const paidAmount = Math.round((cashReceived + advanceApplied + cnApplied + discountGiven) * 100) / 100;
+  // Match compute_sale_settlement: paid_amount is tender (cash + advance + genuine
+  // CN + settlement discount). A credit-note voucher that only audits
+  // sale_return_adjust is not added again. Status is paid + sale_return_adjust
+  // against the full net.
+  const sra = Math.max(0, roundMoney2(saleReturnAdjust));
+  const genuineCn = Math.max(0, roundMoney2(cnApplied - sra));
+  const paidAmount = roundMoney2(cashReceived + advanceApplied + genuineCn + discountGiven);
+  const totalSettled = roundMoney2(paidAmount + sra);
 
   let paymentStatus: SalePaymentStatus;
   if (totalSettled >= netAmount - SETTLEMENT_TOLERANCE) {
@@ -722,6 +723,11 @@ export async function applyCreditNoteFifoToSale(
     customerNameFallback?: string;
     adjustedBy?: string | null;
     notes?: string | null;
+    /**
+     * Stable across retries of this save. Each credit note gets
+     * `${key}:${creditNoteId}` so a second attempt cannot apply the same chunk twice.
+     */
+    idempotencyKey?: string | null;
   },
 ): Promise<ApplyCreditNoteFifoResult> {
   const requested = Math.max(0, Math.round(Number(params.amount) * 100) / 100);
@@ -738,7 +744,7 @@ export async function applyCreditNoteFifoToSale(
   let remaining = requested;
   let applied = 0;
   const chunks: CnFifoVoucherChunk[] = [];
-  const sb = supabase as unknown as { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: Error | null }> };
+  const baseIdempotencyKey = params.idempotencyKey || newPosCreditIdempotencyKey();
 
   for (const sr of pool) {
     if (remaining <= 0.01) break;
@@ -774,19 +780,19 @@ export async function applyCreditNoteFifoToSale(
       saleReturnId: sr.id,
     });
 
-    const { data: rpcData, error: rpcErr } = await sb.rpc("adjust_invoice_balance", {
-      p_organization_id: params.organizationId,
-      p_invoice_id: params.saleId,
-      p_adjustment_type: "CREDIT_NOTE",
-      p_source_document_id: creditNoteId,
-      p_amount_applied: useFromSR,
-      p_adjusted_by: params.adjustedBy ?? null,
-      p_notes: params.notes ?? null,
+    const idempotencyKey = posCreditChunkKey(baseIdempotencyKey, creditNoteId);
+    const appliedChunk = await applyPosCredit(supabase, {
+      organizationId: params.organizationId,
+      saleId: params.saleId,
+      idempotencyKey,
+      sourceDocumentId: creditNoteId,
+      amountApplied: useFromSR,
+      adjustedBy: params.adjustedBy ?? null,
+      notes: params.notes ?? null,
     });
-    if (rpcErr) throw rpcErr;
-
+    const rpcData = appliedChunk.raw;
     const { voucherEntryId, voucherNumber } = voucherMetaFromAdjustInvoiceRpc(rpcData);
-    if (!voucherEntryId) {
+    if (!voucherEntryId && !appliedChunk.alreadyApplied) {
       throw new Error("Receipt voucher missing after credit-note adjustment.");
     }
     chunks.push({
@@ -895,9 +901,9 @@ export function isPosExchangeRefundPaymentVoucher(v: {
 }
 
 /**
- * Same-bill exchange excess (return > bill) with keep-net≥0 persistence.
- * - Before save cap: net may be negative; excess = |net|.
- * - After save cap: net≈0, sra=applied; excess comes from explicit refund_amount / CN amount.
+ * Same-bill exchange excess (return > bill).
+ * Rule B: `netAmount` is the full bill. Overflow is sale-return above that bill,
+ * or an explicit refund from Mix. A negative net is the legacy pre-cap shape.
  */
 export function computeExchangeRefundDue(params: {
   netAmount: number;
@@ -911,22 +917,27 @@ export function computeExchangeRefundDue(params: {
 } {
   const sra = Math.max(0, roundMoney2(params.saleReturnAdjust));
   const net = roundMoney2(params.netAmount);
-  const billAmount = Math.max(0, roundMoney2(net + sra));
   const explicit = Math.max(0, roundMoney2(params.explicitRefundAmount || 0));
-  const legacyExcess = net < -SETTLEMENT_TOLERANCE ? roundMoney2(-net) : 0;
-  const refundDue = Math.max(explicit, legacyExcess);
-  const appliedSr =
-    billAmount > 0.005 ? Math.min(sra, billAmount) : Math.max(0, roundMoney2(sra - refundDue));
-  const isExchangeRefund =
-    sra > 0.005 && billAmount > 0.005 && refundDue > 0.005 && net <= SETTLEMENT_TOLERANCE;
+  if (net < -SETTLEMENT_TOLERANCE) {
+    const billAmount = Math.max(0, roundMoney2(net + sra));
+    const refundDue = Math.max(explicit, roundMoney2(-net));
+    const appliedSr =
+      billAmount > 0.005 ? Math.min(sra, billAmount) : Math.max(0, roundMoney2(sra - refundDue));
+    const isExchangeRefund =
+      sra > 0.005 && billAmount > 0.005 && refundDue > 0.005;
+    return { billAmount, appliedSr, refundDue, isExchangeRefund };
+  }
+  const billAmount = Math.max(0, net);
+  const appliedSr = Math.min(sra, billAmount);
+  const overflow = Math.max(0, roundMoney2(sra - billAmount));
+  const refundDue = Math.max(explicit, overflow);
+  const isExchangeRefund = refundDue > 0.005 && (overflow > 0.005 || (explicit > 0.005 && appliedSr > 0.005));
   return { billAmount, appliedSr, refundDue, isExchangeRefund };
 }
 
 /**
- * Cap S/R adjust so net_amount cannot go negative. Excess credit must stay on the
- * customer's pending return/CN balance (not absorbed into a negative net) — unless the
- * caller intentionally settles that excess via cash refund or a credit note.
- * `netAmount` is payable AFTER the requested adjust (POS / useSaveSale convention).
+ * Cap S/R adjust to the full bill. `netAmount` is that bill (Rule B) and is not reduced.
+ * Excess credit stays on the customer's pending return unless Mix settles it as a refund.
  */
 export function normalizeSaleReturnAdjustAgainstBill(params: {
   netAmount: number;
@@ -939,17 +950,15 @@ export function normalizeSaleReturnAdjustAgainstBill(params: {
   maxApply: number;
 } {
   const requested = Math.max(0, roundMoney2(params.saleReturnAdjust));
-  const net = roundMoney2(params.netAmount);
-  const billBeforeSr = roundMoney2(net + requested);
-  const maxApply = Math.max(0, billBeforeSr);
+  const bill = Math.max(0, roundMoney2(params.netAmount));
+  const maxApply = bill;
   const capped = Math.min(requested, maxApply);
   const excess = roundMoney2(requested - capped);
-  const adjustedNet = Math.max(0, roundMoney2(net + excess));
   return {
-    netAmount: adjustedNet,
+    netAmount: bill,
     saleReturnAdjust: capped,
     excess,
-    wasCapped: excess > 0.005 || adjustedNet > net + 0.005,
+    wasCapped: excess > 0.005,
     maxApply,
   };
 }
@@ -1047,8 +1056,8 @@ export function preSaveInvariants(params: {
   }
 
   const srAdjust = saleReturnAdjust || 0;
-  // POS / useSaveSale: net_amount is payable after S/R adjust; merchandise bill = net + S/R.
-  const billAmount = roundMoney2(netAmount + srAdjust);
+  // Rule B: net_amount is the full bill. S/R is settlement against it, not a reduction.
+  const billAmount = roundMoney2(Math.max(0, netAmount));
   const merchandiseGross = Math.max(
     Number(grossAmount) || 0,
     sumMerchandiseGrossFromItems(items),

@@ -100,6 +100,14 @@ export type PosBillTotals = {
   amountBeforeRoundOff: number;
   calculatedRoundOff: number;
   pointsRedemptionValue: number;
+  /**
+   * Full bill after discounts, round-off and points.
+   * Persisted as `sales.net_amount`. Sale-return and credit are not inside it.
+   */
+  billAmount: number;
+  /** What the customer still pays: billAmount − sale-return − credit. May be negative on an exchange. */
+  payable: number;
+  /** Screen / tender figure. Same as `payable`. */
   finalAmount: number;
   amountBeforeCredit: number;
 };

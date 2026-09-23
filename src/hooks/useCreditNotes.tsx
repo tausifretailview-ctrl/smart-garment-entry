@@ -215,7 +215,8 @@ export function useCreditNotes() {
   const applyCredit = async (
     customerId: string,
     saleId: string,
-    amountToApply: number
+    amountToApply: number,
+    idempotencyKey?: string | null,
   ): Promise<{ success: boolean; appliedAmount: number; creditNotesUsed: string[] }> => {
     if (!currentOrganization?.id || !saleId || amountToApply <= 0) {
       return { success: false, appliedAmount: 0, creditNotesUsed: [] };
@@ -240,6 +241,7 @@ export function useCreditNotes() {
         cnPool,
         adjustedBy: user?.id ?? null,
         notes: "POS credit apply (FIFO)",
+        idempotencyKey: idempotencyKey || null,
       });
 
       const totalApplied = fifo.applied;
