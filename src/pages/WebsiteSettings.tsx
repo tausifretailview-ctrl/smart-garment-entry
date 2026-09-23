@@ -834,13 +834,8 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
-cursor/website-picker-coverage-fix-2cad
-                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
-                  {variantsQuery.data?.stockById[p.id] ?? "—"}
-=======
                 <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-mono tabular-nums")}>
                   {stockQty.toLocaleString("en-IN")}
-main
                 </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
                   {sections.length > 0 || onGoToSections ? (
