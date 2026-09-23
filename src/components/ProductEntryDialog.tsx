@@ -79,6 +79,10 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import {
+  findSameNameProductsInOrg,
+  normalizeProductNameKey,
+} from "@/utils/productNameDedupe";
 import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
 import type { UseExistingProductPayload } from "@/utils/purchaseUseExistingProduct";
@@ -500,6 +504,12 @@ export const ProductEntryDialog = ({
     productName: string;
   } | null>(null);
   const barcodeConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Name-dupe gate: same normalized name + category already in the org. Bypass is an explicit second click. */
+  const [showNameDupeDialog, setShowNameDupeDialog] = useState(false);
+  const [nameDupeMatches, setNameDupeMatches] = useState<
+    Array<{ id: string; product_name: string; brand: string | null; category: string | null }>
+  >([]);
+  const [nameDupeConfirmedKey, setNameDupeConfirmedKey] = useState<string | null>(null);
   const initialBarcodeAppliedRef = useRef(false);
   const productFieldSettings = useProductFieldSettings();
   const [showMrp, setShowMrp] = useState(false);
@@ -758,6 +768,15 @@ export const ProductEntryDialog = ({
     void retrySizeGroupSetup();
     void fetchPreviousValues();
   }, [open, currentOrganization?.id, authLoading, session]);
+
+  // Name-dupe gate: fresh confirmation state each time the dialog opens.
+  useEffect(() => {
+    if (open) {
+      setNameDupeConfirmedKey(null);
+      setShowNameDupeDialog(false);
+      setNameDupeMatches([]);
+    }
+  }, [open]);
 
   // Re-apply garment GST rule when settings load or sale price changes
   useEffect(() => {
@@ -2090,6 +2109,23 @@ export const ProductEntryDialog = ({
   const handleSave = async () => {
     if (!validateForm()) return;
     if (!currentOrganization?.id) return;
+
+    // Name-dupe gate: same normalized name + category already in the org →
+    // confirm before inserting. Bypass ("Create anyway") is an explicit second
+    // click recorded per name+category; the default path stops here.
+    const dupeKey = normalizeProductNameKey(formData.product_name, formData.category);
+    if (nameDupeConfirmedKey !== dupeKey) {
+      const dupes = await findSameNameProductsInOrg(
+        currentOrganization.id,
+        formData.product_name,
+        formData.category,
+      );
+      if (dupes.length > 0) {
+        setNameDupeMatches(dupes);
+        setShowNameDupeDialog(true);
+        return;
+      }
+    }
 
     let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
       ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
@@ -4588,6 +4624,44 @@ export const ProductEntryDialog = ({
             <AlertDialogCancel disabled={creatingSizeGroup}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleCreateSizeGroup} disabled={creatingSizeGroup}>
               {creatingSizeGroup ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Name-dupe gate: same name + category already in the org. "Create anyway"
+          is an explicit second click; the default path stays in the form so the
+          user can close and pick the existing product instead. */}
+      <AlertDialog open={showNameDupeDialog} onOpenChange={setShowNameDupeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Product already exists?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A product named &ldquo;{formData.product_name.trim()}&rdquo;
+              {formData.category.trim() ? ` (${formData.category.trim()})` : ""} already exists
+              — use it instead, or create a new one anyway?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1 py-2">
+            {nameDupeMatches.slice(0, 5).map((m) => (
+              <div key={m.id} className="text-sm">
+                <span className="font-semibold">{m.product_name}</span>
+                <span className="text-muted-foreground">
+                  {[m.brand, m.category].filter(Boolean).join(" · ")}
+                </span>
+              </div>
+            ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Use existing instead</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setNameDupeConfirmedKey(normalizeProductNameKey(formData.product_name, formData.category));
+                setShowNameDupeDialog(false);
+                void handleSave();
+              }}
+            >
+              Create anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

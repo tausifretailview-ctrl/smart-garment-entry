@@ -1718,13 +1718,14 @@ const ProductEntry = () => {
     const productGroups = new Map<string, Record<string, any>[]>();
     
     for (const row of validRows) {
+      // Lowercased so "AEROSYNC PB-12" and "aerosync pb-12" dedupe to one product.
       const key = [
         row.product_name?.toString().trim() || '',
         row.category?.toString().trim() || '',
         row.brand?.toString().trim() || '',
         row.style?.toString().trim() || '',
         row.color?.toString().trim() || '',
-      ].join('|');
+      ].join('|').toLowerCase();
       
       if (!productGroups.has(key)) {
         productGroups.set(key, []);
@@ -1754,7 +1755,7 @@ const ProductEntry = () => {
         p.brand || '',
         p.style || '',
         p.color || '',
-      ].join('|');
+      ].join('|').toLowerCase();
       existingProductMap.set(key, p.id);
     });
 
