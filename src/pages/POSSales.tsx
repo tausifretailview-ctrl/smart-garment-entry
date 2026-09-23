@@ -8960,7 +8960,7 @@ export default function POSSales() {
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
-                billNetAmount={savedInvoiceData.billNetAmount ?? totals.billAmount}
+                billNetAmount={savedInvoiceData.billNetAmount ?? (totals as any).billAmount}
                 cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}

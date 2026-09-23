@@ -101,7 +101,11 @@ export default function PublicInvoiceView() {
 
   // Recalculate scale on mount, resize, and whenever the invoice content changes.
   useLayoutEffect(() => {
-    if (formatParam === 'thermal') {
+    const s: any = (data as any)?.settings;
+    const effThermal = rawFormatParam
+      ? rawFormatParam === 'thermal'
+      : !rawTemplateOverride && (isPosShortLink ? s?.pos_bill_format === 'thermal' : s?.invoice_paper_format === 'thermal');
+    if (effThermal) {
       setFitScale(1);
       setScaledHeight(undefined);
       return;
