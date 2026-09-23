@@ -1,0 +1,303 @@
+/* Customer app — mobile-first, dependency-free, printable invoice. */
+:root {
+  --accent: #0f766e;
+  --ink: #1e293b;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --bg: #f1f5f9;
+  --card: #ffffff;
+  --star: #f59e0b;
+  --danger: #dc2626;
+  --radius: 14px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.c-wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+}
+
+.c-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+
+.c-shop {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.c-shop img {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.c-shop h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.c-shop p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.c-billhead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 10px;
+}
+
+.c-billhead b {
+  display: block;
+  font-size: 15px;
+}
+
+.c-muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+table.c-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+table.c-items th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+table.c-items td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.c-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.c-totals {
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.c-totals .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+}
+
+.c-totals .grand {
+  font-size: 17px;
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.c-paid {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.c-due {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.c-btn {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 12px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.c-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.c-btn-ghost {
+  background: #fff;
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.c-row2 {
+  display: flex;
+  gap: 8px;
+}
+
+.c-row2 .c-btn {
+  margin-top: 10px;
+}
+
+.c-stars {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin: 12px 0;
+}
+
+.c-stars button {
+  border: 0;
+  background: none;
+  font-size: 38px;
+  line-height: 1;
+  cursor: pointer;
+  color: #cbd5e1;
+  padding: 2px;
+}
+
+.c-stars button.on {
+  color: var(--star);
+}
+
+.c-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.c-tags button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.c-tags button.on {
+  border-color: var(--accent);
+  background: #ccfbf1;
+  font-weight: 700;
+}
+
+.c-input,
+textarea.c-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  margin-top: 8px;
+}
+
+.c-social {
+  display: flex;
+  gap: 8px;
+}
+
+.c-social a {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+}
+
+.c-center {
+  text-align: center;
+}
+
+.c-err {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 14px;
+}
+
+.c-loading {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--muted);
+}
+
+.c-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+  body.print-invoice .c-wrap > *:not(.print-area) {
+    display: none !important;
+  }
+  .c-card {
+    box-shadow: none;
+    border: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
