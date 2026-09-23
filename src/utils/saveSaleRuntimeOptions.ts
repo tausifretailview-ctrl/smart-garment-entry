@@ -37,6 +37,11 @@ export type SaveSaleRuntimeOptions = {
   /** Do not block save completion on sale_return FIFO consume (POS only). */
   nonBlockingSaleReturnConsume?: boolean;
   /**
+   * Stable key for this POS credit attempt. Retries must reuse it so
+   * `apply_pos_credit` cannot redeem the same note twice.
+   */
+  creditIdempotencyKey?: string | null;
+  /**
    * Override for invoice PDF generation used by WhatsApp auto-send.
    * When provided, the hook calls this instead of the built-in jsPDF generator,
    * letting the caller render the actual selected invoice template (with logo,

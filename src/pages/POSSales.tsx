@@ -4152,10 +4152,68 @@ export default function POSSales() {
     ],
   );
 
-  const buildPosRuntimeOpts = useCallback((): SaveSaleRuntimeOptions => ({
-    ...POS_DEFERRED_INVALIDATION_OPTS,
-    capturePdfBase64: captureWhatsAppPdf,
-  }), [captureWhatsAppPdf]);
+  const creditIdempotencyKeyRef = useRef<string | null>(null);
+  const [creditApplyFailure, setCreditApplyFailure] = useState<{
+    saleId: string;
+    customerId: string;
+    amount: number;
+    idempotencyKey: string;
+    message: string;
+  } | null>(null);
+
+  const buildPosRuntimeOpts = useCallback((): SaveSaleRuntimeOptions => {
+    if ((creditApplied > 0.01 || saleReturnAdjust > 0.01) && !creditIdempotencyKeyRef.current) {
+      creditIdempotencyKeyRef.current = crypto.randomUUID();
+    }
+    return {
+      ...POS_DEFERRED_INVALIDATION_OPTS,
+      capturePdfBase64: captureWhatsAppPdf,
+      creditIdempotencyKey: creditIdempotencyKeyRef.current,
+    };
+  }, [captureWhatsAppPdf, creditApplied, saleReturnAdjust]);
+
+  const noteCreditApplyOutcome = (
+    result: {
+      id?: string;
+      creditApplyError?: string | null;
+      creditIdempotencyKey?: string | null;
+      creditApplyAmount?: number | null;
+    } | null,
+    customerIdForCredit: string,
+  ) => {
+    if (!result?.creditApplyError || !result.id) {
+      creditIdempotencyKeyRef.current = null;
+      return;
+    }
+    const idempotencyKey = result.creditIdempotencyKey || creditIdempotencyKeyRef.current || "";
+    creditIdempotencyKeyRef.current = null;
+    setCreditApplyFailure({
+      saleId: result.id,
+      customerId: customerIdForCredit,
+      amount: Number(result.creditApplyAmount || 0),
+      idempotencyKey,
+      message: result.creditApplyError,
+    });
+    toast.error("Credit was not applied", {
+      description: `${result.creditApplyError} The bill is saved and still pending. Retry to apply the same credit once.`,
+    });
+  };
+
+  const retryFailedCreditApply = async () => {
+    if (!creditApplyFailure || creditApplyFailure.amount <= 0.01) return;
+    const retry = await applyCredit(
+      creditApplyFailure.customerId,
+      creditApplyFailure.saleId,
+      creditApplyFailure.amount,
+      creditApplyFailure.idempotencyKey,
+    );
+    if (retry.success) {
+      setCreditApplyFailure(null);
+      toast.success("Credit applied", {
+        description: `₹${Math.round(retry.appliedAmount).toLocaleString("en-IN")} applied to the saved bill.`,
+      });
+    }
+  };
 
   const paymentModeLabel =
     paymentMethod === 'pay_later'
@@ -4458,9 +4516,7 @@ export default function POSSales() {
       
       // Silent operation - no toast for POS save
       
-      if (creditApplied > 0 && customerId && result?.id) {
-        void applyCredit(customerId, result.id, creditApplied);
-      }
+      noteCreditApplyOutcome(result, customerId);
       await applyAdvanceAfterSave(result);
       
       // Check for DC items — offer transfer to delivery challan for cash sales
@@ -5117,8 +5173,8 @@ export default function POSSales() {
         barcodeInputRef.current?.focus();
       }, 100);
       
-      if (!isCreditNote && creditApplied > 0 && customerId && result?.id) {
-        applyCredit(customerId, result.id, creditApplied);
+      if (!isCreditNote) {
+        noteCreditApplyOutcome(result, customerId);
       }
       if (!isCreditNote && !isRefund) {
         await applyAdvanceAfterSave(result);
@@ -7612,6 +7668,21 @@ export default function POSSales() {
                 <div className="text-right">Net Amount</div>
               </div>
             </div>
+
+            {creditApplyFailure && (
+              <div className="mx-2 mb-1 flex items-center justify-between gap-3 px-3 py-1.5 bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-700 rounded-lg text-sm">
+                <span className="text-red-700 dark:text-red-300">
+                  Credit was not applied. The bill stays pending. {creditApplyFailure.message}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void retryFailedCreditApply()}
+                  className="ml-3 shrink-0 px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 transition-colors"
+                >
+                  Retry credit
+                </button>
+              </div>
+            )}
 
             {POS_APPLY_CREDIT_BANNER_ENABLED && customerId && availableCreditBalance > 0 && creditApplied === 0 && items.length > 0 && (
               <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 rounded-lg text-sm">
