@@ -3466,6 +3466,30 @@ export type Database = {
         }
         Relationships: []
       }
+      klear_trading_import_staging: {
+        Row: {
+          barcode: string | null
+          color: string | null
+          mrp: number | null
+          product_name: string | null
+          size: string | null
+        }
+        Insert: {
+          barcode?: string | null
+          color?: string | null
+          mrp?: number | null
+          product_name?: string | null
+          size?: string | null
+        }
+        Update: {
+          barcode?: string | null
+          color?: string | null
+          mrp?: number | null
+          product_name?: string | null
+          size?: string | null
+        }
+        Relationships: []
+      }
       ledger_opening_balances: {
         Row: {
           account_id: string
@@ -3828,6 +3852,7 @@ export type Database = {
           name: string
           organization_number: number | null
           organization_type: string
+          public_subdomain: string | null
           settings: Json
           slug: string
           subscription_tier: Database["public"]["Enums"]["subscription_tier"]
@@ -3842,6 +3867,7 @@ export type Database = {
           name: string
           organization_number?: number | null
           organization_type?: string
+          public_subdomain?: string | null
           settings?: Json
           slug: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
@@ -3856,6 +3882,7 @@ export type Database = {
           name?: string
           organization_number?: number | null
           organization_type?: string
+          public_subdomain?: string | null
           settings?: Json
           slug?: string
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]

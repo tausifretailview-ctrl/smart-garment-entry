@@ -223,6 +223,7 @@ export default function WebsiteSettingsPage() {
               <AddProducts
                 orgId={orgId}
                 listings={listings}
+                onGoToSections={() => handleTabChange("sections")}
                 onChanged={() => {
                   queryClient.invalidateQueries({ queryKey: ["website_products", orgId] });
                   queryClient.invalidateQueries({ queryKey: ["website_sections", orgId] });
@@ -497,10 +498,12 @@ function StoreProfile({
 function AddProducts({
   orgId,
   listings,
+  onGoToSections,
   onChanged,
 }: {
   orgId?: string;
   listings: WebsiteProduct[];
+  onGoToSections?: () => void;
   onChanged: () => void;
 }) {
   const [search, setSearch] = useState("");
@@ -540,7 +543,12 @@ function AddProducts({
       const { data, error } = await q;
       if (error) throw error;
       const candidates = (data || []) as CatalogProduct[];
-      if (candidates.length === 0) return [];
+      if (candidates.length === 0) {
+        return {
+          products: [] as CatalogProduct[],
+          stock: {} as Record<string, { qty: number; price: number | null }>,
+        };
+      }
 
       const ids = candidates.map((p) => p.id);
       // Chunk the IN-list so large catalogues don't blow past URL length limits.
@@ -558,16 +566,23 @@ function AddProducts({
 
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
       // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
-      // Client-side pagination below shows the full filtered list (no display cap).
-      return candidates.filter((p) => {
+      // No display cap — client-side pagination shows the full filtered list.
+      const products = candidates.filter((p) => {
         const entry = stockByProduct[p.id];
         if (!entry) return true;
         return (entry.qty ?? 0) > 0;
       });
+      const stock: Record<string, { qty: number; price: number | null }> = {};
+      for (const p of products) {
+        const row = stockByProduct[p.id];
+        if (row) stock[p.id] = row;
+      }
+      return { products, stock };
     },
   });
 
-  const rows = coerceToArray<CatalogProduct>(productsQuery.data).filter((p) => !publishedIds.has(p.id));
+  const rows = (productsQuery.data?.products ?? []).filter((p) => !publishedIds.has(p.id));
+  const pickerStock = productsQuery.data?.stock ?? {};
   const rowIds = rows.map((p) => p.id).join(",");
 
   const variantsQuery = useQuery({
@@ -604,15 +619,12 @@ function AddProducts({
     },
   });
 
-  // Only products with stock on hand. A product with variant rows summing to
-  // zero is hidden; a product with no variant rows at all is kept (no stock
-  // signal either way — hiding it made sellable products vanish). Stock totals
-  // arrive with the variants, so hold the list empty until they resolve.
+  // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
+  // Stock totals arrive with the variants query — hold the list empty until resolved.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
     ? rows.filter((p) => {
         const stock = variantsQuery.data?.stockById[p.id];
-        // No variant rows at all → no stock signal → keep the product.
         if (stock == null) return true;
         return stock > 0;
       })
@@ -709,7 +721,7 @@ function AddProducts({
                 className="h-9 w-56 pl-8 text-sm border-slate-200 bg-white"
               />
             </div>
-            {sections.length > 0 ? (
+            {sections.length > 0 || onGoToSections ? (
               <WebsiteSectionSelect
                 sections={sections}
                 value={publishSectionId}
@@ -721,6 +733,7 @@ function AddProducts({
                     return next;
                   });
                 }}
+                onAddNew={onGoToSections}
                 className="h-9"
                 emptyLabel="Section"
               />
@@ -780,7 +793,7 @@ function AddProducts({
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
-            <InsightsStaticTh label="Stock" className="text-right" />
+            <InsightsStaticTh label="Stock" className="text-right w-16" />
             <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
@@ -791,6 +804,10 @@ function AddProducts({
                 variantsQuery.data?.labels,
                 p.id,
               );
+              const stockFromVariants = variantsQuery.data?.stockById[p.id];
+              const stockQty =
+                stockFromVariants ??
+                lookupMap<{ qty: number; price: number | null }>(pickerStock, p.id)?.qty;
               return (
               <TableRow key={p.id} className={INSIGHTS_BODY_ROW}>
                 <TableCell className={INSIGHTS_BODY_CELL}>
@@ -817,15 +834,16 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
-                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
-                  {variantsQuery.data?.stockById[p.id] ?? "—"}
+                <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-mono tabular-nums")}>
+                  {stockQty != null ? stockQty.toLocaleString("en-IN") : "—"}
                 </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
-                  {sections.length > 0 ? (
+                  {sections.length > 0 || onGoToSections ? (
                     <WebsiteSectionSelect
                       sections={sections}
                       value={rowSections[p.id] || publishSectionId}
                       onChange={(id) => setRowSections((prev) => ({ ...prev, [p.id]: id }))}
+                      onAddNew={onGoToSections}
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">—</span>
