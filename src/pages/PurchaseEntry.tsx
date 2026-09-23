@@ -131,7 +131,7 @@ import {
 import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
-import { productRequiresImei } from "@/utils/productRequiresImei";
+import { productRequiresImei, rememberRequiresImeiFormChoice } from "@/utils/productRequiresImei";
 import {
   resolvePurchaseLineItemsForPriceTiers,
   syncLastPurchaseFromBillLines,
@@ -622,7 +622,7 @@ const PurchaseEntry = () => {
   const { orgNavigate: navigate } = useOrgNavigation();
   const routerNavigate = useNavigate();
   const location = useLocation();
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
   const initialBrowserSnapshotRef = useRef<PurchaseEntrySnapshot | null | undefined>(undefined);
   if (initialBrowserSnapshotRef.current === undefined) {
@@ -997,6 +997,16 @@ const PurchaseEntry = () => {
   const [imeiScanItem, setImeiScanItem] = useState<{ tempId: string; qty: number; item: LineItem } | null>(null);
   // Pending IMEI collections (re-purchase can queue several lines at once)
   const [imeiScanQueue, setImeiScanQueue] = useState<{ tempId: string; qty: number; item: LineItem }[]>([]);
+  // Self-serve "not serialized" fix progress.
+  const [isMarkingNotSerialized, setIsMarkingNotSerialized] = useState(false);
+  /**
+   * Per-IMEI variant rows created during this bill's IMEI sessions, by product.
+   * Only freshly inserted rows are tracked (reused pre-existing SKUs are not),
+   * so the "not serialized" fix can soft-delete exactly what it created.
+   */
+  const imeiSessionCreatedVariantsRef = useRef<Map<string, Set<string>>>(new Map());
+  /** Admins/managers can flip a mis-flagged product to non-serialized inline. */
+  const canFixImeiFlag = organizationRole === "admin" || organizationRole === "manager";
 
   // Roll Entry Dialog state (MTR products)
   const [showRollEntryDialog, setShowRollEntryDialog] = useState(false);
@@ -4583,6 +4593,10 @@ const PurchaseEntry = () => {
           }
         } else {
           variantId = newVariant.id;
+          // Track freshly inserted rows only (reuse path below is pre-existing).
+          const tracked = imeiSessionCreatedVariantsRef.current.get(item.product_id) ?? new Set<string>();
+          tracked.add(variantId);
+          imeiSessionCreatedVariantsRef.current.set(item.product_id, tracked);
         }
 
         const subTotal = 1 * item.pur_price;
@@ -4624,6 +4638,87 @@ const PurchaseEntry = () => {
     }
 
     advanceImeiScanQueue();
+  };
+
+  // Self-serve "not serialized" unblock (admin/manager only): flip the product
+  // flag, remember the choice per category, soft-delete per-IMEI variants created
+  // during this bill's session, fold their quantities back into the current line,
+  // and resume it as a normal shared-barcode quantity line — no re-scan.
+  const handleMarkNotSerialized = async () => {
+    const productId = imeiScanItem?.item.product_id;
+    if (!imeiScanItem || !productId || !currentOrganization || isMarkingNotSerialized) return;
+    if (!canFixImeiFlag) return;
+    setIsMarkingNotSerialized(true);
+    try {
+      const { tempId, item } = imeiScanItem;
+      const { error: flagError } = await supabase
+        .from("products")
+        .update({ requires_imei: false })
+        .eq("id", productId)
+        .eq("organization_id", currentOrganization.id);
+      if (flagError) throw flagError;
+
+      rememberRequiresImeiFormChoice(false, item.category);
+
+      // Auto-cleanup: soft-delete session-created per-IMEI variants for this
+      // product (pre-existing reused SKUs are never tracked, never touched).
+      const createdIds = imeiSessionCreatedVariantsRef.current.get(productId) ?? new Set<string>();
+      if (createdIds.size > 0) {
+        const { error: delError } = await supabase
+          .from("product_variants")
+          .update({ deleted_at: new Date().toISOString(), active: false } as never)
+          .in("id", [...createdIds])
+          .eq("organization_id", currentOrganization.id);
+        if (delError) throw delError;
+      }
+      imeiSessionCreatedVariantsRef.current.delete(productId);
+
+      // Fold split-line quantities from the deleted variants back into the
+      // current line and unflag every line of this product.
+      setLineItems((prev) => {
+        const foldedQty = prev
+          .filter((l) => l.product_id === productId && createdIds.has(l.sku_id) && l.temp_id !== tempId)
+          .reduce((sum, l) => sum + (Number(l.qty) || 0), 0);
+        return prev
+          .filter((l) => !(l.product_id === productId && createdIds.has(l.sku_id) && l.temp_id !== tempId))
+          .map((l) => {
+            if (l.product_id !== productId) return l;
+            const unflagged = { ...l, requires_imei: false };
+            return l.temp_id === tempId
+              ? recalcLineTotal({ ...unflagged, qty: (Number(l.qty) || 0) + foldedQty })
+              : unflagged;
+          });
+      });
+
+      // Drop queued IMEI collections for the same product — their lines are now
+      // normal quantity lines — and resume with the next remaining collection.
+      const rest = imeiScanQueue.filter((q) => q.item.product_id !== productId);
+      if (rest.length > 0) {
+        const [next, ...later] = rest;
+        setImeiScanItem(next);
+        setImeiScanQueue(later);
+        setShowIMEIScanDialog(true);
+      } else {
+        setImeiScanQueue([]);
+        setImeiScanItem(null);
+        setShowIMEIScanDialog(false);
+        focusSearchBar();
+      }
+
+      toast({
+        title: "Marked as non-serialized",
+        description: `"${item.product_name}" no longer requires IMEI — bill it with a shared barcode quantity.`,
+      });
+    } catch (error: unknown) {
+      const info = extractErrorInfo(error);
+      toast({
+        title: "Could not update product",
+        description: info.message || "Failed to mark as non-serialized",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMarkingNotSerialized(false);
+    }
   };
 
   const handleImeiCorrection = useCallback(
@@ -7548,6 +7643,10 @@ const PurchaseEntry = () => {
             onConfirm={handleIMEIScanConfirm}
             minLength={mobileERPSettings?.imei_min_length}
             maxLength={mobileERPSettings?.imei_max_length}
+            productId={imeiScanItem?.item.product_id ?? null}
+            canFix={canFixImeiFlag}
+            onMarkNotSerialized={handleMarkNotSerialized}
+            isMarkingNotSerialized={isMarkingNotSerialized}
           />
         )}
       </div>
@@ -9089,6 +9188,10 @@ const PurchaseEntry = () => {
           onConfirm={handleIMEIScanConfirm}
           minLength={mobileERPSettings?.imei_min_length}
           maxLength={mobileERPSettings?.imei_max_length}
+          productId={imeiScanItem?.item.product_id ?? null}
+          canFix={canFixImeiFlag}
+          onMarkNotSerialized={handleMarkNotSerialized}
+          isMarkingNotSerialized={isMarkingNotSerialized}
         />
       )}
     </div>

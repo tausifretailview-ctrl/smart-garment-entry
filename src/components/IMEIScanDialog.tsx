@@ -17,6 +17,15 @@ interface IMEIScanDialogProps {
   onConfirm: (imeiNumbers: string[]) => void;
   minLength?: number;
   maxLength?: number;
+  /**
+   * Self-serve "not serialized" unblock (PurchaseEntry only — the creation-time
+   * scan in ProductEntryDialog has no existing product to fix, so it omits these).
+   * The dialog stays presentational: the parent owns productId/role data and the fix.
+   */
+  productId?: string | null;
+  canFix?: boolean;
+  onMarkNotSerialized?: () => void;
+  isMarkingNotSerialized?: boolean;
 }
 
 export function IMEIScanDialog({
@@ -27,6 +36,10 @@ export function IMEIScanDialog({
   onConfirm,
   minLength = 15,
   maxLength = 19,
+  productId = null,
+  canFix = false,
+  onMarkNotSerialized,
+  isMarkingNotSerialized = false,
 }: IMEIScanDialogProps) {
   const [imeiValues, setImeiValues] = useState<string[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -141,15 +154,27 @@ export function IMEIScanDialog({
           })}
         </div>
 
-        <DialogFooter className="gap-2 pt-2">
+        <DialogFooter className="gap-2 pt-2 flex-col sm:flex-col items-stretch">
+          {canFix && productId && onMarkNotSerialized && (
+            <Button
+              variant="ghost"
+              onClick={onMarkNotSerialized}
+              disabled={isMarkingNotSerialized}
+              className="w-full text-muted-foreground"
+            >
+              {isMarkingNotSerialized ? "Saving…" : "This isn't a serialized item"}
+            </Button>
+          )}
+          <div className="flex gap-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button 
-            onClick={handleConfirm} 
+          <Button
+            onClick={handleConfirm}
             disabled={!allFilled || hasDuplicates}
             className="min-w-[120px]"
           >
             Confirm {quantity} Items
           </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
