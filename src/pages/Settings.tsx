@@ -336,6 +336,7 @@ interface BillBarcodeSettings {
   instagram_link?: string;
   website_link?: string;
   google_review_link?: string;
+  whatsapp_group_link?: string;
   enable_barcode_prompt?: boolean;
   // Cash Drawer Settings
   enable_cash_drawer?: boolean;
@@ -4871,6 +4872,40 @@ export default function Settings() {
                         })
                       }
                       placeholder="e.g., https://g.page/yourstore/review"
+                      className="no-uppercase"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="whatsapp_group_link">WhatsApp Group Link</Label>
+                    <Input
+                      id="whatsapp_group_link"
+                      value={settings.bill_barcode_settings?.whatsapp_group_link || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          bill_barcode_settings: {
+                            ...settings.bill_barcode_settings,
+                            whatsapp_group_link: e.target.value,
+                          },
+                        })
+                      }
+                      onBlur={async (e) => {
+                        const orgId = currentOrganization?.id;
+                        if (!orgId) return;
+                        const { data } = await supabase
+                          .from("whatsapp_api_settings")
+                          .select("id, social_links")
+                          .eq("organization_id", orgId)
+                          .maybeSingle();
+                        if (!data) return;
+                        await supabase
+                          .from("whatsapp_api_settings")
+                          .update({ social_links: { ...((data as any).social_links || {}), whatsapp_group: e.target.value.trim() } } as any)
+                          .eq("id", (data as any).id)
+                          .eq("organization_id", orgId);
+                      }}
+                      placeholder="e.g., https://chat.whatsapp.com/xxxx"
                       className="no-uppercase"
                     />
                   </div>
