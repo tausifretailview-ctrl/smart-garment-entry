@@ -1779,7 +1779,7 @@ export const WhatsAppAPISettings = () => {
                     <Input
                       placeholder="https://chat.whatsapp.com/YOUR_GROUP_INVITE"
                       value={formData.social_links?.whatsapp_group || ""}
-                      onChange={(e) => handleSocialLinkChange("whatsapp_group" as any, e.target.value)}
+                      onChange={(e) => handleSocialLinkChange("whatsapp_group", e.target.value)}
                     />
                   </div>
                 </div>
