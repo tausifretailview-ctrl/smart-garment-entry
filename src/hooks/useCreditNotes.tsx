@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { applyCreditNoteFifoToSale, getAvailableCN } from "@/utils/saleSettlement";
+import { buildCreditNoteIssuanceVoucher } from "@/utils/creditNoteIssuanceVoucher";
 
 interface CreditNoteData {
   saleId: string;
@@ -12,6 +13,7 @@ interface CreditNoteData {
   customerPhone?: string | null;
   creditAmount: number;
   notes?: string;
+  saleNumber?: string | null;
 }
 
 interface CreditNote {
@@ -24,6 +26,57 @@ interface CreditNote {
   customer_name: string;
   customer_phone: string | null;
   created_at: string;
+}
+
+async function writeIssuanceVoucher(params: {
+  organizationId: string;
+  customerId: string | null;
+  creditNoteId: string | null;
+  creditNoteNumber: string;
+  saleNumber: string | null;
+  creditAmount: number;
+  createdBy: string | null;
+}): Promise<void> {
+  if (!params.customerId || !params.creditNoteId || !params.creditNoteNumber) return;
+  const amount = Math.round(Number(params.creditAmount) * 100) / 100;
+  if (!(amount > 0.005)) return;
+
+  // Idempotency: one issuance voucher per credit note (retries/re-saves
+  // must not stack duplicate linkage rows).
+  const { data: existing, error: existingError } = await supabase
+    .from("voucher_entries")
+    .select("id, description")
+    .eq("organization_id", params.organizationId)
+    .eq("voucher_type", "credit_note")
+    .eq("reference_type", "customer")
+    .eq("reference_id", params.customerId)
+    .is("deleted_at", null);
+  if (existingError) throw existingError;
+  if ((existing || []).some((v) => String((v as { description?: unknown }).description || "").includes(params.creditNoteNumber))) {
+    return;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+  const { data: voucherNumber, error: numberError } = await supabase.rpc(
+    "generate_voucher_number" as never,
+    { p_type: "credit_note", p_date: today } as never,
+  );
+  if (numberError) throw numberError;
+
+  const row = buildCreditNoteIssuanceVoucher({
+    organizationId: params.organizationId,
+    voucherNumber: String(voucherNumber || ""),
+    customerId: params.customerId,
+    creditNoteNumber: params.creditNoteNumber,
+    saleNumber: params.saleNumber,
+    creditAmount: amount,
+    voucherDate: today,
+    createdBy: params.createdBy,
+  });
+  if (!row) return;
+
+  const { error: insertError } = await supabase.from("voucher_entries").insert(row as never);
+  if (insertError) throw insertError;
 }
 
 export function useCreditNotes() {
@@ -84,6 +137,32 @@ export function useCreditNotes() {
         .eq('id', data.saleId);
 
       if (updateError) throw updateError;
+
+      // Issuance linkage: this CN has no sale_returns row, so balance paths
+      // that detect CNs via the sale_returns join would never see it. Mirror
+      // it into voucher_entries (type credit_note, ref customer) so the
+      // bulk/calculation CN paths pick it up. Failure-isolated: voucher
+      // INSERT needs admin/manager while CN issuance is member-level, so a
+      // voucher failure must never fail the CN itself.
+      try {
+        await writeIssuanceVoucher({
+          organizationId: currentOrganization.id,
+          customerId: data.customerId || null,
+          creditNoteId: (creditNote as { id?: string }).id || null,
+          creditNoteNumber: String(
+            (creditNote as { credit_note_number?: unknown }).credit_note_number || ""
+          ),
+          saleNumber: data.saleNumber || null,
+          creditAmount: data.creditAmount,
+          createdBy: user?.id || null,
+        });
+      } catch (voucherErr) {
+        console.error("Credit note issuance voucher failed (CN issued, linkage missing):", {
+          organizationId: currentOrganization.id,
+          creditNoteId: (creditNote as { id?: string }).id || null,
+          error: voucherErr,
+        });
+      }
 
       toast({
         title: "Credit Note Issued",

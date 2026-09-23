@@ -229,6 +229,7 @@ export function AdjustCreditNoteDialog({
             .select("voucher_number")
             .eq("organization_id", currentOrganization?.id)
             .eq("voucher_type", "credit_note")
+            .eq("reference_type", "supplier")
             .order("created_at", { ascending: false })
             .limit(1);
 
@@ -352,6 +353,7 @@ export function AdjustCreditNoteDialog({
             .select("voucher_number")
             .eq("organization_id", currentOrganization?.id)
             .eq("voucher_type", "credit_note")
+            .eq("reference_type", "supplier")
             .order("created_at", { ascending: false })
             .limit(1);
 
