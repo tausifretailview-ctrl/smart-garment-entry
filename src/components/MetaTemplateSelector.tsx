@@ -87,6 +87,7 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'instagram', label: 'Instagram', description: 'Instagram profile link' },
     { key: 'facebook', label: 'Facebook', description: 'Facebook page link' },
     { key: 'google_review_link', label: 'Google Review Link', description: 'Google business review URL' },
+    { key: 'whatsapp_group_link', label: 'WhatsApp Group Link', description: 'Join-our-group invite link' },
     { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
   ],
   quotation: [

@@ -115,6 +115,7 @@ function buildPlaceholderMap(
     instagram_link: String(saleData.instagram || saleData.instagram_link || ""),
     facebook: String(saleData.facebook || ""),
     google_review_link: String(saleData.google_review_link || saleData.google_review || ""),
+    whatsapp_group_link: String(saleData.whatsapp_group_link || saleData.whatsapp_group || ""),
     social_links: String(saleData.social_links || ""),
     salesman: String(saleData.salesman || ""),
     items_count: String(saleData.items_count ?? ""),

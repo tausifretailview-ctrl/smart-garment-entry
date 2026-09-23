@@ -582,7 +582,7 @@ const DailyCashierReport = () => {
         const refundAmt = Number(sale.refund_amount) || 0;
         // Pending is payable after S/R / CN, not the full bill.
         const balance = figures.payable - paidAmount;
-        const netAmount = effectiveNet;
+        const netAmount = reportedNet;
         
         totalPaid += paidAmount;
         totalBalance += balance;

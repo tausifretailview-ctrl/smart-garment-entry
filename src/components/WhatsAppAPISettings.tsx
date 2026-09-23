@@ -56,6 +56,7 @@ import {
     FileText,
     RefreshCw,
     Trash2,
+    Users,
   } from "lucide-react";
 import {
   AlertDialog,
@@ -1772,6 +1773,14 @@ export const WhatsAppAPISettings = () => {
                       placeholder="https://g.page/r/YOUR_GOOGLE_REVIEW_LINK"
                       value={formData.social_links?.google_review || ""}
                       onChange={(e) => handleSocialLinkChange("google_review", e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://chat.whatsapp.com/YOUR_GROUP_INVITE"
+                      value={formData.social_links?.whatsapp_group || ""}
+                      onChange={(e) => handleSocialLinkChange("whatsapp_group", e.target.value)}
                     />
                   </div>
                 </div>

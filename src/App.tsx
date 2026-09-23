@@ -482,6 +482,7 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/invoice/view/:saleId" element={<PublicInvoiceView />} />
+              <Route path="/i/:saleId" element={<PublicInvoiceView />} />
               <Route path="/pay" element={<PublicPaymentPage />} />
               <Route path="/payment-status" element={<PaymentStatusPage />} />
               {ListSkeletonSpotCheck ? (

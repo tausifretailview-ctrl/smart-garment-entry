@@ -157,6 +157,8 @@ Deno.serve(async (req) => {
       bank_details: showBankDetails ? resolvedBankDetails : null,
       show_bank_details: showBankDetails,
       pos_bill_format: saleSettings?.pos_bill_format || 'thermal',
+      pos_invoice_template: saleSettings?.pos_invoice_template || '',
+      invoice_paper_format: saleSettings?.invoice_paper_format || saleSettings?.sales_bill_format || 'a4',
       thermal_receipt_style: saleSettings?.thermal_receipt_style || 'classic',
       bill_barcode_settings: settings?.bill_barcode_settings ? {
         logo_url: (settings.bill_barcode_settings as any)?.logo_url || '',

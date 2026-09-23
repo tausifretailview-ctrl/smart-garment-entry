@@ -3760,6 +3760,7 @@ export default function POSSales() {
     discount: billingTotals.discount,
     subtotal: billingTotals.subtotal,
     savings: billingTotals.savings,
+    billAmount: billingTotals.billAmount,
   };
   const flatDiscountAmount = billingTotals.flatDiscountAmount;
   const flatDiscountPercent = billingTotals.flatDiscountPercent;

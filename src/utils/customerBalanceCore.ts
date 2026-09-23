@@ -407,7 +407,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     const sra = Number(s.sale_return_adjust || 0);
     const itemsGross = Number(s.items_gross || 0);
     const preReturnByGross = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
-    const fullBillByHeader = sra > 0 && Number(s.gross_amount) > 0 && !isSaleReturnAdjustBakedIntoNet(s);
+    const fullBillByHeader = sra > 0 && Number((s as any).gross_amount) > 0 && !isSaleReturnAdjustBakedIntoNet(s);
     const preReturn = preReturnByGross || fullBillByHeader;
     return sum + net + (preReturn ? 0 : sra);
   }, 0);
