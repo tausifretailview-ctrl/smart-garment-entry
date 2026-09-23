@@ -39,6 +39,7 @@ import {
   findBarcodeConflictsInOrg,
   formatBarcodeConflictMessage,
 } from "@/utils/barcodeValidation";
+import { getRequiresImeiFormDefault } from "@/utils/productRequiresImei";
 import { ensureFreshGeneratedBarcode, insertGeneratedProductVariant, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
@@ -1538,6 +1539,9 @@ const ProductEntry = () => {
           sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
           sale_discount_value: formData.sale_discount_value || 0,
           pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
+          // This page has no per-product IMEI toggle: reuse the last-remembered
+          // default for the category instead of inheriting the DB default (true).
+          requires_imei: getRequiresImeiFormDefault(formData.category),
         };
         let { data, error: productError } = await supabase
           .from("products")
@@ -1784,6 +1788,9 @@ const ProductEntry = () => {
                 default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
                 default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
                 status: 'active',
+                // Imports have no per-row IMEI control: reuse the last-remembered
+                // default for the category instead of inheriting the DB default (true).
+                requires_imei: getRequiresImeiFormDefault(firstRow.category?.toString().trim() || ''),
               })
               .select('id')
               .single();

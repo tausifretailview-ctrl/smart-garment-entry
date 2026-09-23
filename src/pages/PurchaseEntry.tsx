@@ -131,7 +131,7 @@ import {
 import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
-import { productRequiresImei } from "@/utils/productRequiresImei";
+import { getRequiresImeiFormDefault, productRequiresImei } from "@/utils/productRequiresImei";
 import {
   resolvePurchaseLineItemsForPriceTiers,
   syncLastPurchaseFromBillLines,
@@ -6842,6 +6842,9 @@ const PurchaseEntry = () => {
             default_sale_price: parseLocalizedNumber(row.sale_price),
             status: 'active',
             created_in_purchase: true,
+            // Imports have no per-row IMEI control: reuse the last-remembered
+            // default for the category instead of inheriting the DB default (true).
+            requires_imei: getRequiresImeiFormDefault(row.category?.toString().trim() || ''),
           },
         });
       }

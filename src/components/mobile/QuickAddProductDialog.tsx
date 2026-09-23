@@ -121,6 +121,11 @@ export const QuickAddProductDialog = ({
       }
 
       // Create product
+      // NOTE: intentionally does not set requires_imei / category — this dialog is
+      // currently unmounted dead code (no <QuickAddProductDialog> callers). If it is
+      // ever wired up, set requires_imei via getRequiresImeiFormDefault() from
+      // "@/utils/productRequiresImei" instead of inheriting the DB default (true),
+      // per the PR-1 fix applied to the other creation paths.
       const { data: product, error: productError } = await supabase
         .from("products")
         .insert({
