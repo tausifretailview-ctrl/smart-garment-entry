@@ -22,6 +22,8 @@ export type CreditNoteSrRegisterSaleReturn = {
   return_date: string | null;
   created_at?: string | null;
   customer_id: string | null;
+  /** Name stored on the return when the customer row is missing. */
+  customer_name?: string | null;
   net_amount?: number | null;
   credit_status?: string | null;
   linked_sale_id?: string | null;
@@ -43,9 +45,26 @@ export type CreditNoteSrRegisterVoucher = {
 export type CreditNoteSrRegisterSource = {
   saleReturns: CreditNoteSrRegisterSaleReturn[];
   customersById: Record<string, { customer_name?: string | null; phone?: string | null }>;
-  salesById: Record<string, { sale_number?: string | null; sale_return_adjust?: number | null }>;
+  salesById: Record<
+    string,
+    {
+      sale_number?: string | null;
+      sale_return_adjust?: number | null;
+      sale_type?: string | null;
+      sale_date?: string | null;
+    }
+  >;
   creditNotesById: Record<string, { credit_note_number?: string | null; credit_amount?: number | null }>;
   vouchers: CreditNoteSrRegisterVoucher[];
+};
+
+export type CreditNoteSrRedeemedBill = {
+  saleId: string;
+  saleNumber: string;
+  /** POS or Sale. Empty when the sale type was not loaded. */
+  billKind: "POS" | "Sale" | "";
+  saleDate: string;
+  amount: number;
 };
 
 export type CreditNoteSrRegisterRow = {
@@ -56,11 +75,14 @@ export type CreditNoteSrRegisterRow = {
   customerName: string;
   customerPhone: string;
   linkedInvoiceNumbers: string;
+  linkedBills: CreditNoteSrRedeemedBill[];
   netReturnAmount: number;
   creditNoteNumber: string;
   creditNoteAmount: number;
+  /** Same rupees as consumedAmount — the redeem that reduced remaining. */
   appliedAmount: number;
   appliedToInvoices: string;
+  redeemedBills: CreditNoteSrRedeemedBill[];
   remainingAmount: number;
   consumedAmount: number;
   cnAppliedDate: string | null;
@@ -68,6 +90,41 @@ export type CreditNoteSrRegisterRow = {
   statusLabel: string;
   isMemo: boolean;
 };
+
+/** dd/MM/yyyy from an ISO date. Empty when the value is not a calendar date. */
+export function formatRegisterDate(iso: string | null | undefined): string {
+  const d = String(iso || "").slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  if (!m) return "";
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** POS bills stay POS. Sale invoices (sale_invoice / invoice / sale) stay Sale. */
+export function saleBillKindLabel(saleType: string | null | undefined): "POS" | "Sale" | "" {
+  const t = String(saleType || "").trim().toLowerCase();
+  if (t === "pos") return "POS";
+  if (t === "sale_invoice" || t === "sale" || t === "invoice") return "Sale";
+  return "";
+}
+
+export function formatRedeemedBillLabel(bill: {
+  saleNumber: string;
+  billKind?: string;
+  saleDate?: string | null;
+  amount?: number;
+  showAmount?: boolean;
+}): string {
+  const parts = [bill.saleNumber];
+  if (bill.billKind) parts.push(bill.billKind);
+  const date = formatRegisterDate(bill.saleDate);
+  if (date) parts.push(date);
+  if (bill.showAmount && bill.amount != null) {
+    parts.push(
+      `₹${bill.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    );
+  }
+  return parts.filter(Boolean).join(" · ");
+}
 
 /** Same CN-voucher recognition as customerLedgerTransactions (do not widen). */
 export function isCreditNoteAdjustmentVoucher(v: CreditNoteSrRegisterVoucher): boolean {
@@ -171,24 +228,83 @@ export function buildCreditNoteSrRegisterRows(
       const isMemo = remainingAmount <= SETTLED_REMAINING && consumedAmount > 0.005;
       const cn = sr.credit_note_id ? source.creditNotesById[sr.credit_note_id] : undefined;
       const customer = sr.customer_id ? source.customersById[sr.customer_id] : undefined;
-      const linkedNos = new Set<string>();
-      if (linkedSale?.sale_number) linkedNos.add(String(linkedSale.sale_number));
-      if (appliedInfo?.saleNumber) linkedNos.add(String(appliedInfo.saleNumber));
-      const appliedSaleId = appliedInfo?.saleId || linkedSaleId;
-      const cnAppliedDate = appliedSaleId ? cnAdjustDateBySaleId[appliedSaleId] || null : null;
+      const slices = (appliedInfo?.slices || []).filter((slice) => slice.applied > 0.005);
+      const redeemedSource =
+        slices.length > 0
+          ? slices
+          : consumedAmount > 0.005 && linkedSaleId
+            ? [
+                {
+                  saleId: linkedSaleId,
+                  saleNumber: linkedSale?.sale_number || null,
+                  applied: consumedAmount,
+                },
+              ]
+            : [];
+      const redeemedBills: CreditNoteSrRedeemedBill[] = [];
+      for (const slice of redeemedSource) {
+        const sale = source.salesById[slice.saleId];
+        const saleNumber = String(slice.saleNumber || sale?.sale_number || "").trim();
+        if (!saleNumber) continue;
+        redeemedBills.push({
+          saleId: slice.saleId,
+          saleNumber,
+          billKind: saleBillKindLabel(sale?.sale_type),
+          saleDate: String(sale?.sale_date || "").slice(0, 10),
+          amount: slice.applied,
+        });
+      }
+      const linkedBills: CreditNoteSrRedeemedBill[] = [];
+      const seenLinked = new Set<string>();
+      const pushLinked = (saleId: string, amount: number) => {
+        if (!saleId || seenLinked.has(saleId)) return;
+        const sale = source.salesById[saleId];
+        const saleNumber = String(sale?.sale_number || "").trim();
+        if (!saleNumber) return;
+        seenLinked.add(saleId);
+        linkedBills.push({
+          saleId,
+          saleNumber,
+          billKind: saleBillKindLabel(sale?.sale_type),
+          saleDate: String(sale?.sale_date || "").slice(0, 10),
+          amount,
+        });
+      };
+      if (linkedSaleId) pushLinked(linkedSaleId, absorbedOnInvoice);
+      for (const bill of redeemedBills) pushLinked(bill.saleId, bill.amount);
+      const showSplit = redeemedBills.length > 1;
+      let cnAppliedDate: string | null = null;
+      for (const bill of redeemedBills) {
+        const voucherDate = cnAdjustDateBySaleId[bill.saleId];
+        if (voucherDate && (!cnAppliedDate || voucherDate > cnAppliedDate)) cnAppliedDate = voucherDate;
+      }
+      if (!cnAppliedDate) {
+        for (const bill of redeemedBills) {
+          if (bill.saleDate && (!cnAppliedDate || bill.saleDate > cnAppliedDate)) {
+            cnAppliedDate = bill.saleDate;
+          }
+        }
+      }
       rows.push({
         id: sr.id,
         returnNumber: sr.return_number || "",
         returnDate: String(sr.return_date || "").slice(0, 10),
         customerId: sr.customer_id || "",
-        customerName: (customer?.customer_name || "").trim() || "Walk-in Customer",
+        customerName:
+          (customer?.customer_name || sr.customer_name || "").trim() || "Walk-in Customer",
         customerPhone: (customer?.phone || "").trim(),
-        linkedInvoiceNumbers: [...linkedNos].join(", "),
+        linkedInvoiceNumbers: linkedBills
+          .map((bill) => formatRedeemedBillLabel(bill))
+          .join(", "),
+        linkedBills,
         netReturnAmount: amount,
         creditNoteNumber: (cn?.credit_note_number || "").trim(),
         creditNoteAmount: Number(cn?.credit_amount) || amount,
-        appliedAmount,
-        appliedToInvoices: appliedInfo?.saleNumber || "",
+        appliedAmount: consumedAmount,
+        appliedToInvoices: redeemedBills
+          .map((bill) => formatRedeemedBillLabel({ ...bill, showAmount: showSplit }))
+          .join(", "),
+        redeemedBills,
         remainingAmount,
         consumedAmount,
         cnAppliedDate,
@@ -230,7 +346,7 @@ export function filterCreditNoteSrRegisterRows(
     const settled = row.remainingAmount <= SETTLED_REMAINING;
     if (!showSettled && settled) return false;
     if (q) {
-      const hay = `${row.customerName} ${row.customerPhone} ${row.returnNumber}`.toLowerCase();
+      const hay = `${row.customerName} ${row.customerPhone} ${row.returnNumber} ${row.creditNoteNumber} ${row.linkedInvoiceNumbers} ${row.appliedToInvoices}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     const dateVal = basis === "cn_applied" ? row.cnAppliedDate || "" : row.returnDate;
@@ -274,6 +390,8 @@ export function creditNoteSrRegisterCsvHeader(): string[] {
     "CN Applied Date",
     "Remaining / Pending",
     "Status",
+    "Bill Type",
+    "Invoice Date",
   ];
 }
 
@@ -292,5 +410,7 @@ export function creditNoteSrRegisterCsvRow(row: CreditNoteSrRegisterRow): string
     row.cnAppliedDate || "",
     row.remainingAmount.toFixed(2),
     row.statusLabel,
+    row.redeemedBills.map((bill) => bill.billKind).filter(Boolean).join(", "),
+    row.redeemedBills.map((bill) => formatRegisterDate(bill.saleDate)).filter(Boolean).join(", "),
   ];
 }

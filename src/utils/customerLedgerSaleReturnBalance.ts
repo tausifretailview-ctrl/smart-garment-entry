@@ -59,10 +59,18 @@ export type SaleReturnCnAllocRow = {
   created_at?: string | null;
 };
 
+export type SrAppliedSlice = {
+  saleId: string;
+  saleNumber: string | null;
+  applied: number;
+};
+
 export type SrAppliedInfo = {
   saleId: string;
   saleNumber: string | null;
   applied: number;
+  /** Every invoice this return’s credit was allocated to (POS and Sale). */
+  slices: SrAppliedSlice[];
 };
 
 function srChronological(a: SaleReturnCnAllocRow, b: SaleReturnCnAllocRow): number {
@@ -90,6 +98,25 @@ export function allocateCnAdjustmentsToSaleReturns(
   const srAppliedMap: Record<string, SrAppliedInfo> = {};
   const remainingBySale: Record<string, number> = { ...cnBySaleId };
 
+  const addApplication = (srId: string, saleId: string, take: number) => {
+    if (take <= 0) return;
+    const saleNumber = linkedSaleNumberById[saleId] || null;
+    const current = srAppliedMap[srId];
+    if (!current) {
+      srAppliedMap[srId] = {
+        saleId,
+        saleNumber,
+        applied: take,
+        slices: [{ saleId, saleNumber, applied: take }],
+      };
+      return;
+    }
+    current.applied += take;
+    const prior = current.slices.find((slice) => slice.saleId === saleId);
+    if (prior) prior.applied += take;
+    else current.slices.push({ saleId, saleNumber, applied: take });
+  };
+
   const linkedSorted = [...saleReturns]
     .filter((sr) => String(sr.linked_sale_id || "").trim())
     .sort(srChronological);
@@ -99,11 +126,7 @@ export function allocateCnAdjustmentsToSaleReturns(
     const remaining = remainingBySale[saleId] || 0;
     if (remaining <= 0) continue;
     const applied = Math.min(remaining, Number(sr.net_amount) || 0);
-    srAppliedMap[sr.id] = {
-      saleId,
-      saleNumber: linkedSaleNumberById[saleId] || null,
-      applied,
-    };
+    addApplication(sr.id, saleId, applied);
     remainingBySale[saleId] = remaining - applied;
   }
 
@@ -120,15 +143,7 @@ export function allocateCnAdjustmentsToSaleReturns(
       if (avail <= 0) continue;
       const take = Math.min(avail, srRemaining);
       if (take <= 0) continue;
-      if (!srAppliedMap[sr.id]) {
-        srAppliedMap[sr.id] = {
-          saleId: sid,
-          saleNumber: linkedSaleNumberById[sid] || null,
-          applied: take,
-        };
-      } else {
-        srAppliedMap[sr.id].applied += take;
-      }
+      addApplication(sr.id, sid, take);
       remainingBySale[sid] = avail - take;
       srRemaining -= take;
       if (srRemaining <= 0) break;
