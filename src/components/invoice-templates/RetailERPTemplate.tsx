@@ -11,6 +11,8 @@ import {
   retailErpDisplayDiscount,
   retailErpLetterpadNoteText,
   retailErpLineDisplayRate,
+  retailErpLinePrintPlan,
+  roundRetailErpMoney,
 } from "@/utils/retailErpInvoicePrint";
 import {
   PREPRINTED_LETTERHEAD_LOGO_TOP_GAP,
@@ -444,41 +446,47 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const totalsLabel = "Sub Total";
   const totalsValue = displaySubTotal;
 
-  // Split bill discount across lines (line % first, then flat discount by gross weight).
+  // Printed line amount = display rate × qty − per-line discount − a material
+  // bill discount (≥ ₹1). A sub-rupee residual is not smeared across lines:
+  // reconciliation dust goes to Round Off; a stored paise discount stays on
+  // the Discount row. Page totals sum `lineNetAmounts` — the same figures
+  // the amount column prints.
   const getLineGross = (item: InvoiceItem) =>
     getDisplayBaseRate(item) * (Number(item.qty) || 0);
-  const allocateByGrossWeight = (totalToAllocate: number): number[] => {
-    const grosses = items.map(getLineGross);
-    const grossTotal = grosses.reduce((s, g) => s + g, 0);
-    if (totalToAllocate <= 0.005 || grossTotal <= 0.005) return items.map(() => 0);
-    const shares: number[] = [];
-    let allocated = 0;
-    for (let i = 0; i < items.length; i++) {
-      if (i === items.length - 1) {
-        shares.push(Math.round((totalToAllocate - allocated) * 100) / 100);
-      } else {
-        const share = Math.round((grosses[i] / grossTotal) * totalToAllocate * 100) / 100;
-        shares.push(share);
-        allocated += share;
-      }
+  const linePrint = retailErpLinePrintPlan({
+    grosses: items.map(getLineGross),
+    lineTotals: items.map((item) => Number(item.total || 0)),
+    displayDiscount,
+    propDiscount,
+    roundOffRowHidden: isGurukrupa || isDc,
+  });
+  const { lineBillDiscounts, lineNetAmounts, flatDiscountPool, disposition } = linePrint;
+  const foldDustIntoRoundOff = disposition === "round-off";
+  const discountRowAmount = foldDustIntoRoundOff
+    ? Math.max(0, roundRetailErpMoney(displayDiscount - flatDiscountPool))
+    : displayDiscount;
+  const roundOffRowAmount = foldDustIntoRoundOff
+    ? roundRetailErpMoney(printRoundOff - flatDiscountPool)
+    : printRoundOff;
+  const showDiscountRow = isRealTast
+    ? disposition === "discount-row" && discountRowAmount > 0.005
+    : isGurukrupa || discountRowAmount > 0.005;
+  const showRoundOffRow =
+    !isDc &&
+    !isGurukrupa &&
+    (!isRealTast || (foldDustIntoRoundOff && Math.abs(roundOffRowAmount) >= 0.005));
+  const pageLineNetTotal = (pageItems: (InvoiceItem | null)[], pageIndex: number) => {
+    const start = pageIndex * MAX_ITEMS_PER_PAGE;
+    let sum = 0;
+    let seen = 0;
+    for (const item of pageItems) {
+      if (!item) continue;
+      sum += lineNetAmounts[start + seen] ?? Number(item.total || 0);
+      seen += 1;
     }
-    return shares;
+    return sum;
   };
-  const lineItemOnlyDiscounts = items.map((item) =>
-    Math.max(0, Math.round((getLineGross(item) - Number(item.total || 0)) * 100) / 100),
-  );
-  const lineItemDiscountSum = lineItemOnlyDiscounts.reduce((s, d) => s + d, 0);
-  const flatDiscountPool = Math.max(
-    0,
-    Math.round((displayDiscount - lineItemDiscountSum) * 100) / 100,
-  );
-  const flatDiscountShares = allocateByGrossWeight(flatDiscountPool);
-  const lineBillDiscounts = items.map(
-    (_, i) => Math.round((lineItemOnlyDiscounts[i] + flatDiscountShares[i]) * 100) / 100,
-  );
-  const lineNetAmounts = items.map((item, i) =>
-    Math.round((getLineGross(item) - lineBillDiscounts[i]) * 100) / 100,
-  );
+  const invoiceLineNetTotal = lineNetAmounts.reduce((sum, amount) => sum + amount, 0);
 
   // Payment breakdown (mix / multiple — show amounts applied to the bill).
   // Over-tender (customer change) must not print as Received > Bill / negative Balance.
@@ -1311,7 +1319,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           (s, i) => s + getDisplayBaseRate(i) * (Number(i.qty) || 0),
                           0,
                         );
-                        const pageAmtTot = pageLines.reduce((s, i) => s + Number(i.total || 0), 0);
+                        const pageAmtTot = pageLineNetTotal(pageItems, pageIndex);
                         const qtyIdx = Math.max(1, cols.findIndex((c) => c.key === "qty"));
                         const tailCols = cols.slice(qtyIdx);
                         const baseTd = (align: "left" | "center" | "right", last: boolean): React.CSSProperties => ({
@@ -1357,11 +1365,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                               if (c.key === "amount") {
                                 return (
                                   <td key={c.key} style={baseTd("right", last)}>
-                                    {fmt(
-                                      isLastPage
-                                        ? items.reduce((s, i) => s + Number(i.total || 0), 0)
-                                        : pageAmtTot,
-                                    )}
+                                    {fmt(isLastPage ? invoiceLineNetTotal : pageAmtTot)}
                                   </td>
                                 );
                               }
@@ -1392,7 +1396,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {isLastPage ? "" : "Page Sub"}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-                      {isLastPage ? "" : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
+                      {isLastPage ? "" : `₹${fmt(pageLineNetTotal(pageItems, pageIndex))}`}
                     </td>
                       </>
                     ) : (
@@ -1404,7 +1408,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                       {isLastPage ? "" : `Page ${pageIndex + 1} — Continued...`}
                     </td>
                     <td style={{ ...cellBase, fontWeight: "bold", borderRight: "none", borderTop: B2, fontSize: fsTotals, textAlign: "right" }}>
-                      {isLastPage ? "" : `₹${fmt(pageItems.filter(Boolean).reduce((s, i) => s + ((i ? getDisplayBaseRate(i) * (i.qty || 0) : 0)), 0))}`}
+                      {isLastPage ? "" : `₹${fmt(pageLineNetTotal(pageItems, pageIndex))}`}
                     </td>
                       </>
                     )}
@@ -1556,10 +1560,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>₹{fmt(displaySubTotal)}</span>
                         </div>
                       )}
-                      {!isRealTast && (isGurukrupa || displayDiscount > 0) && (
+                      {showDiscountRow && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>Discount</span>
-                          <span style={totalsAmountStyle}>- ₹{fmt(displayDiscount)}</span>
+                          <span style={totalsAmountStyle}>- ₹{fmt(discountRowAmount)}</span>
                         </div>
                       )}
                       {(isGurukrupa || saleReturnAdjust > 0) && (
@@ -1582,13 +1586,15 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           <span style={totalsAmountStyle}>+ ₹{fmt(displayOtherCharges)}</span>
                         </div>
                       )}
-                      {/* Round Off hidden on Retail ERP DC and Gurukrupa. */}
-                      {!isRealTast && !isDc && !isGurukrupa && (
+                      {/* Round Off hidden on Retail ERP DC and Gurukrupa.
+                          Real Tast shows it only when a sub-rupee reconciliation
+                          residual was moved off the lines. */}
+                      {showRoundOffRow && (
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 800 }}>
                           <span style={totalsLabelStyle}>Round Off</span>
                           <span style={totalsAmountStyle}>
-                            {printRoundOff > 0 ? "+" : ""}
-                            {fmt(printRoundOff)}
+                            {roundOffRowAmount > 0 ? "+" : ""}
+                            {fmt(roundOffRowAmount)}
                           </span>
                         </div>
                       )}
@@ -1923,7 +1929,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     <div style={{ flex: 1, borderRight: B, padding: "4px 8px" }}>&nbsp;</div>
                     <div style={{ width: "40%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 8px", fontWeight: "900", fontSize: isA4 ? "14px" : "12px", backgroundColor: "#e5e5e5" }}>
                       <span>Page Total</span>
-                      <span>₹{fmt(pageItems.filter(Boolean).reduce((s, i) => s + (i?.total || 0), 0))}</span>
+                      <span>₹{fmt(pageLineNetTotal(pageItems, pageIndex))}</span>
                     </div>
                   </div>
                 </div>
