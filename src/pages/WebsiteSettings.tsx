@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -980,13 +980,18 @@ function PublishedCatalogue({
     enabled: !!orgId && productIds.length > 0,
     staleTime: STALE_REFERENCE,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id, product_name, brand, category, image_url, default_sale_price")
-        .eq("organization_id", orgId!)
-        .in("id", productIds);
-      if (error) throw error;
-      return Object.fromEntries(((data || []) as CatalogProduct[]).map((p) => [p.id, p]));
+      // Chunk the IN-list so large catalogues don't blow past URL length limits.
+      const rows: CatalogProduct[] = [];
+      for (let i = 0; i < productIds.length; i += 200) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, image_url, default_sale_price")
+          .eq("organization_id", orgId!)
+          .in("id", productIds.slice(i, i + 200));
+        if (error) throw error;
+        rows.push(...((data || []) as CatalogProduct[]));
+      }
+      return Object.fromEntries(rows.map((p) => [p.id, p]));
     },
   });
 
@@ -995,14 +1000,18 @@ function PublishedCatalogue({
     enabled: !!orgId && productIds.length > 0,
     staleTime: STALE_FREQUENT,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select("product_id, sale_price, stock_qty, size, color")
-        .eq("organization_id", orgId!)
-        .in("product_id", productIds)
-        .is("deleted_at", null);
-      if (error) throw error;
-      const rows = (data || []) as VariantRow[];
+      // Chunk the IN-list so large catalogues don't blow past URL length limits.
+      const rows: VariantRow[] = [];
+      for (let i = 0; i < productIds.length; i += 200) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("product_id, sale_price, stock_qty, size, color")
+          .eq("organization_id", orgId!)
+          .in("product_id", productIds.slice(i, i + 200))
+          .is("deleted_at", null);
+        if (error) throw error;
+        rows.push(...(((data || []) as VariantRow[])));
+      }
       return {
         stock: aggregateWebsiteVariantStock(rows),
         variants: aggregateVariantRows(rows),
@@ -1014,9 +1023,23 @@ function PublishedCatalogue({
   const [order, setOrder] = useState(listings.map((l) => l.id));
   const listingById = useMemo(() => Object.fromEntries(listings.map((l) => [l.id, l])), [listings]);
 
+  // Catalogue pages: the full published list (all in-stock products included —
+  // nothing is capped or filtered out), 20 rows per page with Prev/Next below.
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 20;
+  const prevListingCountRef = useRef(listings.length);
+
   useEffect(() => {
     setOrder(listings.map((l) => l.id));
+    // Back to the first page when rows are added/removed (not on every
+    // refetch — toggles keep the user on their current page).
+    if (listings.length !== prevListingCountRef.current) setPage(0);
+    prevListingCountRef.current = listings.length;
   }, [listings]);
+
+  const pageCount = Math.max(1, Math.ceil(order.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const pageIds = order.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   const persistOrder = async (ids: string[]) => {
     await Promise.all(
@@ -1070,13 +1093,44 @@ function PublishedCatalogue({
         subtitle="Drag rows to reorder · assign a section · edit display price · toggle visibility"
         className="flex-1 min-h-0"
         footer={
-          <span className="text-xs text-muted-foreground">
-            {listings.length} product{listings.length === 1 ? "" : "s"} on store
-          </span>
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {listings.length} product{listings.length === 1 ? "" : "s"} on store
+            </span>
+            {pageCount > 1 ? (
+              <span className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={safePage === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Prev
+                </Button>
+                <span className="px-1 text-xs text-muted-foreground">
+                  Page {safePage + 1} of {pageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  disabled={safePage >= pageCount - 1}
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                >
+                  Next
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            ) : null}
+          </div>
         }
       >
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableContext items={order} strategy={verticalListSortingStrategy}>
+          <SortableContext items={pageIds} strategy={verticalListSortingStrategy}>
             <Table className="w-full min-w-max">
               <InsightsTableHeader>
                 <InsightsStaticTh label="" className="w-10" />
@@ -1094,7 +1148,7 @@ function PublishedCatalogue({
                 <InsightsStaticTh label="" className="w-12" />
               </InsightsTableHeader>
               <TableBody>
-                {order.map((id) => {
+                {pageIds.map((id) => {
                   const listing = listingById[id];
                   if (!listing) return null;
                   const product = lookupMap<CatalogProduct>(productsQuery.data, listing.product_id);
