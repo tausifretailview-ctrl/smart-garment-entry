@@ -201,6 +201,7 @@ export function useBarcodeLabelSettings() {
         const { data: updatedPresets, error: syncError } = await supabase
           .from("printer_presets")
           .update({
+            name: canonicalName,
             label_config: template.config as any,
             label_width: template.labelWidth || null,
             label_height: template.labelHeight || null,
