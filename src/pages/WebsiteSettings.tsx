@@ -566,26 +566,19 @@ function AddProducts({
 
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
       // Proven-zero-stock hides; no variant rows at all keeps (no stock signal)
-      cursor/website-picker-coverage-fix-2cad
       // Client-side pagination below shows the full filtered list (no display cap).
-      return candidates.filter((p) => {
-        
-      // No display cap here — client-side pagination shows the full list.
       const products = candidates.filter((p) => {
-main
         const entry = stockByProduct[p.id];
         if (!entry) return true;
         return (entry.qty ?? 0) > 0;
       });
- cursor/website-picker-coverage-fix-2cad
- 
+
       const stock: Record<string, { qty: number; price: number | null }> = {};
       for (const p of products) {
         const row = stockByProduct[p.id];
         if (row) stock[p.id] = row;
       }
       return { products, stock };
- main
     },
   });
 
