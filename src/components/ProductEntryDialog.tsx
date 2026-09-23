@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import {
   getRequiresImeiFormDefault,
+  hasRequiresImeiStoredPreference,
   rememberRequiresImeiFormChoice,
 } from "@/utils/productRequiresImei";
 import { supabase } from "@/integrations/supabase/client";
@@ -2237,7 +2238,13 @@ export const ProductEntryDialog = ({
         status: formData.status,
         organization_id: currentOrganization.id,
         created_in_purchase: createdInPurchase === true,
-        requires_imei: mobileERPMode?.enabled ? formData.requires_imei !== false : true,
+        // Non-mobile-ERP orgs have no toggle: reuse a stored category/global
+        // preference when one exists, else keep the safe default (true).
+        requires_imei: mobileERPMode?.enabled
+          ? formData.requires_imei !== false
+          : hasRequiresImeiStoredPreference(formData.category)
+            ? getRequiresImeiFormDefault(formData.category)
+            : true,
         // In roll-wise MTR mode, no size group is used — force null to avoid stale FK
         size_group_id: (rollWiseMtrEnabled && formData.uom === 'MTR')
           ? null
