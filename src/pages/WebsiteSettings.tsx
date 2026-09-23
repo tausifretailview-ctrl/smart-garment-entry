@@ -566,26 +566,19 @@ function AddProducts({
 
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
       // Proven-zero-stock hides; no variant rows at all keeps (no stock signal)
-      cursor/website-picker-coverage-fix-2cad
       // Client-side pagination below shows the full filtered list (no display cap).
-      return candidates.filter((p) => {
-        
-      // No display cap here — client-side pagination shows the full list.
       const products = candidates.filter((p) => {
-main
         const entry = stockByProduct[p.id];
         if (!entry) return true;
         return (entry.qty ?? 0) > 0;
       });
- cursor/website-picker-coverage-fix-2cad
- 
+
       const stock: Record<string, { qty: number; price: number | null }> = {};
       for (const p of products) {
         const row = stockByProduct[p.id];
         if (row) stock[p.id] = row;
       }
       return { products, stock };
- main
     },
   });
 
@@ -599,10 +592,7 @@ main
     staleTime: STALE_LIVE,
     queryFn: async () => {
       const ids = rows.map((p) => p.id);
-cursor/website-picker-coverage-fix-2cad
       // Chunk the IN-list so large catalogues don't blow past URL length limits.
-
- main
       const vrows: {
         product_id: string;
         size?: string | null;
@@ -630,23 +620,14 @@ cursor/website-picker-coverage-fix-2cad
     },
   });
 
- cursor/website-picker-coverage-fix-2cad
-  // Only products with stock on hand. A product with variant rows summing to
-  // zero is hidden; a product with no variant rows at all is kept (no stock
-  // signal either way — hiding it made sellable products vanish). Stock totals
-  // arrive with the variants, so hold the list empty until they resolve.
-=======
-  // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
-  // Hold the list empty (with a loading hint) until variants resolve.
- main
+  // Proven-zero-stock hides; a product with no variant rows at all is kept
+  // (no stock signal either way). Stock totals arrive with the variants, so
+  // hold the list empty until they resolve.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
     ? rows.filter((p) => {
         const stock = variantsQuery.data?.stockById[p.id];
- cursor/website-picker-coverage-fix-2cad
         // No variant rows at all → no stock signal → keep the product.
-=======
- main
         if (stock == null) return true;
         return stock > 0;
       })
@@ -815,11 +796,7 @@ cursor/website-picker-coverage-fix-2cad
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
-cursor/website-picker-coverage-fix-2cad
-            <InsightsStaticTh label="Stock" className="text-right" />
-=======
             <InsightsStaticTh label="Stock" className="text-right w-16" />
-main
             <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
@@ -857,13 +834,8 @@ main
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
                 </TableCell>
-cursor/website-picker-coverage-fix-2cad
-                <TableCell className={INSIGHTS_BODY_CELL_NUM}>
-                  {variantsQuery.data?.stockById[p.id] ?? "—"}
-=======
                 <TableCell className={cn(INSIGHTS_BODY_CELL_NUM, "font-mono tabular-nums")}>
                   {stockQty.toLocaleString("en-IN")}
-main
                 </TableCell>
                 <TableCell className={INSIGHTS_BODY_CELL}>
                   {sections.length > 0 || onGoToSections ? (

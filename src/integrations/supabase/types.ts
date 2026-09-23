@@ -1584,6 +1584,74 @@ export type Database = {
           },
         ]
       }
+      customer_feedback: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          rating: number
+          sale_id: string
+          salesman: string | null
+          source: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          rating: number
+          sale_id: string
+          salesman?: string | null
+          source: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          rating?: number
+          sale_id?: string
+          salesman?: string | null
+          source?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_feedback_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_feedback_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_feedback_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: true
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_feedback_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: true
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_ledger_entries: {
         Row: {
           created_at: string | null
@@ -1625,6 +1693,165 @@ export type Database = {
           voucher_type?: string
         }
         Relationships: []
+      }
+      customer_links: {
+        Row: {
+          created_at: string
+          customer_phone_last10: string
+          engage_expires_at: string
+          id: string
+          invoice_expires_at: string
+          kind: string
+          organization_id: string
+          revoked_at: string | null
+          sale_id: string | null
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          customer_phone_last10: string
+          engage_expires_at: string
+          id?: string
+          invoice_expires_at: string
+          kind: string
+          organization_id: string
+          revoked_at?: string | null
+          sale_id?: string | null
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          customer_phone_last10?: string
+          engage_expires_at?: string
+          id?: string
+          invoice_expires_at?: string
+          kind?: string
+          organization_id?: string
+          revoked_at?: string | null
+          sale_id?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "customer_links_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_links_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_page_events: {
+        Row: {
+          created_at: string
+          event: string
+          id: string
+          link_id: string | null
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          id?: string
+          link_id?: string | null
+          organization_id: string
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: string
+          link_id?: string | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_page_events_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "customer_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_page_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_page_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      customer_page_settings: {
+        Row: {
+          add_link_to_whatsapp: boolean
+          created_at: string
+          enabled: boolean
+          organization_id: string
+          print_qr_on_bill: boolean
+          push_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          add_link_to_whatsapp?: boolean
+          created_at?: string
+          enabled?: boolean
+          organization_id: string
+          print_qr_on_bill?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          add_link_to_whatsapp?: boolean
+          created_at?: string
+          enabled?: boolean
+          organization_id?: string
+          print_qr_on_bill?: boolean
+          push_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_page_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_page_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
       }
       customer_points_history: {
         Row: {
@@ -5294,6 +5521,233 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "suppliers"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_campaigns: {
+        Row: {
+          body: string
+          created_at: string
+          created_by: string | null
+          id: string
+          image_url: string | null
+          kind: string
+          offer_code: string | null
+          organization_id: string
+          product_ids: string[]
+          sent_at: string | null
+          status: string
+          target: Json
+          title: string
+          valid_till: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          kind: string
+          offer_code?: string | null
+          organization_id: string
+          product_ids?: string[]
+          sent_at?: string | null
+          status?: string
+          target?: Json
+          title: string
+          valid_till?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          image_url?: string | null
+          kind?: string
+          offer_code?: string | null
+          organization_id?: string
+          product_ids?: string[]
+          sent_at?: string | null
+          status?: string
+          target?: Json
+          title?: string
+          valid_till?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_campaigns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      push_messages: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          delivered_at: string | null
+          dismissed_at: string | null
+          error_code: string | null
+          fcm_message_id: string | null
+          id: string
+          opened_at: string | null
+          organization_id: string
+          sale_id: string | null
+          sent_at: string | null
+          status: string
+          subscription_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          dismissed_at?: string | null
+          error_code?: string | null
+          fcm_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          organization_id: string
+          sale_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          dismissed_at?: string | null
+          error_code?: string | null
+          fcm_message_id?: string | null
+          id?: string
+          opened_at?: string | null
+          organization_id?: string
+          sale_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "push_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_messages_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+          {
+            foreignKeyName: "push_messages_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_messages_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales_with_customer"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_messages_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "push_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          confirmed_at: string | null
+          created_at: string
+          customer_id: string | null
+          customer_phone_last10: string
+          fcm_token: string
+          id: string
+          inactive_reason: string | null
+          last_seen_at: string | null
+          organization_id: string
+          platform: string
+          receives_invoices: boolean
+          source: string
+          status: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_phone_last10: string
+          fcm_token: string
+          id?: string
+          inactive_reason?: string | null
+          last_seen_at?: string | null
+          organization_id: string
+          platform: string
+          receives_invoices?: boolean
+          source: string
+          status?: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          created_at?: string
+          customer_id?: string | null
+          customer_phone_last10?: string
+          fcm_token?: string
+          id?: string
+          inactive_reason?: string | null
+          last_seen_at?: string | null
+          organization_id?: string
+          platform?: string
+          receives_invoices?: boolean
+          source?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
           },
         ]
       }
@@ -9710,8 +10164,56 @@ export type Database = {
         Args: { p_id: string; p_token: string }
         Returns: boolean
       }
+      create_customer_link: { Args: { p_sale_id: string }; Returns: Json }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
+        Returns: Json
+      }
+      customer_page_get: {
+        Args: { p_subdomain: string; p_token: string }
+        Returns: Json
+      }
+      customer_page_log_event: {
+        Args: { p_event: string; p_token: string }
+        Returns: Json
+      }
+      customer_page_register_push: {
+        Args: {
+          p_fcm_token: string
+          p_platform: string
+          p_subdomain: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      customer_page_resolve_link: {
+        Args: { p_token: string }
+        Returns: {
+          created_at: string
+          customer_phone_last10: string
+          engage_expires_at: string
+          id: string
+          invoice_expires_at: string
+          kind: string
+          organization_id: string
+          revoked_at: string | null
+          sale_id: string | null
+          token_hash: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "customer_links"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      customer_page_submit_feedback: {
+        Args: {
+          p_comment?: string
+          p_rating: number
+          p_tags?: string[]
+          p_token: string
+        }
         Returns: Json
       }
       delete_child_rows_for_org: {
@@ -10791,6 +11293,7 @@ export type Database = {
         Args: { p_variant_id: string }
         Returns: number
       }
+      normalize_phone_last10: { Args: { p_phone: string }; Returns: string }
       normalize_product_brand_key: {
         Args: { p_brand: string }
         Returns: string
@@ -10869,6 +11372,10 @@ export type Database = {
       purge_old_backup_logs: {
         Args: { p_days: number; p_org_id: string }
         Returns: number
+      }
+      push_track: {
+        Args: { p_event: string; p_message_id: string }
+        Returns: Json
       }
       recompute_customer_advances_used: {
         Args: { p_customer_id: string; p_organization_id: string }
