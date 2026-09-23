@@ -620,23 +620,14 @@ function AddProducts({
     },
   });
 
- cursor/website-picker-coverage-fix-2cad
-  // Only products with stock on hand. A product with variant rows summing to
-  // zero is hidden; a product with no variant rows at all is kept (no stock
-  // signal either way — hiding it made sellable products vanish). Stock totals
-  // arrive with the variants, so hold the list empty until they resolve.
-=======
-  // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
-  // Hold the list empty (with a loading hint) until variants resolve.
- main
+  // Proven-zero-stock hides; a product with no variant rows at all is kept
+  // (no stock signal either way). Stock totals arrive with the variants, so
+  // hold the list empty until they resolve.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
     ? rows.filter((p) => {
         const stock = variantsQuery.data?.stockById[p.id];
- cursor/website-picker-coverage-fix-2cad
         // No variant rows at all → no stock signal → keep the product.
-=======
- main
         if (stock == null) return true;
         return stock > 0;
       })
