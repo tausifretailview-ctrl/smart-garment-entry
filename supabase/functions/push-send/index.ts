@@ -94,6 +94,12 @@ function last10(phone: string | null | undefined): string {
   return digits.length > 10 ? digits.slice(-10) : digits;
 }
 
+// A4 guardrail: marketing sends are capped per invocation and resumable via
+// push_campaigns.last_sent_offset. Campaign pushes have sale_id IS NULL, so the
+// invoice partial unique index does not dedupe them — without the cap + cursor
+// a timed-out invocation followed by a retry would double-notify everyone.
+const MARKETING_SEND_CAP = 100;
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -152,6 +158,8 @@ const handler = async (req: Request): Promise<Response> => {
     let body = "";
     let targetSaleId: string | null = null;
     let targetCampaignId: string | null = null;
+    let startOffset = 0;
+    let processed = 0;
     // deno-lint-ignore no-explicit-any
     let targets: any[] = [];
 
@@ -184,7 +192,7 @@ const handler = async (req: Request): Promise<Response> => {
     } else {
       const { data: campaign, error: campaignError } = await supabase
         .from("push_campaigns")
-        .select("id, title, body, status, target")
+        .select("id, title, body, status, target, last_sent_offset")
         .eq("id", campaignId)
         .eq("organization_id", organizationId)
         .maybeSingle();
@@ -192,6 +200,9 @@ const handler = async (req: Request): Promise<Response> => {
       if (campaign.status !== "sending") {
         return json(400, { error: "Campaign is not in sending state" });
       }
+      // Resume from the stored cursor so a re-invoke continues instead of
+      // restarting from subscriber 0.
+      startOffset = Math.max(0, campaign.last_sent_offset ?? 0);
       const platform = (campaign.target as { platform?: string } | null)?.platform;
       let q = supabase
         .from("push_subscriptions")
@@ -199,9 +210,22 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("organization_id", organizationId)
         .eq("status", "confirmed");
       if (platform && ["android", "ios", "web"].includes(platform)) q = q.eq("platform", platform);
-      const { data: subs } = await q;
+      // Stable order is load-bearing: offset paging resumes correctly only if
+      // the row order is deterministic across invocations.
+      const { data: subs } = await q
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(startOffset, startOffset + MARKETING_SEND_CAP - 1);
       targets = subs ?? [];
-      if (targets.length === 0) return json(200, { ok: true, skipped: "no_subscriptions" });
+      if (targets.length === 0) {
+        // Audience exhausted (or exact multiple of the cap on the last page):
+        // close the campaign so further invokes don't restart it.
+        await supabase
+          .from("push_campaigns")
+          .update({ status: "done", sent_at: new Date().toISOString() })
+          .eq("id", campaign.id);
+        return json(200, { ok: true, completed: true, sent: 0, skipped: 0, failed: 0 });
+      }
       title = campaign.title;
       body = campaign.body;
       targetCampaignId = campaign.id;
@@ -217,6 +241,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     for (const sub of targets) {
       // Idempotency: one invoice push per sale+device (partial unique index).
+      // Marketing pushes have sale_id IS NULL, so this insert does NOT dedupe
+      // them — the resume cursor advanced at the bottom of this loop is what
+      // makes campaign retries non-duplicating.
       const { data: msg, error: msgError } = await supabase
         .from("push_messages")
         .insert({
@@ -231,48 +258,83 @@ const handler = async (req: Request): Promise<Response> => {
       if (msgError || !msg) {
         // 23505 = already sent for this sale+device (or a race) — skip quietly.
         skipped++;
-        continue;
-      }
-
-      try {
-        const fcmRes = await fetch(fcmUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-          body: JSON.stringify({
-            message: {
-              token: sub.fcm_token,
-              notification: { title, body },
-              data: {
-                message_id: msg.id,
-                ...(targetSaleId ? { sale_id: targetSaleId } : {}),
-                ...(targetCampaignId ? { campaign_id: targetCampaignId } : {}),
+      } else {
+        try {
+          const fcmRes = await fetch(fcmUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({
+              message: {
+                token: sub.fcm_token,
+                notification: { title, body },
+                data: {
+                  message_id: msg.id,
+                  ...(targetSaleId ? { sale_id: targetSaleId } : {}),
+                  ...(targetCampaignId ? { campaign_id: targetCampaignId } : {}),
+                },
               },
-            },
-          }),
-        });
-        const fcmData = await fcmRes.json().catch(() => ({}));
-        if (!fcmRes.ok) throw new Error(`FCM ${fcmRes.status}: ${JSON.stringify(fcmData).slice(0, 200)}`);
+            }),
+          });
+          const fcmData = await fcmRes.json().catch(() => ({}));
+          if (!fcmRes.ok) throw new Error(`FCM ${fcmRes.status}: ${JSON.stringify(fcmData).slice(0, 200)}`);
 
-        await supabase
-          .from("push_messages")
-          .update({ status: "sent", sent_at: new Date().toISOString(), fcm_message_id: fcmData.name ?? null })
-          .eq("id", msg.id);
-        sent++;
-      } catch (sendError) {
-        const errCode = sendError instanceof Error ? sendError.message.slice(0, 200) : "send_failed";
-        await supabase
-          .from("push_messages")
-          .update({ status: "failed", error_code: errCode })
-          .eq("id", msg.id);
-        // Unregistered / invalid tokens go inactive so we stop paying to retry them.
-        if (/NOT_FOUND|UNREGISTERED|INVALID_ARGUMENT/i.test(errCode)) {
           await supabase
-            .from("push_subscriptions")
-            .update({ status: "inactive", inactive_reason: errCode.slice(0, 120) })
-            .eq("id", sub.id);
+            .from("push_messages")
+            .update({ status: "sent", sent_at: new Date().toISOString(), fcm_message_id: fcmData.name ?? null })
+            .eq("id", msg.id);
+          sent++;
+        } catch (sendError) {
+          const errCode = sendError instanceof Error ? sendError.message.slice(0, 200) : "send_failed";
+          await supabase
+            .from("push_messages")
+            .update({ status: "failed", error_code: errCode })
+            .eq("id", msg.id);
+          // Unregistered / invalid tokens go inactive so we stop paying to retry them.
+          if (/NOT_FOUND|UNREGISTERED|INVALID_ARGUMENT/i.test(errCode)) {
+            await supabase
+              .from("push_subscriptions")
+              .update({ status: "inactive", inactive_reason: errCode.slice(0, 120) })
+              .eq("id", sub.id);
+          }
+          failed++;
         }
-        failed++;
       }
+
+      if (targetCampaignId) {
+        // Advance the resume cursor after EVERY processed target (sent,
+        // skipped, or failed — a permanently failing token must not wedge the
+        // cursor). Persisted per iteration so a timed-out invocation resumes
+        // instead of restarting. Residual risk, accepted: the single in-flight
+        // target at the timeout boundary may send twice.
+        processed++;
+        await supabase
+          .from("push_campaigns")
+          .update({ last_sent_offset: startOffset + processed })
+          .eq("id", targetCampaignId);
+      }
+    }
+
+    if (targetCampaignId) {
+      // Fewer rows than the cap means the audience is exhausted: close the
+      // campaign. Otherwise it stays 'sending' with the advanced cursor and
+      // the caller re-invokes to continue.
+      const completed = targets.length < MARKETING_SEND_CAP;
+      await supabase
+        .from("push_campaigns")
+        .update({
+          last_sent_offset: startOffset + processed,
+          ...(completed ? { status: "done", sent_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", targetCampaignId);
+      return json(200, {
+        ok: true,
+        sent,
+        skipped,
+        failed,
+        completed,
+        resumeOffset: startOffset + processed,
+        cap: MARKETING_SEND_CAP,
+      });
     }
 
     return json(200, { ok: true, sent, skipped, failed });
