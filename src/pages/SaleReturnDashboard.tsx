@@ -45,6 +45,14 @@ import { AdjustCustomerCreditNoteDialog } from "@/components/AdjustCustomerCredi
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { CreditNoteHistoryDialog } from "@/components/CreditNoteHistoryDialog";
 import { isSaleReturnConsumedAtBilling } from "@/utils/saleReturnCnBalance";
+import { fetchCreditNoteSrRegisterSource } from "@/utils/creditNoteSrRegisterData";
+import {
+  buildCreditNoteSrRegisterRows,
+  formatRegisterDate,
+  saleBillKindLabel,
+  type CreditNoteSrRedeemedBill,
+} from "@/utils/creditNoteSrRegister";
+import { saleReturnRedeemFromRegister } from "@/utils/saleReturnRedeemDisplay";
 import { format } from "date-fns";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -83,9 +91,13 @@ interface SaleReturn {
   total_qty?: number;
   adjusted_sale_number?: string | null;
   adjusted_sale_type?: string | null;
-  /** Amount applied on linked invoice (from sales.sale_return_adjust). */
+  /** Date the credit was redeemed (voucher date, else the POS / Sale bill date). */
+  adjusted_sale_date?: string | null;
+  /** POS and Sale bills this return was redeemed on, with amount and date. */
+  redeemed_bills?: CreditNoteSrRedeemedBill[];
+  /** Amount redeemed. Not the return net when nothing has been applied. */
   actual_adjusted_amt?: number;
-  /** Return net not yet applied when partial CN on invoice. */
+  /** Balance still available after redeem. */
   remaining_cn_amt?: number;
   /** Live remaining on linked credit_notes row (credit_amount - used_amount). */
   cn_live_remaining?: number | null;
@@ -141,13 +153,13 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
  * 2. Otherwise, if the return is linked to a sale, use remaining_cn_amt.
  * 3. Otherwise (pending, no CN yet), fall back to net_amount.
  */
-/** Hidden by default — enable via Columns filter. */
+/** Hidden by default — enable via Columns filter. Redeemed bill stays on by default. */
 const DEFAULT_SALE_RETURN_COLUMNS = {
   phone: false,
   originalSale: false,
   gross: false,
   gst: false,
-  adjInvoice: false,
+  adjInvoice: true,
 };
 
 const getAvailableCN = (ret: SaleReturn): number => {
@@ -161,6 +173,43 @@ const getAvailableCN = (ret: SaleReturn): number => {
   }
   return Number(ret.net_amount || 0);
 };
+
+function RedeemBillLines({ bills }: { bills: CreditNoteSrRedeemedBill[] }) {
+  if (bills.length === 0) return null;
+  return (
+    <div className="mt-0.5 space-y-1 text-left">
+      {bills.map((bill) => {
+        const meta = [
+          bill.billKind,
+          formatRegisterDate(bill.saleDate),
+          bills.length > 1 ? `₹${Math.round(bill.amount).toLocaleString("en-IN")}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <div key={`${bill.saleId}-${bill.saleNumber}`}>
+            <div className="font-medium text-foreground">{bill.saleNumber}</div>
+            {meta ? <div className="text-[11px] text-muted-foreground leading-tight">{meta}</div> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function fallbackRedeemBills(ret: SaleReturn): CreditNoteSrRedeemedBill[] {
+  if (ret.redeemed_bills && ret.redeemed_bills.length > 0) return ret.redeemed_bills;
+  if (!ret.adjusted_sale_number) return [];
+  return [
+    {
+      saleId: ret.linked_sale_id || ret.adjusted_sale_number,
+      saleNumber: ret.adjusted_sale_number,
+      billKind: saleBillKindLabel(ret.adjusted_sale_type),
+      saleDate: ret.adjusted_sale_date || "",
+      amount: Number(ret.actual_adjusted_amt || 0),
+    },
+  ];
+}
 
 export default function SaleReturnDashboard() {
   const isMobile = useIsMobile();
@@ -506,17 +555,24 @@ export default function SaleReturnDashboard() {
       const linkedSaleIds = [...new Set(returnsList.map(r => r.linked_sale_id).filter(Boolean))] as string[];
       const linkedSaleMap: Record<
         string,
-        { sale_number: string; sale_type: string | null; sale_return_adjust: number }
+        {
+          sale_number: string;
+          sale_type: string | null;
+          sale_date: string | null;
+          sale_return_adjust: number;
+        }
       > = {};
-      if (linkedSaleIds.length > 0) {
+      if (linkedSaleIds.length > 0 && currentOrganization?.id) {
         const { data: linkedSales } = await supabase
           .from("sales")
-          .select("id, sale_number, sale_type, sale_return_adjust")
+          .select("id, sale_number, sale_type, sale_date, sale_return_adjust")
+          .eq("organization_id", currentOrganization.id)
           .in("id", linkedSaleIds);
         (linkedSales || []).forEach((s: any) => {
           linkedSaleMap[s.id] = {
             sale_number: s.sale_number,
             sale_type: s.sale_type || null,
+            sale_date: s.sale_date ? String(s.sale_date).slice(0, 10) : null,
             sale_return_adjust: Number(s.sale_return_adjust || 0),
           };
         });
@@ -543,11 +599,8 @@ export default function SaleReturnDashboard() {
         const linked = r.linked_sale_id ? linkedSaleMap[r.linked_sale_id] : undefined;
         const net = Number(r.net_amount || 0);
         const sra = linked ? linked.sale_return_adjust : 0;
-        const actual_adjusted_amt = r.linked_sale_id
-          ? (linked ? sra : net)
-          : net;
-        const remaining_cn_amt =
-          r.linked_sale_id && linked ? Math.max(0, net - sra) : 0;
+        const actual_adjusted_amt = linked ? Math.min(net, sra) : 0;
+        const remaining_cn_amt = Math.max(0, net - actual_adjusted_amt);
         const cn_live_remaining =
           r.credit_note_id && cnLiveMap[r.credit_note_id] != null
             ? cnLiveMap[r.credit_note_id]
@@ -558,6 +611,7 @@ export default function SaleReturnDashboard() {
           total_qty: qtyMap[r.id] || 0,
           adjusted_sale_number: r.linked_sale_id ? linked?.sale_number || null : null,
           adjusted_sale_type: r.linked_sale_id ? linked?.sale_type || null : null,
+          adjusted_sale_date: r.linked_sale_id ? linked?.sale_date || null : null,
           actual_adjusted_amt,
           remaining_cn_amt,
           cn_live_remaining,
@@ -592,7 +646,27 @@ export default function SaleReturnDashboard() {
     refetchOnWindowFocus: false,
   });
 
-  const returns = returnsData?.returns || [];
+  const registerSource = useQuery({
+    queryKey: ["cn-sr-adjustment-register", currentOrganization?.id],
+    enabled: !!currentOrganization?.id,
+    queryFn: () => fetchCreditNoteSrRegisterSource(currentOrganization!.id),
+    staleTime: 30_000,
+  });
+
+  const registerById = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof buildCreditNoteSrRegisterRows>[number]>();
+    if (!registerSource.data) return map;
+    for (const row of buildCreditNoteSrRegisterRows(registerSource.data)) {
+      map.set(row.id, row);
+    }
+    return map;
+  }, [registerSource.data]);
+
+  const pageReturns = returnsData?.returns;
+  const returns = useMemo(
+    () => (pageReturns || []).map((ret) => saleReturnRedeemFromRegister(ret, registerById.get(ret.id))),
+    [pageReturns, registerById],
+  );
 
   const { data: summaryData } = useQuery({
     queryKey: ["sale-returns-summary", currentOrganization?.id, debouncedSearch, fromDate, toDate, statusFilter],
@@ -863,7 +937,20 @@ export default function SaleReturnDashboard() {
       "GST": Math.round(ret.gst_amount * 100) / 100,
       "Net Amount": Math.round(ret.net_amount),
       "Credit Status": ret.credit_status || "-",
-      "Adjusted In Invoice": ret.adjusted_sale_number || ret.original_sale_number || "-",
+      "Redeemed": Math.round(ret.actual_adjusted_amt ?? 0),
+      "Balance": Math.round(ret.remaining_cn_amt ?? 0),
+      "Redeemed On": (ret.redeemed_bills || [])
+        .map((bill) => bill.saleNumber)
+        .filter(Boolean)
+        .join(", ") || ret.adjusted_sale_number || "-",
+      "Bill Type": (ret.redeemed_bills || [])
+        .map((bill) => bill.billKind)
+        .filter(Boolean)
+        .join(", ") || saleBillKindLabel(ret.adjusted_sale_type) || "-",
+      "Invoice Date": (ret.redeemed_bills || [])
+        .map((bill) => formatRegisterDate(bill.saleDate))
+        .filter(Boolean)
+        .join(", ") || formatRegisterDate(ret.adjusted_sale_date) || "-",
       "Refund Type": ret.refund_type === 'cash_refund' ? 'Cash Refund' : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
     }));
 
@@ -1191,6 +1278,7 @@ export default function SaleReturnDashboard() {
                       >
                         {ret.customer_name}
                       </button>
+                      {ret.customer_phone ? ` · ${ret.customer_phone}` : null}
                       {ret.original_sale_number ? ` · ${ret.original_sale_number}` : null}
                     </>
                   }
@@ -1230,11 +1318,18 @@ export default function SaleReturnDashboard() {
                           View CN history
                         </button>
                       ) : null}
-                      {(ret.remaining_cn_amt ?? 0) > 0 ? (
-                        <span className="text-amber-600 block">
-                          ₹{ret.remaining_cn_amt!.toLocaleString("en-IN")} CN remaining
+                      <span className="block">
+                        Redeemed ₹{Math.round(ret.actual_adjusted_amt ?? 0).toLocaleString("en-IN")}
+                        {" · "}
+                        Balance ₹{Math.round(ret.remaining_cn_amt ?? 0).toLocaleString("en-IN")}
+                      </span>
+                      {fallbackRedeemBills(ret).map((bill) => (
+                        <span key={`${bill.saleId}-${bill.saleNumber}`} className="block text-foreground">
+                          {[bill.saleNumber, bill.billKind, formatRegisterDate(bill.saleDate)]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
-                      ) : null}
+                      ))}
                     </>
                   }
                   footer={
@@ -1498,7 +1593,7 @@ export default function SaleReturnDashboard() {
                         />
                       </div>
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="sr-col-adj-invoice" className="text-sm">Adj. Invoice</Label>
+                        <Label htmlFor="sr-col-adj-invoice" className="text-sm">Redeemed bill</Label>
                         <Checkbox
                           id="sr-col-adj-invoice"
                           checked={columnSettings.adjInvoice}
@@ -1534,8 +1629,8 @@ export default function SaleReturnDashboard() {
                       <col className="w-[4.75rem]" />
                       <col className="w-[7.5rem]" />
                       <col className="w-[5.75rem]" />
-                      {columnSettings.adjInvoice && <col className="w-[6rem]" />}
-                      <col className="w-[4.75rem]" />
+                      {columnSettings.adjInvoice && <col className="w-[8.5rem]" />}
+                      <col className="w-[8.5rem]" />
                       <col className="w-[5.75rem]" />
                       <col className="w-[8rem]" />
                     </colgroup>
@@ -1562,9 +1657,9 @@ export default function SaleReturnDashboard() {
                         <TableHead className="font-semibold text-left px-1">Status</TableHead>
                         <TableHead className="font-semibold text-left whitespace-nowrap">Credit Note</TableHead>
                         {columnSettings.adjInvoice && (
-                          <TableHead className="font-semibold text-left whitespace-nowrap">Adj. Invoice</TableHead>
+                          <TableHead className="font-semibold text-left whitespace-nowrap">Redeemed bill</TableHead>
                         )}
-                        <TableHead className="text-right font-semibold whitespace-nowrap">Adj. Amt</TableHead>
+                        <TableHead className="text-right font-semibold whitespace-nowrap">Redeemed</TableHead>
                         <TableHead className="font-semibold text-left whitespace-nowrap">Settlement</TableHead>
                         <TableHead className="text-right font-semibold print:hidden px-1">Actions</TableHead>
                       </TableRow>
@@ -1598,14 +1693,17 @@ export default function SaleReturnDashboard() {
                               {format(new Date(ret.return_date), "dd/MM/yyyy")}
                             </TableCell>
                             <TableCell
-                              className="cursor-pointer text-blue-600 hover:underline align-middle max-w-[9rem] truncate"
-                              title={ret.customer_name?.toUpperCase()}
+                              className="cursor-pointer text-blue-600 hover:underline align-middle max-w-[9rem]"
+                              title={`${ret.customer_name?.toUpperCase() || ""}${ret.customer_phone ? ` · ${ret.customer_phone}` : ""}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openCustomerAccount(ret.customer_id, ret.customer_name);
                               }}
                             >
-                              {ret.customer_name?.toUpperCase()}
+                              <div className="truncate">{ret.customer_name?.toUpperCase()}</div>
+                              {ret.customer_phone ? (
+                                <div className="text-xs text-muted-foreground font-normal">{ret.customer_phone}</div>
+                              ) : null}
                             </TableCell>
                             {columnSettings.phone && (
                               <TableCell onClick={() => toggleRow(ret.id)}>{ret.customer_phone || "-"}</TableCell>
@@ -1674,22 +1772,21 @@ export default function SaleReturnDashboard() {
                         </TableCell>
                             {columnSettings.adjInvoice && (
                               <TableCell onClick={() => toggleRow(ret.id)}>
-                                {ret.adjusted_sale_number ? (
-                                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs px-2 py-0.5 font-normal">
-                                    {ret.adjusted_sale_number}
-                                    {ret.adjusted_sale_type === "pos" ? " (S/R)" : ""}
-                                  </Badge>
-                                ) : (
+                                <RedeemBillLines bills={fallbackRedeemBills(ret)} />
+                                {fallbackRedeemBills(ret).length === 0 ? (
                                   <span className="text-muted-foreground">-</span>
-                                )}
+                                ) : null}
                               </TableCell>
                             )}
-                            <TableCell className="text-right font-medium" onClick={() => toggleRow(ret.id)}>
-                              ₹{Math.round(ret.actual_adjusted_amt ?? ret.net_amount).toLocaleString("en-IN")}
-                              {(ret.remaining_cn_amt ?? 0) > 0 && (
-                                <span className="block text-xs text-amber-600 font-normal leading-tight">
-                                  ₹{Math.round(ret.remaining_cn_amt!).toLocaleString("en-IN")} remaining
-                                </span>
+                            <TableCell className="text-right font-medium align-top" onClick={() => toggleRow(ret.id)}>
+                              <div className="tabular-nums">
+                                ₹{Math.round(ret.actual_adjusted_amt ?? 0).toLocaleString("en-IN")}
+                              </div>
+                              <span className="block text-xs text-amber-700 font-normal leading-tight">
+                                Balance ₹{Math.round(ret.remaining_cn_amt ?? 0).toLocaleString("en-IN")}
+                              </span>
+                              {columnSettings.adjInvoice ? null : (
+                                <RedeemBillLines bills={fallbackRedeemBills(ret)} />
                               )}
                             </TableCell>
                         <TableCell>

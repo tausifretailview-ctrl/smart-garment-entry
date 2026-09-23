@@ -37,7 +37,9 @@ import {
   creditNoteSrRegisterCsvRow,
   creditNoteSrRegisterKpis,
   filterCreditNoteSrRegisterRows,
+  formatRegisterDate,
   type CreditNoteSrDateBasis,
+  type CreditNoteSrRedeemedBill,
 } from "@/utils/creditNoteSrRegister";
 import { csvField } from "@/utils/reportCsvExport";
 
@@ -45,6 +47,29 @@ type PeriodType = "custom" | "this-month" | "last-month" | "this-quarter" | "thi
 
 const inr = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmt = (n: number) => `₹${inr.format(n || 0)}`;
+
+function BillLines({ bills, showAmount }: { bills: CreditNoteSrRedeemedBill[]; showAmount?: boolean }) {
+  if (bills.length === 0) return <span className="text-muted-foreground">—</span>;
+  return (
+    <div className="space-y-1">
+      {bills.map((bill) => {
+        const meta = [
+          bill.billKind,
+          formatRegisterDate(bill.saleDate),
+          showAmount ? fmt(bill.amount) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return (
+          <div key={`${bill.saleId}-${bill.saleNumber}`}>
+            <div className="font-medium whitespace-nowrap">{bill.saleNumber}</div>
+            {meta ? <div className="text-xs text-muted-foreground whitespace-nowrap">{meta}</div> : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function currentFy(today: Date) {
   const month = today.getMonth();
@@ -221,8 +246,9 @@ export default function CreditNoteSrAdjustmentRegister() {
         <div>
           <h1 className="text-lg font-semibold">CN / S-R Adjustment Register</h1>
           <p className="text-xs text-muted-foreground">
-            Remaining uses allocated credit-note FIFO (same as Customer Ledger). Default hides fully
-            settled / memo returns.
+            Redeem and remaining use allocated credit-note FIFO (same as Customer Ledger). Each row
+            shows the customer, the POS or Sale bill number and date, the amount redeemed, and the
+            balance left. Default hides fully settled / memo returns.
           </p>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
@@ -298,7 +324,7 @@ export default function CreditNoteSrAdjustmentRegister() {
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               className="h-9 pl-8"
-              placeholder="Name, phone, or return no"
+              placeholder="Name, phone, return, or invoice"
               value={customerQuery}
               onChange={(e) => setCustomerQuery(e.target.value)}
             />
@@ -374,14 +400,16 @@ export default function CreditNoteSrAdjustmentRegister() {
                   rows.map((row) => (
                     <TableRow key={row.id} className={row.isMemo ? "text-muted-foreground" : undefined}>
                       <TableCell className="font-medium whitespace-nowrap">{row.returnNumber}</TableCell>
-                      <TableCell className="whitespace-nowrap">{row.returnDate}</TableCell>
+                      <TableCell className="whitespace-nowrap">{formatRegisterDate(row.returnDate) || "—"}</TableCell>
                       <TableCell>
                         <div className="font-medium">{row.customerName}</div>
                         {row.customerPhone ? (
                           <div className="text-xs text-muted-foreground">{row.customerPhone}</div>
                         ) : null}
                       </TableCell>
-                      <TableCell>{row.linkedInvoiceNumbers}</TableCell>
+                      <TableCell>
+                        <BillLines bills={row.linkedBills} />
+                      </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
                         {fmt(row.netReturnAmount)}
                       </TableCell>
@@ -396,8 +424,10 @@ export default function CreditNoteSrAdjustmentRegister() {
                       <TableCell className="text-right font-mono tabular-nums">
                         {fmt(row.appliedAmount)}
                       </TableCell>
-                      <TableCell>{row.appliedToInvoices || "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">{row.cnAppliedDate || "—"}</TableCell>
+                      <TableCell>
+                        <BillLines bills={row.redeemedBills} showAmount={row.redeemedBills.length > 1} />
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">{formatRegisterDate(row.cnAppliedDate) || "—"}</TableCell>
                       <TableCell className="text-right font-mono tabular-nums font-semibold">
                         {fmt(row.remainingAmount)}
                       </TableCell>

@@ -45,7 +45,7 @@ export async function fetchCreditNoteSrRegisterSource(
     const { data, error } = await supabase
       .from("sale_returns")
       .select(
-        "id, return_number, return_date, created_at, customer_id, net_amount, credit_status, linked_sale_id, credit_note_id, refund_type",
+        "id, return_number, return_date, created_at, customer_id, customer_name, net_amount, credit_status, linked_sale_id, credit_note_id, refund_type",
       )
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
@@ -93,7 +93,7 @@ export async function fetchCreditNoteSrRegisterSource(
     const chunk = saleIdList.slice(i, i + PAGE);
     const { data, error } = await supabase
       .from("sales")
-      .select("id, sale_number, sale_return_adjust")
+      .select("id, sale_number, sale_type, sale_date, sale_return_adjust")
       .eq("organization_id", organizationId)
       .in("id", chunk)
       .is("deleted_at", null);
@@ -101,6 +101,8 @@ export async function fetchCreditNoteSrRegisterSource(
     for (const s of data || []) {
       salesById[s.id] = {
         sale_number: s.sale_number,
+        sale_type: s.sale_type,
+        sale_date: s.sale_date,
         sale_return_adjust: Number(s.sale_return_adjust) || 0,
       };
     }

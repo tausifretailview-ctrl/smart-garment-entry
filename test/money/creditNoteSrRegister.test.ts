@@ -15,6 +15,7 @@ import {
   creditNoteSrRegisterCsvRow,
   filterCreditNoteSrRegisterRows,
 } from "@/utils/creditNoteSrRegister";
+import { saleReturnRedeemFromRegister } from "@/utils/saleReturnRedeemDisplay";
 import { saleReturnConsumedForRemaining } from "@/utils/customerLedgerSaleReturnBalance";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -65,7 +66,9 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
     expect(sr160?.remainingAmount).toBe(MASEERA_UNCLAIMED);
     expect(sr160?.remainingAmount).not.toBe(MASEERA_BUGGY_BANNER);
     expect(sr160?.appliedAmount).toBe(9_700);
-    expect(sr160?.appliedToInvoices).toBe("INV/26-27/3123");
+    expect(sr160?.appliedToInvoices).toBe(
+      "INV/26-27/3123 · ₹1,300.00, INV/26-27/3122 · ₹8,400.00",
+    );
     expect(sr160?.cnAppliedDate).toBe("2026-09-18");
     expect(sr160?.statusLabel).toBe("CN Partially Applied to Invoice(s)");
   });
@@ -315,8 +318,198 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       join(here, "../../src/utils/creditNoteSrRegisterData.ts"),
       "utf8",
     );
+    const dashboard = readFileSync(
+      join(here, "../../src/pages/SaleReturnDashboard.tsx"),
+      "utf8",
+    );
     expect(page).toContain("buildCreditNoteSrRegisterRows");
+    expect(page).toContain("redeemedBills");
     expect(page).not.toContain("remaining_cn_amt");
     expect(data).not.toContain("remaining_cn_amt");
+    expect(data).toContain("customer_name");
+    expect(data).toContain("sale_type");
+    expect(data).toContain("sale_date");
+    expect(dashboard).toContain("saleReturnRedeemFromRegister");
+    expect(dashboard).toContain("Balance ₹");
+  });
+
+  it("POS and Sale bills keep customer, invoice number, date, redeem, and balance", () => {
+    const rows = buildCreditNoteSrRegisterRows({
+      saleReturns: [
+        {
+          id: "sr-10",
+          return_number: "SR/26-27/10",
+          return_date: "2026-09-23",
+          customer_id: "tamanna",
+          customer_name: "TAMANNA",
+          net_amount: 500,
+          credit_status: "adjusted",
+          linked_sale_id: "pos-55",
+          credit_note_id: "cn-6",
+        },
+      ],
+      customersById: { tamanna: { phone: "9876543210" } },
+      salesById: {
+        "pos-55": {
+          sale_number: "POS/26-27/55",
+          sale_type: "pos",
+          sale_date: "2026-09-23",
+          sale_return_adjust: 250,
+        },
+        "inv-10": {
+          sale_number: "INV/26-27/10",
+          sale_type: "sale_invoice",
+          sale_date: "2026-09-24",
+          sale_return_adjust: 250,
+        },
+      },
+      creditNotesById: {
+        "cn-6": { credit_note_number: "CN/26-27/6", credit_amount: 500 },
+      },
+      vouchers: [
+        {
+          voucher_type: "receipt",
+          payment_method: "credit_note_adjustment",
+          reference_id: "pos-55",
+          total_amount: 250,
+          voucher_date: "2026-09-23",
+        },
+        {
+          voucher_type: "receipt",
+          payment_method: "credit_note_adjustment",
+          reference_id: "inv-10",
+          total_amount: 250,
+          voucher_date: "2026-09-24",
+        },
+      ],
+    });
+    const row = rows[0];
+    expect(row.customerName).toBe("TAMANNA");
+    expect(row.customerPhone).toBe("9876543210");
+    expect(row.appliedAmount).toBe(500);
+    expect(row.remainingAmount).toBe(0);
+    const pos = row.redeemedBills.find((bill) => bill.saleNumber === "POS/26-27/55");
+    const sale = row.redeemedBills.find((bill) => bill.saleNumber === "INV/26-27/10");
+    expect(pos).toMatchObject({ billKind: "POS", saleDate: "2026-09-23", amount: 250 });
+    expect(sale).toMatchObject({ billKind: "Sale", saleDate: "2026-09-24", amount: 250 });
+    expect(row.appliedToInvoices).toContain("POS/26-27/55 · POS · 23/09/2026 · ₹250.00");
+    expect(row.appliedToInvoices).toContain("INV/26-27/10 · Sale · 24/09/2026 · ₹250.00");
+    expect(row.cnAppliedDate).toBe("2026-09-24");
+    expect(
+      filterCreditNoteSrRegisterRows(rows, { customerQuery: "POS/26-27/55", showSettled: true }),
+    ).toHaveLength(1);
+    expect(
+      filterCreditNoteSrRegisterRows(rows, { customerQuery: "INV/26-27/10", showSettled: true }),
+    ).toHaveLength(1);
+
+    const header = creditNoteSrRegisterCsvHeader();
+    const line = creditNoteSrRegisterCsvRow(row);
+    expect(line[header.indexOf("Customer")]).toBe("TAMANNA");
+    expect(line[header.indexOf("Phone")]).toBe("9876543210");
+    expect(line[header.indexOf("Bill Type")]).toBe("POS, Sale");
+    expect(line[header.indexOf("Invoice Date")]).toBe("23/09/2026, 24/09/2026");
+    expect(line[header.indexOf("Amount Applied")]).toBe("500.00");
+    expect(line[header.indexOf("Remaining / Pending")]).toBe("0.00");
+
+    const managed = saleReturnRedeemFromRegister(
+      {
+        id: "sr-10",
+        actual_adjusted_amt: 0,
+        remaining_cn_amt: 500,
+        adjusted_sale_number: null,
+        adjusted_sale_type: null,
+      },
+      row,
+    );
+    expect(managed.actual_adjusted_amt).toBe(500);
+    expect(managed.remaining_cn_amt).toBe(0);
+    expect(managed.redeemed_bills).toHaveLength(2);
+    expect(managed.adjusted_sale_number).toContain("POS/26-27/55");
+    expect(managed.adjusted_sale_number).toContain("INV/26-27/10");
+    expect(managed.adjusted_sale_date).toBe("2026-09-24");
+  });
+
+  it("partial POS redeem leaves the balance and a bill with no CN voucher uses the sale date", () => {
+    const partial = buildCreditNoteSrRegisterRows({
+      saleReturns: [
+        {
+          id: "sr-partial",
+          return_number: "SR/26-27/11",
+          return_date: "2026-08-01",
+          customer_id: null,
+          customer_name: "WALK IN NAME",
+          net_amount: 500,
+          credit_status: "partially_adjusted",
+          linked_sale_id: "pos-56",
+        },
+      ],
+      customersById: {},
+      salesById: {
+        "pos-56": {
+          sale_number: "POS/26-27/56",
+          sale_type: "pos",
+          sale_date: "2026-09-23",
+          sale_return_adjust: 250,
+        },
+      },
+      creditNotesById: {},
+      vouchers: [
+        {
+          voucher_type: "receipt",
+          payment_method: "credit_note_adjustment",
+          reference_id: "pos-56",
+          total_amount: 250,
+          voucher_date: "2026-09-23",
+        },
+      ],
+    });
+    expect(partial[0].customerName).toBe("WALK IN NAME");
+    expect(partial[0].appliedAmount).toBe(250);
+    expect(partial[0].remainingAmount).toBe(250);
+    expect(partial[0].redeemedBills[0]).toMatchObject({
+      saleNumber: "POS/26-27/56",
+      billKind: "POS",
+      saleDate: "2026-09-23",
+      amount: 250,
+    });
+    expect(partial[0].appliedToInvoices).toBe("POS/26-27/56 · POS · 23/09/2026");
+
+    const absorbed = buildCreditNoteSrRegisterRows({
+      saleReturns: [
+        {
+          id: "sr-absorb",
+          return_number: "SR/26-27/12",
+          return_date: "2026-09-01",
+          customer_id: "c1",
+          customer_name: "SALE ONLY",
+          net_amount: 800,
+          credit_status: "adjusted",
+          linked_sale_id: "inv-80",
+        },
+      ],
+      customersById: { c1: { customer_name: "SALE ONLY", phone: "9000000000" } },
+      salesById: {
+        "inv-80": {
+          sale_number: "INV/26-27/80",
+          sale_type: "sale_invoice",
+          sale_date: "2026-09-20",
+          sale_return_adjust: 800,
+        },
+      },
+      creditNotesById: {},
+      vouchers: [],
+    });
+    expect(absorbed[0].appliedAmount).toBe(800);
+    expect(absorbed[0].remainingAmount).toBe(0);
+    expect(absorbed[0].appliedToInvoices).toBe("INV/26-27/80 · Sale · 20/09/2026");
+    expect(absorbed[0].cnAppliedDate).toBe("2026-09-20");
+    expect(
+      filterCreditNoteSrRegisterRows(absorbed, {
+        fromDate: "2026-09-20",
+        toDate: "2026-09-20",
+        dateBasis: "cn_applied",
+        showSettled: true,
+      }),
+    ).toHaveLength(1);
   });
 });
