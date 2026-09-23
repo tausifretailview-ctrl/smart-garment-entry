@@ -58,30 +58,18 @@ const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00
 
 function VastrakalaHeaderBrandText({
   title,
-  tagline,
   headerFont,
-  subFont,
 }: {
   title: string;
-  tagline: string;
   headerFont: string;
-  subFont: string;
 }) {
   return (
-    <>
-      <div
-        className="vk-header-title"
-        style={{ fontSize: headerFont, letterSpacing: "0.4px" }}
-      >
-        {title}
-      </div>
-      <div
-        className="vk-header-tagline"
-        style={{ fontSize: subFont, marginTop: 1 }}
-      >
-        {tagline}
-      </div>
-    </>
+    <div
+      className="vk-header-title"
+      style={{ fontSize: headerFont, letterSpacing: "0.4px" }}
+    >
+      {title}
+    </div>
   );
 }
 
@@ -100,7 +88,7 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     headerFont: is58 ? "14px" : "22px",
     subFont: is58 ? "10px" : "14px",
     netFont: is58 ? "11px" : "15px",
-    logoMax: is58 ? "14mm" : "20mm",
+    logoMax: is58 ? "14mm" : "22mm",
     itemGridColumns,
   };
 }
@@ -132,6 +120,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
+    documentType = "pos",
     salesman,
     thermalPaper = "80mm",
     showMrp = true,
@@ -154,6 +143,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
   };
   const saleSettings = (settings?.sale_settings ?? {}) as {
     terms_list?: string[];
+    invoice_document_title?: string;
   };
 
   const shopHeader = useMemo(
@@ -169,6 +159,19 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     .map((t) => (t || "").trim())
     .filter(Boolean);
   const termsToPrint = terms.length > 0 ? terms : VASTRAKALA_DEFAULT_TERMS;
+
+  // Document heading — same semantics as RetailPosThermalReceipt80mm:
+  // explicit type wins, credit notes stay labelled, otherwise the org's
+  // Sale-settings title or the standard retail default.
+  const customTitle = (saleSettings.invoice_document_title || "").trim();
+  const docTitle =
+    documentType === "quotation"
+      ? "QUOTATION"
+      : documentType === "sale-order"
+        ? "SALE ORDER"
+        : grandTotal < 0
+          ? "CREDIT NOTE"
+          : customTitle || "BILL OF SUPPLY";
 
   // MRP column on: totals are MRP-based (Total Amt = sum(MRP*qty), Discount = that minus Net).
   // MRP column off: no MRP data to total against, so fall back to the plain sale-amount total
@@ -254,9 +257,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             <div style={{ textAlign: "center", minWidth: 0 }}>
               <VastrakalaHeaderBrandText
                 title={shopHeader.title}
-                tagline={shopHeader.tagline}
                 headerFont={layout.headerFont}
-                subFont={layout.subFont}
               />
             </div>
             <span className="vk-header-logo-spacer" aria-hidden />
@@ -265,9 +266,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           <div style={{ textAlign: "center", marginBottom: 4 }}>
             <VastrakalaHeaderBrandText
               title={shopHeader.title}
-              tagline={shopHeader.tagline}
               headerFont={layout.headerFont}
-              subFont={layout.subFont}
             />
           </div>
         )}
@@ -277,6 +276,17 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           ) : null}
           {mobile ? <div>CONTACT : {mobile}</div> : null}
           {instagramHandle ? <div style={{ marginTop: 3 }}>{instagramHandle}</div> : null}
+          <div
+            className="vk-doc-title"
+            style={{
+              textAlign: "center",
+              fontSize: layout.subFont,
+              letterSpacing: "0.5px",
+              marginTop: 6,
+            }}
+          >
+            {docTitle}
+          </div>
         </div>
       </div>
 
