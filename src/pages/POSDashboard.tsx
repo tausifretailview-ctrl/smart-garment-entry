@@ -3910,6 +3910,20 @@ const POSDashboard = () => {
                                     <Printer className="h-3.5 w-3.5" />
                                   </Button>
                                 )}
+                                {columnSettings.modify && hasSpecialPermission('modify_records') && !cancelled && (() => {
+                                  const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => handleEditSale(sale.id, e)}
+                                      disabled={!own.allowed}
+                                      title={own.allowed ? "Modify" : own.reason}
+                                    >
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </Button>
+                                  );
+                                })()}
                                 {(!isPaidCompletedForDashboard(sale) && sale.payment_status !== 'hold') && (
                                   <Button 
                                     variant="ghost" 
@@ -3998,20 +4012,6 @@ const POSDashboard = () => {
                                     {isDownloadingEInvoice === sale.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5 text-green-600" />}
                                   </Button>
                                 )}
-                                {columnSettings.modify && hasSpecialPermission('modify_records') && !cancelled && (() => {
-                                  const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
-                                  return (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={(e) => handleEditSale(sale.id, e)}
-                                      disabled={!own.allowed}
-                                      title={own.allowed ? "Modify" : own.reason}
-                                    >
-                                      <Edit className="h-3.5 w-3.5" />
-                                    </Button>
-                                  );
-                                })()}
                                 {cancelled && hasSpecialPermission('delete_records') && (() => {
                                   const own = canModifyEntry((sale as any).created_by, creatorLabel((sale as any).created_by));
                                   return (
