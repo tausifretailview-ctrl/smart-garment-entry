@@ -1,28 +1,36 @@
 import { describe, expect, it } from "vitest";
-import {
-  splitVastrakalaParticulars,
-  vastrakalaParticularsPrimaryLine,
-} from "@/utils/vastrakalaThermalParticulars";
+import { vastrakalaParticularsLines } from "@/utils/vastrakalaThermalParticulars";
 
-describe("vastrakalaParticularsPrimaryLine", () => {
-  it("shows style segment after category prefix (KURTI-GC-RAY → GC-RAY)", () => {
-    expect(vastrakalaParticularsPrimaryLine("KURTI-GC-RAY-SILK")).toBe("GC-RAY-SILK");
+describe("vastrakalaParticularsLines", () => {
+  it("keeps the full product name on line 1 (no prefix stripping)", () => {
+    expect(vastrakalaParticularsLines("KURTI-GC-RAY-SILK")).toEqual({
+      line1: "KURTI-GC-RAY-SILK",
+      line2: "",
+    });
   });
 
-  it("keeps style codes with a dash intact (GC-RAY)", () => {
-    expect(vastrakalaParticularsPrimaryLine("GC-RAY")).toBe("GC-RAY");
+  it("puts the reference bill-1827 name + pack note on two lines", () => {
+    expect(vastrakalaParticularsLines("V8075-BRUSH PRIN -L", "3 PC")).toEqual({
+      line1: "V8075-BRUSH PRIN -L",
+      line2: "3 PC",
+    });
   });
 
-  it("strips category when separated by space (KURTI GC-RAY)", () => {
-    expect(vastrakalaParticularsPrimaryLine("KURTI GC-RAY")).toBe("GC-RAY");
+  it("omits line 2 when notes are already contained in line 1", () => {
+    expect(vastrakalaParticularsLines("V8075-BRUSH PRIN 3 PC", "3 PC")).toEqual({
+      line1: "V8075-BRUSH PRIN 3 PC",
+      line2: "",
+    });
   });
-});
 
-describe("splitVastrakalaParticulars", () => {
-  it("splits on first dash", () => {
-    expect(splitVastrakalaParticulars("KURTI-GC-RAY")).toEqual({
-      head: "KURTI",
-      detailLine: "GC-RAY",
+  it("returns notes as line 2 when particulars are empty", () => {
+    expect(vastrakalaParticularsLines("", "3 PC")).toEqual({ line1: "", line2: "3 PC" });
+  });
+
+  it("trims whitespace on both lines", () => {
+    expect(vastrakalaParticularsLines("  GC-RAY  ", "  3 PC ")).toEqual({
+      line1: "GC-RAY",
+      line2: "3 PC",
     });
   });
 });
