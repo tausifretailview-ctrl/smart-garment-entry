@@ -35,21 +35,10 @@ export function buildPublicInvoiceViewUrl(input: BuildPublicInvoiceViewUrlInput)
   const saleId = String(input.saleId || "").trim();
   if (!orgSlug || !saleId) return "";
 
+  // Short link: /i/:saleId (?p=1 for POS). The public view resolves paper
+  // format + invoice/POS template from the shop's current settings.
   const base = (input.baseUrl || "https://app.inventoryshop.in").replace(/\/$/, "");
-  const path = `${base}/${orgSlug}/invoice/view/${saleId}`;
   const billContext = input.billContext ?? "sale";
-  const paperFormat = resolvePublicInvoicePaperFormat(billContext, input.saleSettings);
-  const params = new URLSearchParams();
-
-  if (paperFormat === "thermal") {
-    params.set("format", "thermal");
-  }
-
-  const template = String(input.saleSettings?.invoice_template || "").trim();
-  if (template) {
-    params.set("template", template);
-  }
-
-  const qs = params.toString();
-  return qs ? `${path}?${qs}` : path;
+  const path = `${base}/i/${saleId}`;
+  return billContext === "pos" ? `${path}?p=1` : path;
 }
