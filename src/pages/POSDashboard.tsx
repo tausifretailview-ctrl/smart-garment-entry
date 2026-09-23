@@ -153,6 +153,7 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
@@ -1829,7 +1830,8 @@ const POSDashboard = () => {
         subTotal: sale.gross_amount,
         discount: sale.discount_amount + sale.flat_discount_amount,
         saleReturnAdjust: sale.sale_return_adjust || 0,
-        grandTotal: sale.net_amount,
+        grandTotal: saleBillFigures(sale).payable,
+        billNetAmount: saleBillFigures(sale).billAmount,
         roundOff: sale.round_off || 0,
         cashPaid: sale.payment_method === "cash" ? sale.net_amount : 0,
         upiPaid: sale.payment_method === "upi" ? sale.net_amount : 0,
@@ -3685,12 +3687,9 @@ const POSDashboard = () => {
                               {(() => {
                                 const discountTotal = (sale.discount_amount || 0) + (sale.flat_discount_amount || 0) + ((sale as any).points_redeemed_amount || 0);
                                 const srAdjust = Number(sale.sale_return_adjust || 0);
-                                const baseBillBeforeSR = Number(sale.gross_amount || 0) - discountTotal + Number((sale as any).round_off || 0);
-                                // Preserve historical behavior for normal rows; fix clamped-zero CN rows.
-                                const displayAmount =
-                                  srAdjust > 0 && Number(sale.net_amount || 0) === 0
-                                    ? (baseBillBeforeSR - srAdjust)
-                                    : Number(sale.net_amount || 0);
+                                const figures = saleBillFigures(sale);
+                                const displayAmount = figures.billAmount;
+                                const baseBillBeforeSR = figures.billAmount;
                                 return (
                                   <div className="flex flex-col items-end gap-0.5">
                                     <div className="flex items-center justify-end gap-1">
@@ -3715,9 +3714,9 @@ const POSDashboard = () => {
                                     {srAdjust > 0 && (
                                       <div
                                         className="text-xs font-semibold text-foreground whitespace-nowrap leading-tight"
-                                        title={`Bill ₹${Math.round(baseBillBeforeSR).toLocaleString('en-IN')} − S/R Adj ₹${Math.round(srAdjust).toLocaleString('en-IN')} = Payable ₹${Math.round(baseBillBeforeSR - srAdjust).toLocaleString('en-IN')}`}
+                                        title={`Bill ₹${Math.round(figures.billAmount).toLocaleString('en-IN')} − S/R / CN ₹${Math.round(srAdjust).toLocaleString('en-IN')} = Payable ₹${Math.round(figures.payable).toLocaleString('en-IN')}`}
                                       >
-                                        ₹{Math.round(baseBillBeforeSR).toLocaleString('en-IN')}
+                                        Payable ₹{Math.round(figures.payable).toLocaleString('en-IN')}
                                         <span className="text-orange-600"> − ₹{Math.round(srAdjust).toLocaleString('en-IN')}</span>
                                       </div>
                                     )}

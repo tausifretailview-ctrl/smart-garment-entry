@@ -39,6 +39,7 @@ import {
   getSaleReportNetAmount,
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   buildCashierReceiptModeMap,
   getCashierSalePaymentModeAmounts,
@@ -573,13 +574,14 @@ const DailyCashierReport = () => {
         totalDiscount += getSaleReportLineDiscountAmount(sale);
         totalRoundOff += getSaleReportRoundOff(sale);
         totalSRAdjusted += Number(sale.sale_return_adjust) || 0;
-        const effectiveNet = getEffectiveNet(sale);
-        totalSale += effectiveNet;
+        const reportedNet = getEffectiveNet(sale);
+        const figures = saleBillFigures({ ...sale, net_amount: reportedNet });
+        totalSale += figures.billAmount;
 
         const paidAmount = Number(sale.paid_amount) || 0;
         const refundAmt = Number(sale.refund_amount) || 0;
-        // Balance Pending uses reported net (includes round-off; corrects inverted-sign rows).
-        const balance = effectiveNet - paidAmount;
+        // Pending is payable after S/R / CN, not the full bill.
+        const balance = figures.payable - paidAmount;
         const netAmount = effectiveNet;
         
         totalPaid += paidAmount;
@@ -1111,7 +1113,7 @@ const DailyCashierReport = () => {
       ["Less: Discount", totals.totalDiscount],
       ["Round off", totals.totalRoundOff],
       ["Net Sale", totals.totalSale],
-      ["S/R Adjusted (included in Net Sale)", totals.totalSRAdjusted],
+      ["Settled by returns/CN (non-cash)", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
       [],
       ["Sales Payment Breakdown"],
@@ -1885,7 +1887,7 @@ const DailyCashierReport = () => {
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
                           <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSale)}</p>
-                          <p className="text-[10px] text-white/70">After disc, round-off & S/R</p>
+                          <p className="text-[10px] text-white/70">Full bills after disc and round-off</p>
                         </CardContent>
                       </Card>
 
@@ -1898,7 +1900,7 @@ const DailyCashierReport = () => {
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
                           <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</p>
-                          <p className="text-[10px] text-white/70">Return credit used</p>
+                          <p className="text-[10px] text-white/70">Settled by returns/CN (non-cash)</p>
                         </CardContent>
                       </Card>
 

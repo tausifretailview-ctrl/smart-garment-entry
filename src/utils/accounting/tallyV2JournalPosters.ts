@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { saleBillFigures, saleReceivableAfterTender } from "@/utils/saleBillFigures";
 import type { Database } from "@/integrations/supabase/types";
 import type { PostJournalLineInput } from "@/utils/accounting/accountingTypes";
 import type { JournalReferenceType } from "@/utils/accounting/accountingTypes";
@@ -143,8 +144,9 @@ export async function buildSaleJournalV2(
   if (!sale) throw new Error(`Sale not found: ${saleId}`);
 
   const net = round2(Number(sale.net_amount ?? 0));
-  const paid = round2(Math.max(0, Math.min(Number(sale.paid_amount ?? 0), net)));
-  const receivable = round2(Math.max(0, net - paid));
+  const bill = saleBillFigures(sale);
+  const paid = round2(Math.max(0, Math.min(Number(sale.paid_amount ?? 0), Math.max(net, bill.billAmount))));
+  const receivable = saleReceivableAfterTender(sale);
   if (net <= 0) return null;
 
   const { data: items, error: itemsErr } = await client
