@@ -5,7 +5,7 @@ import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
 import { splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
 import {
-  vastrakalaParticularsPrimaryLine,
+  vastrakalaParticularsLines,
 } from "@/utils/vastrakalaThermalParticulars";
 import "@/styles/vastrakala-thermal-receipt.css";
 
@@ -86,8 +86,7 @@ function VastrakalaHeaderBrandText({
 }
 
 function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
-  const is58 = paper === "58mm";
-  const itemGridColumns = showMrp
+  const is58 = paper === "58mm";  const itemGridColumns = showMrp
     ? is58
       ? "4mm minmax(0, 1fr) 8mm 13mm 15mm"
       : "5mm minmax(0, 1fr) 10mm 15mm 18mm"
@@ -97,10 +96,10 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
   return {
     paperWidth: is58 ? "48mm" : "76mm",
     padding: is58 ? "1.5mm 1.5mm" : "2mm 2.5mm",
-    baseFont: is58 ? "10px" : "12px",
-    headerFont: is58 ? "14px" : "19px",
-    subFont: is58 ? "10px" : "13px",
-    netFont: is58 ? "11px" : "13px",
+    baseFont: is58 ? "10px" : "13px",
+    headerFont: is58 ? "14px" : "22px",
+    subFont: is58 ? "10px" : "14px",
+    netFont: is58 ? "11px" : "15px",
     logoMax: is58 ? "14mm" : "20mm",
     itemGridColumns,
   };
@@ -193,7 +192,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     });
   }
 
-  const dashed: React.CSSProperties = { borderTop: "1px dashed #000", margin: "3px 0" };
+  const dashed: React.CSSProperties = { borderTop: "1px dashed #000", margin: "6px 0" };
   const base: React.CSSProperties = {
     width: layout.paperWidth,
     maxWidth: layout.paperWidth,
@@ -204,7 +203,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     fontFamily: "Arial, Helvetica, sans-serif",
     fontSize: layout.baseFont,
     fontWeight: 400,
-    lineHeight: 1.25,
+    lineHeight: 1.35,
     letterSpacing: 0,
     boxSizing: "border-box",
     WebkitPrintColorAdjust: "exact",
@@ -235,7 +234,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               gridTemplateColumns: `${layout.logoMax} minmax(0, 1fr) ${layout.logoMax}`,
               alignItems: "center",
               columnGap: "0.5mm",
-              marginBottom: 2,
+              marginBottom: 4,
             }}
           >
             <img
@@ -263,7 +262,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             <span className="vk-header-logo-spacer" aria-hidden />
           </div>
         ) : (
-          <div style={{ textAlign: "center", marginBottom: 2 }}>
+          <div style={{ textAlign: "center", marginBottom: 4 }}>
             <VastrakalaHeaderBrandText
               title={shopHeader.title}
               tagline={shopHeader.tagline}
@@ -274,16 +273,16 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         )}
         <div className="vk-header-meta" style={{ textAlign: "center" }}>
           {address ? (
-            <div style={{ whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{address.toUpperCase()}</div>
           ) : null}
           {mobile ? <div>CONTACT : {mobile}</div> : null}
-          {instagramHandle ? <div style={{ marginTop: 1 }}>{instagramHandle}</div> : null}
+          {instagramHandle ? <div style={{ marginTop: 3 }}>{instagramHandle}</div> : null}
         </div>
       </div>
 
       <div style={dashed} />
 
-      <div className="vk-meta" style={{ marginBottom: 5 }}>
+      <div className="vk-meta" style={{ marginBottom: 8, marginTop: 2 }}>
         <div>
           NAME: {(customerName || "CASH").toUpperCase()}
           {customerPhone?.trim() ? `-${customerPhone.trim()}` : ""}
@@ -292,7 +291,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           <span>BILL NO. {billNo}</span>
           <span>DATE : {format(date, "dd-MM-yyyy")}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 2 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 4 }}>
           <span>SALESMAN : {(salesman || "-").toUpperCase()}</span>
           <span>TIME - {format(date, "h:mm a")}</span>
         </div>
@@ -307,8 +306,8 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           gridTemplateColumns: layout.itemGridColumns,
           columnGap: "1mm",
           rowGap: "1mm",
-          marginTop: 4,
-          marginBottom: 4,
+          marginTop: 7,
+          marginBottom: 6,
         }}
       >
         <span style={{ gridColumn: 1 }}>NO</span>
@@ -319,7 +318,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       </div>
       <div style={dashed} />
       {items.map((item, i) => {
-        const primaryName = vastrakalaParticularsPrimaryLine(item.particulars, item.itemNotes);
+        const { line1, line2 } = vastrakalaParticularsLines(item.particulars, item.itemNotes);
         const qtyCol = 3;
         const mrpCol = 4;
         const amtCol = showMrp ? 5 : 4;
@@ -332,16 +331,17 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               gridTemplateColumns: layout.itemGridColumns,
               columnGap: "1mm",
               alignItems: "start",
-              marginBottom: 3,
+              marginBottom: 5,
             }}
           >
             <span style={{ gridColumn: 1 }}>{item.sr ?? i + 1}</span>
-            <span
+            <div
               className="vk-particular-name"
-              style={{ gridColumn: 2, minWidth: 0, lineHeight: 1.2 }}
+              style={{ gridColumn: 2, minWidth: 0, lineHeight: 1.3 }}
             >
-              {primaryName}
-            </span>
+              <div>{line1}</div>
+              {line2 ? <div className="vk-particular-notes">{line2}</div> : null}
+            </div>
             <span style={{ ...itemNumStyle, gridColumn: qtyCol }}>{item.qty}</span>
             {showMrp ? (
               <span style={{ ...itemNumStyle, gridColumn: mrpCol }}>
@@ -355,7 +355,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div className="vk-totals" style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingRight: "0.5mm" }}>
+      <div className="vk-totals" style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingRight: "0.5mm", marginTop: 2, marginBottom: 2 }}>
         <div style={{ minWidth: 0 }}>
           <div>Tot.QTY : {totalQty}</div>
           {paymentLines.map((line) => (
@@ -377,7 +377,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div>
+      <div style={{ marginTop: 2 }}>
         <div className="vk-terms-label">TERMS:</div>
         <div className="vk-terms-body">
           {termsToPrint.map((term) => (
@@ -388,7 +388,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div
         className="vk-footer-thanks"
-        style={{ textAlign: "center", marginTop: 6, fontSize: layout.subFont }}
+        style={{ textAlign: "center", marginTop: 10, fontSize: layout.subFont }}
       >
         THANK YOU !!! VISIT AGAIN !!!
       </div>
