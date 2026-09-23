@@ -47,6 +47,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
 import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
+import { POS_APPLY_CREDIT_BANNER_ENABLED } from "@/lib/posBilling/creditBannerFlag";
 import {
   isPosGoodsAskQtyDialogEnabled,
   resolveGoodsQtyDialogDefaultPrice,
@@ -7612,7 +7613,7 @@ export default function POSSales() {
               </div>
             </div>
 
-            {customerId && availableCreditBalance > 0 && creditApplied === 0 && items.length > 0 && (
+            {POS_APPLY_CREDIT_BANNER_ENABLED && customerId && availableCreditBalance > 0 && creditApplied === 0 && items.length > 0 && (
               <div className="mx-2 mb-1 flex items-center justify-between px-3 py-1.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-300 dark:border-purple-700 rounded-lg text-sm">
                 <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
                   <Wallet className="h-4 w-4 shrink-0" />
