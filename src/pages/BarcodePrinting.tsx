@@ -8340,55 +8340,59 @@ export default function BarcodePrinting() {
               productFieldSettings={productFieldSettings}
               onSave={async () => {
                 if (!currentOrganization?.id) return;
+                if (!activePrecisionTemplateNameRef.current) {
+                  toast.error("No saved preset to update — save the design first");
+                  return;
+                }
                 try {
                   if (autoSaveTimerRef.current) {
                     clearTimeout(autoSaveTimerRef.current);
                     autoSaveTimerRef.current = null;
                   }
-                  const templateName = activePrecisionTemplateBaseName || "";
+                  const activeTemplateName = activePrecisionTemplateNameRef.current;
+                  const templateName = activeTemplateName.replace(/^preset:/, "");
                   const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
                   const fixedDims = getFixedBuiltinLabelDimensions(templateName);
+                  const liveConfig = precisionSettingsRef.current.labelConfig;
                   const configToSave = fixedConfig
-                    ?? (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
-                  const saveWidth = fixedDims?.width ?? precisionSettings.labelWidth;
-                  const saveHeight = fixedDims?.height ?? precisionSettings.labelHeight;
+                    ?? (liveConfig
+                      ? (JSON.parse(JSON.stringify(liveConfig)) as LabelDesignConfig)
+                      : DEFAULT_PRECISION_CONFIG);
+                  const livePrecision = precisionSettingsRef.current;
+                  const saveWidth = fixedDims?.width ?? livePrecision.labelWidth;
+                  const saveHeight = fixedDims?.height ?? livePrecision.labelHeight;
                   await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
 
-                  // Also save to active template if one is loaded
-                  if (activePrecisionTemplateName) {
-                    const success = await autoSavePrecisionConfig(
-                      activePrecisionTemplateName,
-                      configToSave,
-                      saveWidth,
-                      saveHeight,
-                      currentOrganization.id,
-                      { force: true },
-                    );
+                  const success = await autoSavePrecisionConfig(
+                    activeTemplateName,
+                    configToSave,
+                    saveWidth,
+                    saveHeight,
+                    currentOrganization.id,
+                    { force: true },
+                  );
 
-                    if (!success) {
-                      toast.error("Failed to save label design");
-                      return;
-                    }
-
-                    try {
-                      await refreshDbPresetsFromServer();
-                    } catch (refreshErr) {
-                      console.warn("Failed to refresh printer presets after save:", refreshErr);
-                    }
-
-                    markLabelDesignBaselineSaved(configToSave, activePrecisionTemplateName);
-
-                    const cleanName = activePrecisionTemplateName.startsWith("preset:")
-                      ? activePrecisionTemplateName.replace("preset:", "")
-                      : activePrecisionTemplateName;
-                    const targetLabel = activePrecisionTemplateName.startsWith("preset:")
-                      ? `preset "${cleanName}"`
-                      : `template "${cleanName}"`;
-
-                    toast.success(`Design saved & ${targetLabel} updated`);
-                  } else {
-                    toast.success("Label design saved successfully");
+                  if (!success) {
+                    toast.error("Failed to save label design");
+                    return;
                   }
+
+                  try {
+                    await refreshDbPresetsFromServer();
+                  } catch (refreshErr) {
+                    console.warn("Failed to refresh printer presets after save:", refreshErr);
+                  }
+
+                  markLabelDesignBaselineSaved(configToSave, activeTemplateName);
+
+                  const cleanName = activeTemplateName.startsWith("preset:")
+                    ? activeTemplateName.replace("preset:", "")
+                    : activeTemplateName;
+                  const targetLabel = activeTemplateName.startsWith("preset:")
+                    ? `preset "${cleanName}"`
+                    : `template "${cleanName}"`;
+
+                  toast.success(`Design saved & ${targetLabel} updated`);
                 } catch (error) {
                   console.error("Failed to save label design:", error);
                   toast.error("Failed to save label design");
@@ -8437,54 +8441,59 @@ export default function BarcodePrinting() {
               productFieldSettings={productFieldSettings}
               onSave={async () => {
                 if (!currentOrganization?.id) return;
+                if (!activePrecisionTemplateNameRef.current) {
+                  toast.error("No saved preset to update — save the design first");
+                  return;
+                }
                 try {
                   if (autoSaveTimerRef.current) {
                     clearTimeout(autoSaveTimerRef.current);
                     autoSaveTimerRef.current = null;
                   }
-                  const templateName = activePrecisionTemplateBaseName || "";
+                  const activeTemplateName = activePrecisionTemplateNameRef.current;
+                  const templateName = activeTemplateName.replace(/^preset:/, "");
                   const fixedConfig = resolveFixedBuiltinLabelConfig(templateName);
                   const fixedDims = getFixedBuiltinLabelDimensions(templateName);
+                  const liveConfig = precisionSettingsRef.current.labelConfig;
                   const configToSave = fixedConfig
-                    ?? (precisionSettings.labelConfig || DEFAULT_PRECISION_CONFIG);
-                  const saveWidth = fixedDims?.width ?? precisionSettings.labelWidth;
-                  const saveHeight = fixedDims?.height ?? precisionSettings.labelHeight;
+                    ?? (liveConfig
+                      ? (JSON.parse(JSON.stringify(liveConfig)) as LabelDesignConfig)
+                      : DEFAULT_PRECISION_CONFIG);
+                  const livePrecision = precisionSettingsRef.current;
+                  const saveWidth = fixedDims?.width ?? livePrecision.labelWidth;
+                  const saveHeight = fixedDims?.height ?? livePrecision.labelHeight;
                   await savePrecisionConfigToSettings(configToSave, currentOrganization.id);
 
-                  if (activePrecisionTemplateName) {
-                    const success = await autoSavePrecisionConfig(
-                      activePrecisionTemplateName,
-                      configToSave,
-                      saveWidth,
-                      saveHeight,
-                      currentOrganization.id,
-                      { force: true },
-                    );
+                  const success = await autoSavePrecisionConfig(
+                    activeTemplateName,
+                    configToSave,
+                    saveWidth,
+                    saveHeight,
+                    currentOrganization.id,
+                    { force: true },
+                  );
 
-                    if (!success) {
-                      toast.error("Failed to save label design");
-                      return;
-                    }
-
-                    try {
-                      await refreshDbPresetsFromServer();
-                    } catch (refreshErr) {
-                      console.warn("Failed to refresh printer presets after save:", refreshErr);
-                    }
-
-                    markLabelDesignBaselineSaved(configToSave, activePrecisionTemplateName);
-
-                    const cleanName = activePrecisionTemplateName.startsWith("preset:")
-                      ? activePrecisionTemplateName.replace("preset:", "")
-                      : activePrecisionTemplateName;
-                    const targetLabel = activePrecisionTemplateName.startsWith("preset:")
-                      ? `preset "${cleanName}"`
-                      : `template "${cleanName}"`;
-
-                    toast.success(`Design saved & ${targetLabel} updated`);
-                  } else {
-                    toast.success("Label design saved successfully");
+                  if (!success) {
+                    toast.error("Failed to save label design");
+                    return;
                   }
+
+                  try {
+                    await refreshDbPresetsFromServer();
+                  } catch (refreshErr) {
+                    console.warn("Failed to refresh printer presets after save:", refreshErr);
+                  }
+
+                  markLabelDesignBaselineSaved(configToSave, activeTemplateName);
+
+                  const cleanName = activeTemplateName.startsWith("preset:")
+                    ? activeTemplateName.replace("preset:", "")
+                    : activeTemplateName;
+                  const targetLabel = activeTemplateName.startsWith("preset:")
+                    ? `preset "${cleanName}"`
+                    : `template "${cleanName}"`;
+
+                  toast.success(`Design saved & ${targetLabel} updated`);
                 } catch (error) {
                   console.error("Failed to save label design:", error);
                   toast.error("Failed to save label design");

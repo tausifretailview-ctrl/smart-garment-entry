@@ -3,7 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { toast } from "sonner";
 import { LabelFieldConfig, LabelDesignConfig, LabelTemplate } from "@/types/labelTypes";
-import { labelDesignNamesMatch, pickLatestNamedSetting } from "@/utils/labelDesignPersist";
+import {
+  labelDesignNamesMatch,
+  normalizeLabelDesignName,
+  pickLatestNamedSetting,
+} from "@/utils/labelDesignPersist";
 
 interface MarginPreset {
   name: string;
@@ -158,44 +162,30 @@ export function useBarcodeLabelSettings() {
 
     try {
       const orgId = currentOrganization.id;
+      const canonicalName = normalizeLabelDesignName(template.name);
+      if (!canonicalName) {
+        toast.error("Template name is required");
+        return false;
+      }
+
       const settingData = {
         config: template.config,
         labelWidth: template.labelWidth,
         labelHeight: template.labelHeight,
       };
 
-      const { data: existing, error: lookupError } = await supabase
+      const { data: templateRows, error: lookupError } = await supabase
         .from("barcode_label_settings")
-        .select("id")
+        .select("id, setting_name, updated_at")
         .eq("organization_id", orgId)
-        .eq("setting_type", "label_template")
-        .eq("setting_name", template.name);
+        .eq("setting_type", "label_template");
       if (lookupError) throw lookupError;
 
-      if (existing && existing.length > 0) {
-        const { error } = await supabase
-          .from("barcode_label_settings")
-          .update({ setting_data: settingData as any })
-          .in("id", existing.map((row) => row.id))
-          .eq("organization_id", orgId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("barcode_label_settings").insert({
-          organization_id: orgId,
-          setting_type: "label_template",
-          setting_name: template.name,
-          setting_data: settingData as any,
-        } as any);
-        if (error) throw error;
-      }
+      const matchingRows = (templateRows || []).filter((row) =>
+        labelDesignNamesMatch(row.setting_name, canonicalName),
+      );
 
-      // Printer-preset sync is a secondary convenience step — if it fails,
-      // the template itself has already been saved successfully above.
-      // Previously a sync failure here threw and made the whole save
-      // report as failed, even though the design was safely persisted,
-      // which is why re-opening the designer could look like nothing had
-      // saved and prompted a full redesign.
-      try {
+      const syncLinkedPrinterPresets = async (): Promise<boolean> => {
         const { data: orgPresets, error: presetLookupError } = await supabase
           .from("printer_presets")
           .select("id, name")
@@ -203,30 +193,69 @@ export function useBarcodeLabelSettings() {
         if (presetLookupError) throw presetLookupError;
 
         const presetIds = (orgPresets || [])
-          .filter((row) => labelDesignNamesMatch(row.name, template.name))
+          .filter((row) => labelDesignNamesMatch(row.name, canonicalName))
           .map((row) => row.id);
 
-        if (presetIds.length > 0) {
-          const { data: updatedPresets, error: syncError } = await supabase
-            .from("printer_presets")
-            .update({
-              label_config: template.config as any,
-              label_width: template.labelWidth || null,
-              label_height: template.labelHeight || null,
-            })
-            .in("id", presetIds)
+        if (presetIds.length === 0) return true;
+
+        const { data: updatedPresets, error: syncError } = await supabase
+          .from("printer_presets")
+          .update({
+            label_config: template.config as any,
+            label_width: template.labelWidth || null,
+            label_height: template.labelHeight || null,
+          })
+          .in("id", presetIds)
+          .eq("organization_id", orgId)
+          .select("id");
+        if (syncError) throw syncError;
+        return Boolean(updatedPresets && updatedPresets.length > 0);
+      };
+
+      if (matchingRows.length > 0) {
+        const [primary, ...duplicateRows] = pickLatestNamedSetting(matchingRows);
+
+        if (duplicateRows.length > 0) {
+          const duplicateIds = duplicateRows.map((row) => row.id);
+          const { error: dedupeError } = await supabase
+            .from("barcode_label_settings")
+            .delete()
             .eq("organization_id", orgId)
-            .select("id");
-          if (syncError) throw syncError;
-          if (!updatedPresets || updatedPresets.length === 0) {
-            throw new Error("Printer preset was not updated");
-          }
+            .in("id", duplicateIds);
+          if (dedupeError) throw dedupeError;
         }
-      } catch (syncErr) {
-        console.error("Label template saved, but printer preset sync failed:", syncErr);
-        toast.warning(
-          `"${template.name}" saved, but the linked printer preset may still show the old design — reselect it if printing looks outdated.`,
+
+        const { error } = await supabase
+          .from("barcode_label_settings")
+          .update({
+            setting_data: settingData as any,
+            setting_name: canonicalName,
+          })
+          .eq("id", primary.id)
+          .eq("organization_id", orgId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("barcode_label_settings").insert({
+          organization_id: orgId,
+          setting_type: "label_template",
+          setting_name: canonicalName,
+          setting_data: settingData as any,
+        } as any);
+        if (error) throw error;
+      }
+
+      // Purchase print and preset autoload read printer_presets — sync must succeed
+      // when linked presets exist, or callers must not report success.
+      let presetSyncOk = await syncLinkedPrinterPresets();
+      if (!presetSyncOk) {
+        presetSyncOk = await syncLinkedPrinterPresets();
+      }
+      if (!presetSyncOk) {
+        console.error("Label template saved, but printer preset sync failed after retry:", canonicalName);
+        toast.error(
+          `Print layout for "${canonicalName}" was not updated. Save again — labels and Purchase print use the printer preset copy.`,
         );
+        return false;
       }
 
       await fetchSettings();
