@@ -12,10 +12,22 @@ const formatAmount = (amount: number) => {
   return Number(amount.toFixed(2));
 };
 
-// Extract state code from GSTIN (first 2 digits)
-const getStateCode = (gstin: string | null | undefined): string => {
-  if (!gstin || gstin.length < 2) return '';
-  return gstin.substring(0, 2);
+// Gross row total from the already-rounded breakup parts, so the exported
+// Total Amount always equals the sum of its displayed Taxable + tax columns.
+// Correct for both tax types: exclusive rows gain their GST; inclusive rows
+// reconstruct the original line total (within rounding).
+const grossTotalFromBreakup = (breakup: {
+  taxableAmount: number;
+  cgstAmount: number;
+  sgstAmount: number;
+  igstAmount: number;
+}) => {
+  return formatAmount(
+    formatAmount(breakup.taxableAmount) +
+      formatAmount(breakup.cgstAmount) +
+      formatAmount(breakup.sgstAmount) +
+      formatAmount(breakup.igstAmount),
+  );
 };
 
 // Calculate GST for a single item
@@ -50,14 +62,18 @@ const calculateItemGST = (
       igstAmount: gstAmount
     };
   } else {
+    // Halves must sum exactly to the rounded GST: round the first half, derive
+    // the second as the remainder (independent rounding can lose 1p twice —
+    // once here, once against taxable — pushing inclusive gross totals 2p off).
+    const cgstRounded = Math.round((gstAmount / 2) * 100) / 100;
     return {
       taxableAmount,
       cgstRate: gstPercent / 2,
-      cgstAmount: Math.round((gstAmount / 2) * 100) / 100,
+      cgstAmount: cgstRounded,
       sgstRate: gstPercent / 2,
-      sgstAmount: Math.round((gstAmount / 2) * 100) / 100,
+      sgstAmount: Math.round((gstAmount - cgstRounded) * 100) / 100,
       igstRate: 0,
-      igstAmount: 0
+      igstAmount: 0,
     };
   }
 };
@@ -224,7 +240,7 @@ export const transformSalesToVouchers = (
         sgstAmount: formatAmount(gstBreakup.sgstAmount),
         igstRate: gstBreakup.igstRate,
         igstAmount: formatAmount(gstBreakup.igstAmount),
-        totalAmount: formatAmount(item.line_total || 0)
+        totalAmount: grossTotalFromBreakup(gstBreakup)
       });
     });
   });
@@ -280,7 +296,7 @@ export const transformPurchasesToVouchers = (
         sgstAmount: formatAmount(gstBreakup.sgstAmount),
         igstRate: gstBreakup.igstRate,
         igstAmount: formatAmount(gstBreakup.igstAmount),
-        totalAmount: formatAmount(lineTotal)
+        totalAmount: grossTotalFromBreakup(gstBreakup)
       });
     });
   });
@@ -335,7 +351,7 @@ export const transformSaleReturnsToCreditNotes = (
         sgstAmount: formatAmount(gstBreakup.sgstAmount),
         igstRate: gstBreakup.igstRate,
         igstAmount: formatAmount(gstBreakup.igstAmount),
-        totalAmount: formatAmount(item.line_total || 0)
+        totalAmount: grossTotalFromBreakup(gstBreakup)
       });
     });
   });
@@ -390,7 +406,7 @@ export const transformPurchaseReturnsToDebitNotes = (
         sgstAmount: formatAmount(gstBreakup.sgstAmount),
         igstRate: gstBreakup.igstRate,
         igstAmount: formatAmount(gstBreakup.igstAmount),
-        totalAmount: formatAmount(item.line_total || 0)
+        totalAmount: grossTotalFromBreakup(gstBreakup)
       });
     });
   });
@@ -399,9 +415,10 @@ export const transformPurchaseReturnsToDebitNotes = (
 };
 
 // Transform voucher entries (receipts) to Tally Receipt Vouchers
+// Case-insensitive match: rows are stored lowercase ('receipt') across the app.
 export const transformReceiptsToVouchers = (vouchers: any[]): TallyReceiptVoucher[] => {
   return vouchers
-    .filter(v => v.voucher_type === 'RECEIPT')
+    .filter(v => String(v.voucher_type || "").toLowerCase() === 'receipt')
     .sort((a, b) => {
       const dateA = new Date(a.voucher_date).getTime();
       const dateB = new Date(b.voucher_date).getTime();
@@ -413,15 +430,16 @@ export const transformReceiptsToVouchers = (vouchers: any[]): TallyReceiptVouche
       voucherNo: voucher.voucher_number || '',
       partyLedger: voucher.description || 'Cash',
       amount: formatAmount(voucher.total_amount || 0),
-      paymentMode: 'Cash',
+      paymentMode: voucher.payment_method || 'Cash',
       referenceNo: voucher.reference_id || ''
     }));
 };
 
 // Transform voucher entries (payments) to Tally Payment Vouchers
+// Case-insensitive match: rows are stored lowercase ('payment') across the app.
 export const transformPaymentsToVouchers = (vouchers: any[]): TallyReceiptVoucher[] => {
   return vouchers
-    .filter(v => v.voucher_type === 'PAYMENT')
+    .filter(v => String(v.voucher_type || "").toLowerCase() === 'payment')
     .sort((a, b) => {
       const dateA = new Date(a.voucher_date).getTime();
       const dateB = new Date(b.voucher_date).getTime();
@@ -433,7 +451,7 @@ export const transformPaymentsToVouchers = (vouchers: any[]): TallyReceiptVouche
       voucherNo: voucher.voucher_number || '',
       partyLedger: voucher.description || 'Cash',
       amount: formatAmount(voucher.total_amount || 0),
-      paymentMode: 'Cash',
+      paymentMode: voucher.payment_method || 'Cash',
       referenceNo: voucher.reference_id || ''
     }));
 };
