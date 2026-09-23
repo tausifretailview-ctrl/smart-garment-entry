@@ -88,18 +88,15 @@ function VastrakalaHeaderBrandText({
 }) {
   return (
     <>
-      <div style={{ fontWeight: 900, fontSize: headerFont, letterSpacing: "0.5px", lineHeight: 1.1 }}>
+      <div
+        className="vk-header-title"
+        style={{ fontSize: headerFont, letterSpacing: "0.4px" }}
+      >
         {title}
       </div>
       <div
         className="vk-header-tagline"
-        style={{
-          fontWeight: 800,
-          fontSize: subFont,
-          letterSpacing: "0.3px",
-          marginTop: 1,
-          lineHeight: 1.15,
-        }}
+        style={{ fontSize: subFont, marginTop: 1 }}
       >
         {tagline}
       </div>
@@ -119,10 +116,10 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
   return {
     paperWidth: is58 ? "48mm" : "76mm",
     padding: is58 ? "1.5mm 1mm" : "2mm 1.5mm",
-    baseFont: is58 ? "11px" : "14px",
-    headerFont: is58 ? "16px" : "20px",
-    subFont: is58 ? "10px" : "13px",
-    netFont: is58 ? "13px" : "16px",
+    baseFont: is58 ? "10px" : "12px",
+    headerFont: is58 ? "13px" : "16px",
+    subFont: is58 ? "9px" : "11px",
+    netFont: is58 ? "11px" : "13px",
     logoMax: is58 ? "14mm" : "20mm",
     itemGridColumns,
   };
@@ -223,10 +220,10 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     padding: layout.padding,
     backgroundColor: "#fff",
     color: "#000",
-    fontFamily: "'Arial Black', Arial, Helvetica, sans-serif",
+    fontFamily: "Arial, Helvetica, sans-serif",
     fontSize: layout.baseFont,
-    fontWeight: 700,
-    lineHeight: 1.22,
+    fontWeight: 400,
+    lineHeight: 1.25,
     letterSpacing: 0,
     boxSizing: "border-box",
     WebkitPrintColorAdjust: "exact",
@@ -294,20 +291,18 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             />
           </div>
         )}
-        <div style={{ textAlign: "center" }}>
+        <div className="vk-header-meta" style={{ textAlign: "center" }}>
           {address ? (
-            <div style={{ fontWeight: 700, whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
+            <div style={{ whiteSpace: "pre-wrap", marginTop: 2 }}>{address.toUpperCase()}</div>
           ) : null}
-          {mobile ? <div style={{ fontWeight: 700 }}>CONTACT : {mobile}</div> : null}
-          {instagramHandle ? (
-            <div style={{ fontWeight: 700, marginTop: 1 }}>{instagramHandle}</div>
-          ) : null}
+          {mobile ? <div>CONTACT : {mobile}</div> : null}
+          {instagramHandle ? <div style={{ marginTop: 1 }}>{instagramHandle}</div> : null}
         </div>
       </div>
 
       <div style={dashed} />
 
-      <div style={{ fontWeight: 700 }}>
+      <div className="vk-meta">
         <div>
           NAME: {(customerName || "CASH").toUpperCase()}
           {customerPhone?.trim() ? `-${customerPhone.trim()}` : ""}
@@ -330,7 +325,6 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           display: "grid",
           gridTemplateColumns: layout.itemGridColumns,
           columnGap: "0.8mm",
-          fontWeight: 800,
         }}
       >
         <span>NO</span>
@@ -356,7 +350,6 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               columnGap: "0.8mm",
               alignItems: "start",
               marginBottom: 3,
-              fontWeight: 700,
             }}
           >
             <span style={{ gridColumn: 1, gridRow: rowSpan }}>{item.sr ?? i + 1}</span>
@@ -384,7 +377,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontWeight: 700 }}>
+      <div className="vk-totals" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
         <div>
           <div>Tot.QTY : {totalQty}</div>
           {paymentLines.map((line) => (
@@ -398,7 +391,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           {mrpDiscount > 0 ? <div>DISCOUNT : {fmtDec(mrpDiscount)}</div> : null}
           {saleReturnAdjust > 0 ? <div>S/R : {fmtDec(saleReturnAdjust)}</div> : null}
           {roundOff !== 0 ? <div>ROUND : {fmtDec(roundOff)}</div> : null}
-          <div className="vk-net-amt" style={{ fontWeight: 900, fontSize: layout.netFont }}>
+          <div className="vk-net-amt" style={{ fontSize: layout.netFont }}>
             NET AMT. : {fmtDec(grandTotal)}
           </div>
         </div>
@@ -406,14 +399,19 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div style={{ fontWeight: 700 }}>
-        <div style={{ fontWeight: 800 }}>TERMS:</div>
-        {termsToPrint.map((term) => (
-          <div key={term}>* {term}</div>
-        ))}
+      <div>
+        <div className="vk-terms-label">TERMS:</div>
+        <div className="vk-terms-body">
+          {termsToPrint.map((term) => (
+            <div key={term}>* {term}</div>
+          ))}
+        </div>
       </div>
 
-      <div style={{ textAlign: "center", fontWeight: 900, marginTop: 6, fontSize: layout.subFont }}>
+      <div
+        className="vk-footer-thanks"
+        style={{ textAlign: "center", marginTop: 6, fontSize: layout.subFont }}
+      >
         THANK YOU !!! VISIT AGAIN !!!
       </div>
     </div>

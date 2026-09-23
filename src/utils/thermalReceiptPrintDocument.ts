@@ -174,9 +174,9 @@ export function buildThermalReceiptPrintCss(
   .vastrakala-thermal-receipt-80mm {
     width: ${paper === '58mm' ? '48mm' : '76mm'} !important;
     max-width: ${paper === '58mm' ? '48mm' : '76mm'} !important;
-    font-family: "Arial Black", Arial, Helvetica, sans-serif !important;
-    font-size: ${paper === '58mm' ? '11px' : '14px'} !important;
-    font-weight: 700 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: ${paper === '58mm' ? '10px' : '12px'} !important;
+    font-weight: 400 !important;
   }
   .kids-thermal-receipt-80mm[data-thermal-paper="58mm"],
   .kids-camp-thermal-receipt-80mm[data-thermal-paper="58mm"],

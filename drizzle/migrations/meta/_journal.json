@@ -29,6 +29,13 @@
       "when": 1790005538528,
       "tag": "0003_remove_inert_anon_website_catalog_policies",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790111213006,
+      "tag": "0004_secure_staging_table_and_website_photo_policies",
+      "breakpoints": true
     }
   ]
 }
