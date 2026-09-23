@@ -1785,50 +1785,19 @@ export const useSaveSale = () => {
         // never block save on guard errors
       }
 
-      // Guard: if sale_return_adjust is being reduced, restore the linked SR(s)
+      // Reducing or removing S/R releases this sale's credit voucher first.
+      // The note keeps whatever other bills still hold. A lower amount is applied again below.
       const oldSRA = Number(existingSale?.sale_return_adjust || 0);
-      const newSRA = roundMoney(Number(saleData.saleReturnAdjust || 0));
-
-      if (oldSRA > 0 && newSRA < oldSRA - 0.01) {
-        const { data: linkedSRs } = await supabase
-          .from('sale_returns')
-          .select(
-            'id, net_amount, gross_amount, gst_amount, credit_status, customer_id, customer_name, organization_id, refund_type, return_date, return_number, original_sale_number, notes, credit_note_id'
-          )
-          .eq('linked_sale_id', saleId)
-          .in('credit_status', ['adjusted', 'partially_adjusted'])
-          .is('deleted_at', null);
-
-        if (linkedSRs && linkedSRs.length > 0) {
-          if (newSRA <= 0.01) {
-            for (const sr of linkedSRs) {
-              await supabase
-                .from('sale_returns')
-                .update({
-                  credit_status: 'pending',
-                  linked_sale_id: null,
-                  credit_available_balance: null,
-                })
-                .eq('id', sr.id);
-            }
-          } else {
-            const sr = linkedSRs[0];
-            const srAmt = roundMoney(Number(sr.net_amount) || 0);
-
-            if (srAmt > newSRA + 0.01) {
-              const leftoverAmt = roundMoney(srAmt - newSRA);
-              await supabase
-                .from('sale_returns')
-                .update({
-                  credit_status: 'partially_adjusted',
-                  linked_sale_id: saleId,
-                  credit_available_balance: leftoverAmt,
-                  notes: `${sr.notes || ''}${sr.notes ? ' | ' : ''}Reduced after invoice edit (was ${srAmt})`,
-                })
-                .eq('id', sr.id);
-            }
-          }
-        }
+      const nextCredit = roundMoney(
+        (saleData.saleReturnAdjust || 0) + (saleData.creditApplied || 0),
+      );
+      let releasedCredit = false;
+      if (oldSRA > 0.01 && Math.abs(nextCredit - oldSRA) > 0.01) {
+        const { error: releaseError } = await (supabase as unknown as {
+          rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: { message?: string } | null }>;
+        }).rpc("release_sale_credit", { p_sale_id: saleId });
+        if (releaseError) throw releaseError;
+        releasedCredit = true;
       }
 
       const {
@@ -1907,7 +1876,7 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: saleData.saleReturnAdjust,
+          sale_return_adjust: releasedCredit ? 0 : saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
@@ -1975,13 +1944,26 @@ export const useSaveSale = () => {
         }
       }
 
-      const srConsumeAmountUpdate = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
-      if (srConsumeAmountUpdate > 0 && saleData.customerId) {
-        await consumeSaleReturnAdjustments({
+      if (releasedCredit && nextCredit > 0.01 && saleData.customerId) {
+        await applyPosBillCredit({
           customerId: saleData.customerId,
           saleId: sale.id,
-          adjustmentAmount: srConsumeAmountUpdate,
+          netAmount: saleData.netAmount,
+          paidAmount: paidAmt,
+          saleReturnAdjust: saleData.saleReturnAdjust || 0,
+          creditApplied: saleData.creditApplied || 0,
+          consumeSrAmount: 0,
+          idempotencyKey: runtimeOptions?.creditIdempotencyKey,
         });
+      } else {
+        const srConsumeAmountUpdate = Math.max(saleData.saleReturnAdjust || 0, consumeSrAmount || 0);
+        if (srConsumeAmountUpdate > 0 && saleData.customerId) {
+          await consumeSaleReturnAdjustments({
+            customerId: saleData.customerId,
+            saleId: sale.id,
+            adjustmentAmount: srConsumeAmountUpdate,
+          });
+        }
       }
 
       try {
