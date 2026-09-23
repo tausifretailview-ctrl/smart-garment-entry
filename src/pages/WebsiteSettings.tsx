@@ -592,10 +592,7 @@ function AddProducts({
     staleTime: STALE_LIVE,
     queryFn: async () => {
       const ids = rows.map((p) => p.id);
-cursor/website-picker-coverage-fix-2cad
       // Chunk the IN-list so large catalogues don't blow past URL length limits.
-
- main
       const vrows: {
         product_id: string;
         size?: string | null;
