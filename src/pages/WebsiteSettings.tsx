@@ -630,6 +630,28 @@ function AddProducts({
       })
     : [];
 
+  const stockListSummary = useMemo(() => {
+    const stockById = variantsQuery.data?.stockById;
+    if (!stockReady || !stockById) return null;
+    let totalUnits = 0;
+    let unknownStockProducts = 0;
+    let zeroStockLeaks = 0;
+    for (const p of inStockRows) {
+      const stock = stockById[p.id];
+      if (stock == null) {
+        unknownStockProducts += 1;
+        continue;
+      }
+      if (stock <= 0) zeroStockLeaks += 1;
+      totalUnits += stock;
+    }
+    return {
+      totalUnits,
+      unknownStockProducts,
+      zeroStockLeaks,
+    };
+  }, [stockReady, variantsQuery.data?.stockById, inStockRows]);
+
   useEffect(() => {
     setPage(0);
   }, [search, orgId]);
@@ -637,6 +659,17 @@ function AddProducts({
   const pageCount = Math.max(1, Math.ceil(inStockRows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
   const pageRows = inStockRows.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
+  const pageStockSummary = useMemo(() => {
+    const stockById = variantsQuery.data?.stockById;
+    if (!stockReady || !stockById) return null;
+    let totalUnits = 0;
+    for (const p of pageRows) {
+      const stock = stockById[p.id];
+      if (stock != null && stock > 0) totalUnits += stock;
+    }
+    return totalUnits;
+  }, [stockReady, variantsQuery.data?.stockById, pageRows]);
 
   const publish = useMutation({
     mutationFn: async () => {
@@ -750,8 +783,32 @@ function AddProducts({
         }
         footer={
           <div className="flex w-full items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
-              {inStockRows.length} in-stock unpublished product{inStockRows.length === 1 ? "" : "s"} shown
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {!stockReady ? (
+                "Loading stock totals…"
+              ) : (
+                <>
+                  {inStockRows.length} in-stock unpublished product
+                  {inStockRows.length === 1 ? "" : "s"} shown
+                  {stockListSummary ? (
+                    <>
+                      {" · "}
+                      <span className="font-medium text-foreground">
+                        {stockListSummary.totalUnits.toLocaleString("en-IN")} total units
+                      </span>
+                      {pageCount > 1 && pageStockSummary != null ? (
+                        <> (this page: {pageStockSummary.toLocaleString("en-IN")})</>
+                      ) : null}
+                      {stockListSummary.unknownStockProducts > 0 ? (
+                        <> · {stockListSummary.unknownStockProducts} without variant stock yet</>
+                      ) : null}
+                      {stockListSummary.zeroStockLeaks > 0 ? (
+                        <> · {stockListSummary.zeroStockLeaks} at zero (unexpected)</>
+                      ) : null}
+                    </>
+                  ) : null}
+                </>
+              )}
             </span>
             {pageCount > 1 ? (
               <span className="flex items-center gap-1">
