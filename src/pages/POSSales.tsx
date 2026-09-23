@@ -4961,6 +4961,7 @@ export default function POSSales() {
       if (isCreditNote) {
         const creditNote = await createCreditNote({
           saleId: result.id,
+          saleNumber: result.sale_number,
           customerId: customerId || null,
           customerName: customerName || 'Walk in Customer',
           customerPhone: customerPhone || null,
@@ -4994,6 +4995,7 @@ export default function POSSales() {
             const autoCnAmount = Math.abs(billNet);
             const autoCn = await createCreditNote({
               saleId: result.id,
+              saleNumber: result.sale_number,
               customerId: customerId,
               customerName: customerName || "Walk in Customer",
               customerPhone: customerPhone || null,
