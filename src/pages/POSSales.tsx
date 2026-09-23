@@ -48,6 +48,7 @@ import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
 import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
 import { POS_APPLY_CREDIT_BANNER_ENABLED } from "@/lib/posBilling/creditBannerFlag";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   isPosGoodsAskQtyDialogEnabled,
   resolveGoodsQtyDialogDefaultPrice,
@@ -1549,7 +1550,8 @@ export default function POSSales() {
           },
           flatDiscountAmount: effectiveFlat,
           saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
-          finalAmount: Number(sale.net_amount),
+          finalAmount: saleBillFigures(sale).payable,
+          billNetAmount: saleBillFigures(sale).billAmount,
           method: sale.payment_method,
           customerName: sale.customer_name,
           customerPhone: sale.customer_phone,
@@ -4790,6 +4792,7 @@ export default function POSSales() {
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: finalAmount,
+        billNetAmount: totals.billAmount,
         method: method,
         customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
@@ -5093,6 +5096,7 @@ export default function POSSales() {
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
         finalAmount: isRefund ? 0 : finalAmount,
+        billNetAmount: totals.billAmount,
         method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
         customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
@@ -5531,6 +5535,7 @@ export default function POSSales() {
             }
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
             grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            billNetAmount={savedInvoiceData?.billNetAmount ?? totals.billAmount}
             cashPaid={savedInvoiceData?.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'cash' ? posTenderDue : 0}
             upiPaid={savedInvoiceData?.method === 'upi' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'upi' ? posTenderDue : 0}
             paymentMethod={savedInvoiceData?.method || paymentMethod}
@@ -5835,7 +5840,8 @@ export default function POSSales() {
       },
       flatDiscountAmount: effectiveFlatForSnapshot,
       saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
-      finalAmount: Number(sale.net_amount),
+      finalAmount: saleBillFigures(sale).payable,
+      billNetAmount: saleBillFigures(sale).billAmount,
       method: sale.payment_method,
       customerName: sale.customer_name,
       customerPhone: sale.customer_phone,
@@ -8764,6 +8770,7 @@ export default function POSSales() {
                 discount={totals.discount + flatDiscountAmount}
                 saleReturnAdjust={saleReturnAdjust}
                 grandTotal={finalAmount}
+                billNetAmount={totals.billAmount}
                 cashPaid={paymentMethod === 'cash' ? finalAmount : 0}
                 upiPaid={paymentMethod === 'upi' ? finalAmount : 0}
                 paymentMethod={paymentMethod}
@@ -8953,6 +8960,7 @@ export default function POSSales() {
                 discount={savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount}
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
+                billNetAmount={savedInvoiceData.billNetAmount ?? totals.billAmount}
                 cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
                 upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
                 paymentMethod={savedInvoiceData.method}

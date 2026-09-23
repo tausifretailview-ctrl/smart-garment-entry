@@ -1,4 +1,5 @@
 import React from "react";
+import { printBillNetAmount } from "@/utils/saleBillFigures";
 
 interface InvoiceItem {
   sr: number;
@@ -41,6 +42,7 @@ interface RetailTemplateProps {
   subtotal: number;
   discount: number;
   saleReturnAdjust?: number;
+  billNetAmount?: number | null;
   taxableAmount: number;
   cgstAmount: number;
   sgstAmount: number;
@@ -125,6 +127,7 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
   subtotal,
   discount,
   saleReturnAdjust = 0,
+  billNetAmount,
   grandTotal,
   paymentMethod,
   cashAmount,
@@ -185,13 +188,17 @@ export const RetailTemplate: React.FC<RetailTemplateProps> = ({
     return mrp > 0 && mrp > rate ? mrp : rate;
   };
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
-  const merchandiseNetBeforeAdjustments = Number(grandTotal || 0) + Number(saleReturnAdjust || 0);
+  const merchandiseNetBeforeAdjustments = printBillNetAmount({
+    grandTotal,
+    saleReturnAdjust,
+    billNetAmount,
+  });
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetBeforeAdjustments);
   const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
   const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
   const derivedOtherCharges = Math.max(
     0,
-    Number(grandTotal || 0) - displaySubTotal + Number(saleReturnAdjust || 0) - displayDiscount
+    merchandiseNetBeforeAdjustments - displaySubTotal - displayDiscount
   );
   const displayOtherCharges =
     explicitOtherCharges > 0.005 ? explicitOtherCharges : derivedOtherCharges > 0.005 ? derivedOtherCharges : 0;

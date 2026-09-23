@@ -14,6 +14,7 @@ import {
 } from "@/utils/customerBalanceUtils";
 import { residualPaymentAtSaleTender, residualTenderBreakdown } from "@/utils/customerAuditBundle";
 import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   allocateCnAdjustmentsToSaleReturns,
   saleReturnConsumedForRemaining,
@@ -446,10 +447,7 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       });
 
       (priorSales || []).forEach((sale: any) => {
-        const receivable = Math.max(
-          0,
-          Number(sale.net_amount || 0) - Number(sale.sale_return_adjust || 0),
-        );
+        const receivable = Math.max(0, saleBillFigures(sale).payable);
         effectiveOpeningBalance += receivable;
         const cashVoucher = priorCashVouchers[sale.id] || 0;
         // Residual at-sale tender + voucher (same total as full tender or
@@ -616,12 +614,15 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     if (item.type === 'invoice') {
       const sale = item.data as any;
       const isCancelled = sale.payment_status === 'cancelled';
-      const saleReturnAdjust = Number(sale.sale_return_adjust || 0);
-      const grossBill = Number(sale.net_amount || 0);
+      const figures = saleBillFigures(sale);
+      const saleReturnAdjust = figures.saleReturnAdjust;
+      const storedNet = Number(sale.net_amount || 0);
+      const grossBill = figures.billAmount;
       const isExchangeCoveredByReturn =
-        saleReturnAdjust > 0 && grossBill > 0 && saleReturnAdjust >= grossBill;
-      // Receivable on this invoice (matches Sales Invoice Dashboard & balance RPC).
-      const invoiceDebit = Math.max(0, grossBill - saleReturnAdjust);
+        saleReturnAdjust > 0 && storedNet > 0 && saleReturnAdjust >= storedNet;
+      // Payable is the invoice debit. Baked rows already have the return inside net,
+      // so it is not subtracted again. Rule B payable is net minus sale_return_adjust.
+      const invoiceDebit = Math.max(0, figures.payable);
       if (!isCancelled) {
         runningBalance += invoiceDebit;
       }

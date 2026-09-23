@@ -1,5 +1,6 @@
 import React from "react";
 import { numberToWords } from "@/lib/utils";
+import { printBillNetAmount } from "@/utils/saleBillFigures";
 import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/utils/retailErpWhatsAppProductLabel";
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import {
@@ -71,6 +72,8 @@ interface RetailERPTemplateProps {
   totalTax: number;
   roundOff: number;
   grandTotal: number;
+  /** Full bill. When set, grandTotal is the payable and sale-return is not added back. */
+  billNetAmount?: number | null;
 
   paymentMethod?: string;
   amountPaid?: number;
@@ -181,6 +184,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   totalTax,
   roundOff,
   grandTotal,
+  billNetAmount,
   paymentMethod,
   cashAmount,
   cardAmount,
@@ -303,9 +307,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
   const propRoundOff = Number(roundOff ?? 0);
   const propDiscount = Math.max(0, Number(discount || 0));
+  const billNet = printBillNetAmount({ grandTotal, saleReturnAdjust, billNetAmount });
   // Prefer bill discount prop so manual ROUND (M) is not swallowed into Discount.
-  const merchandiseNetExcludingRound =
-    Number(grandTotal || 0) + Number(saleReturnAdjust || 0) - propRoundOff;
+  const merchandiseNetExcludingRound = billNet - propRoundOff;
   const computedDiscountFromLines = Math.max(0, displaySubTotal - merchandiseNetExcludingRound);
   const displayDiscount = retailErpDisplayDiscount({
     billedUnitRate,
@@ -324,7 +328,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const linesSum = items.reduce((s, i) => s + Number(i.total || 0), 0);
   const lineTotalsEmbedGst =
     taxType === "exclusive" &&
-    Math.abs(Number(grandTotal || 0) - linesSum + Number(saleReturnAdjust || 0)) < 1;
+    Math.abs(billNet - linesSum) < 1;
   const effectiveLineTaxMode: "inclusive" | "exclusive" =
     taxType === "exclusive" && !lineTotalsEmbedGst ? "exclusive" : "inclusive";
 
@@ -369,9 +373,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // Rate-column subtotal → bill gap is exclusive GST when lines omit tax (or taxType exclusive).
   const gapBeforeOtherCharges = Math.max(
     0,
-    Number(grandTotal || 0) -
-      displaySubTotal +
-      Number(saleReturnAdjust || 0) -
+    billNet -
+      displaySubTotal -
       displayDiscount -
       propRoundOff,
   );
@@ -408,9 +411,8 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const taxInGrandTotal = billLevelTax;
   const derivedOtherCharges = Math.max(
     0,
-    Number(grandTotal || 0) -
-      displaySubTotal +
-      Number(saleReturnAdjust || 0) -
+    billNet -
+      displaySubTotal -
       displayDiscount -
       propRoundOff -
       taxInGrandTotal,
@@ -429,10 +431,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   // If round_off was omitted/zeroed in props but net already includes it, recover for print.
   const impliedRoundOff =
     Math.round(
-      (Number(grandTotal || 0) -
+      (billNet -
         displaySubTotal +
-        displayDiscount +
-        Number(saleReturnAdjust || 0) -
+        displayDiscount -
         displayOtherCharges -
         taxInGrandTotal) *
         100,

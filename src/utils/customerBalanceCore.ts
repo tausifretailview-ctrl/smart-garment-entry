@@ -1,5 +1,6 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
+import { isSaleReturnAdjustBakedIntoNet } from "@/utils/posDashboardSettlement";
 import { allocateCnAdjustmentsToSaleReturns } from "@/utils/customerLedgerSaleReturnBalance";
 
 /**
@@ -405,7 +406,9 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     const net = Number(s.net_amount || 0);
     const sra = Number(s.sale_return_adjust || 0);
     const itemsGross = Number(s.items_gross || 0);
-    const preReturn = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
+    const preReturnByGross = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
+    const fullBillByHeader = sra > 0 && Number(s.gross_amount) > 0 && !isSaleReturnAdjustBakedIntoNet(s);
+    const preReturn = preReturnByGross || fullBillByHeader;
     return sum + net + (preReturn ? 0 : sra);
   }, 0);
 

@@ -30,6 +30,7 @@ import {
   type PosDashboardSaleLike,
 } from "@/utils/posDashboardSettlement";
 import { getSaleReportGrossAmount, getSaleReportNetAmount } from "@/utils/cashierReportUtils";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import { withDashboardTimeout } from "@/utils/withDashboardTimeout";
 
 /** Calendar bounds for server queries from period chip + date inputs (fixes persisted single-day monthly). */
@@ -1086,11 +1087,11 @@ export function computePosDashboardSummaryStats(
         Number((sale as { points_redeemed_amount?: number }).points_redeemed_amount || 0),
       0,
     ),
-    netSale: nonHoldSales.reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
+    netSale: nonHoldSales.reduce((sum, sale) => sum + saleBillFigures(sale).billAmount, 0),
     completedCount: nonHoldSales.filter((sale) => isPosSalePaidCompleted(sale)).length,
     completedAmount: nonHoldSales
       .filter((sale) => isPosSalePaidCompleted(sale))
-      .reduce((sum, sale) => sum + Number(sale.net_amount || 0), 0),
+      .reduce((sum, sale) => sum + saleBillFigures(sale).billAmount, 0),
     pendingCount: nonHoldSales.filter(
       (sale) => !isPosSalePaidCompleted(sale) && !isHoldLikePosSale(sale),
     ).length,

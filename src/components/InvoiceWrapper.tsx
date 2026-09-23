@@ -104,6 +104,8 @@ interface InvoiceWrapperProps {
   discount: number;
   saleReturnAdjust?: number;
   grandTotal: number;
+  /** Full bill. When set, grandTotal is already the payable. */
+  billNetAmount?: number | null;
   
   // Payment
   tenderAmount?: number;
@@ -533,10 +535,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       taxType,
       roundOff,
       grandTotal: props.grandTotal,
+      billNetAmount: props.billNetAmount,
       
       paymentMethod: props.paymentMethod,
       amountPaid: props.paidAmount || props.cashPaid || props.upiPaid,
-      balanceDue: props.grandTotal - (props.paidAmount || props.cashPaid || 0) - (props.upiPaid || 0) - (props.saleReturnAdjust || 0),
+      balanceDue:
+        (props.billNetAmount != null ? props.grandTotal : props.grandTotal - (props.saleReturnAdjust || 0)) -
+        (props.paidAmount || props.cashPaid || 0) -
+        (props.upiPaid || 0),
       cashAmount: props.cashAmount,
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,
