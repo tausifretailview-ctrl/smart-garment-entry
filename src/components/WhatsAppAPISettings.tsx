@@ -17,6 +17,12 @@ import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
 import {
+  OFFICIAL_META_INVOICE_TEMPLATE_BODY,
+  OFFICIAL_META_INVOICE_TEMPLATE_NAME,
+  OFFICIAL_META_INVOICE_TEMPLATE_PARAMS,
+  previewOfficialMetaInvoiceMessage,
+} from "../../supabase/functions/_shared/officialMetaInvoiceTemplate.ts";
+import {
   WHATSAPP_SEND_PROVIDERS,
   WHATSAPP_SEND_PROVIDER_LABELS,
   type WhatsAppSendProvider,
@@ -69,6 +75,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { format } from "date-fns";
 import {
   Alert,
@@ -243,6 +250,7 @@ export const WhatsAppAPISettings = () => {
   const [showClearInstanceDialog, setShowClearInstanceDialog] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [openTemplateSection, setOpenTemplateSection] = useState<string | null>(null);
+  const [submittingOfficialInvoiceTemplate, setSubmittingOfficialInvoiceTemplate] = useState(false);
 
   // Load settings into form
   useEffect(() => {
@@ -345,6 +353,53 @@ export const WhatsAppAPISettings = () => {
 
   const handleInputChange = (field: string, value: string | boolean | number | string[] | TemplateParam[] | SocialLinks) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const applyOfficialInvoiceTemplate = () => {
+    handleInputChange("invoice_template_name", OFFICIAL_META_INVOICE_TEMPLATE_NAME);
+    handleInputChange(
+      "invoice_template_params",
+      OFFICIAL_META_INVOICE_TEMPLATE_PARAMS.map((param) => ({ ...param })),
+    );
+    setOpenTemplateSection("invoice");
+  };
+
+  const submitOfficialInvoiceTemplate = async () => {
+    const organizationId = settings?.organization_id;
+    if (!organizationId) {
+      toast.error("Save WhatsApp settings for this organization first.");
+      return;
+    }
+    setSubmittingOfficialInvoiceTemplate(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("submit-whatsapp-invoice-template", {
+        body: { organizationId },
+      });
+      if (error) {
+        throw new Error(await getEdgeFunctionErrorMessage(error, data, "Could not submit the invoice template"));
+      }
+      const result = data as { success?: boolean; ready?: boolean; error?: string; status?: string } | null;
+      if (!result?.success) {
+        throw new Error(result?.error || "Could not submit the invoice template");
+      }
+      if (result.ready) {
+        applyOfficialInvoiceTemplate();
+        toast.success("Invoice template is approved. Save settings to send it.");
+      } else {
+        toast.success(
+          `Template submitted (${result.status || "PENDING"}). After Meta shows Approved, click Sync Templates, then Use this message and Save.`,
+        );
+      }
+    } catch (submitError) {
+      const message = await getEdgeFunctionErrorMessage(
+        submitError,
+        undefined,
+        "Could not submit the invoice template",
+      );
+      toast.error(message);
+    } finally {
+      setSubmittingOfficialInvoiceTemplate(false);
+    }
   };
 
   const handleSocialLinkChange = (field: keyof SocialLinks, value: string) => {
@@ -1154,6 +1209,58 @@ export const WhatsAppAPISettings = () => {
 
           {/* Invoice Template */}
           <div className={formData.use_document_header_template && formData.invoice_document_template_name ? 'opacity-50 pointer-events-none' : ''}>
+            <div className="rounded-lg border bg-muted/40 p-3 space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Invoice message — no shop logo</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Text only. Shop name, address, and mobile come from Settings → Company Profile.
+                    Icons are part of the message. Do not add an image header in Meta.
+                  </p>
+                </div>
+                <Badge variant="outline" className="shrink-0">{OFFICIAL_META_INVOICE_TEMPLATE_NAME}</Badge>
+              </div>
+              <pre className="whitespace-pre-wrap rounded-md border bg-background p-3 text-xs leading-relaxed font-sans">
+                {previewOfficialMetaInvoiceMessage()}
+              </pre>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(OFFICIAL_META_INVOICE_TEMPLATE_BODY);
+                    toast.success("Template body copied");
+                  }}
+                >
+                  Copy template body
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={applyOfficialInvoiceTemplate}
+                >
+                  Use this message
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void submitOfficialInvoiceTemplate()}
+                  disabled={submittingOfficialInvoiceTemplate || !settings?.organization_id}
+                >
+                  {submittingOfficialInvoiceTemplate ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : null}
+                  Submit to Meta
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Submit creates or updates <strong>{OFFICIAL_META_INVOICE_TEMPLATE_NAME}</strong> on the official Meta API
+                (no logo). After Meta marks it Approved, click Sync Templates, Use this message, then Save.
+                Older templates that still have an image header keep their logo until you switch.
+              </p>
+            </div>
             <MetaTemplateSelector
               templateType="invoice"
               selectedTemplateId={null}

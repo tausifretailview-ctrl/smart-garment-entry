@@ -29,7 +29,8 @@
   "include": [
     "src",
     "supabase/functions/_shared/whatsappStatusWebhook.ts",
-    "supabase/functions/_shared/whatsappMetaTemplateResolve.ts"
+    "supabase/functions/_shared/whatsappMetaTemplateResolve.ts",
+    "supabase/functions/_shared/officialMetaInvoiceTemplate.ts"
   ],
   "exclude": [
     "src/**/*.test.ts",

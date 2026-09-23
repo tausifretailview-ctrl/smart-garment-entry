@@ -20,6 +20,13 @@ import {
   sendViaWappConnect,
 } from "../_shared/wappConnectSend.ts";
 import { buildMessageFromWhatsAppTemplate, buildWappConnectInvoiceFallbackCaption } from "../_shared/whatsappMessageTemplate.ts";
+import {
+  applyShopIdentityToSaleData,
+  invoiceTemplateOmitsShopLogo,
+  resolveShopAddress,
+  resolveShopContactNumber,
+  sanitizeWhatsAppTemplateParam,
+} from "../_shared/officialMetaInvoiceTemplate.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -187,7 +194,12 @@ function buildTemplateParams(
       case 'payment_status':
         return String(saleData.payment_status || 'Pending');
       case 'organization_name':
-        return orgName;
+        return sanitizeWhatsAppTemplateParam(orgName || saleData.organization_name, 'Our Company');
+      case 'shop_address':
+      case 'address':
+        return resolveShopAddress(saleData);
+      case 'contact_number':
+        return resolveShopContactNumber(saleData);
       case 'items_count':
         return String(saleData.items_count || 0);
       case 'due_date':
@@ -224,8 +236,6 @@ function buildTemplateParams(
         return String(saleData.salesman || '');
       case 'days_overdue':
         return String(saleData.days_overdue || 0);
-      case 'contact_number':
-        return String(saleData.contact_number || '');
       case 'invoice_link': {
         const orgSlug = String(saleData.org_slug || '');
         const saleId = String(saleData.sale_id || saleData.id || '');
@@ -1397,7 +1407,7 @@ serve(async (req) => {
         // Fetch org name for the organization_name field
         const { data: companySettings } = await supabase
           .from('settings')
-          .select('business_name, sale_settings')
+          .select('business_name, address, mobile_number, owner_phone, sale_settings')
           .eq('organization_id', organizationId)
           .maybeSingle();
         
@@ -1409,7 +1419,7 @@ serve(async (req) => {
         const socialLinks = (orgSettings as any)?.social_links || {};
         // Use '-' as a safe placeholder so messages don't fail when an org
         // hasn't filled social links yet. WhatsApp rejects empty params.
-        const enrichedSaleData: Record<string, unknown> = {
+        const enrichedSaleData: Record<string, unknown> = applyShopIdentityToSaleData({
           ...saleData,
           invoice_paper_format:
             saleData.invoice_paper_format ?? saleSettingsRow.invoice_paper_format ?? '',
@@ -1424,7 +1434,12 @@ serve(async (req) => {
           facebook: saleData.facebook || socialLinks.facebook || '-',
           google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '-',
           whatsapp_group_link: (saleData as any).whatsapp_group_link || socialLinks.whatsapp_group || '-',
-        };
+        }, {
+          business_name: orgName,
+          address: companySettings?.address,
+          mobile_number: companySettings?.mobile_number,
+          owner_phone: companySettings?.owner_phone,
+        });
 
         if (paramMapping && paramMapping.length > 0) {
           finalTemplateParams = buildTemplateParams(paramMapping, enrichedSaleData, orgName);
@@ -1542,7 +1557,8 @@ serve(async (req) => {
           (c: any) => String(c?.type ?? '').toUpperCase() === 'HEADER'
         );
         const headerFormat = String(tplHeader?.format ?? '').toUpperCase();
-        if (headerFormat === 'IMAGE') {
+        // invoice_shop_details is text-only. Do not put the shop logo in its header.
+        if (headerFormat === 'IMAGE' && !invoiceTemplateOmitsShopLogo(cleanedTemplateName)) {
           try {
             const { data: logoSettings } = await supabase
               .from('settings')
@@ -1769,7 +1785,12 @@ serve(async (req) => {
 
     // Auto-fetch logo from settings if imageUrl not provided by caller.
     // Skip when the logo was already embedded as the template's IMAGE header.
-    if (!finalImageUrl && !headerLogoEmbedded && response.ok) {
+    // Shop-details invoice template is text-only. Also skip the extra logo image on
+    // every sales-invoice send so the shop logo is not attached under the message.
+    const omitShopLogo = invoiceTemplateOmitsShopLogo(
+      typeof cleanedTemplateName === 'string' ? cleanedTemplateName : '',
+    ) || templateType === 'sales_invoice';
+    if (!finalImageUrl && !headerLogoEmbedded && response.ok && !omitShopLogo) {
       try {
         const { data: logoSettings } = await supabase
           .from('settings')

@@ -57,6 +57,9 @@ verify_jwt = false
 [functions.sync-whatsapp-templates]
 verify_jwt = false
 
+[functions.submit-whatsapp-invoice-template]
+verify_jwt = false
+
 [functions.download-apk]
 verify_jwt = false
 

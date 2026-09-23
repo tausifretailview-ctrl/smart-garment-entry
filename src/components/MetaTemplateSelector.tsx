@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { TemplateParam } from "@/hooks/useWhatsAppAPI";
+import { OFFICIAL_META_INVOICE_TEMPLATE_PARAMS } from "../../supabase/functions/_shared/officialMetaInvoiceTemplate.ts";
 
 interface MetaTemplate {
   id: string;
@@ -77,7 +78,9 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'gross_amount', label: 'Gross Amount', description: 'Amount before discounts' },
     { key: 'discount', label: 'Discount Amount', description: 'Total discount applied' },
     { key: 'payment_status', label: 'Payment Status', description: 'Paid / Pending / Partial' },
-    { key: 'organization_name', label: 'Organization Name', description: 'Your business name' },
+    { key: 'organization_name', label: 'Shop Name', description: 'Business name from Company Profile' },
+    { key: 'shop_address', label: 'Shop Address', description: 'Address from Company Profile' },
+    { key: 'contact_number', label: 'Contact Number', description: 'Mobile number from Company Profile' },
     { key: 'items_count', label: 'Items Count', description: 'Total quantity of items in invoice' },
     { key: 'due_date', label: 'Due Date', description: 'Payment due date' },
     { key: 'salesman', label: 'Salesman', description: 'Salesperson name' },
@@ -158,6 +161,11 @@ const templateTypeLabels: Record<string, string> = {
 // Preset template configurations for quick setup
 const TEMPLATE_PRESETS: Record<string, { name: string; description: string; params: TemplateParam[] }[]> = {
   invoice: [
+    {
+      name: 'Shop details (no logo)',
+      description: 'Customer, shop name, address, phone, invoice no, amount, link. No shop logo.',
+      params: OFFICIAL_META_INVOICE_TEMPLATE_PARAMS.map((param) => ({ ...param })),
+    },
     {
       name: '5-Param Invoice (Standard)',
       description: 'Customer, Invoice No, Date, Amount, Org Name',
