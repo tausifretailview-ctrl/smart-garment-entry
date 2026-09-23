@@ -68,3 +68,6 @@ verify_jwt = false
 
 [functions.submit-storefront-enquiry]
 verify_jwt = false
+
+[functions.push-send]
+verify_jwt = false

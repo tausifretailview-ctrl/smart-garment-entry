@@ -1455,6 +1455,19 @@ export const useSaveSale = () => {
         // Fire and forget - don't await
       }
 
+      // Customer push: invoice notification via push-send. Fire-and-forget like
+      // WhatsApp above; never blocks the save. This is saveSale (create path)
+      // so edits/updates can't re-trigger it; push-send dedupes per sale+device.
+      if (saleData.customerPhone && currentOrganization?.id) {
+        void (async () => { try {
+          await supabase.functions.invoke('push-send', {
+            body: { organizationId: currentOrganization.id, saleId: sale.id },
+          });
+        } catch (pushError) {
+          console.error('Customer push send failed:', pushError);
+        } })();
+      }
+
       const totalQty = saleData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
       applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
         saleDate: sale.sale_date,
