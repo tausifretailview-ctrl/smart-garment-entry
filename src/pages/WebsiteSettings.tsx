@@ -579,7 +579,7 @@ function AddProducts({
 
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
       // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
-      // No display cap — client-side pagination shows the full filtered list.
+      // Client-side pagination below shows the full filtered list (no display cap).
       const products = candidates.filter((p) => {
         const entry = stockByProduct[p.id];
         if (!entry) return true;
@@ -632,12 +632,14 @@ function AddProducts({
     },
   });
 
-  // Proven-zero-stock hides; no variant rows at all keeps (no stock signal).
-  // Stock totals arrive with the variants query — hold the list empty until resolved.
+  // Proven-zero-stock hides; a product with no variant rows at all is kept
+  // (no stock signal either way). Stock totals arrive with the variants, so
+  // hold the list empty until they resolve.
   const stockReady = !variantsQuery.isLoading && !variantsQuery.isPending;
   const inStockRows = stockReady
     ? rows.filter((p) => {
         const stock = variantsQuery.data?.stockById[p.id];
+        // No variant rows at all → no stock signal → keep the product.
         if (stock == null) return true;
         return stock > 0;
       })

@@ -16,6 +16,7 @@ pnpm-lock.yaml
 node_modules
 dist
 dist-ssr
+dist-customer
 *.local
 .env.test
 
