@@ -5532,6 +5532,7 @@ export type Database = {
           id: string
           image_url: string | null
           kind: string
+          last_sent_offset: number
           offer_code: string | null
           organization_id: string
           product_ids: string[]
@@ -5548,6 +5549,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           kind: string
+          last_sent_offset?: number
           offer_code?: string | null
           organization_id: string
           product_ids?: string[]
@@ -5564,6 +5566,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           kind?: string
+          last_sent_offset?: number
           offer_code?: string | null
           organization_id?: string
           product_ids?: string[]
