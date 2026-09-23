@@ -1774,6 +1774,14 @@ export const WhatsAppAPISettings = () => {
                       onChange={(e) => handleSocialLinkChange("google_review", e.target.value)}
                     />
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="https://chat.whatsapp.com/YOUR_GROUP_INVITE"
+                      value={formData.social_links?.whatsapp_group || ""}
+                      onChange={(e) => handleSocialLinkChange("whatsapp_group" as any, e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
             </>

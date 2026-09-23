@@ -22,6 +22,7 @@ export interface SocialLinks {
   instagram?: string;
   facebook?: string;
   google_review?: string;
+  whatsapp_group?: string;
 }
 
 export interface WhatsAppSettings {

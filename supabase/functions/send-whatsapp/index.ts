@@ -258,6 +258,9 @@ function buildTemplateParams(
       case 'google_review_link':
       case 'google_review':
         return String(saleData.google_review_link || saleData.google_review || '');
+      case 'whatsapp_group_link':
+      case 'whatsapp_group':
+        return String(saleData.whatsapp_group_link || saleData.whatsapp_group || '');
       case 'custom_text':
         return param.customValue || '';
       case 'balance':
@@ -1420,6 +1423,7 @@ serve(async (req) => {
           instagram: saleData.instagram || socialLinks.instagram || '-',
           facebook: saleData.facebook || socialLinks.facebook || '-',
           google_review_link: (saleData as any).google_review_link || socialLinks.google_review || socialLinks.google_review_link || '-',
+          whatsapp_group_link: (saleData as any).whatsapp_group_link || socialLinks.whatsapp_group || '-',
         };
 
         if (paramMapping && paramMapping.length > 0) {
