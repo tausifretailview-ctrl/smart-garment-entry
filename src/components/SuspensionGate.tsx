@@ -5,7 +5,7 @@ import { useUserRoles } from "@/hooks/useUserRoles";
 import { SuspendedOrgScreen } from "./SuspendedOrgScreen";
 
 // Routes that must stay accessible even when the org is suspended.
-const ALLOW_PATHS = ["/auth", "/reset-password", "/platform-admin", "/pay", "/invoice/view"];
+const ALLOW_PATHS = ["/auth", "/reset-password", "/platform-admin", "/pay", "/invoice/view", "/i/"];
 
 export const SuspensionGate = ({ children }: { children: ReactNode }) => {
   const { currentOrganization } = useOrganization();

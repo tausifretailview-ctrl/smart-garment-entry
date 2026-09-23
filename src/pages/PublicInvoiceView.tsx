@@ -28,6 +28,7 @@ import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
 import { NewDesignThermalReceipt80mm } from "@/components/NewDesignThermalReceipt80mm";
+import { VastrakalaThermalReceipt80mm } from "@/components/VastrakalaThermalReceipt80mm";
 import { isA5PortraitInvoiceTemplate } from "@/utils/invoicePrintFormat";
 
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
@@ -47,8 +48,10 @@ const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: s
 export default function PublicInvoiceView() {
   const { saleId } = useParams<{ saleId: string }>();
   const [searchParams] = useSearchParams();
-  const formatParam = searchParams.get('format');
-  const templateOverride = searchParams.get('template');
+  // Short links (/i/:saleId?p=1) carry no format/template — resolved from shop settings below.
+  const isPosShortLink = searchParams.get('p') === '1';
+  const rawFormatParam = searchParams.get('format');
+  const rawTemplateOverride = searchParams.get('template');
   const printRef = useRef<HTMLDivElement>(null);
   // Mobile auto-fit: scale the A4 invoice down to fit the phone screen width.
   const scaleWrapRef = useRef<HTMLDivElement>(null);
@@ -156,6 +159,17 @@ export default function PublicInvoiceView() {
   }
 
   const saleItems = sale.sale_items || [];
+  const hasExplicitParams = !!(rawFormatParam || rawTemplateOverride);
+  const formatParam = hasExplicitParams
+    ? rawFormatParam
+    : isPosShortLink
+      ? (settings?.pos_bill_format === 'thermal' ? 'thermal' : null)
+      : (settings?.invoice_paper_format === 'thermal' ? 'thermal' : null);
+  const templateOverride = hasExplicitParams
+    ? rawTemplateOverride
+    : isPosShortLink
+      ? (settings?.pos_invoice_template || settings?.invoice_template || null)
+      : null;
   const template =
     (templateOverride && templateOverride.trim()) ||
     settings?.invoice_template ||
@@ -309,6 +323,40 @@ export default function PublicInvoiceView() {
           bill_barcode_settings: settings?.bill_barcode_settings,
         },
       };
+      if (templateOverride === 'vastrakala-80mm') {
+        return (
+          <VastrakalaThermalReceipt80mm
+            ref={printRef as any}
+            billNo={sale.sale_number}
+            date={new Date(sale.sale_date)}
+            customerName={sale.customer_name}
+            customerPhone={sale.customer_phone || undefined}
+            items={saleItems.map((item: any, index: number) => ({
+              sr: index + 1,
+              particulars: item.product_name,
+              itemNotes: item.item_notes || undefined,
+              mrp: item.mrp ?? item.unit_price,
+              qty: item.quantity,
+              rate: item.unit_price,
+              total: item.line_total,
+            }))}
+            subTotal={sale.gross_amount}
+            discount={(sale.discount_amount || 0) + (sale.flat_discount_amount || 0)}
+            saleReturnAdjust={sale.sale_return_adjust || 0}
+            roundOff={sale.round_off}
+            grandTotal={sale.net_amount}
+            paymentMethod={sale.payment_method}
+            cashPaid={sale.cash_amount}
+            upiPaid={sale.upi_amount}
+            cardPaid={sale.card_amount}
+            paidAmount={sale.paid_amount}
+            documentType="pos"
+            salesman={sale.salesman || undefined}
+            settingsOverride={thermalProps.settingsOverride as any}
+            showMrp={settings?.show_mrp_column ?? true}
+          />
+        );
+      }
       if (thermalStyle === 'modern') {
         return <ModernThermalReceipt80mm ref={printRef} {...thermalProps} />;
       }
