@@ -49,6 +49,11 @@ import {
   whatsappShareUrl,
 } from "@/lib/storefrontShare";
 import { classifyStorefrontStock, formatStorefrontPrice, aggregateWebsiteVariantStock } from "@/lib/storefrontStock";
+import {
+  fetchAllProductVariantStockRows,
+  fetchOrgProductsByIds,
+  fetchOrgProductsForWebsitePicker,
+} from "@/utils/fetchAllRows";
 import { aggregateVariantRows } from "@/lib/storefrontVariantSummary";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
@@ -530,38 +535,46 @@ function AddProducts({
     enabled: !!orgId,
     staleTime: STALE_LIVE,
     queryFn: async () => {
-      const PICKER_SCAN_LIMIT = 500;
-      let q = supabase
-        .from("products")
-        .select("id, product_name, brand, category, image_url, default_sale_price")
-        .eq("organization_id", orgId!)
-        .is("deleted_at", null)
-        .order("product_name")
-        .limit(PICKER_SCAN_LIMIT);
       const term = search.trim();
-      if (term) q = q.ilike("product_name", `%${term}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      const candidates = (data || []) as CatalogProduct[];
+      const productSelect = "id, product_name, brand, category, image_url, default_sale_price";
+
+      let candidates: CatalogProduct[];
+      let variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }>;
+
+      if (!term) {
+        // Stock-first: every in-stock product, not only the first N names alphabetically.
+        variantRows = await fetchAllProductVariantStockRows(orgId!);
+        const stockByProductAll = aggregateWebsiteVariantStock(variantRows);
+        const idsWithStock = Object.keys(stockByProductAll).filter((id) => stockByProductAll[id].qty > 0);
+        candidates = (await fetchOrgProductsByIds(orgId!, idsWithStock, productSelect)) as CatalogProduct[];
+        candidates.sort((a, b) => (a.product_name ?? "").localeCompare(b.product_name ?? "", "en"));
+      } else {
+        candidates = (await fetchOrgProductsForWebsitePicker(orgId!, term, productSelect)) as CatalogProduct[];
+        if (candidates.length === 0) {
+          return {
+            products: [] as CatalogProduct[],
+            stock: {} as Record<string, { qty: number; price: number | null }>,
+          };
+        }
+        const ids = candidates.map((p) => p.id);
+        variantRows = [];
+        for (let i = 0; i < ids.length; i += 100) {
+          const { data: chunk, error: variantError } = await supabase
+            .from("product_variants")
+            .select("product_id, sale_price, stock_qty")
+            .eq("organization_id", orgId!)
+            .in("product_id", ids.slice(i, i + 100))
+            .is("deleted_at", null);
+          if (variantError) throw variantError;
+          variantRows.push(...((chunk || []) as typeof variantRows));
+        }
+      }
+
       if (candidates.length === 0) {
         return {
           products: [] as CatalogProduct[],
           stock: {} as Record<string, { qty: number; price: number | null }>,
         };
-      }
-
-      const ids = candidates.map((p) => p.id);
-      // Chunk the IN-list so large catalogues don't blow past URL length limits.
-      const variantRows: Array<{ product_id: string; sale_price: number | null; stock_qty: number | null }> = [];
-      for (let i = 0; i < ids.length; i += 100) {
-        const { data: chunk, error: variantError } = await supabase
-          .from("product_variants")
-          .select("product_id, sale_price, stock_qty")
-          .eq("organization_id", orgId!)
-          .in("product_id", ids.slice(i, i + 100))
-          .is("deleted_at", null);
-        if (variantError) throw variantError;
-        variantRows.push(...((chunk || []) as typeof variantRows));
       }
 
       const stockByProduct = aggregateWebsiteVariantStock(variantRows);
@@ -794,7 +807,11 @@ function AddProducts({
                     <>
                       {" · "}
                       <span className="font-medium text-foreground">
-                        {stockListSummary.totalUnits.toLocaleString("en-IN")} total units
+                        {stockListSummary.totalUnits.toLocaleString("en-IN")} units in this list
+                      </span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        (unpublished only; published stock is on Catalogue)
                       </span>
                       {pageCount > 1 && pageStockSummary != null ? (
                         <> (this page: {pageStockSummary.toLocaleString("en-IN")})</>
