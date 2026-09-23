@@ -131,7 +131,7 @@ export default function PublicInvoiceView() {
       window.removeEventListener('resize', recalc);
       clearTimeout(t);
     };
-  }, [data, formatParam]);
+  }, [data, rawFormatParam, isPosShortLink]);
 
   if (isLoading) {
     return (
