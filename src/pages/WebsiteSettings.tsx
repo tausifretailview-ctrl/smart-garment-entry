@@ -796,11 +796,7 @@ function AddProducts({
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
             <InsightsStaticTh label="Colour" />
-cursor/website-picker-coverage-fix-2cad
-            <InsightsStaticTh label="Stock" className="text-right" />
-=======
             <InsightsStaticTh label="Stock" className="text-right w-16" />
-main
             <InsightsStaticTh label="Section" className="w-40" />
             <InsightsStaticTh label="ERP price" className="text-right" />
             <InsightsStaticTh label="Website price" className="text-right w-28" />
