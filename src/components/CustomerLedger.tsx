@@ -89,6 +89,10 @@ import {
   saleReturnCreditForReconciliation,
 } from "@/utils/customerLedgerReconciliation";
 import {
+  customerLedgerDetailNetPosition,
+  customerLedgerDetailUnusedAdvance,
+} from "@/utils/customerLedgerDetailBalance";
+import {
   filterLedgerRowsByCardDrill,
   ledgerCardDrillLabel,
   tabForLedgerCardDrill,
@@ -432,9 +436,27 @@ export function CustomerLedger({
     balance: authoritativeBalance,
     unusedAdvanceTotal: snapshotAdvanceAvailable,
     cnAvailableTotal: snapshotCnAvailable,
+    isLoading: isCustomerBalanceLoading,
   } = useCustomerBalance(
     isSchool ? null : selectedCustomer?.id || null,
     organizationId || null,
+  );
+
+  /** Per-customer audit bundle — do not fall back to party-list unusedAdvance (stale / CN-memo phantom). */
+  const displayUnusedAdvance = useMemo(
+    () =>
+      customerLedgerDetailUnusedAdvance({
+        isSchool,
+        balanceHookLoading: isCustomerBalanceLoading,
+        hookUnusedAdvance: snapshotAdvanceAvailable,
+        listUnusedAdvance: selectedCustomer?.unusedAdvanceTotal ?? 0,
+      }),
+    [
+      isSchool,
+      isCustomerBalanceLoading,
+      snapshotAdvanceAvailable,
+      selectedCustomer?.unusedAdvanceTotal,
+    ],
   );
 
   const snapshotOutstandingDr = authoritativeBalance;
@@ -1734,6 +1756,24 @@ export function CustomerLedger({
     };
   }, [transactions]);
 
+  const displayNetPosition = useMemo(
+    () =>
+      customerLedgerDetailNetPosition({
+        isSchool,
+        balanceHookLoading: isCustomerBalanceLoading,
+        hookNetPosition: authoritativeBalance,
+        invoiceOutstanding: reconciliation.invoiceOutstanding,
+        detailUnusedAdvance: displayUnusedAdvance,
+      }),
+    [
+      isSchool,
+      isCustomerBalanceLoading,
+      authoritativeBalance,
+      reconciliation.invoiceOutstanding,
+      displayUnusedAdvance,
+    ],
+  );
+
   const effectiveBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
     if (isSchool) {
@@ -1773,10 +1813,7 @@ export function CustomerLedger({
    */
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;
-    const unused =
-      snapshotAdvanceAvailable > 0
-        ? snapshotAdvanceAvailable
-        : selectedCustomer.unusedAdvanceTotal || 0;
+    const unused = displayUnusedAdvance;
     const returnsAlreadyInOutstanding = (reconciliation.saleReturns || 0) > 0.5;
     return computeRefundableCreditBalance({
       unusedAdvance: unused,
@@ -1787,7 +1824,7 @@ export function CustomerLedger({
   }, [
     selectedCustomer,
     isSchool,
-    snapshotAdvanceAvailable,
+    displayUnusedAdvance,
     snapshotCnAvailable,
     effectiveBalance,
     reconciliation.saleReturns,
@@ -2049,10 +2086,9 @@ export function CustomerLedger({
         .filter((t) => t.type === "advance")
         .reduce((sum, t) => sum + Math.max(0, Number(t.advanceRemaining || 0)), 0),
     );
-    const advanceBalance =
-      selectedCustomer.unusedAdvanceTotal != null
-        ? Math.round(selectedCustomer.unusedAdvanceTotal)
-        : advanceBalanceFromRows;
+    const advanceBalance = isCustomerBalanceLoading
+      ? advanceBalanceFromRows
+      : displayUnusedAdvance;
     const advanceAdjusted = Math.round(reconciliation.advanceApplied || 0);
     const returnsPending = saleReturnsSummary.pending + saleReturnsSummary.partialPending;
     // Pending SR rows on this ledger, net of cash refunds already paid out (overpayment /
@@ -2091,6 +2127,8 @@ export function CustomerLedger({
     reconciliation,
     saleReturnsSummary,
     pendingSaleReturns,
+    isCustomerBalanceLoading,
+    displayUnusedAdvance,
   ]);
 
   const cnAvailable = ledgerDerivedStats?.cnAvailable ?? 0;
@@ -2867,17 +2905,14 @@ Please clear your dues at the earliest. Thank you!`;
         : invoiceOutstanding < 0
           ? "Outstanding (Cr)"
           : "Outstanding (Nil)";
-    const pdfUnusedAdvance = Math.max(
-      0,
-      Math.round(selectedCustomer?.unusedAdvanceTotal ?? 0),
-    );
+    const pdfUnusedAdvance = Math.max(0, Math.round(displayUnusedAdvance));
     const pdfPoolUnclamped = Math.round(
       (reconciliation.advanceCredit || 0) -
         (reconciliation.advanceApplied || 0) -
         (reconciliation.advanceRefunded || 0),
     );
     const pdfPoolFloored = pdfPoolUnclamped < pdfUnusedAdvance - 0.5;
-    const pdfNetPosition = Math.round(invoiceOutstanding - pdfUnusedAdvance);
+    const pdfNetPosition = Math.round(displayNetPosition);
     const noteLines =
       2 + (pdfPoolFloored ? 1 : 0) + (reconciliation.advanceRefunded > 0 ? 1 : 0) + 1;
     const reconLineH = paper === "a5" ? 4.4 : 5;
@@ -3089,7 +3124,7 @@ Please clear your dues at the earliest. Thank you!`;
       doc.setFontSize(7);
       doc.setFont("helvetica", "italic");
       pdfSetText(doc, LEDGER_PDF.blue);
-      const advFoot = `Unused advance (bookings): Rs. ${(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN")}`;
+      const advFoot = `Unused advance (bookings): Rs. ${displayUnusedAdvance.toLocaleString("en-IN")}`;
       const cnFoot = `CN available (notes): Rs. ${cnAvailable.toLocaleString("en-IN")}`;
       if (yPos > pageBreakY) {
         doc.addPage();
@@ -3557,7 +3592,7 @@ Please clear your dues at the earliest. Thank you!`;
                     <Badge variant="outline">Fully Settled</Badge>
                   )}
                 </div>
-                {effectiveBalance < -0.5 && (selectedCustomer.unusedAdvanceTotal || 0) <= 0.5 && (
+                {effectiveBalance < -0.5 && displayUnusedAdvance <= 0.5 && (
                   <p className="text-[10px] text-muted-foreground mt-1.5 text-left max-w-[220px] ml-auto">
                     Unused advance bookings ₹0 — Record Payment → From Advance cannot use this party credit until advance is restored or a new booking is created.
                   </p>
@@ -3839,7 +3874,7 @@ Please clear your dues at the earliest. Thank you!`;
                     )}
                   <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
                     {(() => {
-                      const unused = selectedCustomer.unusedAdvanceTotal || 0;
+                      const unused = displayUnusedAdvance;
                       const overpay = Math.max(0, refundableCreditBalance - unused);
                       const parts: string[] = [];
                       if (unused > 0) parts.push(`₹${unused.toLocaleString("en-IN")} unused advance`);
@@ -3851,7 +3886,7 @@ Please clear your dues at the earliest. Thank you!`;
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {(selectedCustomer.unusedAdvanceTotal || 0) > 0 && (
+                  {displayUnusedAdvance > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -4339,7 +4374,7 @@ Please clear your dues at the earliest. Thank you!`;
                           (reconciliation.advanceRefunded || 0),
                       );
                       const poolIsFloored = poolUnclamped < unusedAdvance - 0.5;
-                      const netPosition = Math.round(outstanding - unusedAdvance);
+                      const netPosition = Math.round(displayNetPosition);
                       return (
                     <div className="space-y-1.5 text-sm tabular-nums max-w-md">
                       <div className="flex justify-between">
@@ -4903,7 +4938,7 @@ Please clear your dues at the earliest. Thank you!`;
                     <p className="text-sm text-muted-foreground border-t pt-3">
                       Unused advance (bookings):{" "}
                       <span className="font-semibold text-foreground">
-                        ₹{(selectedCustomer.unusedAdvanceTotal ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{displayUnusedAdvance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </span>
                     </p>
                   </TabsContent>
