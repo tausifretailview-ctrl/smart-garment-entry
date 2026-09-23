@@ -4,6 +4,9 @@ import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
 import { splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
+import {
+  vastrakalaParticularsPrimaryLine,
+} from "@/utils/vastrakalaThermalParticulars";
 import "@/styles/vastrakala-thermal-receipt.css";
 
 export interface VastrakalaThermalItem {
@@ -53,28 +56,6 @@ const VASTRAKALA_DEFAULT_TERMS = [
 
 const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00");
 
-/** Line 1 = segment before first '-'; line 2 = rest (+ optional notes) on one row. */
-export function splitVastrakalaParticulars(
-  particulars: string,
-  itemNotes?: string,
-): { head: string; detailLine: string } {
-  const raw = (particulars || "").trim();
-  const notes = (itemNotes || "").trim();
-  if (!raw) {
-    return { head: "", detailLine: notes };
-  }
-  const dash = raw.indexOf("-");
-  if (dash <= 0) {
-    return { head: raw, detailLine: notes };
-  }
-  const head = raw.slice(0, dash).trim();
-  let detailLine = raw.slice(dash + 1).trim();
-  if (notes && !detailLine.includes(notes)) {
-    detailLine = detailLine ? `${detailLine} ${notes}` : notes;
-  }
-  return { head, detailLine };
-}
-
 function VastrakalaHeaderBrandText({
   title,
   tagline,
@@ -108,17 +89,17 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
   const is58 = paper === "58mm";
   const itemGridColumns = showMrp
     ? is58
-      ? "4mm minmax(0, 1fr) 7mm 14mm 17mm"
-      : "5mm minmax(0, 1fr) 8mm 18mm 22mm"
+      ? "4mm minmax(0, 1fr) 8mm 13mm 15mm"
+      : "5mm minmax(0, 1fr) 10mm 15mm 18mm"
     : is58
-      ? "4mm minmax(0, 1fr) 7mm 17mm"
-      : "5mm minmax(0, 1fr) 8mm 22mm";
+      ? "4mm minmax(0, 1fr) 8mm 15mm"
+      : "5mm minmax(0, 1fr) 10mm 18mm";
   return {
     paperWidth: is58 ? "48mm" : "76mm",
-    padding: is58 ? "1.5mm 1mm" : "2mm 1.5mm",
+    padding: is58 ? "1.5mm 1.5mm" : "2mm 2.5mm",
     baseFont: is58 ? "10px" : "12px",
-    headerFont: is58 ? "13px" : "16px",
-    subFont: is58 ? "9px" : "11px",
+    headerFont: is58 ? "14px" : "19px",
+    subFont: is58 ? "10px" : "13px",
     netFont: is58 ? "11px" : "13px",
     logoMax: is58 ? "14mm" : "20mm",
     itemGridColumns,
@@ -302,7 +283,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
       <div style={dashed} />
 
-      <div className="vk-meta">
+      <div className="vk-meta" style={{ marginBottom: 5 }}>
         <div>
           NAME: {(customerName || "CASH").toUpperCase()}
           {customerPhone?.trim() ? `-${customerPhone.trim()}` : ""}
@@ -311,7 +292,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           <span>BILL NO. {billNo}</span>
           <span>DATE : {format(date, "dd-MM-yyyy")}</span>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 2 }}>
           <span>SALESMAN : {(salesman || "-").toUpperCase()}</span>
           <span>TIME - {format(date, "h:mm a")}</span>
         </div>
@@ -324,22 +305,24 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
         style={{
           display: "grid",
           gridTemplateColumns: layout.itemGridColumns,
-          columnGap: "0.8mm",
+          columnGap: "1mm",
+          rowGap: "1mm",
+          marginTop: 4,
+          marginBottom: 4,
         }}
       >
-        <span>NO</span>
-        <span>PARTICULARS</span>
-        <span style={itemNumStyle}>QTY</span>
-        {showMrp ? <span style={itemNumStyle}>MRP</span> : null}
-        <span style={itemNumStyle}>AMOUNT</span>
+        <span style={{ gridColumn: 1 }}>NO</span>
+        <span style={{ gridColumn: 2, minWidth: 0 }}>PARTICULARS</span>
+        <span style={{ ...itemNumStyle, gridColumn: 3 }}>QTY</span>
+        {showMrp ? <span style={{ ...itemNumStyle, gridColumn: 4 }}>MRP</span> : null}
+        <span style={{ ...itemNumStyle, gridColumn: showMrp ? 5 : 4 }}>AMOUNT</span>
       </div>
       <div style={dashed} />
       {items.map((item, i) => {
-        const { head, detailLine } = splitVastrakalaParticulars(item.particulars, item.itemNotes);
+        const primaryName = vastrakalaParticularsPrimaryLine(item.particulars, item.itemNotes);
         const qtyCol = 3;
         const mrpCol = 4;
         const amtCol = showMrp ? 5 : 4;
-        const rowSpan = detailLine ? ("1 / span 2" as const) : undefined;
         return (
           <div
             key={i}
@@ -347,38 +330,33 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             style={{
               display: "grid",
               gridTemplateColumns: layout.itemGridColumns,
-              columnGap: "0.8mm",
+              columnGap: "1mm",
               alignItems: "start",
               marginBottom: 3,
             }}
           >
-            <span style={{ gridColumn: 1, gridRow: rowSpan }}>{item.sr ?? i + 1}</span>
-            <span style={{ gridColumn: 2, gridRow: 1, minWidth: 0, lineHeight: 1.15 }}>
-              {head || item.particulars}
+            <span style={{ gridColumn: 1 }}>{item.sr ?? i + 1}</span>
+            <span
+              className="vk-particular-name"
+              style={{ gridColumn: 2, minWidth: 0, lineHeight: 1.2 }}
+            >
+              {primaryName}
             </span>
-            {detailLine ? (
-              <span
-                className="vk-item-detail"
-                style={{ gridColumn: 2, gridRow: 2, minWidth: 0, lineHeight: 1.15 }}
-              >
-                {detailLine}
-              </span>
-            ) : null}
-            <span style={{ ...itemNumStyle, gridColumn: qtyCol, gridRow: rowSpan }}>{item.qty}</span>
+            <span style={{ ...itemNumStyle, gridColumn: qtyCol }}>{item.qty}</span>
             {showMrp ? (
-              <span style={{ ...itemNumStyle, gridColumn: mrpCol, gridRow: rowSpan }}>
+              <span style={{ ...itemNumStyle, gridColumn: mrpCol }}>
                 {fmtDec(Number(item.mrp) || Number(item.rate) || 0)}
               </span>
             ) : null}
-            <span style={{ ...itemNumStyle, gridColumn: amtCol, gridRow: rowSpan }}>{fmtDec(item.total)}</span>
+            <span style={{ ...itemNumStyle, gridColumn: amtCol }}>{fmtDec(item.total)}</span>
           </div>
         );
       })}
 
       <div style={dashed} />
 
-      <div className="vk-totals" style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <div>
+      <div className="vk-totals" style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingRight: "0.5mm" }}>
+        <div style={{ minWidth: 0 }}>
           <div>Tot.QTY : {totalQty}</div>
           {paymentLines.map((line) => (
             <div key={line.label}>
@@ -386,7 +364,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
             </div>
           ))}
         </div>
-        <div style={{ textAlign: "right" }}>
+        <div className="vk-totals-right" style={{ textAlign: "right", flexShrink: 0, paddingRight: "1mm" }}>
           <div>TOTAL AMT. : {fmtDec(totalAmt)}</div>
           {mrpDiscount > 0 ? <div>DISCOUNT : {fmtDec(mrpDiscount)}</div> : null}
           {saleReturnAdjust > 0 ? <div>S/R : {fmtDec(saleReturnAdjust)}</div> : null}

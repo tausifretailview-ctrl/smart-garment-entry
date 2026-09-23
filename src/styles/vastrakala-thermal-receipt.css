@@ -4,7 +4,7 @@
 .vastrakala-thermal-receipt-80mm.thermal-receipt-container {
   width: 76mm !important;
   max-width: 76mm !important;
-  padding: 2mm 1.5mm !important;
+  padding: 2mm 2.5mm !important;
   font-family: Arial, Helvetica, sans-serif !important;
   font-size: 12px !important;
   font-weight: 400 !important;
@@ -17,7 +17,7 @@
 .vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"].thermal-receipt-container {
   width: 48mm !important;
   max-width: 48mm !important;
-  padding: 1.5mm 1mm !important;
+  padding: 1.5mm 1.5mm !important;
   font-size: 10px !important;
 }
 
@@ -72,11 +72,19 @@
   print-color-adjust: exact;
 }
 
-.vastrakala-thermal-receipt-80mm .vk-item-detail {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.vastrakala-thermal-receipt-80mm .vk-particular-name {
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-weight: 400 !important;
+}
+
+.vastrakala-thermal-receipt-80mm .vk-items-head span:nth-child(n + 3),
+.vastrakala-thermal-receipt-80mm .vk-items-row span:nth-child(n + 3) {
+  justify-self: end;
+}
+
+.vastrakala-thermal-receipt-80mm .vk-totals-right {
+  font-variant-numeric: tabular-nums;
 }
 
 .vastrakala-thermal-receipt-80mm .vk-totals {
