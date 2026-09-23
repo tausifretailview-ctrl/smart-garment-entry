@@ -16,6 +16,19 @@ function firebaseConfig() {
   };
 }
 
+// True only when every Firebase value the messaging flow needs is present.
+// authDomain/storageBucket are intentionally excluded: unused by FCM.
+export function isFirebaseConfigured(): boolean {
+  const required = [
+    import.meta.env.VITE_FIREBASE_API_KEY,
+    import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    import.meta.env.VITE_FIREBASE_APP_ID,
+    import.meta.env.VITE_FIREBASE_VAPID_KEY,
+  ];
+  return required.every((v) => typeof v === "string" && v.trim().length > 0);
+}
+
 export function isPushSupportedBrowser(): boolean {
   return (
     typeof window !== "undefined" &&

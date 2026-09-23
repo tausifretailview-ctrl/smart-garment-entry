@@ -10,6 +10,7 @@ import {
 } from "../lib/client";
 import {
   enablePush,
+  isFirebaseConfigured,
   isIos,
   isIosStandalone,
   isPushSupportedBrowser,
@@ -183,6 +184,7 @@ export default function TokenPage() {
   const showIosHint = isIos() && !isIosStandalone();
   const showPushCard =
     engage &&
+    isFirebaseConfigured() &&
     pushState !== "done" &&
     pushState !== "off" &&
     (isPushSupportedBrowser() || showIosHint);
