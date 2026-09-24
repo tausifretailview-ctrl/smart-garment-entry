@@ -179,7 +179,7 @@ import { POS_DEFERRED_INVALIDATION_OPTS, type PosWhatsAppPdfCaptureMeta } from "
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, saleFormatToLikePattern } from "@/utils/saleNumber";
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
-import { maxCombinedDiscountForGross } from "@/utils/saleSettlement";
+import { getAvailableCN, maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
 import {
   normalizeGstTaxType,
@@ -2334,48 +2334,30 @@ export default function POSSales() {
         setAvailableCreditBalance(balance);
         // Fetch pending sale return credit notes for this customer
         if (currentOrganization?.id) {
-          const { data: pendingReturns } = await supabase
-            .from("sale_returns")
-            .select("id, return_number, net_amount, credit_note_id")
-            .eq("organization_id", currentOrganization.id)
-            .eq("customer_id", customerId)
-            .is("deleted_at", null)
-            .in("credit_status", ["pending"])
-            .not("credit_status", "in", '("adjusted","adjusted_outstanding")')
-            .eq("refund_type", "credit_note")
-            .order("return_date", { ascending: false });
-          const returns = pendingReturns || [];
-
-          // Hide stale "pending" sale-return CN rows when the linked credit note is fully used.
-          const linkedCreditNoteIds = returns
-            .map((r: any) => r.credit_note_id)
-            .filter((id: any) => !!id);
-
-          if (linkedCreditNoteIds.length === 0) {
-            setPendingSaleReturnCredits(returns);
-          } else {
-            const { data: linkedNotes } = await supabase
-              .from("credit_notes")
-              .select("id, credit_amount, used_amount, status")
-              .in("id", linkedCreditNoteIds as any);
-
-            const linkedMap = new Map<string, any>(
-              (linkedNotes || []).map((n: any) => [String(n.id), n])
+          // Same pool billing consumes from (useSaveSale.consumeSaleReturnAdjustments):
+          // pending / partially adjusted CNs plus exchange returns whose bill was never
+          // saved (credit_status "adjusted", no linked sale). Using a narrower query here
+          // hid redeemable credit that the customer badge and balance already show.
+          try {
+            const { returns: cnPool } = await getAvailableCN(
+              supabase,
+              customerId,
+              currentOrganization.id,
+              { includeUnlinkedAdjusted: true },
             );
-
-            const filtered = returns.filter((sr: any) => {
-              if (!sr.credit_note_id) return true;
-              const note = linkedMap.get(String(sr.credit_note_id));
-              if (!note) return true; // keep visible if mapping missing
-              const creditAmount = Number(note.credit_amount) || 0;
-              const usedAmount = Number(note.used_amount) || 0;
-              const remaining = Math.max(0, creditAmount - usedAmount);
-              const isFullyUsed =
-                String(note.status || "").toLowerCase() === "fully_used" || remaining <= 0.01;
-              return !isFullyUsed;
-            });
-
-            setPendingSaleReturnCredits(filtered);
+            setPendingSaleReturnCredits(
+              [...cnPool]
+                .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
+                .map((r) => ({
+                  id: r.id,
+                  return_number: r.return_number || "",
+                  net_amount: r.available,
+                  credit_note_id: null,
+                })),
+            );
+          } catch (err) {
+            console.error("Failed to load sale return credits:", err);
+            setPendingSaleReturnCredits([]);
           }
 
           // Customer-wise CN redeem trace: recently adjusted sale returns with invoice linkage.

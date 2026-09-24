@@ -127,6 +127,8 @@ const getCreditStatusBadgeClass = (ret: SaleReturn): string => {
   if (status === "refunded") return "bg-slate-500 hover:bg-slate-600 text-white";
   if (status === "adjusted" && ret.linked_sale_id) return "bg-green-500 hover:bg-green-600 text-white";
   if (status === "partially_adjusted") return "bg-orange-400 hover:bg-orange-500 text-white";
+  if (status === "adjusted" && ret.refund_type === "exchange" && !ret.credit_note_id)
+    return "bg-amber-500 hover:bg-amber-600 text-white";
   if (status === "adjusted") return "bg-teal-500 hover:bg-teal-600 text-white";
   if (status === "adjusted_outstanding") return "bg-violet-500 hover:bg-violet-600 text-white";
   return "bg-red-500 hover:bg-red-600 text-white";
@@ -141,6 +143,15 @@ const formatCreditStatusLabel = (ret: SaleReturn) => {
     if (remaining > 0)
       return `S/R Partial — ₹${remaining.toLocaleString("en-IN")} CN Remaining`;
     return "S/R Adjusted in Invoice";
+  }
+  // Exchange saved from POS but the new bill was never saved: credit is still
+  // available (POS S/R Adj offers it), so don't claim a credit note was generated.
+  if (
+    ret.credit_status === "adjusted" &&
+    ret.refund_type === "exchange" &&
+    !ret.credit_note_id
+  ) {
+    return "Exchange Credit Pending";
   }
   if (ret.credit_status === "adjusted") return "Credit Note Generated";
   if (ret.credit_status === "pending") return "Credit Note Pending";
