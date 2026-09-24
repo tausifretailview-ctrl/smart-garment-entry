@@ -93,6 +93,7 @@ DECLARE
   r record;
   v_return_number text;
   v_sale_number text;
+  v_cancelled boolean;
   v_inserted int := 0;
   v_fy text;
   v_seq integer;
@@ -163,7 +164,10 @@ BEGIN
       RAISE EXCEPTION 'Refusing zero remaining for %', r.credit_note_number;
     END IF;
 
-    SELECT s.sale_number INTO v_sale_number
+    SELECT s.sale_number,
+           COALESCE(s.is_cancelled, false)
+             OR lower(COALESCE(s.payment_status, '')) = 'cancelled'
+    INTO v_sale_number, v_cancelled
     FROM public.credit_notes cn
     LEFT JOIN public.sales s
       ON s.id = cn.sale_id
@@ -219,8 +223,16 @@ BEGIN
       r.id,
       'credit_note',
       NULL,
-      NULLIF(btrim(COALESCE(v_sale_number, '')), ''),
+      CASE
+        WHEN v_cancelled THEN NULL
+        ELSE NULLIF(btrim(COALESCE(v_sale_number, '')), '')
+      END,
       'Backfilled 24 Sep 2026 — repair for orphaned exchange-excess credit note'
+        || CASE
+             WHEN v_cancelled AND NULLIF(btrim(COALESCE(v_sale_number, '')), '') IS NOT NULL
+               THEN ' | issuing invoice ' || btrim(v_sale_number) || ' is cancelled'
+             ELSE ''
+           END
     );
 
     v_inserted := v_inserted + 1;
