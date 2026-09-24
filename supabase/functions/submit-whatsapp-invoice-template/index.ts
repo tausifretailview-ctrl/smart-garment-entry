@@ -13,6 +13,7 @@ import {
   buildOfficialMetaInvoiceTemplateCreateBody,
   isDuplicateWhatsAppTemplateError,
   officialMetaInvoiceTemplateIsReady,
+  replaceTemplateLogoWithShopDetails,
 } from "../_shared/officialMetaInvoiceTemplate.ts";
 
 const corsHeaders = {
@@ -57,7 +58,10 @@ serve(async (req) => {
   }
 
   try {
-    const { organizationId } = await req.json();
+    const body = await req.json();
+    const organizationId = typeof body?.organizationId === "string" ? body.organizationId.trim() : "";
+    const templateName = typeof body?.templateName === "string" ? body.templateName.trim() : "";
+    const replaceLogoWithShopDetails = body?.replaceLogoWithShopDetails === true;
     if (!organizationId) {
       return new Response(JSON.stringify({ success: false, error: "organizationId required" }), {
         status: 400,
@@ -156,6 +160,77 @@ serve(async (req) => {
     if (!wabaId) throw new Error("WhatsApp Business Account ID (WABA ID) is required.");
 
     const headers = buildWhatsAppAuthHeaders(accessToken);
+
+    if (replaceLogoWithShopDetails) {
+      if (!/^[a-z0-9_]{1,512}$/.test(templateName)) {
+        return new Response(JSON.stringify({ success: false, error: "A valid templateName is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: companySettings, error: companyError } = await supabase
+        .from("settings")
+        .select("business_name, address")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (companyError) throw companyError;
+      if (!companySettings?.business_name || !companySettings?.address) {
+        throw new Error("Save the shop name and address in Company Profile before updating the template.");
+      }
+
+      const customListUrl =
+        `${baseUrl}/${version}/${wabaId}/message_templates?name=${encodeURIComponent(templateName)}&limit=20`;
+      const customListRes = await fetch(customListUrl, { headers });
+      const customListData = await customListRes.json().catch(() => ({}));
+      if (!customListRes.ok) {
+        throw new Error(parseWhatsAppProviderError(customListData, customListRes.status, "Failed to read WhatsApp template"));
+      }
+      const existingTemplate = Array.isArray(customListData?.data) ? customListData.data[0] : null;
+      if (!existingTemplate?.id) {
+        throw new Error(`Template ${templateName} was not found in the connected WhatsApp account.`);
+      }
+
+      const updatedComponents = replaceTemplateLogoWithShopDetails(existingTemplate.components, {
+        businessName: companySettings.business_name,
+        address: companySettings.address,
+      });
+      const editRes = await fetch(`${baseUrl}/${version}/${existingTemplate.id}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ components: updatedComponents }),
+      });
+      const editData = await editRes.json().catch(() => ({}));
+      if (!editRes.ok) {
+        throw new Error(parseWhatsAppProviderError(editData, editRes.status, "Failed to update WhatsApp template"));
+      }
+
+      const submittedStatus = String(editData?.status ?? "PENDING").toUpperCase();
+      await supabase.from("whatsapp_meta_templates").upsert(
+        {
+          organization_id: organizationId,
+          template_name: templateName,
+          template_category: existingTemplate.category || "MARKETING",
+          template_language: existingTemplate.language || "en",
+          template_status: submittedStatus,
+          components: updatedComponents,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "organization_id,template_name,template_language" },
+      );
+
+      return new Response(JSON.stringify({
+        success: true,
+        action: "updated",
+        status: submittedStatus,
+        templateName,
+        templateId: String(existingTemplate.id),
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const listUrl =
       `${baseUrl}/${version}/${wabaId}/message_templates?name=${encodeURIComponent(OFFICIAL_META_INVOICE_TEMPLATE_NAME)}&limit=20`;
     const listRes = await fetch(listUrl, { headers });
