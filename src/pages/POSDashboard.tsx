@@ -967,18 +967,36 @@ const POSDashboard = () => {
     posSummaryStats != null && posDashboardModeTotalsNeedCorrection(posSummaryStats);
 
   // Signature of the stats object a mode correction is computed from (see
-  // version-gating on the mode-correct query below).
+  // version-gating on the mode-correct query below). Covers every numeric
+  // card field so ANY change a delete (or patch/refetch) can produce flips
+  // the signature — a narrower subset could let a bucket-only shift slip
+  // through with a stale correction.
   const summaryCorrectionSignature = posSummaryStats
     ? [
         posSummaryStats.totalBills,
-        posSummaryStats.netSale,
+        posSummaryStats.totalQty,
         posSummaryStats.totalAmount,
+        posSummaryStats.totalDiscount,
+        posSummaryStats.netSale,
+        posSummaryStats.completedCount,
+        posSummaryStats.completedAmount,
+        posSummaryStats.pendingCount,
+        posSummaryStats.pendingAmount,
+        posSummaryStats.holdCount,
+        posSummaryStats.holdAmount,
+        posSummaryStats.refundCount,
+        posSummaryStats.refundAmount,
+        posSummaryStats.creditNoteCount,
+        posSummaryStats.creditNoteAmount,
         posSummaryStats.totalCash,
         posSummaryStats.totalCard,
         posSummaryStats.totalUpi,
         posSummaryStats.totalBalance,
-        posSummaryStats.pendingCount,
-        posSummaryStats.completedCount,
+        posSummaryStats.totalSaleReturnAdjust,
+        posSummaryStats.totalRoundOff,
+        posSummaryStats.cashBillCount,
+        posSummaryStats.cardBillCount,
+        posSummaryStats.upiBillCount,
       ].join("|")
     : null;
 
