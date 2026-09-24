@@ -7,6 +7,7 @@ import {
   buildPosDashboardPaymentMethodOrFilter,
   buildPosDashboardSummaryScopeFilters,
   computePosDashboardSummaryStats,
+  patchPosDashboardSaleDelete,
   patchPosDashboardSalePayment,
   posDashboardModeTotalsNeedCorrection,
   posDashboardSummaryLooksValid,
@@ -533,5 +534,99 @@ describe("patchPosDashboardSalePayment", () => {
     expect(tiles.completedCount).toBe(1);
     expect(tiles.pendingCount).toBe(0);
     expect(tiles.totalBalance).toBe(0);
+  });
+});
+
+describe("patchPosDashboardSaleDelete", () => {
+  const summaryKey = ["pos-dashboard-sales", "org-1", "summary", "", "daily"];
+  const makeStore = (summary: PosDashboardSummaryStats) => {
+    const store = new Map<string, unknown>();
+    store.set(JSON.stringify(summaryKey), { ...summary });
+    return {
+      store,
+      queryClient: {
+        getQueryCache: () => ({
+          findAll: () => [
+            { queryKey: summaryKey, state: { data: store.get(JSON.stringify(summaryKey)) } },
+          ],
+        }),
+        setQueryData: (key: unknown[], data: unknown) => {
+          store.set(JSON.stringify(key), data);
+        },
+      },
+    };
+  };
+  const baseSummary: PosDashboardSummaryStats = {
+    totalBills: 2,
+    totalQty: 5,
+    totalAmount: 4000,
+    totalDiscount: 200,
+    netSale: 3800,
+    completedCount: 1,
+    completedAmount: 1840,
+    pendingCount: 1,
+    pendingAmount: 1960,
+    holdCount: 0,
+    holdAmount: 0,
+    refundCount: 0,
+    refundAmount: 0,
+    creditNoteCount: 0,
+    creditNoteAmount: 0,
+    totalCash: 0,
+    totalCard: 0,
+    totalUpi: 3800,
+    totalBalance: 1960,
+    totalSaleReturnAdjust: 0,
+    totalRoundOff: 0,
+    cashBillCount: 0,
+    cardBillCount: 0,
+    upiBillCount: 2,
+  };
+
+  it("decrements bills, amounts, mode totals and status buckets instantly", () => {
+    const { store, queryClient } = makeStore(baseSummary);
+    patchPosDashboardSaleDelete(queryClient as never, "org-1", [
+      {
+        qty: 3,
+        grossAmount: 2450,
+        discountAmount: 610,
+        netAmount: 1840,
+        cashAmount: 0,
+        cardAmount: 0,
+        upiAmount: 1840,
+        paidAmount: 1840,
+        saleReturnAdjust: 0,
+        paymentStatus: "completed",
+      },
+    ]);
+    const tiles = store.get(JSON.stringify(summaryKey)) as PosDashboardSummaryStats;
+    expect(tiles.totalBills).toBe(1);
+    expect(tiles.totalQty).toBe(2);
+    expect(tiles.totalAmount).toBe(1550);
+    expect(tiles.totalDiscount).toBe(0);
+    expect(tiles.netSale).toBe(1960);
+    expect(tiles.totalUpi).toBe(1960);
+    expect(tiles.completedCount).toBe(0);
+    expect(tiles.completedAmount).toBe(0);
+    expect(tiles.pendingCount).toBe(1);
+    expect(tiles.totalBalance).toBe(1960);
+  });
+
+  it("clamps at zero and ignores empty input", () => {
+    const { store, queryClient } = makeStore({ ...baseSummary, totalBills: 0 });
+    patchPosDashboardSaleDelete(queryClient as never, "org-1", [
+      { netAmount: 5000, paymentStatus: "pending", paidAmount: 0 },
+    ]);
+    const tiles = store.get(JSON.stringify(summaryKey)) as PosDashboardSummaryStats;
+    expect(tiles.totalBills).toBe(0);
+    expect(tiles.netSale).toBe(0);
+    expect(tiles.pendingCount).toBe(0);
+
+    const before = JSON.stringify(store.get(JSON.stringify(summaryKey)));
+    patchPosDashboardSaleDelete(queryClient as never, "org-1", []);
+    patchPosDashboardSaleDelete(queryClient as never, "", [
+      { netAmount: 100 },
+    ]);
+    expect(JSON.stringify(store.get(JSON.stringify(summaryKey)))).toBe(before);
   });
 });

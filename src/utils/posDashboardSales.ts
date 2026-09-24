@@ -1638,6 +1638,76 @@ export function patchPosDashboardSalePayment(
   }
 }
 
+export interface PosDashboardDeletedSaleFigures {
+  qty?: number;
+  grossAmount?: number;
+  discountAmount?: number;
+  netAmount?: number;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  paidAmount?: number;
+  saleReturnAdjust?: number;
+  paymentStatus?: string;
+}
+
+/**
+ * Optimistically remove soft-deleted bills from the summary tiles without
+ * waiting on the summary refetch (RPC + scans). Mirrors
+ * patchPosDashboardSalePayment — delete is the one dashboard mutation with no
+ * other optimistic update, so without this the cards visibly lag the table.
+ * Status buckets beyond completed/pending are left for the refetch to settle.
+ */
+export function patchPosDashboardSaleDelete(
+  queryClient: QueryClient,
+  organizationId: string,
+  deletedSales: PosDashboardDeletedSaleFigures[],
+): void {
+  if (!organizationId || deletedSales.length === 0) return;
+
+  const queries = queryClient.getQueryCache().findAll({
+    queryKey: [POS_DASHBOARD_QUERY_KEY, organizationId],
+  });
+
+  for (const query of queries) {
+    const key = query.queryKey as unknown[];
+    if (key[2] !== "summary") continue;
+    const stats = query.state.data as PosDashboardSummaryStats | null | undefined;
+    if (stats == null) continue;
+    const next = { ...stats };
+    const dec = (v: number, by: number) => Math.max(0, v - by);
+    for (const s of deletedSales) {
+      const net = Number(s.netAmount || 0);
+      next.totalBills = dec(next.totalBills, 1);
+      next.totalQty = dec(next.totalQty, Number(s.qty || 0));
+      next.totalAmount = dec(next.totalAmount, Number(s.grossAmount || 0));
+      next.totalDiscount = dec(next.totalDiscount, Number(s.discountAmount || 0));
+      next.netSale = dec(next.netSale, net);
+      next.totalCash = dec(next.totalCash, Number(s.cashAmount || 0));
+      next.totalCard = dec(next.totalCard, Number(s.cardAmount || 0));
+      next.totalUpi = dec(next.totalUpi, Number(s.upiAmount || 0));
+      next.totalSaleReturnAdjust = dec(
+        next.totalSaleReturnAdjust,
+        Number(s.saleReturnAdjust || 0),
+      );
+      const outstanding = Math.max(
+        0,
+        net - Number(s.paidAmount || 0) - Number(s.saleReturnAdjust || 0),
+      );
+      next.totalBalance = dec(next.totalBalance, outstanding);
+      const status = String(s.paymentStatus || "");
+      if (status === "completed") {
+        next.completedCount = dec(next.completedCount, 1);
+        next.completedAmount = dec(next.completedAmount, net);
+      } else if (status === "pending") {
+        next.pendingCount = dec(next.pendingCount, 1);
+        next.pendingAmount = dec(next.pendingAmount, outstanding);
+      }
+    }
+    queryClient.setQueryData(key, next);
+  }
+}
+
 /** Invalidate table page and summary tiles after a POS dashboard mutation. */
 export function invalidatePosDashboardQueries(
   queryClient: QueryClient,

@@ -11,6 +11,8 @@ import {
   posDashboardModeTotalsNeedCorrection,
   invalidatePosDashboardQueries,
   patchPosDashboardSalePayment,
+  patchPosDashboardSaleDelete,
+  type PosDashboardDeletedSaleFigures,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
@@ -964,17 +966,39 @@ const POSDashboard = () => {
   const summaryNeedsModeCorrection =
     posSummaryStats != null && posDashboardModeTotalsNeedCorrection(posSummaryStats);
 
+  // Signature of the stats object a mode correction is computed from (see
+  // version-gating on the mode-correct query below).
+  const summaryCorrectionSignature = posSummaryStats
+    ? [
+        posSummaryStats.totalBills,
+        posSummaryStats.netSale,
+        posSummaryStats.totalAmount,
+        posSummaryStats.totalCash,
+        posSummaryStats.totalCard,
+        posSummaryStats.totalUpi,
+        posSummaryStats.totalBalance,
+        posSummaryStats.pendingCount,
+        posSummaryStats.completedCount,
+      ].join("|")
+    : null;
+
   const { data: modeCorrectedSummary } = useQuery({
-    queryKey: [...posDashboardSummaryQueryKey, "mode-correct"],
+    // Versioned by the base stats signature: the correction query can outlive
+    // its inputs (a disabled query keeps last data), so without the signature
+    // in the key a stale correction could outrank fresher main-query stats in
+    // the ?? fallback below (frozen KPI cards after delete). The render-time
+    // baseSignature check covers the in-flight race.
+    queryKey: [...posDashboardSummaryQueryKey, "mode-correct", summaryCorrectionSignature],
     queryFn: async () => {
-      if (!currentOrganization?.id || !posSummaryStats) return null;
-      return correctPosDashboardSummaryModeTotals(
+      if (!currentOrganization?.id || !posSummaryStats || !summaryCorrectionSignature) return null;
+      const corrected = await correctPosDashboardSummaryModeTotals(
         supabase,
         posDashboardFilters,
         posSummaryStats,
       );
+      return { corrected, baseSignature: summaryCorrectionSignature };
     },
-    enabled: posQueryEnabled && summaryNeedsModeCorrection,
+    enabled: posQueryEnabled && summaryNeedsModeCorrection && summaryCorrectionSignature != null,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
@@ -1286,6 +1310,20 @@ const POSDashboard = () => {
     }
   };
 
+  const saleDeleteFigures = (sale: Sale): PosDashboardDeletedSaleFigures => ({
+    qty: getSaleRowQty(sale, saleItems[sale.id]) ?? 0,
+    grossAmount: Number(sale.gross_amount || 0),
+    discountAmount:
+      Number(sale.discount_amount || 0) + Number((sale as { flat_discount_amount?: number }).flat_discount_amount || 0),
+    netAmount: Number(sale.net_amount || 0),
+    cashAmount: Number((sale as { cash_amount?: number }).cash_amount || 0),
+    cardAmount: Number((sale as { card_amount?: number }).card_amount || 0),
+    upiAmount: Number((sale as { upi_amount?: number }).upi_amount || 0),
+    paidAmount: Number(sale.paid_amount || 0),
+    saleReturnAdjust: Number(sale.sale_return_adjust || 0),
+    paymentStatus: sale.payment_status,
+  });
+
   const handleDeleteSale = async () => {
     if (!saleToDelete || !hasSpecialPermission('delete_records')) return;
     if (
@@ -1338,6 +1376,13 @@ const POSDashboard = () => {
       });
 
       invalidateStockReportQueries(queryClient, currentOrganization?.id);
+      if (saleToDelete && currentOrganization?.id) {
+        // Instant card update — the summary refetch (RPC + scans) lands later
+        // and reconciles any rounding the optimistic patch can't know.
+        patchPosDashboardSaleDelete(queryClient, currentOrganization.id, [
+          saleDeleteFigures(saleToDelete),
+        ]);
+      }
       refreshPosDashboard();
     } catch (error: any) {
       console.error("Error deleting sale:", error);
@@ -1425,6 +1470,16 @@ const POSDashboard = () => {
       invalidateStockReportQueries(queryClient, currentOrganization?.id);
       setSelectedSales(new Set());
       setShowBulkDeleteDialog(false);
+      if (currentOrganization?.id) {
+        patchPosDashboardSaleDelete(
+          queryClient,
+          currentOrganization.id,
+          salesToDelete
+            .map((sid) => sales.find((saleRow) => saleRow.id === sid))
+            .filter((saleRow): saleRow is Sale => Boolean(saleRow))
+            .map((saleRow) => saleDeleteFigures(saleRow)),
+        );
+      }
       refreshPosDashboard();
     } catch (error: any) {
       console.error("Error deleting sales:", error);
@@ -2455,8 +2510,26 @@ const POSDashboard = () => {
     !summaryQueryError &&
     posDashboardSummaryLooksValid(posSummaryStats, totalCount);
 
+  // A correction computed from older stats must never outrank fresher
+  // main-query stats. When the base moves on (delete/refetch/optimistic
+  // patch), fall through to the fresh main stats; the versioned query key
+  // above refetches the correction for the new base in the background.
+  const gatedModeCorrection =
+    modeCorrectedSummary && modeCorrectedSummary.baseSignature === summaryCorrectionSignature
+      ? modeCorrectedSummary.corrected
+      : null;
+  if (
+    import.meta.env.DEV &&
+    modeCorrectedSummary &&
+    modeCorrectedSummary.baseSignature !== summaryCorrectionSignature
+  ) {
+    console.warn(
+      "[POSDashboard] dropped stale mode-corrected summary (base mismatch) — showing fresh main stats",
+    );
+  }
+
   const resolvedSummaryStats =
-    modeCorrectedSummary ?? (statsLookValid ? posSummaryStats : null);
+    gatedModeCorrection ?? (statsLookValid ? posSummaryStats : null);
 
   const summaryStats = resolvedSummaryStats
     ? resolvedSummaryStats
