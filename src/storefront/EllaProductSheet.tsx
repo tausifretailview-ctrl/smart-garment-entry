@@ -248,7 +248,7 @@ export function EllaProductSheet({
                 </div>
                 <div>
                   <div className="ella-assure-label">Payment</div>
-                  <div className="ella-assure-value">UPI · COD</div>
+                  <div className="ella-assure-value">UPI</div>
                 </div>
                 <div>
                   <div className="ella-assure-label">Exchange</div>
@@ -276,9 +276,8 @@ export function EllaProductSheet({
                   start; the balance before dispatch.
                 </Panel>
                 <Panel id="shipping" title="Shipping & exchange" open={panel === "shipping"} onToggle={setPanel}>
-                  Free prepaid shipping across India. Cash on delivery up to ₹10,000 with an ₹80 handling
-                  fee, ready-to-wear only. Exchange within 7 days if unworn with tags; made-to-order
-                  pieces are final sale.
+                  Free prepaid shipping across India. Pay by UPI. Exchange within 7 days if unworn with
+                  tags; made-to-order pieces are final sale.
                 </Panel>
               </div>
             </div>

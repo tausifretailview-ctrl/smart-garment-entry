@@ -14,11 +14,8 @@ import {
 } from "./ellaCart";
 import {
   ELLA_ADVANCE_PERCENT,
-  ELLA_COD_FEE,
-  ELLA_COD_MAX,
   buildEllaOrderMessage,
   ellaAdvanceAmount,
-  ellaCodEligible,
   ellaHasMadeToOrder,
   ellaOrderDueLater,
   ellaPayableNow,
@@ -61,14 +58,9 @@ export function EllaCartSheet({
 
   const total = useMemo(() => ellaCartTotal(cart), [cart]);
   const count = ellaCartCount(cart);
-  const codAllowed = useMemo(() => ellaCodEligible(cart, total), [cart, total]);
   const hasMto = useMemo(() => ellaHasMadeToOrder(cart), [cart]);
   const payNow = ellaPayableNow(total, method);
   const dueLater = ellaOrderDueLater(total, method);
-
-  useEffect(() => {
-    if (method === "cod" && !codAllowed) setMethod("upi");
-  }, [codAllowed, method]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -357,41 +349,24 @@ export function EllaCartSheet({
                     onPick={setMethod}
                   />
                 ) : null}
-                <PayOption
-                  id="cod"
-                  active={method === "cod"}
-                  disabled={!codAllowed}
-                  title="Cash on delivery"
-                  body={
-                    codAllowed
-                      ? `Ready-to-wear only. An ${formatStorefrontPrice(ELLA_COD_FEE)} handling fee applies.`
-                      : `Not available on this order — COD is ready-to-wear only, up to ${formatStorefrontPrice(ELLA_COD_MAX)}.`
-                  }
-                  amount={codAllowed ? `+ ${formatStorefrontPrice(ELLA_COD_FEE)}` : "—"}
-                  onPick={setMethod}
-                />
               </div>
 
-              {method !== "cod" ? (
-                <>
-                  <EllaUpiPayBlock
-                    upiId={upiId}
-                    upiBusinessName={upiBusinessName || shopName}
-                    amount={payNow}
-                    note={`Ella order ${cart.map((l) => l.code).join(",").slice(0, 40)}`}
-                  />
-                  <label className="ella-utr-field">
-                    <span>UPI reference number</span>
-                    <input
-                      value={upiReference}
-                      onChange={(e) => setUpiReference(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 24))}
-                      inputMode="numeric"
-                      placeholder="12-digit UTR from your payment app"
-                      required
-                    />
-                  </label>
-                </>
-              ) : null}
+              <EllaUpiPayBlock
+                upiId={upiId}
+                upiBusinessName={upiBusinessName || shopName}
+                amount={payNow}
+                note={`Ella order ${cart.map((l) => l.code).join(",").slice(0, 40)}`}
+              />
+              <label className="ella-utr-field">
+                <span>UPI reference number</span>
+                <input
+                  value={upiReference}
+                  onChange={(e) => setUpiReference(e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 24))}
+                  inputMode="numeric"
+                  placeholder="12-digit UTR from your payment app"
+                  required
+                />
+              </label>
 
               <div className="ella-pay-summary">
                 <div>
@@ -400,7 +375,7 @@ export function EllaCartSheet({
                 </div>
                 {dueLater > 0 ? (
                   <div>
-                    <span>{method === "cod" ? "Pay on delivery" : "Balance before dispatch"}</span>
+                    <span>Balance before dispatch</span>
                     <span>{formatStorefrontPrice(dueLater)}</span>
                   </div>
                 ) : null}
@@ -424,14 +399,12 @@ export function EllaCartSheet({
             <div className="ella-success" role="status">
               <div className="ella-display ella-success-title">Thank you</div>
               <p>
-                Order {orderRef} is in. {method === "cod"
-                  ? "We will call to confirm before dispatch."
-                  : "We will mark payment verified once your UPI reference lands — usually within an hour on working days."}
+                Order {orderRef} is in. We will mark payment verified once your UPI reference lands — usually within an hour on working days.
               </p>
               <div className="ella-track">
                 {[
                   ["Order placed", "Created in Ezzy ERP"],
-                  [method === "cod" ? "Order confirmed by call" : "Payment verified", "Studio checks the bank feed"],
+                  ["Payment verified", "Studio checks the bank feed"],
                   ["Packed at studio", "Stock moved out of your size"],
                   ["Dispatched", "Tracking sent on WhatsApp"],
                 ].map(([title, body], index) => (
