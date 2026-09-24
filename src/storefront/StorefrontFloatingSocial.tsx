@@ -1,4 +1,9 @@
-import { InstagramBrandIcon, WhatsAppBrandIcon } from "./storefrontSocialIcons";
+import {
+  InstagramBrandIcon,
+  InstagramStrokeIcon,
+  WhatsAppBrandIcon,
+  WhatsAppStrokeIcon,
+} from "./storefrontSocialIcons";
 
 type StorefrontFloatingSocialProps = {
   whatsappHref?: string | null;
@@ -27,7 +32,11 @@ export function StorefrontFloatingSocial({
           className="storefront-floating-social-btn storefront-floating-social-wa"
           aria-label="WhatsApp"
         >
-          <WhatsAppBrandIcon className="storefront-floating-social-icon" />
+          {variant === "ella" ? (
+            <WhatsAppStrokeIcon className="storefront-floating-social-icon" />
+          ) : (
+            <WhatsAppBrandIcon className="storefront-floating-social-icon" />
+          )}
         </a>
       ) : null}
       {instagramUrl ? (
@@ -38,7 +47,11 @@ export function StorefrontFloatingSocial({
           className="storefront-floating-social-btn storefront-floating-social-ig"
           aria-label="Instagram"
         >
-          <InstagramBrandIcon className="storefront-floating-social-icon" />
+          {variant === "ella" ? (
+            <InstagramStrokeIcon className="storefront-floating-social-icon" />
+          ) : (
+            <InstagramBrandIcon className="storefront-floating-social-icon" />
+          )}
         </a>
       ) : null}
     </div>

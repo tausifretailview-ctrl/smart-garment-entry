@@ -25,6 +25,7 @@ import {
 } from "./ellaProduct";
 import { resolveEllaHeaderNav, isEllaHomeNav, type EllaHeaderNavItem } from "./ellaNav";
 import { ellaCopy, storefrontLocationLine } from "./storefrontTheme";
+import { InstagramStrokeIcon, WhatsAppStrokeIcon } from "./storefrontSocialIcons";
 import "./ella-home.css";
 
 type Props = {
@@ -645,10 +646,8 @@ export function EllaStorefrontHome({
       <footer className="en-footer">
         <div className="en-wrap en-footer-grid">
           <div className="en-footer-col">
-            <b style={{ fontSize: 22, letterSpacing: "0.1em", color: "var(--en-ink)", textTransform: "none" }}>
-              {shopName}
-            </b>
-            <span style={{ maxWidth: "30ch" }}>{ellaCopy.studioNote}</span>
+            <b className="en-footer-brand">{shopName}</b>
+            <span className="en-footer-note">{ellaCopy.studioNote}</span>
           </div>
           <div className="en-footer-col">
             <b>Shop</b>
@@ -666,10 +665,16 @@ export function EllaStorefrontHome({
           </div>
           <div className="en-footer-col">
             <b>Studio</b>
-            {waHref ? <a href={waHref}>WhatsApp the studio</a> : null}
+            {waHref ? (
+              <a className="en-footer-social" href={waHref} target="_blank" rel="noreferrer">
+                <WhatsAppStrokeIcon className="en-footer-social-icon" />
+                <span>WhatsApp</span>
+              </a>
+            ) : null}
             {instagramUrl ? (
-              <a href={instagramUrl} aria-label="Instagram">
-                Instagram
+              <a className="en-footer-social" href={instagramUrl} target="_blank" rel="noreferrer" aria-label="Instagram">
+                <InstagramStrokeIcon className="en-footer-social-icon" />
+                <span>Instagram</span>
               </a>
             ) : null}
             {location ? <span>{location}</span> : null}
