@@ -3,6 +3,7 @@
 -- Run in Supabase Dashboard → SQL Editor → New query → Paste → Run
 -- Fixes console 404 / KPI cards stuck at 0 on Sale Order Dashboard
 -- Source: supabase/migrations/20260911200000_get_sale_order_dashboard_stats.sql
+-- Perf + auth (indexes, split item sum): 20260924183000_sale_order_dashboard_stats_perf.sql
 -- =============================================================================
 
 -- Sale Order Dashboard KPI tiles: one org-scoped aggregate row (no full order/item scans to the client).

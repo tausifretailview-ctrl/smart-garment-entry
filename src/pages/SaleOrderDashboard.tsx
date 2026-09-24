@@ -354,7 +354,8 @@ export default function SaleOrderDashboard() {
   const { data: uniqueCustomers = [] } = useQuery({
     queryKey: ["sale-order-customers", currentOrganization?.id],
     queryFn: () => fetchSaleOrderCustomerOptions(currentOrganization!.id),
-    enabled: !!currentOrganization?.id,
+    // Stagger after KPI stats to avoid two heavy all-time scans hitting statement_timeout together.
+    enabled: !!currentOrganization?.id && (!statsLoading || statsError),
     staleTime: 5 * 60_000,
   });
 
