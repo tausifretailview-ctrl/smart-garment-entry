@@ -176,6 +176,7 @@ const DEFAULT_SALE_RETURN_COLUMNS = {
 const getAvailableCN = (ret: SaleReturn): number => {
   // Billing-absorbed returns must not appear spendable (CN header may still show remainder).
   if (isSaleReturnConsumedAtBilling(ret)) return 0;
+  if (ret.credit_status === "refunded") return 0;
   if (ret.credit_note_id && ret.cn_live_remaining != null) {
     return Number(ret.cn_live_remaining);
   }
@@ -611,7 +612,9 @@ export default function SaleReturnDashboard() {
         const net = Number(r.net_amount || 0);
         const sra = linked ? linked.sale_return_adjust : 0;
         const actual_adjusted_amt = linked ? Math.min(net, sra) : 0;
-        const remaining_cn_amt = Math.max(0, net - actual_adjusted_amt);
+        // Refunded returns have paid the credit out, so nothing is left to redeem.
+        const remaining_cn_amt =
+          r.credit_status === "refunded" ? 0 : Math.max(0, net - actual_adjusted_amt);
         const cn_live_remaining =
           r.credit_note_id && cnLiveMap[r.credit_note_id] != null
             ? cnLiveMap[r.credit_note_id]

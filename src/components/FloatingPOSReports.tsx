@@ -538,7 +538,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         <TableRow>
                           <TableCell className="flex items-center gap-2">
                             <RotateCcw className="h-4 w-4 text-teal-600" />
-                            S/R Adjusted
+                            Old credit used on bills
                           </TableCell>
                           <TableCell className="text-right font-medium text-teal-600">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
                         </TableRow>

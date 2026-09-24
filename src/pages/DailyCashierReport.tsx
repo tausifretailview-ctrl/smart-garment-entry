@@ -939,7 +939,7 @@ const DailyCashierReport = () => {
       rows.push({ label: "RCP Other (Cheque/Bank)", amount: totals.rcpOtherCollection, tone: "text-violet-800" });
     }
     if ((Number(totals.totalSRAdjusted) || 0) > 0) {
-      rows.push({ label: "S/R Adjusted", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
+      rows.push({ label: "Old credit used on bills", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
     }
     if ((Number(totals.feeTotalCollection) || 0) > 0) {
       rows.push({
@@ -1113,7 +1113,7 @@ const DailyCashierReport = () => {
       ["Less: Discount", totals.totalDiscount],
       ["Round off", totals.totalRoundOff],
       ["Net Sale", totals.totalSale],
-      ["Settled by returns/CN (non-cash)", totals.totalSRAdjusted],
+      ["Old credit used on bills (return/CN, non-cash)", totals.totalSRAdjusted],
       ["Net Receivable", totals.netReceivable],
       [],
       ["Sales Payment Breakdown"],
@@ -1144,7 +1144,7 @@ const DailyCashierReport = () => {
       ["Cash (Sales + RCP + Advance)", grandCashCollection],
       ["Card (Sales + RCP)", grandCardCollection],
       ["UPI (Sales + RCP)", grandUpiCollection],
-      ["S/R Adjusted", totals.totalSRAdjusted],
+      ["Old credit used on bills", totals.totalSRAdjusted],
       ["Total Collection", grandTotalCollection],
       ["Refund (already in Cash)", totals.totalRefund],
       ["Less: Cash Refunds (S/R + Customer cash)", totals.cashRefundTotal],
@@ -1201,7 +1201,7 @@ const DailyCashierReport = () => {
     doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "normal");
-    doc.text(`S/R Adjusted (included): ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
+    doc.text(`Old credit used on bills (included): ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "bold");
     doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
@@ -1459,7 +1459,7 @@ const DailyCashierReport = () => {
                   )}
                   {totals.totalSRAdjusted > 0 && (
                     <div className="flex justify-between items-center">
-                      <p className="text-xs text-muted-foreground">S/R Adjusted</p>
+                      <p className="text-xs text-muted-foreground">Old credit used on bills</p>
                       <p className="text-sm font-bold tabular-nums text-amber-600">−{formatCurrency(totals.totalSRAdjusted)}</p>
                     </div>
                   )}
@@ -1895,12 +1895,12 @@ const DailyCashierReport = () => {
                         <CardHeader className="pb-1 pt-3 px-3">
                           <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
                             <RotateCcw className="h-3.5 w-3.5" />
-                            S/R Adjusted
+                            Old Credit Used
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
                           <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</p>
-                          <p className="text-[10px] text-white/70">Settled by returns/CN (non-cash)</p>
+                          <p className="text-[10px] text-white/70">Earlier return/CN credit used on these bills</p>
                         </CardContent>
                       </Card>
 
@@ -2143,7 +2143,7 @@ const DailyCashierReport = () => {
                 </div>
                 {totals.totalSRAdjusted > 0 && (
                   <div className="flex justify-between py-2 border-b border-slate-100 text-teal-700 text-xs">
-                    <span>(Includes S/R Adjusted)</span>
+                    <span>(Includes old credit used on bills)</span>
                     <span className="font-semibold tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                 )}
@@ -2179,7 +2179,7 @@ const DailyCashierReport = () => {
                     <span className="tabular-nums">{formatCurrency(totals.upiSale)}</span>
                   </div>
                   <div className="flex justify-between text-teal-700">
-                    <span className="text-muted-foreground">S/R Adjusted</span>
+                    <span className="text-muted-foreground">Old credit used on bills</span>
                     <span className="tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                   <div className="flex justify-between text-red-600">
