@@ -166,6 +166,46 @@ export function isDuplicateWhatsAppTemplateError(message: string): boolean {
     text.includes("content for this template");
 }
 
+/** Replace a media header with shop identity while preserving body placeholders and buttons. */
+export function replaceTemplateLogoWithShopDetails(
+  components: unknown,
+  shop: { businessName: string; address: string },
+): Array<Record<string, unknown>> {
+  if (!Array.isArray(components)) {
+    throw new Error("The selected Meta template has no editable components.");
+  }
+
+  const businessName = sanitizeWhatsAppTemplateParam(shop.businessName, "Our Shop");
+  const address = sanitizeWhatsAppTemplateParam(shop.address);
+  if (businessName.length > 60) {
+    throw new Error("The shop name is too long for a Meta text header.");
+  }
+
+  const withoutHeader = components.filter((component) =>
+    String((component as { type?: string })?.type ?? "").toUpperCase() !== "HEADER"
+  ) as Array<Record<string, unknown>>;
+  const bodyIndex = withoutHeader.findIndex((component) =>
+    String(component?.type ?? "").toUpperCase() === "BODY"
+  );
+  if (bodyIndex < 0) {
+    throw new Error("The selected Meta template has no message body.");
+  }
+
+  const body = withoutHeader[bodyIndex];
+  const bodyText = String(body.text ?? "").trim();
+  const addressLine = `📍 ${address}`;
+  const updatedBody = bodyText.includes(addressLine)
+    ? body
+    : { ...body, text: `${addressLine}\n\n${bodyText}` };
+  const updated = [...withoutHeader];
+  updated[bodyIndex] = updatedBody;
+
+  return [
+    { type: "HEADER", format: "TEXT", text: businessName },
+    ...updated,
+  ];
+}
+
 /** Sample message shown in WhatsApp settings (icons included, no logo). */
 export function previewOfficialMetaInvoiceMessage(): string {
   let message = OFFICIAL_META_INVOICE_TEMPLATE_BODY;
