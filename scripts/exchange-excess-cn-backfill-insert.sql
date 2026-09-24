@@ -6,11 +6,13 @@
 -- linked_sale_id is null, so an existing adjusted return on the issuing bill
 -- is not reopened and that bill's sale_return_adjust is not changed.
 --
--- How to run (SQL editor, one section at a time):
---   1. Section A. Stop unless note_count = 34 and remaining_inr = 39639.00
---      and mismatch_count = 0.
---   2. Section B.
---   3. Section C. paid_diverges_from_receipts must not rise vs the Section A count.
+-- How to run (SQL editor). Do not click Format SQL. Run one section at a time.
+--   1. Section A only (the SELECT). Stop unless note_count = 34,
+--      remaining_inr = 39639.00, and mismatch_count = 0.
+--   2. Section B only (the DO block). It numbers returns itself. Do not call
+--      generate_sale_return_number: the SQL editor has no auth.uid() and that
+--      function raises 42501.
+--   3. Section C. paid_diverges_from_receipts must not rise vs Section A.
 
 -- =============================================================================
 -- Section A — pre-check. Read only.
@@ -92,7 +94,14 @@ DECLARE
   v_return_number text;
   v_sale_number text;
   v_inserted int := 0;
+  v_fy text;
+  v_seq integer;
+  ist_date date;
+  fy_start_year integer;
+  fy_end_year integer;
 BEGIN
+  -- Do not call generate_sale_return_number here. The SQL editor has no
+  -- auth.uid(), and that function raises 42501 via assert_org_member.
   FOR r IN
     SELECT
       cn.id,
@@ -161,7 +170,24 @@ BEGIN
      AND s.organization_id = cn.organization_id
     WHERE cn.id = r.id;
 
-    v_return_number := public.generate_sale_return_number(r.organization_id);
+    ist_date := (now() AT TIME ZONE 'Asia/Kolkata')::date;
+    IF EXTRACT(MONTH FROM ist_date) >= 4 THEN
+      fy_start_year := EXTRACT(YEAR FROM ist_date);
+      fy_end_year := fy_start_year + 1;
+    ELSE
+      fy_end_year := EXTRACT(YEAR FROM ist_date);
+      fy_start_year := fy_end_year - 1;
+    END IF;
+    v_fy := substring(fy_start_year::text FROM 3 FOR 2) || '-' || substring(fy_end_year::text FROM 3 FOR 2);
+
+    SELECT COALESCE(MAX(CAST(substring(return_number FROM 'SR/\d+-\d+/(\d+)$') AS integer)), 0) + 1
+    INTO v_seq
+    FROM public.sale_returns
+    WHERE organization_id = r.organization_id
+      AND return_number LIKE 'SR/' || v_fy || '/%'
+      AND deleted_at IS NULL;
+
+    v_return_number := 'SR/' || v_fy || '/' || v_seq::text;
 
     INSERT INTO public.sale_returns (
       organization_id,
