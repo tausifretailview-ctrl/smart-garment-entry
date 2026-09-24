@@ -1,7 +1,7 @@
 import { assertEquals, assertFalse } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { replaceTemplateLogoWithShopDetails } from "./officialMetaInvoiceTemplate.ts";
 
-Deno.test("replaces image header with shop name and adds address without changing seven placeholders", () => {
+Deno.test("replaces image header and adds address, icons, and WhatsApp group without changing seven placeholders", () => {
   const components = [
     { type: "HEADER", format: "IMAGE", example: { header_handle: ["https://example.com/logo.png"] } },
     {
@@ -26,4 +26,9 @@ Deno.test("replaces image header with shop name and adds address without changin
   const body = String(updated.find((component) => component.type === "BODY")?.text ?? "");
   assertEquals((body.match(/\{\{\d+\}\}/g) ?? []).length, 7);
   assertEquals(body.startsWith("📍 MAHARANA PRATAP CHOWK, LAXMI ROAD, KOLHAPUR\n\n"), true);
+  assertEquals(body.includes("🧾 Invoice Number: {{3}}"), true);
+  assertEquals(body.includes("🔗 View Invoice: {{5}}"), true);
+  assertEquals(body.includes("📸 Instagram: {{6}}"), true);
+  assertEquals(body.includes("👥 Join our WhatsApp Group: {{7}}"), true);
+  assertFalse(body.includes("Google Review"));
 });
