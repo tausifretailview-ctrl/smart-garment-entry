@@ -171,7 +171,7 @@ export async function fetchSaleOrderDashboardStats(
   };
 }
 
-export async function fetchSaleOrderCustomerOptions(organizationId: string) {
+async function fetchSaleOrderCustomerOptionsPaginated(organizationId: string) {
   const rows: Array<{ customer_id: string | null; customer_name: string }> = [];
   let offset = 0;
   const pageSize = 1000;
@@ -194,6 +194,31 @@ export async function fetchSaleOrderCustomerOptions(organizationId: string) {
     offset += pageSize;
   }
 
+  return rows;
+}
+
+/** Distinct customers for dashboard filter (all-time). Prefers org-scoped RPC; paginated fallback pre-migration. */
+export async function fetchSaleOrderCustomerOptions(organizationId: string) {
+  const { data, error } = await (supabase.rpc as any)("get_sale_order_customer_options", {
+    p_organization_id: organizationId,
+  });
+
+  if (!error) {
+    const rows = (data ?? []) as Array<{ customer_id: string | null; customer_name: string }>;
+    return Array.from(
+      new Map(
+        rows.map((row) => [
+          row.customer_id || row.customer_name,
+          { id: row.customer_id, name: row.customer_name },
+        ]),
+      ).values(),
+    ).filter((customer) => customer.name);
+  }
+
+  const code = (error as { code?: string })?.code;
+  if (code !== "PGRST202" && code !== "42883") throw error;
+
+  const rows = await fetchSaleOrderCustomerOptionsPaginated(organizationId);
   return Array.from(
     new Map(
       rows.map((row) => [

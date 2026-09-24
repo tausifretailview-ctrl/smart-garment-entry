@@ -1,0 +1,6 @@
+-- =============================================================================
+-- Deploy: Sale Order Dashboard perf (stats + customer filter RPCs + indexes)
+-- Run in Supabase Dashboard → SQL Editor → paste full contents of:
+--   supabase/migrations/20260924183000_sale_order_dashboard_stats_perf.sql
+-- Then run scripts/verify-sale-order-dashboard-stats-perf.sql (EXPLAIN + parity).
+-- =============================================================================
