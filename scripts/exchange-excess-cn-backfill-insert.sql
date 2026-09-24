@@ -262,4 +262,4 @@ ORDER BY check_name;
 SELECT count(*) AS backfilled_rows, round(sum(net_amount)::numeric, 2) AS backfilled_inr
 FROM public.sale_returns
 WHERE deleted_at IS NULL
-  AND notes = 'Backfilled 24 Sep 2026 — repair for orphaned exchange-excess credit note';
+  AND notes LIKE 'Backfilled 24 Sep 2026 — repair for orphaned exchange-excess credit note%';
