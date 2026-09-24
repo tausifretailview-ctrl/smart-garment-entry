@@ -28,8 +28,8 @@ describe("Vastrakala 80mm receipt layout", () => {
     expect(tsx).toContain('className="vk-terms vk-section"');
   });
 
-  it("gives the 80mm logo a larger fixed square without consuming the title row", () => {
-    expect(tsx).toContain('logoSize: is58 ? "15mm" : "24mm"');
+  it("keeps the logo at a balanced medium size without consuming the title row", () => {
+    expect(tsx).toContain('logoSize: is58 ? "10mm" : "14mm"');
     expect(tsx).toContain('position: "absolute"');
     expect(tsx).toContain('paddingInline: layout.logoSize');
     expect(tsx).toContain('width: layout.logoSize');

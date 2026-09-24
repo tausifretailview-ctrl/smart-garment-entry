@@ -88,7 +88,7 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     headerFont: is58 ? "14px" : "22px",
     subFont: is58 ? "10px" : "14px",
     netFont: is58 ? "11px" : "15px",
-    logoSize: is58 ? "15mm" : "24mm",
+    logoSize: is58 ? "10mm" : "14mm",
     sectionGap: is58 ? 4 : 7,
     itemGridColumns,
   };
