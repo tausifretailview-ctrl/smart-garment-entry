@@ -1656,6 +1656,21 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           </span>
                         </div>
                       </div>
+                      {isGurukrupa && paymentParts.length > 0 && (
+                        <div
+                          style={{
+                            borderBottom: B,
+                            padding: "2px 6px",
+                            textAlign: "center",
+                            lineHeight: 1.25,
+                            fontSize: "11px",
+                            fontWeight: 800,
+                          }}
+                        >
+                          {paymentParts.join(" | ")}
+                          {changeDue > 0.001 ? ` | Change: ₹${fmt(changeDue)}` : ""}
+                        </div>
+                      )}
                       <div style={{ display: "flex", borderBottom: B }}>
                         <div
                           style={{

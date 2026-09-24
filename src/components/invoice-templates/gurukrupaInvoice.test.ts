@@ -13,6 +13,7 @@ describe("Gurukrupa POS A5 invoice", () => {
     expect(template).toContain("Amount in Words");
     expect(template).toMatch(/\{\s*!isGurukrupa && \(/);
     expect(template).toMatch(/paymentMethod && !isRealTast && !isGurukrupa/);
+    expect(template).toContain("isGurukrupa && paymentParts.length > 0");
 
     const wrapper = readFileSync(resolve(here, "../InvoiceWrapper.tsx"), "utf8");
     expect(wrapper).toContain("case 'gurukrupa'");
