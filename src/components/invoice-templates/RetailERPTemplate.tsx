@@ -230,6 +230,10 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const isDc = variant === "dc";
   const isZaika = variant === "zaika";
   const isGurukrupa = variant === "gurukrupa";
+  /** Plain retail-erp Tax Invoice — Prev Bal / Total Due row removed per shop
+      request. DC, Zaika, Gurukrupa, preprinted and Real Tast keep their own
+      account blocks (Real Tast / Zaika already hide these rows). */
+  const isPlainRetailErp = !isDc && !isZaika && !isGurukrupa && !isPreprinted && !isRealTast;
   const isA4 = format === "a4" || isRealTast;
   const isA5Retail = !isA4 && !isRealTast;
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
@@ -1681,7 +1685,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                     </div>
                   ) : isA5Retail ? (
                     <div style={{ borderBottom: B, fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
-                      <div style={{ display: "flex", borderBottom: B }}>
+                      <div style={{ display: "flex", borderBottom: isPlainRetailErp ? undefined : B }}>
                         <div
                           style={{
                             flex: 1,
@@ -1700,6 +1704,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           </span>
                         </div>
                       </div>
+                      {!isPlainRetailErp && (
                       <div style={{ display: "flex" }}>
                         <div
                           style={{
@@ -1719,22 +1724,25 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                           </span>
                         </div>
                       </div>
+                      )}
                     </div>
                   ) : (
                   <div style={{ display: "flex", borderBottom: B }}>
                     <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Received:</strong> ₹{fmt(receivedToday)}
                     </div>
-                    <div style={{ flex: 1, borderRight: B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
+                    <div style={{ flex: 1, borderRight: isPlainRetailErp ? undefined : B, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Balance:</strong>{" "}
                       <span style={{ color: billBalanceColor, fontWeight: 900 }}>₹{fmt(currentBalance)}</span>
                     </div>
+                    {!isPlainRetailErp && (
                     <div style={{ flex: 1, padding: isA4 ? "4px 8px" : "2px 4px", fontSize: fsFooterBalance, fontWeight: 900, color: "#000", lineHeight: 1.2 }}>
                       <strong>Prev Bal:</strong> ₹{fmt(previousBalance)}
                       {" | "}
                       <strong>Total Due:</strong>{" "}
                       <span style={{ color: accountDueColor, fontWeight: 900 }}>₹{fmt(totalDue)}</span>
                     </div>
+                    )}
                   </div>
                   )
                   )}
