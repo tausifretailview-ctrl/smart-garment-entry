@@ -761,6 +761,18 @@ export default function POSSales() {
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  // Settings → POS: when "Default POS flat discount in rupees" is on, every fresh
+  // bill starts with the Flat Disc box in ₹ mode. The cashier can still tap %/₹
+  // to switch per bill; edit/held/customer restores keep their saved mode.
+  const defaultFlatDiscountMode = useCallback(
+    (): "percent" | "amount" =>
+      (settingsData as any)?.sale_settings?.default_discount_in_rupees === true ? "amount" : "percent",
+    [settingsData],
+  );
+  // Ref mirror for one-time-registered handlers (header New Sale action) that would
+  // otherwise close over the pre-settings default.
+  const defaultFlatDiscountModeRef = useRef(defaultFlatDiscountMode);
+  defaultFlatDiscountModeRef.current = defaultFlatDiscountMode;
   const posPerLineSalesman = _posSaleSettings.pos_per_line_salesman === true;
   const retainPosSalesman = _posSaleSettings.pos_retain_salesman === true;
   const [posRuntimeSettings, setPosRuntimeSettings] = useState<POSBarcodeRuntimeSettings | null>(null);
@@ -1881,14 +1893,16 @@ export default function POSSales() {
     if (!settingsData || currentSaleId || items.length > 0) return;
     const saleSettings = (settingsData as any).sale_settings;
     if (!saleSettings) return;
+    // Mode default applies even with no default value, so the Flat Disc box opens
+    // in ₹ when the rupees setting is on and the cashier toggles to % per bill.
+    setFlatDiscountMode(defaultFlatDiscountMode());
     if (saleSettings.default_discount) {
       handleFlatDiscountValueChange(saleSettings.default_discount);
-      setFlatDiscountMode(saleSettings.default_discount_in_rupees ? "amount" : "percent");
     }
     if (saleSettings.default_payment_method) {
       setPaymentMethod(saleSettings.default_payment_method.toLowerCase() as any);
     }
-  }, [settingsData, currentSaleId, items.length, handleFlatDiscountValueChange]);
+  }, [settingsData, currentSaleId, items.length, handleFlatDiscountValueChange, defaultFlatDiscountMode]);
 
   // Update date and time every second
   useEffect(() => {
@@ -1944,7 +1958,7 @@ export default function POSSales() {
       setCustomerId("");
       setCustomerPhone("");
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(defaultFlatDiscountModeRef.current());
       setSaleReturnAdjust(0);
       setSameBillReturnGross(0);
       setRoundOff(0);
@@ -4565,7 +4579,7 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(defaultFlatDiscountMode());
       setSaleReturnAdjust(0);
       setSameBillReturnGross(0);
       setRoundOff(0);
@@ -4841,7 +4855,7 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(defaultFlatDiscountMode());
       setSaleReturnAdjust(0);
       setSameBillReturnGross(0);
       setRoundOff(0);
@@ -5143,7 +5157,7 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(defaultFlatDiscountMode());
       setSaleReturnAdjust(0);
       setSameBillReturnGross(0);
       setRoundOff(0);
@@ -5967,7 +5981,7 @@ export default function POSSales() {
     setCustomerId("");
     setCustomerPhone("");
     setFlatDiscountValue(0);
-    setFlatDiscountMode('percent');
+    setFlatDiscountMode(defaultFlatDiscountMode());
     setSaleReturnAdjust(0);
     setSameBillReturnGross(0);
     setRoundOff(0);
@@ -5992,7 +6006,7 @@ export default function POSSales() {
     setCustomerId("");
     setCustomerPhone("");
     setFlatDiscountValue(0);
-    setFlatDiscountMode('percent');
+    setFlatDiscountMode(defaultFlatDiscountMode());
     setSaleReturnAdjust(0);
     setSameBillReturnGross(0);
     setRoundOff(0);
@@ -6120,7 +6134,7 @@ export default function POSSales() {
       setCustomerName("");
       setCustomerPhone("");
       setFlatDiscountValue(0);
-      setFlatDiscountMode('percent');
+      setFlatDiscountMode(defaultFlatDiscountMode());
       setSaleReturnAdjust(0);
       setSameBillReturnGross(0);
       setRoundOff(0);
@@ -9050,7 +9064,7 @@ export default function POSSales() {
                   setCustomerName("");
                   setCustomerPhone("");
                   setFlatDiscountValue(0);
-                  setFlatDiscountMode('percent');
+                  setFlatDiscountMode(defaultFlatDiscountMode());
                   setSaleReturnAdjust(0);
                   setSameBillReturnGross(0);
                   setRoundOff(0);
