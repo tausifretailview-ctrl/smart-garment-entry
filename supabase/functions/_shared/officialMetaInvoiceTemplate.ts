@@ -166,7 +166,22 @@ export function isDuplicateWhatsAppTemplateError(message: string): boolean {
     text.includes("content for this template");
 }
 
-/** Replace a media header with shop identity while preserving body placeholders and buttons. */
+const NEWTEMP_SEVEN_PARAMETER_BODY = [
+  "👋 Hello {{1}},",
+  "",
+  "🙏 Thank you for your purchase with {{2}}.",
+  "",
+  "🧾 Invoice Number: {{3}}",
+  "💰 Invoice Amount: ₹{{4}}",
+  "",
+  "🔗 View Invoice: {{5}}",
+  "📸 Instagram: {{6}}",
+  "👥 Join our WhatsApp Group: {{7}}",
+  "",
+  "✨ Thank you for shopping with us.",
+].join("\n");
+
+/** Replace a media header with shop identity while preserving seven body placeholders and buttons. */
 export function replaceTemplateLogoWithShopDetails(
   components: unknown,
   shop: { businessName: string; address: string },
@@ -192,11 +207,12 @@ export function replaceTemplateLogoWithShopDetails(
   }
 
   const body = withoutHeader[bodyIndex];
-  const bodyText = String(body.text ?? "").trim();
   const addressLine = `📍 ${address}`;
-  const updatedBody = bodyText.includes(addressLine)
-    ? body
-    : { ...body, text: `${addressLine}\n\n${bodyText}` };
+  const placeholderCount = (String(body.text ?? "").match(/\{\{\d+\}\}/g) ?? []).length;
+  if (placeholderCount !== 7) {
+    throw new Error("The selected Meta template must have exactly 7 body parameters.");
+  }
+  const updatedBody = { ...body, text: `${addressLine}\n\n${NEWTEMP_SEVEN_PARAMETER_BODY}` };
   const updated = [...withoutHeader];
   updated[bodyIndex] = updatedBody;
 
