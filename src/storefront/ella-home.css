@@ -324,6 +324,12 @@
   overflow: hidden; background: var(--en-surface); border: 0; padding: 0; cursor: pointer;
 }
 .en-tile img { width: 100%; height: 100%; object-fit: cover; object-position: center 18%; transition: transform 0.5s ease; }
+/* Desktop tiles were 16:11, which sliced full-length portraits across the waist.
+   Contain keeps the whole figure inside the 2:3 frame. */
+@media (min-width: 1100px) {
+  .en-tile { aspect-ratio: 2 / 3; }
+  .en-tile img { object-fit: contain; object-position: center center; }
+}
 .en-tile:hover img { transform: scale(1.04); }
 .en-tile-scrim {
   position: absolute; inset: auto 0 0 0; height: 68%;
