@@ -170,6 +170,56 @@ describe("tally export receipt/payment voucher_type matching", () => {
     expect(rows.map((r) => r.voucherNo)).toEqual(["P1", "P2"]);
   });
 
+  it("uses the customer name as Party Ledger, not the payment narration", () => {
+    const [row] = transformReceiptsToVouchers([
+      {
+        voucher_type: "receipt",
+        voucher_date: "2026-09-01",
+        voucher_number: "RCP/26-27/4387-1",
+        total_amount: 847,
+        payment_method: "upi",
+        reference_type: "sale",
+        reference_id: "78b7c398-6d1a-4ed7-bb29-e4b38dc6edac",
+        description: "Payment for INV/26-27/17 | Transaction ID: 78b7c398-6d1a-4ed7-bb29-e4b38dc6edac",
+        customer_name: "RAHUL SHARMA",
+      },
+    ]);
+    expect(row.partyLedger).toBe("RAHUL SHARMA");
+    expect(row.partyLedger).not.toContain("Payment for");
+  });
+
+  it("does not put the payment narration in Party Ledger when the customer name is missing", () => {
+    const [row] = transformReceiptsToVouchers([
+      {
+        voucher_type: "receipt",
+        voucher_date: "2026-09-01",
+        voucher_number: "RCP/26-27/4387-1",
+        total_amount: 847,
+        payment_method: "upi",
+        reference_type: "sale",
+        reference_id: "sale-1",
+        description: "Payment for INV/26-27/17 | Transaction ID: abc",
+      },
+    ]);
+    expect(row.partyLedger).toBe("Cash");
+  });
+
+  it("keeps a non-customer receipt narration as Party Ledger", () => {
+    const [row] = transformReceiptsToVouchers([
+      {
+        voucher_type: "receipt",
+        voucher_date: "2026-09-01",
+        voucher_number: "FEE/26-27/1",
+        total_amount: 500,
+        payment_method: "cash",
+        reference_type: "student_fee",
+        reference_id: "student-1",
+        description: "Fee Collection - ASHA (A1) | Tuition",
+      },
+    ]);
+    expect(row.partyLedger).toBe("Fee Collection - ASHA (A1) | Tuition");
+  });
+
   it("round-trips the real payment mode, falling back to Cash only when blank", () => {
     const rows = transformReceiptsToVouchers(mixedVouchers);
     expect(rows[0].paymentMode).toBe("cash");

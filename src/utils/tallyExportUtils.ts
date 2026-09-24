@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { format } from 'date-fns';
 import { isInterState, calculateTaxableFromInclusive } from './gstRegisterUtils';
+import { receiptPartyLedger } from './tallyReceiptParty';
 
 // Tally-compatible date format
 const formatTallyDate = (date: string | Date) => {
@@ -428,7 +429,7 @@ export const transformReceiptsToVouchers = (vouchers: any[]): TallyReceiptVouche
     .map(voucher => ({
       date: formatTallyDate(voucher.voucher_date),
       voucherNo: voucher.voucher_number || '',
-      partyLedger: voucher.description || 'Cash',
+      partyLedger: receiptPartyLedger(voucher),
       amount: formatAmount(voucher.total_amount || 0),
       paymentMode: voucher.payment_method || 'Cash',
       referenceNo: voucher.reference_id || ''

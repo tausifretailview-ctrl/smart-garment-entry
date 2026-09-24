@@ -471,7 +471,12 @@ const TallyExport = () => {
         
         if (vouchers && vouchers.length > 0) {
           if (includeReceipts) {
-            receiptVouchers = transformReceiptsToVouchers(vouchers);
+            const { attachReceiptCustomerNames } = await import("@/utils/tallyReceiptParty");
+            const namedReceipts = await attachReceiptCustomerNames(
+              currentOrganization.id,
+              vouchers,
+            );
+            receiptVouchers = transformReceiptsToVouchers(namedReceipts);
             setCounts(prev => ({ ...prev, receipts: receiptVouchers.length }));
           }
           if (includePayments) {
