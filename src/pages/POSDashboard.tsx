@@ -136,6 +136,7 @@ import {
   type PosSalesChangedDetail,
 } from "@/utils/posSalesRefresh";
 import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
+import { usePosDashboardRealtimeRefresh } from "@/hooks/usePosDashboardRealtimeRefresh";
 import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
@@ -323,6 +324,9 @@ const POSDashboard = () => {
     [currentOrganization?.id],
   );
   useVisibilityInvalidate(moneyViewVisibilityKeys);
+  // Live cards/table via Realtime; manual Refresh + mutation-time
+  // invalidation remain as fallback when Realtime is blocked.
+  usePosDashboardRealtimeRefresh(currentOrganization?.id);
   const refreshPosDashboard = useCallback(() => {
     invalidatePosDashboardQueries(queryClient, currentOrganization?.id);
   }, [queryClient, currentOrganization?.id]);
