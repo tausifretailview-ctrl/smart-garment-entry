@@ -1019,9 +1019,11 @@ export const useSaveSale = () => {
         grossAmount: saleData.grossAmount,
         discountAmount: saleData.discountAmount,
         flatDiscountAmount: saleData.flatDiscountAmount,
+        // Single-tender (Cash/UPI/Card) pays what's left after S/R, credit and advance,
+        // not the full bill; defaulting to netAmount double-counted S/R here.
         paidAmount:
           paymentBreakdown?.totalPaid ??
-          (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
+          resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown).paidAmt,
       });
     } catch (invErr) {
       savingLockRef.current = false;
@@ -2272,9 +2274,11 @@ export const useSaveSale = () => {
         grossAmount: saleData.grossAmount,
         discountAmount: saleData.discountAmount,
         flatDiscountAmount: saleData.flatDiscountAmount,
+        // Single-tender (Cash/UPI/Card) pays what's left after S/R, credit and advance,
+        // not the full bill; defaulting to netAmount double-counted S/R here.
         paidAmount:
           paymentBreakdown?.totalPaid ??
-          (paymentMethod === 'pay_later' ? 0 : saleData.netAmount),
+          resolveSalePaymentFields(saleData, paymentMethod, paymentBreakdown).paidAmt,
       });
     } catch (invErr) {
       savingLockRef.current = false;
