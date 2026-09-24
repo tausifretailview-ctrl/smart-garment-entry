@@ -49,7 +49,7 @@ const PROMISES = [
   ["Live studio inventory", "The styles shown here are genuinely available from our atelier."],
   ["Ready in 48 hours", "Ready-to-wear pieces dispatch within two working days."],
   ["Made for you", "Formal and bridal pieces are cut to your measurements in 3–4 weeks."],
-  ["Easy shopping", "Secure UPI, cards and COD up to ₹10,000. Seven-day exchange on eligible pieces."],
+  ["Easy shopping", "Pay by UPI. Seven-day exchange on eligible pieces."],
 ];
 
 const HERO_COPY = [
@@ -60,6 +60,7 @@ const HERO_COPY = [
     body: "Hand-worked pieces cut in our atelier \u2014 stock reads straight from the studio rack.",
     cta: "Shop ready to wear",
     target: "ready",
+    photo: "/ella-noor/formal-stripe.jpg",
   },
   {
     kicker: "Festive 2026",
@@ -68,6 +69,7 @@ const HERO_COPY = [
     body: "Occasion pieces finished by hand, dispatched within 48 hours.",
     cta: "Explore formals",
     target: "formals",
+    photo: "/ella-noor/formal-ivory.jpg",
   },
   {
     kicker: "Made for you",
@@ -76,16 +78,17 @@ const HERO_COPY = [
     body: "Bridal and formal wear cut to fit. A 30% advance reserves your production slot.",
     cta: "Start your order",
     target: "made-to-order",
+    photo: "/ella-noor/formal-floral.jpg",
   },
 ];
 
 const SLIDE_MS = 5200;
 
 const CATEGORY_TILES = [
-  { id: "ready", label: "Ready to wear" },
-  { id: "formals", label: "Formals" },
-  { id: "bridal", label: "Bridal" },
-  { id: "made-to-order", label: "Made to order" },
+  { id: "ready", label: "Ready to wear", photo: "/ella-noor/ready-blue.jpg" },
+  { id: "formals", label: "Formals", photo: "/ella-noor/formal-print.jpg" },
+  { id: "bridal", label: "Bridal", photo: "/ella-noor/bridal-red.jpg" },
+  { id: "made-to-order", label: "Made to order", photo: "/ella-noor/atelier-rose.jpg" },
 ];
 
 const STEPS = [
@@ -229,8 +232,6 @@ export function EllaStorefrontHome({
     return applyEllaFilters(products, { ...ELLA_DEFAULT_FILTERS, search: q });
   }, [products, query]);
 
-  const hero = products.find((p) => p.images.length > 0);
-
   useEffect(() => {
     if (!isEllaHomeNav(active) || menuOpen || searchOpen) return;
     const id = window.setInterval(() => {
@@ -271,10 +272,8 @@ export function EllaStorefrontHome({
 
   const byId = (id: string) => nav.find((n) => n.id === id) || nav[0];
 
-  const photos = products.filter((p) => p.images.length > 0);
-  const heroSlides = HERO_COPY.map((copy, i) => ({
+  const heroSlides = HERO_COPY.map((copy) => ({
     ...copy,
-    photo: photos[i]?.images[0] || hero?.images[0],
     go: () => (copy.target === "made-to-order" ? onOpenGeneralEnquire() : select(byId(copy.target))),
   }));
 
@@ -498,8 +497,8 @@ export function EllaStorefrontHome({
               <h2>Shop by category</h2>
             </div>
             <div className="en-tiles">
-              {CATEGORY_TILES.map((tile, i) => {
-                const photo = products[i + 1]?.images[0] || products[0]?.images[0];
+              {CATEGORY_TILES.map((tile) => {
+                const photo = tile.photo;
                 return (
                   <button
                     key={tile.id}
@@ -581,7 +580,7 @@ export function EllaStorefrontHome({
             <div className="en-cols">
               <div className="en-col">
                 <div className="en-figure">
-                  {products[1]?.images[0] ? <img src={products[1].images[0]} alt="Ready to wear" /> : <span className="en-empty">Photo</span>}
+                  <img src="/ella-noor/ready-blue.jpg" alt="Ready to wear" />
                 </div>
                 <h3>Ready to wear</h3>
                 <p>Made beautifully. Ready to go.</p>
@@ -591,7 +590,7 @@ export function EllaStorefrontHome({
               </div>
               <div className="en-col">
                 <div className="en-figure">
-                  {products[2]?.images[0] ? <img src={products[2].images[0]} alt="Formals" /> : <span className="en-empty">Photo</span>}
+                  <img src="/ella-noor/formal-print.jpg" alt="Formals" />
                 </div>
                 <h3>Formals</h3>
                 <p>Statement silhouettes for special occasions.</p>
@@ -601,7 +600,7 @@ export function EllaStorefrontHome({
               </div>
               <div className="en-col">
                 <div className="en-figure">
-                  {products[3]?.images[0] ? <img src={products[3].images[0]} alt="Made to order" /> : <span className="en-empty">Photo</span>}
+                  <img src="/ella-noor/atelier-rose.jpg" alt="Made to order" />
                 </div>
                 <h3>Made to order</h3>
                 <p>Your measurements. Our craftsmanship.</p>
@@ -663,7 +662,7 @@ export function EllaStorefrontHome({
             <b>Help</b>
             <span>Seven-day exchange</span>
             <span>Free shipping in India</span>
-            <span>COD up to ₹10,000</span>
+            <span>Pay by UPI</span>
           </div>
           <div className="en-footer-col">
             <b>Studio</b>
