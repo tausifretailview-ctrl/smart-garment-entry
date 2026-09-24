@@ -5,6 +5,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { applyCreditNoteFifoToSale, getAvailableCN } from "@/utils/saleSettlement";
 import { buildCreditNoteIssuanceVoucher } from "@/utils/creditNoteIssuanceVoucher";
+import { buildExchangeExcessSaleReturn } from "@/utils/exchangeExcessSaleReturn";
 
 interface CreditNoteData {
   saleId: string;
@@ -138,30 +139,74 @@ export function useCreditNotes() {
 
       if (updateError) throw updateError;
 
-      // Issuance linkage: this CN has no sale_returns row, so balance paths
-      // that detect CNs via the sale_returns join would never see it. Mirror
-      // it into voucher_entries (type credit_note, ref customer) so the
-      // bulk/calculation CN paths pick it up. Failure-isolated: voucher
-      // INSERT needs admin/manager while CN issuance is member-level, so a
-      // voucher failure must never fail the CN itself.
+      // Parent return so Refund and getAvailableCN can see this excess.
+      // The pending row credits the customer ledger. Write the issuance
+      // voucher only when the parent insert fails, or the two paths
+      // double-count the same rupees.
+      const creditNoteId = String((creditNote as { id?: string }).id || "");
+      const creditNoteNo = String(
+        (creditNote as { credit_note_number?: unknown }).credit_note_number || ""
+      );
+      let parentCreated = false;
       try {
-        await writeIssuanceVoucher({
-          organizationId: currentOrganization.id,
-          customerId: data.customerId || null,
-          creditNoteId: (creditNote as { id?: string }).id || null,
-          creditNoteNumber: String(
-            (creditNote as { credit_note_number?: unknown }).credit_note_number || ""
-          ),
-          saleNumber: data.saleNumber || null,
-          creditAmount: data.creditAmount,
-          createdBy: user?.id || null,
-        });
-      } catch (voucherErr) {
-        console.error("Credit note issuance voucher failed (CN issued, linkage missing):", {
-          organizationId: currentOrganization.id,
-          creditNoteId: (creditNote as { id?: string }).id || null,
-          error: voucherErr,
-        });
+        const { data: parentId, error: parentError } = await supabase.rpc(
+          "create_exchange_excess_sale_return" as never,
+          {
+            p_credit_note_id: creditNoteId,
+            p_organization_id: currentOrganization.id,
+          } as never,
+        );
+        if (parentError) throw parentError;
+        parentCreated = Boolean(parentId);
+      } catch (parentErr) {
+        console.error("Exchange-excess sale return RPC failed:", parentErr);
+        try {
+          const today = new Date().toISOString().split("T")[0];
+          const { data: returnNumber, error: numberError } = await supabase.rpc(
+            "generate_sale_return_number",
+            { p_organization_id: currentOrganization.id },
+          );
+          if (numberError) throw numberError;
+          const row = buildExchangeExcessSaleReturn({
+            organizationId: currentOrganization.id,
+            creditNoteId,
+            creditNoteNumber: creditNoteNo,
+            customerId: data.customerId || null,
+            customerName: data.customerName,
+            amount: data.creditAmount,
+            returnDate: today,
+            returnNumber: String(returnNumber || ""),
+            saleNumber: data.saleNumber || null,
+          });
+          if (!row) throw new Error("Exchange excess amount is zero");
+          const { error: insertSrError } = await supabase
+            .from("sale_returns")
+            .insert(row as never);
+          if (insertSrError) throw insertSrError;
+          parentCreated = true;
+        } catch (directErr) {
+          console.error("Exchange-excess sale return insert failed:", directErr);
+        }
+      }
+
+      if (!parentCreated) {
+        try {
+          await writeIssuanceVoucher({
+            organizationId: currentOrganization.id,
+            customerId: data.customerId || null,
+            creditNoteId: creditNoteId || null,
+            creditNoteNumber: creditNoteNo,
+            saleNumber: data.saleNumber || null,
+            creditAmount: data.creditAmount,
+            createdBy: user?.id || null,
+          });
+        } catch (voucherErr) {
+          console.error("Credit note issuance voucher failed (CN issued, linkage missing):", {
+            organizationId: currentOrganization.id,
+            creditNoteId: creditNoteId || null,
+            error: voucherErr,
+          });
+        }
       }
 
       toast({
