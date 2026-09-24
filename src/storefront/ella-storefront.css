@@ -2633,19 +2633,29 @@ body.ella-root {
   .ella-pdp {
     display: grid;
     gap: 40px;
-    grid-template-columns: minmax(240px, 380px) minmax(320px, 480px);
-    justify-content: center;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+    justify-content: stretch;
     align-items: start;
     margin-inline: auto;
-    max-width: 960px;
+    max-width: min(1200px, 100%);
   }
 
+  /* Image column grows with the 1200px sheet but stays 4:5. Width is capped
+     by the height limit so a short viewport cannot squash the photo, and
+     object-fit: cover fills that box without stretching. */
   .ella-sheet-img {
     aspect-ratio: 4 / 5;
-    margin-inline: auto;
-    max-height: min(56vh, 520px);
-    max-width: 380px;
-    width: min(100%, 380px, calc(min(56vh, 520px) * 4 / 5));
+    margin-inline: 0;
+    max-height: min(78vh, 760px);
+    max-width: 100%;
+    width: min(100%, calc(min(78vh, 760px) * 4 / 5));
+  }
+
+  .ella-sheet-img img {
+    height: 100%;
+    object-fit: cover;
+    object-position: center center;
+    width: 100%;
   }
 
   .ella-pdp-gallery {

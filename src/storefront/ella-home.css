@@ -263,6 +263,16 @@
   grid-template-columns: repeat(auto-fill, minmax(min(46%, 260px), 1fr));
   gap: clamp(20px, 2.6vw, 36px) clamp(12px, 2vw, 24px);
 }
+
+/* Desktop only. Mobile keeps the auto-fill grid and the 1320px wrap. */
+@media (min-width: 1280px) {
+  .en-wrap,
+  .en-header-row { max-width: min(1680px, 100%); }
+  .en-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (min-width: 1600px) {
+  .en-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .en-card { display: flex; flex-direction: column; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .en-card-media { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; background: var(--en-surface); }
 .en-card-media img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s ease; }
