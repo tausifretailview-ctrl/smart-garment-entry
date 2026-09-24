@@ -363,17 +363,44 @@
 
 /* ---------- footer ---------- */
 
-.en-footer { margin-top: clamp(60px, 9vw, 130px); border-top: 1px solid var(--en-line); }
+.en-footer { margin-top: clamp(72px, 10vw, 140px); border-top: 1px solid var(--en-line); }
 .en-footer-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: clamp(24px, 3vw, 48px); padding-top: clamp(32px, 5vw, 64px); padding-bottom: clamp(24px, 3vw, 40px);
+  gap: clamp(28px, 4vw, 64px); padding-top: clamp(48px, 6vw, 84px); padding-bottom: clamp(32px, 4vw, 52px);
 }
-.en-footer-col { display: flex; flex-direction: column; gap: 9px; font-size: 15px; }
-.en-footer-col b { font-size: 11px; font-weight: 400; letter-spacing: 0.24em; text-transform: uppercase; color: var(--en-muted); margin-bottom: 3px; }
-.en-footer-col button { text-align: left; background: none; border: 0; padding: 0; font-size: 15px; color: var(--en-ink); cursor: pointer; }
-.en-footer-col button:hover { color: var(--en-accent-deep); }
-.en-footer-col span { color: var(--en-ink-2); }
-.en-colophon { font-size: 13px; color: var(--en-faint); padding-bottom: clamp(28px, 4vw, 48px); }
+.en-footer-col {
+  display: flex; flex-direction: column; gap: 12px;
+  font-family: Barlow, "Segoe UI", sans-serif;
+  font-size: 17px; line-height: 1.55;
+}
+.en-footer-col b {
+  font-family: Barlow, "Segoe UI", sans-serif;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--en-muted); margin-bottom: 4px;
+}
+.en-footer-col .en-footer-brand {
+  font-family: "Playfair Display", "Source Serif 4", Georgia, serif;
+  font-size: clamp(30px, 3vw, 38px); font-weight: 500; letter-spacing: 0.04em;
+  text-transform: none; color: var(--en-ink); line-height: 1.05; margin-bottom: 6px;
+}
+.en-footer-note { max-width: 32ch; font-size: 17px; line-height: 1.55; }
+.en-footer-col button,
+.en-footer-col a {
+  font-family: Barlow, "Segoe UI", sans-serif;
+  text-align: left; background: none; border: 0; padding: 0;
+  font-size: 17px; color: var(--en-ink); cursor: pointer; letter-spacing: 0.01em;
+}
+.en-footer-col button:hover,
+.en-footer-col a:hover { color: var(--en-accent-deep); }
+.en-footer-col span { color: var(--en-ink-2); font-size: 17px; }
+.en-footer-social { display: inline-flex; align-self: flex-start; align-items: center; gap: 12px; min-height: 28px; }
+.en-footer-social-icon { width: 22px; height: 22px; flex: 0 0 auto; }
+.en-colophon {
+  font-family: Barlow, "Segoe UI", sans-serif;
+  font-size: 14px; letter-spacing: 0.03em; color: var(--en-faint);
+  padding-top: 18px; border-top: 1px solid var(--en-line);
+  padding-bottom: clamp(36px, 5vw, 56px);
+}
 
 /* ---------- mobile tab bar ---------- */
 
@@ -408,9 +435,16 @@
     position: fixed; right: 24px; bottom: 24px; z-index: 45;
   }
   .ella-store .storefront-floating-social-btn {
-    width: 52px; height: 52px; border-radius: 50%;
+    width: 56px; height: 56px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 3px 10px rgba(45, 43, 43, 0.28);
+    background: #ffffff; border: 1px solid rgba(32, 30, 29, 0.16);
+    box-shadow: 0 10px 28px rgba(32, 30, 29, 0.1);
+  }
+  .ella-store .storefront-floating-social-wa { background: #ffffff; color: #0b6b4a; }
+  .ella-store .storefront-floating-social-ig { background: #ffffff; color: #201e1d; }
+  .ella-store .storefront-floating-social-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 32px rgba(32, 30, 29, 0.16);
   }
   .ella-store .storefront-floating-social-icon { width: 24px; height: 24px; display: block; }
 }
@@ -449,8 +483,12 @@
   .en-col p { font-size: 15px; }
   .en-steps { gap: 4px 14px; }
   .en-steps p { font-size: 15px; line-height: 1.45; margin-bottom: 14px; }
-  .en-footer-grid { gap: 26px; }
-  .en-footer-col { font-size: 15px; }
+  .en-footer-grid { gap: 28px; }
+  .en-footer-col,
+  .en-footer-col button,
+  .en-footer-col a,
+  .en-footer-col span,
+  .en-footer-note { font-size: 16px; }
   .en-colophon { padding-bottom: 32px; line-height: 1.5; }
   .en-tiles { gap: 10px; }
 }
