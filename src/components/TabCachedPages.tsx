@@ -20,6 +20,12 @@ import {
   type TabPageLayout,
   type TabPageRole,
 } from "@/lib/tabPageRegistry";
+import {
+  getTabLoadTimeoutMs,
+  shouldShowTabLoadTimeout,
+  shouldSoftRetryChunk,
+  STALE_IN_FLIGHT_MS,
+} from "@/lib/tabLoadTimeout";
 import { isCacheableEntryTabPath, isEntryTabPath } from "@/lib/entryPageLayout";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { TabPaneErrorBoundary } from "@/components/TabPaneErrorBoundary";
@@ -214,51 +220,6 @@ function getMinKeepTabs(): number {
   return isElectronShell() ? ELECTRON_MIN_KEEP_TABS : MIN_KEEP_TABS;
 }
 
-/** Time before showing the "Retry tab / Refresh app" card. */
-const TAB_LOAD_TIMEOUT_MS = 6_000;
-/**
- * Large admin chunks (Settings) — keep slightly longer than default, but not 45s:
- * users were stuck on skeleton + "Still loading…" until a manual full reload.
- */
-const HEAVY_TAB_LOAD_TIMEOUT_MS = 6_000;
-/** Soft remount + bandwidth pause — fire early so hung cold chunks recover. */
-const SOFT_LOADING_HINT_MS = 3_000;
-/** Drop a background prefetch that never settled before remounting the active tab. */
-const STALE_IN_FLIGHT_MS = 4_000;
-
-const HEAVY_TAB_PATHS = new Set([
-  "settings",
-  "user-rights",
-  "barcode-printing",
-  "accounts",
-  "third-party-entry",
-  "third-party-balances",
-  "pos-dashboard",
-  "sales-invoice-dashboard",
-  // Canonical URL slug + legacy registry key (resolveTabCachePath → purchase-bills)
-  "purchase-bills",
-  "purchase-bill-dashboard",
-  "pos-sales",
-  "pos-delivery-challan",
-  "sales-invoice",
-  "purchase-entry",
-  "product-entry",
-  "sale-return-entry",
-  "purchase-return-entry",
-  "purchase-return-dashboard",
-  "purchase-returns",
-  "sale-return-dashboard",
-  "product-dashboard",
-  "products",
-]);
-
-function getTabLoadTimeoutMs(path: string): number {
-  const resolved = resolveTabCachePath(path);
-  return HEAVY_TAB_PATHS.has(resolved) || HEAVY_TAB_PATHS.has(path)
-    ? HEAVY_TAB_LOAD_TIMEOUT_MS
-    : TAB_LOAD_TIMEOUT_MS;
-}
-
 function TabLoadShellView({ path }: { path: string }) {
   const shell = resolveTabLoadShell(path);
   const message = tabLoadMessage(path, shell);
@@ -336,7 +297,7 @@ function TabPageFallback({
       lastTick = now;
       if (document.hidden) return;
       elapsed += delta;
-      if (elapsed >= SOFT_LOADING_HINT_MS) {
+      if (shouldSoftRetryChunk(elapsed)) {
         setShowSoftHint(true);
         if (!softFired) {
           softFired = true;
@@ -346,10 +307,10 @@ function TabPageFallback({
           onSoftRetry?.();
         }
       }
-      if (elapsed < budgetMs) return;
+      if (!shouldShowTabLoadTimeout(elapsed, path)) return;
 
       console.warn(
-        `[TabCachedPages] Slow chunk still loading: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s)`,
+        `[TabCachedPages] Slow chunk still loading: ${path || "dashboard"} (${Math.round(elapsed / 1000)}s, budget ${Math.round(budgetMs / 1000)}s)`,
       );
       setTimedOut(true);
       window.clearInterval(interval);
