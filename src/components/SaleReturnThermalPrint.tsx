@@ -1,6 +1,7 @@
 import { forwardRef } from "react";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { posThermalPageCss } from "@/utils/invoicePrintFormat";
+import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
 
 interface SaleReturnItem {
   product_name: string;
@@ -280,6 +281,12 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
           <span>{isRefund ? 'NET REFUND:' : 'NET CREDIT:'}</span>
           <span>₹{fmtAmt(saleReturn.net_amount)}</span>
         </div>
+        {isRefund && (
+          <div style={{ ...row, fontSize: '12px', fontWeight: 900 }}>
+            <span>Refund Mode:</span>
+            <span>{saleReturnRefundModeLabel(saleReturn)}</span>
+          </div>
+        )}
         <div style={dblLine} />
 
         <div style={{ fontSize: '10px', textAlign: 'center', fontStyle: 'italic', margin: '3px 0', lineHeight: 1.35 }}>

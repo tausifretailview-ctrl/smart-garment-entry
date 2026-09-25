@@ -16,6 +16,10 @@ import {
 } from "@/utils/cashierSaleModeAmounts";
 import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
+import {
+  cashierSaleReturnRefundMode,
+  isDrawerSaleReturnRefund,
+} from "@/utils/cashierSaleReturnRefunds";
 
 export type CashTallyModeBreakdown = {
   cash: number;
@@ -99,6 +103,8 @@ export type CashTallyAdvanceInput = {
 export type CashTallySaleReturnInput = {
   net_amount?: number | null;
   refund_type?: string | null;
+  /** Mode picked at refund time (cash / upi / card / bank_transfer). */
+  payment_method?: string | null;
 };
 
 export type CashTallyAdvanceRefundInput = {
@@ -259,20 +265,15 @@ export function aggregateCashTallyDrawerFlows(params: {
   }
 
   for (const r of params.saleReturns || []) {
-    const refundType = (r.refund_type || "").toLowerCase();
-    if (
-      refundType === "cash_refund" ||
-      refundType === "upi_refund" ||
-      refundType === "bank_refund" ||
-      refundType === "card_refund"
-    ) {
-      const amt = Number(r.net_amount) || 0;
-      if (refundType === "upi_refund") saleReturnRefunds.upi += amt;
-      else if (refundType === "bank_refund") saleReturnRefunds.bank += amt;
-      else if (refundType === "card_refund") saleReturnRefunds.card += amt;
-      else saleReturnRefunds.cash += amt;
-      saleReturnRefunds.total += amt;
-    }
+    if (!isDrawerSaleReturnRefund(r)) continue;
+    const amt = Number(r.net_amount) || 0;
+    // cash_refund rows carry the real mode in payment_method (UPI / Bank Transfer).
+    const mode = cashierSaleReturnRefundMode(r);
+    if (mode === "upi") saleReturnRefunds.upi += amt;
+    else if (mode === "bank") saleReturnRefunds.bank += amt;
+    else if (mode === "card") saleReturnRefunds.card += amt;
+    else saleReturnRefunds.cash += amt;
+    saleReturnRefunds.total += amt;
   }
 
   for (const r of params.advanceRefunds || []) {

@@ -1,7 +1,6 @@
--- FIX-3: Count POS exchange refund once — skip payment voucher when sales.refund_amount
--- already records the payout (Rule B bills). Legacy negative-net bills still use the voucher.
--- SQL editor: copy scripts/apply-pos-exchange-refund-voucher-once.sql from disk (not from chat).
--- Must end with $pos_exchange_refund_voucher_once$; — no second DO $mig$ block.
+-- Run in Supabase SQL editor: open THIS file in Cursor/VS Code, Ctrl+A, Ctrl+C, paste, Run.
+-- Do NOT copy from chat (collapsed "[N lines]" breaks SQL). Do NOT append old $mig$ blocks.
+-- Same as supabase/migrations/20261225120000_pos_exchange_refund_voucher_once.sql
 
 DO $pos_exchange_refund_voucher_once$
 DECLARE

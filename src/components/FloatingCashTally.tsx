@@ -114,7 +114,7 @@ export const FloatingCashTally = ({ open, onOpenChange }: FloatingCashTallyProps
       try {
         const { data, error } = await supabase
           .from("sale_returns")
-          .select("id, net_amount, return_date, refund_type")
+          .select("id, net_amount, return_date, refund_type, payment_method")
           .eq("organization_id", orgId!)
           .eq("return_date", dateStr)
           .is("deleted_at", null);
