@@ -2094,6 +2094,7 @@ export default function SaleOrderEntry() {
         allowMultiColor={true}
         showSizePrices={false}
         title="Enter Color & Size-wise Qty"
+        enterAdvancesSize
         isLoading={sizeGridLoading}
       />
 
