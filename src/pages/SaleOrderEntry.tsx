@@ -355,45 +355,21 @@ export default function SaleOrderEntry() {
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
   const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
 
-  // Fetch products with pagination
-  const { data: productsData } = useQuery({
-    queryKey: ['products-with-stock', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id)`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .order('product_name')
-          .order('id')
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      // Filter out deleted variants
-      return allProducts.map((product: any) => ({
-        ...product,
-        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-      }));
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
+  // Stock / colour / UOM for just the variants on an order being loaded (edit or
+  // from quotation). Replaces the old whole-catalogue load, which timed out for
+  // orgs with large product lists and showed "Taking too long to load".
+  const fetchVariantInfoForLines = async (variantIds: string[]) => {
+    const ids = [...new Set(variantIds.filter(Boolean))];
+    const map = new Map<string, any>();
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data } = await supabase
+        .from('product_variants')
+        .select('id, stock_qty, color, products(color, uom)')
+        .in('id', ids.slice(i, i + 200));
+      (data || []).forEach((v: any) => map.set(v.id, v));
+    }
+    return map;
+  };
 
   // Initialize entry mode from org settings (default: size grid for multi-size entry).
   useEffect(() => {
@@ -423,6 +399,7 @@ export default function SaleOrderEntry() {
 
   // Load from quotation or edit
   useEffect(() => {
+    let cancelled = false;
     const state = location.state;
     
     if (state?.fromQuotation && state?.quotationData) {
@@ -446,10 +423,12 @@ export default function SaleOrderEntry() {
       
       // Load items from quotation
       if (q.quotation_items?.length > 0) {
+        void fetchVariantInfoForLines(q.quotation_items.map((item: any) => item.variant_id)).then((variantInfo) => {
+        if (cancelled) return;
         const items = q.quotation_items.map((item: any, i: number) => {
           // Find stock qty for this variant
-          const product = productsData?.find(p => p.id === item.product_id);
-          const variant = product?.product_variants?.find((v: any) => v.id === item.variant_id);
+          const variant = variantInfo.get(item.variant_id);
+          const product = variant?.products;
           
            return {
              id: `row-${i}`,
@@ -479,6 +458,7 @@ export default function SaleOrderEntry() {
           });
         }
         setLineItems(items);
+        });
       }
       
       // Update quotation status to confirmed
@@ -508,9 +488,11 @@ export default function SaleOrderEntry() {
       }
       
       if (o.sale_order_items?.length > 0) {
+        void fetchVariantInfoForLines(o.sale_order_items.map((item: any) => item.variant_id)).then((variantInfo) => {
+        if (cancelled) return;
         const items = o.sale_order_items.map((item: any, i: number) => {
-          const product = productsData?.find(p => p.id === item.product_id);
-          const variant = product?.product_variants?.find((v: any) => v.id === item.variant_id);
+          const variant = variantInfo.get(item.variant_id);
+          const product = variant?.products;
           
            return {
              id: `row-${i}`,
@@ -540,9 +522,13 @@ export default function SaleOrderEntry() {
           });
         }
         setLineItems(items);
+        });
       }
     }
-  }, [location.state, productsData]);
+    return () => {
+      cancelled = true;
+    };
+  }, [location.state]);
 
   useEffect(() => {
     if (lineItems.length > 0) {
@@ -947,14 +933,6 @@ export default function SaleOrderEntry() {
     result: SaleOrderVariantSearchResult,
     options?: { skipSizeGrid?: boolean },
   ) => {
-    const product = productsData?.find((p) => p.id === result.product_id);
-    const variant = product?.product_variants?.find((v: any) => v.id === result.id);
-
-    if (product && variant) {
-      await addProductToOrder(product, variant, undefined, options);
-      return;
-    }
-
     const fallbackProduct = {
       id: result.product_id,
       product_name: result.product_name,

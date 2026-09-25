@@ -253,43 +253,6 @@ export default function PurchaseOrderEntry() {
     refetchOnWindowFocus: false,
   });
 
-  // Fetch products with pagination
-  const { data: productsData } = useQuery({
-    queryKey: ['products-with-stock', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      const allProducts: any[] = [];
-      const PAGE_SIZE = 1000;
-      let offset = 0;
-      let hasMore = true;
-      
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('products')
-          .select(`id, product_name, brand, hsn_code, gst_per, product_type, status, category, style, color, size_group_id, uom, product_variants (id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active, deleted_at, organization_id)`)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'active')
-          .is('deleted_at', null)
-          .range(offset, offset + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allProducts.push(...data);
-          offset += PAGE_SIZE;
-          hasMore = data.length === PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-      return allProducts.map((product: any) => ({
-        ...product,
-        product_variants: product.product_variants?.filter((v: any) => !v.deleted_at)
-      }));
-    },
-    enabled: !!currentOrganization?.id,
-    staleTime: 300000,
-    refetchOnWindowFocus: false,
-  });
-
   // Initialize entry mode from settings
   useEffect(() => {
     if (settings && !entryModeInitialized) {
@@ -352,7 +315,7 @@ export default function PurchaseOrderEntry() {
         setLineItems(items);
       }
     }
-  }, [location.state, productsData]);
+  }, [location.state]);
 
   // Supplier selection
   const handleSupplierChange = (supplierId: string) => {
