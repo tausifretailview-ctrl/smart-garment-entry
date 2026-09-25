@@ -1,10 +1,11 @@
--- merge_products consolidated any two variants with the same color+size.
--- For roll/meter products (uom = MTR) every roll is its own variant with its
--- own barcode, so two 56 MTR rolls of the same colour were collapsed into one
--- SKU: the second roll's variant was soft-deleted and its purchase lines were
--- re-pointed, so scanning that roll's label billed the other roll's barcode.
--- Now variants with different non-empty barcodes are only consolidated for
--- non-MTR products (duplicate garment masters keep the old behaviour).
+-- merge_products consolidated any two variants with the same color+size,
+-- even when they had different barcodes. The loser was soft-deleted, its stock
+-- added to the survivor and its purchase lines re-pointed, so its printed label
+-- stopped scanning (or billed another item). Lucky Sales lost 964 items this way
+-- on 2026-09-09 (199 with stock), mostly same-size rolls.
+-- Now two variants are only consolidated when their barcodes match (or the
+-- source has no barcode). A variant with its own barcode is moved to the target product
+-- as a separate SKU, which the (product, color, size, barcode) unique index allows.
 
 CREATE OR REPLACE FUNCTION public.merge_products(p_target_product_id uuid, p_source_product_id uuid)
 RETURNS json
@@ -21,12 +22,11 @@ DECLARE
   v_combined_colors TEXT;
   v_src_variant RECORD;
   v_target_variant_id UUID;
-  v_is_roll_product BOOLEAN;
 BEGIN
-  SELECT id, product_name, organization_id, uom INTO v_target
+  SELECT id, product_name, organization_id INTO v_target
   FROM products WHERE id = p_target_product_id AND deleted_at IS NULL;
 
-  SELECT id, product_name, organization_id, uom INTO v_source
+  SELECT id, product_name, organization_id INTO v_source
   FROM products WHERE id = p_source_product_id AND deleted_at IS NULL;
 
   IF v_target IS NULL THEN
@@ -40,25 +40,20 @@ BEGIN
   END IF;
 
   v_org_id := v_target.organization_id;
-  v_is_roll_product := UPPER(COALESCE(v_target.uom, '')) = 'MTR'
-    OR UPPER(COALESCE(v_source.uom, '')) = 'MTR';
-
   -- Process each source variant
   FOR v_src_variant IN
     SELECT * FROM product_variants
     WHERE product_id = p_source_product_id AND deleted_at IS NULL
   LOOP
     -- Check if target already has a variant with same color+size
-    -- (roll products: also same barcode — each roll is its own SKU)
+    -- and the same barcode (a different barcode is a different physical item)
     SELECT id INTO v_target_variant_id
     FROM product_variants
     WHERE product_id = p_target_product_id
       AND COALESCE(color, '') = COALESCE(v_src_variant.color, '')
       AND size = v_src_variant.size
       AND (
-        NOT v_is_roll_product
-        OR COALESCE(barcode, '') = ''
-        OR COALESCE(v_src_variant.barcode, '') = ''
+        COALESCE(v_src_variant.barcode, '') = ''
         OR barcode = v_src_variant.barcode
       )
       AND deleted_at IS NULL
