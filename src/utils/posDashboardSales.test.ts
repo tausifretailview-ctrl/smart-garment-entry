@@ -13,6 +13,7 @@ import {
   posDashboardSummaryLooksValid,
   posSaleMatchesCreditNoteDashboardFilter,
   reconcilePosDashboardUnpaidCounts,
+  resolvePosDashboardDisplayRows,
   resolvePosDashboardVoucherLookbackFrom,
   shouldRecomputePosDashboardBalanceFromRows,
   type PosDashboardFilters,
@@ -628,5 +629,32 @@ describe("patchPosDashboardSaleDelete", () => {
       { netAmount: 100 },
     ]);
     expect(JSON.stringify(store.get(JSON.stringify(summaryKey)))).toBe(before);
+  });
+});
+
+describe("resolvePosDashboardDisplayRows", () => {
+  it("returns empty when page count is zero even if stale reconcile cache exists", () => {
+    const staleReconciled = [{ id: "old-1", customer_name: "B.PATRO" }];
+    expect(
+      resolvePosDashboardDisplayRows({
+        salesPayload: { sales: [], totalCount: 0 },
+        reconciledPosSales: staleReconciled,
+        reconcileSourceKey: "",
+      }),
+    ).toEqual([]);
+  });
+
+  it("uses reconciled rows when source key matches current page", () => {
+    const reconciled = [{ id: "a", customer_name: "SALONI" }];
+    expect(
+      resolvePosDashboardDisplayRows({
+        salesPayload: {
+          sales: [{ id: "a", customer_name: "SALONI" }],
+          totalCount: 1,
+        },
+        reconciledPosSales: reconciled,
+        reconcileSourceKey: "a",
+      }),
+    ).toEqual(reconciled);
   });
 });

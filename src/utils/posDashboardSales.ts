@@ -352,6 +352,27 @@ export type PosDashboardPageResult = PosDashboardSalesPayload & {
   sourceRows?: any[];
 };
 
+export type PosDashboardDisplayRowsInput = {
+  salesPayload?: Pick<PosDashboardPageResult, "sales" | "totalCount"> | null;
+  reconciledPosSales?: any[] | null;
+  reconcileSourceKey: string;
+};
+
+/**
+ * Pick table rows for the current filter. Never reuse background-reconcile cache
+ * when the page fetch returned no source rows (zero-hit date kept showing prior rows).
+ */
+export function resolvePosDashboardDisplayRows(input: PosDashboardDisplayRowsInput): any[] {
+  const quickRows = input.salesPayload?.sales ?? [];
+  if ((input.salesPayload?.totalCount ?? 0) === 0) {
+    return quickRows;
+  }
+  if (!input.reconcileSourceKey.length) {
+    return quickRows;
+  }
+  return input.reconciledPosSales ?? quickRows;
+}
+
 function applyQuickPosDisplayFields(sale: any): any {
   if (sale.is_cancelled || sale.payment_status === "cancelled") {
     return { ...sale, payment_status: "cancelled", pos_outstanding: 0 };

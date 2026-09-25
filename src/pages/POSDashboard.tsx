@@ -16,6 +16,7 @@ import {
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
+  resolvePosDashboardDisplayRows,
   resolvePosDashboardQueryDates,
   resolvePosDashboardDateRange,
   resolvePosDashboardVoucherLookbackFrom,
@@ -1006,7 +1007,15 @@ const POSDashboard = () => {
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
   });
 
-  const paginatedSales = reconciledPosSales ?? salesPayload?.sales ?? [];
+  const paginatedSales = useMemo(
+    () =>
+      resolvePosDashboardDisplayRows({
+        salesPayload,
+        reconciledPosSales,
+        reconcileSourceKey: posReconcileSourceKey,
+      }),
+    [salesPayload, reconciledPosSales, posReconcileSourceKey],
+  );
   const creditNoteUsage = salesPayload?.creditNoteUsage ?? {};
   const totalCount = salesPayload?.totalCount ?? 0;
 
