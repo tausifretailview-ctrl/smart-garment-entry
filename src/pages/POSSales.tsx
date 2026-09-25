@@ -4932,7 +4932,9 @@ export default function POSSales() {
       return;
     }
 
-    // Keep full S/R + possibly-negative net through to save; applyBillCaps persists net≥0.
+    // Rule B: netAmount stays the full bill from buildSaleData (never the after-return
+    // finalAmount). Save caps S/R to the bill and settles the excess as refund / CN.
+    // Passing the negative after-return figure zeroed the bill and left the return unused.
     // Explicit refundAmount (or issueCreditNote) tells save to settle excess instead of
     // toasting "remains for a future bill".
     const saleData = {
@@ -4944,7 +4946,6 @@ export default function POSSales() {
         notes: saleNotes || null,
         saleDate: buildPosSaleDate(),
       })),
-      netAmount: finalAmount,
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
     };
 
