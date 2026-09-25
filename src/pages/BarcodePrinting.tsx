@@ -1763,6 +1763,20 @@ export default function BarcodePrinting() {
     [],
   );
 
+  /**
+   * Label Designer edits. When the Standard tab has the same template selected,
+   * keep its copy in sync too, so Standard "Update" can't write back a stale layout.
+   */
+  const handlePrecisionDesignerConfigChange = useCallback((cfg: LabelDesignConfig) => {
+    setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }));
+    const selected = selectedLabelTemplateRef.current;
+    const precisionBase = activePrecisionTemplateBaseNameRef.current;
+    if (selected && precisionBase && labelDesignNamesMatch(selected, precisionBase)) {
+      labelConfigRef.current = cfg;
+      setLabelConfig(cfg);
+    }
+  }, []);
+
   /** Kids Zone / Jewellery use a hard-coded layout; other presets use saved DB config. */
   const effectivePrecisionLabelConfig = useMemo((): LabelDesignConfig => {
     const fixed = resolveFixedBuiltinLabelConfig(activePrecisionTemplateBaseName);
@@ -2381,14 +2395,11 @@ export default function BarcodePrinting() {
     
     autoSaveTimerRef.current = setTimeout(() => {
       void (async () => {
-        const selected = selectedLabelTemplateRef.current;
-        const precisionBase = activePrecisionTemplateName.replace(/^preset:/, "");
-        // If Standard template and Precision target share a name, prefer Standard's
-        // latest in-memory config (toggles / drag) over a possibly stale mirror.
-        const cfg =
-          selected && selected === precisionBase
-            ? labelConfigRef.current
-            : precisionSettings.labelConfig;
+        // This effect never runs on the Standard tab, so the Label Designer /
+        // Precision copy is always the one being edited. Do not fall back to the
+        // Standard-tab copy here: it still holds the config from when the
+        // template was loaded and would overwrite the designer's Save.
+        const cfg = precisionSettings.labelConfig;
         if (!cfg) return;
         const ok = await autoSavePrecisionConfig(
           activePrecisionTemplateName,
@@ -8440,9 +8451,7 @@ export default function BarcodePrinting() {
               config={effectivePrecisionLabelConfig}
               thermalCols={getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols)}
               horizontalGap={isThermalMultiUp() ? getThermalMultiUpGap() : 0}
-              onConfigChange={(cfg) =>
-                setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
-              }
+              onConfigChange={handlePrecisionDesignerConfigChange}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               defaultUom={defaultUom}
               productFieldSettings={productFieldSettings}
@@ -8489,9 +8498,7 @@ export default function BarcodePrinting() {
               config={effectivePrecisionLabelConfig}
               thermalCols={getPrecisionThermalCols(precisionSettings.printMode, precisionSettings.thermalCols)}
               horizontalGap={isThermalMultiUp() ? getThermalMultiUpGap() : 0}
-              onConfigChange={(cfg) =>
-                setPrecisionSettings((prev) => ({ ...prev, labelConfig: cfg }))
-              }
+              onConfigChange={handlePrecisionDesignerConfigChange}
               sampleItem={labelItems.length > 0 ? { ...labelItems[0], businessName } : undefined}
               defaultUom={defaultUom}
               productFieldSettings={productFieldSettings}
