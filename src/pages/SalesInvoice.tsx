@@ -1961,10 +1961,13 @@ export default function SalesInvoice() {
       // Purchase-line barcode snapshot → live sku (post-merge drift).
       if (!foundVariant && /^\d{4,}$/.test(searchTerm.trim())) {
         try {
+          // exactOnly: a scan must match the whole purchase barcode (same as POS);
+          // a substring match can pick another roll's purchase line.
           const resolutions = await resolvePurchaseBarcodesForStockReport(
             supabase as unknown as PurchaseBarcodeStockClient,
             currentOrganization.id,
             searchTerm.trim(),
+            { exactOnly: true },
           );
           const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
           if (hit?.skuId) {
@@ -1990,6 +1993,17 @@ export default function SalesInvoice() {
             if (bySku && (bySku as any).products) {
               foundVariant = bySku;
               foundProduct = (bySku as any).products;
+              const liveBarcode = String((bySku as any).barcode || "").trim();
+              if (liveBarcode && liveBarcode !== searchTerm.trim()) {
+                // Purchase label points at a SKU that now carries another barcode
+                // (e.g. two same-size rolls merged into one variant). Say so instead
+                // of silently billing a different barcode.
+                toast({
+                  title: `Barcode ${searchTerm.trim()} is linked to ${liveBarcode}`,
+                  description:
+                    "This label's item was merged into another barcode in Product Master. Added that item; check the roll/label before saving.",
+                });
+              }
             }
           }
         } catch (err) {
