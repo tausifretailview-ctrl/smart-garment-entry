@@ -154,7 +154,9 @@ export function useBarcodeLabelSettings() {
   }, [fetchSettings]);
 
   // Save label template
-  const saveLabelTemplate = async (template: LabelTemplate): Promise<boolean> => {
+  // Memoized: BarcodePrinting's auto-save effect depends on this function, and a
+  // new identity every render re-armed that effect (and its DB write) constantly.
+  const saveLabelTemplate = useCallback(async (template: LabelTemplate): Promise<boolean> => {
     if (!currentOrganization?.id) {
       toast.error("No organization selected");
       return false;
@@ -266,7 +268,7 @@ export function useBarcodeLabelSettings() {
       toast.error("Failed to save template");
       return false;
     }
-  };
+  }, [currentOrganization?.id, fetchSettings]);
 
   // Delete label template
   const deleteLabelTemplate = async (templateName: string): Promise<boolean> => {
