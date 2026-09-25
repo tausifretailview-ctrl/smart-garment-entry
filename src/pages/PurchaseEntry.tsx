@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent } from "react";
+import { lazy, Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type ChangeEvent, type ReactNode } from "react";
 import { isDecimalUOM, getUOMLabel } from "@/constants/uom";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -67,7 +67,7 @@ import { isTabCachePaneMounted } from "@/lib/tabCacheMountRegistry";
 import { useEntryViewportSync } from "@/hooks/useEntryViewportSync";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
 import { CameraScanButton } from "@/components/CameraBarcodeScannerDialog";
-import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
+import type { ImportProgress } from "@/components/ExcelImportDialog";
 import {
   purchaseBillFields,
   purchaseBillSampleData,
@@ -84,24 +84,19 @@ import {
   extractChargeAmountFromRow,
 } from "@/utils/excelImportUtils";
 import { validatePurchaseBill, validatePurchaseLineItem } from "@/lib/validations";
-import { SizeGridDialog } from "@/components/SizeGridDialog";
 import {
-  RepurchaseDialog,
   type RepurchaseProductInfo,
   type RepurchaseVariantRow,
 } from "@/components/RepurchaseDialog";
 import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
 import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
-import ProductEditPanel from "@/components/ProductEditPanel";
 import QuickEditPopover from "@/components/QuickEditPopover";
-import { MrpTierSelectionDialog } from "@/components/MrpTierSelectionDialog";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   barcodeTierLookupKey,
   makePurchaseImportProductKey,
 } from "@/utils/purchaseImportBarcodeTier";
-import { AddSupplierDialog } from "@/components/AddSupplierDialog";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -615,6 +610,28 @@ function clearPurchaseFinalizedMarker(orgId: string, userId: string): void {
   } catch {
     /* ignore */
   }
+}
+
+const ExcelImportDialog = lazy(() =>
+  import("@/components/ExcelImportDialog").then((m) => ({ default: m.ExcelImportDialog })),
+);
+const SizeGridDialog = lazy(() =>
+  import("@/components/SizeGridDialog").then((m) => ({ default: m.SizeGridDialog })),
+);
+const RepurchaseDialog = lazy(() =>
+  import("@/components/RepurchaseDialog").then((m) => ({ default: m.RepurchaseDialog })),
+);
+const MrpTierSelectionDialog = lazy(() =>
+  import("@/components/MrpTierSelectionDialog").then((m) => ({ default: m.MrpTierSelectionDialog })),
+);
+const AddSupplierDialog = lazy(() =>
+  import("@/components/AddSupplierDialog").then((m) => ({ default: m.AddSupplierDialog })),
+);
+const ProductEditPanel = lazy(() => import("@/components/ProductEditPanel"));
+
+function LazyOpen({ open, children }: { open: boolean; children: ReactNode }) {
+  if (!open) return null;
+  return <Suspense fallback={null}>{children}</Suspense>;
 }
 
 const PurchaseEntry = () => {
@@ -2147,19 +2164,20 @@ const PurchaseEntry = () => {
     return productSettings.fields.color?.enabled !== false;
   })();
 
-  // Fetch suppliers with pagination
+  const [supplierListEnabled, setSupplierListEnabled] = useState(false);
+  // Names only, and only after the supplier field is opened. GST/address stay off this list.
   const { data: suppliers = [], refetch: refetchSuppliers } = useQuery({
-    queryKey: ["suppliers", currentOrganization?.id],
+    queryKey: ["purchase-entry-supplier-options", currentOrganization?.id],
     queryFn: async () => {
-      const allSuppliers: any[] = [];
+      const allSuppliers: { id: string; supplier_name: string }[] = [];
       const PAGE_SIZE = 1000;
       let offset = 0;
       let hasMore = true;
-      
+
       while (hasMore) {
         const { data, error } = await supabase
           .from("suppliers")
-          .select("id, supplier_name, phone, email, gst_number, address, opening_balance")
+          .select("id, supplier_name")
           .eq("organization_id", currentOrganization?.id)
           .is("deleted_at", null)
           .order("supplier_name")
@@ -2175,7 +2193,7 @@ const PurchaseEntry = () => {
       }
       return allSuppliers;
     },
-    enabled: !!currentOrganization?.id,
+    enabled: !!currentOrganization?.id && (supplierListEnabled || !!billData.supplier_id),
     staleTime: 300000, // 5 minutes - reduces multi-tab load
     refetchOnWindowFocus: false,
   });
@@ -2200,6 +2218,27 @@ const PurchaseEntry = () => {
     staleTime: 15000,
   });
 
+  const peekInvoiceQuery = useQuery({
+    queryKey: ["peek-next-supplier-invoice", currentOrganization?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("peek_next_supplier_invoice_number", {
+        p_organization_id: currentOrganization!.id,
+      });
+      if (error) {
+        // RPC not deployed yet — client fallback in nextSupplierInvNo handles it.
+        if (error.code === "PGRST202" || (error as { status?: number }).status === 404) {
+          return null;
+        }
+        throw error;
+      }
+      return data ? String(data) : null;
+    },
+    enabled: !!currentOrganization?.id && !isEditMode,
+    refetchOnWindowFocus: false,
+    staleTime: 15000,
+  });
+  const peekNextSupplierInvNo = peekInvoiceQuery.data;
+
   const { data: orgSupplierInvoices } = useQuery({
     queryKey: ["org-supplier-invoice-numbers", currentOrganization?.id],
     queryFn: async () => {
@@ -2216,27 +2255,7 @@ const PurchaseEntry = () => {
       if (error) throw error;
       return data ?? [];
     },
-    enabled: !!currentOrganization?.id && !isEditMode,
-    refetchOnWindowFocus: false,
-    staleTime: 15000,
-  });
-
-  const { data: peekNextSupplierInvNo } = useQuery({
-    queryKey: ["peek-next-supplier-invoice", currentOrganization?.id],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("peek_next_supplier_invoice_number", {
-        p_organization_id: currentOrganization!.id,
-      });
-      if (error) {
-        // RPC not deployed yet — client fallback in nextSupplierInvNo handles it.
-        if (error.code === "PGRST202" || (error as { status?: number }).status === 404) {
-          return null;
-        }
-        throw error;
-      }
-      return data ? String(data) : null;
-    },
-    enabled: !!currentOrganization?.id && !isEditMode,
+    enabled: !!currentOrganization?.id && !isEditMode && peekInvoiceQuery.isFetched && !peekInvoiceQuery.data,
     refetchOnWindowFocus: false,
     staleTime: 15000,
   });
@@ -7292,8 +7311,9 @@ const PurchaseEntry = () => {
     [mrpTierPicker, addOrIncrementScannedVariant, focusSearchBar],
   );
 
-  const purchaseMrpTierDialog = (
-    <MrpTierSelectionDialog
+  const purchaseMrpTierDialog = mrpTierPicker ? (
+    <LazyOpen open>
+      <MrpTierSelectionDialog
       open={mrpTierPicker != null}
       enableMrp={showMrp}
       onOpenChange={(open) => {
@@ -7318,7 +7338,8 @@ const PurchaseEntry = () => {
         void handlePurchaseMrpTierSelection(choiceId);
       }}
     />
-  );
+    </LazyOpen>
+  ) : null;
 
   if (isMobile) {
     const filledItems = lineItems.filter(i => i.product_id);
@@ -7336,7 +7357,7 @@ const PurchaseEntry = () => {
           {/* Supplier section */}
           <div className="bg-background rounded-2xl p-3.5 border border-border/40 shadow-sm space-y-3">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Supplier & Bill Details</p>
-            <Select value={billData.supplier_id} onValueChange={(value) => {
+            <Select value={billData.supplier_id} onOpenChange={(open) => { if (open) setSupplierListEnabled(true); }} onValueChange={(value) => {
               const s = suppliers.find((s: any) => s.id === value);
               setBillData({ ...billData, supplier_id: value, supplier_name: s?.supplier_name || "" });
             }}>
@@ -7596,7 +7617,7 @@ const PurchaseEntry = () => {
             </div>
           </DialogContent>
         </Dialog>
-        <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" />
+        <LazyOpen open={showExcelImport}><ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={purchaseBillFields} onImport={handleExcelImport} title="Import Purchase Bill" sampleData={purchaseBillSampleData} sampleFileName="Purchase_Bill_Sample.xlsx" /></LazyOpen>
         <ProductEntryDialogGate
           open={showProductDialog}
           onOpenChange={closeProductDialog}
@@ -7610,7 +7631,7 @@ const PurchaseEntry = () => {
           createdInPurchase
         />
         {purchaseMrpTierDialog}
-        <AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} />
+        <LazyOpen open={showAddSupplierDialog}><AddSupplierDialog open={showAddSupplierDialog} onClose={() => setShowAddSupplierDialog(false)} onSupplierCreated={(supplier) => { refetchSuppliers(); setBillData((prev) => ({ ...prev, supplier_id: supplier.id, supplier_name: supplier.supplier_name })); setTimeout(() => { const invInput = document.querySelector<HTMLInputElement>('[data-field="supplier-invoice-no"]'); invInput?.focus(); invInput?.select(); }, 200); }} /></LazyOpen>
         <DuplicatePurchaseBillDialog
           open={!!duplicateWarning}
           existingBill={duplicateWarning?.bill ?? null}
@@ -7624,7 +7645,8 @@ const PurchaseEntry = () => {
             await handleSave();
           }}
         />
-        <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" />
+        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
+        <LazyOpen open={showRepurchaseDialog}>
         <RepurchaseDialog
           open={showRepurchaseDialog}
           onClose={() => {
@@ -7637,6 +7659,7 @@ const PurchaseEntry = () => {
           onConfirm={handleRepurchaseConfirm}
           confirming={repurchaseConfirming}
         />
+        </LazyOpen>
         {isMobileERPMode && (
           <IMEIScanDialog
             open={showIMEIScanDialog}
@@ -7797,6 +7820,9 @@ const PurchaseEntry = () => {
                 <div className="flex gap-1.5 min-w-0">
                   <Select
                     value={billData.supplier_id}
+                    onOpenChange={(open) => {
+                      if (open) setSupplierListEnabled(true);
+                    }}
                     onValueChange={(value) => {
                       const supplier = suppliers.find(s => s.id === value);
                       setBillData({ 
@@ -8749,6 +8775,7 @@ const PurchaseEntry = () => {
       </footer>
 
         {/* Size Grid Dialog with Color Selection */}
+        <LazyOpen open={showSizeGrid}>
         <SizeGridDialog
           open={showSizeGrid}
           onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }}
@@ -8770,7 +8797,9 @@ const PurchaseEntry = () => {
           isLoading={sizeGridLoading}
           showPurPrice={sizeGridReviewMode}
         />
+        </LazyOpen>
 
+        <LazyOpen open={showRepurchaseDialog}>
         <RepurchaseDialog
           open={showRepurchaseDialog}
           onClose={() => {
@@ -8783,6 +8812,7 @@ const PurchaseEntry = () => {
           onConfirm={handleRepurchaseConfirm}
           confirming={repurchaseConfirming}
         />
+        </LazyOpen>
 
         {/* Roll Entry Dialog for MTR products */}
         <RollEntryDialog
@@ -9021,6 +9051,7 @@ const PurchaseEntry = () => {
         </Dialog>
 
         {/* Excel Import Dialog */}
+        <LazyOpen open={showExcelImport}>
         <ExcelImportDialog
           open={showExcelImport}
           onClose={() => setShowExcelImport(false)}
@@ -9030,6 +9061,7 @@ const PurchaseEntry = () => {
           sampleData={purchaseBillSampleData}
           sampleFileName="Purchase_Bill_Sample.xlsx"
         />
+        </LazyOpen>
 
 
         {/* Product Entry Dialog */}
@@ -9049,6 +9081,7 @@ const PurchaseEntry = () => {
         {purchaseMrpTierDialog}
 
         {/* Add Supplier Dialog */}
+        <LazyOpen open={showAddSupplierDialog}>
         <AddSupplierDialog
           open={showAddSupplierDialog}
           onClose={() => setShowAddSupplierDialog(false)}
@@ -9070,8 +9103,10 @@ const PurchaseEntry = () => {
             }, 200);
           }}
         />
+        </LazyOpen>
 
         {/* Product Edit Panel */}
+        <LazyOpen open={showEditPanel}>
         <ProductEditPanel
           open={showEditPanel}
           onClose={() => setShowEditPanel(false)}
@@ -9082,6 +9117,7 @@ const PurchaseEntry = () => {
           focusField={editPanelFocusField}
           mobileErpMode={mobileERPSettings || undefined}
         />
+        </LazyOpen>
 
       {/* Unlock Confirmation Dialog */}
       <AlertDialog open={showUnlockConfirm} onOpenChange={setShowUnlockConfirm}>

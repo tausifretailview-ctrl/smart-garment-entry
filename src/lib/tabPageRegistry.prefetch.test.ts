@@ -104,7 +104,6 @@ describe("master / inventory / sales tab mutual prefetch", () => {
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-bills");
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("purchase-orders");
     expect(INVENTORY_TAB_PREFETCH_PATHS).toContain("stock-settlement");
-    expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toContain("products");
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toContain("purchase-bills");
   });
 

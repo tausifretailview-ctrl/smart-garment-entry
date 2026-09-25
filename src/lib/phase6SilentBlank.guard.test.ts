@@ -51,7 +51,8 @@ describe("Phase 6 silent-blank + cloud-usage guards", () => {
     const tabs = src("src/components/TabCachedPages.tsx");
     expect(tabs).toContain('from "@/lib/tabLoadShell"');
     expect(tabs).toContain("resolveTabLoadShell");
-    expect(tabs).toMatch(/SOFT_LOADING_HINT_MS = 3_000/);
+    expect(src("src/lib/tabLoadTimeout.ts")).toMatch(/SOFT_LOADING_HINT_MS = 3_000/);
+    expect(src("src/lib/tabLoadTimeout.ts")).toMatch(/HEAVY_TAB_LOAD_TIMEOUT_MS = STALE_IN_FLIGHT_MS \+ TAB_LOAD_TIMEOUT_MS/);
     expect(tabs).toMatch(/if \(silent && !showSoftHint\) return null/);
   });
 

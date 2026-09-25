@@ -36,7 +36,7 @@ import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout"
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
-import { AppBootSplash } from "@/components/AppBootSplash";
+import { isIdleEvictableDashboardPath, READ_ONLY_IDLE_UNMOUNT_MS } from "@/lib/tabIdleEvict";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { resolveTabLoadShell } from "@/lib/tabLoadShell";
@@ -62,8 +62,8 @@ import {
   recordTabSwitch,
 } from "@/lib/navigationPerfDiagnostics";
 
-/** Hidden tab panes idle longer than this may be unmounted (read-only dashboards only). */
-const IDLE_UNMOUNT_MS = 600_000;
+/** Hidden read-only panes (reports, settings) unmount after 4 idle minutes. */
+const IDLE_UNMOUNT_MS = READ_ONLY_IDLE_UNMOUNT_MS;
 /** Windows desktop: evict idle dashboards sooner to avoid renderer OOM / blank window. */
 const ELECTRON_IDLE_UNMOUNT_MS = 120_000;
 /** Avoid churn when few tabs are open — never auto-unmount at or below this count. */
@@ -71,10 +71,7 @@ const MIN_KEEP_TABS = 3;
 const ELECTRON_MIN_KEEP_TABS = 2;
 const IDLE_UNMOUNT_CHECK_INTERVAL_MS = 60_000;
 
-/** Heavy admin screens — only these may idle-evict when many tabs are open. */
-// NOTE: Settings was previously evictable, but users reported the tab "reloading"
-// after minimize/tab-switch. Keep it mounted like Sales/Purchase dashboards.
-const IDLE_EVICT_ALLOWED_PATHS = new Set(["user-rights"]);
+/** Read-only screens. Settings unmounts only after the idle window, not on a tab switch. */
 
 /** Live working screens — never auto-unmount (cart, bill entry, unsaved-work proxy). */
 const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
@@ -202,7 +199,7 @@ function isProtectedTabPath(path: string): boolean {
   const resolved = resolveTabCachePath(path);
   if (isEntryTabPath(resolved)) return true;
   if (LIVE_WORK_TAB_PATHS.has(resolved)) return true;
-  if (IDLE_EVICT_ALLOWED_PATHS.has(resolved)) return false;
+  if (isIdleEvictableDashboardPath(resolved)) return false;
   if (isElectronShell() && ELECTRON_WORKFLOW_DASHBOARD_PATHS.has(resolved)) return true;
   // Browser/PWA: keep dashboards mounted for instant tab switch.
   if (!isElectronShell()) {
@@ -223,16 +220,19 @@ function getMinKeepTabs(): number {
 function TabLoadShellView({ path }: { path: string }) {
   const shell = resolveTabLoadShell(path);
   const message = tabLoadMessage(path, shell);
-  if (shell === "entry") {
-    return <AppBootSplash message={message} />;
-  }
-  if (shell === "dashboard") {
-    if (isElectronShell()) {
-      return <AppBootSplash message={message} />;
-    }
-    return <DashboardSkeleton />;
-  }
-  return <AppBootSplash message={message} />;
+  if (shell === "dashboard") return <DashboardSkeleton />;
+  return (
+    <div
+      className="flex min-h-0 w-full flex-1 flex-col gap-3 p-4"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      data-ezzy-load-shell="pane"
+    >
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <DashboardSkeleton />
+    </div>
+  );
 }
 
 function TabPageWithPerf({
@@ -624,7 +624,8 @@ export function TabCachedPages({
 
       const next = new Set(prev);
       for (const path of idleCandidates) {
-        if (next.size <= minKeepTabs) break;
+        const readOnly = isIdleEvictableDashboardPath(path);
+        if (!readOnly && next.size <= minKeepTabs) break;
         next.delete(path);
       }
 

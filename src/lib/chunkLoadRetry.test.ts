@@ -10,6 +10,8 @@ import {
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+  POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS,
+  POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS,
   ACCOUNTS_TAB_PREFETCH_PATHS,
   POS_CONTEXT_PURCHASE_PREFETCH_PATHS,
   POS_CONTEXT_WARM_TAB_PATH,
@@ -119,8 +121,15 @@ describe("idle / wake entry-chunk prefetch lists", () => {
   });
 
   it("warms purchase-entry and product-entry on web idle after login", () => {
+    expect(POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS).toEqual([
+      "purchase-entry",
+      "sales-invoice",
+      "products",
+    ]);
+    expect(POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS).toBe(500);
+    expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS[0]).not.toBe("purchase-entry");
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS).toEqual(
-      expect.arrayContaining(["purchase-entry", "product-entry", "purchase-bills"]),
+      expect.arrayContaining(["product-entry", "purchase-bills"]),
     );
   });
 
