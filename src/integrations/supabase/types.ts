@@ -9927,6 +9927,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      _is_pos_exchange_refund_on_bill: {
+        Args: { p_description: string; p_organization_id: string }
+        Returns: boolean
+      }
       _is_settlement_memo_receipt: {
         Args: { p_description: string; p_payment_method: string }
         Returns: boolean
