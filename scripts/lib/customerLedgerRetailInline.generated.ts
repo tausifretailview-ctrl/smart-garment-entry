@@ -9,7 +9,7 @@ import {
   splitSaleLinkedReceiptRows,
 } from "@/utils/customerBalanceUtils";
 import { residualPaymentAtSaleTender, residualTenderBreakdown } from "@/utils/customerAuditBundle";
-import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import { derivePaidAndStatus, isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
 import {
   allocateCnAdjustmentsToSaleReturns,
   saleReturnConsumedForRemaining,
@@ -115,8 +115,20 @@ export async function fetchCustomerLedgerTransactionsDesktopInline(
   // Merge invoice payments and opening balance payments
   // Exclude payment-type (refund) vouchers for sale returns — they are already
   // represented by the Sale Return entry with "(Cash Refunded)" label
+  const saleNumbersWithRefundOnBill = new Set(
+    (salesData || [])
+      .filter((s: any) => (Number(s.refund_amount) || 0) > 0.005)
+      .map((s: any) => String(s.sale_number || "").trim().toLowerCase()),
+  );
+  const isRefundAlreadyOnBill = (v: any) => {
+    if (!isPosExchangeRefundPaymentVoucher(v)) return false;
+    const m = String(v.description || "").match(/^refund paid for pos exchange\s+(.+)$/i);
+    return !!m && saleNumbersWithRefundOnBill.has(m[1].trim().toLowerCase());
+  };
+
   let allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
     .filter((v: any) => {
+      if (isRefundAlreadyOnBill(v)) return false;
       // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
       if (v.voucher_type === 'receipt') {
         const desc = (v.description || '').toLowerCase();
@@ -208,7 +220,7 @@ export async function fetchCustomerLedgerTransactionsDesktopInline(
         [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
           if (v?.id) byId.set(v.id, v);
         });
-        allVouchers = Array.from(byId.values());
+        allVouchers = Array.from(byId.values()).filter((v: any) => !isRefundAlreadyOnBill(v));
       }
     }
   }
@@ -850,7 +862,10 @@ export async function fetchCustomerLedgerTransactionsDesktopInline(
         // applied CN: balance moved net-of-applied, then the invoice still
         // debited gross (Hanif bhai / SR×INV ₹3,200 → ended ₹150 Dr while
         // column totals correctly showed ₹3,050 Cr gap).
-        runningBalance -= saleReturnRunningBalanceCredit(amount);
+        runningBalance -= saleReturnRunningBalanceCredit(
+          amount,
+          Math.min(consumedAmount, absorbedOnInvoice),
+        );
 
         let status: string;
         if (absorbedOnInvoice > 0 && remainingCredit <= 0) status = 'Fully Adjusted';

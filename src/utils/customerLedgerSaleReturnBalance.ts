@@ -9,8 +9,20 @@
  * Remaining CN availability must NOT be used here (that double-deducts applied CN
  * when the linked invoice still debits gross).
  */
-export function saleReturnRunningBalanceCredit(grossNetAmount: number): number {
-  return Math.max(0, Number(grossNetAmount) || 0);
+export function saleReturnRunningBalanceCredit(
+  grossNetAmount: number,
+  /**
+   * Part of this return already taken off an invoice's debit through that invoice's
+   * `sale_return_adjust` (Rule B payable = net − SRA). Crediting it again here
+   * double-counts it (Imran: SR ₹7,506, ₹3,780 on the linked exchange bill,
+   * ₹3,726 refunded → ledger showed ₹3,780 Cr instead of ₹0). Default 0 keeps
+   * the gross rule for returns applied only by CN voucher (Hanif bhai).
+   */
+  absorbedInInvoiceDebit = 0,
+): number {
+  const gross = Math.max(0, Number(grossNetAmount) || 0);
+  const absorbed = Math.min(gross, Math.max(0, Number(absorbedInInvoiceDebit) || 0));
+  return gross - absorbed;
 }
 
 /**

@@ -99,7 +99,9 @@ export type CustomerBalanceCoreVoucher = {
 
 export type CustomerBalanceCoreSale = {
   id?: string;
+  sale_number?: string | null;
   net_amount?: number | null;
+  refund_amount?: number | null;
   sale_return_adjust?: number | null;
   /** Merchandise gross Σ(mrp × qty). Discriminates pre-return (full bill) from post-return net. */
   items_gross?: number | null;
@@ -427,15 +429,27 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     )
     .reduce((sum, v) => sum + voucherCredit(v), 0);
 
+  const saleNumbersWithRefundOnBill = new Set(
+    validSales
+      .filter((s) => (Number(s.refund_amount) || 0) > 0.005)
+      .map((s) => String(s.sale_number || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const isPosExchangeRefundDuplicatedOnBill = (v: CustomerBalanceCoreVoucher): boolean => {
+    if (!isPosExchangeRefundPaymentVoucher(v)) return false;
+    const m = String(v.description || "").match(/^refund paid for pos exchange\s+(.+)$/i);
+    return !!m && saleNumbersWithRefundOnBill.has(m[1].trim().toLowerCase());
+  };
+
   const customerPaymentDebits =
     params.voucherEntries
       .filter(
         (v) =>
           String(v.voucher_type || "").toLowerCase() === "payment" &&
           String(v.reference_type || "").toLowerCase() === "customer" &&
-          // POS exchange cash refunds settle S/R overflow via sales.refund_amount;
-          // counting the payment voucher again would phantom-credit the customer.
-          !isPosExchangeRefundPaymentVoucher(v),
+          // Skip only when refund_amount on the bill already records this exchange payout.
+          // Legacy negative-net bills still count the payment voucher (Velvet class).
+          !isPosExchangeRefundDuplicatedOnBill(v),
       )
       .reduce((sum, v) => sum + Math.max(0, Number(v.total_amount) || 0), 0) +
     Math.max(0, Number(params.additionalCustomerPaymentDebits || 0));

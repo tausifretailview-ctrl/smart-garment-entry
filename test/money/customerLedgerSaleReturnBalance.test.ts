@@ -107,3 +107,23 @@ describe("saleReturnConsumedForRemaining", () => {
     ).toBe(0);
   });
 });
+
+describe("saleReturnRunningBalanceCredit — part already off the linked invoice", () => {
+  it("Imran exchange: SR ₹7,506, ₹3,780 on bill SRA, ₹3,726 refunded → ledger ends ₹0", () => {
+    const running =
+      10000 - 10000 // earlier bill paid in full
+      - saleReturnRunningBalanceCredit(7506, 3780) // return, minus the part on the bill's SRA
+      + 0 // exchange bill debits payable (3,780 − 3,780)
+      + 3726; // refund paid out
+    expect(running).toBe(0);
+  });
+
+  it("part-used return with no refund keeps only the unused part as credit", () => {
+    expect(saleReturnRunningBalanceCredit(7506, 3780)).toBe(3726);
+  });
+
+  it("never goes below zero and defaults to gross (Hanif)", () => {
+    expect(saleReturnRunningBalanceCredit(500, 900)).toBe(0);
+    expect(saleReturnRunningBalanceCredit(6250)).toBe(6250);
+  });
+});
