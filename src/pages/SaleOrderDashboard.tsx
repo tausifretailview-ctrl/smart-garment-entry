@@ -49,6 +49,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
+import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { Check, FileText, X } from "lucide-react";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { formatDistanceToNow } from "date-fns";
@@ -113,6 +114,9 @@ export default function SaleOrderDashboard() {
 
   const isDesktop = useIsDesktop();
   const rowContextMenu = useContextMenu<any>();
+  const { hasSpecialPermission } = useUserPermissions();
+  // Delete right: same "Delete Records" special permission as the other dashboards.
+  const canDeleteSaleOrder = hasSpecialPermission("delete_records");
 
   const getOrderContextMenuItems = (order: any): ContextMenuItem[] => [
     {
@@ -147,8 +151,9 @@ export default function SaleOrderDashboard() {
     {
       label: "Delete",
       icon: Trash2,
-      onClick: () => setOrderToDelete(order),
+      onClick: () => handleDeleteClick(order),
       destructive: true,
+      disabled: !canDeleteSaleOrder,
     },
   ];
 
@@ -715,8 +720,21 @@ export default function SaleOrderDashboard() {
 
   const { softDelete } = useSoftDelete();
 
+  const handleDeleteClick = (order: any) => {
+    if (!canDeleteSaleOrder) {
+      toast({
+        title: "Permission Denied",
+        description: "You don't have permission to delete sale orders. Ask admin to enable 'Delete Records' in User Rights.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setOrderToDelete(order);
+  };
+
   const handleDeleteOrder = async () => {
     if (!orderToDelete) return;
+    if (!canDeleteSaleOrder) return;
 
     setIsDeleting(true);
     try {
@@ -1232,7 +1250,7 @@ export default function SaleOrderDashboard() {
                                 <ArrowRight className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" onClick={() => setOrderToDelete(order)}>
+                            <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => handleDeleteClick(order)}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
