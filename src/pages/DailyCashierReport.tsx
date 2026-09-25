@@ -65,6 +65,7 @@ import {
   computeExpectedDrawerCash,
 } from "@/utils/cashTallyExpectedDrawer";
 import { LazyFloatingCashTally } from "@/components/lazyFloatingWidgets";
+import { cashierSaleReturnRefundMode } from "@/utils/cashierSaleReturnRefunds";
 
 type PeriodType = "daily" | "monthly" | "quarterly";
 
@@ -223,7 +224,7 @@ const DailyCashierReport = () => {
       try {
         const { data, error } = await supabase
           .from("sale_returns")
-          .select("id, net_amount, return_date, refund_type")
+          .select("id, net_amount, return_date, refund_type, payment_method")
           .eq("organization_id", currentOrganization.id)
           .gte("return_date", rangeStartYmd)
           .lte("return_date", rangeEndYmd)
@@ -330,9 +331,9 @@ const DailyCashierReport = () => {
       try {
         const { data, error } = await supabase
           .from("sale_returns")
-          .select("id, net_amount, return_date, refund_type")
+          .select("id, net_amount, return_date, refund_type, payment_method")
           .eq("organization_id", currentOrganization.id)
-          .eq("refund_type", "cash_refund")
+          .in("refund_type", ["cash_refund", "upi_refund", "card_refund", "bank_refund"])
           .gte("return_date", startDateStr)
           .lte("return_date", endDateStr)
           .is("deleted_at", null);
@@ -716,13 +717,25 @@ const DailyCashierReport = () => {
       feeTotalCollection = feeCashCollection + feeUpiCollection + feeCardCollection + feeBankCollection;
     }
 
-    // Calculate cash refund total from sale returns (refund_type=cash_refund)
+    // Sale-return refunds by the mode picked at refund time. A "cash_refund" row paid
+    // by UPI / Bank Transfer must not land in Cash Refunds.
     let cashRefundTotal = 0;
-    if (cashRefundData) {
-      cashRefundData.forEach((refund: any) => {
-        cashRefundTotal += Number(refund.net_amount) || 0;
-      });
-    }
+    let srRefundCashCount = 0;
+    let srRefundUpi = 0;
+    let srRefundCard = 0;
+    let srRefundNonCashCount = 0;
+    (cashRefundData || []).forEach((refund: any) => {
+      const amt = Number(refund.net_amount) || 0;
+      const mode = cashierSaleReturnRefundMode(refund);
+      if (mode === "cash") {
+        cashRefundTotal += amt;
+        srRefundCashCount += 1;
+        return;
+      }
+      if (mode === "upi") srRefundUpi += amt;
+      else srRefundCard += amt;
+      srRefundNonCashCount += 1;
+    });
 
     // Customer overpayment / pending-CN refunds paid from drawer (by payment mode)
     let customerRefundCash = 0;
@@ -739,6 +752,9 @@ const DailyCashierReport = () => {
         else customerRefundOther += amt;
       });
     }
+    // Non-cash S/R refunds share the UPI / Card-Bank refund lines with customer vouchers.
+    customerRefundUpi += srRefundUpi;
+    customerRefundCard += srRefundCard;
     const customerRefundTotal =
       customerRefundCash + customerRefundUpi + customerRefundCard + customerRefundOther;
     // Keep legacy cashRefundTotal as S/R cash_refund rows + cash-mode customer refunds
@@ -849,7 +865,7 @@ const DailyCashierReport = () => {
       // Cash refunds (S/R cash_refund rows + customer overpayment/CN cash vouchers)
       cashRefundTotal,
       cashRefundCount:
-        (cashRefundData?.length || 0) +
+        srRefundCashCount +
         (customerRefundVouchers || []).filter((v: any) => {
           const m = String(v.payment_method || "cash").toLowerCase();
           return m === "cash" || !m;
@@ -859,7 +875,7 @@ const DailyCashierReport = () => {
       customerRefundCard,
       customerRefundOther,
       customerRefundTotal,
-      customerRefundCount: customerRefundVouchers?.length || 0,
+      customerRefundCount: (customerRefundVouchers?.length || 0) + srRefundNonCashCount,
       // Student fee collections
       feeCashCollection,
       feeUpiCollection,
@@ -1985,7 +2001,7 @@ const DailyCashierReport = () => {
                           <>
                             <TableRow className="bg-rose-50/80">
                               <TableCell colSpan={2} className="font-semibold text-rose-800">
-                                Customer refunds (overpayment / CN) — {totals.customerRefundCount} vouchers
+                                Refunds by mode (sale returns + customer) — {totals.customerRefundCount}
                               </TableCell>
                             </TableRow>
                             {totals.customerRefundCash > 0 && (
@@ -2194,7 +2210,7 @@ const DailyCashierReport = () => {
                   )}
                   {(totals.customerRefundUpi || 0) + (totals.customerRefundCard || 0) + (totals.customerRefundOther || 0) > 0 && (
                     <div className="flex justify-between text-red-600">
-                      <span className="text-muted-foreground">Less: Customer Refund UPI/Card/Other</span>
+                      <span className="text-muted-foreground">Less: Refunds UPI/Card/Bank</span>
                       <span className="tabular-nums">
                         -{" "}
                         {formatCurrency(

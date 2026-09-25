@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
 
 interface SaleReturnItem {
   product_name: string;
@@ -191,6 +192,9 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 <div><strong>Credit Note No:</strong> {saleReturn.credit_note_number}</div>
               )}
               <div><strong>Return Date:</strong> {new Date(saleReturn.return_date).toLocaleDateString('en-IN')}</div>
+              {saleReturn.refund_type === 'cash_refund' && (
+                <div><strong>Refund Mode:</strong> {saleReturnRefundModeLabel(saleReturn)}</div>
+              )}
             </div>
           </div>
 

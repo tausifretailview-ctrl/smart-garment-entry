@@ -33,6 +33,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
+import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
 import {
   getPosDocumentPrintPageStyle,
   resolvePosThermalPaper,
@@ -86,6 +87,8 @@ interface SaleReturn {
   credit_status?: string;
   linked_sale_id?: string;
   refund_type?: string;
+  /** Mode picked for a direct refund (cash / upi / card / bank_transfer). */
+  payment_method?: string | null;
   credit_note_number?: string;
   customer_phone?: string | null;
   total_qty?: number;
@@ -458,7 +461,7 @@ export default function SaleReturnDashboard() {
 
       let query = supabase
         .from("sale_returns")
-        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type", { count: "exact" })
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -965,7 +968,7 @@ export default function SaleReturnDashboard() {
         .map((bill) => formatRegisterDate(bill.saleDate))
         .filter(Boolean)
         .join(", ") || formatRegisterDate(ret.adjusted_sale_date) || "-",
-      "Refund Type": ret.refund_type === 'cash_refund' ? 'Cash Refund' : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
+      "Refund Type": ret.refund_type === 'cash_refund' ? `Refund (${saleReturnRefundModeLabel(ret)})` : ret.refund_type === 'exchange' ? 'Exchange' : 'Credit Note',
     }));
 
     const XLSX = await loadXlsx();
@@ -1807,7 +1810,7 @@ export default function SaleReturnDashboard() {
                           {ret.refund_type === 'cash_refund' && (
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700">
                               <Banknote className="h-3 w-3 mr-1" />
-                              Cash Refund
+                              Refund · {saleReturnRefundModeLabel(ret)}
                             </Badge>
                           )}
                           {ret.refund_type === 'exchange' && (

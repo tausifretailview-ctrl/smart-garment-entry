@@ -37,6 +37,15 @@ export function cashierSaleReturnRefundMode(
   return "cash";
 }
 
+/** Label for the refund mode, for prints and lists ("Cash", "UPI", "Card", "Bank Transfer"). */
+export function saleReturnRefundModeLabel(row: CashierSaleReturnRefundRow): string {
+  const mode = cashierSaleReturnRefundMode(row);
+  if (mode === "upi") return "UPI";
+  if (mode === "card") return "Card";
+  if (mode === "bank") return "Bank Transfer";
+  return "Cash";
+}
+
 export function sumCashierSaleReturnRefunds(
   rows: CashierSaleReturnRefundRow[] | null | undefined,
 ): {
