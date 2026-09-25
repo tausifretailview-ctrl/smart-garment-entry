@@ -3529,6 +3529,7 @@ export type Database = {
           amount_applied: number
           created_at: string
           id: string
+          idempotency_key: string | null
           invoice_id: string
           notes: string | null
           organization_id: string
@@ -3541,6 +3542,7 @@ export type Database = {
           amount_applied: number
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           invoice_id: string
           notes?: string | null
           organization_id: string
@@ -3553,6 +3555,7 @@ export type Database = {
           amount_applied?: number
           created_at?: string
           id?: string
+          idempotency_key?: string | null
           invoice_id?: string
           notes?: string | null
           organization_id?: string
@@ -10055,6 +10058,18 @@ export type Database = {
         }
         Returns: Json
       }
+      apply_pos_credit: {
+        Args: {
+          p_adjusted_by?: string
+          p_amount_applied: number
+          p_idempotency_key: string
+          p_notes?: string
+          p_organization_id: string
+          p_sale_id: string
+          p_source_document_id: string
+        }
+        Returns: Json
+      }
       apply_school_fee_receipt: {
         Args: {
           p_academic_year_id: string
@@ -10168,6 +10183,10 @@ export type Database = {
         Returns: boolean
       }
       create_customer_link: { Args: { p_sale_id: string }; Returns: Json }
+      create_exchange_excess_sale_return: {
+        Args: { p_credit_note_id: string; p_organization_id: string }
+        Returns: string
+      }
       create_organization: {
         Args: { p_name: string; p_user_id?: string }
         Returns: Json
@@ -11439,6 +11458,7 @@ export type Database = {
         }
         Returns: string
       }
+      release_sale_credit: { Args: { p_sale_id: string }; Returns: Json }
       repair_customer_floating_adjustments: {
         Args: {
           p_customer_id: string
@@ -11491,6 +11511,10 @@ export type Database = {
           rematched: boolean
           sku_id: string
         }[]
+      }
+      restore_linked_returns_after_credit_release: {
+        Args: { p_sale_id: string }
+        Returns: undefined
       }
       restore_purchase_bill: { Args: { p_bill_id: string }; Returns: undefined }
       restore_purchase_return: {
