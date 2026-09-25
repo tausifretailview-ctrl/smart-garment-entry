@@ -1108,8 +1108,10 @@ export const useSaveSale = () => {
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
           // POS credit is added by apply_pos_credit after insert. Writing it here
-          // would double sale_return_adjust.
-          sale_return_adjust: saleType === "pos" ? 0 : saleData.saleReturnAdjust,
+          // would double sale_return_adjust. Walk-in bills have no customer credit
+          // to apply later, so their same-bill return is stored directly.
+          sale_return_adjust:
+            saleType === "pos" && saleData.customerId ? 0 : saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
@@ -2347,7 +2349,8 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: 0,
+          // Walk-in: no customer credit to apply later, store the same-bill return directly.
+          sale_return_adjust: saleData.customerId ? 0 : saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
