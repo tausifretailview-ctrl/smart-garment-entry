@@ -126,8 +126,24 @@
       // Merge invoice payments and opening balance payments
       // Exclude payment-type (refund) vouchers for sale returns — they are already
       // represented by the Sale Return entry with "(Cash Refunded)" label
+      // POS exchange refund vouchers duplicate the bill's own "Refund paid" row when the
+      // refund is stored on the sale (refund_amount). Older bills kept the refund only in
+      // the voucher (negative net), so those still show it.
+      const saleNumbersWithRefundOnBill = new Set(
+        (salesData || [])
+          .filter((s: any) => (Number(s.refund_amount) || 0) > 0.005)
+          .map((s: any) => String(s.sale_number || "").trim().toLowerCase()),
+      );
+      const isRefundAlreadyOnBill = (v: any) => {
+        // Refund part only: a round-off voucher is not on the bill and stays.
+        if (!isPosExchangeRefundPaymentVoucher(v)) return false;
+        const m = String(v.description || "").match(/^refund paid for pos exchange\s+(.+)$/i);
+        return !!m && saleNumbersWithRefundOnBill.has(m[1].trim().toLowerCase());
+      };
+
       let allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
         .filter((v: any) => {
+          if (isRefundAlreadyOnBill(v)) return false;
           // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
           if (v.voucher_type === 'receipt') {
             const desc = (v.description || '').toLowerCase();
@@ -165,7 +181,7 @@
             [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
               if (v?.id) byId.set(v.id, v);
             });
-            allVouchers = Array.from(byId.values());
+            allVouchers = Array.from(byId.values()).filter((v: any) => !isRefundAlreadyOnBill(v));
           }
         }
       }
@@ -339,10 +355,7 @@
           });
 
           (priorSales || []).forEach((sale: any) => {
-            const receivable = Math.max(
-              0,
-              Number(sale.net_amount || 0) - Number(sale.sale_return_adjust || 0),
-            );
+            const receivable = Math.max(0, saleBillFigures(sale).payable);
             effectiveOpeningBalance += receivable;
             const cashVoucher = priorCashVouchers[sale.id] || 0;
             // Residual at-sale tender + voucher (same total as full tender or
@@ -509,12 +522,15 @@
         if (item.type === 'invoice') {
           const sale = item.data as any;
           const isCancelled = sale.payment_status === 'cancelled';
-          const saleReturnAdjust = Number(sale.sale_return_adjust || 0);
-          const grossBill = Number(sale.net_amount || 0);
+          const figures = saleBillFigures(sale);
+          const saleReturnAdjust = figures.saleReturnAdjust;
+          const storedNet = Number(sale.net_amount || 0);
+          const grossBill = figures.billAmount;
           const isExchangeCoveredByReturn =
-            saleReturnAdjust > 0 && grossBill > 0 && saleReturnAdjust >= grossBill;
-          // Receivable on this invoice (matches Sales Invoice Dashboard & balance RPC).
-          const invoiceDebit = Math.max(0, grossBill - saleReturnAdjust);
+            saleReturnAdjust > 0 && storedNet > 0 && saleReturnAdjust >= storedNet;
+          // Payable is the invoice debit. Baked rows already have the return inside net,
+          // so it is not subtracted again. Rule B payable is net minus sale_return_adjust.
+          const invoiceDebit = Math.max(0, figures.payable);
           if (!isCancelled) {
             runningBalance += invoiceDebit;
           }
@@ -816,7 +832,13 @@
             // applied CN: balance moved net-of-applied, then the invoice still
             // debited gross (Hanif bhai / SR×INV ₹3,200 → ended ₹150 Dr while
             // column totals correctly showed ₹3,050 Cr gap).
-            runningBalance -= saleReturnRunningBalanceCredit(amount);
+            // The linked invoice debits payable (net − SRA), so the part of this return
+            // sitting in that SRA is already off the balance. Only for SRA that this
+            // return's consumption accounts for (Maseera: shared SRA).
+            runningBalance -= saleReturnRunningBalanceCredit(
+              amount,
+              Math.min(consumedAmount, absorbedOnInvoice),
+            );
 
             let status: string;
             if (absorbedOnInvoice > 0 && remainingCredit <= 0) status = 'Fully Adjusted';

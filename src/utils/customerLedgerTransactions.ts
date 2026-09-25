@@ -13,7 +13,7 @@ import {
   splitSaleLinkedReceiptRows,
 } from "@/utils/customerBalanceUtils";
 import { residualPaymentAtSaleTender, residualTenderBreakdown } from "@/utils/customerAuditBundle";
-import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import { derivePaidAndStatus, isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
 import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   allocateCnAdjustmentsToSaleReturns,
@@ -234,8 +234,24 @@ export async function fetchCustomerLedgerTransactionsWithClient(
   // Merge invoice payments and opening balance payments
   // Exclude payment-type (refund) vouchers for sale returns — they are already
   // represented by the Sale Return entry with "(Cash Refunded)" label
+  // POS exchange refund vouchers duplicate the bill's own "Refund paid" row when the
+  // refund is stored on the sale (refund_amount). Older bills kept the refund only in
+  // the voucher (negative net), so those still show it.
+  const saleNumbersWithRefundOnBill = new Set(
+    (salesData || [])
+      .filter((s: any) => (Number(s.refund_amount) || 0) > 0.005)
+      .map((s: any) => String(s.sale_number || "").trim().toLowerCase()),
+  );
+  const isRefundAlreadyOnBill = (v: any) => {
+    // Refund part only: a round-off voucher is not on the bill and stays.
+    if (!isPosExchangeRefundPaymentVoucher(v)) return false;
+    const m = String(v.description || "").match(/^refund paid for pos exchange\s+(.+)$/i);
+    return !!m && saleNumbersWithRefundOnBill.has(m[1].trim().toLowerCase());
+  };
+
   let allVouchers = [...(vouchersData || []), ...(openingBalancePayments || [])]
     .filter((v: any) => {
+      if (isRefundAlreadyOnBill(v)) return false;
       // Keep all receipt vouchers EXCEPT credit note adjustments linked to sale returns
       if (v.voucher_type === 'receipt') {
         const desc = (v.description || '').toLowerCase();
@@ -273,7 +289,7 @@ export async function fetchCustomerLedgerTransactionsWithClient(
         [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
           if (v?.id) byId.set(v.id, v);
         });
-        allVouchers = Array.from(byId.values());
+        allVouchers = Array.from(byId.values()).filter((v: any) => !isRefundAlreadyOnBill(v));
       }
     }
   }
@@ -924,7 +940,13 @@ export async function fetchCustomerLedgerTransactionsWithClient(
         // applied CN: balance moved net-of-applied, then the invoice still
         // debited gross (Hanif bhai / SR×INV ₹3,200 → ended ₹150 Dr while
         // column totals correctly showed ₹3,050 Cr gap).
-        runningBalance -= saleReturnRunningBalanceCredit(amount);
+        // The linked invoice debits payable (net − SRA), so the part of this return
+        // sitting in that SRA is already off the balance. Only for SRA that this
+        // return's consumption accounts for (Maseera: shared SRA).
+        runningBalance -= saleReturnRunningBalanceCredit(
+          amount,
+          Math.min(consumedAmount, absorbedOnInvoice),
+        );
 
         let status: string;
         if (absorbedOnInvoice > 0 && remainingCredit <= 0) status = 'Fully Adjusted';
