@@ -3155,6 +3155,12 @@ main:has(.supplier-party-balances-workspace) {
     font-size: 14px !important;
     height: 2.5rem !important;
   }
+  /* Search results dropdown lives inside the toolbar: its rows must size to
+     their content, otherwise each 3-line result is squashed to 2.5rem and
+     overlaps the next one. */
+  .purchase-bill-readable .purchase-bill-toolbar .purchase-search-dropdown button {
+    height: auto !important;
+  }
   .purchase-bill-readable .purchase-bill-lines-scroll {
     min-height: 0;
     overscroll-behavior-y: contain;

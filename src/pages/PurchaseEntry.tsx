@@ -8100,7 +8100,7 @@ const PurchaseEntry = () => {
                     placeholder="SEARCH BY NAME, BRAND, CATEGORY OR STYLE..."
                   />
                   {showSearch && searchResults.length > 0 && (
-                    <div className="absolute top-full mt-1 w-full bg-popover border border-border rounded-md shadow-lg z-[100] max-h-80 overflow-auto">
+                    <div className="purchase-search-dropdown absolute left-0 top-full mt-1 w-full min-w-[560px] bg-popover border border-border rounded-md shadow-lg z-[100] max-h-[420px] overflow-auto">
                       {searchResults.map((result, idx) => (
                         <div
                           key={result.product_id + idx}
@@ -8116,9 +8116,9 @@ const PurchaseEntry = () => {
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => handleProductSelect(result)}
-                            className="flex-1 text-left"
+                            className="flex-1 min-w-0 text-left"
                           >
-                            <div className="flex justify-between items-start gap-2">
+                            <div className="flex justify-between items-start gap-3">
                             <div className="min-w-0 flex-1">
                               <div className="font-semibold text-sm flex items-center gap-2">
                                 <span>{result.product_name}</span>
@@ -8135,7 +8135,6 @@ const PurchaseEntry = () => {
                                 {result.color && result.color !== '-' && <span className="text-[10px] bg-muted text-muted-foreground px-1 py-0.5 rounded">{result.color}</span>}
                               </div>
                               <div className="flex items-center gap-4 text-xs text-muted-foreground mt-1">
-                                {result.size_range && <span>{result.size_range}</span>}
                                 {result.groupedVariantCount && result.groupedVariantCount > 1 && (
                                   <span>{result.groupedVariantCount} sizes</span>
                                 )}

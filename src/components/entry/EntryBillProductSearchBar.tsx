@@ -256,7 +256,7 @@ export function EntryBillProductSearchBar({
                                   mrp: result.mrp,
                                   stock_qty: result.stock_qty || 0,
                                 }}
-                                showProductName={group.variants.length === 1}
+                                showProductName
                               />
                             </CommandItem>
                           )),
