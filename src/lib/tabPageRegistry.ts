@@ -12,6 +12,8 @@ import {
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
   POST_LOGIN_ELECTRON_IDLE_PRIMARY_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
+  POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS,
+  POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS,
   POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
   MASTER_TAB_PREFETCH_PATHS,
   INVENTORY_TAB_PREFETCH_PATHS,
@@ -524,14 +526,34 @@ export function prefetchPostLoginIdlePages(): () => void {
         ...POST_LOGIN_IDLE_PREFETCH_TAB_PATHS,
       ] as const)
     : ([
+        ...POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS,
         ...POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS,
         ...POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS,
       ] as const);
   // Critical warm already ran — only queue chunks that are still cold.
   const queue = dedupeTabPrefetchPaths(paths);
   if (queue.length === 0) return () => {};
+  if (!isElectronShell()) {
+    const priority = POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS.filter((path) =>
+      queue.includes(path),
+    );
+    const prioritySet = new Set<string>(priority);
+    const rest = queue.filter((path) => !prioritySet.has(path));
+    const cancelPriority = scheduleSequentialIdlePrefetch(priority, (path) => prefetchTabPage(path), {
+      minDelay: POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS,
+      timeout: 4_000,
+    });
+    const cancelRest = scheduleSequentialIdlePrefetch(rest, (path) => prefetchTabPage(path), {
+      minDelay: 4_000,
+      timeout: 12_000,
+    });
+    return () => {
+      cancelPriority();
+      cancelRest();
+    };
+  }
   return scheduleSequentialIdlePrefetch(queue, (path) => prefetchTabPage(path), {
-    minDelay: isElectronShell() ? 0 : 4_000,
+    minDelay: 0,
     timeout: 12_000,
   });
 }

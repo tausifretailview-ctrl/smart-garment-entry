@@ -69,14 +69,25 @@ export const POST_LOGIN_ELECTRON_IDLE_PRIMARY_PREFETCH_TAB_PATHS = [
  * (web/PWA only). Entry chunks are large; without this, first open after idle shows
  * "Loading bill screen…" until the cold download finishes.
  */
+/**
+ * First idle wave after login. These three open most often and used to sit
+ * behind six other inventory chunks (each gap after a 4s defer).
+ */
+export const POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS = [
+  "purchase-entry",
+  "sales-invoice",
+  "products",
+] as const;
+
+/** Start the priority wave soon after login. The rest of the queue stays deferred. */
+export const POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS = 500;
+
 export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
   "product-dashboard",
-  "products",
   "purchase-bill-dashboard",
   "purchase-bills",
   "purchase-return-dashboard",
   "purchase-returns",
-  "purchase-entry",
   "product-entry",
   "pos-dashboard",
   "sales-invoice-dashboard",
