@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
-import { STALE_SETTINGS } from "@/lib/queryStaleTimes";
+import { STALE_DASHBOARD_TAB_RETURN, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import { DASHBOARD_KPI_QUERY_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
@@ -897,6 +897,12 @@ export default function SalesInvoiceDashboard() {
       dashboardStats.totalInvoices > 0 &&
       dashboardFilters.paymentStatusFilter.length === 0,
     ...DASHBOARD_KPI_QUERY_OPTIONS,
+    // Full-org receipt reconcile (dozens of round-trips on large orgs) exists only
+    // because RPC pendingAmount can diverge from row reconcile on split vouchers.
+    // Tiles already paint from the RPC value; refresh this correction at most once
+    // per 2 minutes per filter set and never on tab-return remount.
+    staleTime: STALE_DASHBOARD_TAB_RETURN,
+    refetchOnMount: false,
   });
 
   // Table rows: server-side page + per-page reconcile (stats come from RPC above).
