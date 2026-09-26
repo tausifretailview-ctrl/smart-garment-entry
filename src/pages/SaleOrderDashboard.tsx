@@ -9,9 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
-import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon } from "lucide-react";
+import { Search, Edit, ChevronDown, ChevronUp, Trash2, Loader2, ClipboardList, ArrowRight, Plus, CheckCircle, AlertTriangle, Printer, Clock, Package, IndianRupee, MessageCircle, CalendarIcon, Download, FileDown } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ListTableSkeleton } from "@/components/skeletons/ListPageSkeleton";
@@ -80,6 +79,10 @@ import {
   articleCodeKey,
   articleSizeStockList,
 } from "@/utils/sizeWiseStockLookup";
+import { useTabCacheLayout } from "@/contexts/TabCacheLayoutContext";
+import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
+import { onWheelScrollContainer } from "@/lib/scrollWheel";
+import { resolveSaleBillFormatFromSaleSettings } from "@/utils/invoicePrintFormat";
 
 interface ConversionItem {
   id: string;
@@ -124,6 +127,13 @@ export default function SaleOrderDashboard() {
       icon: Printer,
       onClick: () => {
         void handlePrintOrder(order);
+      },
+    },
+    {
+      label: "Download PDF",
+      icon: FileDown,
+      onClick: () => {
+        void handleDownloadOrderPdf(order);
       },
     },
     {
@@ -185,7 +195,10 @@ export default function SaleOrderDashboard() {
     mode: "order" | "available-stock";
     conversionItems?: ConversionItem[];
     printedAt?: Date;
+    autoDownload?: boolean;
   } | null>(null);
+  const inTabCache = useTabCacheLayout();
+  const sharedShell = useSharedAppShell();
   const { formatSaleOrderMessage } = useWhatsAppTemplates();
   const [fromDate, setFromDate] = useState<Date>(() => saleOrderDashboardThisMonthRange().fromDate);
   const [toDate, setToDate] = useState<Date>(() => saleOrderDashboardThisMonthRange().toDate);
@@ -832,6 +845,19 @@ export default function SaleOrderDashboard() {
     }
   };
 
+  const handleDownloadOrderPdf = async (order: any) => {
+    setRowActionLoadingId(order.id);
+    try {
+      const fullOrder = await fetchSaleOrderWithItems(order.id);
+      if (!fullOrder) throw new Error("Order not found");
+      setOrderToPrint({ order: fullOrder, mode: "order", autoDownload: true });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
   const handlePrintAvailableStock = async (order: any) => {
     if (order.status === "confirmed") {
       toast({
@@ -908,19 +934,24 @@ export default function SaleOrderDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-2 sm:px-3 md:px-4 lg:px-5 py-6 pb-24 lg:pb-6">
-      <div className="w-full min-w-0 max-w-none space-y-5">
+    <div
+      className={cn(
+        "sale-order-dashboard relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3",
+        !inTabCache && !sharedShell && "h-[calc(100vh-3.5rem)]",
+      )}
+    >
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
 
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-extrabold text-blue-600 tracking-tight leading-tight">
+          <h1 className="text-xl font-bold leading-none tracking-tight text-blue-700">
             Sale Order Dashboard
           </h1>
-          <p className="text-slate-400 text-base mt-0.5">Manage customer orders and fulfillment</p>
+          <p className="mt-1 text-sm text-slate-500">Manage customer orders and fulfillment</p>
         </div>
         <Button
           onClick={() => navigate('/sale-order-entry')}
-          className="h-10 px-5 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all gap-2"
+          className="h-9 gap-1.5 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
         >
           <Plus className="h-4 w-4" />
           New Sale Order
@@ -928,7 +959,7 @@ export default function SaleOrderDashboard() {
       </div>
 
       {hasDraft && draftData && (
-        <Card className="border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">
+        <Card className="shrink-0 border border-amber-400/60 bg-amber-50 rounded-lg shadow-sm">
           <CardHeader className="py-1.5 px-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -978,7 +1009,7 @@ export default function SaleOrderDashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 w-full">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6 lg:gap-3 w-full">
         <Card 
           className={`cursor-pointer hover:shadow-xl transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-blue-500 to-blue-600 border-0 shadow-md rounded-xl min-w-0 ${statusFilter === 'all' ? 'ring-4 ring-white ring-offset-2 ring-offset-slate-100' : ''}`}
           onClick={() => handleCardClick('all')}
@@ -1072,20 +1103,20 @@ export default function SaleOrderDashboard() {
         </Card>
       </div>
       
-      <Card className="rounded-xl border border-slate-200 shadow-sm overflow-hidden p-0">
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 border-b border-slate-100 bg-white">
-          <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5 overflow-x-auto">
+          <div className="relative flex-1 min-w-[180px] max-w-full sm:max-w-md md:max-w-lg">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search by order no, customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-11 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
+              className="pl-9 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white no-uppercase"
             />
           </div>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white">
+              <Button variant="outline" className="w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white">
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(fromDate, "dd/MM/yy")}
               </Button>
@@ -1096,7 +1127,7 @@ export default function SaleOrderDashboard() {
           </Popover>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="w-[140px] h-10 justify-start text-left font-normal text-base border-slate-200 bg-slate-50 hover:bg-white">
+              <Button variant="outline" className="w-[130px] h-9 justify-start text-left font-normal text-sm border-slate-200 bg-slate-50 hover:bg-white">
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {format(toDate, "dd/MM/yy")}
               </Button>
@@ -1111,7 +1142,7 @@ export default function SaleOrderDashboard() {
             </Button>
           )}
           <Select value={customerFilter} onValueChange={setCustomerFilter}>
-            <SelectTrigger className="w-48 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
+            <SelectTrigger className="w-44 h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Customer" />
             </SelectTrigger>
             <SelectContent>
@@ -1124,7 +1155,7 @@ export default function SaleOrderDashboard() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40 h-10 text-base border-slate-200 bg-slate-50 hover:bg-white">
+            <SelectTrigger className="w-36 h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -1137,7 +1168,7 @@ export default function SaleOrderDashboard() {
           </Select>
         </div>
 
-        <div className="p-0">
+        <div className="flex min-h-0 flex-1 flex-col">
         {isLoading ? (
           <ListTableSkeleton rows={8} columns={7} className="py-2" />
         ) : paginatedOrders.length === 0 ? (
@@ -1145,7 +1176,10 @@ export default function SaleOrderDashboard() {
             No sale orders found
           </div>
         ) : (
-          <ScrollArea className="h-[calc(100vh-320px)]">
+          <div
+            className="sale-order-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
+            onWheel={onWheelScrollContainer}
+          >
             <Table>
               <TableHeader>
                 <TableRow className="bg-black hover:bg-black">
@@ -1227,6 +1261,9 @@ export default function SaleOrderDashboard() {
                             <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handlePrintOrder(order)} title="Print">
                               <Printer className="h-4 w-4" />
                             </Button>
+                            <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleDownloadOrderPdf(order)} title="Download PDF">
+                              <FileDown className="h-4 w-4" />
+                            </Button>
                             {order.status !== "confirmed" && (
                               <Button
                                 variant="ghost"
@@ -1306,12 +1343,11 @@ export default function SaleOrderDashboard() {
                 })}
               </TableBody>
             </Table>
-            <ScrollBar orientation="vertical" className="w-3 bg-slate-200" forceMount />
-          </ScrollArea>
+          </div>
         )}
 
         {totalPages > 1 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-slate-100 bg-white">
             <div className="text-sm text-slate-500">
               Showing {totalCount === 0 ? 0 : (currentPage - 1) * SALE_ORDER_LIST_PAGE_SIZE + 1} to {Math.min(currentPage * SALE_ORDER_LIST_PAGE_SIZE, totalCount)} of {totalCount}
               {listQuietRefreshing ? " · refreshing…" : ""}
@@ -1485,6 +1521,7 @@ export default function SaleOrderDashboard() {
           mode={orderToPrint.mode}
           conversionItems={orderToPrint.conversionItems}
           printedAt={orderToPrint.printedAt}
+          autoDownload={orderToPrint.autoDownload}
           onClose={() => setOrderToPrint(null)}
         />
       )}
@@ -1501,6 +1538,84 @@ export default function SaleOrderDashboard() {
   );
 }
 
+type SaleOrderPrintPaper = "a4" | "a5" | "a5-horizontal" | "thermal";
+
+function saleOrderDialogPaper(
+  saleSettings?: Parameters<typeof resolveSaleBillFormatFromSaleSettings>[0],
+): SaleOrderPrintPaper {
+  const f = resolveSaleBillFormatFromSaleSettings(saleSettings);
+  if (f === "a5-horizontal") return "a5-horizontal";
+  if (f === "a5" || f === "a5-vertical") return "a5";
+  if (f === "thermal") return "thermal";
+  return "a4";
+}
+
+async function downloadSaleOrderPDF(
+  printRef: React.RefObject<HTMLDivElement>,
+  orderNumber: string,
+  paper: SaleOrderPrintPaper,
+) {
+  const { default: html2canvas } = await import("html2canvas");
+  const { default: jsPDF } = await import("jspdf");
+
+  const element = printRef.current;
+  if (!element) return;
+
+  const canvas = await html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+  });
+
+  const imgData = canvas.toDataURL("image/png");
+  const imgWidth = canvas.width;
+  const imgHeight = canvas.height;
+
+  const pageW =
+    paper === "a4" ? 210 : paper === "a5-horizontal" ? 210 : paper === "thermal" ? 80 : 148;
+  const pageH =
+    paper === "a4"
+      ? 297
+      : paper === "a5-horizontal"
+        ? 148
+        : paper === "thermal"
+          ? (imgHeight * pageW) / imgWidth
+          : 210;
+  const landscape = pageW > pageH;
+  const pdf = new jsPDF({
+    orientation: landscape ? "landscape" : "portrait",
+    unit: "mm",
+    format: paper === "thermal" ? [pageW, pageH] : [pageW, pageH],
+  });
+
+  const pageHeightPx = (pageH / pageW) * imgWidth;
+  if (imgHeight <= pageHeightPx + 2) {
+    pdf.addImage(imgData, "PNG", 0, 0, pageW, pageH);
+  } else {
+    let y = 0;
+    let page = 0;
+    while (y < imgHeight) {
+      if (page > 0) pdf.addPage([pageW, pageH], landscape ? "landscape" : "portrait");
+      const sliceH = Math.min(pageHeightPx, imgHeight - y);
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = imgWidth;
+      sliceCanvas.height = sliceH;
+      const ctx = sliceCanvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, imgWidth, sliceH);
+        ctx.drawImage(canvas, 0, y, imgWidth, sliceH, 0, 0, imgWidth, sliceH);
+        const sliceHMm = (sliceH / imgWidth) * pageW;
+        pdf.addImage(sliceCanvas.toDataURL("image/png"), "PNG", 0, 0, pageW, sliceHMm);
+      }
+      y += pageHeightPx;
+      page += 1;
+    }
+  }
+
+  pdf.save(`SaleOrder-${orderNumber}.pdf`);
+}
+
 // Print Dialog Component
 function PrintSaleOrderDialog({
   order,
@@ -1509,6 +1624,7 @@ function PrintSaleOrderDialog({
   mode = "order",
   conversionItems,
   printedAt,
+  autoDownload,
 }: {
   order: any;
   settings: any;
@@ -1516,14 +1632,17 @@ function PrintSaleOrderDialog({
   mode?: "order" | "available-stock";
   conversionItems?: ConversionItem[];
   printedAt?: Date;
+  autoDownload?: boolean;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const [printItems, setPrintItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const autoDownloadStarted = useRef(false);
   const isAvailableStock = mode === "available-stock";
-  const [selectedFormat, setSelectedFormat] = useState<'a4' | 'a5' | 'a5-horizontal' | 'thermal'>(() => {
+  const [selectedFormat, setSelectedFormat] = useState<SaleOrderPrintPaper>(() => {
     if (mode === "available-stock") return "a4";
-    return settings?.sale_settings?.bill_format || "a4";
+    return saleOrderDialogPaper(settings?.sale_settings);
   });
   const [invoiceStyle, setInvoiceStyle] = useState<"standard" | "wholesale-size-grouping">(
     isAvailableStock ? "standard" : (order.invoice_format || "standard")
@@ -1564,6 +1683,21 @@ function PrintSaleOrderDialog({
         waitForPrintReady(printRef, resolve, { maxWait: 8000 });
       }),
   });
+
+  const handleDownloadPDF = async () => {
+    setIsDownloading(true);
+    try {
+      await new Promise<void>((resolve) => {
+        waitForPrintReady(printRef, resolve, { maxWait: 8000 });
+      });
+      const paper: SaleOrderPrintPaper = isAvailableStock ? "a4" : selectedFormat;
+      await downloadSaleOrderPDF(printRef as React.RefObject<HTMLDivElement>, order.order_number, paper);
+    } catch (error) {
+      console.error("Sale order PDF download error:", error);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // Fetch brand/style from products (and map available-stock rows from conversion)
   useEffect(() => {
@@ -1642,6 +1776,12 @@ function PrintSaleOrderDialog({
 
     fetchProductDetails();
   }, [order, conversionItems, isAvailableStock]);
+
+  useEffect(() => {
+    if (!autoDownload || loading || printItems.length === 0 || autoDownloadStarted.current) return;
+    autoDownloadStarted.current = true;
+    void handleDownloadPDF();
+  }, [autoDownload, loading, printItems.length]);
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
@@ -1773,9 +1913,13 @@ function PrintSaleOrderDialog({
 
         <AlertDialogFooter>
           <AlertDialogCancel>Close</AlertDialogCancel>
-          <Button onClick={() => handlePrint()} disabled={loading}>
+          <Button variant="outline" onClick={() => void handleDownloadPDF()} disabled={loading || isDownloading || printItems.length === 0}>
+            {isDownloading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            Download PDF
+          </Button>
+          <Button onClick={() => handlePrint()} disabled={loading || printItems.length === 0}>
             <Printer className="h-4 w-4 mr-2" />
-            {loading ? 'Loading...' : 'Print'}
+            {loading ? "Loading..." : "Print"}
           </Button>
         </AlertDialogFooter>
       </AlertDialogContent>
