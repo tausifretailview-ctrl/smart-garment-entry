@@ -42,7 +42,6 @@ import {
   type PurchaseEntryDraftMeta,
 } from "@/lib/purchaseEntryPersistence";
 import { useBusinessInfo, useSettings } from "@/hooks/useSettings";
-import { PurchaseBillPdfDialog } from "@/components/PurchaseBillPdfDialog";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { QuietRefreshBar, useQuietRefreshActiveKeys } from "@/components/QuietRefreshBar";
 import { invalidatePurchaseDashboardQueries } from "@/utils/invalidateDashboardQueries";
@@ -241,8 +240,9 @@ const PurchaseBillDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
-  const [loadingBillPdf, setLoadingBillPdf] = useState<string | null>(null);
-  const [billToPrint, setBillToPrint] = useState<{ bill: PurchaseBill; items: PurchaseItem[] } | null>(null);
+  const [pdfBill, setPdfBill] = useState<PurchaseBill | null>(null);
+  const [pdfItems, setPdfItems] = useState<PurchaseItem[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
   // Cancel bill state
@@ -452,33 +452,42 @@ const PurchaseBillDashboard = () => {
   const handleOpenPurchaseBillPdf = useCallback(
     async (bill: PurchaseBill, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      setLoadingBillPdf(bill.id);
+      setPdfBill(bill);
+      setPdfItems(billItems[bill.id] || []);
+      setPdfLoading(true);
       try {
-        const fetchedItems = (await fetchPurchaseItemsByBillId(
-          bill.id,
-          "id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total",
-          { includeDeleted: bill.is_cancelled },
-        )) as PurchaseItem[];
-        if (!fetchedItems.length) {
+        let items = billItems[bill.id];
+        if (!items?.length) {
+          items = (await fetchPurchaseItemsByBillId(
+            bill.id,
+            "id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total",
+            { includeDeleted: bill.is_cancelled },
+          )) as PurchaseItem[];
+        }
+        if (!items?.length) {
           toast({
             title: "No items",
             description: "This bill has no line items for PDF.",
             variant: "destructive",
           });
+          setPdfBill(null);
+          setPdfItems([]);
           return;
         }
-        setBillToPrint({ bill, items: fetchedItems });
+        setPdfItems(items);
       } catch {
         toast({
           title: "Error",
           description: "Could not load bill items for PDF.",
           variant: "destructive",
         });
+        setPdfBill(null);
+        setPdfItems([]);
       } finally {
-        setLoadingBillPdf(null);
+        setPdfLoading(false);
       }
     },
-    [toast],
+    [billItems, toast],
   );
 
   const getBillContextMenuItems = (bill: PurchaseBill): ContextMenuItem[] => {
@@ -903,27 +912,6 @@ const PurchaseBillDashboard = () => {
       return [];
     }
   };
-
-  // Bill-details PDF: state + opener (fetches items on demand when not expanded yet).
-  const [pdfBill, setPdfBill] = useState<PurchaseBill | null>(null);
-  const [pdfItems, setPdfItems] = useState<PurchaseItem[]>([]);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
-
-  const handleDownloadPdf = useCallback(async (bill: PurchaseBill, event: React.MouseEvent) => {
-    event.stopPropagation();
-    setPdfBill(bill);
-    setPdfItems(billItems[bill.id] || []);
-    setPdfLoading(true);
-    setDownloadingPdfId(bill.id);
-    try {
-      const items = await fetchBillItems(bill.id, !!bill.is_cancelled);
-      setPdfItems(items);
-    } finally {
-      setPdfLoading(false);
-      setDownloadingPdfId(null);
-    }
-  }, [billItems]);
 
   const handleToggleExpand = useCallback(async (billId: string) => {
     setExpandedRows(prev => {
@@ -2167,10 +2155,10 @@ const PurchaseBillDashboard = () => {
               variant="ghost"
               className="h-8 w-8 hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-teal-950"
               onClick={(e) => void handleOpenPurchaseBillPdf(bill, e)}
-              disabled={loadingBillPdf === bill.id}
-              title="Purchase details PDF"
+              disabled={pdfLoading && pdfBill?.id === bill.id}
+              title="Bill PDF (print / download)"
             >
-              {loadingBillPdf === bill.id ? (
+              {pdfLoading && pdfBill?.id === bill.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <FileDown className="h-4 w-4" />
@@ -2179,16 +2167,13 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950" onClick={(e) => void handleDownloadPdf(bill, e)} disabled={downloadingPdfId === bill.id} title="Download bill PDF">
-              {downloadingPdfId === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-            </Button>
           </div>
         );
       },
       size: 120,
       minSize: 112,
     },
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, loadingBillPdf, handleOpenPurchaseBillPdf, deletingBill, uploadingImageForBill, togglingLock, downloadingPdfId, handleDownloadPdf]);
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, pdfLoading, pdfBill, handleOpenPurchaseBillPdf, deletingBill, uploadingImageForBill, togglingLock]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
@@ -3390,27 +3375,34 @@ const PurchaseBillDashboard = () => {
         organizationId={currentOrganization?.id}
       />
 
-      {billToPrint && (
-        <PrintPurchaseBillDialog
-          bill={{
-            software_bill_no: billToPrint.bill.software_bill_no,
-            supplier_invoice_no: billToPrint.bill.supplier_invoice_no,
-            supplier_name: purchaseBillDisplaySupplierName(billToPrint.bill),
-            bill_date: billToPrint.bill.bill_date,
-            gross_amount: billToPrint.bill.gross_amount,
-            discount_amount: billToPrint.bill.discount_amount,
-            gst_amount: billToPrint.bill.gst_amount,
-            net_amount: billToPrint.bill.net_amount,
-            total_qty: billToPrint.bill.total_qty,
-            is_dc_purchase: billToPrint.bill.is_dc_purchase,
-            paymentLabel: buildPurchaseBillPaymentLabel(billToPrint.bill),
-          }}
-          items={billToPrint.items}
-          settings={(purchaseSettings ?? undefined) as any}
-          organizationId={currentOrganization?.id}
-          onClose={() => setBillToPrint(null)}
-        />
-      )}
+      <PrintPurchaseBillDialog
+        bill={
+          pdfBill
+            ? {
+                software_bill_no: pdfBill.software_bill_no,
+                supplier_invoice_no: pdfBill.supplier_invoice_no,
+                supplier_name: purchaseBillDisplaySupplierName(pdfBill),
+                bill_date: pdfBill.bill_date,
+                gross_amount: pdfBill.gross_amount,
+                discount_amount: pdfBill.discount_amount,
+                gst_amount: pdfBill.gst_amount,
+                net_amount: pdfBill.net_amount,
+                total_qty: pdfBill.total_qty,
+                is_dc_purchase: pdfBill.is_dc_purchase,
+                paymentLabel: buildPurchaseBillPaymentLabel(pdfBill),
+                notes: pdfBill.notes,
+              }
+            : null
+        }
+        items={pdfItems}
+        loading={pdfLoading}
+        settings={purchaseSettings ?? undefined}
+        organizationId={currentOrganization?.id}
+        onClose={() => {
+          setPdfBill(null);
+          setPdfItems([]);
+        }}
+      />
 
       {/* Desktop Context Menus */}
       {isDesktop && (
@@ -3466,23 +3458,6 @@ const PurchaseBillDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
-      {/* Bill-details PDF download */}
-      <PurchaseBillPdfDialog
-        bill={pdfBill}
-        items={pdfItems}
-        loading={pdfLoading}
-        business={{
-          name: businessInfo.businessName,
-          address: businessInfo.address,
-          mobile: businessInfo.mobileNumber,
-          email: businessInfo.emailId,
-          gst: businessInfo.gstNumber,
-        }}
-        onClose={() => {
-          setPdfBill(null);
-          setPdfItems([]);
-        }}
-      />
     </div>
   );
 };

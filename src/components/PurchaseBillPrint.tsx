@@ -19,6 +19,7 @@ export type PurchaseBillPrintBill = {
   total_qty?: number | null;
   is_dc_purchase?: boolean | null;
   paymentLabel?: string;
+  notes?: string | null;
 };
 
 type BusinessDetails = {
@@ -63,8 +64,7 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
     const billDate = bill.bill_date
       ? format(new Date(bill.bill_date + "T12:00:00"), "dd MMM yyyy")
       : "—";
-    const totalQty =
-      bill.total_qty ?? items.reduce((s, i) => s + i.qty, 0);
+    const totalQty = bill.total_qty ?? items.reduce((s, i) => s + i.qty, 0);
 
     const sizeGrid =
       itemLayout === "size-grid" ? buildPurchaseBillSizeGrid(items) : null;
@@ -98,38 +98,53 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
             </tr>
           </thead>
           <tbody>
-            {items.map((item, idx) => {
-              const subtitle = formatPurchaseBillProductSubtitle(item);
-              return (
-                <tr key={item.id}>
-                  <td style={{ ...td, textAlign: "center" }}>{idx + 1}</td>
-                  <td style={td}>
-                    <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                    {!showBarcode && subtitle && (
-                      <div style={{ fontSize: "8pt", color: "#444" }}>{subtitle}</div>
-                    )}
-                  </td>
-                  {showBarcode && (
-                    <td style={{ ...td, fontFamily: "monospace", fontSize: "8pt", textAlign: "center" }}>
-                      {item.barcode || "—"}
+            {items.length === 0 ? (
+              <tr>
+                <td colSpan={showBarcode ? 9 : isDc ? 8 : 9} style={{ ...td, textAlign: "center" }}>
+                  No line items
+                </td>
+              </tr>
+            ) : (
+              items.map((item, idx) => {
+                const subtitle = formatPurchaseBillProductSubtitle(item);
+                return (
+                  <tr key={item.id} style={{ breakInside: "avoid" }}>
+                    <td style={{ ...td, textAlign: "center" }}>{idx + 1}</td>
+                    <td style={td}>
+                      <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                      {!showBarcode && subtitle && (
+                        <div style={{ fontSize: "8pt", color: "#444" }}>{subtitle}</div>
+                      )}
                     </td>
-                  )}
-                  {!showBarcode && !isDc && (
-                    <td style={{ ...td, textAlign: "center" }}>{item.hsn || "—"}</td>
-                  )}
-                  <td style={{ ...td, textAlign: "center" }}>{item.size || "—"}</td>
-                  <td style={{ ...td, textAlign: "center" }}>{item.color || "—"}</td>
-                  <td style={{ ...td, textAlign: "center", fontWeight: 600 }}>{item.qty}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{fmt(item.purPrice)}</td>
-                  {!isDc && (
-                    <td style={{ ...td, textAlign: "center" }}>{item.gstPercent}%</td>
-                  )}
-                  <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>
-                    {fmt(item.lineTotal)}
-                  </td>
-                </tr>
-              );
-            })}
+                    {showBarcode && (
+                      <td
+                        style={{
+                          ...td,
+                          fontFamily: "monospace",
+                          fontSize: "8pt",
+                          textAlign: "center",
+                        }}
+                      >
+                        {item.barcode || "—"}
+                      </td>
+                    )}
+                    {!showBarcode && !isDc && (
+                      <td style={{ ...td, textAlign: "center" }}>{item.hsn || "—"}</td>
+                    )}
+                    <td style={{ ...td, textAlign: "center" }}>{item.size || "—"}</td>
+                    <td style={{ ...td, textAlign: "center" }}>{item.color || "—"}</td>
+                    <td style={{ ...td, textAlign: "center", fontWeight: 600 }}>{item.qty}</td>
+                    <td style={{ ...td, textAlign: "right" }}>{fmt(item.purPrice)}</td>
+                    {!isDc && (
+                      <td style={{ ...td, textAlign: "center" }}>{item.gstPercent}%</td>
+                    )}
+                    <td style={{ ...td, textAlign: "right", fontWeight: 600 }}>
+                      {fmt(item.lineTotal)}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       );
@@ -159,7 +174,7 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={row.key}>
+              <tr key={row.key} style={{ breakInside: "avoid" }}>
                 <td style={{ ...td, textAlign: "center" }}>{idx + 1}</td>
                 <td style={{ ...td, fontWeight: 600 }}>{row.productName}</td>
                 <td style={{ ...td, textAlign: "center" }}>{row.color || "—"}</td>
@@ -224,7 +239,7 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
             color: "#134e4a",
           }}
         >
-          PURCHASE BILL{isDc ? " (DC)" : ""}
+          PURCHASE BILL{isDc ? " (DC — No GST)" : ""}
         </div>
 
         <table
@@ -274,16 +289,37 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
             border: "1px solid #ddd",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", borderBottom: "1px solid #eee" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "4px 8px",
+              borderBottom: "1px solid #eee",
+            }}
+          >
             <span>Gross</span>
             <span>{fmt(Number(bill.gross_amount) || 0)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", borderBottom: "1px solid #eee" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              padding: "4px 8px",
+              borderBottom: "1px solid #eee",
+            }}
+          >
             <span>Discount</span>
             <span>{fmt(Number(bill.discount_amount) || 0)}</span>
           </div>
           {!isDc && (
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", borderBottom: "1px solid #eee" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                padding: "4px 8px",
+                borderBottom: "1px solid #eee",
+              }}
+            >
               <span>GST</span>
               <span>{fmt(Number(bill.gst_amount) || 0)}</span>
             </div>
@@ -301,6 +337,20 @@ export const PurchaseBillPrint = forwardRef<HTMLDivElement, PurchaseBillPrintPro
             <span>Net Payable</span>
             <span>{fmt(Number(bill.net_amount) || 0)}</span>
           </div>
+        </div>
+
+        {bill.notes ? (
+          <div style={{ fontSize: "9pt", marginTop: 8 }}>Note: {bill.notes}</div>
+        ) : null}
+        <div style={{ fontSize: "8pt", color: "#666", marginTop: 12, textAlign: "right" }}>
+          Generated{" "}
+          {new Date().toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
         </div>
       </div>
     );
