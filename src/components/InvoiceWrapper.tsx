@@ -19,6 +19,7 @@ import { RetailERPTemplate } from './invoice-templates/RetailERPTemplate';
 import { RetailTaxEzzyTemplate } from './invoice-templates/RetailTaxEzzyTemplate';
 import { WholesaleA5Template } from './invoice-templates/WholesaleA5Template';
 import { A4ElectronicTemplate } from './invoice-templates/A4ElectronicTemplate';
+import { KrishnaMobileA5Template } from './invoice-templates/KrishnaMobileA5Template';
 import { WholesaleGstA4Template } from './invoice-templates/WholesaleGstA4Template';
 import { KlearA4Template } from './invoice-templates/KlearA4Template';
 import { A5HorizontalBillFormat } from './A5HorizontalBillFormat';
@@ -48,6 +49,7 @@ import {
   type GstTaxType,
 } from '@/utils/gstRegisterUtils';
 import {
+  isA5HorizontalInvoiceTemplate,
   isA5PortraitInvoiceTemplate,
   isThermal80mmInvoiceTemplate,
   resolvePosThermalPaper,
@@ -317,7 +319,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     let format = rawFormat === 'a5' ? 'a5-vertical' : rawFormat;
     const isThermalFormat = format === 'thermal' || format === 'thermal-receipt';
     // A5-only templates use A5 when printing laser — not when caller requests thermal receipt.
-    if (!isThermalFormat && isA5PortraitInvoiceTemplate(templateForFormat)) {
+    if (!isThermalFormat && isA5HorizontalInvoiceTemplate(templateForFormat)) {
+      format = 'a5-horizontal';
+    } else if (!isThermalFormat && isA5PortraitInvoiceTemplate(templateForFormat)) {
       format = 'a5-vertical';
     }
     // Dedicated 80mm templates always use roll receipt layout.
@@ -900,8 +904,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         );
       }
       
-      // Use A5HorizontalBillFormat for a5-horizontal format
-      if (format === 'a5-horizontal') {
+      // Generic A5 landscape bill — dedicated templates (Krishna mobile) use their own layout below.
+      if (format === 'a5-horizontal' && templateForFormat !== 'krishna-mobile-a5') {
         const paymentMethodLabel = (() => {
           if (props.paymentMethod === 'refund_cash') return 'Refund (Cash)';
           if (props.paymentMethod === 'refund_upi') return 'Refund (UPI)';
@@ -973,6 +977,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           return <KlearA4Template {...commonProps} />;
         case 'a4-electronic':
           return <A4ElectronicTemplate {...commonProps} />;
+        case 'krishna-mobile-a5':
+          return <KrishnaMobileA5Template {...commonProps} />;
         case 'retail':
           return <RetailTemplate {...commonProps} />;
         case 'retail-erp':
