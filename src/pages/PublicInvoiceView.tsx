@@ -22,6 +22,7 @@ import { RetailERPTemplate } from "@/components/invoice-templates/RetailERPTempl
 import { RetailTaxEzzyTemplate } from "@/components/invoice-templates/RetailTaxEzzyTemplate";
 import { WholesaleA5Template } from "@/components/invoice-templates/WholesaleA5Template";
 import { A4ElectronicTemplate } from "@/components/invoice-templates/A4ElectronicTemplate";
+import { KrishnaMobileA5Template } from "@/components/invoice-templates/KrishnaMobileA5Template";
 import { WholesaleGstA4Template } from "@/components/invoice-templates/WholesaleGstA4Template";
 import { KlearA4Template } from "@/components/invoice-templates/KlearA4Template";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
@@ -29,7 +30,7 @@ import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm"
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
 import { NewDesignThermalReceipt80mm } from "@/components/NewDesignThermalReceipt80mm";
 import { VastrakalaThermalReceipt80mm } from "@/components/VastrakalaThermalReceipt80mm";
-import { isA5PortraitInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { isA5HorizontalInvoiceTemplate, isA5PortraitInvoiceTemplate } from "@/utils/invoicePrintFormat";
 
 const updateMetaTags = (businessName: string, invoiceNumber: string, orgSlug?: string, logoUrl?: string) => {
   document.title = `Invoice ${invoiceNumber} - ${businessName}`;
@@ -387,6 +388,7 @@ export default function PublicInvoiceView() {
       case 'wholesale-gst-a4': return <WholesaleGstA4Template {...templateProps} />;
       case 'klear-a4': return <KlearA4Template {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
+      case 'krishna-mobile-a5': return <KrishnaMobileA5Template {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;
       case 'retail-erp': return <RetailERPTemplate {...templateProps} format="a5-vertical" />;
       case 'retail-erp-dc':
@@ -466,7 +468,7 @@ export default function PublicInvoiceView() {
 
         <style>{`
           @media print {
-            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : isA5PortraitInvoiceTemplate(template) ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : isA5PortraitInvoiceTemplate(template) ? '4mm' : '5mm'}; }
+            @page { size: ${formatParam === 'thermal' ? '80mm auto' : template === 'retail-erp-preprinted' ? (formatParam === 'a5-horizontal' ? 'A5 landscape' : formatParam === 'a5' || formatParam === 'a5-vertical' ? 'A5 portrait' : 'A4 portrait') : isA5HorizontalInvoiceTemplate(template) ? 'A5 landscape' : isA5PortraitInvoiceTemplate(template) ? 'A5 portrait' : 'A4 portrait'}; margin: ${formatParam === 'thermal' ? '3mm' : template === 'retail-erp-preprinted' ? (formatParam === 'a5' || formatParam === 'a5-vertical' || formatParam === 'a5-horizontal' ? '0 4mm 4mm 4mm' : '0 10mm 10mm 10mm') : isA5HorizontalInvoiceTemplate(template) || isA5PortraitInvoiceTemplate(template) ? '4mm' : '5mm'}; }
             body { margin: 0; padding: 0; }
             .public-invoice-print-wrap {
               box-shadow: none !important;

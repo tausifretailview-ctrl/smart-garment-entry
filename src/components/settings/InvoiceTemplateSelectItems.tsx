@@ -186,6 +186,12 @@ export function InvoiceTemplateSelectItems({
             Wholesale A5 — Laser print estimate
           </span>
         </SelectItem>
+        <SelectItem value="krishna-mobile-a5">
+          <span className="flex items-center gap-2">
+            <span className="text-blue-800 font-bold text-xs w-5">KRI</span>
+            Krishna — A5 horizontal mobile tax invoice (max 3 lines, IMEI, QR)
+          </span>
+        </SelectItem>
       </SelectGroup>
 
       {thermal80Group}

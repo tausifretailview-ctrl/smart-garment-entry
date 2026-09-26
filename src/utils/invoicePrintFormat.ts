@@ -23,6 +23,7 @@ export type InvoiceTemplateId =
   | 'retail-tax-ezzy'
   | 'wholesale-a5'
   | 'wholesale-gst-a4'
+  | 'krishna-mobile-a5'
   | 'klear-a4'
   | 'kids-80mm'
   | 'kids-camp-80mm'
@@ -132,6 +133,13 @@ export function getRealTastA4PrintPageStyle(): string {
         }
       }
   `;
+}
+
+/** A5 landscape — mobile tax invoice (Krishna). */
+export const A5_HORIZONTAL_INVOICE_TEMPLATES = new Set(['krishna-mobile-a5']);
+
+export function isA5HorizontalInvoiceTemplate(template?: string | null): boolean {
+  return Boolean(template && A5_HORIZONTAL_INVOICE_TEMPLATES.has(template));
 }
 
 /** Templates that must print on A5 — not thermal 80mm. */
@@ -306,6 +314,7 @@ export const FULL_PAGE_INVOICE_TEMPLATES = new Set([
   'gurukrupa',
   'retail-erp-preprinted',
   'real-tast',
+  'krishna-mobile-a5',
 ]);
 
 export type PosBillFormat = 'a4' | 'a5' | 'a5-horizontal' | 'thermal';
@@ -349,6 +358,9 @@ export function resolvePosBillFormat(
   if (invoiceTemplate && A4_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a4';
   }
+  if (invoiceTemplate && A5_HORIZONTAL_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a5-horizontal';
+  }
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
   }
@@ -370,6 +382,9 @@ export function resolveSaleBillFormat(
 ): PosBillFormat {
   if (invoiceTemplate && THERMAL_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'thermal';
+  }
+  if (invoiceTemplate && A5_HORIZONTAL_INVOICE_TEMPLATES.has(invoiceTemplate)) {
+    return 'a5-horizontal';
   }
   if (invoiceTemplate && A5_ONLY_INVOICE_TEMPLATES.has(invoiceTemplate)) {
     return 'a5';
