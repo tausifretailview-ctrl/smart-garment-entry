@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupPurchaseSearchByProductMaster,
   purchaseGroupMrpFilter,
+  purchaseSearchRateLabels,
   purchaseStyleKey,
 } from "./purchaseProductSearchGroup";
 
@@ -168,6 +169,37 @@ describe("groupPurchaseSearchByProductMaster", () => {
     ]);
     expect(grouped).toHaveLength(1);
     expect(grouped[0].salePricesDiffer).toBe(true);
+  });
+
+  it("still gives MRP/Buy/Sale labels when sizes in one MRP tier have different rates", () => {
+    const grouped = groupPurchaseSearchByProductMaster(
+      [
+        shirt({ id: "a", size: "3", mrp: 279.5, pur_price: 160, sale_price: 185 }),
+        shirt({ id: "b", size: "9", mrp: 279.5, pur_price: 169.57, sale_price: 195.65 }),
+        shirt({ id: "c", size: "7", mrp: 309.5, pur_price: 187.86, sale_price: 216.65 }),
+      ],
+      { showMrp: true },
+    );
+    expect(grouped).toHaveLength(2);
+    const tier = grouped.find((g) => g.mrp === 279.5)!;
+    expect(tier.salePricesDiffer).toBe(true);
+    expect(purchaseSearchRateLabels(tier)).toEqual({
+      mrp: "₹279.50",
+      buy: "₹160.00 – ₹169.57",
+      sale: "₹185.00 – ₹195.65",
+    });
+  });
+
+  it("gives single-value labels when all rates match", () => {
+    const grouped = groupPurchaseSearchByProductMaster([
+      shirt({ id: "a", size: "6", mrp: 300 }),
+      shirt({ id: "b", size: "7", mrp: 300 }),
+    ]);
+    expect(purchaseSearchRateLabels(grouped[0])).toEqual({
+      mrp: "₹300.00",
+      buy: "₹100.00",
+      sale: "₹200.00",
+    });
   });
 
   it("does not flag salePricesDiffer when all sale prices match", () => {
