@@ -195,7 +195,6 @@ export default function SaleOrderDashboard() {
     mode: "order" | "available-stock";
     conversionItems?: ConversionItem[];
     printedAt?: Date;
-    autoDownload?: boolean;
   } | null>(null);
   const inTabCache = useTabCacheLayout();
   const sharedShell = useSharedAppShell();
@@ -850,7 +849,7 @@ export default function SaleOrderDashboard() {
     try {
       const fullOrder = await fetchSaleOrderWithItems(order.id);
       if (!fullOrder) throw new Error("Order not found");
-      setOrderToPrint({ order: fullOrder, mode: "order", autoDownload: true });
+      setOrderToPrint({ order: fullOrder, mode: "order" });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Could not load order", variant: "destructive" });
     } finally {
@@ -1521,7 +1520,6 @@ export default function SaleOrderDashboard() {
           mode={orderToPrint.mode}
           conversionItems={orderToPrint.conversionItems}
           printedAt={orderToPrint.printedAt}
-          autoDownload={orderToPrint.autoDownload}
           onClose={() => setOrderToPrint(null)}
         />
       )}
@@ -1624,7 +1622,6 @@ function PrintSaleOrderDialog({
   mode = "order",
   conversionItems,
   printedAt,
-  autoDownload,
 }: {
   order: any;
   settings: any;
@@ -1632,20 +1629,18 @@ function PrintSaleOrderDialog({
   mode?: "order" | "available-stock";
   conversionItems?: ConversionItem[];
   printedAt?: Date;
-  autoDownload?: boolean;
 }) {
   const printRef = useRef<HTMLDivElement>(null);
   const [printItems, setPrintItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
-  const autoDownloadStarted = useRef(false);
   const isAvailableStock = mode === "available-stock";
   const [selectedFormat, setSelectedFormat] = useState<SaleOrderPrintPaper>(() => {
     if (mode === "available-stock") return "a4";
     return saleOrderDialogPaper(settings?.sale_settings);
   });
   const [invoiceStyle, setInvoiceStyle] = useState<"standard" | "wholesale-size-grouping">(
-    isAvailableStock ? "standard" : (order.invoice_format || "standard")
+    isAvailableStock ? "standard" : "wholesale-size-grouping",
   );
   
   const getPageStyle = () => {
@@ -1776,12 +1771,6 @@ function PrintSaleOrderDialog({
 
     fetchProductDetails();
   }, [order, conversionItems, isAvailableStock]);
-
-  useEffect(() => {
-    if (!autoDownload || loading || printItems.length === 0 || autoDownloadStarted.current) return;
-    autoDownloadStarted.current = true;
-    void handleDownloadPDF();
-  }, [autoDownload, loading, printItems.length]);
 
   return (
     <AlertDialog open={true} onOpenChange={onClose}>
