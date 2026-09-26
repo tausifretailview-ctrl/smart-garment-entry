@@ -8,9 +8,9 @@ const tsx = readFileSync(join(here, "VastrakalaThermalReceipt80mm.tsx"), "utf8")
 const css = readFileSync(join(here, "../styles/vastrakala-thermal-receipt.css"), "utf8");
 
 describe("Vastrakala 80mm receipt layout", () => {
-  it("does not print the former subtitle below the shop name", () => {
-    expect(tsx).not.toContain("shopHeader.tagline");
-    expect(tsx).not.toContain(">Sarees & ladies wear<");
+  it("prints the shop tagline on a second line under the title", () => {
+    expect(tsx).toContain("tagline={shopHeader.tagline}");
+    expect(tsx).toContain('className="vk-header-tagline"');
   });
 
   it("uses BILL OF SUPPLY as the standard retail document heading", () => {
@@ -21,7 +21,7 @@ describe("Vastrakala 80mm receipt layout", () => {
   });
 
   it("adds compact, consistent spacing between all receipt sections", () => {
-    expect(tsx).toContain("sectionGap: is58 ? 4 : 7");
+    expect(tsx).toContain("sectionGap: is58 ? 6 : 11");
     expect(tsx).toContain('className="vk-header vk-section"');
     expect(tsx).toContain('className="vk-meta vk-section"');
     expect(tsx).toContain('className="vk-items-body"');
@@ -30,13 +30,14 @@ describe("Vastrakala 80mm receipt layout", () => {
   });
 
   it("keeps the logo in its own column beside the shop details, never over them", () => {
-    expect(tsx).toContain('logoHeight: is58 ? "15mm" : "24mm"');
+    expect(tsx).toContain('logoHeight: is58 ? "16mm" : "26mm"');
     expect(tsx).not.toContain('position: "absolute"');
     expect(tsx).toContain('className="vk-header-brand-row"');
     expect(tsx).toContain('flex: "0 0 auto"');
     // Name, address, contact and Instagram all sit in the column next to the logo.
     const shop = tsx.slice(tsx.indexOf("const shopDetails"), tsx.indexOf("if (!settings)"));
     expect(shop).toContain("VastrakalaHeaderBrandText");
+    expect(shop).toContain("shopHeader.tagline");
     expect(shop).toContain("address.toUpperCase()");
     expect(shop).toContain("CONTACT :");
     expect(shop).toContain("instagramHandle");
