@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aggregateForTab,
+  applySrAdjusted,
   computeSaleLineRevenue,
   rowsHaveReturns,
   sumAggregates,
@@ -444,5 +445,36 @@ describe("aggregateForTab", () => {
     expect(rows[0].qtyReturned).toBe(0);
     expect(rows[0].returnAmount).toBe(0);
     expect(rowsHaveReturns(rows)).toBe(false);
+  });
+});
+
+describe("S/R Adjusted view", () => {
+  it("exchange: return comes off sales and its cost comes off COGS", () => {
+    // Old item ₹2,000 (cost ₹1,200) returned; new item ₹4,000 (cost ₹2,500) sold.
+    const lines = [
+      line({ netSales: 4000, totalCOGS: 2500, saleId: "s2", saleNumber: "POS/26-27/2" }),
+      line({
+        netSales: 0,
+        totalCOGS: 0,
+        grossSales: 0,
+        qty: 0,
+        sign: -1,
+        returnQty: 1,
+        returnAmount: 2000,
+        returnCOGS: 1200,
+        saleId: "s1",
+        saleNumber: "POS/26-27/1",
+      }),
+    ];
+    const saleOnly = sumAggregates(aggregateForTab(lines, "bill-wise"));
+    expect(saleOnly.netSales).toBe(4000);
+    expect(saleOnly.grossProfit).toBe(1500);
+
+    const adjusted = sumAggregates(aggregateForTab(applySrAdjusted(lines), "bill-wise"));
+    expect(adjusted.netSales).toBe(2000);
+    expect(adjusted.totalCOGS).toBe(1300);
+    expect(adjusted.grossProfit).toBe(700);
+    expect(adjusted.returnAmount).toBe(2000);
+    expect(adjusted.itemsSold).toBe(1);
   });
 });

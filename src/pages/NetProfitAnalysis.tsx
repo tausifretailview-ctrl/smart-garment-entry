@@ -54,6 +54,7 @@ import { useProductFieldLabels } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
 import {
   loadProfitDataset,
+  applySrAdjusted,
   aggregateForTab,
   sumAggregates,
   rowsHaveReturns,
@@ -392,6 +393,8 @@ export default function NetProfitAnalysis() {
   const [activeTab, setActiveTab] = useState<NetProfitTab>("supplier-wise");
   const [fieldDimension, setFieldDimension] = useState<NetProfitFieldDimension>("brand");
   const [search, setSearch] = useState("");
+  /** false = Sale Profit (returns info only), true = S/R Adjusted (returns deducted). */
+  const [srAdjusted, setSrAdjusted] = useState(false);
   const [debouncedFrom, setDebouncedFrom] = useState(fromDate);
   const [debouncedTo, setDebouncedTo] = useState(toDate);
 
@@ -423,8 +426,9 @@ export default function NetProfitAnalysis() {
 
   const aggregatedRows = useMemo(() => {
     if (!dataset) return [] as ProfitAggregateRow[];
-    return aggregateForTab(dataset.lines, activeTab, fieldDimension);
-  }, [dataset, activeTab, fieldDimension]);
+    const lines = srAdjusted ? applySrAdjusted(dataset.lines) : dataset.lines;
+    return aggregateForTab(lines, activeTab, fieldDimension);
+  }, [dataset, activeTab, fieldDimension, srAdjusted]);
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -499,7 +503,7 @@ export default function NetProfitAnalysis() {
     XLSX.utils.book_append_sheet(wb, ws, activeTab.slice(0, 28));
     XLSX.writeFile(
       wb,
-      `net-profit-${activeTab}-${fromDate}-to-${toDate}.xlsx`,
+      `net-profit-${activeTab}${srAdjusted ? "-sr-adjusted" : ""}-${fromDate}-to-${toDate}.xlsx`,
     );
     toast.success("Excel exported");
   };
@@ -658,7 +662,7 @@ export default function NetProfitAnalysis() {
     const drawHeader = () => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.text("Net Profit Analysis", marginX, y);
+      doc.text(srAdjusted ? "Net Profit Analysis (S/R Adjusted)" : "Net Profit Analysis", marginX, y);
       y += 5;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
@@ -928,12 +932,12 @@ export default function NetProfitAnalysis() {
         gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
       },
       {
-        label: "Net Sales",
+        label: srAdjusted ? "Net Sales (after S/R)" : "Net Sales",
         value: formatCurrency(activeTotals.netSales),
         gradient: "bg-gradient-to-br from-violet-500 to-violet-600",
       },
       {
-        label: "Gross Profit",
+        label: srAdjusted ? "Gross Profit (after S/R)" : "Gross Profit",
         value: formatCurrency(activeTotals.grossProfit),
         gradient: "bg-gradient-to-br from-emerald-500 to-emerald-600",
       },
@@ -946,10 +950,12 @@ export default function NetProfitAnalysis() {
         label: "Sale Returns (net)",
         value: formatCurrency(activeTotals.returnAmount),
         gradient: "bg-gradient-to-br from-slate-500 to-slate-600",
-        hint: "Informational — not deducted from profit above",
+        hint: srAdjusted
+          ? "Deducted from sales, cost added back to stock"
+          : "Informational — not deducted from profit above",
       },
     ],
-    [activeTotals],
+    [activeTotals, srAdjusted],
   );
 
   const tabs: { value: NetProfitTab; label: string; icon: typeof Users }[] = [
@@ -1090,6 +1096,32 @@ export default function NetProfitAnalysis() {
                 Refresh
               </Button>
               <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
+              <div
+                className="flex h-11 items-center rounded-md border border-slate-300 bg-slate-50 p-1"
+                role="group"
+                aria-label="Profit view"
+              >
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={srAdjusted ? "ghost" : "default"}
+                  className="h-9 px-3 text-base font-semibold"
+                  onClick={() => setSrAdjusted(false)}
+                  title="Profit on sales only. Returns are shown but not deducted."
+                >
+                  Sale Profit
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={srAdjusted ? "default" : "ghost"}
+                  className="h-9 px-3 text-base font-semibold"
+                  onClick={() => setSrAdjusted(true)}
+                  title="Sale returns in this period are deducted from sales, and their cost is added back."
+                >
+                  S/R Adjusted
+                </Button>
+              </div>
             </div>
             <p className="text-base text-muted-foreground">
               Period: {format(new Date(fromDate), "dd MMM yyyy")} –{" "}
@@ -1107,6 +1139,7 @@ export default function NetProfitAnalysis() {
             <h2 className="mt-1 text-lg font-semibold">
               Net Profit Analysis - {tabs.find((t) => t.value === activeTab)?.label}
               {activeTab === "field-wise" ? ` (${fieldDimensionLabel})` : ""}
+              {srAdjusted ? " · S/R Adjusted" : ""}
             </h2>
             <p className="text-sm text-gray-600">
               Period: {format(new Date(fromDate), "dd MMM yyyy")} -{" "}

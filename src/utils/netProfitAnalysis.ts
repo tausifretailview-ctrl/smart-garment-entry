@@ -45,6 +45,8 @@ export interface ProfitLine {
   returnQty: number;
   /** Informational return ₹ (0 on sale lines). Never rolled into netSales/COGS/profit. */
   returnAmount: number;
+  /** Purchase cost of the returned qty (return lines only). Used by the S/R Adjusted view. */
+  returnCOGS?: number;
   supplierId: string | null;
   supplierName: string;
   productId: string;
@@ -527,6 +529,7 @@ export async function loadProfitDataset(
       sign: -1,
       returnQty: qty,
       returnAmount: Math.abs(lineTotal),
+      returnCOGS: cogs,
       supplierId: supplier.id,
       supplierName: supplier.name,
       productId: productId || item.product_name || "unknown",
@@ -551,6 +554,23 @@ export async function loadProfitDataset(
 
   const totals = sumLines(lines);
   return { lines, totals };
+}
+
+/**
+ * "S/R Adjusted" view: returns in the period come off sales, and the returned
+ * goods' cost comes off COGS (they go back to stock). The default view keeps
+ * returns informational only.
+ */
+export function applySrAdjusted(lines: ProfitLine[]): ProfitLine[] {
+  return lines.map((line) =>
+    line.sign === -1
+      ? {
+          ...line,
+          netSales: -line.returnAmount,
+          totalCOGS: -(line.returnCOGS ?? 0),
+        }
+      : line,
+  );
 }
 
 export function sumLines(lines: ProfitLine[]): ProfitDataset["totals"] {
