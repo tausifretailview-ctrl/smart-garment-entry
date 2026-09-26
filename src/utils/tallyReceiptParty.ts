@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
+import { isCustomerReceiptVoucher, type PaymentVoucherRow } from "@/utils/paymentVoucherFilters";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,7 +32,7 @@ type ReceiptVoucherRow = {
 export function receiptPartyLedger(voucher: ReceiptVoucherRow): string {
   const name = String(voucher.customer_name || "").trim();
   if (name) return name;
-  if (!isCustomerReceiptVoucher(voucher)) {
+  if (!isCustomerReceiptVoucher(voucher as unknown as PaymentVoucherRow)) {
     return String(voucher.description || "").trim() || "Cash";
   }
   return "Cash";
@@ -65,7 +65,7 @@ export function applyReceiptPartyNames<T extends ReceiptVoucherRow>(
 
   return vouchers.map((voucher) => {
     if (String(voucher.voucher_type || "").toLowerCase() !== "receipt") return voucher;
-    if (!isCustomerReceiptVoucher(voucher)) return voucher;
+    if (!isCustomerReceiptVoucher(voucher as unknown as PaymentVoucherRow)) return voucher;
 
     const refType = String(voucher.reference_type || "").toLowerCase();
     const refId = String(voucher.reference_id || "");
@@ -132,7 +132,7 @@ export async function attachReceiptCustomerNames<T extends ReceiptVoucherRow>(
   const receipts = vouchers.filter(
     (v) =>
       String(v.voucher_type || "").toLowerCase() === "receipt" &&
-      isCustomerReceiptVoucher(v),
+      isCustomerReceiptVoucher(v as unknown as PaymentVoucherRow),
   );
   if (receipts.length === 0) return vouchers;
 
