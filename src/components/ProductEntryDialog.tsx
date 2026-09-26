@@ -84,6 +84,7 @@ import {
   normalizeProductNameKey,
 } from "@/utils/productNameDedupe";
 import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
+import { buildMasterOnlySaleOrderVariants } from "@/utils/saleOrderMasterProductVariants";
 import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
 import type {
   UseExistingProductPayload,
@@ -2043,7 +2044,7 @@ export const ProductEntryDialog = ({
     setVariants(updated);
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = (variantRows: ProductVariant[] = variants): boolean => {
     const validation = validateProduct({
       product_type: formData.product_type,
       product_name: formData.product_name,
@@ -2080,9 +2081,9 @@ export const ProductEntryDialog = ({
 
     // Validate variants: purchase price and sale price are required
     // In purchase context, only validate variants with qty > 0
-    const variantsToValidate = (hideOpeningQty && formData.product_type !== 'service')
-      ? variants.filter((v) => (v.purchase_qty || 0) > 0)
-      : variants;
+    const variantsToValidate = (hideOpeningQty && !masterOnly && formData.product_type !== 'service')
+      ? variantRows.filter((v) => (v.purchase_qty || 0) > 0)
+      : variantRows;
 
     for (let i = 0; i < variantsToValidate.length; i++) {
       const variant = variantsToValidate[i];
@@ -2175,7 +2176,33 @@ export const ProductEntryDialog = ({
   };
 
   const runSave = async () => {
-    if (!validateForm()) return;
+    const groupForSave = masterOnly ? resolveSizeGroup(formData.size_group_id) : undefined;
+    const variantsForSave =
+      masterOnly && formData.product_type !== "service"
+        ? buildMasterOnlySaleOrderVariants({
+            colors: formData.colors,
+            selectedSizes,
+            groupSizes: groupForSave?.sizes ?? [],
+            customSizes,
+            existing: variants,
+            defaults: {
+              pur_price: formData.default_pur_price ?? 0,
+              sale_price: formData.default_sale_price ?? 0,
+              mrp: formData.default_mrp ?? null,
+            },
+          })
+        : variants;
+
+    if (masterOnly && formData.product_type !== "service" && variantsForSave.length === 0) {
+      toast({
+        title: "No sizes selected",
+        description: "Select at least one size. Those sizes are saved as variants with 0 stock.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!validateForm(variantsForSave)) return;
     if (!currentOrganization?.id) return;
 
     // Name-dupe gate: same normalized name + category already in the org →
@@ -2195,7 +2222,9 @@ export const ProductEntryDialog = ({
       }
     }
 
-    let variantsToCreate = (hideOpeningQty && formData.product_type !== 'service')
+    let variantsToCreate = masterOnly
+      ? variantsForSave.map((v) => ({ ...v }))
+      : (hideOpeningQty && formData.product_type !== 'service')
       ? variants.filter((v) => (v.purchase_qty || 0) > 0 && !disabledSizes.has(v.size) && (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color))).map(v => ({ ...v }))
       : [...variants];
 
@@ -2227,7 +2256,9 @@ export const ProductEntryDialog = ({
     }
 
     if (variantsToCreate.length > 0) {
-      if (hideOpeningQty && isAutoBarcode) {
+      // Sale Order master create has no barcode column on the size chips.
+      // Fill any blank barcode here so the checked sizes are real variants.
+      if ((hideOpeningQty && isAutoBarcode) || masterOnly) {
         for (let i = 0; i < variantsToCreate.length; i++) {
           if (!variantsToCreate[i].barcode) {
             variantsToCreate[i] = variantWithGeneratedBarcode(

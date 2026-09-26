@@ -46,11 +46,11 @@ type Props = {
   onNavigate: () => void;
 };
 
-const PROMISES = [
-  ["Live studio inventory", "The styles shown here are genuinely available from our atelier."],
-  ["Ready in 48 hours", "Ready-to-wear pieces dispatch within two working days."],
-  ["Made for you", "Formal and bridal pieces are cut to your measurements in 3–4 weeks."],
-  ["Easy shopping", "Pay by UPI. Seven-day exchange on eligible pieces."],
+const PROMISES: { title: string; body: string; Icon: () => JSX.Element }[] = [
+  { title: "Live studio inventory", body: "In stock at our atelier.", Icon: PromiseStockIcon },
+  { title: "Ready in 48 hours", body: "Dispatch in 2 working days.", Icon: PromiseTruckIcon },
+  { title: "Made for you", body: "Cut to size in 3–4 weeks.", Icon: PromiseRulerIcon },
+  { title: "Easy shopping", body: "UPI · 7-day exchange*.", Icon: PromiseShieldIcon },
 ];
 
 const HERO_COPY = [
@@ -58,7 +58,7 @@ const HERO_COPY = [
     kicker: "In studio now",
     title: "Everyday chikankari,",
     titleEm: "festive formals.",
-    body: "Hand-worked pieces cut in our atelier \u2014 stock reads straight from the studio rack.",
+    body: "Hand-finished in our atelier. In stock now.",
     cta: "Shop ready to wear",
     target: "ready",
     photo: "/ella-noor/formal-stripe.jpg",
@@ -67,7 +67,7 @@ const HERO_COPY = [
     kicker: "Festive 2026",
     title: "Organza, pearl work,",
     titleEm: "and a little shine.",
-    body: "Occasion pieces finished by hand, dispatched within 48 hours.",
+    body: "Hand-finished occasion wear. Ships in 48 hours.",
     cta: "Explore formals",
     target: "formals",
     photo: "/ella-noor/formal-ivory.jpg",
@@ -76,7 +76,7 @@ const HERO_COPY = [
     kicker: "Made for you",
     title: "Your measurements,",
     titleEm: "our craftsmanship.",
-    body: "Bridal and formal wear cut to fit. A 30% advance reserves your production slot.",
+    body: "Cut to your fit. A 30% advance reserves your slot.",
     cta: "Start your order",
     target: "made-to-order",
     photo: "/ella-noor/formal-floral.jpg",
@@ -148,6 +148,44 @@ function ArrowIcon() {
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
       <path d="M5 12h13" />
       <path d="m12.5 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function PromiseStockIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M12 8.5a2.2 2.2 0 1 1 2.2-2.2" />
+      <path d="M12 8.5v2L3.8 16.1a1.2 1.2 0 0 0 .7 2.2h15a1.2 1.2 0 0 0 .7-2.2L12 10.5" />
+    </svg>
+  );
+}
+
+function PromiseTruckIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M2.5 6.5h11v10h-11z" />
+      <path d="M13.5 10.5h4l3 3.5v2.5h-7" />
+      <circle cx="6.5" cy="17.8" r="1.7" />
+      <circle cx="17" cy="17.8" r="1.7" />
+    </svg>
+  );
+}
+
+function PromiseRulerIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="m4 20 7.5-7.5" />
+      <path d="m6.5 15 1.8 1.8M9.5 12l1.8 1.8M12.5 9l1.8 1.8M9 5l11 11-4 4L5 9l4-4Z" />
+    </svg>
+  );
+}
+
+function PromiseShieldIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+      <path d="M12 3 5 5.8v5.4c0 4.3 2.9 7.4 7 9 4.1-1.6 7-4.7 7-9V5.8L12 3Z" />
+      <path d="m9.3 11.8 2 2 3.6-3.8" />
     </svg>
   );
 }
@@ -440,7 +478,7 @@ export function EllaStorefrontHome({
                       <em>{s.titleEm}</em>
                     </h1>
                     <p>{s.body}</p>
-                    <button type="button" className="en-btn en-btn-paper" onClick={s.go}>
+                    <button type="button" className="en-btn en-btn-hero" onClick={s.go}>
                       {s.cta}
                     </button>
                   </div>
@@ -484,8 +522,11 @@ export function EllaStorefrontHome({
 
           <section className="en-wrap">
             <div className="en-promises">
-              {PROMISES.map(([title, body]) => (
+              {PROMISES.map(({ title, body, Icon }) => (
                 <div className="en-promise" key={title}>
+                  <span className="en-promise-icon" aria-hidden="true">
+                    <Icon />
+                  </span>
                   <b>{title}</b>
                   <p>{body}</p>
                 </div>
