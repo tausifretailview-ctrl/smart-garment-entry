@@ -8,6 +8,23 @@ export type UseExistingProductPayload = {
   mrp?: number;
 };
 
+/**
+ * "Product already exists?" (same name + category) → "Use existing instead":
+ * the size rows the user already typed in the Add Product grid, to be put on
+ * the bill against the existing product's variants.
+ */
+export type UseExistingProductSizesPayload = {
+  productId: string;
+  rows: Array<{
+    size: string;
+    color: string;
+    qty: number;
+    pur_price: number;
+    sale_price: number;
+    mrp: number | null;
+  }>;
+};
+
 export type PurchaseLinePriceSnapshot = {
   pur_price: number;
   sale_price: number;
@@ -75,4 +92,37 @@ export function buildUseExistingProductConfirmMessage(
     `your entered ${typedSale} will be recorded on this purchase line but won't change ` +
     `the product's stored price unless you also update it.`
   );
+}
+
+const sizeGridMatchKey = (value: unknown): string => String(value ?? "").trim().toLowerCase();
+
+/**
+ * Pick the existing variant for a typed size row: same size, same colour (a
+ * blank colour on either side matches), preferring the same MRP tier.
+ * Returns null when the existing product has no such size/colour yet.
+ */
+export function matchExistingVariantForSizeRow<
+  V extends { size?: string | null; color?: string | null; mrp?: number | null },
+>(
+  variants: V[],
+  row: { size: string; color: string; mrp: number | null },
+  productColor?: string | null,
+): V | null {
+  const size = sizeGridMatchKey(row.size);
+  const color = sizeGridMatchKey(row.color);
+  const candidates = variants.filter((v) => {
+    if (sizeGridMatchKey(v.size) !== size) return false;
+    const vColor = sizeGridMatchKey(v.color || productColor);
+    return !color || !vColor || vColor === color;
+  });
+  if (candidates.length === 0) return null;
+  const rowMrp = Number(row.mrp) || 0;
+  if (rowMrp > 0) {
+    const sameMrp = candidates.find(
+      (v) => Math.abs((Number(v.mrp) || 0) - rowMrp) <= PURCHASE_PRICE_TIER_TOLERANCE,
+    );
+    if (sameMrp) return sameMrp;
+  }
+  // Exact colour match beats a blank-colour match.
+  return candidates.find((v) => sizeGridMatchKey(v.color || productColor) === color) ?? candidates[0];
 }
