@@ -58,18 +58,29 @@ const fmtDec = (n: number): string => (Number.isFinite(n) ? n.toFixed(2) : "0.00
 
 function VastrakalaHeaderBrandText({
   title,
+  tagline,
   headerFont,
+  taglineFont,
 }: {
   title: string;
+  tagline: string;
   headerFont: string;
+  taglineFont: string;
 }) {
   return (
-    <div
-      className="vk-header-title"
-      style={{ fontSize: headerFont, letterSpacing: "0.4px" }}
-    >
-      {title}
-    </div>
+    <>
+      <div
+        className="vk-header-title"
+        style={{ fontSize: headerFont, letterSpacing: "0.4px" }}
+      >
+        {title}
+      </div>
+      {tagline ? (
+        <div className="vk-header-tagline" style={{ fontSize: taglineFont, marginTop: 2 }}>
+          {tagline}
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -108,13 +119,14 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     padding: is58 ? "1.5mm 1.5mm" : "2mm 2.5mm",
     baseFont: is58 ? "10px" : "13px",
     headerFont: is58 ? "14px" : "22px",
+    taglineFont: is58 ? "9px" : "12px",
     subFont: is58 ? "10px" : "14px",
     netFont: is58 ? "11px" : "15px",
     // Logo sits in its own column left of the shop details (never over them).
     // Height matches the name + address + contact block; width follows the logo's shape.
-    logoHeight: is58 ? "15mm" : "24mm",
+    logoHeight: is58 ? "16mm" : "26mm",
     logoMaxWidth: is58 ? "14mm" : "22mm",
-    sectionGap: is58 ? 4 : 7,
+    sectionGap: is58 ? 6 : 11,
     itemGridColumns,
   };
 }
@@ -232,7 +244,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
   const dashed: React.CSSProperties = {
     borderTop: "1px dashed #000",
-    margin: `${layout.sectionGap}px 0`,
+    margin: `${layout.sectionGap + 2}px 0 ${layout.sectionGap}px`,
   };
   const base: React.CSSProperties = {
     width: layout.paperWidth,
@@ -253,7 +265,12 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
   const shopDetails = (
     <>
-      <VastrakalaHeaderBrandText title={shopHeader.title} headerFont={layout.headerFont} />
+      <VastrakalaHeaderBrandText
+        title={shopHeader.title}
+        tagline={shopHeader.tagline}
+        headerFont={layout.headerFont}
+        taglineFont={layout.taglineFont}
+      />
       <div className="vk-header-meta">
         {address ? (
           <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{address.toUpperCase()}</div>

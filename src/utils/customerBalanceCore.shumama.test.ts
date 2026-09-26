@@ -143,3 +143,35 @@ describe("computeCustomerBalanceCore — Shumama-shaped fixture", () => {
     expect(netRefund).toBe(17400);
   });
 });
+
+/** ELLA NOOR Siya Kapoor — SR/26-27/39 used on INV/181 SRA but CAB left at 9,700. */
+describe("computePendingStandaloneSaleReturns — stale CAB on linked return", () => {
+  it("ignores CAB already used by the linked invoice S/R adjust", () => {
+    const sales = [
+      { id: "inv-181", sale_return_adjust: 12150 },
+      { id: "inv-367", sale_return_adjust: 3900 },
+    ];
+    const saleReturns = [
+      { id: "sr-39", net_amount: 9700, credit_status: "adjusted", linked_sale_id: "inv-181", credit_available_balance: 9700, return_date: "2026-05-18" },
+      { id: "sr-40", net_amount: 3900, credit_status: "adjusted", linked_sale_id: "inv-367", credit_available_balance: 0, return_date: "2026-05-18" },
+    ];
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(0);
+  });
+
+  it("splits one invoice SRA between two linked returns, oldest first", () => {
+    const sales = [{ id: "inv-a", sale_return_adjust: 5000 }];
+    const saleReturns = [
+      { id: "a", net_amount: 4000, credit_status: "adjusted", linked_sale_id: "inv-a", credit_available_balance: 0, return_date: "2026-05-01" },
+      { id: "b", net_amount: 3000, credit_status: "partially_adjusted", linked_sale_id: "inv-a", credit_available_balance: 2000, return_date: "2026-05-02" },
+    ];
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(2000);
+  });
+
+  it("keeps a real remainder on an adjusted return (Hanif bhai)", () => {
+    const sales = [{ id: "inv-287", sale_return_adjust: 150 }];
+    const saleReturns = [
+      { id: "h", net_amount: 3200, credit_status: "adjusted", linked_sale_id: "inv-287", credit_available_balance: 3050 },
+    ];
+    expect(computePendingStandaloneSaleReturns(saleReturns, sales)).toBe(3050);
+  });
+});

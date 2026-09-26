@@ -1,4 +1,4 @@
-export const VASTRAKALA_DEFAULT_TAGLINE = "Sarees & ladies wear";
+export const VASTRAKALA_DEFAULT_TAGLINE = "Sarees & Ladies Wear";
 
 /** First word = receipt title; remainder = tagline (sentence case). Avoids a long ERP name wrapping beside the logo. */
 export function splitVastrakalaShopHeader(businessNameRaw: string): { title: string; tagline: string } {
@@ -9,7 +9,13 @@ export function splitVastrakalaShopHeader(businessNameRaw: string): { title: str
   if (!rest) {
     return { title, tagline: VASTRAKALA_DEFAULT_TAGLINE };
   }
-  const lower = rest.toLowerCase();
-  const tagline = lower.charAt(0).toUpperCase() + lower.slice(1);
+  const tagline = rest
+    .split(/\s+/)
+    .map((w) => {
+      if (w === "&") return "&";
+      const lower = w.toLowerCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
   return { title, tagline };
 }
