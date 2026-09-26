@@ -127,6 +127,8 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     logoHeight: is58 ? "16mm" : "26mm",
     logoMaxWidth: is58 ? "14mm" : "22mm",
     sectionGap: is58 ? 6 : 11,
+    /** Chars on line 1 in the narrow column before QTY; rest goes on wide line 2. */
+    particularsLine1MaxChars: is58 ? 14 : 22,
     itemGridColumns,
   };
 }
@@ -391,10 +393,13 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       <div style={dashed} />
       <div className="vk-items-body" style={{ marginBottom: layout.sectionGap }}>
         {items.map((item, i) => {
-          const { line1, line2 } = vastrakalaParticularsLines(item.particulars, item.itemNotes);
+          const { line1, line2 } = vastrakalaParticularsLines(item.particulars, item.itemNotes, {
+            narrowMaxChars: layout.particularsLine1MaxChars,
+          });
           const qtyCol = 3;
           const mrpCol = 4;
           const amtCol = showMrp ? 5 : 4;
+          const wideLine2 = Boolean(line2);
           return (
             <div
               key={i}
@@ -402,26 +407,50 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               style={{
                 display: "grid",
                 gridTemplateColumns: layout.itemGridColumns,
+                gridTemplateRows: wideLine2 ? "auto auto" : "auto",
                 columnGap: "1mm",
+                rowGap: "0.5mm",
                 alignItems: "start",
                 marginBottom: i === items.length - 1 ? 0 : 4,
               }}
             >
-              <span style={{ gridColumn: 1 }}>{item.sr ?? i + 1}</span>
-              <div
-                className="vk-particular-name"
-                style={{ gridColumn: 2, minWidth: 0, lineHeight: 1.3 }}
+              <span
+                style={{
+                  gridColumn: 1,
+                  gridRow: wideLine2 ? "1 / 3" : 1,
+                  alignSelf: "start",
+                }}
               >
-                <div>{line1}</div>
-                {line2 ? <div className="vk-particular-notes">{line2}</div> : null}
+                {item.sr ?? i + 1}
+              </span>
+              <div
+                className="vk-particular-line1"
+                style={{ gridColumn: 2, gridRow: 1, minWidth: 0, lineHeight: 1.3 }}
+              >
+                {line1}
               </div>
-              <span style={{ ...itemNumStyle, gridColumn: qtyCol }}>{item.qty}</span>
+              {wideLine2 ? (
+                <div
+                  className="vk-particular-line2"
+                  style={{
+                    gridColumn: `2 / ${amtCol}`,
+                    gridRow: 2,
+                    minWidth: 0,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {line2}
+                </div>
+              ) : null}
+              <span style={{ ...itemNumStyle, gridColumn: qtyCol, gridRow: 1 }}>{item.qty}</span>
               {showMrp ? (
-                <span style={{ ...itemNumStyle, gridColumn: mrpCol }}>
+                <span style={{ ...itemNumStyle, gridColumn: mrpCol, gridRow: 1 }}>
                   {fmtDec(Number(item.mrp) || Number(item.rate) || 0)}
                 </span>
               ) : null}
-              <span style={{ ...itemNumStyle, gridColumn: amtCol }}>{fmtDec(item.total)}</span>
+              <span style={{ ...itemNumStyle, gridColumn: amtCol, gridRow: 1 }}>
+                {fmtDec(item.total)}
+              </span>
             </div>
           );
         })}

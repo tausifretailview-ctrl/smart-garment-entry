@@ -1,21 +1,38 @@
 /**
- * Vastrakala 80mm thermal — particulars line splitting.
+ * Vastrakala 80mm thermal — particulars split for a 2-line print block.
  *
- * Reference (shop's earlier POS print): the FULL product name prints on line 1
- * and wraps naturally, with the set/piece note (e.g. "3 PC") on line 2 — never
- * truncated with "..." and never stripped of its style-code prefix.
- *
- * So line 1 is always the complete `particulars` text; line 2 is `itemNotes`
- * only when it adds information not already contained in line 1. Both lines
- * wrap via CSS (`overflow-wrap: anywhere`) inside the 80mm grid column.
+ * Line 1 sits in the narrow column before QTY (single line, no wrap).
+ * Line 2 spans the wide band through MRP (before AMOUNT) for the remainder
+ * plus optional pack notes (e.g. "3 PC").
  */
+
+function splitBeforeQtyColumn(text: string, maxLine1Chars: number): { head: string; tail: string } {
+  const t = text.trim();
+  if (!t || t.length <= maxLine1Chars) return { head: t, tail: "" };
+  let breakAt = t.lastIndexOf(" ", maxLine1Chars);
+  if (breakAt <= 0) breakAt = t.lastIndexOf("-", maxLine1Chars);
+  if (breakAt <= 0) breakAt = maxLine1Chars;
+  return {
+    head: t.slice(0, breakAt).trim(),
+    tail: t.slice(breakAt).trim(),
+  };
+}
+
 export function vastrakalaParticularsLines(
   particulars: string,
   itemNotes?: string,
+  opts?: { narrowMaxChars?: number },
 ): { line1: string; line2: string } {
-  const line1 = (particulars || "").trim();
+  const maxLine1 = opts?.narrowMaxChars ?? 24;
+  const full = (particulars || "").trim();
   const notes = (itemNotes || "").trim();
-  if (!line1) return { line1: "", line2: notes };
-  if (!notes || line1.includes(notes)) return { line1, line2: "" };
-  return { line1, line2: notes };
+
+  if (!full) return { line1: "", line2: notes };
+
+  const { head, tail } = splitBeforeQtyColumn(full, maxLine1);
+  const noteExtra = notes && !full.includes(notes) ? notes : "";
+  const tailParts = [tail, noteExtra].filter(Boolean).join(" ").trim();
+
+  if (!tailParts) return { line1: head, line2: "" };
+  return { line1: head, line2: tailParts };
 }

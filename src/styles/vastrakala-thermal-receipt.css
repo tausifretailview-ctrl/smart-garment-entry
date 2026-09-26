@@ -91,17 +91,18 @@
   print-color-adjust: exact;
 }
 
-.vastrakala-thermal-receipt-80mm .vk-particular-name {
+.vastrakala-thermal-receipt-80mm .vk-particular-line1 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  font-weight: 400 !important;
+}
+
+.vastrakala-thermal-receipt-80mm .vk-particular-line2 {
   overflow-wrap: anywhere;
   word-break: break-word;
   white-space: normal;
   font-weight: 400 !important;
-}
-
-.vastrakala-thermal-receipt-80mm .vk-particular-notes {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  white-space: normal;
 }
 
 .vastrakala-thermal-receipt-80mm .vk-items-head span:nth-child(n + 3),
