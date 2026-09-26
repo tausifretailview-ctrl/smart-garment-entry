@@ -22,7 +22,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2 } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2, FileDown } from "lucide-react";
+import { PrintPurchaseBillDialog } from "@/components/PrintPurchaseBillDialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
@@ -239,6 +240,8 @@ const PurchaseBillDashboard = () => {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [billItems, setBillItems] = useState<Record<string, PurchaseItem[]>>({});
   const [printingBill, setPrintingBill] = useState<string | null>(null);
+  const [loadingBillPdf, setLoadingBillPdf] = useState<string | null>(null);
+  const [billToPrint, setBillToPrint] = useState<{ bill: PurchaseBill; items: PurchaseItem[] } | null>(null);
   const [deletingBill, setDeletingBill] = useState<string | null>(null);
   const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
   // Cancel bill state
@@ -436,12 +439,58 @@ const PurchaseBillDashboard = () => {
   const pageContextMenu = useContextMenu<void>();
 
   // Get context menu items for purchase bill row
+  const buildPurchaseBillPaymentLabel = (bill: PurchaseBill) => {
+    const displayStatus = derivePurchaseBillDisplayStatus(bill);
+    const paid = getEffectivePaidAmountForPurchaseBill(bill);
+    const pending = getPurchaseBillPendingAmount(bill);
+    const status =
+      displayStatus === "paid" ? "PAID" : displayStatus === "partial" ? "PARTIAL" : "UNPAID";
+    return `${status} — Paid ₹${paid.toLocaleString("en-IN", { minimumFractionDigits: 2 })} — Balance ₹${pending.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  };
+
+  const handleOpenPurchaseBillPdf = useCallback(
+    async (bill: PurchaseBill, e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setLoadingBillPdf(bill.id);
+      try {
+        const fetchedItems = (await fetchPurchaseItemsByBillId(
+          bill.id,
+          "id, product_id, product_name, brand, category, color, style, size, qty, pur_price, sale_price, mrp, gst_per, hsn_code, barcode, line_total",
+          { includeDeleted: bill.is_cancelled },
+        )) as PurchaseItem[];
+        if (!fetchedItems.length) {
+          toast({
+            title: "No items",
+            description: "This bill has no line items for PDF.",
+            variant: "destructive",
+          });
+          return;
+        }
+        setBillToPrint({ bill, items: fetchedItems });
+      } catch {
+        toast({
+          title: "Error",
+          description: "Could not load bill items for PDF.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingBillPdf(null);
+      }
+    },
+    [toast],
+  );
+
   const getBillContextMenuItems = (bill: PurchaseBill): ContextMenuItem[] => {
     return [
       {
         label: "View Details",
         icon: Eye,
         onClick: () => handleToggleExpand(bill.id),
+      },
+      {
+        label: "Purchase details (PDF)",
+        icon: FileDown,
+        onClick: () => void handleOpenPurchaseBillPdf(bill),
       },
       {
         label: "Bill History",
@@ -2088,16 +2137,30 @@ const PurchaseBillDashboard = () => {
             >
               <Edit className="h-4 w-4" />
             </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-teal-950"
+              onClick={(e) => void handleOpenPurchaseBillPdf(bill, e)}
+              disabled={loadingBillPdf === bill.id}
+              title="Purchase details PDF"
+            >
+              {loadingBillPdf === bill.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="h-4 w-4" />
+              )}
+            </Button>
             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             </Button>
           </div>
         );
       },
-      size: 96,
-      minSize: 88,
+      size: 120,
+      minSize: 112,
     },
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, loadingBillPdf, handleOpenPurchaseBillPdf, deletingBill, uploadingImageForBill, togglingLock]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
@@ -3298,6 +3361,28 @@ const PurchaseBillDashboard = () => {
         billId={selectedBillForHistory?.id}
         organizationId={currentOrganization?.id}
       />
+
+      {billToPrint && (
+        <PrintPurchaseBillDialog
+          bill={{
+            software_bill_no: billToPrint.bill.software_bill_no,
+            supplier_invoice_no: billToPrint.bill.supplier_invoice_no,
+            supplier_name: purchaseBillDisplaySupplierName(billToPrint.bill),
+            bill_date: billToPrint.bill.bill_date,
+            gross_amount: billToPrint.bill.gross_amount,
+            discount_amount: billToPrint.bill.discount_amount,
+            gst_amount: billToPrint.bill.gst_amount,
+            net_amount: billToPrint.bill.net_amount,
+            total_qty: billToPrint.bill.total_qty,
+            is_dc_purchase: billToPrint.bill.is_dc_purchase,
+            paymentLabel: buildPurchaseBillPaymentLabel(billToPrint.bill),
+          }}
+          items={billToPrint.items}
+          settings={purchaseSettings ?? undefined}
+          organizationId={currentOrganization?.id}
+          onClose={() => setBillToPrint(null)}
+        />
+      )}
 
       {/* Desktop Context Menus */}
       {isDesktop && (
