@@ -1398,7 +1398,13 @@ export default function SaleOrderEntry() {
     (showMrpCol ? 15 : 14) - (showHsnCol ? 0 : 1) - (showColorCol ? 0 : 1);
 
   return (
-    <div className={cn(entryPageShellClass, "bg-white sale-order-readable min-h-0")} data-entry-form>
+    <div
+      className={cn(
+        entryPageShellClass,
+        "sale-bill-workspace bg-slate-50 dark:bg-background sale-order-readable min-h-0",
+      )}
+      data-entry-form
+    >
       <header className="bg-white border-b-2 border-black shrink-0 flex flex-col">
         <div className={cn("entry-page-header-row h-[52px] flex items-center gap-2", entryPageSectionX)}>
           <div className="entry-page-header-leading flex items-center gap-2 sm:gap-3 min-w-0">
