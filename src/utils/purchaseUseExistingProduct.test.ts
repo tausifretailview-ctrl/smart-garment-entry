@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildUseExistingProductConfirmMessage,
+  matchExistingVariantForSizeRow,
   purchaseLinePricesDiffer,
   purchaseLinePricesFromUseExisting,
 } from "@/utils/purchaseUseExistingProduct";
@@ -41,5 +42,31 @@ describe("purchaseUseExistingProduct", () => {
     expect(message).toContain("₹200");
     expect(message).toContain("₹250");
     expect(message).toContain("stored price");
+  });
+});
+
+describe("matchExistingVariantForSizeRow", () => {
+  const variants = [
+    { id: "m", size: "M", color: "", mrp: 300 },
+    { id: "l", size: "L", color: "", mrp: 300 },
+    { id: "l-red", size: "L", color: "Red", mrp: 300 },
+    { id: "xl-500", size: "XL", color: "", mrp: 500 },
+    { id: "xl-300", size: "XL", color: "", mrp: 300 },
+  ];
+
+  it("matches size case-insensitively", () => {
+    expect(matchExistingVariantForSizeRow(variants, { size: " m ", color: "", mrp: null })?.id).toBe("m");
+  });
+
+  it("prefers the exact colour", () => {
+    expect(matchExistingVariantForSizeRow(variants, { size: "L", color: "red", mrp: null })?.id).toBe("l-red");
+  });
+
+  it("prefers the same MRP tier", () => {
+    expect(matchExistingVariantForSizeRow(variants, { size: "XL", color: "", mrp: 300 })?.id).toBe("xl-300");
+  });
+
+  it("returns null for a size the product does not have", () => {
+    expect(matchExistingVariantForSizeRow(variants, { size: "XXL", color: "", mrp: 300 })).toBeNull();
   });
 });

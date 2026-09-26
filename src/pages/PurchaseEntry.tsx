@@ -150,9 +150,11 @@ import {
   type BarcodeDuplicateMatch,
 } from "@/utils/purchaseBarcodeDuplicateWarnings";
 import {
+  matchExistingVariantForSizeRow,
   purchaseLinePricesFromUseExisting,
   type PurchaseLinePriceSnapshot,
   type UseExistingProductPayload,
+  type UseExistingProductSizesPayload,
 } from "@/utils/purchaseUseExistingProduct";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
@@ -4176,7 +4178,13 @@ const PurchaseEntry = () => {
   };
 
   // Handle confirmation from SizeGridDialog
-  const handleSizeGridConfirm = async (items: Array<{ variant: any; qty: number }>, newColor?: string) => {
+  const handleSizeGridConfirm = async (
+    items: Array<{ variant: any; qty: number }>,
+    newColor?: string,
+    /** Product the rows belong to when not coming from the open size grid (Use existing). */
+    productOverride?: any,
+  ) => {
+    const gridProduct = productOverride ?? selectedProduct;
     for (const { variant, qty } of items) {
       let barcode = variant.barcode || "";
       let skuId = variant.id;
@@ -4194,13 +4202,13 @@ const PurchaseEntry = () => {
             const { data: created, barcode: freshBarcode } = await insertGeneratedProductVariant<{
               id: string;
             }>({
-              product_id: selectedProduct.id,
+              product_id: gridProduct.id,
               organization_id: currentOrganization.id,
               size: variant.size,
-              color: newColor || variant.color || selectedProduct.color || null,
-              pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
-              sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
-              mrp: variant.mrp || variant.sale_price || selectedProduct.default_sale_price || 0,
+              color: newColor || variant.color || gridProduct.color || null,
+              pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+              sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
+              mrp: variant.mrp || variant.sale_price || gridProduct.default_sale_price || 0,
               barcode,
               barcode_source: "generated",
               stock_qty: 0,
@@ -4213,13 +4221,13 @@ const PurchaseEntry = () => {
             const { data: newVariant, error: createError } = await supabase
               .from("product_variants")
               .insert({
-                product_id: selectedProduct.id,
+                product_id: gridProduct.id,
                 organization_id: currentOrganization?.id,
                 size: variant.size,
-                color: newColor || variant.color || selectedProduct.color || null,
-                pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
-                sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
-                mrp: variant.mrp || variant.sale_price || selectedProduct.default_sale_price || 0,
+                color: newColor || variant.color || gridProduct.color || null,
+                pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+                sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
+                mrp: variant.mrp || variant.sale_price || gridProduct.default_sale_price || 0,
                 barcode: barcode,
                 stock_qty: 0,
                 active: true,
@@ -4235,8 +4243,8 @@ const PurchaseEntry = () => {
           toast({
             title: newColor ? "Color Variant Created" : "Size Created",
             description: newColor 
-              ? `New variant "${variant.size}" in color "${newColor}" created for ${selectedProduct.product_name}`
-              : `New size "${variant.size}" created for ${selectedProduct.product_name}`,
+              ? `New variant "${variant.size}" in color "${newColor}" created for ${gridProduct.product_name}`
+              : `New size "${variant.size}" created for ${gridProduct.product_name}`,
           });
         } catch (error: any) {
           console.error("Error creating new variant:", error);
@@ -4258,11 +4266,11 @@ const PurchaseEntry = () => {
           }
         } else {
           const result = await forkVariantForPurchaseLine({
-            product_id: selectedProduct.id,
+            product_id: gridProduct.id,
             size: variant.size,
-            color: newColor || variant.color || selectedProduct.color,
-            pur_price: variant.pur_price || selectedProduct.default_pur_price,
-            sale_price: variant.sale_price || selectedProduct.default_sale_price,
+            color: newColor || variant.color || gridProduct.color,
+            pur_price: variant.pur_price || gridProduct.default_pur_price,
+            sale_price: variant.sale_price || gridProduct.default_sale_price,
             mrp: variant.mrp,
           });
           if (!result) continue;
@@ -4272,13 +4280,13 @@ const PurchaseEntry = () => {
       }
 
       addItemRow({
-        product_name: selectedProduct.product_name,
-        product_id: selectedProduct.id,
+        product_name: gridProduct.product_name,
+        product_id: gridProduct.id,
         sku_id: skuId,
         size: variant.size,
         qty: qty,
-        pur_price: variant.pur_price || selectedProduct.default_pur_price || 0,
-        sale_price: variant.sale_price || selectedProduct.default_sale_price || 0,
+        pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+        sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
         // Do NOT fall back to sale_price here — this is an existing variant's
         // actual current mrp (possibly genuinely 0/unset, which is valid).
         // syncVariantPriceFromPurchase only writes mrp back to the master
@@ -4286,21 +4294,21 @@ const PurchaseEntry = () => {
         // as a placeholder would get silently saved as if it were a real,
         // deliberately-set MRP the next time this item is re-purchased.
         mrp: variant.mrp || 0,
-        gst_per: selectedProduct.purchase_gst_percent || selectedProduct.gst_per || 0,
-        hsn_code: selectedProduct.hsn_code || "",
+        gst_per: gridProduct.purchase_gst_percent || gridProduct.gst_per || 0,
+        hsn_code: gridProduct.hsn_code || "",
         barcode: barcode,
         discount_percent: (() => {
-          const pdt = (selectedProduct as any).purchase_discount_type;
-          const pdv = (selectedProduct as any).purchase_discount_value || 0;
+          const pdt = (gridProduct as any).purchase_discount_type;
+          const pdv = (gridProduct as any).purchase_discount_value || 0;
           if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
           return 0;
         })(),
-        brand: selectedProduct.brand || "",
-        category: selectedProduct.category || "",
-        color: newColor || variant.color || selectedProduct.color || "",
-        style: selectedProduct.style || "",
+        brand: gridProduct.brand || "",
+        category: gridProduct.category || "",
+        color: newColor || variant.color || gridProduct.color || "",
+        style: gridProduct.style || "",
         requires_imei:
-          (variant.requires_imei ?? (selectedProduct as any).requires_imei) !== false,
+          (variant.requires_imei ?? (gridProduct as any).requires_imei) !== false,
       });
     }
 
@@ -4309,6 +4317,107 @@ const PurchaseEntry = () => {
     // Blur so "1" shortcut works immediately
     (document.activeElement as HTMLElement)?.blur();
     focusSearchBar();
+  };
+
+  // Add Product → "Product already exists?" → Use existing instead: put the size
+  // rows typed in the Add Product grid on the bill against the existing product,
+  // exactly as if it had been picked from search and entered in the size grid.
+  const handleUseExistingProductSizesFromDialog = async (payload: UseExistingProductSizesPayload) => {
+    closeProductDialog(false);
+    if (!currentOrganization?.id || !payload.productId) return;
+
+    // No qty typed yet → open the existing product's size grid to enter it there.
+    if (payload.rows.length === 0) {
+      await openSizeGridModal(payload.productId);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select(`
+        id,
+        size,
+        pur_price,
+        sale_price,
+        mrp,
+        barcode,
+        barcode_source,
+        color,
+        products (
+          id,
+          product_name,
+          brand,
+          category,
+          color,
+          style,
+          hsn_code,
+          gst_per,
+          requires_imei,
+          purchase_gst_percent,
+          sale_gst_percent,
+          default_pur_price,
+          default_sale_price,
+          purchase_discount_type,
+          purchase_discount_value,
+          uom
+        )
+      `)
+      .eq("product_id", payload.productId)
+      .eq("organization_id", currentOrganization.id)
+      .eq("active", true)
+      .is("deleted_at", null);
+
+    const product = (data?.[0]?.products as any) ?? null;
+    if (error || !data?.length || !product) {
+      toast({
+        title: "Could not add product",
+        description: "Could not load the existing product's sizes. Search it in the bill instead.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const items = payload.rows.map((row, index) => {
+      const match = matchExistingVariantForSizeRow(data as any[], row, product.color);
+      const typedPrices = {
+        pur_price: row.pur_price > 0 ? row.pur_price : Number(match?.pur_price) || 0,
+        sale_price: row.sale_price > 0 ? row.sale_price : Number(match?.sale_price) || 0,
+        mrp: row.mrp != null && row.mrp > 0 ? row.mrp : Number(match?.mrp) || 0,
+      };
+      if (!match) {
+        // Size/colour the existing product doesn't have yet — created on it,
+        // same as a new size added in the size grid.
+        return {
+          qty: row.qty,
+          variant: {
+            id: `use-existing-new-${index}`,
+            size: row.size,
+            color: row.color,
+            barcode: "",
+            isCustomSize: true,
+            requires_imei: product.requires_imei !== false,
+            ...typedPrices,
+          },
+        };
+      }
+      return {
+        qty: row.qty,
+        variant: {
+          ...match,
+          color: match.color || product.color || "",
+          barcode_source: match.barcode_source || "generated",
+          requires_imei: product.requires_imei !== false,
+          ...typedPrices,
+        },
+      };
+    });
+
+    await handleSizeGridConfirm(items, undefined, product);
+    const totalQty = payload.rows.reduce((sum, r) => sum + r.qty, 0);
+    toast({
+      title: "Added existing product",
+      description: `${product.product_name} — ${payload.rows.length} size(s), qty ${totalQty} added to the bill`,
+    });
   };
 
   // Add ALL active variants of a product as inline rows (qty=1 each).
@@ -7625,6 +7734,7 @@ const PurchaseEntry = () => {
           mobileERPMode={mobileERPSettings || undefined}
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
+          onUseExistingProductSizes={handleUseExistingProductSizesFromDialog}
           createdInPurchase
         />
         {purchaseMrpTierDialog}
@@ -9070,6 +9180,7 @@ const PurchaseEntry = () => {
           mobileERPMode={mobileERPSettings || undefined}
           initialBarcode={productDialogInitialBarcode}
           onUseExistingProduct={handleUseExistingProductFromDialog}
+          onUseExistingProductSizes={handleUseExistingProductSizesFromDialog}
           createdInPurchase
         />
 

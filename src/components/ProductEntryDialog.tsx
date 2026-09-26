@@ -86,7 +86,10 @@ import {
 import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { buildMasterOnlySaleOrderVariants } from "@/utils/saleOrderMasterProductVariants";
 import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
-import type { UseExistingProductPayload } from "@/utils/purchaseUseExistingProduct";
+import type {
+  UseExistingProductPayload,
+  UseExistingProductSizesPayload,
+} from "@/utils/purchaseUseExistingProduct";
 import {
   clearProductEntryUnsavedDraft,
   productEntryDraftIsMeaningful,
@@ -198,6 +201,11 @@ interface ProductEntryDialogProps {
   initialBarcode?: string;
   /** Close dialog and add the existing master product to the bill (PurchaseEntry). */
   onUseExistingProduct?: (payload: UseExistingProductPayload) => void;
+  /**
+   * "Product already exists?" → "Use existing instead": close the form and put the
+   * typed size rows (qty + rates) on the bill against the existing product (PurchaseEntry).
+   */
+  onUseExistingProductSizes?: (payload: UseExistingProductSizesPayload) => void;
   /** Tag the new master so purchase-bill delete can recycle it when it has no other history. */
   createdInPurchase?: boolean;
   /**
@@ -208,7 +216,7 @@ interface ProductEntryDialogProps {
   masterOnly?: boolean;
 }
 
-export type { UseExistingProductPayload };
+export type { UseExistingProductPayload, UseExistingProductSizesPayload };
 
 /** Move focus to the next visible field in the product entry form (Enter-as-Tab). */
 function focusNextFieldInProductForm(currentEl: HTMLElement) {
@@ -491,6 +499,7 @@ export const ProductEntryDialog = ({
   mobileERPMode,
   initialBarcode = "",
   onUseExistingProduct,
+  onUseExistingProductSizes,
   createdInPurchase = false,
   masterOnly = false,
 }: ProductEntryDialogProps) => {
@@ -731,6 +740,39 @@ export const ProductEntryDialog = ({
       formData.default_mrp,
     ],
   );
+
+  // Name-dupe "Use existing instead": hand the typed size rows to the bill
+  // against the existing product instead of just closing the warning.
+  const useExistingProductForTypedSizes = (productId: string) => {
+    setShowNameDupeDialog(false);
+    if (!onUseExistingProductSizes) return;
+    const rows = variants
+      .filter(
+        (v) =>
+          (Number(v.purchase_qty) || 0) > 0 &&
+          !disabledSizes.has(v.size) &&
+          (formData.colors.length === 0 || !v.color || formData.colors.includes(v.color)),
+      )
+      .map((v) => ({
+        size: v.size,
+        color: v.color || "",
+        qty: Number(v.purchase_qty) || 0,
+        pur_price: Number(v.pur_price ?? formData.default_pur_price) || 0,
+        sale_price: Number(v.sale_price ?? formData.default_sale_price) || 0,
+        mrp:
+          v.mrp != null && Number(v.mrp) > 0
+            ? Number(v.mrp)
+            : formData.default_mrp != null && Number(formData.default_mrp) > 0
+              ? Number(formData.default_mrp)
+              : null,
+      }));
+    // Nothing new was created — do not restore this form as an unsaved draft.
+    skipUnsavedDraftPersistRef.current = true;
+    if (currentOrganization?.id) {
+      clearProductEntryUnsavedDraft(currentOrganization.id);
+    }
+    onUseExistingProductSizes({ productId, rows });
+  };
 
   // Resolve a size group by id. The "none" sentinel represents a product with no
   // sizes (sweet shops, supermarkets, etc.) — stored as a single "None" variant.
@@ -4685,16 +4727,36 @@ export const ProductEntryDialog = ({
           </AlertDialogHeader>
           <div className="space-y-1 py-2">
             {nameDupeMatches.slice(0, 5).map((m) => (
-              <div key={m.id} className="text-sm">
-                <span className="font-semibold">{m.product_name}</span>
-                <span className="text-muted-foreground">
-                  {[m.brand, m.category].filter(Boolean).join(" · ")}
-                </span>
+              <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                <div className="min-w-0">
+                  <span className="font-semibold">{m.product_name}</span>{" "}
+                  <span className="text-muted-foreground">
+                    {[m.brand, m.category].filter(Boolean).join(" · ")}
+                  </span>
+                </div>
+                {onUseExistingProductSizes && nameDupeMatches.length > 1 && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => useExistingProductForTypedSizes(m.id)}
+                  >
+                    Use this
+                  </Button>
+                )}
               </div>
             ))}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel>Use existing instead</AlertDialogCancel>
+            {onUseExistingProductSizes && nameDupeMatches.length === 1 ? (
+              <AlertDialogCancel onClick={() => useExistingProductForTypedSizes(nameDupeMatches[0].id)}>
+                Use existing instead
+              </AlertDialogCancel>
+            ) : (
+              <AlertDialogCancel>
+                {onUseExistingProductSizes ? "Cancel" : "Use existing instead"}
+              </AlertDialogCancel>
+            )}
             <AlertDialogAction
               onClick={() => {
                 setNameDupeConfirmedKey(normalizeProductNameKey(formData.product_name, formData.category));
