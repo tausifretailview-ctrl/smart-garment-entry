@@ -140,6 +140,10 @@
 }
 .en-btn-paper { background: var(--en-paper); color: var(--en-ink); margin-top: 6px; }
 .en-btn-paper:hover { background: #fff; color: var(--en-ink); }
+/* Hero CTA sits over photography — solid ink pill so it never melts into a
+   light studio floor the way the paper button did on mobile. */
+.en-btn-hero { background: var(--en-ink); color: #f8f4f4; margin-top: 8px; }
+.en-btn-hero:hover { background: #000; color: #fff; }
 
 .en-dots {
   position: absolute; z-index: 3; left: 0; right: 0; bottom: calc(clamp(14px, 2vw, 22px) + var(--en-tabbar));
@@ -248,6 +252,12 @@
 .en-promise { display: flex; flex-direction: column; gap: 7px; }
 .en-promise b { font-size: 11px; font-weight: 400; letter-spacing: 0.24em; text-transform: uppercase; color: var(--en-accent-deep); }
 .en-promise p { margin: 0; font-size: 16px; color: var(--en-ink-2); }
+.en-promise-icon {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--en-line-strong); color: var(--en-accent-deep);
+  background: var(--en-surface); margin-bottom: 3px;
+}
 
 /* ---------- section heads + product grid ---------- */
 
@@ -466,13 +476,26 @@
 @media (max-width: 640px) {
   .en-home { font-size: 15px; }
   .en-eyebrow { font-size: 10px; letter-spacing: 0.22em; }
+  /* Hero copy sits over the portrait — keep it low, compact and legible so
+     it never covers the model's face or melts into a light floor. */
+  .en-slide-copy { gap: 8px; padding-bottom: calc(clamp(30px, 5vw, 44px) + var(--en-tabbar)); }
+  .en-slide-kicker { font-size: 10px; letter-spacing: 0.2em; }
+  .en-slide-copy h1 { font-size: clamp(24px, 6vw, 30px); line-height: 1.1; text-shadow: 0 1px 12px rgba(0, 0, 0, 0.45); }
+  .en-slide-copy p { font-size: 14px; line-height: 1.4; max-width: 30ch; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45); }
+  .en-slide-copy .en-btn { width: auto; max-width: 100%; min-height: 48px; padding: 14px 22px; }
+  .en-slide-scrim {
+    background: linear-gradient(to top, rgba(16, 14, 14, 0.86) 0%, rgba(16, 14, 14, 0.42) 42%, rgba(16, 14, 14, 0) 68%);
+  }
   .en-hero-copy { padding: 4px 0 0; gap: 14px; }
   .en-lead { font-size: 16px; line-height: 1.45; }
   .en-figure { aspect-ratio: 3 / 4; }
   .en-btn { width: 100%; min-height: 50px; padding: 15px 22px; font-size: 12px; letter-spacing: 0.16em; }
   .en-actions { gap: 10px; }
-  .en-promises { gap: 20px; padding-top: 40px; }
-  .en-promise p { font-size: 15px; line-height: 1.45; }
+  .en-promises { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 14px; padding-top: 36px; }
+  .en-promise { gap: 5px; }
+  .en-promise-icon { width: 36px; height: 36px; margin-bottom: 1px; }
+  .en-promise b { font-size: 10px; letter-spacing: 0.16em; }
+  .en-promise p { font-size: 14px; line-height: 1.4; }
   .en-section { padding-top: 44px; }
   .en-section-head h2 { font-size: 26px; }
   .en-grid { gap: 22px 12px; }
