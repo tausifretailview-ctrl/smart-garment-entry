@@ -1545,7 +1545,7 @@ function saleOrderDialogPaper(
 ): SaleOrderPrintPaper {
   const f = resolveSaleBillFormatFromSaleSettings(saleSettings);
   if (f === "a5-horizontal") return "a5-horizontal";
-  if (f === "a5" || f === "a5-vertical") return "a5";
+  if (f === "a5" || (f as string) === "a5-vertical") return "a5";
   if (f === "thermal") return "thermal";
   return "a4";
 }
