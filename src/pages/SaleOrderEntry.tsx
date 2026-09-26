@@ -1449,17 +1449,19 @@ export default function SaleOrderEntry() {
 
       <main className={entryPageMainClass}>
       <section className={cn("bg-white border-b border-black/10 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
-          <div className="col-span-2 md:col-span-1 lg:col-span-2">
+        <div className="grid grid-cols-2 gap-x-2 gap-y-2 items-end md:grid-cols-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,0.85fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.9fr)_minmax(0,0.8fr)_minmax(0,1.15fr)]">
+          <div className="col-span-2 min-w-0 md:col-span-2 lg:col-span-1">
             <Label className="text-[13px] font-bold text-black">
               Customer <span className="text-red-600">*</span>
             </Label>
-            <div className="flex gap-2">
+            <div className="flex gap-1 min-w-0">
               <Popover open={openCustomerSearch} onOpenChange={setOpenCustomerSearch}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="flex-1 justify-between font-normal">
-                    {selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : "Select customer"}
-                    <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  <Button variant="outline" role="combobox" className="h-9 min-w-0 flex-1 justify-between px-2 font-normal">
+                    <span className="truncate">
+                      {selectedCustomer ? `${selectedCustomer.customer_name}${selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}` : "Select customer"}
+                    </span>
+                    <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[350px] p-0" align="start">
@@ -1492,24 +1494,24 @@ export default function SaleOrderEntry() {
                   </Command>
                 </PopoverContent>
               </Popover>
-              <Button variant="outline" size="icon" onClick={() => setOpenCustomerDialog(true)}>
+              <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" onClick={() => setOpenCustomerDialog(true)}>
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Label className="text-[13px] font-bold text-black mb-1 block">Order No</Label>
-            <Input value={orderNumber} readOnly className="h-10 bg-neutral-50 font-mono font-bold text-sm border-black/20" />
+            <Input value={orderNumber} readOnly className="h-9 bg-neutral-50 font-mono font-bold text-sm border-black/20 px-2" />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Label className="text-[13px] font-bold text-black mb-1 block">Order Date</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(orderDate, "PPP")}
+                <Button variant="outline" className="h-9 w-full justify-start px-2 text-left text-sm font-normal border-black/20">
+                  <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{format(orderDate, "dd/MM/yy")}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
@@ -1518,13 +1520,13 @@ export default function SaleOrderEntry() {
             </Popover>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Label className="text-[13px] font-bold text-black mb-1 block">Expected Delivery</Label>
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal h-10 text-sm border-black/20">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {format(expectedDelivery, "PPP")}
+                <Button variant="outline" className="h-9 w-full justify-start px-2 text-left text-sm font-normal border-black/20">
+                  <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{format(expectedDelivery, "dd/MM/yy")}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
@@ -1533,10 +1535,10 @@ export default function SaleOrderEntry() {
             </Popover>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Label className="text-[13px] font-bold text-black mb-1 block">Tax Type</Label>
             <Select value={taxType} onValueChange={(v: "exclusive" | "inclusive") => setTaxType(v)}>
-              <SelectTrigger className="h-10 text-sm border-black/20">
+              <SelectTrigger className="h-9 text-sm border-black/20 px-2 [&>span]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1546,10 +1548,10 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <Label className="text-[13px] font-bold text-black mb-1 block">Salesman</Label>
             <Select value={salesman || "none"} onValueChange={(v) => setSalesman(v === "none" ? "" : v)}>
-              <SelectTrigger className="h-10 text-sm border-black/20">
+              <SelectTrigger className="h-9 text-sm border-black/20 px-2 [&>span]:truncate">
                 <SelectValue placeholder="Select Salesman" />
               </SelectTrigger>
               <SelectContent>
@@ -1563,10 +1565,10 @@ export default function SaleOrderEntry() {
             </Select>
           </div>
 
-          <div className="col-span-2 md:col-span-1">
+          <div className="col-span-2 min-w-0 md:col-span-1 lg:col-span-1">
             <Label className="text-[13px] font-bold text-black mb-1 block">Invoice Format</Label>
             <Select value={invoiceFormat} onValueChange={(v: "standard" | "wholesale-size-grouping") => setInvoiceFormat(v)}>
-              <SelectTrigger className="h-10 text-sm border-black/20">
+              <SelectTrigger className="h-9 text-sm border-black/20 px-2 [&>span]:truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
