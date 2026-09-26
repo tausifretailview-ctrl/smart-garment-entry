@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrganizationReceivablesSummary } from "@/utils/organizationReceivables";
-import { fetchAllSaleItems, fetchVariantsByIds } from "@/utils/fetchAllRows";
+import { fetchAllSaleItems, fetchSaleReturnItemsByIds, fetchVariantsByIds } from "@/utils/fetchAllRows";
 import { format, parseISO, subDays } from "date-fns";
 
 export interface TrialBalanceEntry {
@@ -1276,6 +1276,28 @@ export async function calculateNetProfitSummary(
     }
   }
   
+  // Returned goods go back to stock, so their cost comes off COGS.
+  // Same return set as get_net_profit_aggregates.sales_returns (credit_note / exchange).
+  const { data: returnIdRows } = await supabase
+    .from("sale_returns")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .gte("return_date", fromDate)
+    .lte("return_date", toDate)
+    .in("refund_type", ["credit_note", "exchange"])
+    .is("deleted_at", null);
+
+  const returnIds = returnIdRows?.map((r) => r.id) || [];
+  if (returnIds.length > 0) {
+    const returnItems = await fetchSaleReturnItemsByIds(returnIds, "return_id, variant_id, quantity");
+    const returnVariantIds = [...new Set(returnItems.map((ri: any) => ri.variant_id).filter(Boolean))];
+    const returnVariants = await fetchVariantsByIds(returnVariantIds, "id, pur_price", organizationId);
+    const returnPriceMap = new Map(returnVariants?.map((v: any) => [v.id, v.pur_price || 0]) || []);
+    returnItems.forEach((ri: any) => {
+      cogsFromSaleItems -= (Number(ri.quantity) || 0) * (Number(returnPriceMap.get(ri.variant_id)) || 0);
+    });
+  }
+
   const grossProfit = netRevenue - cogsFromSaleItems;
   const isGrossLoss = grossProfit < 0;
   const netGSTLiability = outputGST - inputGST;
