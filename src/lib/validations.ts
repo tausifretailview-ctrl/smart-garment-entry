@@ -149,8 +149,18 @@ export const validateAuth = (email: string, password: string) => {
 };
 
 // Validate product form
-export const validateProduct = (data: Partial<ProductFormData>) => {
-  const result = productSchema.safeParse(data);
+export const validateProduct = (
+  data: Partial<ProductFormData>,
+  options?: { purchasePriceOptional?: boolean },
+) => {
+  // Sale Order "Add New Product" creates the master before any purchase, so the
+  // purchase price may not be known yet — the Purchase Bill fills it in later.
+  const schema = options?.purchasePriceOptional
+    ? productSchema.extend({
+        default_pur_price: z.number().min(0, "Purchase Price cannot be negative").optional(),
+      })
+    : productSchema;
+  const result = schema.safeParse(data);
   if (!result.success) {
     const firstError = result.error.errors[0];
     return { success: false, error: firstError.message };

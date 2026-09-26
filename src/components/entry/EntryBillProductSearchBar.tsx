@@ -1,4 +1,4 @@
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Plus, Search } from "lucide-react";
 import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,8 @@ export interface EntryBillProductSearchBarProps {
   productSearchInputRef?: RefObject<HTMLInputElement | null>;
   /** When true (default), SCAN BARCODE gets browser autofocus. */
   barcodeAutoFocus?: boolean;
+  /** Shows "+ Add Product" beside the search (and on "No products found"). */
+  onAddNewProduct?: () => void;
 }
 
 export function EntryBillProductSearchBar({
@@ -75,6 +77,7 @@ export function EntryBillProductSearchBar({
   barcodeInputRef,
   productSearchInputRef,
   barcodeAutoFocus = true,
+  onAddNewProduct,
 }: EntryBillProductSearchBarProps) {
   const visibleGroups = productSearchGroups.slice(0, displayLimit);
   const visibleResults = popoverSearchResults.slice(0, displayLimit);
@@ -142,6 +145,23 @@ export function EntryBillProductSearchBar({
                     </span>
                   ) : searchInput.length < 1 ? (
                     "Type to search products..."
+                  ) : onAddNewProduct ? (
+                    <div className="flex flex-col items-center gap-2 py-1">
+                      <span>No products found</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => {
+                          onOpenProductSearchChange(false);
+                          onAddNewProduct();
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add New Product
+                      </Button>
+                    </div>
                   ) : (
                     "No products found"
                   )}
@@ -267,6 +287,18 @@ export function EntryBillProductSearchBar({
             </Command>
           </PopoverContent>
         </Popover>
+
+        {onAddNewProduct && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onAddNewProduct}
+            className="h-10 gap-1.5 shrink-0 border-black/20 bg-white text-sm font-bold"
+          >
+            <Plus className="h-4 w-4" />
+            Add Product
+          </Button>
+        )}
 
         {totalQty !== undefined && (
           <div className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-lg ml-auto shrink-0">

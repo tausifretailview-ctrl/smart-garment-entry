@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validatePurchaseLineItem } from "./validations";
+import { validateProduct, validatePurchaseLineItem } from "./validations";
 
 const baseLineItem = {
   product_id: "prod-1",
@@ -81,5 +81,30 @@ describe("validatePurchaseLineItem", () => {
       barcode: "X".repeat(33),
     });
     expect(tooLong.success).toBe(false);
+  });
+});
+
+describe("validateProduct purchasePriceOptional", () => {
+  const baseProduct = {
+    product_type: "goods" as const,
+    product_name: "Sale Order Item",
+    gst_per: 5,
+    default_sale_price: 499,
+    status: "active" as const,
+  };
+
+  it("requires purchase price by default", () => {
+    expect(validateProduct({ ...baseProduct }).success).toBe(false);
+    expect(validateProduct({ ...baseProduct, default_pur_price: 0 }).success).toBe(false);
+  });
+
+  it("allows a missing or zero purchase price for Sale Order master-only", () => {
+    expect(validateProduct({ ...baseProduct }, { purchasePriceOptional: true }).success).toBe(true);
+    expect(
+      validateProduct({ ...baseProduct, default_pur_price: 0 }, { purchasePriceOptional: true }).success,
+    ).toBe(true);
+    expect(
+      validateProduct({ ...baseProduct, default_pur_price: -1 }, { purchasePriceOptional: true }).success,
+    ).toBe(false);
   });
 });
