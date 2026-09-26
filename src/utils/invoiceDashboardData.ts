@@ -447,8 +447,17 @@ function statsRowsForPendingSum(
 }
 
 /**
+ * Largest filter range (in invoices) the reconciled Pending tile will download.
+ * Above this (e.g. All Time / This Year on big tenants) the tile keeps the
+ * server RPC pendingAmount instead of pulling the whole range to the browser.
+ */
+export const INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS = 1500;
+
+/**
  * Sum outstanding using the same receipt reconcile as the dashboard table.
  * RPC pendingAmount can diverge when voucher splits differ from row reconcile.
+ * Throws when the range exceeds {@link INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS};
+ * every caller falls back to the RPC value.
  */
 export async function fetchInvoiceDashboardReconciledPendingAmount(
   client: SupabaseClient,
@@ -462,6 +471,11 @@ export async function fetchInvoiceDashboardReconciledPendingAmount(
   const allRows: any[] = [];
 
   while (true) {
+    if (offset >= INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS) {
+      throw new Error(
+        `Reconciled pending skipped: more than ${INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS} invoices in range`,
+      );
+    }
     let query: any = buildFilteredSalesQuery(
       client,
       filters,

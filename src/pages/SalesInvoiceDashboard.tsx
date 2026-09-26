@@ -145,6 +145,7 @@ import {
   fetchInvoiceDashboardPage,
   fetchInvoiceDashboardStats,
   fetchInvoiceDashboardReconciledPendingAmount,
+  INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS,
   fetchInvoiceDashboardExportRows,
   formatInvoiceDashboardPaymentStatusLabel,
   getInvoiceDashboardDisplayStatus,
@@ -895,6 +896,9 @@ export default function SalesInvoiceDashboard() {
       dashboardQueryEnabled &&
       dashboardStats != null &&
       dashboardStats.totalInvoices > 0 &&
+      // Big ranges (All Time / This Year on large tenants) keep the RPC value
+      // instead of downloading every invoice in the range on each visit.
+      dashboardStats.totalInvoices <= INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS &&
       dashboardFilters.paymentStatusFilter.length === 0,
     ...DASHBOARD_KPI_QUERY_OPTIONS,
     // Full-org receipt reconcile (dozens of round-trips on large orgs) exists only
