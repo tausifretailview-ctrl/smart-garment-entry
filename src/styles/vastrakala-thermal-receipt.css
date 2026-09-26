@@ -64,7 +64,15 @@
   min-height: 1px;
 }
 
+/* Logo column: fixed height, width follows the logo's shape. !important beats the global
+   `.thermal-print-80mm img { height: auto !important }` print rule, which otherwise lets a
+   tall logo grow to its natural height and spill over the address lines. */
 .vastrakala-thermal-receipt-80mm .vk-header-logo {
+  height: var(--vk-logo-h, 24mm) !important;
+  width: auto !important;
+  max-width: var(--vk-logo-max-w, 22mm) !important;
+  max-height: none !important;
+  object-fit: contain;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }

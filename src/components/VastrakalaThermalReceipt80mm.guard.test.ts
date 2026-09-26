@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const tsx = readFileSync(join(here, "VastrakalaThermalReceipt80mm.tsx"), "utf8");
+const css = readFileSync(join(here, "../styles/vastrakala-thermal-receipt.css"), "utf8");
 
 describe("Vastrakala 80mm receipt layout", () => {
   it("does not print the former subtitle below the shop name", () => {
@@ -28,11 +29,23 @@ describe("Vastrakala 80mm receipt layout", () => {
     expect(tsx).toContain('className="vk-terms vk-section"');
   });
 
-  it("keeps the logo at a balanced medium size without consuming the title row", () => {
-    expect(tsx).toContain('logoSize: is58 ? "10mm" : "14mm"');
-    expect(tsx).toContain('position: "absolute"');
-    expect(tsx).toContain('paddingInline: layout.logoSize');
-    expect(tsx).toContain('width: layout.logoSize');
-    expect(tsx).toContain('height: layout.logoSize');
+  it("keeps the logo in its own column beside the shop details, never over them", () => {
+    expect(tsx).toContain('logoHeight: is58 ? "15mm" : "24mm"');
+    expect(tsx).not.toContain('position: "absolute"');
+    expect(tsx).toContain('className="vk-header-brand-row"');
+    expect(tsx).toContain('flex: "0 0 auto"');
+    // Name, address, contact and Instagram all sit in the column next to the logo.
+    const shop = tsx.slice(tsx.indexOf("const shopDetails"), tsx.indexOf("if (!settings)"));
+    expect(shop).toContain("VastrakalaHeaderBrandText");
+    expect(shop).toContain("address.toUpperCase()");
+    expect(shop).toContain("CONTACT :");
+    expect(shop).toContain("instagramHandle");
+  });
+
+  it("pins the printed logo height so print CSS `height: auto` can't enlarge it", () => {
+    expect(css).toMatch(/\.vk-header-logo \{[^}]*height: var\(--vk-logo-h, 24mm\) !important/);
+    expect(css).toMatch(/\.vk-header-logo \{[^}]*width: auto !important/);
+    // Inline fallback: width derived from the logo's shape, since height is forced to auto in print.
+    expect(tsx).toContain("naturalWidth / naturalHeight");
   });
 });
