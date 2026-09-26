@@ -3406,7 +3406,7 @@ const PurchaseBillDashboard = () => {
             paymentLabel: buildPurchaseBillPaymentLabel(billToPrint.bill),
           }}
           items={billToPrint.items}
-          settings={purchaseSettings ?? undefined}
+          settings={(purchaseSettings ?? undefined) as any}
           organizationId={currentOrganization?.id}
           onClose={() => setBillToPrint(null)}
         />
