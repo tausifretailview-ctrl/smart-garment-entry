@@ -508,6 +508,9 @@ export const ProductEntryDialog = ({
   const { loading: authLoading, session } = useAuth();
   const { isColumnVisible } = useUserPermissions();
   const [loading, setLoading] = useState(false);
+  /** Set synchronously on the first click so a second click (or Enter) while the
+   *  name / barcode checks are still running can't create the product twice. */
+  const saveInFlightRef = useRef(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [loadingSizeGroups, setLoadingSizeGroups] = useState(false);
   const [sizeGroupsError, setSizeGroupsError] = useState<string | null>(null);
@@ -2156,6 +2159,22 @@ export const ProductEntryDialog = ({
   };
 
   const handleSave = async () => {
+    // The name-dupe and barcode checks below run before the product insert and
+    // can take a few seconds on a slow connection. Without this guard a second
+    // click in that window ran a second save, adding the same sizes twice
+    // (two product masters, two sets of barcodes).
+    if (saveInFlightRef.current) return;
+    saveInFlightRef.current = true;
+    setLoading(true);
+    try {
+      await runSave();
+    } finally {
+      saveInFlightRef.current = false;
+      setLoading(false);
+    }
+  };
+
+  const runSave = async () => {
     if (!validateForm()) return;
     if (!currentOrganization?.id) return;
 
@@ -2297,7 +2316,6 @@ export const ProductEntryDialog = ({
       }
     }
 
-    setLoading(true);
     try {
       const productColor = formData.colors.length > 0 ? formData.colors[0] : null;
       
@@ -2490,8 +2508,6 @@ export const ProductEntryDialog = ({
         description: error.message || "Failed to save product",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 
