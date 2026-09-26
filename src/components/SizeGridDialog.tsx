@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Plus, X } from "lucide-react";
 import { compareSizes } from "@/utils/sizeSort";
 import { displaySaleStockQty, isNonStockTrackedProduct } from "@/utils/productStockDisplay";
+import { advanceSizeQtyFocus } from "@/components/sizeGridEnter";
 
 interface Variant {
   id: string;
@@ -64,6 +65,11 @@ interface SizeGridDialogProps {
   showPurPrice?: boolean;
   /** When true, dialog is open while variants are still loading. */
   isLoading?: boolean;
+  /**
+   * Sale Order: Enter moves to the next size box. Ctrl+A (or Enter on Add) confirms.
+   * Other screens keep Enter = confirm.
+   */
+  enterAdvancesSize?: boolean;
 }
 
 export function SizeGridDialog({
@@ -87,6 +93,7 @@ export function SizeGridDialog({
   reviewMode = false,
   showPurPrice = false,
   isLoading = false,
+  enterAdvancesSize = false,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
@@ -440,6 +447,22 @@ export function SizeGridDialog({
       return;
     }
 
+    if (
+      enterAdvancesSize &&
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !isAddingSizeOrColor &&
+      (e.target as HTMLElement).getAttribute("data-size-qty") === "1"
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      advanceSizeQtyFocus(e.target as HTMLElement);
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey && !isAddingSizeOrColor) {
       // In review mode, if focus is on a qty/price input, Tab to next input instead of confirming
       if (reviewMode) {
@@ -665,6 +688,7 @@ export function SizeGridDialog({
                               ref={colorIndex === 0 && index === 0 ? firstInputRef : undefined}
                               type="number"
                               min="0"
+                              data-size-qty="1"
                               className="w-16 text-center border rounded p-2 bg-background"
                               value={colorQtyMap[v.id] || ""}
                               onChange={(e) =>
@@ -1074,6 +1098,7 @@ export function SizeGridDialog({
                           ref={index === 0 ? firstInputRef : undefined}
                           type="number"
                           min="0"
+                          data-size-qty="1"
                           className="w-16 text-center border rounded p-2 bg-background"
                           value={sizeQty[v.id] || ""}
                           onChange={(e) =>
@@ -1319,20 +1344,25 @@ export function SizeGridDialog({
           </>
         )}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 items-center">
+          {enterAdvancesSize && (
+            <p className="mr-auto text-xs text-muted-foreground">
+              Enter next size · Ctrl+A add
+            </p>
+          )}
           <Button variant="outline" onClick={onClose}>
             Cancel (Esc)
           </Button>
         {/* Multi-color mode confirm button */}
-          {!isLoading && allowMultiColor && hasMultipleColors && totalQty > 0 && (
-            <Button onClick={handleConfirm}>
-              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
+          {!isLoading && allowMultiColor && hasMultipleColors && (enterAdvancesSize || totalQty > 0) && (
+            <Button type="button" data-size-grid-add="" onClick={handleConfirm}>
+              {enterAdvancesSize ? "Add (Ctrl+A)" : reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
           {/* Single-color mode confirm button - show when in single-color mode (either disabled multi-color OR single-color product) */}
           {!isLoading && (!allowMultiColor || !hasMultipleColors) && (selectedColor || !hasMultipleColors) && (filteredVariants.length > 0 || customSizes.length > 0) && (
-            <Button onClick={handleConfirm}>
-              {reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
+            <Button type="button" data-size-grid-add="" onClick={handleConfirm}>
+              {enterAdvancesSize ? "Add (Ctrl+A)" : reviewMode ? "Add to Bill (Ctrl+A / Enter)" : "Confirm (Enter)"}
             </Button>
           )}
         </div>
