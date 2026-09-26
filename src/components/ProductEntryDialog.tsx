@@ -199,6 +199,12 @@ interface ProductEntryDialogProps {
   onUseExistingProduct?: (payload: UseExistingProductPayload) => void;
   /** Tag the new master so purchase-bill delete can recycle it when it has no other history. */
   createdInPurchase?: boolean;
+  /**
+   * Sale Order: create the product master only — every size/colour with 0 stock,
+   * no opening qty and purchase price optional. Stock arrives later from the
+   * Purchase Bill, which picks this same product from search.
+   */
+  masterOnly?: boolean;
 }
 
 export type { UseExistingProductPayload };
@@ -485,6 +491,7 @@ export const ProductEntryDialog = ({
   initialBarcode = "",
   onUseExistingProduct,
   createdInPurchase = false,
+  masterOnly = false,
 }: ProductEntryDialogProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2005,7 +2012,7 @@ export const ProductEntryDialog = ({
       default_pur_price: formData.default_pur_price,
       default_sale_price: formData.default_sale_price,
       status: formData.status as "active" | "inactive",
-    });
+    }, { purchasePriceOptional: masterOnly });
 
     if (!validation.success) {
       toast({
@@ -2035,8 +2042,8 @@ export const ProductEntryDialog = ({
     for (let i = 0; i < variantsToValidate.length; i++) {
       const variant = variantsToValidate[i];
       
-      // Check purchase price
-      if (variant.pur_price === undefined || variant.pur_price === null || variant.pur_price <= 0) {
+      // Check purchase price (optional for Sale Order master-only — the Purchase Bill sets it)
+      if (masterOnly ? Number(variant.pur_price) < 0 : (variant.pur_price === undefined || variant.pur_price === null || variant.pur_price <= 0)) {
         toast({
           title: "Validation Error",
           description: `Purchase price is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please enter a valid purchase price.`,
@@ -2264,7 +2271,7 @@ export const ProductEntryDialog = ({
         purchase_gst_percent: formData.purchase_gst_percent,
         sale_gst_percent: formData.sale_gst_percent,
         uom: formData.uom || DEFAULT_UOM,
-        default_pur_price: formData.default_pur_price,
+        default_pur_price: masterOnly ? formData.default_pur_price || 0 : formData.default_pur_price,
         default_sale_price: formData.default_sale_price,
         purchase_discount_type: formData.default_pur_discount ? 'percent' : null,
         purchase_discount_value: formData.default_pur_discount || null,
@@ -2327,15 +2334,16 @@ export const ProductEntryDialog = ({
             organization_id: currentOrganization.id,
             color: v.color || null,
             size: v.size,
-            pur_price: v.pur_price,
+            pur_price: v.pur_price || 0,
             sale_price: v.sale_price,
             mrp: v.mrp,
             barcode,
             barcode_source: isGenerated ? "generated" : "external",
             active: v.active,
-            opening_qty: formData.product_type === 'service' ? 0 : v.opening_qty,
-            // Service products have unlimited/virtual stock — no physical stock tracking
-            stock_qty: formData.product_type === 'service' ? 999999 : v.opening_qty,
+            opening_qty: formData.product_type === 'service' || masterOnly ? 0 : v.opening_qty,
+            // Service products have unlimited/virtual stock — no physical stock tracking.
+            // Master-only (Sale Order) never adds stock; the Purchase Bill does.
+            stock_qty: formData.product_type === 'service' ? 999999 : masterOnly ? 0 : v.opening_qty,
           });
         }
 
@@ -2569,10 +2577,12 @@ export const ProductEntryDialog = ({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-bold text-success text-sm">
-                  Purchase Bill — Add New Product
+                  {masterOnly ? "Sale Order — Add New Product" : "Purchase Bill — Add New Product"}
                 </h3>
                 <p className="text-muted-foreground text-[11px]">
-                  Fill product details to add directly to purchase bill
+                  {masterOnly
+                    ? "Creates the product master only (0 stock). Stock is added later when you select this product in the Purchase Bill."
+                    : "Fill product details to add directly to purchase bill"}
                 </p>
               </div>
             </div>
@@ -2975,7 +2985,7 @@ export const ProductEntryDialog = ({
 
                 <div className="space-y-2">
                   <Label htmlFor="default_pur_price" className={purchaseTypography.priceFieldLabel}>
-                    Purchase Price <span className="text-destructive">*</span>
+                    Purchase Price {!masterOnly && <span className="text-destructive">*</span>}
                   </Label>
                   <CalculatorInput
                     id="default_pur_price"
@@ -4377,14 +4387,14 @@ export const ProductEntryDialog = ({
                             {formData.colors.length > 0 && <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Color</TableHead>}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Size</TableHead>
                             <TableHead className={cn("py-3 font-bold text-amber-700 font-outfit bg-amber-50/50", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>
-                              Pur Price<span className="text-destructive ml-0.5">*</span>
+                              Pur Price{!masterOnly && <span className="text-destructive ml-0.5">*</span>}
                             </TableHead>
                             <TableHead className={cn("py-3 font-bold text-emerald-700 font-outfit bg-emerald-50/50", isPurchaseBillForm ? "text-[15px]" : "text-[13px]")}>
                               Sale Price<span className="text-destructive ml-0.5">*</span>
                             </TableHead>
                             {showMrp && <TableHead className="text-[13px] py-3 font-bold text-blue-700 font-outfit bg-blue-50/50">MRP<span className="text-destructive ml-0.5">*</span></TableHead>}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">{mobileERPMode?.enabled && formData.requires_imei !== false ? 'IMEI Number' : 'Barcode'}<span className="text-destructive ml-0.5">*</span></TableHead>
-                            {(!hideOpeningQty || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
+                            {((!hideOpeningQty && !masterOnly) || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
                               <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit">Qty</TableHead>
                             )}
                             <TableHead className="text-[13px] py-3 font-bold text-violet-700 font-outfit text-center">Active</TableHead>
@@ -4470,7 +4480,7 @@ export const ProductEntryDialog = ({
                                   return null;
                                 })()}
                               </TableCell>
-                              {(!hideOpeningQty || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
+                              {((!hideOpeningQty && !masterOnly) || (mobileERPMode?.locked_size_qty && formData.requires_imei === false)) && (
                                 <TableCell className="py-2.5">
                                   {hideOpeningQty ? (
                                     <span className="inline-flex min-w-[2.5rem] justify-center font-mono font-bold tabular-nums text-[15px]">

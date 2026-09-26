@@ -32,6 +32,8 @@ import { useEntryBillProductSearch } from "@/hooks/useEntryBillProductSearch";
 import { EntryBillProductSearchBar } from "@/components/entry/EntryBillProductSearchBar";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import { SizeGridDialog } from "@/components/SizeGridDialog";
+import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
+import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import {
   Command,
   CommandEmpty,
@@ -162,6 +164,8 @@ export default function SaleOrderEntry() {
   const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  // "+ Add Product": create the product master (0 stock) for items not yet purchased.
+  const [showProductDialog, setShowProductDialog] = useState(false);
 
   const {
     searchInput,
@@ -610,6 +614,22 @@ export default function SaleOrderEntry() {
     );
     setSizeGridLoading(false);
   }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
+
+  const openAddProductDialog = useCallback(() => {
+    prefetchProductEntryDialog();
+    setOpenProductSearch(false);
+    setShowProductDialog(true);
+  }, [setOpenProductSearch]);
+
+  // New master created with 0 stock — open its size grid so the ordered qty can be entered.
+  const handleProductCreated = useCallback((product: { id: string; product_name: string }) => {
+    setShowProductDialog(false);
+    toast({
+      title: "Product Created",
+      description: `${product.product_name} created with 0 stock. Enter order quantities in the size grid.`,
+    });
+    void openSizeGridForProductGroup([product.id]);
+  }, [openSizeGridForProductGroup, toast]);
 
   // Handle size grid confirmation
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
@@ -1585,6 +1605,15 @@ export default function SaleOrderEntry() {
         barcodeInputRef={barcodeInputRef}
         productSearchInputRef={productSearchInputRef}
         barcodeAutoFocus={false}
+        onAddNewProduct={openAddProductDialog}
+      />
+
+      <ProductEntryDialogGate
+        open={showProductDialog}
+        onOpenChange={setShowProductDialog}
+        onProductCreated={handleProductCreated}
+        masterOnly
+        isAutoBarcode={(settings?.purchase_settings as any)?.barcode_mode !== "scan"}
       />
 
       <section className={cn("flex-1 min-h-0 pb-2 overflow-hidden bg-neutral-100 relative w-full min-w-0", entryPageSectionX)}>
