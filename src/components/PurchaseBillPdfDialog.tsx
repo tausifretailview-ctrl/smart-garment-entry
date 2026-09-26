@@ -14,7 +14,7 @@ import {
   PurchaseBillPrint,
   type PurchaseBillPrintBill,
   type PurchaseBillPrintItem,
-} from "@/components/PurchaseBillPrint";
+} from "@/components/PurchaseBillSimplePrint";
 
 interface PurchaseBillPdfDialogProps {
   bill: PurchaseBillPrintBill | null;
