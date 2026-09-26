@@ -61,6 +61,33 @@ describe("isChunkLoadError", () => {
     ).toBe(true);
   });
 
+  it("does not treat JSON parse of an HTML error page as chunk skew (no full reload)", () => {
+    // Chrome/Edge: API or gateway (502/504) returned an HTML page and JSON.parse failed.
+    expect(
+      isChunkLoadError(
+        new SyntaxError(`Unexpected token '<', "<!DOCTYPE "... is not valid JSON`),
+      ),
+    ).toBe(false);
+    expect(
+      isChunkLoadError(
+        new SyntaxError(`Unexpected token '<', "<html>\n<h"... is not valid JSON`),
+      ),
+    ).toBe(false);
+    // supabase-js fetch-failure wrapper re-thrown as Error(error.message).
+    expect(
+      isChunkLoadError(
+        new Error(`SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`),
+      ),
+    ).toBe(false);
+    // Plain string form (window "error" event message).
+    expect(
+      isChunkLoadError(`Uncaught SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON`),
+    ).toBe(false);
+    // Real HTML-for-JS chunk skew still recovers.
+    expect(isChunkLoadError(new SyntaxError("Unexpected token '<'"))).toBe(true);
+    expect(isChunkLoadError("Uncaught SyntaxError: Unexpected token '<'")).toBe(true);
+  });
+
   it("does not treat app ReferenceErrors as chunk skew (no Updating… reload)", () => {
     expect(isChunkLoadError(new Error("maxFlatDiscountForGross is not defined"))).toBe(false);
     expect(isChunkLoadError(new ReferenceError("foo is not defined"))).toBe(false);

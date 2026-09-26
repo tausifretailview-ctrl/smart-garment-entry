@@ -259,6 +259,11 @@ export const POST_LOGIN_IDLE_PREFETCH_TAB_PATHS = [
   "profile",
 ] as const;
 
+/** JSON.parse failures (V8: "... is not valid JSON" / "in JSON at position"). */
+function isJsonParseMessage(msg: string): boolean {
+  return /\bjson\b/i.test(msg);
+}
+
 export function isChunkLoadError(error: unknown): boolean {
   const err = error instanceof Error ? error : null;
   const name = err?.name ?? "";
@@ -279,7 +284,10 @@ export function isChunkLoadError(error: unknown): boolean {
     // Deploy skew often serves index.html for a missing .js chunk ("Unexpected token '<'").
     // Do NOT match bare ReferenceError "X is not defined" — that is app code, not a chunk miss,
     // and treating it as skew caused "Updating…" + auto-reload (e.g. POS Flat Disc % click).
-    /unexpected token '<'/i.test(msg) ||
+    // Do NOT match JSON.parse on an HTML body (API/gateway 502/504 page):
+    // `Unexpected token '<', "<!DOCTYPE "... is not valid JSON` is a data error, not a chunk miss,
+    // and treating it as skew full-reloaded the app and wiped unsaved work.
+    (/unexpected token '<'/i.test(msg) && !isJsonParseMessage(msg)) ||
     // Stale service-worker precache / old index.html: the missing hashed chunk is served
     // as the SPA fallback HTML, so the browser rejects the module on MIME type.
     /expected a javascript(-or-wasm)? module script/i.test(msg) ||
