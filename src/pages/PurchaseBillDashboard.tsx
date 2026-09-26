@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2 } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Home, Edit, Trash2, Database, ArrowUpDown, Wallet, Settings2, CheckCircle2, Clock, ShoppingCart, IndianRupee, FileText, FileDown, X, RefreshCw, Barcode, Eye, CreditCard, Camera, Lock, LockOpen, ZoomIn, FileSpreadsheet, Ban, Building2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatPurchaseBillEntryAt, getPurchaseBillEntryAt } from "@/lib/purchaseBillEntryAt";
@@ -40,7 +40,8 @@ import {
   subscribePurchaseDashboardDraftSync,
   type PurchaseEntryDraftMeta,
 } from "@/lib/purchaseEntryPersistence";
-import { useSettings } from "@/hooks/useSettings";
+import { useBusinessInfo, useSettings } from "@/hooks/useSettings";
+import { PurchaseBillPdfDialog } from "@/components/PurchaseBillPdfDialog";
 import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
 import { QuietRefreshBar, useQuietRefreshActiveKeys } from "@/components/QuietRefreshBar";
 import { invalidatePurchaseDashboardQueries } from "@/utils/invalidateDashboardQueries";
@@ -603,6 +604,7 @@ const PurchaseBillDashboard = () => {
   };
 
   const { data: purchaseSettings } = useSettings();
+  const businessInfo = useBusinessInfo();
   const showMrp = (purchaseSettings?.purchase_settings as any)?.show_mrp || false;
 
   // Debounced search for server-side filtering
@@ -800,9 +802,9 @@ const PurchaseBillDashboard = () => {
     void checkDraft();
   }, [location.pathname, refreshBrowserDraftMeta, checkDraft]);
 
-  const fetchBillItems = async (billId: string, isCancelled?: boolean) => {
+  const fetchBillItems = async (billId: string, isCancelled?: boolean): Promise<PurchaseItem[]> => {
     if (billItems[billId]) {
-      return; // Already fetched
+      return billItems[billId]; // Already fetched
     }
 
     try {
@@ -842,14 +844,37 @@ const PurchaseBillDashboard = () => {
         ...prev,
         [billId]: itemsWithStyleFallback,
       }));
+      return itemsWithStyleFallback;
     } catch (error: any) {
       toast({
         title: "Error",
         description: "Failed to load bill items",
         variant: "destructive",
       });
+      return [];
     }
   };
+
+  // Bill-details PDF: state + opener (fetches items on demand when not expanded yet).
+  const [pdfBill, setPdfBill] = useState<PurchaseBill | null>(null);
+  const [pdfItems, setPdfItems] = useState<PurchaseItem[]>([]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+
+  const handleDownloadPdf = useCallback(async (bill: PurchaseBill, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setPdfBill(bill);
+    setPdfItems(billItems[bill.id] || []);
+    setPdfLoading(true);
+    setDownloadingPdfId(bill.id);
+    try {
+      const items = await fetchBillItems(bill.id, !!bill.is_cancelled);
+      setPdfItems(items);
+    } finally {
+      setPdfLoading(false);
+      setDownloadingPdfId(null);
+    }
+  }, [billItems]);
 
   const handleToggleExpand = useCallback(async (billId: string) => {
     setExpandedRows(prev => {
@@ -2091,13 +2116,16 @@ const PurchaseBillDashboard = () => {
             <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-violet-50 hover:text-violet-600 dark:hover:bg-violet-950" onClick={(e) => handlePrintBarcodes(bill.id, e)} disabled={printingBill === bill.id} title="Print Barcodes">
               {printingBill === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950" onClick={(e) => void handleDownloadPdf(bill, e)} disabled={downloadingPdfId === bill.id} title="Download bill PDF">
+              {downloadingPdfId === bill.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            </Button>
           </div>
         );
       },
-      size: 96,
-      minSize: 88,
+      size: 120,
+      minSize: 112,
     },
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock]);
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock, downloadingPdfId, handleDownloadPdf]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
@@ -3353,6 +3381,23 @@ const PurchaseBillDashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+      {/* Bill-details PDF download */}
+      <PurchaseBillPdfDialog
+        bill={pdfBill}
+        items={pdfItems}
+        loading={pdfLoading}
+        business={{
+          name: businessInfo.businessName,
+          address: businessInfo.address,
+          mobile: businessInfo.mobileNumber,
+          email: businessInfo.emailId,
+          gst: businessInfo.gstNumber,
+        }}
+        onClose={() => {
+          setPdfBill(null);
+          setPdfItems([]);
+        }}
+      />
     </div>
   );
 };
