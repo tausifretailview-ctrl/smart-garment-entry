@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, Fragment } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
@@ -36,8 +36,18 @@ import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
+import { isDashboardFilterRestoring, useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
+import { useQuietRefreshActive } from "@/components/QuietRefreshBar";
+import { STALE_LIVE, STALE_REFERENCE } from "@/lib/queryStaleTimes";
+import {
+  QUOTATION_LIST_PAGE_SIZE,
+  fetchQuotationCustomerOptions,
+  fetchQuotationLineItems,
+  fetchQuotationListPage,
+  fetchQuotationWithItems,
+  type QuotationListFilters,
+} from "@/utils/quotationListQueries";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,21 +97,34 @@ export default function QuotationDashboard() {
     },
     onMutate: async (vars) => {
       const orgId = currentOrganization?.id;
-      if (!orgId) return { previous: undefined as any[] | undefined };
+      if (!orgId) return { previous: undefined as Array<[readonly unknown[], unknown]> | undefined };
 
-      const queryKey = ["quotations", orgId] as const;
+      const queryKey = ["quotations-list", orgId] as const;
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<any[]>(queryKey);
+      const previous = queryClient.getQueriesData({ queryKey });
 
-      queryClient.setQueryData<any[]>(queryKey, (old) =>
-        old?.map((q) => (q.id === vars.quotationId ? { ...q, status: vars.newStatus } : q)) ?? [],
-      );
+      for (const [key, data] of previous) {
+        const page = data as { rows?: any[]; totalCount?: number } | undefined;
+        if (!page?.rows) continue;
+        const statusFilter = (key[2] as { statusFilter?: string } | undefined)?.statusFilter ?? "all";
+        const rows = page.rows.flatMap((q) => {
+          if (q.id !== vars.quotationId) return [q];
+          if (statusFilter !== "all" && statusFilter !== vars.newStatus) return [];
+          return [{ ...q, status: vars.newStatus }];
+        });
+        const removed = rows.length !== page.rows.length;
+        queryClient.setQueryData(key, {
+          ...page,
+          rows,
+          totalCount: removed ? Math.max(0, (page.totalCount ?? rows.length) - 1) : page.totalCount,
+        });
+      }
 
       return { previous };
     },
     onError: (error, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(["quotations", currentOrganization?.id], context.previous);
+      for (const [key, data] of context?.previous ?? []) {
+        queryClient.setQueryData(key, data);
       }
       toast({
         title: "Error",
@@ -118,7 +141,7 @@ export default function QuotationDashboard() {
     onSettled: () => {
       const orgId = currentOrganization?.id;
       if (!orgId) return;
-      void queryClient.invalidateQueries({ queryKey: ["quotations", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["quotations-list", orgId] });
       void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
     },
   });
@@ -132,52 +155,6 @@ export default function QuotationDashboard() {
     });
   };
 
-  const getQuotationContextMenuItems = (quotation: any): ContextMenuItem[] => [
-    {
-      label: "Print / PDF",
-      icon: Printer,
-      onClick: () => setQuotationToPrint(quotation),
-    },
-    {
-      label: "Edit",
-      icon: Edit,
-      onClick: () => navigate("/quotation-entry", { state: { quotationData: quotation } }),
-    },
-    {
-      label: "Convert to Sale Order",
-      icon: ArrowRight,
-      onClick: () => handleConvertToSaleOrder(quotation),
-      hidden: quotation.status === "confirmed",
-    },
-    { label: "", separator: true, onClick: () => {} },
-    {
-      label: "Confirm",
-      icon: CheckCircle,
-      onClick: () => handleUpdateStatus(quotation, "confirmed"),
-      hidden: quotation.status === "confirmed",
-    },
-    {
-      label: "Hold",
-      icon: PauseCircle,
-      onClick: () => handleUpdateStatus(quotation, "hold"),
-      hidden: quotation.status === "hold",
-    },
-    {
-      label: "Cancel",
-      icon: XCircle,
-      onClick: () => handleUpdateStatus(quotation, "cancelled"),
-      hidden: quotation.status === "cancelled",
-      destructive: true,
-    },
-    { label: "", separator: true, onClick: () => {} },
-    {
-      label: "Delete",
-      icon: Trash2,
-      onClick: () => setQuotationToDelete(quotation),
-      destructive: true,
-    },
-  ];
-
   const handleRowContextMenu = (e: React.MouseEvent, quotation: any) => {
     if (!isDesktop) return;
     rowContextMenu.openMenu(e, quotation);
@@ -186,11 +163,14 @@ export default function QuotationDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [customerFilter, setCustomerFilter] = useState<string>("all");
+  const [customerMenuOpen, setCustomerMenuOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [quotationToDelete, setQuotationToDelete] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(50);
+  const [expandedLineItems, setExpandedLineItems] = useState<Record<string, any[]>>({});
+  const [expandedLoadingIds, setExpandedLoadingIds] = useState<Set<string>>(new Set());
+  const [rowActionLoadingId, setRowActionLoadingId] = useState<string | null>(null);
   const [quotationToPrint, setQuotationToPrint] = useState<any>(null);
   const printRef = useRef<HTMLDivElement>(null);
   const { formatQuotationMessage } = useWhatsAppTemplates();
@@ -209,7 +189,7 @@ export default function QuotationDashboard() {
     [searchQuery, statusFilter, customerFilter, fromDate, toDate, currentPage],
   );
 
-  useDashboardFilterPersistence(
+  const { filtersReady } = useDashboardFilterPersistence(
     "quotation-dashboard",
     currentOrganization?.id,
     quotationFilterSnapshot,
@@ -253,22 +233,76 @@ export default function QuotationDashboard() {
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
 
-  const { data: quotationsData, isLoading, refetch } = useQuery({
-    queryKey: ['quotations', currentOrganization?.id],
-    queryFn: async () => {
-      if (!currentOrganization?.id) return [];
-      
-      const { data, error } = await supabase
-        .from('quotations')
-        .select(`*, quotation_items (*)`)
-        .eq('organization_id', currentOrganization.id)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
+  const listFilters = useMemo<QuotationListFilters>(
+    () => ({
+      searchQuery,
+      statusFilter,
+      customerFilter,
+      fromDate,
+      toDate,
+    }),
+    [searchQuery, statusFilter, customerFilter, fromDate, toDate],
+  );
 
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!currentOrganization?.id,
+  useEffect(() => {
+    if (isDashboardFilterRestoring()) return;
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, customerFilter, fromDate, toDate]);
+
+  const invalidateQuotationQueries = useCallback(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    void queryClient.invalidateQueries({ queryKey: ["quotations-list", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["quotation-summary", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["quotation-customers", orgId] });
+  }, [currentOrganization?.id, queryClient]);
+
+  const {
+    data: listPageData,
+    isLoading,
+    isFetching,
+    error: listError,
+  } = useQuery({
+    queryKey: ["quotations-list", currentOrganization?.id, listFilters, currentPage],
+    queryFn: () =>
+      fetchQuotationListPage(
+        currentOrganization!.id,
+        listFilters,
+        currentPage,
+        QUOTATION_LIST_PAGE_SIZE,
+      ),
+    enabled: !!currentOrganization?.id && filtersReady,
+    placeholderData: (previous) => previous,
+    staleTime: STALE_LIVE,
+  });
+
+  const listQuietRefreshing = useQuietRefreshActive([
+    "quotations-list",
+    currentOrganization?.id,
+    listFilters,
+    currentPage,
+  ]);
+
+  useEffect(() => {
+    if (!listError) return;
+    toast({
+      title: "Error",
+      description: listError instanceof Error ? listError.message : "Could not load quotations",
+      variant: "destructive",
+    });
+  }, [listError, toast]);
+
+  const { data: uniqueCustomers = [] } = useQuery({
+    queryKey: ["quotation-customers", currentOrganization?.id],
+    queryFn: () => fetchQuotationCustomerOptions(currentOrganization!.id),
+    // All-time customer scan is only needed for the dropdown (or a restored filter).
+    // Keep it off the open path so it does not compete with the first page.
+    enabled:
+      !!currentOrganization?.id &&
+      filtersReady &&
+      !isLoading &&
+      (customerMenuOpen || customerFilter !== "all"),
+    staleTime: STALE_REFERENCE,
   });
 
   const { softDelete } = useSoftDelete();
@@ -282,7 +316,7 @@ export default function QuotationDashboard() {
       if (!success) throw new Error("Failed to delete quotation");
 
       toast({ title: "Success", description: `Quotation ${quotationToDelete.quotation_number} moved to recycle bin` });
-      refetch();
+      invalidateQuotationQueries();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -291,101 +325,184 @@ export default function QuotationDashboard() {
     }
   };
 
-  const handleConvertToSaleOrder = async (quotation: any) => {
-    // Navigate to Sale Order Entry with quotation data pre-filled
-    navigate('/sale-order-entry', { 
-      state: { 
-        fromQuotation: true,
-        quotationData: quotation 
-      } 
-    });
+  const loadFullQuotation = async (quotation: any) => {
+    if (!currentOrganization?.id) throw new Error("No organization selected");
+    const full = await fetchQuotationWithItems(quotation.id, currentOrganization.id);
+    if (!full) throw new Error("Quotation not found");
+    return full;
   };
 
-  const handleWhatsAppShare = (quotation: any) => {
+  const handleEditQuotation = async (quotation: any) => {
+    setRowActionLoadingId(quotation.id);
+    try {
+      const full = await loadFullQuotation(quotation);
+      navigate("/quotation-entry", { state: { quotationData: full } });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load quotation", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const handlePrintQuotation = async (quotation: any) => {
+    setRowActionLoadingId(quotation.id);
+    try {
+      const full = await loadFullQuotation(quotation);
+      setQuotationToPrint(full);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load quotation", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const handleConvertToSaleOrder = async (quotation: any) => {
+    setRowActionLoadingId(quotation.id);
+    try {
+      const full = await loadFullQuotation(quotation);
+      navigate("/sale-order-entry", {
+        state: {
+          fromQuotation: true,
+          quotationData: full,
+        },
+      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load quotation", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
+  };
+
+  const handleWhatsAppShare = async (quotation: any) => {
     if (!quotation.customer_phone) {
       toast({ title: "Error", description: "Customer phone number not available", variant: "destructive" });
       return;
     }
 
-    // Format items for message
-    const itemsText = quotation.quotation_items?.map((item: any, index: number) => 
-      `${index + 1}. ${item.product_name} (${item.size}) x ${item.quantity} = ₹${item.line_total?.toFixed(2)}`
-    ).join('\n') || '';
+    setRowActionLoadingId(quotation.id);
+    try {
+      const full = await loadFullQuotation(quotation);
+      const itemsText = full.quotation_items?.map((item: any, index: number) =>
+        `${index + 1}. ${item.product_name} (${item.size}) x ${item.quantity} = ₹${item.line_total?.toFixed(2)}`
+      ).join("\n") || "";
 
-    const message = formatQuotationMessage({
-      quotation_number: quotation.quotation_number,
-      customer_name: quotation.customer_name,
-      customer_phone: quotation.customer_phone,
-      quotation_date: quotation.quotation_date,
-      net_amount: quotation.net_amount,
-      valid_until: quotation.valid_until,
-      status: quotation.status,
-    }, itemsText);
+      const message = formatQuotationMessage({
+        quotation_number: full.quotation_number,
+        customer_name: full.customer_name,
+        customer_phone: full.customer_phone,
+        quotation_date: full.quotation_date,
+        net_amount: full.net_amount,
+        valid_until: full.valid_until,
+        status: full.status,
+      }, itemsText);
 
-    // Copy to clipboard with improved UX
-    const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
-    const shortcut = isMac ? "Cmd+V" : "Ctrl+V";
-    
-    navigator.clipboard.writeText(message).then(() => {
-      toast({ title: "WhatsApp", description: `✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill` });
-    });
+      const isMac = navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
+      const shortcut = isMac ? "Cmd+V" : "Ctrl+V";
 
-    // Open WhatsApp
-    const phone = quotation.customer_phone.replace(/\D/g, '');
-    const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
-    
-    setTimeout(() => {
-      window.open(whatsappUrl, '_blank');
-    }, 300);
+      navigator.clipboard.writeText(message).then(() => {
+        toast({ title: "WhatsApp", description: `✓ Message copied! Paste with ${shortcut} if it doesn't auto-fill` });
+      });
+
+      const phone = String(full.customer_phone || "").replace(/\D/g, "");
+      const whatsappUrl = `https://wa.me/91${phone}?text=${encodeURIComponent(message)}`;
+
+      setTimeout(() => {
+        window.open(whatsappUrl, "_blank");
+      }, 300);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load quotation items", variant: "destructive" });
+    } finally {
+      setRowActionLoadingId(null);
+    }
   };
 
-  const toggleExpanded = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
+  const toggleExpanded = async (id: string) => {
+    if (expandedRows.has(id)) {
+      const next = new Set(expandedRows);
+      next.delete(id);
+      setExpandedRows(next);
+      return;
     }
-    setExpandedRows(newExpanded);
+
+    const next = new Set(expandedRows);
+    next.add(id);
+    setExpandedRows(next);
+
+    if (expandedLineItems[id]) return;
+
+    setExpandedLoadingIds((prev) => new Set(prev).add(id));
+    try {
+      const items = await fetchQuotationLineItems(id);
+      setExpandedLineItems((prev) => ({ ...prev, [id]: items }));
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not load line items", variant: "destructive" });
+      const rolledBack = new Set(expandedRows);
+      rolledBack.delete(id);
+      setExpandedRows(rolledBack);
+    } finally {
+      setExpandedLoadingIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(id);
+        return copy;
+      });
+    }
   };
 
-  // Get unique customers for dropdown
-  const uniqueCustomers = Array.from(
-    new Map((quotationsData || []).map((q: any) => [q.customer_id || q.customer_name, { id: q.customer_id, name: q.customer_name }]))
-  ).map(([_, customer]) => customer).filter((c: any) => c.name);
+  const getQuotationContextMenuItems = (quotation: any): ContextMenuItem[] => [
+    {
+      label: "Print / PDF",
+      icon: Printer,
+      onClick: () => void handlePrintQuotation(quotation),
+    },
+    {
+      label: "Edit",
+      icon: Edit,
+      onClick: () => void handleEditQuotation(quotation),
+    },
+    {
+      label: "Convert to Sale Order",
+      icon: ArrowRight,
+      onClick: () => void handleConvertToSaleOrder(quotation),
+      hidden: quotation.status === "confirmed",
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Confirm",
+      icon: CheckCircle,
+      onClick: () => handleUpdateStatus(quotation, "confirmed"),
+      hidden: quotation.status === "confirmed",
+    },
+    {
+      label: "Hold",
+      icon: PauseCircle,
+      onClick: () => handleUpdateStatus(quotation, "hold"),
+      hidden: quotation.status === "hold",
+    },
+    {
+      label: "Cancel",
+      icon: XCircle,
+      onClick: () => handleUpdateStatus(quotation, "cancelled"),
+      hidden: quotation.status === "cancelled",
+      destructive: true,
+    },
+    { label: "", separator: true, onClick: () => {} },
+    {
+      label: "Delete",
+      icon: Trash2,
+      onClick: () => setQuotationToDelete(quotation),
+      destructive: true,
+    },
+  ];
 
-  const filteredQuotations = (quotationsData || []).filter((q: any) => {
-    // Apply status filter
-    if (statusFilter !== 'all' && q.status !== statusFilter) return false;
-    // Apply customer filter
-    if (customerFilter !== 'all') {
-      if (q.customer_id && q.customer_id !== customerFilter) return false;
-      if (!q.customer_id && q.customer_name !== customerFilter) return false;
-    }
-    // Apply date range filter
-    if (fromDate) {
-      const qDate = new Date(q.quotation_date);
-      if (qDate < fromDate) return false;
-    }
-    if (toDate) {
-      const qDate = new Date(q.quotation_date);
-      const endOfDay = new Date(toDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      if (qDate > endOfDay) return false;
-    }
-    // Apply search filter
-    if (!searchQuery) return true;
-    const searchLower = searchQuery.toLowerCase();
-    return q.quotation_number?.toLowerCase().includes(searchLower) ||
-      q.customer_name?.toLowerCase().includes(searchLower) ||
-      q.customer_phone?.toLowerCase().includes(searchLower);
-  });
+  const paginatedQuotations = listPageData?.rows ?? [];
+  const totalCount = listPageData?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / QUOTATION_LIST_PAGE_SIZE));
 
-  const totalPages = Math.ceil(filteredQuotations.length / itemsPerPage);
-  const paginatedQuotations = filteredQuotations.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const getStatusBadge = (status: string, interactive = false) => {
     const config = getQuotationStatusConfig(status);
@@ -442,17 +559,15 @@ export default function QuotationDashboard() {
     staleTime: 30_000,
   });
 
-  const allQuotations = quotationsData || [];
   const stats = {
-    total: quotationSummaryData?.total_count ?? allQuotations.length,
+    total: quotationSummaryData?.total_count ?? 0,
     totalValue: quotationSummaryData?.total_amount ?? 0,
     draft: quotationSummaryData?.draft_count ?? 0,
     sent: quotationSummaryData?.sent_count ?? 0,
     confirmed: quotationSummaryData?.accepted_count ?? 0,
-    expired: allQuotations.filter((q: any) => q.status === 'expired').length,
     conversionRate: (quotationSummaryData?.total_count ?? 0) > 0
       ? (((quotationSummaryData?.accepted_count ?? 0) / quotationSummaryData!.total_count) * 100).toFixed(1)
-      : '0',
+      : "0",
   };
 
   const handleCardClick = (status: string) => {
@@ -476,6 +591,7 @@ export default function QuotationDashboard() {
             </h1>
             <p className="mt-1 text-sm text-slate-500">
               {isLoading ? "Loading…" : `${stats.total.toLocaleString("en-IN")} quotations`}
+              {listQuietRefreshing ? " · refreshing…" : ""}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 justify-end">
@@ -483,10 +599,10 @@ export default function QuotationDashboard() {
               variant="outline"
               size="sm"
               className="h-9 gap-1.5 border-slate-200 text-sm"
-              onClick={() => void refetch()}
-              disabled={isLoading}
+              onClick={() => invalidateQuotationQueries()}
+              disabled={isFetching}
             >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Refresh
             </Button>
             {hasDraft && (
@@ -602,7 +718,7 @@ export default function QuotationDashboard() {
               Clear Dates
             </Button>
           )}
-          <Select value={customerFilter} onValueChange={setCustomerFilter}>
+          <Select value={customerFilter} onValueChange={setCustomerFilter} onOpenChange={setCustomerMenuOpen}>
             <SelectTrigger className="w-[150px] h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
               <SelectValue placeholder="Customer" />
             </SelectTrigger>
@@ -635,11 +751,17 @@ export default function QuotationDashboard() {
               data-tab-scroll
               className="purchase-dashboard-table-panel flex-1 min-h-0 overflow-y-auto overflow-x-auto tab-scroll-stable overscroll-y-contain"
             >
-        {isLoading ? (
+        {!filtersReady || isLoading ? (
           <div className="bg-white p-3">
             <ListTableSkeleton rows={8} columns={7} />
           </div>
-        ) : filteredQuotations.length === 0 ? (
+        ) : listError && paginatedQuotations.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground bg-white">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="text-lg font-medium">Could not load quotations</p>
+            <p className="text-sm">Refresh to try again</p>
+          </div>
+        ) : paginatedQuotations.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground bg-white">
             <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="text-lg font-medium">No quotations found</p>
@@ -659,10 +781,11 @@ export default function QuotationDashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedQuotations.map((quotation: any) => (
-                <>
+              {paginatedQuotations.map((quotation: any) => {
+                const isRowBusy = rowActionLoadingId === quotation.id;
+                return (
+                <Fragment key={quotation.id}>
                   <TableRow
-                    key={quotation.id}
                     className="h-11"
                     onContextMenu={(e) => handleRowContextMenu(e, quotation)}
                   >
@@ -691,26 +814,27 @@ export default function QuotationDashboard() {
                     <TableCell>{renderStatusCell(quotation)}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleWhatsAppShare(quotation)} title="WhatsApp">
+                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleWhatsAppShare(quotation)} title="WhatsApp">
                           <MessageCircle className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setQuotationToPrint(quotation)} title="Print / PDF">
-                          <Printer className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handlePrintQuotation(quotation)} title="Print / PDF">
+                          {isRowBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => navigate('/quotation-entry', { state: { quotationData: quotation } })}>
+                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => void handleEditQuotation(quotation)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         {quotation.status !== 'confirmed' && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            onClick={() => handleConvertToSaleOrder(quotation)}
+                            disabled={isRowBusy}
+                            onClick={() => void handleConvertToSaleOrder(quotation)}
                             title="Convert to Sale Order"
                           >
                             <ArrowRight className="h-4 w-4" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" onClick={() => setQuotationToDelete(quotation)}>
+                        <Button variant="ghost" size="icon" disabled={isRowBusy} onClick={() => setQuotationToDelete(quotation)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -721,6 +845,12 @@ export default function QuotationDashboard() {
                       <TableCell colSpan={7} className="bg-muted/50">
                         <div className="p-4">
                           <h4 className="font-medium mb-2">Items</h4>
+                          {expandedLoadingIds.has(quotation.id) ? (
+                            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading line items…
+                            </div>
+                          ) : (
                           <Table>
                             <TableHeader>
                               <TableRow>
@@ -732,7 +862,7 @@ export default function QuotationDashboard() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {quotation.quotation_items?.map((item: any) => (
+                              {(expandedLineItems[quotation.id] ?? []).map((item: any) => (
                                 <TableRow key={item.id}>
                                   <TableCell>{item.product_name}</TableCell>
                                   <TableCell>{item.size}</TableCell>
@@ -743,12 +873,14 @@ export default function QuotationDashboard() {
                               ))}
                             </TableBody>
                           </Table>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
                   )}
-                </>
-              ))}
+                </Fragment>
+              );
+              })}
             </TableBody>
           </Table>
         )}
@@ -757,7 +889,7 @@ export default function QuotationDashboard() {
         {totalPages > 1 && (
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5">
             <div className="text-sm text-slate-500 tabular-nums">
-              Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredQuotations.length)} of {filteredQuotations.length}
+              Showing {(currentPage - 1) * QUOTATION_LIST_PAGE_SIZE + 1} to {Math.min(currentPage * QUOTATION_LIST_PAGE_SIZE, totalCount)} of {totalCount}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="h-9 text-sm border-slate-200" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}>Previous</Button>
