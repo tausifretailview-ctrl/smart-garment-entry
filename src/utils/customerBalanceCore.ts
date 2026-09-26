@@ -120,6 +120,7 @@ export type CustomerBalanceCoreSaleReturn = {
   linked_sale_id?: string | null;
   credit_available_balance?: number | null;
   refund_type?: string | null;
+  return_date?: string | null;
 };
 
 export type CustomerBalanceCoreParams = {
@@ -307,17 +308,53 @@ export function computePendingStandaloneSaleReturns(
 ): number {
   if (!saleReturns?.length) return 0;
   const saleReturnAdjustById = saleReturnAdjustBySaleId(sales);
+  const usedOnLinkedSale = linkedSaleReturnUseBySrIndex(saleReturns, saleReturnAdjustById);
 
   let sum = 0;
-  for (const sr of saleReturns) {
+  for (let i = 0; i < saleReturns.length; i++) {
+    const sr = saleReturns[i];
     if (isRefundedOrCashRefundSaleReturn(sr)) continue;
 
     const absorb = linkedSaleReturnAbsorb(sr, saleReturnAdjustById);
-    const remaining = saleReturnRemainingCreditForBalance(sr, absorb);
+    let remaining = saleReturnRemainingCreditForBalance(sr, absorb);
+    // Stale CAB guard (SIYA KAPOOR / ELLA NOOR SR/26-27/39): the linked invoice's
+    // S/R adjust already used this return, but credit_available_balance still shows it.
+    const cab = sr.credit_available_balance;
+    if (String(sr.linked_sale_id || "").trim() && cab != null && !Number.isNaN(Number(cab))) {
+      const net = Math.max(0, Number(sr.net_amount || 0));
+      remaining = Math.min(remaining, Math.max(0, net - usedOnLinkedSale[i]));
+    }
     if (remaining > 0.005) sum += remaining;
   }
 
   return sum;
+}
+
+/**
+ * S/R adjust each linked return has used on its own linked invoice, oldest return first
+ * (two returns sharing one invoice SRA split it instead of each claiming all of it).
+ * Unlinked returns get 0 — they never draw on another invoice's SRA (Shumama).
+ */
+function linkedSaleReturnUseBySrIndex(
+  saleReturns: CustomerBalanceCoreSaleReturn[],
+  saleReturnAdjustById: Map<string, number>,
+): number[] {
+  const used = saleReturns.map(() => 0);
+  const leftBySale = new Map(saleReturnAdjustById);
+  const order = saleReturns
+    .map((sr, i) => ({ sr, i }))
+    .filter(({ sr }) => String(sr.linked_sale_id || "").trim())
+    .sort((a, b) =>
+      String(a.sr.return_date || "").localeCompare(String(b.sr.return_date || "")) || a.i - b.i,
+    );
+  for (const { sr, i } of order) {
+    const saleId = String(sr.linked_sale_id).trim();
+    const left = leftBySale.get(saleId) || 0;
+    const take = Math.min(left, Math.max(0, Number(sr.net_amount || 0)));
+    used[i] = take;
+    leftBySale.set(saleId, left - take);
+  }
+  return used;
 }
 
 /**
