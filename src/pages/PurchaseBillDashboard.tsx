@@ -2188,11 +2188,7 @@ const PurchaseBillDashboard = () => {
       size: 120,
       minSize: 112,
     },
-cursor/pos-exchange-mix-payment-save-fix
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, loadingBillPdf, handleOpenPurchaseBillPdf, deletingBill, uploadingImageForBill, togglingLock]);
-
-  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, deletingBill, uploadingImageForBill, togglingLock, downloadingPdfId, handleDownloadPdf]);
-  main
+  ], [selectedBills, paginatedBills, toggleSelectAll, toggleSelectBill, billItems, currentPage, itemsPerPage, printingBill, loadingBillPdf, handleOpenPurchaseBillPdf, deletingBill, uploadingImageForBill, togglingLock, downloadingPdfId, handleDownloadPdf]);
 
   // Render sub-row content for expanded bills
   const renderSubRow = useCallback((bill: PurchaseBill) => {
