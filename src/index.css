@@ -4093,6 +4093,97 @@ body.entry-bill-screen [data-entry-form].sale-bill-workspace {
   min-height: 2.5rem;
 }
 
+/* Purchase bill — small / short screens (laptops, 1366x768, Windows 125% scaling).
+   The page is locked to the window height, so on a short window the header,
+   bill fields, toolbar and footer used to take all the space and the item
+   table (sizes, qty, rates) collapsed to 0px. Keep the table at a usable
+   minimum height and let the middle area scroll instead of hiding it. */
+.purchase-entry-page .purchase-entry-main {
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+.purchase-entry-page .purchase-bill-lines-panel {
+  min-height: 15rem;
+}
+
+/* 1024–1279px wide: all 7 bill fields share one row — keep labels to one line. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .purchase-entry-page .purchase-entry-meta-grid .entry-key-label {
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-height: 800px) {
+  .purchase-bill-readable .entry-page-header-row {
+    height: 2.5rem !important;
+    min-height: 2.5rem !important;
+  }
+  .purchase-bill-readable .purchase-bill-details-section {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .purchase-bill-readable .purchase-entry-meta-grid {
+    row-gap: 0.25rem !important;
+  }
+  .purchase-bill-readable .purchase-entry-meta-grid .entry-key-field > * + * {
+    margin-top: 0.2rem !important;
+  }
+  .purchase-bill-readable .purchase-entry-meta-grid input,
+  .purchase-bill-readable .purchase-entry-meta-grid button[role="combobox"],
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field input,
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field button[role="combobox"],
+  .purchase-bill-readable .entry-vasy-key-fields .entry-key-field > div {
+    height: 2.25rem !important;
+    min-height: 2.25rem !important;
+  }
+  .purchase-bill-readable .purchase-bill-toolbar {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .purchase-bill-readable .purchase-bill-toolbar input,
+  .purchase-bill-readable .purchase-bill-toolbar button {
+    height: 2.25rem !important;
+  }
+  .purchase-bill-readable .purchase-bill-toolbar .purchase-search-dropdown button {
+    height: auto !important;
+  }
+  .purchase-bill-readable .erp-invoice-table-header th {
+    height: 2.25rem !important;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .purchase-bill-readable .erp-entry-lines-table tbody tr.purchase-bill-line-row {
+    height: 40px;
+  }
+  .purchase-bill-readable .erp-entry-lines-table tbody td {
+    padding-top: 0.125rem !important;
+    padding-bottom: 0.125rem !important;
+  }
+  .purchase-bill-readable .erp-entry-lines-table tbody input,
+  .purchase-bill-readable .erp-entry-lines-table tbody button[role="combobox"] {
+    height: 2rem !important;
+    min-height: 2rem !important;
+  }
+  .purchase-bill-readable .entry-page-footer > div {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .purchase-bill-readable .entry-page-footer > div > .py-3 {
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+  .purchase-bill-readable .entry-page-footer .text-\[36px\] {
+    font-size: 1.5rem !important;
+  }
+  .purchase-bill-readable .entry-page-footer button,
+  .purchase-bill-readable .entry-page-footer input {
+    height: 2rem !important;
+  }
+}
+
 /* ─── ERP Form Compact — Tally-style entry fields ─── */
 .erp-form-compact .erp-field {
   display: flex;

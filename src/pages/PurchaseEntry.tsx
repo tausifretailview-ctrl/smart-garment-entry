@@ -7786,10 +7786,10 @@ const PurchaseEntry = () => {
         )}
       </header>
 
-      <main className={entryPageMainClass}>
+      <main className={cn(entryPageMainClass, "purchase-entry-main")}>
 
         <section className={cn("purchase-bill-details-section bg-white border-b border-slate-100 py-2 shrink-0 shadow-sm", entryPageSectionX)}>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-x-3 gap-y-2 items-start purchase-entry-meta-grid entry-vasy-key-fields">
               <div className="space-y-1.5 min-w-0 entry-key-field entry-key-field--doc-no">
                 <Label htmlFor="software_bill_no" className="entry-key-label text-[13px] font-semibold text-slate-500 leading-none">
                   Software Bill No
@@ -7926,13 +7926,13 @@ const PurchaseEntry = () => {
                 <span className="text-[13px] font-semibold text-slate-500 leading-none invisible select-none block" aria-hidden>
                   Options
                 </span>
-                <label className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md w-full xl:w-auto max-w-full">
+                <label title="DC Purchase (No GST)" className="flex items-center gap-2 cursor-pointer h-10 px-3 border border-orange-300 bg-orange-50 dark:bg-orange-950/20 rounded-md w-full xl:w-auto max-w-full">
                   <Checkbox
                     checked={isDcPurchase}
                     onCheckedChange={(checked) => setIsDcPurchase(checked === true)}
                   />
-                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap">
-                    DC Purchase (No GST)
+                  <span className="text-xs font-medium text-orange-700 dark:text-orange-400 whitespace-nowrap truncate">
+                    DC Purchase<span className="hidden xl:inline"> (No GST)</span>
                   </span>
                 </label>
               </div>
@@ -8040,10 +8040,10 @@ const PurchaseEntry = () => {
               onClick={() => setRepurchaseMode((prev) => !prev)}
             >
               <RotateCcw className="h-4 w-4 mr-1.5" />
-              Re-purchase (existing product)
+              Re-purchase<span className="hidden xl:inline">&nbsp;(existing product)</span>
             </Button>
 
-              <div ref={searchDropdownRef} className="relative flex-1 min-w-[280px]">
+              <div ref={searchDropdownRef} className="relative flex-1 min-w-[200px] xl:min-w-[280px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                   <Input
@@ -8205,7 +8205,7 @@ const PurchaseEntry = () => {
                   disabled={excelImportLoading !== null}
                 >
                   <FileSpreadsheet className="h-4 w-4" />
-                  Import Excel
+                  <span className="hidden xl:inline">Import&nbsp;</span>Excel
                 </Button>
                 <Button
                   onClick={() => void openAddProductDialog()}
@@ -8217,7 +8217,7 @@ const PurchaseEntry = () => {
                   disabled={isBillLocked}
                 >
                   <Plus className="h-4 w-4" />
-                  Add New Product
+                  Add<span className="hidden xl:inline">&nbsp;New</span>&nbsp;Product
                 </Button>
               </div>
 
