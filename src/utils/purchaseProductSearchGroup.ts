@@ -18,6 +18,13 @@ export type PurchaseSearchVariantLike = {
   groupedMrpTierCount?: number;
   /** True when variants in the collapsed row have more than one sale_price. */
   salePricesDiffer?: boolean;
+  /** Lowest / highest rates across the collapsed row (set by grouping). */
+  mrpMin?: number;
+  mrpMax?: number;
+  purPriceMin?: number;
+  purPriceMax?: number;
+  salePriceMin?: number;
+  salePriceMax?: number;
 };
 
 export type GroupPurchaseSearchOptions = {
@@ -77,8 +84,24 @@ function sizeRangeFromSizes(sizes: string[]): string | null {
   return `${unique[0]}-${unique[unique.length - 1]}`;
 }
 
+function rateRange(values: Array<number | null | undefined>): { min: number; max: number } {
+  const nums = values.map((v) => Number(v) || 0);
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+
 function finalizeGroup<T extends PurchaseSearchVariantLike>(group: T[]): T {
   const representative = group[0];
+  const mrpRange = rateRange(group.map((g) => g.mrp));
+  const purRange = rateRange(group.map((g) => g.pur_price));
+  const saleRange = rateRange(group.map((g) => g.sale_price));
+  const ranges = {
+    mrpMin: mrpRange.min,
+    mrpMax: mrpRange.max,
+    purPriceMin: purRange.min,
+    purPriceMax: purRange.max,
+    salePriceMin: saleRange.min,
+    salePriceMax: saleRange.max,
+  };
   const productIds = [...new Set(group.map((g) => g.product_id).filter(Boolean))];
   const groupedProductIds = productIds.length > 0 ? productIds : [representative.product_id];
   const salePricesDiffer =
@@ -92,6 +115,7 @@ function finalizeGroup<T extends PurchaseSearchVariantLike>(group: T[]): T {
       groupedVariantCount: 1,
       groupedProductIds,
       salePricesDiffer: false,
+      ...ranges,
     };
   }
 
@@ -105,6 +129,7 @@ function finalizeGroup<T extends PurchaseSearchVariantLike>(group: T[]): T {
     groupedVariantCount: group.length,
     groupedProductIds,
     salePricesDiffer,
+    ...ranges,
   };
 }
 
@@ -161,4 +186,42 @@ export function purchaseGroupMrpFilter(
   v: Pick<PurchaseSearchVariantLike, "mrp" | "groupedMrpTierCount">,
 ): number | undefined {
   return (v.groupedMrpTierCount ?? 1) > 1 ? v.mrp : undefined;
+}
+
+function formatRate(value: number): string {
+  return `₹${(Number(value) || 0).toFixed(2)}`;
+}
+
+/** "₹195.65", or "₹180.00 – ₹210.00" when the grouped sizes have different rates. */
+export function purchaseRateLabel(
+  value: number | null | undefined,
+  min?: number,
+  max?: number,
+): string {
+  if (min != null && max != null && moneyBucket(min) !== moneyBucket(max)) {
+    return `${formatRate(min)} – ${formatRate(max)}`;
+  }
+  return formatRate(Number(value) || 0);
+}
+
+/** MRP / Buy / Sale text for a grouped purchase search row (always filled). */
+export function purchaseSearchRateLabels(
+  v: Pick<
+    PurchaseSearchVariantLike,
+    | "mrp"
+    | "pur_price"
+    | "sale_price"
+    | "mrpMin"
+    | "mrpMax"
+    | "purPriceMin"
+    | "purPriceMax"
+    | "salePriceMin"
+    | "salePriceMax"
+  >,
+): { mrp: string; buy: string; sale: string } {
+  return {
+    mrp: purchaseRateLabel(v.mrp, v.mrpMin, v.mrpMax),
+    buy: purchaseRateLabel(v.pur_price, v.purPriceMin, v.purPriceMax),
+    sale: purchaseRateLabel(v.sale_price, v.salePriceMin, v.salePriceMax),
+  };
 }

@@ -122,6 +122,7 @@ import { restrictProductsToExactNameMatches } from "@/utils/productSearch";
 import {
   groupPurchaseSearchByProductMaster,
   purchaseGroupMrpFilter,
+  purchaseSearchRateLabels,
 } from "@/utils/purchaseProductSearchGroup";
 import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
@@ -7496,13 +7497,9 @@ const PurchaseEntry = () => {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        {!result.salePricesDiffer && (
-                          <>
-                            <p className="text-sm font-bold text-primary">Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}</p>
-                            <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: ₹{result.mrp?.toFixed(2) || '0.00'}</p>
-                            <p className="text-[11px] text-muted-foreground">Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}</p>
-                          </>
-                        )}
+                        <p className="text-sm font-bold text-primary">Buy: {purchaseSearchRateLabels(result).buy}</p>
+                        <p className="text-[12px] font-bold text-amber-600 dark:text-amber-400">MRP: {purchaseSearchRateLabels(result).mrp}</p>
+                        <p className="text-[11px] text-muted-foreground">Sale: {purchaseSearchRateLabels(result).sale}</p>
                       </div>
                     </div>
                   </button>
@@ -8146,28 +8143,31 @@ const PurchaseEntry = () => {
                               </div>
                             </div>
                             <div className="text-right shrink-0 tabular-nums font-mono">
-                              {!result.salePricesDiffer && (
+                              {(() => {
+                                const rates = purchaseSearchRateLabels(result);
+                                return (
                                 <>
                                   <div className={cn(
                                     "font-bold text-[15px] leading-tight",
                                     idx === selectedSearchIndex ? "text-accent-foreground" : "text-amber-600 dark:text-amber-400",
                                   )}>
-                                    MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
+                                    MRP: {rates.mrp}
                                   </div>
                                   <div className={cn(
                                     "text-[12px] font-semibold leading-tight",
                                     idx === selectedSearchIndex ? "text-accent-foreground/90" : "text-primary",
                                   )}>
-                                    Buy: ₹{result.pur_price?.toFixed(2) || '0.00'}
+                                    Buy: {rates.buy}
                                   </div>
                                   <div className={cn(
                                     "text-[12px] leading-tight",
                                     idx === selectedSearchIndex ? "text-accent-foreground/80" : "text-muted-foreground",
                                   )}>
-                                    Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
+                                    Sale: {rates.sale}
                                   </div>
                                 </>
-                              )}
+                                );
+                              })()}
                             </div>
                             </div>
                           </button>
@@ -8586,19 +8586,15 @@ const PurchaseEntry = () => {
                                           {result.groupedMrpTierCount} MRP
                                         </span>
                                       )}
-                                      {!result.salePricesDiffer && (
-                                        <>
-                                          <span className="text-primary font-medium">
-                                            Pur: ₹{result.pur_price?.toFixed(2) || '0.00'}
-                                          </span>
-                                          <span className="text-amber-600 dark:text-amber-400 font-bold">
-                                            MRP: ₹{result.mrp?.toFixed(2) || '0.00'}
-                                          </span>
-                                          <span className="text-green-600 dark:text-green-400 font-medium">
-                                            Sale: ₹{result.sale_price?.toFixed(2) || '0.00'}
-                                          </span>
-                                        </>
-                                      )}
+                                      <span className="text-primary font-medium">
+                                        Pur: {purchaseSearchRateLabels(result).buy}
+                                      </span>
+                                      <span className="text-amber-600 dark:text-amber-400 font-bold">
+                                        MRP: {purchaseSearchRateLabels(result).mrp}
+                                      </span>
+                                      <span className="text-green-600 dark:text-green-400 font-medium">
+                                        Sale: {purchaseSearchRateLabels(result).sale}
+                                      </span>
                                     </div>
                                   </button>
                                 ))}
