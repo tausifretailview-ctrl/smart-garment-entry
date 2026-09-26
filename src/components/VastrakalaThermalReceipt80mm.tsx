@@ -73,8 +73,30 @@ function VastrakalaHeaderBrandText({
   );
 }
 
+/** Instagram glyph printed before the handle (monochrome, prints cleanly on thermal). */
+function InstagramGlyph() {
+  return (
+    <svg
+      className="vk-insta-icon"
+      viewBox="0 0 24 24"
+      width="1.1em"
+      height="1.1em"
+      aria-hidden="true"
+      style={{ display: "inline-block", verticalAlign: "-0.2em", marginRight: "1.5mm", flexShrink: 0 }}
+    >
+      <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="none" stroke="#000" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4.3" fill="none" stroke="#000" strokeWidth="2" />
+      <circle cx="17.4" cy="6.6" r="1.3" fill="#000" />
+    </svg>
+  );
+}
+
+/** mm string ("24mm") → number. */
+const mmValue = (v: string): number => parseFloat(v) || 0;
+
 function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
-  const is58 = paper === "58mm";  const itemGridColumns = showMrp
+  const is58 = paper === "58mm";
+  const itemGridColumns = showMrp
     ? is58
       ? "4mm minmax(0, 1fr) 8mm 13mm 15mm"
       : "5mm minmax(0, 1fr) 10mm 15mm 18mm"
@@ -88,7 +110,10 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     headerFont: is58 ? "14px" : "22px",
     subFont: is58 ? "10px" : "14px",
     netFont: is58 ? "11px" : "15px",
-    logoSize: is58 ? "10mm" : "14mm",
+    // Logo sits in its own column left of the shop details (never over them).
+    // Height matches the name + address + contact block; width follows the logo's shape.
+    logoHeight: is58 ? "15mm" : "24mm",
+    logoMaxWidth: is58 ? "14mm" : "22mm",
     sectionGap: is58 ? 4 : 7,
     itemGridColumns,
   };
@@ -154,6 +179,15 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
   const address = String(settings?.address || "").trim();
   const mobile = String(settings?.mobile_number || settings?.owner_phone || "").trim();
   const logoUrl = billSettings.logo_url?.trim() || "";
+  // Logo width/height ratio, read once the image loads. Print CSS forces `height: auto` on
+  // thermal <img>s, so the logo is sized by WIDTH (= target height × ratio) — that way the
+  // printed logo is the same size as the preview instead of growing to its natural height.
+  const [logoAspect, setLogoAspect] = useState<number | null>(null);
+  useEffect(() => setLogoAspect(null), [logoUrl]);
+  const logoWidthMm = Math.min(
+    mmValue(layout.logoMaxWidth),
+    mmValue(layout.logoHeight) * (logoAspect ?? 1),
+  );
   const instagramHandle = instagramHandleFromLink(billSettings.instagram_link);
 
   const terms = (saleSettings.terms_list || [])
@@ -217,6 +251,24 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     printColorAdjust: "exact",
   };
 
+  const shopDetails = (
+    <>
+      <VastrakalaHeaderBrandText title={shopHeader.title} headerFont={layout.headerFont} />
+      <div className="vk-header-meta">
+        {address ? (
+          <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{address.toUpperCase()}</div>
+        ) : null}
+        {mobile ? <div>CONTACT : {mobile}</div> : null}
+        {instagramHandle ? (
+          <div className="vk-insta-line" style={{ marginTop: 3 }}>
+            <InstagramGlyph />
+            {instagramHandle}
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+
   if (!settings) {
     return (
       <div ref={ref} data-invoice-loading="true" style={{ ...base, textAlign: "center" }}>
@@ -237,62 +289,50 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           <div
             className="vk-header-brand-row"
             style={{
-              position: "relative",
               display: "flex",
-              justifyContent: "center",
               alignItems: "center",
-              minHeight: layout.logoSize,
-              paddingInline: layout.logoSize,
-              marginBottom: layout.sectionGap,
+              gap: "2.5mm",
             }}
           >
             <img
               src={logoUrl}
               alt=""
               className="vk-header-logo"
-              style={{
-                position: "absolute",
-                left: 0,
-                top: "50%",
-                transform: "translateY(-50%)",
-                display: "block",
-                width: layout.logoSize,
-                height: layout.logoSize,
-                objectFit: "contain",
+              onLoad={(e) => {
+                const { naturalWidth, naturalHeight } = e.currentTarget;
+                if (naturalWidth > 0 && naturalHeight > 0) setLogoAspect(naturalWidth / naturalHeight);
               }}
+              style={
+                {
+                  "--vk-logo-h": layout.logoHeight,
+                  "--vk-logo-max-w": layout.logoMaxWidth,
+                  display: "block",
+                  flex: "0 0 auto",
+                  width: `${logoWidthMm.toFixed(2)}mm`,
+                  maxHeight: layout.logoHeight,
+                  objectFit: "contain",
+                } as React.CSSProperties
+              }
             />
-            <div style={{ textAlign: "center", minWidth: 0 }}>
-              <VastrakalaHeaderBrandText
-                title={shopHeader.title}
-                headerFont={layout.headerFont}
-              />
+            <div className="vk-header-shop" style={{ flex: "1 1 auto", minWidth: 0, textAlign: "center" }}>
+              {shopDetails}
             </div>
           </div>
         ) : (
-          <div style={{ textAlign: "center", marginBottom: layout.sectionGap }}>
-            <VastrakalaHeaderBrandText
-              title={shopHeader.title}
-              headerFont={layout.headerFont}
-            />
+          <div className="vk-header-shop" style={{ textAlign: "center" }}>
+            {shopDetails}
           </div>
         )}
-        <div className="vk-header-meta" style={{ textAlign: "center" }}>
-          {address ? (
-            <div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{address.toUpperCase()}</div>
-          ) : null}
-          {mobile ? <div>CONTACT : {mobile}</div> : null}
-          {instagramHandle ? <div style={{ marginTop: 3 }}>{instagramHandle}</div> : null}
-          <div
-            className="vk-doc-title"
-            style={{
-              textAlign: "center",
-              fontSize: layout.subFont,
-              letterSpacing: "0.5px",
-              marginTop: layout.sectionGap,
-            }}
-          >
-            {docTitle}
-          </div>
+        <div
+          className="vk-doc-title"
+          style={{
+            textAlign: "center",
+            fontSize: layout.subFont,
+            letterSpacing: "0.5px",
+            marginTop: layout.sectionGap,
+          }}
+        >
+          {docTitle}
         </div>
       </div>
 
