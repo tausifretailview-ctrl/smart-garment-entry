@@ -560,6 +560,16 @@ export default function SaleOrderEntry() {
       return;
     }
 
+    // Search groups several products (e.g. "0667109 WOMENS CML" + "... KHK") into one
+    // row; load each one's colour so the grid doesn't show them all as the first colour.
+    const { data: groupProducts } = productIds.length > 1
+      ? await supabase
+          .from("products")
+          .select("id, product_name, color")
+          .in("id", productIds)
+          .eq("organization_id", currentOrganization.id)
+      : { data: [productRow] };
+
     const { data, error } = await supabase
       .from("product_variants")
       .select("id, size, color, barcode, sale_price, mrp, stock_qty, active, product_id")
@@ -595,6 +605,7 @@ export default function SaleOrderEntry() {
         selectedSalePrice,
         cartQtyByVariant,
         defaultColor: productRow.color || "",
+        products: groupProducts || [productRow],
       }),
     );
     setSizeGridLoading(false);
@@ -621,9 +632,9 @@ export default function SaleOrderEntry() {
         const emptyRowIndex = updatedItems.findIndex(item => item.productId === '');
         const newItem: LineItem = calculateLineTotal({
           id: emptyRowIndex >= 0 ? updatedItems[emptyRowIndex].id : `row-${updatedItems.length}`,
-          productId: product.id,
+          productId: variant.product_id || product.id,
           variantId: variant.id,
-           productName: buildProductDisplayName(product),
+          productName: buildProductDisplayName({ ...product, product_name: variant.product_name || product.product_name }),
           size: variant.size,
           barcode: variant.barcode || '',
           orderQty: qty,
