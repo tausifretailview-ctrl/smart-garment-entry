@@ -93,7 +93,6 @@ const FYPresets = ({
   currentSelection?: string;
 }) => {
   const currentFY = getIndiaFinancialYear(0);
-  const previousFY = getIndiaFinancialYear(-1);
   const currentQ = getCurrentQuarter();
   const now = new Date();
 
@@ -105,7 +104,7 @@ const FYPresets = ({
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
 
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <>
       {(
         [
           ["today", "Today", todayStart, todayEnd],
@@ -113,21 +112,20 @@ const FYPresets = ({
           ["month", "This Month", monthStart, monthEnd],
           ["currentQ", currentQ.label, currentQ.fromDate, currentQ.toDate],
           ["currentFY", currentFY.label, currentFY.fromDate, currentFY.toDate],
-          ["previousFY", previousFY.label, previousFY.fromDate, previousFY.toDate],
         ] as const
       ).map(([key, label, from, to]) => (
         <Button
           key={key}
           variant={currentSelection === key ? "default" : "outline"}
           size="sm"
-          className="h-11 text-base font-semibold"
+          className="h-11 shrink-0 text-base font-semibold"
           onClick={() => onSelect(from, to, key)}
         >
           {key === "currentFY" && <Calendar className="mr-1 h-4 w-4" />}
           {label}
         </Button>
       ))}
-    </div>
+    </>
   );
 };
 
@@ -1053,7 +1051,7 @@ export default function NetProfitAnalysis() {
 
         <Card className="shrink-0 rounded-lg border border-slate-200 shadow-sm print:hidden">
           <CardContent className="space-y-2 p-2.5">
-            <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <div className="space-y-1">
                 <Label className="text-sm font-semibold uppercase tracking-wide text-slate-600">
                   From
@@ -1097,7 +1095,7 @@ export default function NetProfitAnalysis() {
               </Button>
               <FYPresets onSelect={handleFYPresetSelect} currentSelection={fyPreset} />
               <div
-                className="flex h-11 items-center rounded-md border border-slate-300 bg-slate-50 p-1"
+                className="flex h-11 shrink-0 items-center rounded-md border border-slate-300 bg-slate-50 p-1"
                 role="group"
                 aria-label="Profit view"
               >
@@ -1105,7 +1103,7 @@ export default function NetProfitAnalysis() {
                   type="button"
                   size="sm"
                   variant={srAdjusted ? "ghost" : "default"}
-                  className="h-9 px-3 text-base font-semibold"
+                  className="h-9 whitespace-nowrap px-2.5 text-sm font-semibold sm:px-3 sm:text-base"
                   onClick={() => setSrAdjusted(false)}
                   title="Profit on sales only. Returns are shown but not deducted."
                 >
@@ -1115,7 +1113,7 @@ export default function NetProfitAnalysis() {
                   type="button"
                   size="sm"
                   variant={srAdjusted ? "default" : "ghost"}
-                  className="h-9 px-3 text-base font-semibold"
+                  className="h-9 whitespace-nowrap px-2.5 text-sm font-semibold sm:px-3 sm:text-base"
                   onClick={() => setSrAdjusted(true)}
                   title="Sale returns in this period are deducted from sales, and their cost is added back."
                 >
