@@ -7853,11 +7853,6 @@ export default function POSSales() {
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}
-                            {enableMrp && (Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
-                              <span className="px-1 py-0.5 text-[9px] font-semibold bg-sky-100 text-sky-800 border border-sky-300 rounded flex-shrink-0" title="Selling rate below MRP (manual rate / loaded invoice line)">
-                                Rate override
-                              </span>
-                            )}
                           </div>
                           <div className="flex items-center justify-center text-sm font-medium truncate min-w-0" title={item.size}>
                             {item.size}

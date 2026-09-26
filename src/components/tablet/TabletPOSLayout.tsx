@@ -322,15 +322,6 @@ export function TabletPOSLayout({
                       <div className="flex items-center gap-1 min-w-0">
                         <p className="font-medium text-[13px] truncate flex-1 min-w-0">{item.productName}</p>
                         <PosSchemeAppliedTag applied={item.categoryTierApplied} />
-                        {enableMrp && (Number(item.mrp) || 0) > (Number(item.unitCost) || 0) + 0.001 && (
-                          <Badge
-                            variant="outline"
-                            className="shrink-0 h-4 px-1 text-[9px] font-semibold border-sky-300 bg-sky-50 text-sky-800"
-                            title="Unit price below MRP — line discount applied"
-                          >
-                            Rate override
-                          </Badge>
-                        )}
                       </div>
                       <p className="text-[11px] text-muted-foreground truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                         {item.barcode} · {item.size}{item.color ? ` · ${item.color}` : ""}
