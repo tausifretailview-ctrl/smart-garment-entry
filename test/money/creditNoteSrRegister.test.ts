@@ -30,7 +30,11 @@ function maseeraSource() {
     salesById: Object.fromEntries(
       db.sales.map((s) => [
         s.id,
-        { sale_number: s.sale_number, sale_return_adjust: s.sale_return_adjust },
+        {
+          customer_id: s.customer_id,
+          sale_number: s.sale_number,
+          sale_return_adjust: s.sale_return_adjust,
+        },
       ]),
     ),
     creditNotesById: Object.fromEntries(
@@ -95,7 +99,7 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
         },
       ],
       customersById: { c1: { customer_name: "DATE TEST", phone: "" } },
-      salesById: { "inv-old": { sale_number: "INV/26-27/1", sale_return_adjust: 1000 } },
+      salesById: { "inv-old": { customer_id: "c1", sale_number: "INV/26-27/1", sale_return_adjust: 1000 } },
       creditNotesById: {},
       vouchers: [
         {
@@ -154,8 +158,8 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       ],
       customersById: { sadaf: { customer_name: "DR.SADAF GODIL", phone: "" } },
       salesById: {
-        "2971": { sale_number: "INV/26-27/2971", sale_return_adjust: 2700 },
-        "2988": { sale_number: "INV/26-27/2988", sale_return_adjust: 3800 },
+        "2971": { customer_id: "sadaf", sale_number: "INV/26-27/2971", sale_return_adjust: 2700 },
+        "2988": { customer_id: "sadaf", sale_number: "INV/26-27/2988", sale_return_adjust: 3800 },
       },
       creditNotesById: {},
       vouchers: [
@@ -204,8 +208,8 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       ],
       customersById: { amrin: { customer_name: "AMRIN BAIG", phone: "" } },
       salesById: {
-        "1052": { sale_number: "INV/26-27/1052", sale_return_adjust: 1950 },
-        "1324": { sale_number: "INV/26-27/1324", sale_return_adjust: 3450 },
+        "1052": { customer_id: "amrin", sale_number: "INV/26-27/1052", sale_return_adjust: 1950 },
+        "1324": { customer_id: "amrin", sale_number: "INV/26-27/1324", sale_return_adjust: 3450 },
       },
       creditNotesById: {},
       vouchers: [
@@ -252,7 +256,7 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
         },
       ],
       customersById: { shaista: { customer_name: "Shaista Arif Reshmawala", phone: "" } },
-      salesById: { "2676": { sale_number: "INV/26-27/2676", sale_return_adjust: 12750 } },
+      salesById: { "2676": { customer_id: "shaista", sale_number: "INV/26-27/2676", sale_return_adjust: 12750 } },
       creditNotesById: {},
       vouchers: [
         {
@@ -351,12 +355,14 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       customersById: { tamanna: { phone: "9876543210" } },
       salesById: {
         "pos-55": {
+          customer_id: "tamanna",
           sale_number: "POS/26-27/55",
           sale_type: "pos",
           sale_date: "2026-09-23",
           sale_return_adjust: 250,
         },
         "inv-10": {
+          customer_id: "tamanna",
           sale_number: "INV/26-27/10",
           sale_type: "sale_invoice",
           sale_date: "2026-09-24",
@@ -490,6 +496,7 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       customersById: { c1: { customer_name: "SALE ONLY", phone: "9000000000" } },
       salesById: {
         "inv-80": {
+          customer_id: "c1",
           sale_number: "INV/26-27/80",
           sale_type: "sale_invoice",
           sale_date: "2026-09-20",
@@ -512,4 +519,61 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
       }),
     ).toHaveLength(1);
   });
+
+  it("never lets one customer's return redeem another customer's bill (POS/26-27/391)", () => {
+    const rows = buildCreditNoteSrRegisterRows({
+      saleReturns: [
+        {
+          id: "sr-34",
+          return_number: "SR/26-27/34",
+          return_date: "2026-09-25",
+          customer_id: "imran",
+          net_amount: 7506,
+          credit_status: "adjusted",
+          linked_sale_id: null,
+        },
+        {
+          id: "sr-36",
+          return_number: "SR/26-27/36",
+          return_date: "2026-09-27",
+          customer_id: "moiz",
+          net_amount: 3717,
+          credit_status: "adjusted",
+          linked_sale_id: "pos-391",
+          credit_note_id: "cn-10",
+        },
+      ],
+      customersById: {
+        imran: { customer_name: "IMRAN QURESHI" },
+        moiz: { customer_name: "MOIZ KHAN" },
+      },
+      salesById: {
+        "pos-391": {
+          customer_id: "moiz",
+          sale_number: "POS/26-27/391",
+          sale_type: "pos",
+          sale_date: "2026-09-27",
+          sale_return_adjust: 3717,
+        },
+      },
+      creditNotesById: { "cn-10": { credit_note_number: "CN/26-27/10", credit_amount: 3717 } },
+      vouchers: [
+        {
+          voucher_type: "receipt",
+          description: "Credit note adjusted (₹3717) against POS/26-27/391",
+          reference_id: "pos-391",
+          total_amount: 3717,
+          voucher_date: "2026-09-27",
+        },
+      ],
+    });
+    const sr34 = rows.find((r) => r.returnNumber === "SR/26-27/34");
+    const sr36 = rows.find((r) => r.returnNumber === "SR/26-27/36");
+    expect(sr36?.redeemedBills.map((b) => b.saleNumber)).toEqual(["POS/26-27/391"]);
+    expect(sr36?.remainingAmount).toBe(0);
+    expect(sr34?.redeemedBills).toEqual([]);
+    expect(sr34?.appliedAmount).toBe(0);
+    expect(sr34?.remainingAmount).toBe(7506);
+  });
 });
+
