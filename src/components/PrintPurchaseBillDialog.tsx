@@ -35,8 +35,15 @@ type SettingsLike = {
   mobile_number?: string;
   email_id?: string;
   gst_number?: string;
-  bill_barcode_settings?: { logo_url?: string };
+  // Supabase types this jsonb column as Json, so accept anything and read logo_url defensively.
+  bill_barcode_settings?: unknown;
 };
+
+function billBarcodeLogoUrl(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const url = (raw as { logo_url?: unknown }).logo_url;
+  return typeof url === "string" ? url : undefined;
+}
 
 export function PrintPurchaseBillDialog({
   bill,
@@ -184,7 +191,7 @@ export function PrintPurchaseBillDialog({
                 email_id: settings?.email_id,
                 gst_number: settings?.gst_number,
               }}
-              logoUrl={settings?.bill_barcode_settings?.logo_url}
+              logoUrl={billBarcodeLogoUrl(settings?.bill_barcode_settings)}
             />
           </div>
         )}
