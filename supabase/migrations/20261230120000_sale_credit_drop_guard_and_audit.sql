@@ -6,7 +6,7 @@
 --    so it passes. Any other save that drops the credit while the note stays
 --    "used" is refused instead of double-counting it as cash/UPI.
 --    Only a DROP is checked, so rows that already drifted can still be edited
---    for other fields.
+--    for other fields. Applies to deleted/cancelled/held rows too.
 --
 -- 2. Audit: SALE_UPDATED now records sale_return_adjust, paid/cash/upi/card and
 --    discount before/after, and the trigger fires when any of them change.
@@ -26,12 +26,9 @@ AS $$
 DECLARE
   v_live_cn numeric;
 BEGIN
-  IF NEW.deleted_at IS NOT NULL
-     OR COALESCE(NEW.is_cancelled, false)
-     OR lower(COALESCE(NEW.payment_status, '')) IN ('cancelled', 'hold') THEN
-    RETURN NEW;
-  END IF;
-
+  -- No exemption for deleted / cancelled / hold rows: cancel and release
+  -- soft-delete the vouchers first, and a status flip later would not re-run
+  -- this guard (it fires on sale_return_adjust only).
   IF COALESCE(NEW.sale_return_adjust, 0) >= COALESCE(OLD.sale_return_adjust, 0) - 0.01 THEN
     RETURN NEW;
   END IF;
