@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-09-27",
-  "count": 804,
-  "fileCount": 821,
+  "count": 807,
+  "fileCount": 824,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -807,6 +807,9 @@
     "20261228120000",
     "20261229120000",
     "20261230120000",
+    "20261231120000",
+    "20261231120100",
+    "20261231120200",
     "20261231130000"
   ],
   "files": [
@@ -1630,6 +1633,9 @@
     "20261228120000_rls_hot_paths_and_invoice_dashboard_index.sql",
     "20261229120000_stock_movements_reference_id_index.sql",
     "20261230120000_sale_credit_drop_guard_and_audit.sql",
+    "20261231120000_security_revoke_anon_function_execute.sql",
+    "20261231120100_security_org_guards_on_definer_functions.sql",
+    "20261231120200_security_storage_policies_and_org_creation.sql",
     "20261231130000_daily_incentive_per_piece_bracket.sql"
   ],
   "duplicateVersions": [

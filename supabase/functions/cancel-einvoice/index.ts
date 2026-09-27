@@ -87,6 +87,7 @@ Deno.serve(async (req) => {
       .from('sales')
       .select('id, sale_number, irn, ack_no, ack_date, einvoice_status, created_at, einvoice_test_mode')
       .eq('id', saleId)
+      .eq('organization_id', organizationId)
       .single();
 
     if (saleError || !sale) {
