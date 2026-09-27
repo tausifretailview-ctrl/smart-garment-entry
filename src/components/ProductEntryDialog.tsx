@@ -81,7 +81,9 @@ import {
 } from "@/utils/barcodeValidation";
 import {
   findSameNameProductsInOrg,
+  pickUnusedSameNameProduct,
   normalizeProductNameKey,
+  type SameNameProductMatch,
 } from "@/utils/productNameDedupe";
 import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { buildMasterOnlySaleOrderVariants } from "@/utils/saleOrderMasterProductVariants";
@@ -526,9 +528,7 @@ export const ProductEntryDialog = ({
   const barcodeConflictTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Name-dupe gate: same normalized name + category already in the org. Bypass is an explicit second click. */
   const [showNameDupeDialog, setShowNameDupeDialog] = useState(false);
-  const [nameDupeMatches, setNameDupeMatches] = useState<
-    Array<{ id: string; product_name: string; brand: string | null; category: string | null }>
-  >([]);
+  const [nameDupeMatches, setNameDupeMatches] = useState<SameNameProductMatch[]>([]);
   const [nameDupeConfirmedKey, setNameDupeConfirmedKey] = useState<string | null>(null);
   const initialBarcodeAppliedRef = useRef(false);
   const productFieldSettings = useProductFieldSettings();
@@ -2216,6 +2216,15 @@ export const ProductEntryDialog = ({
         formData.category,
       );
       if (dupes.length > 0) {
+        // Purchase: an unused same-name product (0 stock, no bills) is reused
+        // straight away — only ask when one has stock or history.
+        if (onUseExistingProductSizes) {
+          const reuseId = await pickUnusedSameNameProduct(dupes);
+          if (reuseId) {
+            useExistingProductForTypedSizes(reuseId);
+            return;
+          }
+        }
         setNameDupeMatches(dupes);
         setShowNameDupeDialog(true);
         return;
@@ -4749,6 +4758,9 @@ export const ProductEntryDialog = ({
                   <span className="text-muted-foreground">
                     {[m.brand, m.category].filter(Boolean).join(" · ")}
                   </span>
+                  {m.total_stock != null && (
+                    <span className="text-xs text-muted-foreground"> · Stock {m.total_stock}</span>
+                  )}
                 </div>
                 {onUseExistingProductSizes && nameDupeMatches.length > 1 && (
                   <Button

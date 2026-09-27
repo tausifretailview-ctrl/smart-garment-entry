@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { findSameNameProductsInOrg, normalizeProductNameKey } from "./productNameDedupe";
+import {
+  findSameNameProductsInOrg,
+  normalizeProductNameKey,
+  pickUnusedSameNameProduct,
+} from "./productNameDedupe";
 import { supabase } from "@/integrations/supabase/client";
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -51,5 +55,35 @@ describe("findSameNameProductsInOrg", () => {
     expect(await findSameNameProductsInOrg("org-1", "   ", "")).toEqual([]);
     expect(supabase.from).not.toHaveBeenCalled();
     void chains;
+  });
+});
+
+describe("pickUnusedSameNameProduct", () => {
+  const p = (id: string, total_stock: number, created_at: string) => ({
+    id,
+    product_name: "1PCS",
+    brand: null,
+    category: "2542",
+    total_stock,
+    created_at,
+  });
+  const noHistory = async () => false;
+
+  it("reuses the oldest when every match has 0 stock and no history", async () => {
+    const matches = [p("b", 0, "2026-09-26T10:00:00Z"), p("a", 0, "2026-09-25T10:00:00Z")];
+    expect(await pickUnusedSameNameProduct(matches, noHistory)).toBe("a");
+  });
+
+  it("asks (null) when any match has stock", async () => {
+    expect(await pickUnusedSameNameProduct([p("a", 0, "1"), p("b", 3, "2")], noHistory)).toBeNull();
+  });
+
+  it("asks (null) when any match has transaction history", async () => {
+    const hasHistory = async (id: string) => id === "b";
+    expect(await pickUnusedSameNameProduct([p("a", 0, "1"), p("b", 0, "2")], hasHistory)).toBeNull();
+  });
+
+  it("returns null for no matches", async () => {
+    expect(await pickUnusedSameNameProduct([], noHistory)).toBeNull();
   });
 });
