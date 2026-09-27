@@ -713,6 +713,27 @@ export type CnFifoVoucherChunk = {
   amount: number;
 };
 
+/**
+ * Credit-note credit currently applied to a bill (live CN adjustment vouchers).
+ * For customer POS bills this, not the row's sale_return_adjust, is what the
+ * credit note ledger says the bill consumed.
+ */
+export async function fetchLiveCreditNoteAdjustTotal(
+  supabase: SupabaseClient,
+  saleId: string,
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("voucher_entries")
+    .select("total_amount")
+    .eq("reference_id", saleId)
+    .eq("voucher_type", "receipt")
+    .eq("payment_method", "credit_note_adjustment")
+    .is("deleted_at", null);
+  if (error) throw error;
+  const total = (data || []).reduce((sum, row) => sum + (Number(row.total_amount) || 0), 0);
+  return Math.round(total * 100) / 100;
+}
+
 export type ApplyCreditNoteFifoResult = {
   applied: number;
   chunks: CnFifoVoucherChunk[];
