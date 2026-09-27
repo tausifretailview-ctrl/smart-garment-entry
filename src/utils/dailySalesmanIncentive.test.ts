@@ -187,7 +187,7 @@ describe("aggregateDailySalesmanIncentive — per-line salesman", () => {
 describe("aggregateDailySalesmanIncentive", () => {
   const employees = [{ id: "e1", employee_name: "RAVI" }];
 
-  it("sums bracket(line_net) × qty across lines (not one flat bracket on day net)", () => {
+  it("sums bracket(line net / qty) × qty across lines (not one flat bracket on day net)", () => {
     const rows = aggregateDailySalesmanIncentive({
       incentiveDateYmd: "2026-09-10",
       sales: [
@@ -205,8 +205,8 @@ describe("aggregateDailySalesmanIncentive", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].total_qty).toBe(5);
-    // 1500→₹10×3=30 + 600→₹5×2=10 = 40 (NOT day-net 2100 → single ₹10)
-    expect(rows[0].incentive_amount).toBe(40);
+    // 1500/3=₹500→₹5×3=15 + 600/2=₹300→₹3×2=6 = 21 (NOT day-net 2100 → single ₹10)
+    expect(rows[0].incentive_amount).toBe(21);
     expect(rows[0].is_eligible).toBe(true);
   });
 
