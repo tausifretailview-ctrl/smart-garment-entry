@@ -280,6 +280,8 @@ function PosKpiCard({
   value,
   shellClass,
   valueClass,
+  tag,
+  tagTitle,
   onClick,
 }: {
   title: string;
@@ -287,6 +289,9 @@ function PosKpiCard({
   value: string;
   shellClass: string;
   valueClass: string;
+  /** Small secondary pill under the subtitle (e.g. S/R adjustment deducted). */
+  tag?: string;
+  tagTitle?: string;
   onClick?: () => void;
 }) {
   return (
@@ -302,6 +307,14 @@ function PosKpiCard({
         <p className="text-xs font-semibold leading-snug text-slate-600 sm:text-sm">{title}</p>
         <p className={cn("mt-1 text-lg font-bold tabular-nums leading-none sm:text-xl", valueClass)}>{value}</p>
         {subtitle ? <p className="mt-0.5 text-[10px] text-slate-500 sm:text-xs">{subtitle}</p> : null}
+        {tag ? (
+          <span
+            className="mt-1 rounded border border-orange-200 bg-orange-50 px-1 text-[10px] font-medium leading-4 text-orange-700 tabular-nums"
+            title={tagTitle}
+          >
+            {tag}
+          </span>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -3268,7 +3281,13 @@ const POSDashboard = () => {
           <PosKpiCard
             title="Net Sale"
             subtitle="After disc/SR"
-            value={`₹${summaryStats.netSale.toFixed(0)}`}
+            value={`₹${(summaryStats.netSale - summaryStats.totalSaleReturnAdjust).toFixed(0)}`}
+            tag={
+              summaryStats.totalSaleReturnAdjust > 0.5
+                ? `S/R Adj −₹${Math.round(summaryStats.totalSaleReturnAdjust).toLocaleString("en-IN")}`
+                : undefined
+            }
+            tagTitle={`Sale after discount ₹${Math.round(summaryStats.netSale).toLocaleString("en-IN")} − return credit used on bills ₹${Math.round(summaryStats.totalSaleReturnAdjust).toLocaleString("en-IN")}`}
             shellClass="bg-teal-50 border-teal-200/70 hover:bg-teal-100/80"
             valueClass="text-teal-800"
             onClick={() => setPaymentStatusFilter([])}
