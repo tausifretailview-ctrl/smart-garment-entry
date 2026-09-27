@@ -79,7 +79,7 @@ const inv210Props = {
 };
 
 describe("WholesaleGstA4Template", () => {
-  it("renders INV-210 shape with separate 2.5% and 9.0% GST rows from org settings fields", () => {
+  it("renders INV-210 shape with per-rate CGST/SGST slabs from org settings fields", () => {
     const html = renderToStaticMarkup(createElement(WholesaleGstA4Template, inv210Props));
 
     expect(html).toContain("BABJII ENTERPRISES");
@@ -88,17 +88,17 @@ describe("WholesaleGstA4Template", () => {
     expect(html).toContain("27-MAHARASHTRA");
     expect(html).toContain("NAVRANG SHOES (PANVEL)");
     expect(html).toContain("27AMOPP3239N1ZB");
-    expect(html).toContain("2,989.40 (18%)");
-    expect(html).toContain("7.50 (5%)");
-    expect(html).toContain("CGST 2.5%");
-    expect(html).toContain("SGST 2.5%");
-    expect(html).toContain("CGST 9.0%");
-    expect(html).toContain("SGST 9.0%");
-    expect(html).toContain("₹3.75");
-    expect(html).toContain("₹3,363.08");
-    expect(html).toContain("₹37,517.54");
-    expect(html).toContain("₹44,251.00");
-    expect(html).toContain("Total Items / Qty : 3 / 10");
+    expect(html).toContain("2,989.40");
+    expect(html).toContain("@ 18%");
+    expect(html).toContain("7.50");
+    expect(html).toContain("@ 5%");
+    expect(html).toContain("2.5% + 2.5%");
+    expect(html).toContain("9.0% + 9.0%");
+    expect(html).toContain("3.75");
+    expect(html).toContain("3,363.08");
+    expect(html).toContain("37,517.54");
+    expect(html).toContain("44,251.00");
+    expect(html).toContain("(3 items)");
     expect(html).toContain("Rs. Forty Four Thousand Two Hundred Fifty One Rupees Only");
     expect(html).toContain("Kotak Mahindra Bank");
     expect(html).toContain("4812023356");
@@ -107,7 +107,7 @@ describe("WholesaleGstA4Template", () => {
     expect(html).toContain("https://example.invalid/org-logo.png");
     expect(html).toContain("data:image/png;base64,qq==");
     expect(html).toContain("babjii@upi");
-    expect(html).toContain("Authorized Signatory");
+    expect(html).toContain("Authorised Signatory");
     expect(html).toContain("Receiver");
     expect(html).toContain("Thank you for your business.");
     expect(html).not.toContain("Swipe");
@@ -115,19 +115,18 @@ describe("WholesaleGstA4Template", () => {
     expect(html).not.toContain("digitally signed");
     expect(html).not.toContain("Add: CGST @");
     expect(html).toContain("wholesale-gst-a4-page-frame");
+    expect(html).toContain("wholesale-gst-a4-filler");
     expect(html).toContain("TAX INVOICE");
-    expect(html).toContain("ORIGINAL FOR RECIPIENT");
-    expect(html).toContain("font-size:26px");
-    expect(html).toContain("font-size:22px");
-    expect(html).toContain("font-size:14px");
-    expect(html).toContain("font-size:13px");
+    expect(html).toContain("Original for Recipient");
+    expect(html).toContain("font-size:24px");
+    expect(html).toContain("font-size:17px");
+    expect(html).toContain("font-size:19px");
   });
 
   it("keeps header type large enough to stay readable in Settings A4 preview", () => {
     const src = readFileSync(resolve(here, "./WholesaleGstA4Template.tsx"), "utf8");
-    expect(src).toContain('fontSize: "26px"');
-    expect(src).toContain('fontSize: "22px"');
-    expect(src).toContain('letterSpacing: "2.2px"');
+    expect(src).toContain('fontSize: "24px"');
+    expect(src).toContain('fontSize: "17px"');
     expect(src).not.toContain('color: "#444"');
     expect(src).not.toContain('fontSize: "9px", fontWeight: 600');
     const preview = readFileSync(resolve(here, "../settings/SettingsInvoicePreview.tsx"), "utf8");
@@ -138,9 +137,10 @@ describe("WholesaleGstA4Template", () => {
   it("uses A4 page size with visible overflow (does not clip like the A5 @page history)", () => {
     const src = readFileSync(resolve(here, "./WholesaleGstA4Template.tsx"), "utf8");
     expect(src).toContain("size: A4 portrait");
-    expect(src).toContain("margin: 8mm");
+    expect(src).toContain("margin: 6mm");
     expect(src).toContain("overflow: visible !important");
     expect(src).toContain("max-height: none !important");
+    expect(src).toContain("wholesale-gst-a4-flow");
     expect(src).not.toMatch(/@media print[\s\S]{0,400}overflow:\s*hidden/);
   });
 
