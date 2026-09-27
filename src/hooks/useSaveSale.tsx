@@ -16,6 +16,7 @@ import {
   applyCreditNoteFifoToSale,
   computeExchangeRefundDue,
   derivePaidAndStatus,
+  fetchLiveCreditNoteAdjustTotal,
   getAvailableCN,
   normalizeDiscountsAgainstGross,
   normalizeSaleReturnAdjustAgainstBill,
@@ -1791,7 +1792,13 @@ export const useSaveSale = () => {
 
       // Reducing or removing S/R releases this sale's credit voucher first.
       // The note keeps whatever other bills still hold. A lower amount is applied again below.
-      const oldSRA = Number(existingSale?.sale_return_adjust || 0);
+      // Compare against the credit notes actually used on this bill too: if the row's
+      // sale_return_adjust drifted to 0 while a CN voucher is still live, clearing S/R
+      // must still release it (POS/26-27/396 kept a used CN with S/R 0 and full UPI).
+      const liveCnCredit = saleData.customerId
+        ? await fetchLiveCreditNoteAdjustTotal(supabase, saleId)
+        : 0;
+      const oldSRA = Math.max(Number(existingSale?.sale_return_adjust || 0), liveCnCredit);
       const nextCredit = roundMoney(
         (saleData.saleReturnAdjust || 0) + (saleData.creditApplied || 0),
       );
@@ -1880,7 +1887,12 @@ export const useSaveSale = () => {
           discount_amount: saleData.discountAmount,
           flat_discount_percent: saleData.flatDiscountPercent,
           flat_discount_amount: saleData.flatDiscountAmount,
-          sale_return_adjust: releasedCredit ? 0 : saleData.saleReturnAdjust,
+          // Unchanged credit stays on the bill, whether it came in as S/R or as CN credit.
+          sale_return_adjust: releasedCredit
+            ? 0
+            : oldSRA > 0.01
+              ? oldSRA
+              : saleData.saleReturnAdjust,
           round_off: saleData.roundOff,
           net_amount: saleData.netAmount,
           payment_method: finalPaymentMethod,
