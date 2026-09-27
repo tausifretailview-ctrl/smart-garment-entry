@@ -35,7 +35,8 @@ type SettingsLike = {
   mobile_number?: string;
   email_id?: string;
   gst_number?: string;
-  bill_barcode_settings?: { logo_url?: string };
+  /** Settings JSON column; only `logo_url` is read here. */
+  bill_barcode_settings?: unknown;
 };
 
 export function PrintPurchaseBillDialog({
@@ -184,7 +185,7 @@ export function PrintPurchaseBillDialog({
                 email_id: settings?.email_id,
                 gst_number: settings?.gst_number,
               }}
-              logoUrl={settings?.bill_barcode_settings?.logo_url}
+              logoUrl={(settings?.bill_barcode_settings as { logo_url?: string } | null | undefined)?.logo_url}
             />
           </div>
         )}
