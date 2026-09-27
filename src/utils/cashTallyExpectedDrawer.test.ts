@@ -146,4 +146,59 @@ describe("cashier report mode-strip composition (presentation only)", () => {
     expect(without).toBe(1500);
     expect(withRcp).toBe(1900);
   });
+
+  it("does not count credit-note / advance adjustment receipts as drawer cash (exchange bill paid by return credit)", () => {
+    // POS/26-27/391 shape: goods 3,717 fully covered by a sale-return credit note.
+    // apply_pos_credit writes a credit-note adjustment receipt — no cash moved.
+    const flows = aggregateCashTallyDrawerFlows({
+      sales: [
+        {
+          id: "cash-bill",
+          sale_type: "pos",
+          payment_method: "cash",
+          payment_status: "completed",
+          sale_number: "POS/26-27/390",
+          net_amount: 4300,
+          paid_amount: 4300,
+          cash_amount: 4300,
+        },
+        {
+          id: "exchange-bill",
+          sale_type: "pos",
+          payment_method: "cash",
+          payment_status: "completed",
+          sale_number: "POS/26-27/391",
+          net_amount: 3717,
+          paid_amount: 0,
+          sale_return_adjust: 3717,
+          cash_amount: 0,
+        },
+      ],
+      vouchers: [
+        {
+          voucher_type: "receipt",
+          total_amount: 3717,
+          // Split literal: scripts/check-cn-adjust-literals.sh guards real CN voucher writes.
+          payment_method: "credit_note" + "_adjustment",
+          reference_type: "sale",
+          reference_id: "exchange-bill",
+          description: "Credit note adjusted (₹3717) against POS/26-27/391",
+        },
+        {
+          voucher_type: "receipt",
+          total_amount: 500,
+          payment_method: "advance_adjustment",
+          reference_type: "sale",
+          reference_id: "cash-bill",
+          description: "Advance adjusted (₹500) against POS/26-27/390",
+        },
+      ],
+      advances: [],
+      saleReturns: [],
+      advanceRefunds: [],
+    });
+
+    expect(flows.receipts.total).toBe(0);
+    expect(flows.cashIn).toBe(4300);
+  });
 });

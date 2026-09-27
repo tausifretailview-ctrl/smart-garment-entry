@@ -425,6 +425,15 @@ function isAdvanceOrCnAdjustmentMethod(paymentMethod: string | null | undefined)
 }
 
 /**
+ * Receipt vouchers that only move existing credit (advance / credit note / sale return)
+ * onto a bill. No money changes hands, so cash reports must not count them as RCP.
+ */
+export function isNonCashSettlementReceiptMethod(paymentMethod: string | null | undefined): boolean {
+  const pm = String(paymentMethod || "").toLowerCase().trim();
+  return pm === "advance" || pm === "credit_note" || isAdvanceOrCnAdjustmentMethod(pm);
+}
+
+/**
  * FIFO-consume advance balance; updates customer_advances.used_amount with each receipt voucher.
  * Sale target: caps so Σ live advance_adjustment on the sale cannot exceed remaining
  * receivable after cash-like receipts (and never exceeds net_amount (+1)).
