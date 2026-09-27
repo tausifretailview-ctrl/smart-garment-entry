@@ -160,6 +160,10 @@ import {
   type UseExistingProductSizesPayload,
 } from "@/utils/purchaseUseExistingProduct";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
+import {
+  purchaseLineMatchesProductEdit,
+  type PurchaseProductEditMatch,
+} from "@/utils/purchaseLineProductEdit";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { RollEntryDialog } from "@/components/RollEntryDialog";
 import { compareSizes } from "@/utils/sizeSort";
@@ -1410,13 +1414,16 @@ const PurchaseEntry = () => {
     [isDcPurchase],
   );
 
-  // Handle product edit panel updates
-  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => {
+  // Handle product edit panel updates — barcode / this row, not every line of the product.
+  const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, match?: PurchaseProductEditMatch) => {
     const touched = new Set<string>();
     const priceFieldsTouched = "pur_price" in updates || "sale_price" in updates;
     setLineItems(prev => prev.map(item => {
-      // Apply to the edited row, OR to ALL rows of the same product in this bill
-      const matches = item.temp_id === tempId || (applyToProductId && item.product_id === applyToProductId);
+      const matches = purchaseLineMatchesProductEdit(item, {
+        tempId,
+        barcode: match?.barcode,
+        skuId: match?.skuId,
+      });
       if (!matches) return item;
       touched.add(item.temp_id);
       const merged = { ...item, ...updates };
