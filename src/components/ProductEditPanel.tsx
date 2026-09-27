@@ -37,6 +37,10 @@ import {
   isMissingPricingSaleDiscPercentColumn,
   omitPricingSaleDiscPercentField,
 } from "@/utils/pricingSaleDiscPercentColumn";
+import {
+  buildPurchaseLinePatchFromProductEdit,
+  type PurchaseProductEditMatch,
+} from "@/utils/purchaseLineProductEdit";
 
 interface LineItem {
   temp_id: string;
@@ -57,6 +61,7 @@ interface LineItem {
   category?: string;
   color?: string;
   style?: string;
+  uom?: string;
 }
 
 interface ProductEditPanelProps {
@@ -65,7 +70,7 @@ interface ProductEditPanelProps {
   lineItems: LineItem[];
   currentIndex: number;
   onIndexChange: (index: number) => void;
-  onProductUpdated: (tempId: string, updates: Partial<LineItem>, applyToProductId?: string) => void;
+  onProductUpdated: (tempId: string, updates: Partial<LineItem>, match?: PurchaseProductEditMatch) => void;
   focusField?: string;
   mobileErpMode?: {
     enabled?: boolean;
@@ -337,6 +342,15 @@ const ProductEditPanel = ({
       return;
     }
 
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Error",
+        description: "Select an organization",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       if (soldUnits > 0 && modifiedFields.has("color")) {
@@ -366,16 +380,19 @@ const ProductEditPanel = ({
           pricing_sale_disc_percent: normalizePricingSaleDiscPercent(pricingDiscPercent),
           updated_at: new Date().toISOString(),
       };
+      const orgId = currentOrganization.id;
       let { error } = await supabase
         .from("products")
         .update(productPatch)
-        .eq("id", item.product_id);
+        .eq("id", item.product_id)
+        .eq("organization_id", orgId);
 
       if (error && isMissingPricingSaleDiscPercentColumn(error)) {
         const retry = await supabase
           .from("products")
           .update(omitPricingSaleDiscPercentField(productPatch))
-          .eq("id", item.product_id);
+          .eq("id", item.product_id)
+          .eq("organization_id", orgId);
         error = retry.error;
       }
 
@@ -407,51 +424,22 @@ const ProductEditPanel = ({
         const { error: varErr } = await supabase
           .from("product_variants")
           .update(variantPatch)
-          .eq("id", item.sku_id);
+          .eq("id", item.sku_id)
+          .eq("organization_id", orgId);
         if (varErr) throw varErr;
       }
 
-      // Update line item in bill
-      const lineUpdates: Partial<LineItem> = {};
-      if (modifiedFields.has("product_name")) lineUpdates.product_name = form.product_name;
-      if (modifiedFields.has("brand")) lineUpdates.brand = form.brand;
-      if (modifiedFields.has("category")) lineUpdates.category = form.category;
-      if (modifiedFields.has("style")) lineUpdates.style = form.style;
-      if (modifiedFields.has("color")) lineUpdates.color = form.color;
-      if (modifiedFields.has("hsn_code")) lineUpdates.hsn_code = form.hsn_code;
-      if (modifiedFields.has("gst_per")) lineUpdates.gst_per = form.gst_per;
-      if (modifiedFields.has("purchase_gst_percent")) {
-        lineUpdates.gst_per = form.purchase_gst_percent ?? form.gst_per;
-      }
-      if (modifiedFields.has("default_pur_price")) lineUpdates.pur_price = form.default_pur_price;
-      if (modifiedFields.has("default_sale_price")) lineUpdates.sale_price = form.default_sale_price;
-      if (modifiedFields.has("default_mrp")) lineUpdates.mrp = form.default_mrp;
-
+      // This barcode's bill line only — other sizes of the same product stay as entered.
+      const lineUpdates = buildPurchaseLinePatchFromProductEdit({
+        form,
+        line: item,
+        modifiedFields,
+      });
       if (Object.keys(lineUpdates).length > 0) {
-        // Pricing + colour → only the current row. Master fields → all rows of same product.
-        const ROW_ONLY_FIELDS = new Set(["pur_price", "sale_price", "mrp", "color"]);
-        const masterUpdates: Partial<LineItem> = {};
-        const rowOnlyUpdates: Partial<LineItem> = {};
-        Object.entries(lineUpdates).forEach(([k, v]) => {
-          if (ROW_ONLY_FIELDS.has(k)) (rowOnlyUpdates as any)[k] = v;
-          else (masterUpdates as any)[k] = v;
+        onProductUpdated(item.temp_id, lineUpdates, {
+          barcode: item.barcode || currentVariant?.barcode || variantBarcode,
+          skuId: item.sku_id,
         });
-        // Apply product-level fields to ALL line items of this product
-        if (Object.keys(masterUpdates).length > 0) {
-          onProductUpdated(item.temp_id, masterUpdates, item.product_id);
-        }
-        // Apply pricing/colour only to the edited row
-        if (Object.keys(rowOnlyUpdates).length > 0) {
-          onProductUpdated(item.temp_id, rowOnlyUpdates);
-        }
-      }
-
-      // Sync product_name to all purchase_items for this product
-      if (modifiedFields.has("product_name")) {
-        await supabase
-          .from("purchase_items")
-          .update({ product_name: form.product_name })
-          .eq("product_id", item.product_id);
       }
 
       setOriginal({ ...form });
@@ -465,7 +453,7 @@ const ProductEditPanel = ({
 
       toast({
         title: "Product Updated",
-        description: `${form.product_name} updated in Product Master`,
+        description: `${form.product_name} saved. This barcode's line on the bill was updated.`,
       });
     } catch (err: any) {
       toast({
@@ -954,7 +942,8 @@ const ProductEditPanel = ({
                           size="sm"
                           className="h-7 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white"
                           onClick={async () => {
-                            if (!currentVariant?.id || !variantSize.trim()) return;
+                            if (!currentVariant?.id || !variantSize.trim() || !currentOrganization?.id) return;
+                            const orgId = currentOrganization.id;
                             if (soldUnits > 0) {
                               toast({
                                 title: "Cannot change size",
@@ -967,11 +956,15 @@ const ProductEditPanel = ({
                               const { error } = await supabase
                                 .from("product_variants")
                                 .update({ size: variantSize.trim() })
-                                .eq("id", currentVariant.id);
+                                .eq("id", currentVariant.id)
+                                .eq("organization_id", orgId);
                               if (error) throw error;
                               setCurrentVariant(prev => prev ? { ...prev, size: variantSize.trim() } : prev);
                               setSizeModified(false);
-                              onProductUpdated(item.temp_id, { size: variantSize.trim() });
+                              onProductUpdated(item.temp_id, { size: variantSize.trim() }, {
+                                barcode: item.barcode || currentVariant.barcode,
+                                skuId: item.sku_id,
+                              });
                               toast({ title: "Size Updated", description: `Size changed to ${variantSize.trim()}` });
                             } catch (err: any) {
                               toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -1024,11 +1017,15 @@ const ProductEditPanel = ({
                               const { error } = await supabase
                                 .from("product_variants")
                                 .update({ barcode: cleaned })
-                                .eq("id", currentVariant.id);
+                                .eq("id", currentVariant.id)
+                                .eq("organization_id", currentOrganization.id);
                               if (error) throw error;
                               setCurrentVariant(prev => prev ? { ...prev, barcode: cleaned } : prev);
                               setBarcodeModified(false);
-                              onProductUpdated(item.temp_id, { barcode: cleaned });
+                              onProductUpdated(item.temp_id, { barcode: cleaned }, {
+                                barcode: item.barcode || currentVariant.barcode,
+                                skuId: item.sku_id,
+                              });
                               toast({ title: "IMEI Updated", description: `IMEI changed to ${cleaned}` });
                             } catch (err: any) {
                               toast({ title: "Error", description: err.message, variant: "destructive" });
