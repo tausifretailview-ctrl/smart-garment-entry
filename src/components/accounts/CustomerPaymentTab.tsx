@@ -1282,6 +1282,9 @@ export function CustomerPaymentTab({
         await deleteJournalEntryByReference(organizationId, journalRef, voucherId, supabase);
       }
       let saleCustomerId: string | null = null;
+      // Written after the voucher is gone: the DB refuses lowering S/R adjust
+      // while a credit-note voucher is still live on the bill.
+      let cnSaleUpdate: { paid_amount: number; payment_status: string; sale_return_adjust: number } | null = null;
       if (saleId) {
         const { data: invoice } = await supabase
           .from("sales")
@@ -1316,20 +1319,24 @@ export function CustomerPaymentTab({
               legacyCnStatus,
               newStatus,
             );
-            await supabase
-              .from("sales")
-              .update({
-                paid_amount: newPaid,
-                payment_status: newStatus,
-                sale_return_adjust: newSr,
-              })
-              .eq("id", saleId);
+            cnSaleUpdate = {
+              paid_amount: newPaid,
+              payment_status: newStatus,
+              sale_return_adjust: newSr,
+            };
           }
         }
       }
       await supabase.from("voucher_items").delete().eq("voucher_id", voucherId);
       const { error } = await supabase.from("voucher_entries").delete().eq("id", voucherId);
       if (error) throw error;
+      if (saleId && cnSaleUpdate) {
+        const { error: saleUpdErr } = await supabase
+          .from("sales")
+          .update(cnSaleUpdate)
+          .eq("id", saleId);
+        if (saleUpdErr) throw saleUpdErr;
+      }
       if (saleId && !isCreditNoteApplication) {
         if (isAdvanceApplication && saleCustomerId) {
           await reverseCustomerAdvanceFifo(
