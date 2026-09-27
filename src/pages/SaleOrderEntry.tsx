@@ -942,7 +942,7 @@ export default function SaleOrderEntry() {
     if (!item.productId) return null;
     const diff = item.stockQty - item.orderQty;
     if (diff >= 0) return { color: 'text-green-600', icon: CheckCircle, text: `+${diff} available` };
-    return { color: 'text-red-600', icon: AlertTriangle, text: `${diff} short` };
+    return { color: 'text-primary', icon: AlertTriangle, text: `${diff} short` };
   };
 
   const selectProductSearchGroup = (group: SaleOrderProductSearchGroup) => {
