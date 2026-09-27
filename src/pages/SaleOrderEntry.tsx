@@ -69,6 +69,11 @@ import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/s
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
 import {
+  combineSaleOrderReservations,
+  fetchOpenSaleOrderReservations,
+  formatSaleOrderReservationTooltip,
+} from "@/utils/saleOrderReservations";
+import {
   type SaleOrderProductSearchGroup,
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
@@ -164,6 +169,8 @@ export default function SaleOrderEntry() {
   const [sizeGridLoading, setSizeGridLoading] = useState(false);
   const [sizeGridProduct, setSizeGridProduct] = useState<any>(null);
   const [sizeGridVariants, setSizeGridVariants] = useState<any[]>([]);
+  // Qty of each grid cell already pending on other open Sale Orders (info only).
+  const [sizeGridReserved, setSizeGridReserved] = useState<Record<string, { qty: number; tooltip: string }>>({});
   // "+ Add Product": create the product master (0 stock) for items not yet purchased.
   const [showProductDialog, setShowProductDialog] = useState(false);
 
@@ -542,6 +549,7 @@ export default function SaleOrderEntry() {
     const primaryProductId = productIds[0];
     setSizeGridProduct({ id: primaryProductId, product_name: "Loading…" });
     setSizeGridVariants([]);
+    setSizeGridReserved({});
     setSizeGridLoading(true);
     setShowSizeGrid(true);
     setOpenProductSearch(false);
@@ -603,17 +611,36 @@ export default function SaleOrderEntry() {
       }
     }
 
+    const mergedVariants = mergeSizeColorVariantsForGrid(data, {
+      selectedSalePrice,
+      cartQtyByVariant,
+      defaultColor: productRow.color || "",
+      products: groupProducts || [productRow],
+    });
     setSizeGridProduct(productRow);
-    setSizeGridVariants(
-      mergeSizeColorVariantsForGrid(data, {
-        selectedSalePrice,
-        cartQtyByVariant,
-        defaultColor: productRow.color || "",
-        products: groupProducts || [productRow],
-      }),
-    );
+    setSizeGridVariants(mergedVariants);
     setSizeGridLoading(false);
-  }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
+
+    // "Reserved" tag: same variant (size + colour) pending on other open Sale Orders.
+    // Loaded after the grid shows so it never slows entry; a failure just hides the tag.
+    try {
+      const reservations = await fetchOpenSaleOrderReservations(
+        currentOrganization.id,
+        data.map((v) => v.id),
+        editingOrderId,
+      );
+      const reservedByCell: Record<string, { qty: number; tooltip: string }> = {};
+      for (const cell of mergedVariants) {
+        const combined = combineSaleOrderReservations(cell.variant_ids, reservations);
+        if (combined) {
+          reservedByCell[cell.id] = { qty: combined.qty, tooltip: formatSaleOrderReservationTooltip(combined) };
+        }
+      }
+      setSizeGridReserved(reservedByCell);
+    } catch (reservationError) {
+      console.warn("Sale Order reservations lookup failed:", reservationError);
+    }
+  }, [currentOrganization?.id, editingOrderId, lineItems, toast, setOpenProductSearch, setSearchInput]);
 
   const openAddProductDialog = useCallback(() => {
     prefetchProductEntryDialog();
@@ -937,6 +964,27 @@ export default function SaleOrderEntry() {
   const subtotal = amountAfterFlatDiscount + totalGST;
   const netAmount = subtotal + roundOff;
   const totalDiscount = totalLineDiscount + calculatedFlatDiscount;
+
+  // Items on this order that are also pending on other open Sale Orders (exact
+  // variant = same product, size and colour). Info only: booking is never blocked.
+  const lineVariantIdsKey = useMemo(
+    () =>
+      Array.from(new Set(lineItems.filter((item) => item.productId && item.variantId).map((item) => item.variantId)))
+        .sort()
+        .join(","),
+    [lineItems],
+  );
+  const { data: lineReservations } = useQuery({
+    queryKey: ["sale-order-reservations", currentOrganization?.id, lineVariantIdsKey, editingOrderId],
+    queryFn: () =>
+      fetchOpenSaleOrderReservations(
+        currentOrganization!.id,
+        lineVariantIdsKey.split(","),
+        editingOrderId,
+      ),
+    enabled: !!currentOrganization?.id && lineVariantIdsKey.length > 0,
+    staleTime: 30_000,
+  });
 
   const getStockDifference = (item: LineItem) => {
     if (!item.productId) return null;
@@ -1724,7 +1772,21 @@ export default function SaleOrderEntry() {
                             </SelectContent>
                           </Select>
                         </td>
-                        <td className="text-center text-[13px] font-bold px-2 py-2">{item.stockQty}</td>
+                        <td className="text-center text-[13px] font-bold px-2 py-2">
+                          {item.stockQty}
+                          {(() => {
+                            const reserved = item.variantId ? lineReservations?.get(item.variantId) : undefined;
+                            if (!reserved || reserved.qty <= 0) return null;
+                            return (
+                              <div
+                                title={formatSaleOrderReservationTooltip(reserved)}
+                                className="mt-0.5 inline-block text-[10px] font-semibold leading-tight rounded px-1 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap cursor-help"
+                              >
+                                Reserved: {reserved.qty}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="text-center px-2 py-2">
                           {stockInfo && (
                             <div className={cn("flex items-center justify-center gap-1 text-xs font-bold", stockInfo.color)}>
@@ -2039,6 +2101,7 @@ export default function SaleOrderEntry() {
         }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
+        reservedByVariant={sizeGridReserved}
         onConfirm={handleSizeGridConfirm}
         showStock={true}
         validateStock={false}

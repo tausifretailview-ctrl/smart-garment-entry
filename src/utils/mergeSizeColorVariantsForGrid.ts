@@ -22,6 +22,8 @@ export type MergedSizeGridVariant = {
   mrp: number;
   stock_qty: number;
   pur_price?: number;
+  /** Every raw variant id merged into this size+colour cell (rep id included). */
+  variant_ids: string[];
 };
 
 /** Product master fields needed to colour variants that come from several products. */
@@ -161,6 +163,7 @@ export function mergeSizeColorVariantsForGrid<T extends SizeGridVariantSource>(
       mrp: rep.mrp || 0,
       pur_price: rep.pur_price ?? undefined,
       stock_qty: Math.max(0, totalStock - cartReserved),
+      variant_ids: group.map((v) => v.id),
     };
   });
 }

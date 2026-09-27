@@ -70,6 +70,11 @@ interface SizeGridDialogProps {
    * Other screens keep Enter = confirm.
    */
   enterAdvancesSize?: boolean;
+  /**
+   * Sale Order: qty of each variant (by id) already pending on other open Sale
+   * Orders. Shown as an amber "Reserved" tag under Stock; never blocks entry.
+   */
+  reservedByVariant?: Record<string, { qty: number; tooltip: string }>;
 }
 
 export function SizeGridDialog({
@@ -94,6 +99,7 @@ export function SizeGridDialog({
   showPurPrice = false,
   isLoading = false,
   enterAdvancesSize = false,
+  reservedByVariant,
 }: SizeGridDialogProps) {
   const { toast } = useToast();
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
@@ -158,6 +164,19 @@ export function SizeGridDialog({
   /** Service/combo virtual stock (999999…) → show 1 in size grid. */
   const stockForDisplay = (raw: number | null | undefined) =>
     displaySaleStockQty(product?.product_type, raw);
+
+  const renderReservedTag = (variantId: string) => {
+    const reserved = reservedByVariant?.[variantId];
+    if (!reserved || reserved.qty <= 0) return null;
+    return (
+      <span
+        title={reserved.tooltip}
+        className="text-[10px] font-semibold leading-tight rounded px-1 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 whitespace-nowrap cursor-help"
+      >
+        Reserved: {reserved.qty}
+      </span>
+    );
+  };
 
   // Reset quantities and color selection when dialog opens with new product
   useEffect(() => {
@@ -704,6 +723,7 @@ export function SizeGridDialog({
                                 Stock: {stockForDisplay(v.stock_qty)}
                               </span>
                             )}
+                            {renderReservedTag(v.id)}
                             {showSizePrices && (
                               <input
                                 type="number"
@@ -1111,6 +1131,7 @@ export function SizeGridDialog({
                             Stock: {stockForDisplay(v.stock_qty)}
                           </span>
                         )}
+                        {renderReservedTag(v.id)}
                         {showSizePrices && (
                           <input
                             type="number"
