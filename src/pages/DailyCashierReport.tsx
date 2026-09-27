@@ -66,6 +66,7 @@ import {
 } from "@/utils/cashTallyExpectedDrawer";
 import { LazyFloatingCashTally } from "@/components/lazyFloatingWidgets";
 import { cashierSaleReturnRefundMode } from "@/utils/cashierSaleReturnRefunds";
+import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 
 type PeriodType = "daily" | "monthly" | "quarterly";
 
@@ -670,6 +671,9 @@ const DailyCashierReport = () => {
           total_amount: receipt.total_amount,
         });
         if (amount <= 0) return;
+        // Advance / credit-note adjustments move existing credit onto a bill (shown under
+        // "Old credit used on bills"); no money comes in, so never fall through to cash.
+        if (isNonCashSettlementReceiptMethod(receipt.payment_method)) return;
         const method = (receipt.payment_method || "").toLowerCase().trim();
         const desc = (receipt.description || '').toLowerCase();
 

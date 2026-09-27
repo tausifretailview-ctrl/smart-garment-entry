@@ -16,6 +16,7 @@ import {
 } from "@/utils/cashierSaleModeAmounts";
 import { createSameDaySaleReceiptOverlapTracker } from "@/utils/posCashierCashIn";
 import { classifyDailyTallyPaymentOutflow } from "@/utils/accounting/thirdPartyVoucherCash";
+import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 import {
   cashierSaleReturnRefundMode,
   isDrawerSaleReturnRefund,
@@ -233,8 +234,8 @@ export function aggregateCashTallyDrawerFlows(params: {
   for (const v of params.vouchers || []) {
     const rawAmt = Number(v.total_amount) || 0;
     if (rawAmt <= 0) continue;
-    const pm = (v.payment_method || "").toLowerCase();
-    if (pm === "advance_adjustment" || pm === "credit_note" || pm === "advance") continue;
+    // Advance / credit-note adjustments move existing credit onto a bill; no cash moves.
+    if (isNonCashSettlementReceiptMethod(v.payment_method)) continue;
 
     const mode = resolveCashTallyPaymentMode(v.payment_method, v.description || "");
 
