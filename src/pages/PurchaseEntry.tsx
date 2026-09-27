@@ -56,10 +56,13 @@ import {
   readPurchaseEntryDraftMeta,
   readPurchaseEntrySnapshot,
   readPurchaseEntrySnapshotAsync,
+  buildPurchaseEditBaselineHeader,
+  isPurchaseEditSnapshotUnchanged,
   wasPurchaseEntryNavHandled,
   wasPurchaseEntryRemount,
   writePurchaseEntrySnapshot,
   type PurchaseDraftDiscardedDetail,
+  type PurchaseEditBaselineHeader,
   type PurchaseEntrySnapshot,
 } from "@/lib/purchaseEntryPersistence";
 import { resolveTabCachePath } from "@/lib/tabPageRegistry";
@@ -737,6 +740,10 @@ const PurchaseEntry = () => {
   const [originalLineItems, setOriginalLineItems] = useState<LineItem[]>(
     () => (initialBrowserSnapshot?.originalLineItems as LineItem[] | undefined) ?? [],
   ); // Store original items for comparison
+  /** Saved bill's header as loaded — lets us tell "opened to view" from real unsaved edits. */
+  const editBaselineHeaderRef = useRef<PurchaseEditBaselineHeader | null>(
+    initialBrowserSnapshot?.originalHeader ?? null,
+  );
   const isInitializingEditRef = useRef(false);
   const loadedEditBillIdRef = useRef<string | null>(null);
   const workRestoredRef = useRef(Boolean(initialBrowserSnapshot?.lineItems?.length));
@@ -1106,6 +1113,7 @@ const PurchaseEntry = () => {
     setEditingBillId(null);
     setIsEditMode(false);
     setOriginalLineItems([]);
+    editBaselineHeaderRef.current = null;
     editSaveInsertedTempIdsRef.current = new Set();
     setNavBillIndex(null);
     setSavedBillId(null);
@@ -1219,6 +1227,7 @@ const PurchaseEntry = () => {
       isEditMode,
       editingBillId,
       originalLineItems,
+      originalHeader: editBaselineHeaderRef.current,
       tabInstanceId: tabInstanceIdRef.current,
       savedAt: Date.now(),
       pendingImport: pendingImportRef.current,
@@ -1261,6 +1270,7 @@ const PurchaseEntry = () => {
         isEditMode,
         editingBillId,
         originalLineItems,
+        originalHeader: editBaselineHeaderRef.current,
         pendingImport: pendingImportRef.current,
       };
       latestSnapshotRef.current = snapshot;
@@ -1494,6 +1504,7 @@ const PurchaseEntry = () => {
       setEditingBillId(data.editingBillId);
       loadedEditBillIdRef.current = data.editingBillId;
       setOriginalLineItems((data.originalLineItems || []).map((item: LineItem) => ({ ...item })));
+      editBaselineHeaderRef.current = data.originalHeader ?? null;
     }
   }, [bumpSupplierInvAutoFill]);
 
@@ -1766,6 +1777,25 @@ const PurchaseEntry = () => {
     latestSnapshotRef.current = buildEntrySnapshot();
   }, [buildEntrySnapshot, lineItems.length]);
 
+  // A saved bill opened just to view/check (nothing changed) is not unsaved work:
+  // keep no browser/DB draft for it, and remove one left over from an earlier view.
+  const draftForBillRef = useRef<string | null>(null);
+  draftForBillRef.current =
+    hasDraft && (draftData as PurchaseEntrySnapshot | null)?.isEditMode
+      ? ((draftData as PurchaseEntrySnapshot).editingBillId ?? null)
+      : null;
+  const dropUnchangedEditDraft = useCallback(
+    (snapshot: PurchaseEntrySnapshot | null) => {
+      updateCurrentData(null);
+      clearEntrySession();
+      if (snapshot?.editingBillId && draftForBillRef.current === snapshot.editingBillId) {
+        draftForBillRef.current = null;
+        void deleteDraft();
+      }
+    },
+    [updateCurrentData, clearEntrySession, deleteDraft],
+  );
+
   // Debounced auto-save — prevents JSON serializing 1000+ items on every keystroke
   useEffect(() => {
     if (importJustAppliedRef.current) {
@@ -1780,6 +1810,10 @@ const PurchaseEntry = () => {
     if (autoSaveDebounceRef.current) clearTimeout(autoSaveDebounceRef.current);
     autoSaveDebounceRef.current = setTimeout(() => {
       if (purchaseSaveFinalizedRef.current || draftDiscardedExternallyRef.current) return;
+      if (isPurchaseEditSnapshotUnchanged(snapshot)) {
+        dropUnchangedEditDraft(snapshot);
+        return;
+      }
       if (snapshot) {
         updateCurrentData(snapshot);
         persistEntrySession(snapshot);
@@ -1797,6 +1831,7 @@ const PurchaseEntry = () => {
     updateCurrentData,
     persistEntrySession,
     clearEntrySession,
+    dropUnchangedEditDraft,
   ]);
 
   const flushEntryPersistence = useCallback(() => {
@@ -1809,13 +1844,17 @@ const PurchaseEntry = () => {
     // during async restore used to clear the good snapshot and leave orphan variants.
     if (entryPersistenceBlockedRef.current || isInitializingEditRef.current) {
       const snapshot = (latestSnapshotRef.current ?? buildEntrySnapshot()) as PurchaseEntrySnapshot | null;
-      if (snapshot?.lineItems?.length) {
+      if (snapshot?.lineItems?.length && !isPurchaseEditSnapshotUnchanged(snapshot)) {
         latestSnapshotRef.current = snapshot;
         persistEntrySession(snapshot);
       }
       return;
     }
     const snapshot = (latestSnapshotRef.current ?? buildEntrySnapshot()) as PurchaseEntrySnapshot | null;
+    if (isPurchaseEditSnapshotUnchanged(snapshot)) {
+      dropUnchangedEditDraft(snapshot);
+      return;
+    }
     if (snapshot?.lineItems && Array.isArray(snapshot.lineItems) && snapshot.lineItems.length > 0) {
       latestSnapshotRef.current = snapshot;
       updateCurrentData(snapshot);
@@ -1825,7 +1864,7 @@ const PurchaseEntry = () => {
     }
     updateCurrentData(null);
     clearEntrySession();
-  }, [buildEntrySnapshot, updateCurrentData, persistEntrySession, clearEntrySession, saveDraft]);
+  }, [buildEntrySnapshot, updateCurrentData, persistEntrySession, clearEntrySession, saveDraft, dropUnchangedEditDraft]);
 
   const clearNewBillNavigation = useCallback(() => {
     if (!location.state?.newBill) return;
@@ -2411,6 +2450,18 @@ const PurchaseEntry = () => {
         return base;
       });
 
+      editBaselineHeaderRef.current = buildPurchaseEditBaselineHeader({
+        billData: {
+          supplier_id: existingBill.supplier_id || '',
+          supplier_invoice_no: existingBill.supplier_invoice_no || '',
+        },
+        softwareBillNo: existingBill.software_bill_no || '',
+        billDate: new Date(existingBill.bill_date).toISOString(),
+        roundOff: Number(existingBill.round_off) || 0,
+        otherCharges: Number(existingBill.other_charges) || 0,
+        discountAmount: Number(existingBill.discount_amount) || 0,
+        isDcPurchase: existingBill.is_dc_purchase === true,
+      });
       setLineItems(loadedItems);
       setOriginalLineItems(loadedItems.map((item) => ({ ...item })));
       editSaveInsertedTempIdsRef.current = new Set();
