@@ -95,7 +95,7 @@ describe("sumPhysicalStockTotals", () => {
 
 describe("Quick Stock Check source", () => {
   it("selects product_type and sums with physical-stock helpers", () => {
-    const src = readFileSync(resolve(here, "../components/FloatingPOSReports.tsx"), "utf8");
+    const src = readFileSync(resolve(here, "../components/FloatingStockReport.tsx"), "utf8");
     expect(src).toContain("sumPhysicalStockTotals");
     expect(src).toContain("displaySaleStockQty");
     expect(src).toContain("excludeServiceVariants");
