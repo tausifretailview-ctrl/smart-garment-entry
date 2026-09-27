@@ -2128,8 +2128,8 @@ export const ProductEntryDialog = ({
         return false;
       }
 
-      // Check barcode is present — skip in purchase context since barcodes are generated at save time
-      if (!hideOpeningQty && (!variant.barcode || variant.barcode.trim() === '')) {
+      // Check barcode is present — skip in purchase / Sale Order master-only context since barcodes are generated at save time
+      if (!hideOpeningQty && !masterOnly && (!variant.barcode || variant.barcode.trim() === '')) {
         toast({
           title: "Barcode Required",
           description: `Barcode is required for variant ${variant.size}${variant.color ? ` (${variant.color})` : ''}. Please generate barcode first.`,
