@@ -113,6 +113,43 @@ Deno.serve(async (req) => {
       );
     }
 
+    // SECURITY: an org admin must not be able to take over an account that also belongs
+    // to another business (or the platform admin) by adding it to their org and then
+    // resetting its password. Only platform admins may reset those accounts.
+    if (!isPlatformAdmin) {
+      const { data: targetPlatformRole } = await adminClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", targetUserId)
+        .eq("role", "platform_admin")
+        .maybeSingle();
+      const { data: targetOrgs } = await adminClient
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", targetUserId);
+      const { data: callerAdminOrgs } = await adminClient
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", caller.id)
+        .eq("role", "admin");
+      const callerAdminOrgIds = new Set((callerAdminOrgs ?? []).map((m) => m.organization_id));
+      const belongsElsewhere = (targetOrgs ?? []).some(
+        (m) => !callerAdminOrgIds.has(m.organization_id),
+      );
+      if (targetPlatformRole || belongsElsewhere) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "This user also belongs to another business. Ask the platform admin to reset their password.",
+          }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
     // Update password via admin API
     const { error: updateError } = await adminClient.auth.admin.updateUserById(
       targetUserId,

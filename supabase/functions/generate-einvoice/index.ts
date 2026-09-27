@@ -228,6 +228,7 @@ Deno.serve(async (req) => {
       .from('sales')
       .select(`*, sale_items (*), customers:customer_id (gst_number, customer_name, address, phone, email)`)
       .eq('id', saleId)
+      .eq('organization_id', organizationId)
       .single();
 
     if (saleError || !sale) {

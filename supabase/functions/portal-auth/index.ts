@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       // Find customer by phone - try fuzzy match with last 10 digits
       const { data: customers, error: custError } = await supabase
         .from('customers')
-        .select('id, customer_name, portal_enabled, phone')
+        .select('id, customer_name, portal_enabled, phone, portal_otp_expires_at')
         .eq('organization_id', org.id)
         .eq('portal_enabled', true)
         .is('deleted_at', null)
@@ -71,6 +71,12 @@ Deno.serve(async (req) => {
         return json({
           error: 'This mobile number is not registered for portal access. Contact your supplier.'
         }, 403);
+      }
+
+      // SECURITY: at most one OTP per number per minute (WhatsApp cost / spam).
+      const lastExpiry = customer.portal_otp_expires_at ? new Date(customer.portal_otp_expires_at).getTime() : 0;
+      if (lastExpiry - 10 * 60 * 1000 > Date.now() - 60 * 1000) {
+        return json({ error: 'An OTP was just sent. Please wait a minute before asking again.' }, 429);
       }
 
       return await processOTPSend(supabase, customer, org, normalizedPhone, json);
@@ -105,12 +111,23 @@ Deno.serve(async (req) => {
         return json({ error: 'No OTP found. Please request a new OTP.' }, 401);
       }
 
-      if (String(customer.portal_otp).trim() !== String(otp).trim()) {
-        return json({ error: 'Incorrect OTP. Please try again.' }, 401);
+      // SECURITY: every OTP allows exactly one guess. The code is consumed with a single
+      // conditional UPDATE, so parallel guesses cannot race it; a wrong guess wipes the code
+      // (portal_otp_expires_at is kept, so the one-OTP-per-minute send limit still applies).
+      const { data: consumed, error: consumeError } = await supabase
+        .from('customers')
+        .update({ portal_otp: null })
+        .eq('id', customer.id)
+        .eq('portal_otp', String(otp).trim())
+        .gt('portal_otp_expires_at', new Date().toISOString())
+        .select('id');
+      if (consumeError) {
+        console.error('OTP consume error:', consumeError);
+        return json({ error: 'Could not verify the OTP. Please try again.' }, 500);
       }
-
-      if (customer.portal_otp_expires_at && new Date(customer.portal_otp_expires_at) < new Date()) {
-        return json({ error: 'OTP has expired. Please request a new one.' }, 401);
+      if (!consumed || consumed.length === 0) {
+        await supabase.from('customers').update({ portal_otp: null }).eq('id', customer.id);
+        return json({ error: 'Incorrect or expired OTP. Please request a new OTP.' }, 401);
       }
 
       // Create 30-day session token
@@ -164,7 +181,7 @@ async function processOTPSend(
   json: (data: unknown, status?: number) => Response
 ): Promise<Response> {
   // Generate 6-digit OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpCode = (100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)).toString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Store OTP in customer record FIRST
