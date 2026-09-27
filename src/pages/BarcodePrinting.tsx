@@ -145,6 +145,7 @@ import {
   BARCODE_PRINT_PURCHASE_BILL_QUERY,
   barcodePrintingPathWithBill,
   fetchBarcodePrintItemsForBill,
+  resolvePurchaseLabelIdentity,
 } from "@/utils/barcodePurchaseBillItems";
 import {
   DndContext,
@@ -3647,7 +3648,8 @@ export default function BarcodePrinting() {
 
       const items: LabelItem[] = pending.items.map((item: any) => {
         const live = item.sku_id ? liveBySku.get(item.sku_id) : undefined;
-        // Bill snapshot keeps qty / bill meta / purchase code inputs; master wins for label identity + prices.
+        // Bill snapshot keeps qty, bill meta, and this barcode's name/style.
+        // Variant prices still come from the live SKU.
         const purPrice = live?.pur_price ?? item.pur_price ?? 0;
         const gstPer = item.gst_per || 0;
         const billDateStr = item.bill_date || undefined;
@@ -3661,16 +3663,19 @@ export default function BarcodePrinting() {
         }) || undefined;
 
         if (purPrice > 0) hasPurchasePrices = true;
-        const style = live?.style ?? item.style ?? "";
+        // Name / brand / style / colour stay on this barcode's bill line.
+        // The catalog row is shared by every size, so it must not overwrite them.
+        const identity = resolvePurchaseLabelIdentity(item, live);
+        const style = identity.style;
         if (style && String(style).trim()) hasStyle = true;
         if (item.supplier_code && String(item.supplier_code).trim()) hasSupplierCode = true;
 
         return {
           sku_id: item.sku_id,
-          product_name: live?.product_name || item.product_name,
-          brand: live?.brand || item.brand || "",
-          category: live?.category || item.category || "",
-          color: live?.color || item.color || "",
+          product_name: identity.product_name,
+          brand: identity.brand,
+          category: identity.category,
+          color: identity.color,
           style,
           size: live?.size || item.size,
           sale_price: live?.sale_price ?? item.sale_price,

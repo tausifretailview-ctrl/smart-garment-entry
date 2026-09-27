@@ -36,6 +36,37 @@ function hasDisplayValue(value?: string | null): value is string {
   return t.length > 0 && t !== "-";
 }
 
+export type PurchaseLabelIdentity = {
+  product_name?: string | null;
+  brand?: string | null;
+  category?: string | null;
+  color?: string | null;
+  style?: string | null;
+};
+
+/**
+ * Purchase-bill lines carry the barcode that was edited (style 18565 vs 18546).
+ * The product master has one style for every size, so label text must keep the
+ * bill line when it has a value and only fall back to the live catalog when blank.
+ */
+export function resolvePurchaseLabelIdentity(
+  line: PurchaseLabelIdentity,
+  live?: PurchaseLabelIdentity | null,
+): { product_name: string; brand: string; category: string; color: string; style: string } {
+  const pick = (lineValue?: string | null, liveValue?: string | null) => {
+    if (hasDisplayValue(lineValue)) return lineValue.trim();
+    if (hasDisplayValue(liveValue)) return liveValue.trim();
+    return "";
+  };
+  return {
+    product_name: pick(line.product_name, live?.product_name),
+    brand: pick(line.brand, live?.brand),
+    category: pick(line.category, live?.category),
+    color: pick(line.color, live?.color),
+    style: pick(line.style, live?.style),
+  };
+}
+
 /**
  * Load purchase bill line items in the shape expected by BarcodePrinting
  * (same as PurchaseEntry.handlePrintBarcodes / PurchaseBillDashboard).
