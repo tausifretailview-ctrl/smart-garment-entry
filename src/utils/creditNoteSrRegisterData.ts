@@ -93,13 +93,14 @@ export async function fetchCreditNoteSrRegisterSource(
     const chunk = saleIdList.slice(i, i + PAGE);
     const { data, error } = await supabase
       .from("sales")
-      .select("id, sale_number, sale_type, sale_date, sale_return_adjust")
+      .select("id, customer_id, sale_number, sale_type, sale_date, sale_return_adjust")
       .eq("organization_id", organizationId)
       .in("id", chunk)
       .is("deleted_at", null);
     if (error) throw error;
     for (const s of data || []) {
       salesById[s.id] = {
+        customer_id: s.customer_id,
         sale_number: s.sale_number,
         sale_type: s.sale_type,
         sale_date: s.sale_date,

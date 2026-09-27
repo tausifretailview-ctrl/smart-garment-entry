@@ -48,6 +48,7 @@ export type CreditNoteSrRegisterSource = {
   salesById: Record<
     string,
     {
+      customer_id?: string | null;
       sale_number?: string | null;
       sale_return_adjust?: number | null;
       sale_type?: string | null;
@@ -183,6 +184,30 @@ export function creditNoteSrRegisterStatusLabel(params: {
   return "Pending";
 }
 
+/**
+ * CN adjustments a customer's returns may absorb: vouchers on that customer's own
+ * bills, plus any bill a return in the group is linked to. The voucher map is
+ * org-wide, so without this every customer's unused return "redeemed" other
+ * customers' bills (e.g. SR/34, SR/30, SR/33 all showing POS/26-27/391).
+ */
+function cnVouchersForCustomerGroup(
+  customerKey: string,
+  group: CreditNoteSrRegisterSaleReturn[],
+  cnVoucherBySaleId: Record<string, number>,
+  salesById: CreditNoteSrRegisterSource["salesById"],
+): Record<string, number> {
+  const linkedSaleIds = new Set(
+    group.map((sr) => String(sr.linked_sale_id || "").trim()).filter(Boolean),
+  );
+  const scoped: Record<string, number> = {};
+  for (const [saleId, amount] of Object.entries(cnVoucherBySaleId)) {
+    const saleCustomer = String(salesById[saleId]?.customer_id || "").trim();
+    const ownBill = customerKey !== "_none" && saleCustomer === customerKey;
+    if (ownBill || linkedSaleIds.has(saleId)) scoped[saleId] = amount;
+  }
+  return scoped;
+}
+
 export function buildCreditNoteSrRegisterRows(
   source: CreditNoteSrRegisterSource,
 ): CreditNoteSrRegisterRow[] {
@@ -201,10 +226,10 @@ export function buildCreditNoteSrRegisterRows(
   }
 
   const rows: CreditNoteSrRegisterRow[] = [];
-  for (const [, group] of byCustomer) {
+  for (const [customerKey, group] of byCustomer) {
     const appliedMap = allocateCnAdjustmentsToSaleReturns(
       group,
-      cnVoucherBySaleId,
+      cnVouchersForCustomerGroup(customerKey, group, cnVoucherBySaleId, source.salesById),
       linkedSaleNumberById,
     );
     for (const sr of group) {
