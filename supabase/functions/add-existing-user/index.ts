@@ -154,6 +154,23 @@ Deno.serve(async (req) => {
 
     console.log('Found user:', existingUser.id)
 
+    // SECURITY: never let an organisation admin pull the platform admin into their org
+    // (membership is the precondition for the org-admin password reset).
+    if (!isPlatformAdmin) {
+      const { data: targetPlatformRole } = await supabaseAdmin
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', existingUser.id)
+        .eq('role', 'platform_admin')
+        .maybeSingle()
+      if (targetPlatformRole) {
+        return new Response(
+          JSON.stringify({ error: 'This account cannot be added to an organization by an organization admin.' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // Check if user is already in organization
     const { data: existingMember } = await supabaseAdmin
       .from('organization_members')

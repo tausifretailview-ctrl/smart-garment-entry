@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       // Find customer by phone - try fuzzy match with last 10 digits
       const { data: customers, error: custError } = await supabase
         .from('customers')
-        .select('id, customer_name, portal_enabled, phone')
+        .select('id, customer_name, portal_enabled, phone, portal_otp_expires_at')
         .eq('organization_id', org.id)
         .eq('portal_enabled', true)
         .is('deleted_at', null)
@@ -71,6 +71,12 @@ Deno.serve(async (req) => {
         return json({
           error: 'This mobile number is not registered for portal access. Contact your supplier.'
         }, 403);
+      }
+
+      // SECURITY: at most one OTP per number per minute (WhatsApp cost / spam).
+      const lastExpiry = customer.portal_otp_expires_at ? new Date(customer.portal_otp_expires_at).getTime() : 0;
+      if (lastExpiry - 10 * 60 * 1000 > Date.now() - 60 * 1000) {
+        return json({ error: 'An OTP was just sent. Please wait a minute before asking again.' }, 429);
       }
 
       return await processOTPSend(supabase, customer, org, normalizedPhone, json);
@@ -105,7 +111,20 @@ Deno.serve(async (req) => {
         return json({ error: 'No OTP found. Please request a new OTP.' }, 401);
       }
 
-      if (String(customer.portal_otp).trim() !== String(otp).trim()) {
+      // SECURITY: 5 wrong OTPs lock this number for 15 minutes (record_login_attempt),
+      // so the 6-digit code cannot be brute-forced within its 10-minute life.
+      const attemptKey = `portal:${org.id}:${normalizedPhone}`;
+      const otpOk = String(customer.portal_otp).trim() === String(otp).trim();
+      const { data: attempt } = await supabase.rpc('record_login_attempt', {
+        p_identifier: attemptKey,
+        p_attempt_type: 'portal_otp',
+        p_success: otpOk,
+      });
+      if ((attempt as { allowed?: boolean } | null)?.allowed === false) {
+        await supabase.from('customers').update({ portal_otp: null, portal_otp_expires_at: null }).eq('id', customer.id);
+        return json({ error: 'Too many wrong OTPs. Please wait 15 minutes and request a new OTP.' }, 429);
+      }
+      if (!otpOk) {
         return json({ error: 'Incorrect OTP. Please try again.' }, 401);
       }
 
@@ -164,7 +183,7 @@ async function processOTPSend(
   json: (data: unknown, status?: number) => Response
 ): Promise<Response> {
   // Generate 6-digit OTP
-  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpCode = (100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000)).toString();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   // Store OTP in customer record FIRST
