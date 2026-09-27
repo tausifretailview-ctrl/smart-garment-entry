@@ -25,12 +25,25 @@ export type PurchaseEntrySnapshot = {
   isEditMode?: boolean;
   editingBillId?: string | null;
   originalLineItems?: unknown[];
+  /** Header fields of the saved bill as loaded from the DB (edit mode only). */
+  originalHeader?: PurchaseEditBaselineHeader | null;
   tabInstanceId?: string;
   savedAt?: number;
   /** Set while an Excel import is running; cleared only when the import finishes.
    *  If present on a restored draft, the import was interrupted mid-way and the
    *  draft is incomplete — saving must be blocked until re-imported. */
   pendingImport?: { expectedRows: number; expectedQty: number } | null;
+};
+
+export type PurchaseEditBaselineHeader = {
+  supplierId: string;
+  supplierInvoiceNo: string;
+  softwareBillNo: string;
+  billDate: string;
+  roundOff: number;
+  otherCharges: number;
+  discountAmount: number;
+  isDcPurchase: boolean;
 };
 
 export type PurchaseEntryDraftMeta = {
@@ -497,6 +510,7 @@ export function summarizePurchaseDraft(data: unknown): {
   savedAt?: number;
 } | null {
   if (!data || typeof data !== "object") return null;
+  if (isPurchaseEditSnapshotUnchanged(data)) return null;
   const d = data as Record<string, unknown>;
   const lines = (d.lineItems ?? d.items) as unknown[] | undefined;
   const lineCount =
@@ -518,4 +532,96 @@ export function summarizePurchaseDraft(data: unknown): {
     isEdit: Boolean(d.isEditMode && (d.editingBillId || d.editBillId)),
     savedAt: typeof d.savedAt === "number" ? d.savedAt : undefined,
   };
+}
+
+const EDIT_COMPARE_TEXT_FIELDS = [
+  "temp_id",
+  "product_id",
+  "sku_id",
+  "product_name",
+  "brand",
+  "category",
+  "style",
+  "color",
+  "size",
+  "hsn_code",
+  "barcode",
+  "uom",
+] as const;
+const EDIT_COMPARE_NUMBER_FIELDS = [
+  "qty",
+  "pur_price",
+  "sale_price",
+  "mrp",
+  "gst_per",
+  "discount_percent",
+] as const;
+
+function sameText(a: unknown, b: unknown): boolean {
+  return String(a ?? "").trim() === String(b ?? "").trim();
+}
+
+function sameNumber(a: unknown, b: unknown): boolean {
+  return Math.abs((Number(a) || 0) - (Number(b) || 0)) < 0.0001;
+}
+
+/** Header values of a bill as currently shown in Purchase Entry. */
+export function buildPurchaseEditBaselineHeader(input: {
+  billData?: unknown;
+  softwareBillNo?: string;
+  billDate?: string;
+  roundOff?: number;
+  otherCharges?: number;
+  discountAmount?: number;
+  isDcPurchase?: boolean;
+}): PurchaseEditBaselineHeader {
+  const bill = (input.billData ?? {}) as { supplier_id?: unknown; supplier_invoice_no?: unknown };
+  return {
+    supplierId: String(bill.supplier_id ?? "").trim(),
+    supplierInvoiceNo: String(bill.supplier_invoice_no ?? "").trim(),
+    softwareBillNo: String(input.softwareBillNo ?? "").trim(),
+    billDate: String(input.billDate ?? ""),
+    roundOff: Number(input.roundOff) || 0,
+    otherCharges: Number(input.otherCharges) || 0,
+    discountAmount: Number(input.discountAmount) || 0,
+    isDcPurchase: Boolean(input.isDcPurchase),
+  };
+}
+
+/**
+ * True when a snapshot is an already-saved bill opened for edit/view with nothing
+ * changed since it was loaded — such a snapshot is not unsaved work and must not be
+ * kept as a draft (it made the dashboard show "Unsaved Purchase Edit" after a view).
+ */
+export function isPurchaseEditSnapshotUnchanged(snapshot: unknown): boolean {
+  if (!snapshot || typeof snapshot !== "object") return false;
+  const s = snapshot as PurchaseEntrySnapshot;
+  if (!s.isEditMode || !s.editingBillId || !s.originalHeader) return false;
+  if (s.pendingImport) return false;
+
+  const header = buildPurchaseEditBaselineHeader(s);
+  const base = s.originalHeader;
+  if (
+    header.supplierId !== base.supplierId ||
+    header.supplierInvoiceNo !== base.supplierInvoiceNo ||
+    header.softwareBillNo !== base.softwareBillNo ||
+    header.billDate !== base.billDate ||
+    !sameNumber(header.roundOff, base.roundOff) ||
+    !sameNumber(header.otherCharges, base.otherCharges) ||
+    !sameNumber(header.discountAmount, base.discountAmount) ||
+    header.isDcPurchase !== base.isDcPurchase
+  ) {
+    return false;
+  }
+
+  const lines = Array.isArray(s.lineItems) ? s.lineItems : [];
+  const originals = Array.isArray(s.originalLineItems) ? s.originalLineItems : [];
+  if (lines.length !== originals.length) return false;
+  for (let i = 0; i < lines.length; i++) {
+    const a = (lines[i] ?? {}) as Record<string, unknown>;
+    const b = (originals[i] ?? {}) as Record<string, unknown>;
+    for (const f of EDIT_COMPARE_TEXT_FIELDS) if (!sameText(a[f], b[f])) return false;
+    for (const f of EDIT_COMPARE_NUMBER_FIELDS) if (!sameNumber(a[f], b[f])) return false;
+  }
+  return true;
 }

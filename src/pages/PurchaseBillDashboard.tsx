@@ -38,6 +38,7 @@ import {
   countPurchaseDraftQty,
   readPurchaseEntrySnapshot,
   summarizePurchaseDraft,
+  isPurchaseEditSnapshotUnchanged,
   subscribePurchaseDashboardDraftSync,
   type PurchaseEntryDraftMeta,
 } from "@/lib/purchaseEntryPersistence";
@@ -390,7 +391,7 @@ const PurchaseBillDashboard = () => {
       return;
     }
     const inline = readPurchaseEntrySnapshot(currentOrganization.id, user.id);
-    if (inline?.lineItems?.length) {
+    if (inline?.lineItems?.length && !isPurchaseEditSnapshotUnchanged(inline)) {
       setBrowserDraftMeta({
         lineCount: inline.lineItems.length,
         totalQty: countPurchaseDraftQty(inline.lineItems),
