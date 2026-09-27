@@ -111,25 +111,23 @@ Deno.serve(async (req) => {
         return json({ error: 'No OTP found. Please request a new OTP.' }, 401);
       }
 
-      // SECURITY: 5 wrong OTPs lock this number for 15 minutes (record_login_attempt),
-      // so the 6-digit code cannot be brute-forced within its 10-minute life.
-      const attemptKey = `portal:${org.id}:${normalizedPhone}`;
-      const otpOk = String(customer.portal_otp).trim() === String(otp).trim();
-      const { data: attempt } = await supabase.rpc('record_login_attempt', {
-        p_identifier: attemptKey,
-        p_attempt_type: 'portal_otp',
-        p_success: otpOk,
-      });
-      if ((attempt as { allowed?: boolean } | null)?.allowed === false) {
-        await supabase.from('customers').update({ portal_otp: null, portal_otp_expires_at: null }).eq('id', customer.id);
-        return json({ error: 'Too many wrong OTPs. Please wait 15 minutes and request a new OTP.' }, 429);
+      // SECURITY: every OTP allows exactly one guess. The code is consumed with a single
+      // conditional UPDATE, so parallel guesses cannot race it; a wrong guess wipes the code
+      // (portal_otp_expires_at is kept, so the one-OTP-per-minute send limit still applies).
+      const { data: consumed, error: consumeError } = await supabase
+        .from('customers')
+        .update({ portal_otp: null })
+        .eq('id', customer.id)
+        .eq('portal_otp', String(otp).trim())
+        .gt('portal_otp_expires_at', new Date().toISOString())
+        .select('id');
+      if (consumeError) {
+        console.error('OTP consume error:', consumeError);
+        return json({ error: 'Could not verify the OTP. Please try again.' }, 500);
       }
-      if (!otpOk) {
-        return json({ error: 'Incorrect OTP. Please try again.' }, 401);
-      }
-
-      if (customer.portal_otp_expires_at && new Date(customer.portal_otp_expires_at) < new Date()) {
-        return json({ error: 'OTP has expired. Please request a new one.' }, 401);
+      if (!consumed || consumed.length === 0) {
+        await supabase.from('customers').update({ portal_otp: null }).eq('id', customer.id);
+        return json({ error: 'Incorrect or expired OTP. Please request a new OTP.' }, 401);
       }
 
       // Create 30-day session token

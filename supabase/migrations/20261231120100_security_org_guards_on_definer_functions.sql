@@ -52,7 +52,12 @@ BEGIN
     RAISE EXCEPTION 'Login required' USING ERRCODE = '42501';
   END IF;
   IF p_org IS NULL THEN
-    RETURN;  -- nothing to scope; the function itself filters on organization_id
+    -- Many functions read "NULL org" as "every organisation". Only platform admins may do
+    -- that from the API. Inside a trigger the row's own org is used, so let that through.
+    IF pg_trigger_depth() > 0 OR public.has_role(v_uid, 'platform_admin'::app_role) THEN
+      RETURN;
+    END IF;
+    RAISE EXCEPTION 'Organization is required' USING ERRCODE = '42501';
   END IF;
   IF EXISTS (SELECT 1 FROM public.organization_members om
              WHERE om.user_id = v_uid AND om.organization_id = p_org)
@@ -78,7 +83,12 @@ BEGIN
   END IF;
   EXECUTE format('SELECT organization_id FROM %s WHERE id = $1', p_table) INTO v_org USING p_id;
   IF v_org IS NULL THEN
-    PERFORM public._assert_org_access(NULL);  -- still blocks anon; "not found" is left to the function
+    -- row not found: leave "not found" to the function, but never to an anonymous caller
+    IF auth.uid() IS NULL
+       AND COALESCE(NULLIF(current_setting('request.jwt.claim.role', true), ''),
+                    NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'role') = 'anon' THEN
+      RAISE EXCEPTION 'Login required' USING ERRCODE = '42501';
+    END IF;
     RETURN;
   END IF;
   PERFORM public._assert_org_access(v_org);
@@ -111,6 +121,8 @@ DECLARE
   v_pos int;
   v_at int;
   v_lines text;
+  v_anon_had boolean;
+  v_auth_had boolean;
 BEGIN
   FOR r IN
 WITH idmap(param, tbl, name_like) AS (
@@ -221,9 +233,37 @@ GROUP BY f.oid, f.lanname
     VALUES (r.function_signature, v_def, v_new_def)
     ON CONFLICT (signature) DO NOTHING;
 
+    -- CREATE OR REPLACE fires trg_revoke_public_execute_on_new_functions, which grants
+    -- EXECUTE to authenticated. Put back exactly who could call the function before.
+    v_anon_had := has_function_privilege('anon', r.oid, 'EXECUTE');
+    v_auth_had := has_function_privilege('authenticated', r.oid, 'EXECUTE');
     EXECUTE v_new_def;
+    IF NOT v_auth_had THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, authenticated', r.oid::regprocedure);
+    END IF;
+    IF NOT v_anon_had THEN
+      EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon', r.oid::regprocedure);
+    END IF;
     INSERT INTO _guard_result VALUES (r.function_signature, 'GUARDED: ' || r.guard_calls);
   END LOOP;
 END
 $apply$;
+
+-- REPAIR after the first run on 27 Sep 2026: that run re-granted EXECUTE to authenticated on
+-- four functions that were deliberately service-role only. Take it away again.
+DO $repair$
+DECLARE
+  r record;
+BEGIN
+  FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname = 'public'
+             AND p.proname IN ('delete_child_rows_for_org', 'post_journal_reversal_for_voucher_ref',
+                               'purge_old_backup_logs', 'record_online_payment_receipt')
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', r.sig);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', r.sig);
+    INSERT INTO _guard_result VALUES (r.sig::text, 'SERVICE-ROLE ONLY again');
+  END LOOP;
+END
+$repair$;
 
