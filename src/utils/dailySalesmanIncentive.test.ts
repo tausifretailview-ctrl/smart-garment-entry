@@ -45,16 +45,50 @@ describe("incentive brackets (Adeeba)", () => {
   });
 });
 
-describe("incentiveForLineItem (per unit × full line net bracket)", () => {
-  it("uses full line net for bracket, not net/qty", () => {
-    // qty 3, line net ₹1,500 → ≥1000 bracket → ₹10 × 3 = ₹30
-    expect(incentiveForLineItem(1500, 3, ADEEBA_BRACKETS)).toBe(30);
+describe("incentiveForLineItem (per-piece net bracket × qty)", () => {
+  it("picks the bracket from line net / qty", () => {
+    // qty 3, line net ₹1,500 → ₹500 per piece → ₹5 bracket → ₹5 × 3 = ₹15
+    expect(incentiveForLineItem(1500, 3, ADEEBA_BRACKETS)).toBe(15);
+    // qty 3, line net ₹3,300 → ₹1,100 per piece → ₹10 × 3 = ₹30
+    expect(incentiveForLineItem(3300, 3, ADEEBA_BRACKETS)).toBe(30);
   });
 
-  it("does not divide line net by qty before bracket lookup", () => {
-    // If wrongly used net/qty = 500, bracket would be ₹5/unit → 15; correct is ₹10 × 2 = 20
-    expect(incentiveForLineItem(1000, 2, ADEEBA_BRACKETS)).toBe(20);
-    expect(incentiveForLineItem(1000 / 2, 2, ADEEBA_BRACKETS)).toBe(10);
+  it("2 × ₹900 kurti pays the ₹900 slab, same as one ₹850 piece (Adeeba Studio 2026-09-27)", () => {
+    expect(incentiveForLineItem(1800, 2, ADEEBA_BRACKETS)).toBe(10);
+    expect(incentiveForLineItem(850, 1, ADEEBA_BRACKETS)).toBe(5);
+  });
+
+  it("returns 0 for zero / negative qty", () => {
+    expect(incentiveForLineItem(1800, 0, ADEEBA_BRACKETS)).toBe(0);
+    expect(incentiveForLineItem(1800, -1, ADEEBA_BRACKETS)).toBe(0);
+  });
+});
+
+describe("aggregateDailySalesmanIncentive — FAWAZ KHAN 2026-09-27 (Adeeba Studio)", () => {
+  it("6 pieces, ₹7,150 → ₹40 (not ₹50)", () => {
+    const lines = [
+      { q: 1, net: 1755 },
+      { q: 1, net: 1995 },
+      { q: 1, net: 750 },
+      { q: 2, net: 1800 },
+      { q: 1, net: 850 },
+    ];
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-09-27",
+      sales: [{ id: "s1", salesman: "FAWAZ KHAN", net_amount: 7150, sale_date: "2026-09-27T12:00:00+05:30" }],
+      items: lines.map((l) => ({
+        sale_id: "s1",
+        quantity: l.q,
+        line_total: l.net,
+        net_after_discount: l.net,
+      })),
+      employees: [{ id: "e-fawaz", employee_name: "FAWAZ KHAN" }],
+      qtyThreshold: 5,
+      brackets: ADEEBA_BRACKETS,
+    });
+    expect(rows[0].total_qty).toBe(6);
+    expect(rows[0].total_net_amount).toBe(7150);
+    expect(rows[0].incentive_amount).toBe(40);
   });
 });
 
@@ -153,7 +187,7 @@ describe("aggregateDailySalesmanIncentive — per-line salesman", () => {
 describe("aggregateDailySalesmanIncentive", () => {
   const employees = [{ id: "e1", employee_name: "RAVI" }];
 
-  it("sums bracket(line_net) × qty across lines (not one flat bracket on day net)", () => {
+  it("sums bracket(line net / qty) × qty across lines (not one flat bracket on day net)", () => {
     const rows = aggregateDailySalesmanIncentive({
       incentiveDateYmd: "2026-09-10",
       sales: [
@@ -171,8 +205,8 @@ describe("aggregateDailySalesmanIncentive", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].total_qty).toBe(5);
-    // 1500→₹10×3=30 + 600→₹5×2=10 = 40 (NOT day-net 2100 → single ₹10)
-    expect(rows[0].incentive_amount).toBe(40);
+    // 1500/3=₹500→₹5×3=15 + 600/2=₹300→₹3×2=6 = 21 (NOT day-net 2100 → single ₹10)
+    expect(rows[0].incentive_amount).toBe(21);
     expect(rows[0].is_eligible).toBe(true);
   });
 

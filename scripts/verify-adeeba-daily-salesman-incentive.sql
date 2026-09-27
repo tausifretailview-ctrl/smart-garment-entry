@@ -1,7 +1,7 @@
 -- ADEEBAAREEBA daily salesman incentive — hand-check after per-unit formula deploy.
 -- Org: b230c582-4f0b-420f-b18b-bef26c2f5ce8 (slug adeebaareeba)
 --
--- Formula: day eligible when Σ qty ≥ qty_threshold; day incentive = Σ (bracket(full line net) × line qty).
+-- Formula: day eligible when Σ qty ≥ qty_threshold; day incentive = Σ (bracket(line net / qty) × line qty).
 -- Bracket per unit: [0,500)→3, [500,1000)→5, [1000,∞)→10 (from config table).
 
 -- §1 Per-line detail for one salesman on one IST day (edit ymd + salesman)
@@ -26,8 +26,8 @@ lines AS (
     si.quantity AS qty,
     COALESCE(si.net_after_discount, si.line_total, 0)::numeric AS line_net,
     CASE
-      WHEN COALESCE(si.net_after_discount, si.line_total, 0) < 500 THEN 3
-      WHEN COALESCE(si.net_after_discount, si.line_total, 0) < 1000 THEN 5
+      WHEN COALESCE(si.net_after_discount, si.line_total, 0) / NULLIF(si.quantity, 0) < 500 THEN 3
+      WHEN COALESCE(si.net_after_discount, si.line_total, 0) / NULLIF(si.quantity, 0) < 1000 THEN 5
       ELSE 10
     END AS per_unit_inr
   FROM sales_day sd
@@ -77,8 +77,8 @@ per_line AS (
     qty,
     line_net,
     CASE
-      WHEN line_net < 500 THEN 3
-      WHEN line_net < 1000 THEN 5
+      WHEN line_net / NULLIF(qty, 0) < 500 THEN 3
+      WHEN line_net / NULLIF(qty, 0) < 1000 THEN 5
       ELSE 10
     END AS per_unit_inr
   FROM lines
@@ -91,8 +91,8 @@ day_agg AS (
     SUM(line_net) AS total_net,
     SUM(
       CASE
-        WHEN line_net < 500 THEN 3
-        WHEN line_net < 1000 THEN 5
+        WHEN line_net / NULLIF(qty, 0) < 500 THEN 3
+        WHEN line_net / NULLIF(qty, 0) < 1000 THEN 5
         ELSE 10
       END * qty
     ) AS line_incentive_sum

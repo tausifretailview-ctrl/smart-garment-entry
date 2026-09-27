@@ -1,5 +1,5 @@
 /**
- * Daily salesman incentive — flat ₹ per unit from line-net brackets after a day qty gate.
+ * Daily salesman incentive — flat ₹ per unit from per-piece net brackets after a day qty gate.
  * Parallel to %-based salesman_commissions (do not mix).
  */
 
@@ -98,8 +98,8 @@ export function incentiveForNetAmount(
 }
 
 /**
- * Per-line incentive: bracket(full line net) × line qty.
- * Bracket uses the FULL line net — never net/qty.
+ * Per-line incentive: bracket(per-piece net = line net / qty) × line qty.
+ * A line of 2 × ₹900 is two ₹900 pieces (₹5 slab each), not one ₹1,800 sale.
  */
 export function incentiveForLineItem(
   lineNet: number,
@@ -108,7 +108,8 @@ export function incentiveForLineItem(
 ): number {
   const q = Number(qty) || 0;
   if (q <= 0) return 0;
-  return incentiveForNetAmount(lineNet, brackets) * q;
+  const perPieceNet = (Number(lineNet) || 0) / q;
+  return incentiveForNetAmount(perPieceNet, brackets) * q;
 }
 
 export function computeDailyIncentiveAmount(params: {
@@ -130,7 +131,7 @@ export function computeDailyIncentiveAmount(params: {
 
 /**
  * Aggregate sale_items for one IST calendar day into per-salesman rows.
- * Blank salesman excluded. Bracket on each line's full net × qty; day qty gate on sum of qty.
+ * Blank salesman excluded. Bracket on each line's per-piece net × qty; day qty gate on sum of qty.
  */
 export function aggregateDailySalesmanIncentive(params: {
   incentiveDateYmd: string;
