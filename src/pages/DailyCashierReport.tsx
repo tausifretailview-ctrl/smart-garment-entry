@@ -465,6 +465,7 @@ const DailyCashierReport = () => {
         totalRoundOff: 0,
         totalSRAdjusted: 0,
         totalSale: 0,
+        netSaleAfterSR: 0,
         netReceivable: 0,
         cashSale: 0,
         cardSale: 0,
@@ -806,8 +807,10 @@ const DailyCashierReport = () => {
     const thirdPartyOutflowTotal =
       thirdPartyOutflowCash + thirdPartyOutflowUpi + thirdPartyOutflowCard + thirdPartyOutflowOther;
 
-    // Net Receivable = Net Sale (net_amount already includes S/R deduction from POS save logic)
-    const netReceivable = totalSale;
+    // Net Sale shown to the cashier = bills after discount/round-off, less S/R Adjust
+    // (return/CN credit used on the bills), i.e. what customers actually owed today.
+    const netSaleAfterSR = Math.round((totalSale - totalSRAdjusted) * 100) / 100;
+    const netReceivable = netSaleAfterSR;
 
     const receivableTotals = computeCashierActualNetReceivable({
       sales: eligibleSales.map((sale: any) => ({
@@ -841,6 +844,7 @@ const DailyCashierReport = () => {
       totalRoundOff,
       totalSRAdjusted,
       totalSale,
+      netSaleAfterSR,
       netReceivable,
       cashSale,
       cardSale,
@@ -959,7 +963,7 @@ const DailyCashierReport = () => {
       rows.push({ label: "RCP Other (Cheque/Bank)", amount: totals.rcpOtherCollection, tone: "text-violet-800" });
     }
     if ((Number(totals.totalSRAdjusted) || 0) > 0) {
-      rows.push({ label: "Old credit used on bills", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
+      rows.push({ label: "S/R Adjust (return/CN credit)", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
     }
     if ((Number(totals.feeTotalCollection) || 0) > 0) {
       rows.push({
@@ -1132,9 +1136,12 @@ const DailyCashierReport = () => {
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
       ["Round off", totals.totalRoundOff],
-      ["Net Sale", totals.totalSale],
-      ["Old credit used on bills (return/CN, non-cash)", totals.totalSRAdjusted],
-      ["Net Receivable", totals.netReceivable],
+      ["Less: S/R Adjust (return/CN credit)", totals.totalSRAdjusted],
+      ["Net Sale", totals.netSaleAfterSR],
+      ["Less: Balance Pending", totals.totalBalance],
+      ["Add: Old Payment Receipts", totals.oldBalanceReceiptTotal],
+      ["Add: Fee Collection", totals.feeTotalCollection || 0],
+      ["Actual Net Receivable", totals.actualNetReceivable],
       [],
       ["Sales Payment Breakdown"],
       ["Payment Method", "Bills", "Amount"],
@@ -1164,7 +1171,7 @@ const DailyCashierReport = () => {
       ["Cash (Sales + RCP + Advance)", grandCashCollection],
       ["Card (Sales + RCP)", grandCardCollection],
       ["UPI (Sales + RCP)", grandUpiCollection],
-      ["Old credit used on bills", totals.totalSRAdjusted],
+      ["S/R Adjust (return/CN credit)", totals.totalSRAdjusted],
       ["Total Collection", grandTotalCollection],
       ["Refund (already in Cash)", totals.totalRefund],
       ["Less: Cash Refunds (S/R + Customer cash)", totals.cashRefundTotal],
@@ -1217,14 +1224,22 @@ const DailyCashierReport = () => {
     y += 7;
     doc.text(`Round off: ${formatCurrency(totals.totalRoundOff)}`, 20, y);
     y += 7;
+    doc.text(`Less: S/R Adjust: ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
+    y += 7;
     doc.setFont("helvetica", "bold");
-    doc.text(`Net Sale: ${formatCurrency(totals.totalSale)}`, 20, y);
+    doc.text(`Net Sale: ${formatCurrency(totals.netSaleAfterSR)}`, 20, y);
     y += 7;
     doc.setFont("helvetica", "normal");
-    doc.text(`Old credit used on bills (included): ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
+    doc.text(`Less: Balance Pending: ${formatCurrency(totals.totalBalance)}`, 20, y);
     y += 7;
+    doc.text(`Add: Old Payment Receipts: ${formatCurrency(totals.oldBalanceReceiptTotal)}`, 20, y);
+    y += 7;
+    if ((totals.feeTotalCollection || 0) > 0) {
+      doc.text(`Add: Fee Collection: ${formatCurrency(totals.feeTotalCollection)}`, 20, y);
+      y += 7;
+    }
     doc.setFont("helvetica", "bold");
-    doc.text(`Net Receivable: ${formatCurrency(totals.netReceivable)}`, 20, y);
+    doc.text(`Actual Net Receivable: ${formatCurrency(totals.actualNetReceivable)}`, 20, y);
     doc.setFont("helvetica", "normal");
 
     // Sales Collection Breakdown
@@ -1479,13 +1494,13 @@ const DailyCashierReport = () => {
                   )}
                   {totals.totalSRAdjusted > 0 && (
                     <div className="flex justify-between items-center">
-                      <p className="text-xs text-muted-foreground">Old credit used on bills</p>
+                      <p className="text-xs text-muted-foreground">Less: S/R Adjust</p>
                       <p className="text-sm font-bold tabular-nums text-amber-600">−{formatCurrency(totals.totalSRAdjusted)}</p>
                     </div>
                   )}
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-muted-foreground">Net Sale</p>
-                    <p className="text-sm font-bold tabular-nums text-emerald-700">{formatCurrency(totals.totalSale)}</p>
+                    <p className="text-sm font-bold tabular-nums text-emerald-700">{formatCurrency(totals.netSaleAfterSR)}</p>
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-muted-foreground">Balance Pending</p>
@@ -1849,7 +1864,7 @@ const DailyCashierReport = () => {
                     <div>
                       <p className="text-sm font-semibold">Sales & credit detail</p>
                       <p className="text-xs text-muted-foreground">
-                        Gross, discount, net, S/R, balance, old receipts, actual net receivable
+                        Gross, discount, round-off, S/R, net, balance, old receipts, actual net receivable
                       </p>
                     </div>
                     <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${salesCreditOpen ? "rotate-180" : ""}`} />
@@ -1898,6 +1913,19 @@ const DailyCashierReport = () => {
                         </CardContent>
                       </Card>
 
+                      <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg">
+                        <CardHeader className="pb-1 pt-3 px-3">
+                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            S/R Adjust
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3 pt-0">
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</p>
+                          <p className="text-[10px] text-white/70">Return/CN credit used on these bills</p>
+                        </CardContent>
+                      </Card>
+
                       <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0 shadow-lg">
                         <CardHeader className="pb-1 pt-3 px-3">
                           <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
@@ -1906,21 +1934,8 @@ const DailyCashierReport = () => {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="px-3 pb-3 pt-0">
-                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSale)}</p>
-                          <p className="text-[10px] text-white/70">Full bills after disc and round-off</p>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0 shadow-lg">
-                        <CardHeader className="pb-1 pt-3 px-3">
-                          <CardTitle className="text-xs font-medium text-white/90 flex items-center gap-1.5">
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            Old Credit Used
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="px-3 pb-3 pt-0">
-                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</p>
-                          <p className="text-[10px] text-white/70">Earlier return/CN credit used on these bills</p>
+                          <p className="text-xl font-bold text-white tabular-nums">{formatCurrency(totals.netSaleAfterSR)}</p>
+                          <p className="text-[10px] text-white/70">After discount, round-off and S/R</p>
                         </CardContent>
                       </Card>
 
@@ -2157,24 +2172,32 @@ const DailyCashierReport = () => {
                     <span className="font-semibold tabular-nums">{formatCurrency(totals.totalRoundOff)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold">
-                  <span>Net Sale</span>
-                  <span className="tabular-nums">{formatCurrency(totals.totalSale)}</span>
-                </div>
                 {totals.totalSRAdjusted > 0 && (
-                  <div className="flex justify-between py-2 border-b border-slate-100 text-teal-700 text-xs">
-                    <span>(Includes old credit used on bills)</span>
-                    <span className="font-semibold tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-teal-700">
+                    <span>Less: S/R Adjust</span>
+                    <span className="font-semibold tabular-nums">- {formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                 )}
-                <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold text-blue-800">
-                  <span>Net Receivable</span>
-                  <span className="tabular-nums">{formatCurrency(totals.netReceivable)}</span>
+                <div className="flex justify-between py-2 border-b border-slate-100 text-base font-bold">
+                  <span>Net Sale</span>
+                  <span className="tabular-nums">{formatCurrency(totals.netSaleAfterSR)}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-slate-100 text-amber-700">
                   <span>Less: Balance Pending</span>
                   <span className="font-semibold tabular-nums">- {formatCurrency(totals.totalBalance)}</span>
                 </div>
+                {totals.oldBalanceReceiptTotal > 0 && (
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-indigo-700">
+                    <span>Add: Old Payment Receipts</span>
+                    <span className="font-semibold tabular-nums">+ {formatCurrency(totals.oldBalanceReceiptTotal)}</span>
+                  </div>
+                )}
+                {(totals.feeTotalCollection || 0) > 0 && (
+                  <div className="flex justify-between py-2 border-b border-slate-100 text-amber-800">
+                    <span>Add: Fee Collection</span>
+                    <span className="font-semibold tabular-nums">+ {formatCurrency(totals.feeTotalCollection)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2 border-b-2 border-double text-base font-bold bg-emerald-50 px-2 -mx-2 rounded">
                   <span className="text-emerald-800">Actual Net Receivable</span>
                   <span className="text-emerald-800 tabular-nums">{formatCurrency(totals.actualNetReceivable)}</span>
@@ -2199,7 +2222,7 @@ const DailyCashierReport = () => {
                     <span className="tabular-nums">{formatCurrency(totals.upiSale)}</span>
                   </div>
                   <div className="flex justify-between text-teal-700">
-                    <span className="text-muted-foreground">Old credit used on bills</span>
+                    <span className="text-muted-foreground">S/R Adjust (return/CN credit)</span>
                     <span className="tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
                   </div>
                   <div className="flex justify-between text-red-600">
