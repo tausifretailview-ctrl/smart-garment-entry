@@ -391,7 +391,7 @@ export default function SaleReturnDashboard() {
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [selectedReturnForRefund, setSelectedReturnForRefund] = useState<SaleReturn | null>(null);
   const [refundAmount, setRefundAmount] = useState("");
-  const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card">("cash");
+  const [refundMode, setRefundMode] = useState<"cash" | "upi" | "card" | "bank_transfer">("cash");
   const [refundNote, setRefundNote] = useState("");
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
   const openCustomerAccount = useOpenCustomerAccount();
@@ -1121,12 +1121,13 @@ export default function SaleReturnDashboard() {
               </div>
               <div className="space-y-2">
                 <Label>Payment mode</Label>
-                <Select value={refundMode} onValueChange={(v: "cash" | "upi" | "card") => setRefundMode(v)}>
+                <Select value={refundMode} onValueChange={(v: "cash" | "upi" | "card" | "bank_transfer") => setRefundMode(v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="cash">Cash</SelectItem>
                     <SelectItem value="upi">UPI</SelectItem>
                     <SelectItem value="card">Card</SelectItem>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

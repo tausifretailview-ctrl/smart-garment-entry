@@ -115,7 +115,13 @@ interface FloatingSaleReturnProps {
   customerName?: string;
   /** Saved POS / held sale id — CN redeem uses adjust_invoice_balance when set */
   posCurrentSaleId?: string | null;
-  onReturnSaved: (returnAmount: number, returnNumber: string, refundType: RefundType) => void;
+  onReturnSaved: (
+    returnAmount: number,
+    returnNumber: string,
+    refundType: RefundType,
+    /** Id of the sale_returns row just saved (not set when redeeming an existing CN). */
+    saleReturnId?: string,
+  ) => void;
 }
 
 export const FloatingSaleReturn = ({
@@ -1433,7 +1439,7 @@ export const FloatingSaleReturn = ({
         });
       }
 
-      onReturnSaved(effectiveReturnAmount, returnNumber, effectiveRefundType);
+      onReturnSaved(effectiveReturnAmount, returnNumber, effectiveRefundType, createdReturnId || undefined);
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving return:", error);

@@ -73,6 +73,7 @@ import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { supabase } from "@/integrations/supabase/client";
+import { assignSameBillReturnsToCustomer } from "@/utils/assignSameBillReturnsToCustomer";
 import { isJwtExpiredError, withJwtRetry } from "@/lib/jwtRetry";
 import { useVisibilityRefetch } from "@/hooks/useVisibilityRefetch";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -720,6 +721,20 @@ export default function POSSales() {
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   /** Full return value from same-bill S/R dialog this session — may exceed bill (exchange excess). */
   const [sameBillReturnGross, setSameBillReturnGross] = useState(0);
+  /** Exchange returns saved from this bill's S/R dialog, to attach to the bill's customer on save. */
+  const sameBillExchangeReturnIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    if (sameBillReturnGross <= 0.005) sameBillExchangeReturnIdsRef.current = [];
+  }, [sameBillReturnGross]);
+  const attachSameBillReturnsToCustomer = async () => {
+    if (!sameBillExchangeReturnIdsRef.current.length || !currentOrganization?.id) return;
+    await assignSameBillReturnsToCustomer(supabase, {
+      organizationId: currentOrganization.id,
+      customerId,
+      customerName,
+      returnIds: sameBillExchangeReturnIdsRef.current,
+    });
+  };
   const { checkStock, validateCartStock } = useStockValidation();
   const { lockedVariantIds, isLocked: isVariantLockedForSettlement } = useOpenSettlementVariantIds();
   const queryClient = useQueryClient();
@@ -3928,8 +3943,12 @@ export default function POSSales() {
     amount: number,
     returnNumber: string,
     refundType: string,
+    saleReturnId?: string,
   ) => {
     const raw = Math.max(0, Math.round((Number(amount) || 0) * 100) / 100);
+    if (refundType === "exchange" && saleReturnId) {
+      sameBillExchangeReturnIdsRef.current = [...sameBillExchangeReturnIdsRef.current, saleReturnId];
+    }
     // Same-bill exchange / CN-from-return: keep full return on the S/R field so
     // finalAmount can go negative and Mix Payment offers refund vs credit note.
     if (refundType === "exchange" || refundType === "credit_note") {
@@ -4462,6 +4481,7 @@ export default function POSSales() {
       saleDate: buildPosSaleDate(),
     }));
 
+    await attachSameBillReturnsToCustomer();
     const result = isHeldSale && currentSaleId
       ? await resumeHeldSale(currentSaleId, saleData, effectiveMethod, undefined, buildPosRuntimeOpts())
       : currentSaleId
@@ -4725,6 +4745,7 @@ export default function POSSales() {
     }));
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
+    await attachSameBillReturnsToCustomer();
     let result;
     if (isHeldSale && currentSaleId) {
       result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
@@ -4979,6 +5000,7 @@ export default function POSSales() {
     }
 
     // Completing a parked Hold/ bill must assign a POS number (resumeHeldSale).
+    await attachSameBillReturnsToCustomer();
     const result = isHeldSale && currentSaleId
       ? await resumeHeldSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
       : currentSaleId
