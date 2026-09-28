@@ -34,6 +34,7 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { SaleReturnPrint } from "@/components/SaleReturnPrint";
 import { SaleReturnThermalPrint } from "@/components/SaleReturnThermalPrint";
 import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
+import { fetchSaleReturnRefundPayout } from "@/utils/saleReturnRefundPayout";
 import {
   getPosDocumentPrintPageStyle,
   resolvePosThermalPaper,
@@ -931,6 +932,26 @@ export default function SaleReturnDashboard() {
       if (cn) {
         printData.credit_note_number = cn.credit_note_number;
       }
+    }
+    // A credit note later paid out ("Mark as Refund") must not reprint as usable credit.
+    if (
+      returnRecord.credit_status === "refunded" &&
+      returnRecord.refund_type !== "cash_refund" &&
+      returnRecord.customer_id &&
+      returnRecord.return_number &&
+      currentOrganization?.id
+    ) {
+      const refund = await fetchSaleReturnRefundPayout(supabase, {
+        organizationId: currentOrganization.id,
+        customerId: returnRecord.customer_id,
+        returnNumber: returnRecord.return_number,
+      });
+      printData = {
+        ...printData,
+        refunded_amount: refund.amount > 0.005 ? refund.amount : Number(returnRecord.net_amount || 0),
+        refunded_on: refund.date,
+        refunded_mode: refund.mode,
+      };
     }
     setReturnToPrint(printData);
     setTimeout(() => handlePrint(), 100);
