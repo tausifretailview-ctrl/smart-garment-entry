@@ -105,6 +105,13 @@
   font-weight: 400 !important;
 }
 
+.vastrakala-thermal-receipt-80mm .vk-line-disc {
+  font-size: 0.88em;
+  font-weight: 400 !important;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
 .vastrakala-thermal-receipt-80mm .vk-items-head span:nth-child(n + 3),
 .vastrakala-thermal-receipt-80mm .vk-items-row span:nth-child(n + 3) {
   justify-self: end;

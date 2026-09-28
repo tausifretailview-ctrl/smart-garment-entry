@@ -5,6 +5,7 @@ import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
 import { splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
 import {
+  vastrakalaLineDiscount,
   vastrakalaParticularsLines,
 } from "@/utils/vastrakalaThermalParticulars";
 import "@/styles/vastrakala-thermal-receipt.css";
@@ -45,6 +46,8 @@ interface VastrakalaThermalReceipt80mmProps {
   thermalPaper?: PosThermalPaper;
   /** Settings → Show MRP Column. Gates the MRP column and the MRP-based Discount total. */
   showMrp?: boolean;
+  /** Settings → show discount on rate. Prints a per-item "DISC x% (-amt)" line under discounted items. */
+  showLineDiscount?: boolean;
 }
 
 const VASTRAKALA_DEFAULT_TERMS = [
@@ -169,6 +172,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     salesman,
     thermalPaper = "80mm",
     showMrp = true,
+    showLineDiscount = true,
   } = props;
   const layout = useMemo(() => layoutForPaper(thermalPaper, showMrp), [thermalPaper, showMrp]);
   const { data: orgSettings } = useSettings();
@@ -231,8 +235,12 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
   // MRP column off: no MRP data to total against, so fall back to the plain sale-amount total
   // and the caller-supplied discount — same convention as KidsThermalReceipt80mm's showMrp gate.
   const totalMrpAmt = items.reduce((s, i) => s + (Number(i.mrp) || Number(i.rate) || 0) * i.qty, 0);
-  const totalAmt = showMrp ? totalMrpAmt : subTotal;
-  const mrpDiscount = showMrp ? Math.max(0, totalMrpAmt - grandTotal) : discount;
+  // MRP column off used to print subTotal (already net of item discounts) next to the
+  // MRP-based discount, so TOTAL AMT − DISCOUNT ≠ NET AMT (4348 − 3997 vs 4348). Items still
+  // carry their MRP with the column hidden, so total against it the same way as MRP-on.
+  const mrpBased = showMrp || totalMrpAmt > 0;
+  const totalAmt = mrpBased ? totalMrpAmt : subTotal;
+  const mrpDiscount = mrpBased ? Math.max(0, totalMrpAmt - grandTotal) : discount;
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
   const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
@@ -405,6 +413,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           const mrpCol = 4;
           const amtCol = showMrp ? 5 : 4;
           const wideLine2 = Boolean(line2);
+          const lineDisc = showLineDiscount ? vastrakalaLineDiscount(item) : null;
           return (
             <div
               key={i}
@@ -412,7 +421,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               style={{
                 display: "grid",
                 gridTemplateColumns: layout.itemGridColumns,
-                gridTemplateRows: wideLine2 ? "auto auto" : "auto",
+                gridTemplateRows: [wideLine2, lineDisc].filter(Boolean).map(() => "auto").concat("auto").join(" "),
                 columnGap: "1mm",
                 rowGap: "0.5mm",
                 alignItems: "start",
@@ -422,7 +431,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
               <span
                 style={{
                   gridColumn: 1,
-                  gridRow: wideLine2 ? "1 / 3" : 1,
+                  gridRow: 1,
                   alignSelf: "start",
                 }}
               >
@@ -445,6 +454,20 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
                   }}
                 >
                   {line2}
+                </div>
+              ) : null}
+              {lineDisc ? (
+                <div
+                  className="vk-line-disc"
+                  style={{
+                    gridColumn: "2 / -1",
+                    gridRow: wideLine2 ? 3 : 2,
+                    minWidth: 0,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {showMrp ? "" : `MRP ${fmtDec(lineDisc.mrp)}${item.qty > 1 ? ` x ${item.qty}` : ""} · `}
+                  DISC {lineDisc.percentLabel}% (-{fmtDec(lineDisc.amount)})
                 </div>
               ) : null}
               <span style={{ ...itemNumStyle, gridColumn: qtyCol, gridRow: 1 }}>{item.qty}</span>

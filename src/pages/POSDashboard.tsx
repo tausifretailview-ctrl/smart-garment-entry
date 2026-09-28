@@ -196,6 +196,7 @@ interface SaleItem {
   brand?: string;
   color?: string;
   style?: string;
+  item_notes?: string | null;
 }
 
 interface Sale {
@@ -1222,6 +1223,7 @@ const POSDashboard = () => {
             brand: item.brand || '',
             color: item.color || '',
             style: item.style || '',
+            item_notes: item.itemNotes || item.item_notes || null,
           }));
           setSaleItems((prev) => ({ ...prev, [saleId]: parsedItems }));
           return parsedItems;
@@ -1904,6 +1906,7 @@ const POSDashboard = () => {
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.product_name,
+          itemNotes: item.item_notes || "",
           productNameOnly:
             (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
           size: item.size,
@@ -4490,6 +4493,7 @@ const POSDashboard = () => {
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                itemNotes: item.item_notes || '',
                 productNameOnly:
                   (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
                 size: item.size,

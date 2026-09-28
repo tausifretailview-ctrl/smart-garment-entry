@@ -787,6 +787,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showMrp={props.showMRP ?? true}
+              showLineDiscount={showDiscountOnRate}
               settingsOverride={settings as Record<string, unknown>}
             />
           );
