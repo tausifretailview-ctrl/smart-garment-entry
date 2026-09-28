@@ -4235,7 +4235,50 @@ const PurchaseEntry = () => {
     productOverride?: any,
   ) => {
     const gridProduct = productOverride ?? selectedProduct;
+    const imeiScans: { tempId: string; qty: number; item: LineItem }[] = [];
     for (const { variant, qty } of items) {
+      // Serialised (IMEI) product: each unit gets its own scanned IMEI variant —
+      // do not reuse the existing unit's variant (and IMEI) for the new units.
+      if (
+        productRequiresImei(
+          { requires_imei: variant.requires_imei ?? (gridProduct as any).requires_imei },
+          mobileERPSettings,
+        )
+      ) {
+        const line = createLineItemRow({
+          product_name: gridProduct.product_name,
+          product_id: gridProduct.id,
+          sku_id: "",
+          size: variant.size,
+          qty,
+          pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+          sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
+          mrp: variant.mrp || 0,
+          gst_per: gridProduct.purchase_gst_percent || gridProduct.gst_per || 0,
+          hsn_code: gridProduct.hsn_code || "",
+          barcode: "",
+          discount_percent: (() => {
+            const pdt = (gridProduct as any).purchase_discount_type;
+            const pdv = (gridProduct as any).purchase_discount_value || 0;
+            if (pdv > 0 && (!pdt || pdt === 'percent')) return pdv;
+            return 0;
+          })(),
+          brand: gridProduct.brand || "",
+          category: gridProduct.category || "",
+          color: newColor || variant.color || gridProduct.color || "",
+          style: gridProduct.style || "",
+          uom: (gridProduct as any).uom || "NOS",
+          requires_imei: true,
+        });
+        setLineItems((prev) => {
+          const next = [...prev, line];
+          setVisibleItemCount((vc) => Math.max(vc, next.length <= 200 ? next.length : vc + 1));
+          return next;
+        });
+        imeiScans.push({ tempId: line.temp_id, qty: Math.max(1, Number(qty) || 1), item: line });
+        continue;
+      }
+
       let barcode = variant.barcode || "";
       let skuId = variant.id;
       
@@ -4366,7 +4409,96 @@ const PurchaseEntry = () => {
     setSizeQty({});
     // Blur so "1" shortcut works immediately
     (document.activeElement as HTMLElement)?.blur();
-    focusSearchBar();
+    if (!queueImeiScans(imeiScans)) focusSearchBar();
+  };
+
+  /** Pending IMEI collection for bill lines that still need a unit scanned. */
+  const queueImeiScans = (pending: { tempId: string; qty: number; item: LineItem }[]) => {
+    if (pending.length === 0) return false;
+    const [first, ...rest] = pending;
+    setImeiScanQueue((queue) => [...queue, ...rest]);
+    setImeiScanItem(first);
+    setShowIMEIScanDialog(true);
+    return true;
+  };
+
+  const addSerializedUnitsFromUseExisting = async (
+    product: any,
+    variants: any[],
+    rows: UseExistingProductSizesPayload["rows"],
+  ) => {
+    const discountPercent = (() => {
+      const pdt = product.purchase_discount_type;
+      const pdv = product.purchase_discount_value || 0;
+      if (pdv > 0 && (!pdt || pdt === "percent")) return pdv;
+      return 0;
+    })();
+    const added: LineItem[] = [];
+    const needScan: { tempId: string; qty: number; item: LineItem }[] = [];
+    const problems: string[] = [];
+
+    for (const row of rows) {
+      const match = matchExistingVariantForSizeRow(variants, row, product.color);
+      const line = createLineItemRow({
+        product_name: product.product_name,
+        product_id: product.id,
+        sku_id: "",
+        size: row.size || match?.size || "None",
+        qty: row.qty,
+        pur_price: row.pur_price > 0 ? row.pur_price : Number(match?.pur_price) || 0,
+        sale_price: row.sale_price > 0 ? row.sale_price : Number(match?.sale_price) || 0,
+        mrp: row.mrp != null && row.mrp > 0 ? row.mrp : Number(match?.mrp) || 0,
+        gst_per: product.purchase_gst_percent || product.gst_per || 0,
+        hsn_code: product.hsn_code || "",
+        barcode: "",
+        discount_percent: discountPercent,
+        brand: product.brand || "",
+        category: product.category || "",
+        color: row.color || match?.color || product.color || "",
+        style: product.style || "",
+        uom: product.uom || "NOS",
+        requires_imei: true,
+      });
+      const typedImei = row.barcode_source === "generated" ? "" : String(row.barcode || "").trim();
+      if (typedImei && row.qty === 1) {
+        try {
+          const { variantId, imei } = await resolveImeiUnitVariant(line, typedImei, [
+            ...lineItems,
+            ...added,
+          ]);
+          added.push({ ...line, sku_id: variantId, barcode: imei });
+          continue;
+        } catch (err) {
+          problems.push(extractErrorInfo(err).message || `IMEI ${typedImei} could not be added`);
+        }
+      }
+      added.push(line);
+      needScan.push({ tempId: line.temp_id, qty: Math.max(1, Number(row.qty) || 1), item: line });
+    }
+
+    let merged: LineItem[] = [];
+    setLineItems((prev) => {
+      merged = [...prev, ...added];
+      return merged;
+    });
+    setVisibleItemCount((vc) =>
+      Math.max(vc, merged.length <= 200 ? merged.length : vc + added.length),
+    );
+
+    if (problems.length > 0) {
+      toast({
+        title: "Scan IMEI again",
+        description: problems.join(" "),
+        variant: "destructive",
+        duration: 10000,
+      });
+    } else {
+      toast({
+        title: "Added existing product",
+        description: `${product.product_name} — ${added.length} unit(s) added to the bill`,
+      });
+    }
+    if (!queueImeiScans(needScan)) focusSearchBar();
   };
 
   // Add Product → "Product already exists?" → Use existing instead: put the size
@@ -4424,6 +4556,13 @@ const PurchaseEntry = () => {
         description: "Could not load the existing product's sizes. Search it in the bill instead.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // Serialised (IMEI) product: every typed row is its own unit. Matching by
+    // size/colour would put every unit on the first unit's variant — and its IMEI.
+    if (productRequiresImei({ requires_imei: product.requires_imei }, mobileERPSettings)) {
+      await addSerializedUnitsFromUseExisting(product, data as any[], payload.rows);
       return;
     }
 
@@ -4578,6 +4717,36 @@ const PurchaseEntry = () => {
   };
 
   const addInlineRow = async (variant: ProductVariant) => {
+    // Serialised (IMEI) product: the picked variant is one physical unit with its
+    // own IMEI. A new purchase line is a new unit — never reuse that IMEI; ask for
+    // this unit's IMEI instead (same as re-purchase).
+    if (productRequiresImei({ requires_imei: variant.requires_imei }, mobileERPSettings)) {
+      const resolvedUom = await ensureVariantUom(variant);
+      const line = createLineItemRow({
+        product_id: variant.product_id,
+        sku_id: "",
+        product_name: variant.product_name,
+        size: variant.size,
+        qty: 1,
+        pur_price: variant.pur_price,
+        sale_price: variant.sale_price,
+        mrp: variant.mrp || 0,
+        gst_per: variant.gst_per,
+        hsn_code: variant.hsn_code,
+        barcode: "",
+        discount_percent: 0,
+        brand: variant.brand || "",
+        category: variant.category || "",
+        color: variant.color || "",
+        style: variant.style || "",
+        uom: resolvedUom,
+        requires_imei: true,
+      });
+      setLineItems((prev) => [...prev, line]);
+      openImeiScanForLine(line, 1);
+      return;
+    }
+
     let skuId = variant.id;
     let barcode = variant.barcode;
     const reuseSharedBarcode = shouldReuseExistingBarcodeOnPurchaseSelect({
@@ -4714,6 +4883,69 @@ const PurchaseEntry = () => {
     }
   };
 
+  /**
+   * One serialised unit = one product_variant whose barcode is its IMEI.
+   * Returns the variant id for this IMEI on `item`'s product, creating it when
+   * needed. Throws when the IMEI is empty, already on another line of this
+   * bill, or belongs to a different product.
+   */
+  const resolveImeiUnitVariant = async (
+    item: Pick<LineItem, "product_id" | "size" | "color" | "pur_price" | "sale_price" | "mrp">,
+    rawImei: string,
+    billLinesToCheck: LineItem[],
+  ): Promise<{ variantId: string; imei: string }> => {
+    if (!currentOrganization) throw new Error("No organization selected");
+    const imei = String(rawImei || "").replace(/\s/g, "").toUpperCase();
+    if (!imei) throw new Error("IMEI is empty");
+
+    if (billLinesToCheck.some((l) => (l.barcode || "").trim().toUpperCase() === imei)) {
+      throw new Error(`IMEI ${imei} is already on this bill.`);
+    }
+
+    const sizeBase = (item.size || "").trim() || "None";
+    const colorVal = (item.color || "").trim() || null;
+
+    // Same IMEI already on this product (e.g. created in Product Master) → that unit.
+    const { data: existingRows, error: existingError } = await supabase
+      .from('product_variants')
+      .select('id, product_id')
+      .eq('barcode', imei)
+      .eq('organization_id', currentOrganization.id)
+      .is('deleted_at', null);
+    if (existingError) throw existingError;
+    const sameProduct = (existingRows || []).find((r) => r.product_id === item.product_id);
+    if (sameProduct) return { variantId: sameProduct.id, imei };
+    if ((existingRows || []).length > 0) {
+      throw new Error(`IMEI ${imei} is already used on another product. Scan a different IMEI.`);
+    }
+
+    // Create a NEW product_variant with this IMEI as barcode (unit-as-variant)
+    const { data: newVariant, error: varError } = await supabase
+      .from('product_variants')
+      .insert({
+        organization_id: currentOrganization.id,
+        product_id: item.product_id,
+        size: sizeBase,
+        color: colorVal,
+        barcode: imei,
+        barcode_source: 'external',
+        pur_price: item.pur_price,
+        sale_price: item.sale_price,
+        mrp: item.mrp || 0,
+        stock_qty: 0,
+        active: true,
+      })
+      .select('id')
+      .single();
+    if (varError) throw varError;
+
+    // Track freshly inserted rows only (reused units above are pre-existing).
+    const tracked = imeiSessionCreatedVariantsRef.current.get(item.product_id) ?? new Set<string>();
+    tracked.add(newVariant.id);
+    imeiSessionCreatedVariantsRef.current.set(item.product_id, tracked);
+    return { variantId: newVariant.id, imei };
+  };
+
   // Handle IMEI scan confirmation - each IMEI becomes its own product_variant
   const handleIMEIScanConfirm = async (imeiNumbers: string[]) => {
     if (!imeiScanItem || !currentOrganization) return;
@@ -4723,60 +4955,17 @@ const PurchaseEntry = () => {
       const newRows: LineItem[] = [];
       const sizeBase = (item.size || "").trim() || "None";
       const colorVal = (item.color || "").trim() || null;
+      const otherLines = lineItems.filter((l) => l.temp_id !== tempId);
 
       for (let idx = 0; idx < imeiNumbers.length; idx++) {
-        const imei = String(imeiNumbers[idx] || "").replace(/\s/g, "").toUpperCase();
-        if (!imei) {
+        if (!String(imeiNumbers[idx] || "").trim()) {
           throw new Error(`IMEI #${idx + 1} is empty`);
         }
-
-        // Create a NEW product_variant with this IMEI as barcode (unit-as-variant)
-        const { data: newVariant, error: varError } = await supabase
-          .from('product_variants')
-          .insert({
-            organization_id: currentOrganization.id,
-            product_id: item.product_id,
-            size: sizeBase,
-            color: colorVal,
-            barcode: imei,
-            barcode_source: 'external',
-            pur_price: item.pur_price,
-            sale_price: item.sale_price,
-            mrp: item.mrp || 0,
-            stock_qty: 0,
-            active: true,
-          })
-          .select('id')
-          .single();
-
-        let variantId: string;
-
-        if (varError) {
-          // If barcode already exists, reuse only when it belongs to the same product
-          const { data: existing } = await supabase
-            .from('product_variants')
-            .select('id, product_id')
-            .eq('barcode', imei)
-            .eq('organization_id', currentOrganization.id)
-            .is('deleted_at', null)
-            .maybeSingle();
-
-          if (existing?.id && existing.product_id === item.product_id) {
-            variantId = existing.id;
-          } else if (existing?.id) {
-            throw new Error(
-              `IMEI ${imei} is already used on another product. Scan a different IMEI.`,
-            );
-          } else {
-            throw varError;
-          }
-        } else {
-          variantId = newVariant.id;
-          // Track freshly inserted rows only (reuse path below is pre-existing).
-          const tracked = imeiSessionCreatedVariantsRef.current.get(item.product_id) ?? new Set<string>();
-          tracked.add(variantId);
-          imeiSessionCreatedVariantsRef.current.set(item.product_id, tracked);
-        }
+        const { variantId, imei } = await resolveImeiUnitVariant(
+          item,
+          imeiNumbers[idx],
+          [...otherLines, ...newRows],
+        );
 
         const subTotal = 1 * item.pur_price;
         const discountAmount = subTotal * (item.discount_percent / 100);
@@ -4924,6 +5113,25 @@ const PurchaseEntry = () => {
       }
 
       try {
+        // Another line points at the same variant (e.g. a second unit added with the
+        // same product details): renaming the shared variant would change the other
+        // line's IMEI too. Give this unit its own variant instead.
+        const sharesVariant = lineItems.some(
+          (l) => l.temp_id !== item.temp_id && l.sku_id && l.sku_id === item.sku_id,
+        );
+        if (sharesVariant) {
+          const { variantId, imei } = await resolveImeiUnitVariant(
+            item,
+            cleaned,
+            lineItems.filter((l) => l.temp_id !== item.temp_id),
+          );
+          setLineItems((prev) =>
+            prev.map((l) => (l.temp_id === item.temp_id ? { ...l, sku_id: variantId, barcode: imei } : l)),
+          );
+          toast({ title: "IMEI updated", description: imei });
+          return;
+        }
+
         const conflict = await checkBarcodeExists(cleaned, currentOrganization.id, item.sku_id);
         if (conflict.exists) {
           toast({
@@ -4952,7 +5160,9 @@ const PurchaseEntry = () => {
         });
       }
     },
-    [currentOrganization?.id, mobileERPSettings, updateLineItem],
+    // resolveImeiUnitVariant is recreated each render; lineItems keeps it current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentOrganization?.id, mobileERPSettings, updateLineItem, lineItems],
   );
 
   // Handle Roll Entry confirmation — each roll becomes a variant with unique barcode
@@ -5561,6 +5771,31 @@ const PurchaseEntry = () => {
         });
         openImeiScanForLine(missingImei, Math.max(1, Number(missingImei.qty) || 1));
         return;
+      }
+      // Two serialised lines on one IMEI / unit record = one phone billed twice.
+      const seenUnits = new Map<string, LineItem>();
+      for (const item of activeLines) {
+        if (
+          !(Number(item.qty) > 0) ||
+          !productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)
+        ) {
+          continue;
+        }
+        const keys = [
+          item.barcode?.trim() ? `imei:${item.barcode.trim().toUpperCase()}` : "",
+          item.sku_id ? `sku:${item.sku_id}` : "",
+        ].filter(Boolean);
+        const clash = keys.map((k) => seenUnits.get(k)).find(Boolean);
+        if (clash) {
+          toast({
+            title: "Same IMEI on two lines",
+            description: `"${item.product_name}" IMEI ${item.barcode || clash.barcode} is on more than one line. Each unit needs its own IMEI — correct the IMEI or remove the extra line before saving.`,
+            variant: "destructive",
+            duration: 10000,
+          });
+          return;
+        }
+        keys.forEach((k) => seenUnits.set(k, item));
       }
     }
 

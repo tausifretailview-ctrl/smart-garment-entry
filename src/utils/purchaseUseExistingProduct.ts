@@ -22,6 +22,9 @@ export type UseExistingProductSizesPayload = {
     pur_price: number;
     sale_price: number;
     mrp: number | null;
+    /** Barcode / IMEI typed or scanned on this row (blank when none). */
+    barcode?: string;
+    barcode_source?: string;
   }>;
 };
 

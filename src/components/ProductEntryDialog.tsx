@@ -768,6 +768,9 @@ export const ProductEntryDialog = ({
             : formData.default_mrp != null && Number(formData.default_mrp) > 0
               ? Number(formData.default_mrp)
               : null,
+        // Keep the scanned IMEI / barcode: each serialised unit must stay its own item.
+        barcode: String(v.barcode || "").trim(),
+        barcode_source: v.barcode_source,
       }));
     // Nothing new was created — do not restore this form as an unsaved draft.
     skipUnsavedDraftPersistRef.current = true;
