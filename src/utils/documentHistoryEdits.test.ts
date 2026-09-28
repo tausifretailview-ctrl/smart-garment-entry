@@ -7,7 +7,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 import { supabase } from "@/integrations/supabase/client";
-import { fetchDocumentEditEvents } from "./documentHistoryEdits";
+import { fetchDocumentEditEvents, summarizeValueDelta } from "./documentHistoryEdits";
 
 function mockAuditQuery(rows: unknown[]) {
   const chain = {
@@ -81,5 +81,27 @@ describe("fetchDocumentEditEvents", () => {
     });
 
     expect(events).toHaveLength(0);
+  });
+});
+
+describe("summarizeValueDelta (Sale Bill edits)", () => {
+  it("shows invoice discount and S/R adjust changes from SALE_UPDATED", () => {
+    const lines = summarizeValueDelta(
+      { net_amount: 5000, flat_discount_amount: 0, sale_return_adjust: 1000, discount_amount: 0 },
+      { net_amount: 4500, flat_discount_amount: 500, sale_return_adjust: 0, discount_amount: 0 },
+    );
+    expect(lines).toContain("invoice discount: ₹0.00 → ₹500.00");
+    expect(lines).toContain("S/R adjust: ₹1,000.00 → ₹0.00");
+    expect(lines.some((l) => l.startsWith("item discount"))).toBe(false);
+  });
+
+  it("shows advance adjust from SALE_ADVANCE_ADJUST_UPDATED", () => {
+    expect(summarizeValueDelta({ advance_adjust: 0 }, { advance_adjust: 750 })).toEqual([
+      "advance adjust: ₹0.00 → ₹750.00",
+    ]);
+  });
+
+  it("ignores numeric formatting differences", () => {
+    expect(summarizeValueDelta({ sale_return_adjust: "100.00" }, { sale_return_adjust: 100 })).toEqual([]);
   });
 });
