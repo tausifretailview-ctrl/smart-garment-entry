@@ -25,28 +25,43 @@ function fmtMoneyValue(value: unknown): string | null {
   })}`;
 }
 
-function summarizeValueDelta(
+/** Audited sale/purchase fields shown in History, in display order. */
+const DELTA_FIELDS: ReadonlyArray<{ key: string; label: string; money: boolean }> = [
+  { key: "net_amount", label: "net amount", money: true },
+  { key: "gross_amount", label: "gross amount", money: true },
+  { key: "flat_discount_amount", label: "invoice discount", money: true },
+  { key: "flat_discount_percent", label: "invoice discount %", money: false },
+  { key: "discount_amount", label: "item discount", money: true },
+  { key: "sale_return_adjust", label: "S/R adjust", money: true },
+  { key: "advance_adjust", label: "advance adjust", money: true },
+  { key: "points_redeemed_amount", label: "points redeemed", money: true },
+  { key: "paid_amount", label: "paid amount", money: true },
+  { key: "payment_status", label: "payment status", money: false },
+  { key: "payment_method", label: "payment method", money: false },
+];
+
+export function summarizeValueDelta(
   oldValues: Record<string, unknown> | null | undefined,
   newValues: Record<string, unknown> | null | undefined,
 ): string[] {
   const lines: string[] = [];
-  const keys = ["net_amount", "gross_amount", "paid_amount", "payment_status", "payment_method"] as const;
-  for (const key of keys) {
+  for (const { key, label, money } of DELTA_FIELDS) {
     const oldV = oldValues?.[key];
     const newV = newValues?.[key];
     if (oldV === undefined && newV === undefined) continue;
-    if (String(oldV ?? "") === String(newV ?? "")) continue;
-    const label = key.replace(/_/g, " ");
-    if (key.endsWith("_amount")) {
-      const from = fmtMoneyValue(oldV);
-      const to = fmtMoneyValue(newV);
+    if (money) {
+      // 100 vs 100.00 from numeric columns is not a change.
+      if (Number(oldV ?? 0) === Number(newV ?? 0)) continue;
+      const from = fmtMoneyValue(oldV ?? 0);
+      const to = fmtMoneyValue(newV ?? 0);
       if (from && to) lines.push(`${label}: ${from} → ${to}`);
       else if (to) lines.push(`${label}: ${to}`);
     } else {
+      if (String(oldV ?? "") === String(newV ?? "")) continue;
       lines.push(`${label}: ${oldV == null ? "—" : String(oldV)} → ${newV == null ? "—" : String(newV)}`);
     }
   }
-  return lines.slice(0, 4);
+  return lines.slice(0, 8);
 }
 
 /**
