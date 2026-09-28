@@ -139,6 +139,7 @@ import {
   queueBarcodePurchaseItems,
   readBarcodePurchaseBillContext,
   readBarcodePrintSelection,
+  purchaseBillIdForBarcodeBack,
   resolvePurchaseBillIdForBarcodeReturn,
 } from "@/utils/barcodePurchaseBillContext";
 import {
@@ -6743,8 +6744,36 @@ export default function BarcodePrinting() {
     sheetType.replace(/_/g, " ");
 
   const handleBackNavigation = () => {
-    if (showPurchaseBillNav) void handleBackToPurchaseBill();
-    else orgNavigate("/");
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    setIsNavigatingToPurchaseBill(true);
+    void (async () => {
+      try {
+        const navState = location.state as { billId?: string } | null;
+        const openedFromBill = purchaseBillIdForBarcodeBack({
+          queryBillId: purchaseBillIdParam,
+          navBillId: navState?.billId,
+        });
+        const billNumber = openedFromBill
+          ? null
+          : labelItems.find((item) => item.bill_number?.trim())?.bill_number;
+        const billId = await resolvePurchaseBillIdForBarcodeReturn(orgId, {
+          billId: openedFromBill,
+          billNumber,
+        });
+        if (!billId) {
+          toast.error("Could not find the purchase bill to open");
+          return;
+        }
+        persistBarcodePurchaseBillContext(orgId, {
+          billId,
+          billNumber: billNumber ?? undefined,
+        });
+        orgNavigate("/purchase-entry", { state: { editBillId: billId } });
+      } finally {
+        setIsNavigatingToPurchaseBill(false);
+      }
+    })();
   };
 
   return (
@@ -6763,6 +6792,7 @@ export default function BarcodePrinting() {
           size="sm"
           className="h-8 gap-1 font-semibold shrink-0"
           disabled={isNavigatingToPurchaseBill}
+          title="Open the last purchase bill"
           onClick={handleBackNavigation}
         >
           {isNavigatingToPurchaseBill ? (
@@ -8162,6 +8192,7 @@ export default function BarcodePrinting() {
                 size="sm"
                 className="h-8 gap-1 font-semibold shrink-0"
                 disabled={isNavigatingToPurchaseBill}
+                title="Open the last purchase bill"
                 onClick={handleBackNavigation}
               >
                 {isNavigatingToPurchaseBill ? (
