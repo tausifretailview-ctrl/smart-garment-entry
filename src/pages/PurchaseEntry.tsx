@@ -161,6 +161,8 @@ import {
 } from "@/utils/purchaseUseExistingProduct";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import {
+  persistedPurchaseItemIdsForEdit,
+  purchaseItemDbPatchFromLineEdit,
   purchaseLineMatchesProductEdit,
   type PurchaseProductEditMatch,
 } from "@/utils/purchaseLineProductEdit";
@@ -1415,15 +1417,18 @@ const PurchaseEntry = () => {
   );
 
   // Handle product edit panel updates — barcode / this row, not every line of the product.
+  // A saved bill also writes the line (colour included) so the bill, its print,
+  // and the purchase list match the variant that reports and POS already show.
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, match?: PurchaseProductEditMatch) => {
+    const edited = {
+      tempId,
+      barcode: match?.barcode,
+      skuId: match?.skuId,
+    };
     const touched = new Set<string>();
     const priceFieldsTouched = "pur_price" in updates || "sale_price" in updates;
     setLineItems(prev => prev.map(item => {
-      const matches = purchaseLineMatchesProductEdit(item, {
-        tempId,
-        barcode: match?.barcode,
-        skuId: match?.skuId,
-      });
+      const matches = purchaseLineMatchesProductEdit(item, edited);
       if (!matches) return item;
       touched.add(item.temp_id);
       const merged = { ...item, ...updates };
@@ -1438,7 +1443,79 @@ const PurchaseEntry = () => {
     setTimeout(() => {
       setUpdatedRows(prev => { const next = new Set(prev); touched.forEach(id => next.delete(id)); return next; });
     }, 3000);
-  }, [scheduleVariantPriceSync]);
+
+    const dbPatch = purchaseItemDbPatchFromLineEdit(updates);
+    const billId = editingBillId;
+    const orgId = currentOrganization?.id;
+    const persistedIds = persistedPurchaseItemIdsForEdit(
+      lineItems,
+      edited,
+      new Set(originalLineItems.map((item) => item.temp_id)),
+    );
+    if (!billId || !orgId || persistedIds.length === 0 || Object.keys(dbPatch).length === 0) return;
+
+    const priceTouched = "pur_price" in dbPatch || "sale_price" in dbPatch || "gst_per" in dbPatch;
+    void (async () => {
+      const rows = lineItems.filter((item) => persistedIds.includes(item.temp_id));
+      let errorMessage = "";
+      if (!priceTouched) {
+        const { error } = await supabase
+          .from("purchase_items")
+          .update(dbPatch)
+          .in("id", persistedIds)
+          .eq("bill_id", billId)
+          .is("deleted_at", null);
+        if (error) errorMessage = error.message;
+      } else {
+        for (const item of rows) {
+          const merged = { ...item, ...updates };
+          const sub = computePurchaseLineSubTotal(merged);
+          const { error } = await supabase
+            .from("purchase_items")
+            .update({
+              ...dbPatch,
+              line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)),
+            })
+            .eq("id", item.temp_id)
+            .eq("bill_id", billId)
+            .is("deleted_at", null);
+          if (error) {
+            errorMessage = error.message;
+            break;
+          }
+        }
+      }
+      if (errorMessage) {
+        console.error("Purchase line product edit sync failed:", errorMessage);
+        toast({
+          title: "Purchase bill not updated",
+          description: errorMessage || "The product colour was saved, but this bill line was not.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setOriginalLineItems((prev) =>
+        prev.map((item) => {
+          if (!persistedIds.includes(item.temp_id)) return item;
+          const merged = { ...item, ...updates };
+          const sub = computePurchaseLineSubTotal(merged);
+          return {
+            ...merged,
+            line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)),
+          };
+        }),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
+    })();
+  }, [
+    scheduleVariantPriceSync,
+    editingBillId,
+    currentOrganization?.id,
+    lineItems,
+    originalLineItems,
+    toast,
+    queryClient,
+  ]);
 
   const openEditPanel = useCallback((index: number, focusField?: string) => {
     setEditPanelIndex(index);

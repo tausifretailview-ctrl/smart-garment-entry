@@ -86,7 +86,9 @@ export function purchaseLineMatchesProductEdit(
  * Fields to write onto the matching bill line after Edit Product save.
  * Product name is copied whenever the line still shows an older name, so a
  * price save also refreshes the item description for this barcode.
- * Brand, style, colour, and rates change only when the user edited them.
+ * Colour is copied whenever this barcode's saved colour differs from the bill
+ * line, so the bill shows the same colour as reports and POS.
+ * Brand, style, and rates change only when the user edited them.
  */
 export function buildPurchaseLinePatchFromProductEdit(args: {
   form: ProductEditFormSnapshot;
@@ -109,7 +111,6 @@ export function buildPurchaseLinePatchFromProductEdit(args: {
     { modifiedKey: "brand", lineKey: "brand", next: normText(form.brand) },
     { modifiedKey: "category", lineKey: "category", next: normText(form.category) },
     { modifiedKey: "style", lineKey: "style", next: normText(form.style) },
-    { modifiedKey: "color", lineKey: "color", next: normText(form.color) },
     { modifiedKey: "hsn_code", lineKey: "hsn_code", next: normText(form.hsn_code) },
     { modifiedKey: "uom", lineKey: "uom", next: normText(form.uom) },
   ];
@@ -120,6 +121,17 @@ export function buildPurchaseLinePatchFromProductEdit(args: {
     if (current !== field.next) {
       (patch as Record<string, string>)[field.lineKey] = field.next;
     }
+  }
+
+  // Colour on the bill must follow this barcode. Reports and POS read
+  // product_variants.color; the purchase line stores its own copy. A Save &
+  // Update that leaves those different keeps the old colour on the bill.
+  const formColor = normText(form.color);
+  const lineColor = normText(line.color);
+  if (modifiedFields.has("color")) {
+    if (lineColor !== formColor) patch.color = formColor;
+  } else if (formColor && lineColor !== formColor) {
+    patch.color = formColor;
   }
 
   if (modifiedFields.has("gst_per") || modifiedFields.has("purchase_gst_percent")) {
@@ -140,4 +152,40 @@ export function buildPurchaseLinePatchFromProductEdit(args: {
   }
 
   return patch;
+}
+
+/** Columns on purchase_items that Edit Product is allowed to rewrite. */
+export function purchaseItemDbPatchFromLineEdit(
+  updates: PurchaseLineEditFields,
+): Record<string, string | number | null> {
+  const patch: Record<string, string | number | null> = {};
+  const textKeys = ["product_name", "brand", "category", "style", "color", "hsn_code"] as const;
+  for (const key of textKeys) {
+    if (!(key in updates)) continue;
+    const trimmed = normText(updates[key]);
+    patch[key] = trimmed || null;
+  }
+  if ("gst_per" in updates) patch.gst_per = Math.round(Number(updates.gst_per) || 0);
+  if ("pur_price" in updates) patch.pur_price = Number(updates.pur_price) || 0;
+  if ("sale_price" in updates) patch.sale_price = Number(updates.sale_price) || 0;
+  if ("mrp" in updates) patch.mrp = Number(updates.mrp) || 0;
+  return patch;
+}
+
+/**
+ * Saved purchase_items ids (temp_id on an edited bill) whose colour/name
+ * should be rewritten. Unsaved rows are skipped — the bill save inserts them.
+ */
+export function persistedPurchaseItemIdsForEdit(
+  lines: PurchaseBillLineIdentity[],
+  edited: PurchaseProductEditMatch & { tempId: string },
+  persistedIds: ReadonlySet<string>,
+): string[] {
+  return lines
+    .filter(
+      (line) =>
+        persistedIds.has(line.temp_id) &&
+        purchaseLineMatchesProductEdit(line, edited),
+    )
+    .map((line) => line.temp_id);
 }
