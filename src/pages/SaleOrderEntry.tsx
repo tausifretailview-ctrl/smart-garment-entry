@@ -68,6 +68,11 @@ import { fetchCustomerProductPrice } from "@/hooks/useCustomerProductPrice";
 import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
 import { mergeSizeColorVariantsForGrid } from "@/utils/mergeSizeColorVariantsForGrid";
+import { insertGeneratedProductVariant } from "@/utils/barcodeCollisionGuard";
+import {
+  isSaleOrderCustomGridVariant,
+  planSaleOrderNewVariant,
+} from "@/utils/saleOrderSizeGridNewVariant";
 import {
   combineSaleOrderReservations,
   fetchOpenSaleOrderReservations,
@@ -584,7 +589,7 @@ export default function SaleOrderEntry() {
 
     const { data, error } = await supabase
       .from("product_variants")
-      .select("id, size, color, barcode, sale_price, mrp, stock_qty, active, product_id")
+      .select("id, size, color, barcode, sale_price, mrp, pur_price, stock_qty, active, product_id")
       .in("product_id", productIds)
       .eq("organization_id", currentOrganization.id)
       .eq("active", true)
@@ -658,17 +663,117 @@ export default function SaleOrderEntry() {
     void openSizeGridForProductGroup([product.id]);
   }, [openSizeGridForProductGroup, toast]);
 
-  // Handle size grid confirmation
-  const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
+  // Handle size grid confirmation. A typed size or colour is created as a
+  // zero-stock variant first so the order line has a real sku.
+  const handleSizeGridConfirm = async (
+    items: Array<{ variant: any; qty: number }>,
+    newColor?: string,
+  ) => {
     const product = sizeGridProduct;
-    if (!product) return;
+    const orgId = currentOrganization?.id;
+    if (!product || !orgId) return;
+
+    const autoBarcode = (settings?.purchase_settings as any)?.barcode_mode !== "scan";
+    const resolved: Array<{ variant: any; qty: number }> = [];
+
+    for (const item of items) {
+      if (item.qty <= 0) continue;
+      if (!isSaleOrderCustomGridVariant(item.variant)) {
+        resolved.push(item);
+        continue;
+      }
+
+      const plan = planSaleOrderNewVariant({
+        size: item.variant.size,
+        color: newColor || item.variant.color || product.color || "",
+        fallbackProductId: product.id,
+        fallbackProductName: product.product_name,
+        existingVariants: sizeGridVariants,
+      });
+      if (!plan) {
+        toast({
+          title: "Size required",
+          description: "Enter a size name before adding it to the order.",
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      try {
+        let skuId = "";
+        let barcode = "";
+        const row = {
+          product_id: plan.productId,
+          organization_id: orgId,
+          size: plan.size,
+          color: plan.color,
+          pur_price: plan.purPrice,
+          sale_price: plan.salePrice,
+          mrp: plan.mrp,
+          stock_qty: 0,
+          active: true,
+        };
+        if (autoBarcode) {
+          const { data: generated, error: barcodeError } = await supabase.rpc("generate_next_barcode", {
+            p_organization_id: orgId,
+          });
+          if (barcodeError) throw barcodeError;
+          const created = await insertGeneratedProductVariant<{ id: string }>({
+            ...row,
+            barcode: String(generated ?? ""),
+            barcode_source: "generated",
+          });
+          skuId = created.data.id;
+          barcode = created.barcode;
+        } else {
+          const { data: created, error: createError } = await supabase
+            .from("product_variants")
+            .insert({ ...row, barcode: "" })
+            .select("id")
+            .single();
+          if (createError) throw createError;
+          skuId = created.id;
+        }
+
+        resolved.push({
+          qty: item.qty,
+          variant: {
+            ...item.variant,
+            id: skuId,
+            product_id: plan.productId,
+            product_name: plan.productName,
+            size: plan.size,
+            color: plan.color || "",
+            barcode,
+            sale_price: plan.salePrice,
+            mrp: plan.mrp,
+            stock_qty: 0,
+            isCustomSize: false,
+          },
+        });
+        toast({
+          title: newColor || !sizeGridVariants.some((v) => String(v.color || "").toLowerCase() === String(plan.color || "").toLowerCase())
+            ? "Colour added"
+            : "Size added",
+          description: plan.color
+            ? `${plan.size} / ${plan.color} added with 0 stock`
+            : `${plan.size} added with 0 stock`,
+        });
+      } catch (error: any) {
+        console.error("Sale order size grid variant create failed:", error);
+        toast({
+          title: "Could not add size",
+          description: error?.message || "The new size was not created.",
+          variant: "destructive",
+        });
+      }
+    }
 
     // Build all changes first, then update state once
     let updatedItems = [...lineItems];
     let addedCount = 0;
 
-    for (const { variant, qty } of items) {
-      if (qty <= 0) continue;
+    for (const { variant, qty } of resolved) {
       const existingIndex = updatedItems.findIndex(item => item.variantId === variant.id && item.productId !== '');
       
       if (existingIndex >= 0) {
@@ -2106,6 +2211,8 @@ export default function SaleOrderEntry() {
         showStock={true}
         validateStock={false}
         allowMultiColor={true}
+        allowCustomSizes
+        allowAddColor={showColorCol}
         showSizePrices={false}
         title="Enter Color & Size-wise Qty"
         enterAdvancesSize
