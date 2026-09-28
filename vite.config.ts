@@ -44,7 +44,12 @@ export default defineConfig(({ mode }) => ({
         // Do NOT set navigateFallback to offline.html — Workbox then serves that
         // page for every SPA route (/, /trendzo, …) and Chrome/PWA show
         // "Can't reach EzzyERP" while the phone is online.
-        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        // No JS in the precache. Rollup hashes cascade, so a one-line change renames
+        // ~325 of ~410 chunks (~9 MB); with JS precached every open shop re-downloaded
+        // all of them in the background after each deploy, starving the tab the user
+        // was opening (Purchase Entry "Taking longer than expected", 2026-09-28).
+        // JS is cached on first use by the /assets/*.js rule below instead.
+        globPatterns: ['**/*.{css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
         navigateFallback: null,
         // Take over immediately so clients stuck on the bad offline fallback
@@ -60,6 +65,31 @@ export default defineConfig(({ mode }) => ({
             handler: 'NetworkOnly',
             options: {
               cacheName: 'html-navigations',
+            },
+          },
+          {
+            // Hashed Vite chunks never change once built — cache each one the first
+            // time the app loads it. Only real JavaScript is stored: a host that answers
+            // a missing chunk with index.html (200) must not poison the cache.
+            urlPattern: ({ url, sameOrigin }) =>
+              sameOrigin && url.pathname.startsWith('/assets/') && url.pathname.endsWith('.js'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'app-js-chunks',
+              expiration: {
+                maxEntries: 800,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              plugins: [
+                {
+                  cacheWillUpdate: async ({ response }) =>
+                    response &&
+                    response.status === 200 &&
+                    (response.headers.get('content-type') || '').includes('javascript')
+                      ? response
+                      : null,
+                },
+              ],
             },
           },
           {

@@ -13,4 +13,11 @@ describe("PWA navigation fallback", () => {
     expect(viteConfig).toMatch(/skipWaiting:\s*true/);
     expect(viteConfig).toMatch(/clientsClaim:\s*true/);
   });
+
+  it("does not precache JavaScript chunks (every deploy would re-download ~all of them)", () => {
+    const glob = viteConfig.match(/globPatterns:\s*\[([^\]]*)\]/);
+    expect(glob).not.toBeNull();
+    expect(glob![1]).not.toMatch(/\bjs\b/);
+    expect(viteConfig).toMatch(/cacheName:\s*'app-js-chunks'/);
+  });
 });
