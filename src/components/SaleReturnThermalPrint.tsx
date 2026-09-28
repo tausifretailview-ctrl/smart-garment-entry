@@ -27,6 +27,10 @@ interface SaleReturn {
   items?: SaleReturnItem[];
   refund_type?: string | null;
   payment_method?: string | null;
+  /** Credit later paid out to the customer (credit-note returns marked refunded). */
+  refunded_amount?: number | null;
+  refunded_on?: string | null;
+  refunded_mode?: string | null;
 }
 
 interface BusinessDetails {
@@ -67,6 +71,10 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
   ({ saleReturn, businessDetails, thermalPaper = '80mm' }, ref) => {
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     const isRefund = saleReturn.refund_type === 'cash_refund';
+    const creditRefunded = !isRefund ? Number(saleReturn.refunded_amount || 0) : 0;
+    const creditRefundedOn = saleReturn.refunded_on
+      ? new Date(saleReturn.refunded_on).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      : '';
     const returnDate = new Date(saleReturn.return_date).toLocaleDateString('en-IN', {
       day: '2-digit',
       month: '2-digit',
@@ -287,6 +295,21 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
             <span>{saleReturnRefundModeLabel(saleReturn)}</span>
           </div>
         )}
+        {creditRefunded > 0.005 && (
+          <>
+            <div style={{ ...row, fontSize: '12px', fontWeight: 900 }}>
+              <span>
+                Refunded ({saleReturnRefundModeLabel({ payment_method: saleReturn.refunded_mode })})
+                {creditRefundedOn ? ` ${creditRefundedOn}` : ''}:
+              </span>
+              <span>₹{fmtAmt(creditRefunded)}</span>
+            </div>
+            <div style={{ ...row, fontSize: '12px', fontWeight: 900 }}>
+              <span>Balance Credit:</span>
+              <span>₹{fmtAmt(Math.max(0, saleReturn.net_amount - creditRefunded))}</span>
+            </div>
+          </>
+        )}
         <div style={dblLine} />
 
         <div style={{ fontSize: '10px', textAlign: 'center', fontStyle: 'italic', margin: '3px 0', lineHeight: 1.35 }}>
@@ -305,8 +328,14 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
 
         <div style={singleLine} />
         <div style={{ ...center, fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
-          <div>This credit can be used for future purchases</div>
-          <div>Not redeemable for cash</div>
+          {creditRefunded > 0.005 ? (
+            <div style={{ fontWeight: 900 }}>Credit refunded to customer</div>
+          ) : (
+            <>
+              <div>This credit can be used for future purchases</div>
+              <div>Not redeemable for cash</div>
+            </>
+          )}
           <div style={{ marginTop: '6px', fontWeight: 900, fontSize: '13px' }}>Thank you!</div>
         </div>
       </div>

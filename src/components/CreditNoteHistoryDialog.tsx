@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { descriptionNamesReturn } from "@/utils/saleReturnRefundPayout";
 import {
   Dialog,
   DialogContent,
@@ -233,7 +234,9 @@ export function CreditNoteHistoryDialog({
         if (vErr) throw vErr;
         refundVouchers = (vouchers || []).filter((v) => {
           const d = (v.description || "").toLowerCase();
-          return d.includes("credit note refund") || d.includes("refund");
+          if (!d.includes("refund")) return false;
+          // ilike %SR/26-27/32% also matches SR/26-27/320 — require the exact number.
+          return returnNumbers.some((rn) => descriptionNamesReturn(d, rn));
         });
       }
 
@@ -436,14 +439,19 @@ export function CreditNoteHistoryDialog({
     }
 
     const refunded = data.refundVouchers.reduce((s, v) => s + (v.total_amount || 0), 0);
-    const remainingFromActivity = Math.max(0, cnAmount - applied - refunded);
-    const remainingFromRow = Math.max(0, cnAmount - usedOnRow);
-    const remaining =
-      applied > 0.005 ? remainingFromActivity : remainingFromRow;
+    const appliedShown = applied > 0.005 ? applied : usedOnRow > refunded ? usedOnRow - refunded : 0;
+    // Refunds never touch credit_notes.used_amount, so always take them off here
+    // (ZIBA CN/26-27/8: ₹700 refunded but "CN Remaining ₹700").
+    const cnRefunded =
+      String(cn.status || "").toLowerCase() === "refunded" ||
+      data.linkedReturns.some((r) => String(r.credit_status || "").toLowerCase() === "refunded");
+    const remaining = cnRefunded ? 0 : Math.max(0, cnAmount - appliedShown - refunded);
     const settled = remaining <= 0.01;
 
     let statusLabel = formatCnStatus(cn.status);
-    if (!settled && applied > 0.005) {
+    if (settled && refunded > 0.005 && appliedShown <= 0.005) {
+      statusLabel = "Refunded";
+    } else if (!settled && (applied > 0.005 || refunded > 0.005)) {
       statusLabel = "Partially Used";
     } else if (settled) {
       statusLabel = "Fully Used";
@@ -451,7 +459,7 @@ export function CreditNoteHistoryDialog({
 
     return {
       cnAmount,
-      applied: applied > 0.005 ? applied : usedOnRow > refunded ? usedOnRow - refunded : 0,
+      applied: appliedShown,
       refunded,
       remaining,
       settled,

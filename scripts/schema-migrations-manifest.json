@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-09-28",
-  "count": 808,
-  "fileCount": 825,
+  "count": 809,
+  "fileCount": 826,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -811,7 +811,8 @@
     "20261231120100",
     "20261231120200",
     "20261231130000",
-    "20261231140000"
+    "20261231140000",
+    "20261231150000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1638,7 +1639,8 @@
     "20261231120100_security_org_guards_on_definer_functions.sql",
     "20261231120200_security_storage_policies_and_org_creation.sql",
     "20261231130000_daily_incentive_per_piece_bracket.sql",
-    "20261231140000_sale_invoice_discount_advance_audit.sql"
+    "20261231140000_sale_invoice_discount_advance_audit.sql",
+    "20261231150000_close_credit_note_on_sale_return_refund.sql"
   ],
   "duplicateVersions": [
     {
