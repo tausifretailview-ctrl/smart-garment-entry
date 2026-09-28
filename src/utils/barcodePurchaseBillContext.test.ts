@@ -3,8 +3,10 @@ import {
   barcodePrintSelectionNavKey,
   clearBarcodePrintSelection,
   consumeBarcodePurchaseItems,
+  isBarcodePrintingPathname,
   persistBarcodePrintSelection,
   purchaseBillIdForBarcodeBack,
+  shouldContinueBarcodePurchaseHydrate,
   queueBarcodePurchaseItems,
   readBarcodePrintSelection,
   stashPurchaseBarcodePrintPayload,
@@ -48,6 +50,46 @@ describe("purchaseBillIdForBarcodeBack", () => {
 
   it("has no explicit bill when the page was not opened from one", () => {
     expect(purchaseBillIdForBarcodeBack({ queryBillId: "  ", navBillId: null })).toBeNull();
+  });
+});
+
+describe("shouldContinueBarcodePurchaseHydrate", () => {
+  it("recognises the barcode printing route with an org slug", () => {
+    expect(isBarcodePrintingPathname("/demo/barcode-printing")).toBe(true);
+    expect(isBarcodePrintingPathname("/demo/purchase-entry")).toBe(false);
+  });
+
+  it("stops a late hydrate after Back has opened the purchase bill", () => {
+    expect(
+      shouldContinueBarcodePurchaseHydrate({
+        pathname: "/demo/purchase-entry",
+        userLeftForPurchaseBill: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldContinueBarcodePurchaseHydrate({
+        pathname: "/demo/barcode-printing",
+        userLeftForPurchaseBill: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("still hydrates while the user is on barcode printing", () => {
+    expect(
+      shouldContinueBarcodePurchaseHydrate({
+        pathname: "/demo/barcode-printing",
+        userLeftForPurchaseBill: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not replace the route once purchase entry is open", () => {
+    expect(
+      shouldContinueBarcodePurchaseHydrate({
+        pathname: "/demo/purchase-entry",
+        userLeftForPurchaseBill: false,
+      }),
+    ).toBe(false);
   });
 });
 

@@ -274,6 +274,24 @@ export function purchaseBillIdForBarcodeBack(input: {
   return navBillId || null;
 }
 
+/** Last path segment is the barcode printing screen (with or without an org slug). */
+export function isBarcodePrintingPathname(pathname: string): boolean {
+  const parts = pathname.split("/").filter(Boolean);
+  return parts[parts.length - 1] === "barcode-printing";
+}
+
+/**
+ * Tab cache keeps Barcode Printing mounted after Back. A purchase hydrate that
+ * finishes late must not replace the route once the user has opened the bill.
+ */
+export function shouldContinueBarcodePurchaseHydrate(input: {
+  pathname: string;
+  userLeftForPurchaseBill: boolean;
+}): boolean {
+  if (input.userLeftForPurchaseBill) return false;
+  return isBarcodePrintingPathname(input.pathname);
+}
+
 /**
  * Resolve which purchase bill to reopen from barcode printing.
  * Priority: explicit billId → bill number on labels → latest org bill.

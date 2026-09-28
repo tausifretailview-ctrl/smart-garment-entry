@@ -141,6 +141,8 @@ import {
   readBarcodePrintSelection,
   purchaseBillIdForBarcodeBack,
   resolvePurchaseBillIdForBarcodeReturn,
+  isBarcodePrintingPathname,
+  shouldContinueBarcodePurchaseHydrate,
 } from "@/utils/barcodePurchaseBillContext";
 import {
   BARCODE_PRINT_PURCHASE_BILL_QUERY,
@@ -1384,6 +1386,8 @@ export default function BarcodePrinting() {
   const [sourcePurchaseBillId, setSourcePurchaseBillId] = useState<string | null>(null);
   const sourcePurchaseBillIdRef = useRef<string | null>(null);
   const appliedPurchaseNavKeyRef = useRef<string | null>(null);
+  /** Back already opened the purchase bill — do not navigate back here. */
+  const userLeftForPurchaseBillRef = useRef(false);
   const labelItemsCountRef = useRef(0);
   useEffect(() => {
     labelItemsCountRef.current = labelItems.length;
@@ -3493,9 +3497,27 @@ export default function BarcodePrinting() {
       ? { navKey: purchaseNavKey, billId: st.billId, items: st.purchaseItems as unknown[] }
       : null;
 
+    // A new Print Barcode click is a fresh arrival. Back's leave flag must not
+    // block it. A hydrate already in flight keeps the flag and aborts below.
+    if (
+      Boolean(st?.purchaseItems?.length) &&
+      isBarcodePrintingPathname(window.location.pathname)
+    ) {
+      userLeftForPurchaseBillRef.current = false;
+    }
+
     let cancelled = false;
 
     const load = async () => {
+      const hydrateStillWanted = () =>
+        !cancelled &&
+        shouldContinueBarcodePurchaseHydrate({
+          pathname: window.location.pathname,
+          userLeftForPurchaseBill: userLeftForPurchaseBillRef.current,
+        });
+
+      if (!hydrateStillWanted()) return;
+
       const billIdForFetch =
         purchaseBillIdParam ||
         st?.billId ||
@@ -3536,12 +3558,14 @@ export default function BarcodePrinting() {
                 items: fetched.items,
               };
             } else if (!pending?.items?.length) {
+              if (!hydrateStillWanted()) return;
               toast.error("No items found on this purchase bill");
               return;
             }
           } catch (err) {
             console.error("[BarcodePrinting] purchase bill fallback fetch failed", err);
             if (!pending?.items?.length) {
+              if (!hydrateStillWanted()) return;
               toast.error("Failed to load purchase bill items");
               return;
             }
@@ -3549,6 +3573,7 @@ export default function BarcodePrinting() {
         }
       }
 
+      if (!hydrateStillWanted()) return;
       if (!pending?.items?.length || !pending.navKey) return;
       const effectiveNavKey =
         pending.billId && pending.items.length
@@ -3645,7 +3670,7 @@ export default function BarcodePrinting() {
         }
       }
 
-      if (cancelled) return;
+      if (!hydrateStillWanted()) return;
 
       const items: LabelItem[] = pending.items.map((item: any) => {
         const live = item.sku_id ? liveBySku.get(item.sku_id) : undefined;
@@ -3704,6 +3729,10 @@ export default function BarcodePrinting() {
           row.sale_disc_percent = discMap.get(row.sku_id);
         }
       }
+
+      // User may have pressed Back while this fetch was in flight. Tab cache
+      // keeps this page mounted, so finishing the hydrate would send them back.
+      if (!hydrateStillWanted()) return;
 
       // Replace entire print list (do not append to products already on the page)
       setLabelItems(items);
@@ -6706,8 +6735,23 @@ export default function BarcodePrinting() {
     [fromPurchaseBill, location.state, labelItems],
   );
 
+  const openPurchaseBillAndStay = useCallback((billId: string) => {
+    // Drop the session markers the hidden tab-cache page uses to reload this
+    // bill and replace the URL with /barcode-printing.
+    userLeftForPurchaseBillRef.current = true;
+    clearBarcodePurchaseItems();
+    clearBarcodePurchaseBillContext();
+    clearBarcodePrintSelection(billId);
+    appliedPurchaseNavKeyRef.current = `db|${billId}`;
+    sourcePurchaseBillIdRef.current = null;
+    setSourcePurchaseBillId(null);
+    setFromPurchaseBill(false);
+    orgNavigate("/purchase-entry", { state: { editBillId: billId } });
+  }, [orgNavigate]);
+
   const handleBackToPurchaseBill = useCallback(async () => {
     if (!currentOrganization?.id) return;
+    userLeftForPurchaseBillRef.current = true;
     setIsNavigatingToPurchaseBill(true);
     try {
       const navState = location.state as { billId?: string } | null;
@@ -6717,18 +6761,15 @@ export default function BarcodePrinting() {
         billNumber,
       });
       if (!billId) {
+        userLeftForPurchaseBillRef.current = false;
         toast.error("Could not find the purchase bill to open");
         return;
       }
-      persistBarcodePurchaseBillContext(currentOrganization.id, {
-        billId,
-        billNumber,
-      });
-      orgNavigate("/purchase-entry", { state: { editBillId: billId } });
+      openPurchaseBillAndStay(billId);
     } finally {
       setIsNavigatingToPurchaseBill(false);
     }
-  }, [currentOrganization?.id, labelItems, location.state, orgNavigate, purchaseBillIdParam, sourcePurchaseBillId]);
+  }, [currentOrganization?.id, labelItems, location.state, openPurchaseBillAndStay, purchaseBillIdParam, sourcePurchaseBillId]);
 
   const totalLabelQty = labelItems.reduce((sum, item) => sum + item.qty, 0);
   const quantityModeLabel =
@@ -6746,6 +6787,7 @@ export default function BarcodePrinting() {
   const handleBackNavigation = () => {
     const orgId = currentOrganization?.id;
     if (!orgId) return;
+    userLeftForPurchaseBillRef.current = true;
     setIsNavigatingToPurchaseBill(true);
     void (async () => {
       try {
@@ -6762,14 +6804,11 @@ export default function BarcodePrinting() {
           billNumber,
         });
         if (!billId) {
+          userLeftForPurchaseBillRef.current = false;
           toast.error("Could not find the purchase bill to open");
           return;
         }
-        persistBarcodePurchaseBillContext(orgId, {
-          billId,
-          billNumber: billNumber ?? undefined,
-        });
-        orgNavigate("/purchase-entry", { state: { editBillId: billId } });
+        openPurchaseBillAndStay(billId);
       } finally {
         setIsNavigatingToPurchaseBill(false);
       }
