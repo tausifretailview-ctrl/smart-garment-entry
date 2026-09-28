@@ -47,3 +47,12 @@ describe("vastrakalaParticularsLines", () => {
     expect(vastrakalaParticularsLines("", "3 PC")).toEqual({ line1: "", line2: "3 PC" });
   });
 });
+
+describe("vastrakalaParticularsLines — zero-width line 1", () => {
+  it("moves the whole name to line 2 when the narrow column fits nothing", () => {
+    expect(vastrakalaParticularsLines("KIDS SHOES RED 5", "D-102", { narrowMaxChars: 0 })).toEqual({
+      line1: "",
+      line2: "KIDS SHOES RED 5 D-102",
+    });
+  });
+});

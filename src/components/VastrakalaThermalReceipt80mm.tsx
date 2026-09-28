@@ -126,9 +126,14 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     // Height matches the name + address + contact block; width follows the logo's shape.
     logoHeight: is58 ? "16mm" : "26mm",
     logoMaxWidth: is58 ? "14mm" : "22mm",
-    sectionGap: is58 ? 6 : 11,
-    /** Chars on line 1 in the narrow column before QTY; rest goes on wide line 2. */
-    particularsLine1MaxChars: is58 ? 14 : 22,
+    sectionGap: is58 ? 3 : 5,
+    /**
+     * Chars on line 1 in the narrow column before QTY; rest goes on wide line 2.
+     * Sized to what the column actually fits (it clips, no wrap): with MRP on, the
+     * 80mm column is ~19mm (~9 caps) and the 58mm one is ~1mm, so the whole name
+     * goes on line 2 there.
+     */
+    particularsLine1MaxChars: is58 ? (showMrp ? 0 : 7) : showMrp ? 9 : 14,
     itemGridColumns,
   };
 }
@@ -246,7 +251,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
 
   const dashed: React.CSSProperties = {
     borderTop: "1px dashed #000",
-    margin: `${layout.sectionGap + 2}px 0 ${layout.sectionGap}px`,
+    margin: `${layout.sectionGap}px 0`,
   };
   const base: React.CSSProperties = {
     width: layout.paperWidth,
@@ -411,7 +416,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
                 columnGap: "1mm",
                 rowGap: "0.5mm",
                 alignItems: "start",
-                marginBottom: i === items.length - 1 ? 0 : 4,
+                marginBottom: i === items.length - 1 ? 0 : 2,
               }}
             >
               <span

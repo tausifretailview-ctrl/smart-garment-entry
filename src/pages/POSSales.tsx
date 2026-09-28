@@ -3336,6 +3336,7 @@ export default function POSSales() {
         variantId: itemToAdd.variantId,
         mrp: itemToAdd.mrp,
         unitCost: itemToAdd.unitCost,
+        itemNotes: itemToAdd.itemNotes,
       });
 
       if (existingIndex >= 0) {
@@ -3412,6 +3413,15 @@ export default function POSSales() {
 
         if (discountAmount && discountAmount > 0) {
           billingUpdateDiscountAmount(lineIdx, discountAmount);
+        }
+
+        if (description) {
+          const lineId = itemsRef.current[lineIdx]?.id;
+          if (lineId) {
+            setItems((prev) =>
+              prev.map((it) => (it.id === lineId ? { ...it, itemNotes: description } : it)),
+            );
+          }
         }
 
         const highlightId = addResult.mergedItemId || addResult.addedItemId;
@@ -7870,7 +7880,17 @@ export default function POSSales() {
                                 </TooltipContent>
                               </Tooltip>
                             )}
-                            <span className="truncate">{item.productName}</span>
+                            <span className="flex flex-col min-w-0">
+                              <span className="truncate">{item.productName}</span>
+                              {item.itemNotes?.trim() ? (
+                                <span
+                                  className="truncate text-xs font-normal leading-tight text-muted-foreground"
+                                  title={item.itemNotes}
+                                >
+                                  {item.itemNotes}
+                                </span>
+                              ) : null}
+                            </span>
                             <PosSchemeAppliedTag applied={item.categoryTierApplied} />
                             {item.isDcProduct && (
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
