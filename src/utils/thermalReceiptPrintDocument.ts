@@ -72,6 +72,16 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
 /** @deprecated Use INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS */
 export const THERMAL_RECEIPT_PRINT_VISIBILITY_OVERRIDE_CSS = INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS;
 
+/**
+ * InvoicePrint.css hides `body *` in the print iframe. A4/A5 page styles that
+ * omit the body-prefixed override print a blank sheet. Thermal styles already
+ * include the override — do not append it twice.
+ */
+export function appendInvoicePrintVisibilityCss(pageStyle: string): string {
+  if (pageStyle.includes("body .invoice-print-root")) return pageStyle;
+  return `${pageStyle}\n${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}`;
+}
+
 /** Override global index.css / InvoicePrint.css page-break rules on thermal receipts. */
 export const THERMAL_RECEIPT_PAGE_BREAK_OVERRIDE_CSS = `
   @media print {

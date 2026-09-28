@@ -79,6 +79,7 @@ import {
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 import {
   getThermalReceiptPageStyleFragment,
+  appendInvoicePrintVisibilityCss,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
 } from "@/utils/thermalReceiptPrintDocument";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
@@ -1820,7 +1821,7 @@ export default function SalesInvoiceDashboard() {
           : '210mm 297mm';
       const contentW = isA5Landscape ? '210mm' : isA5 ? '148mm' : '210mm';
       const contentH = isA5Landscape ? '148mm' : isA5 ? '210mm' : '297mm';
-      return `
+      return appendInvoicePrintVisibilityCss(`
       @page {
         size: ${pageSize};
         margin: 0;
@@ -1861,11 +1862,11 @@ export default function SalesInvoiceDashboard() {
           page-break-inside: avoid !important;
         }
       }
-    `;
+    `);
     }
 
     if (isA5PortraitInvoiceTemplate(invoiceTemplate)) {
-      return `
+      return appendInvoicePrintVisibilityCss(`
       @page {
         size: A5 portrait;
         margin: 4mm;
@@ -1888,7 +1889,7 @@ export default function SalesInvoiceDashboard() {
           min-height: 0 !important;
         }
       }
-    `;
+    `);
     }
 
     const format = effectiveSaleBillFormat;
@@ -1939,7 +1940,7 @@ export default function SalesInvoiceDashboard() {
         break;
     }
     
-    return `
+    return appendInvoicePrintVisibilityCss(`
       @page {
         size: ${size};
         margin: ${margin};
@@ -1947,12 +1948,13 @@ export default function SalesInvoiceDashboard() {
       @media print {
         html, body {
           width: 100%;
-          height: 100%;
+          height: auto;
           margin: 0;
           padding: 0;
+          overflow: visible;
         }
       }
-    `;
+    `);
   };
 
   const handlePrint = useReactToPrint({
