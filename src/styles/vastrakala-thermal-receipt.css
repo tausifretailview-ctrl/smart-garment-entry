@@ -37,11 +37,11 @@
 }
 
 .vastrakala-thermal-receipt-80mm .vk-section {
-  padding-bottom: 1.5mm;
+  padding-bottom: 0.5mm;
 }
 
 .vastrakala-thermal-receipt-80mm[data-thermal-paper="58mm"] .vk-section {
-  padding-bottom: 1mm;
+  padding-bottom: 0.3mm;
 }
 
 .vastrakala-thermal-receipt-80mm .vk-header-meta {

@@ -326,6 +326,11 @@ export function TabletPOSLayout({
                       <p className="text-[11px] text-muted-foreground truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
                         {item.barcode} · {item.size}{item.color ? ` · ${item.color}` : ""}
                       </p>
+                      {item.itemNotes?.trim() ? (
+                        <p className="text-[11px] text-muted-foreground truncate" title={item.itemNotes}>
+                          {item.itemNotes}
+                        </p>
+                      ) : null}
                     </div>
 
                     {posPerLineSalesman && (

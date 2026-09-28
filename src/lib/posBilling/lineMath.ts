@@ -101,16 +101,20 @@ export function findPosGoodsMergeIndex(items: PosCartItem[], variantId: string):
 }
 export function findPosServiceMergeIndex(
   items: PosCartItem[],
-  params: { barcode: string; variantId: string; mrp: number; unitCost: number },
+  params: { barcode: string; variantId: string; mrp: number; unitCost: number; itemNotes?: string | null },
 ): number {
   const code = (params.barcode || "").trim();
   if (!code || !params.variantId) return -1;
+  // A line with a cashier-typed description (design no, brand…) is its own line:
+  // merging would silently drop the second description.
+  const notes = (params.itemNotes || "").trim();
   return items.findIndex(
     (item) =>
       item.productType === "service" &&
       (item.barcode || "").trim() === code &&
       item.variantId === params.variantId &&
       posPricesMatch(item.mrp, params.mrp) &&
-      posPricesMatch(item.unitCost, params.unitCost),
+      posPricesMatch(item.unitCost, params.unitCost) &&
+      (item.itemNotes || "").trim() === notes,
   );
 }
