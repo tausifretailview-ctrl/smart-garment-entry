@@ -871,7 +871,10 @@ export default function Accounts() {
     />
   ) : null;
 
-  const accountsManagementFooter = (
+  const showAccountsAdminFooter =
+    selectedTab !== "customer-payment" && selectedTab !== "supplier-payment";
+
+  const accountsManagementFooter = showAccountsAdminFooter ? (
     <div className="mt-8 pt-4 border-t border-dashed border-slate-300">
       <button
         type="button"
@@ -1049,7 +1052,7 @@ export default function Accounts() {
         </div>
       )}
     </div>
-  );
+  ) : null;
 
   const isMobile = useIsMobile();
 
