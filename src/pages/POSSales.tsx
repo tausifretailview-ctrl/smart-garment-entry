@@ -8056,7 +8056,8 @@ export default function POSSales() {
                                         : "Unit price"
                                   }
                                 >
-                                  ₹{formatINR2(listUnit > 0 ? listUnit : posLineNetUnitPrice(item))}
+                                  {/* Selling price, not MRP: MRP 569 / sale 549 must read ₹549 here (MRP has its own column). */}
+                                  ₹{formatINR2(Number(item.unitCost) > 0 ? Number(item.unitCost) : posLineNetUnitPrice(item))}
                                 </div>
                               );
                             })()}
