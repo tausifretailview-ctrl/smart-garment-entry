@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPurchaseLinePatchFromProductEdit,
+  persistedPurchaseItemIdsForEdit,
+  purchaseItemDbPatchFromLineEdit,
   purchaseLineMatchesProductEdit,
   type ProductEditFormSnapshot,
 } from "./purchaseLineProductEdit";
@@ -128,5 +130,92 @@ describe("buildPurchaseLinePatchFromProductEdit", () => {
     });
 
     expect(patch).toEqual({});
+  });
+
+  it("copies the barcode colour onto a bill line that still has the old colour", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({ color: "MYSTIC BLUE", product_name: "Y21 5G" }),
+      line: {
+        product_name: "Y21 5G",
+        color: "",
+        pur_price: 2331,
+        sale_price: 3665,
+        mrp: 4310,
+      },
+      modifiedFields: new Set(["default_pur_price"]),
+    });
+
+    expect(patch.color).toBe("MYSTIC BLUE");
+  });
+
+  it("replaces a stale bill colour even when the colour field was not edited again", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({ color: "NAVY", product_name: "Y21 5G" }),
+      line: {
+        product_name: "Y21 5G",
+        color: "MYSTIC BLUE",
+        pur_price: 2331,
+        sale_price: 3665,
+        mrp: 4310,
+      },
+      modifiedFields: new Set(),
+    });
+
+    expect(patch).toEqual({ color: "NAVY" });
+  });
+
+  it("does not wipe a bill colour when the form colour is blank and was not edited", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({ color: "  ", product_name: "Y21 5G" }),
+      line: {
+        product_name: "Y21 5G",
+        color: "MYSTIC BLUE",
+        pur_price: 2331,
+        sale_price: 3665,
+        mrp: 4310,
+      },
+      modifiedFields: new Set(["default_mrp"]),
+    });
+
+    expect(patch.color).toBeUndefined();
+  });
+
+  it("clears the bill colour when the user clears it", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({ color: "", product_name: "Y21 5G" }),
+      line: {
+        product_name: "Y21 5G",
+        color: "MYSTIC BLUE",
+        pur_price: 2331,
+        sale_price: 3665,
+        mrp: 4310,
+      },
+      modifiedFields: new Set(["color"]),
+    });
+
+    expect(patch.color).toBe("");
+  });
+});
+
+describe("purchase item persistence", () => {
+  it("writes colour onto purchase_items and skips unsaved rows", () => {
+    expect(purchaseItemDbPatchFromLineEdit({ color: " NAVY ", product_name: "Y21 5G" })).toEqual({
+      color: "NAVY",
+      product_name: "Y21 5G",
+    });
+    expect(purchaseItemDbPatchFromLineEdit({ color: "" })).toEqual({ color: null });
+
+    const lines = [
+      { temp_id: "saved-imei-1", barcode: "86347684412", sku_id: "sku-1" },
+      { temp_id: "saved-imei-2", barcode: "86347684165", sku_id: "sku-2" },
+      { temp_id: "draft-row", barcode: "86347684412", sku_id: "sku-1" },
+    ];
+    expect(
+      persistedPurchaseItemIdsForEdit(
+        lines,
+        { tempId: "saved-imei-1", barcode: "86347684412", skuId: "sku-1" },
+        new Set(["saved-imei-1", "saved-imei-2"]),
+      ),
+    ).toEqual(["saved-imei-1"]);
   });
 });
