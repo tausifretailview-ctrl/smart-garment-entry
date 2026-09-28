@@ -14,6 +14,7 @@ import {
   isUnusedGeneratedSkuCandidate,
   pickLowestUnusedGeneratedSku,
   recycleUnusedGeneratedSku,
+  reuseOrRecycleGeneratedSkusOnProduct,
 } from "./recycleUnusedGeneratedBarcode";
 
 function chainSelect(rows: unknown[], maybeSingle?: unknown) {
@@ -159,5 +160,81 @@ describe("recycleUnusedGeneratedSku", () => {
     });
     expect(recycled).toBe(false);
     expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("reuseOrRecycleGeneratedSkusOnProduct", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  const leftovers = [
+    { id: "sku-m-732", product_id: "p", barcode: "420001732", barcode_source: "generated", size: "M", color: null, stock_qty: 0 },
+    { id: "sku-m-730", product_id: "p", barcode: "420001730", barcode_source: "generated", size: "M", color: null, stock_qty: 0 },
+    { id: "sku-l-740", product_id: "p", barcode: "420001740", barcode_source: "generated", size: "L", color: null, stock_qty: 0 },
+    { id: "sku-billed", product_id: "p", barcode: "420001750", barcode_source: "generated", size: "L", color: null, stock_qty: 0 },
+    { id: "sku-on-bill", product_id: "p", barcode: "420001760", barcode_source: "generated", size: "M", color: null, stock_qty: 0 },
+  ];
+
+  function mockTables(updatedIds: string[][]) {
+    let variantCalls = 0;
+    fromMock.mockImplementation((table: string) => {
+      if (table === "product_variants") {
+        variantCalls += 1;
+        if (variantCalls === 1) return chainSelect(leftovers);
+        // Soft-delete: .update().eq().in("id", ids).is().select("id")
+        let ids: string[] = [];
+        const c: Record<string, unknown> = {};
+        c.update = () => c;
+        c.eq = () => c;
+        c.is = () => c;
+        c.in = (_col: string, values: string[]) => {
+          ids = values;
+          return c;
+        };
+        c.select = () => {
+          updatedIds.push(ids);
+          return Promise.resolve({ data: ids.map((id) => ({ id })), error: null });
+        };
+        return c;
+      }
+      if (table === "purchase_items") return chainSelect([{ sku_id: "sku-billed" }]);
+      if (table === "sale_items") return chainSelect([]);
+      throw new Error(`unexpected table ${table}`);
+    });
+  }
+
+  it("reuses the lowest leftover for the size and recycles the other unused leftovers in one update", async () => {
+    const updatedIds: string[][] = [];
+    mockTables(updatedIds);
+
+    const result = await reuseOrRecycleGeneratedSkusOnProduct({
+      organizationId: "org-1",
+      productId: "p",
+      size: "M",
+      color: null,
+      excludeSkuIds: ["sku-on-bill"],
+    });
+
+    expect(result.reusable).toEqual({ id: "sku-m-730", barcode: "420001730" });
+    // Never the reused SKU, a SKU with purchase/sale history, or one on the bill.
+    expect(updatedIds).toEqual([["sku-m-732", "sku-l-740"]]);
+    expect(result.recycled).toBe(2);
+  });
+
+  it("recycles every unused leftover when none matches the size", async () => {
+    const updatedIds: string[][] = [];
+    mockTables(updatedIds);
+
+    const result = await reuseOrRecycleGeneratedSkusOnProduct({
+      organizationId: "org-1",
+      productId: "p",
+      size: "XL",
+      color: null,
+      excludeSkuIds: ["sku-on-bill"],
+    });
+
+    expect(result.reusable).toBeNull();
+    expect(updatedIds).toEqual([["sku-m-732", "sku-m-730", "sku-l-740"]]);
   });
 });

@@ -18,7 +18,11 @@ import {
 
 const ORG = "org-1";
 
+/** Value lists passed to each batched .in("barcode", …) lookup. */
+let lookups: string[][] = [];
+
 function mockLookup(taken: Set<string>) {
+  lookups = [];
   vi.mocked(supabase.from).mockImplementation(() => {
     let barcode = "";
     const chain: Record<string, unknown> = {};
@@ -33,6 +37,14 @@ function mockLookup(taken: Set<string>) {
         data: taken.has(barcode) ? [{ id: "existing" }] : [],
         error: null,
       });
+    // Batched lookup: .in("barcode", [...]) is the terminal call.
+    chain.in = (_col: string, values: string[]) => {
+      lookups.push(values);
+      return Promise.resolve({
+        data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
+        error: null,
+      });
+    };
     return chain as never;
   });
 }
@@ -117,6 +129,8 @@ describe("ensureFreshGeneratedBarcode", () => {
       chain.eq = () => chain;
       chain.is = () => chain;
       chain.limit = () => Promise.resolve({ data: [{ id: "existing" }], error: null });
+      chain.in = (_col: string, values: string[]) =>
+        Promise.resolve({ data: values.map((v) => ({ barcode: v })), error: null });
       return chain as never;
     });
     vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
@@ -143,6 +157,52 @@ describe("ensureFreshGeneratedBarcodes", () => {
   });
 });
 
+describe("batched barcode lookups", () => {
+  beforeEach(() => {
+    vi.mocked(supabase.from).mockReset();
+    vi.mocked(supabase.rpc).mockReset();
+  });
+
+  it("checks a whole size grid in one lookup when every candidate is free", async () => {
+    mockLookup(new Set());
+
+    await expect(
+      ensureFreshGeneratedBarcodes(ORG, ["450006772", "450006773", "450006774"]),
+    ).resolves.toEqual(["450006772", "450006773", "450006774"]);
+    expect(supabase.from).toHaveBeenCalledTimes(1);
+    expect(lookups).toEqual([["450006772", "450006773", "450006774"]]);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("gives a repeated candidate in one grid a fresh value", async () => {
+    mockLookup(new Set());
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "450006790", error: null } as never);
+
+    await expect(
+      ensureFreshGeneratedBarcodes(ORG, ["450006772", "450006772"]),
+    ).resolves.toEqual(["450006772", "450006790"]);
+  });
+
+  it("walks past a run of used values in one round trip, same answer as probing one by one", async () => {
+    mockLookup(new Set(["420001730", "420001731", "420001732", "420001733"]));
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
+
+    await expect(ensureFreshGeneratedBarcode(ORG, "")).resolves.toBe("420001734");
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0][0]).toBe("420001730");
+  });
+
+  it("skips values already claimed in this batch without asking the database about them", async () => {
+    mockLookup(new Set());
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
+
+    const claimed = new Set(["420001730", "420001731"]);
+    await expect(ensureFreshGeneratedBarcode(ORG, "", claimed)).resolves.toBe("420001732");
+    expect(lookups[0]).not.toContain("420001730");
+    expect(lookups[0]).not.toContain("420001731");
+  });
+});
+
 describe("insertGeneratedProductVariant", () => {
   beforeEach(() => {
     vi.mocked(supabase.from).mockReset();
@@ -166,6 +226,11 @@ describe("insertGeneratedProductVariant", () => {
       chain.limit = () =>
         Promise.resolve({
           data: taken.has(barcode) ? [{ id: "existing" }] : [],
+          error: null,
+        });
+      chain.in = (_col: string, values: string[]) =>
+        Promise.resolve({
+          data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
           error: null,
         });
       chain.insert = (row: { barcode: string }) => {
