@@ -4,6 +4,7 @@ import {
   clearBarcodePrintSelection,
   consumeBarcodePurchaseItems,
   persistBarcodePrintSelection,
+  purchaseBillIdForBarcodeBack,
   queueBarcodePurchaseItems,
   readBarcodePrintSelection,
   stashPurchaseBarcodePrintPayload,
@@ -33,6 +34,21 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+describe("purchaseBillIdForBarcodeBack", () => {
+  it("uses the bill this print page was opened from", () => {
+    expect(
+      purchaseBillIdForBarcodeBack({
+        queryBillId: billId,
+        navBillId: "other",
+      }),
+    ).toBe(billId);
+  });
+
+  it("has no explicit bill when the page was not opened from one", () => {
+    expect(purchaseBillIdForBarcodeBack({ queryBillId: "  ", navBillId: null })).toBeNull();
+  });
 });
 
 describe("barcode print selection persistence", () => {

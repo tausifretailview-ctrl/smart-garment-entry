@@ -261,6 +261,20 @@ async function lookupPurchaseBillIdByNumber(
 }
 
 /**
+ * Bill id already on this barcode-print visit (URL or router state).
+ * A remembered session bill is not used — Back falls through to the newest bill.
+ */
+export function purchaseBillIdForBarcodeBack(input: {
+  queryBillId?: string | null;
+  navBillId?: string | null;
+}): string | null {
+  const queryBillId = input.queryBillId?.trim();
+  if (queryBillId) return queryBillId;
+  const navBillId = input.navBillId?.trim();
+  return navBillId || null;
+}
+
+/**
  * Resolve which purchase bill to reopen from barcode printing.
  * Priority: explicit billId → bill number on labels → latest org bill.
  */
