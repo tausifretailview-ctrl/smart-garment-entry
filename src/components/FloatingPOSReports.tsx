@@ -29,6 +29,8 @@ import {
   sumCustomerAdvanceTenders,
 } from "@/utils/posCashierCashIn";
 import { sumCashierSaleReturnRefunds } from "@/utils/cashierSaleReturnRefunds";
+import { saleBillFigures } from "@/utils/saleBillFigures";
+import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 import { 
   Receipt, 
   IndianRupee, 
@@ -179,7 +181,8 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     if (pm === 'upi') return 'upi';
     if (pm === 'card') return 'card';
     if (pm === 'bank' || pm === 'cheque' || pm === 'neft' || pm === 'bank_transfer') return 'bank';
-    if (pm === 'advance_adjustment' || pm === 'credit_note') return null;
+    // Return/CN credit and advance applied to a bill: no money comes in.
+    if (isNonCashSettlementReceiptMethod(pm)) return null;
     if (pm === 'cash') return 'cash';
     const d = (description || '').toLowerCase();
     if (d.includes('upi')) return 'upi';
@@ -189,7 +192,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
   };
 
   const calculateTotals = () => {
-    let grossSale = 0, totalDiscount = 0, totalSale = 0, totalRoundOff = 0;
+    let grossSale = 0, totalDiscount = 0, totalSale = 0, totalRoundOff = 0, netSaleAfterSR = 0;
     let cashSale = 0, cardSale = 0, upiSale = 0, creditSale = 0;
     let totalRefund = 0, totalSRAdjusted = 0;
     const srRefunds = sumCashierSaleReturnRefunds(saleReturnsData);
@@ -247,7 +250,10 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       totalDiscount += getSaleReportLineDiscountAmount(sale);
       totalRoundOff += getSaleReportRoundOff(sale);
       const net = getSaleReportNetAmount(sale);
-      totalSale += net;
+      // Same figures as the web Cashier Report: bill total, then less S/R Adjust.
+      const figures = saleBillFigures({ ...sale, net_amount: net });
+      totalSale += figures.billAmount;
+      netSaleAfterSR += figures.billAmount - (Number((sale as any).sale_return_adjust) || 0);
       totalSRAdjusted += Number((sale as any).sale_return_adjust) || 0;
       totalRefund += Number(sale.refund_amount) || 0;
 
@@ -323,6 +329,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
       grossSale: Math.round(grossSale),
       totalDiscount: Math.round(totalDiscount),
       totalSale: Math.round(totalSale),
+      netSaleAfterSR: Math.round(netSaleAfterSR),
       totalRoundOff: Math.round(totalRoundOff),
       cashSale: Math.round(cashSale),
       cardSale: Math.round(cardSale),
@@ -437,7 +444,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
           ) : (
             <>
               {/* Summary Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                 <Card className="bg-gradient-to-br from-blue-500 to-blue-600 border-0">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2 text-white/90 text-xs mb-1">
@@ -471,13 +478,25 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                   </CardContent>
                 </Card>
 
+                <Card className="bg-gradient-to-br from-teal-500 to-teal-600 border-0">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2 text-white/90 text-xs mb-1">
+                      <RotateCcw className="h-3 w-3" />
+                      S/R Adjust
+                    </div>
+                    <p className="text-lg font-bold text-white">{formatCurrency(totals.totalSRAdjusted)}</p>
+                    <p className="text-[10px] text-white/70">Return/CN credit used on these bills</p>
+                  </CardContent>
+                </Card>
+
                 <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 border-0">
                   <CardContent className="p-3">
                     <div className="flex items-center gap-2 text-white/90 text-xs mb-1">
                       <IndianRupee className="h-3 w-3" />
                       Net Sale
                     </div>
-                    <p className="text-lg font-bold text-white">{formatCurrency(totals.totalSale)}</p>
+                    <p className="text-lg font-bold text-white">{formatCurrency(totals.netSaleAfterSR)}</p>
+                    <p className="text-[10px] text-white/70">After discount, round-off and S/R</p>
                   </CardContent>
                 </Card>
 
@@ -538,7 +557,7 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
                         <TableRow>
                           <TableCell className="flex items-center gap-2">
                             <RotateCcw className="h-4 w-4 text-teal-600" />
-                            Old credit used on bills
+                            S/R Adjust (return/CN credit)
                           </TableCell>
                           <TableCell className="text-right font-medium text-teal-600">{formatCurrency(totals.totalSRAdjusted)}</TableCell>
                         </TableRow>

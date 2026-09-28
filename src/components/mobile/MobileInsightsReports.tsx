@@ -32,7 +32,9 @@ import {
   getSaleReportLineDiscountAmount,
   getSaleReportGrossAmount,
   getSaleReportNetAmount,
+  getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
+import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   fetchItemWiseStockPage,
   fetchItemWiseStockTotals,
@@ -104,7 +106,7 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
         const { data: sales, error } = await supabase
           .from("sales")
           .select(
-            "id, sale_number, customer_name, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, is_cancelled",
+            "id, sale_number, customer_name, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, net_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, is_cancelled, payment_status",
           )
           .eq("organization_id", orgId!)
           .is("deleted_at", null)
@@ -114,23 +116,35 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
           .order("sale_date", { ascending: false })
           .limit(400);
         if (error) throw error;
-        return sales || [];
+        // Same bills as the web Cashier Report: no held or cancelled-status bills.
+        return (sales || []).filter((s) => {
+          const status = String(s.payment_status || "");
+          if (status === "cancelled" || status === "hold") return false;
+          return !(status === "pending" && String(s.sale_number || "").startsWith("Hold/"));
+        });
       }),
   });
 
   const rows = useMemo(
     () =>
-      (data || []).map((s) => ({
-        id: s.id,
-        bill: s.sale_number,
-        customer: s.customer_name || "Walk-in",
-        cash: Number(s.cash_amount) || 0,
-        upi: Number(s.upi_amount) || 0,
-        card: Number(s.card_amount) || 0,
-        disc: getSaleReportLineDiscountAmount(s),
-        net: getSaleReportNetAmount(s),
-        gross: getSaleReportGrossAmount(s),
-      })),
+      (data || []).map((s) => {
+        const sr = Number(s.sale_return_adjust) || 0;
+        const bill = saleBillFigures({ ...s, net_amount: getSaleReportNetAmount(s) }).billAmount;
+        return {
+          id: s.id,
+          bill: s.sale_number,
+          customer: s.customer_name || "Walk-in",
+          cash: Number(s.cash_amount) || 0,
+          upi: Number(s.upi_amount) || 0,
+          card: Number(s.card_amount) || 0,
+          disc: getSaleReportLineDiscountAmount(s),
+          roundOff: getSaleReportRoundOff(s),
+          sr,
+          // Net Sale = bill after discount/round-off, less S/R Adjust (web Cashier Report).
+          net: bill - sr,
+          gross: getSaleReportGrossAmount(s),
+        };
+      }),
     [data],
   );
 
@@ -143,8 +157,11 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
           card: a.card + r.card,
           net: a.net + r.net,
           gross: a.gross + r.gross,
+          disc: a.disc + r.disc,
+          roundOff: a.roundOff + r.roundOff,
+          sr: a.sr + r.sr,
         }),
-        { cash: 0, upi: 0, card: 0, net: 0, gross: 0 },
+        { cash: 0, upi: 0, card: 0, net: 0, gross: 0, disc: 0, roundOff: 0, sr: 0 },
       ),
     [rows],
   );
@@ -156,7 +173,8 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
     { key: "upi", header: "UPI", align: "right", render: (r) => fmt(r.upi) },
     { key: "card", header: "Card", align: "right", render: (r) => fmt(r.card) },
     { key: "disc", header: "Disc", align: "right", render: (r) => fmt(r.disc) },
-    { key: "net", header: "Net", align: "right", render: (r) => <span className="font-bold">{fmt(r.net)}</span> },
+    { key: "sr", header: "S/R Adj", align: "right", render: (r) => (r.sr > 0 ? fmt(r.sr) : "—") },
+    { key: "net", header: "Net Sale", align: "right", render: (r) => <span className="font-bold">{fmt(r.net)}</span> },
   ];
 
   if (isLoading) return <LoadingRows />;
@@ -165,8 +183,11 @@ export function MobileCashierReport({ orgId, start, end }: DateProps) {
   return (
     <div className="space-y-3">
       <div className="flex gap-2 overflow-x-auto no-scrollbar">
-        <MetricCard label="Gross" value={fmt(totals.gross)} />
-        <MetricCard label="Net" value={fmt(totals.net)} color="text-emerald-600" />
+        <MetricCard label="Gross Sale" value={fmt(totals.gross)} />
+        <MetricCard label="Discount" value={fmt(totals.disc)} color="text-red-600" />
+        {Math.abs(totals.roundOff) > 0.004 && <MetricCard label="Round Off" value={fmt(totals.roundOff)} />}
+        {totals.sr > 0 && <MetricCard label="S/R Adjust" value={fmt(totals.sr)} color="text-teal-600" />}
+        <MetricCard label="Net Sale" value={fmt(totals.net)} color="text-emerald-600" />
         <MetricCard label="Cash" value={fmt(totals.cash)} color="text-emerald-600" />
         <MetricCard label="UPI" value={fmt(totals.upi)} color="text-blue-600" />
         <MetricCard label="Card" value={fmt(totals.card)} color="text-violet-600" />
