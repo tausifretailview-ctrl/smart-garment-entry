@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
-import { splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
+import { fitThermalHeaderFontPx, splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
 import {
   vastrakalaLineDiscount,
   vastrakalaParticularsLines,
@@ -121,8 +121,13 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     paperWidth: is58 ? "48mm" : "76mm",
     padding: is58 ? "1.5mm 1.5mm" : "2mm 2.5mm",
     baseFont: is58 ? "10px" : "13px",
-    headerFont: is58 ? "14px" : "22px",
-    taglineFont: is58 ? "9px" : "12px",
+    // Shop name / tagline: biggest size that fits the line (next to the logo when there
+    // is one) — see fitThermalHeaderFontPx. Short names like "PAYAL" print at the max.
+    contentWidthMm: is58 ? 45 : 71,
+    headerFontMax: is58 ? 18 : 30,
+    headerFontMin: is58 ? 12 : 18,
+    taglineFontMax: is58 ? 11 : 17,
+    taglineFontMin: is58 ? 8 : 11,
     subFont: is58 ? "10px" : "14px",
     netFont: is58 ? "11px" : "15px",
     // Logo sits in its own column left of the shop details (never over them).
@@ -211,6 +216,17 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     mmValue(layout.logoMaxWidth),
     mmValue(layout.logoHeight) * (logoAspect ?? 1),
   );
+  const brandWidthMm = layout.contentWidthMm - (logoUrl ? logoWidthMm + 2.5 : 0);
+  const headerFont = `${fitThermalHeaderFontPx(shopHeader.title, brandWidthMm, {
+    maxPx: layout.headerFontMax,
+    minPx: layout.headerFontMin,
+    emPerChar: 0.75,
+  })}px`;
+  const taglineFont = `${fitThermalHeaderFontPx(shopHeader.tagline, brandWidthMm, {
+    maxPx: layout.taglineFontMax,
+    minPx: layout.taglineFontMin,
+    emPerChar: 0.58,
+  })}px`;
   const instagramHandle = instagramHandleFromLink(billSettings.instagram_link);
 
   const terms = (saleSettings.terms_list || [])
@@ -283,8 +299,8 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
       <VastrakalaHeaderBrandText
         title={shopHeader.title}
         tagline={shopHeader.tagline}
-        headerFont={layout.headerFont}
-        taglineFont={layout.taglineFont}
+        headerFont={headerFont}
+        taglineFont={taglineFont}
       />
       <div className="vk-header-meta">
         {address ? (

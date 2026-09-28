@@ -19,3 +19,21 @@ export function splitVastrakalaShopHeader(businessNameRaw: string): { title: str
     .join(" ");
   return { title, tagline };
 }
+
+const PX_PER_MM = 96 / 25.4;
+
+/**
+ * Largest font size (px) at which `text` fits on one line in `availableMm`, clamped to
+ * [minPx, maxPx]. `emPerChar` is the average glyph width in em (Arial bold caps ≈ 0.72,
+ * plus a little for letter-spacing). Keeps a short name like "PAYAL" big while a long
+ * one still fits beside the logo instead of wrapping.
+ */
+export function fitThermalHeaderFontPx(
+  text: string,
+  availableMm: number,
+  { maxPx, minPx, emPerChar }: { maxPx: number; minPx: number; emPerChar: number },
+): number {
+  const chars = Math.max(1, (text || "").trim().length);
+  const fit = Math.floor((availableMm * PX_PER_MM) / (chars * emPerChar));
+  return Math.max(minPx, Math.min(maxPx, fit));
+}
