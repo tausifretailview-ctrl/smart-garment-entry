@@ -36,3 +36,14 @@ export function vastrakalaParticularsLines(
   if (!tailParts) return { line1: head, line2: "" };
   return { line1: head, line2: tailParts };
 }
+
+/** Per-item discount vs MRP (MRP × qty − line total). Null when the line has no discount. */
+export function vastrakalaLineDiscount(item: { mrp?: number; qty: number; total: number }) {
+  const mrp = Number(item.mrp) || 0;
+  const gross = mrp * (Number(item.qty) || 0);
+  const amount = gross - (Number(item.total) || 0);
+  if (mrp <= 0 || gross <= 0 || amount < 0.5) return null;
+  const pct = (amount / gross) * 100;
+  const percentLabel = Math.abs(pct - Math.round(pct)) < 0.05 ? String(Math.round(pct)) : pct.toFixed(1);
+  return { mrp, amount, percentLabel };
+}
