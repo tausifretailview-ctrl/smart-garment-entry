@@ -785,6 +785,8 @@ const PurchaseEntry = () => {
   const [mrpTierPicker, setMrpTierPicker] = useState<{
     barcode: string;
     choices: ProductVariant[];
+    /** Current stock per variant id, loaded after the picker opens. */
+    stockById?: Record<string, number>;
   } | null>(null);
   const barcodeScanResolveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -3500,7 +3502,18 @@ const PurchaseEntry = () => {
         if (picker.showMrpDialog) {
           setSearchQuery("");
           resetSearchInputScanTiming();
-          setMrpTierPicker({ barcode, choices: picker.mrpDialogChoices.map((m) => m.variant) });
+          const choices = picker.mrpDialogChoices.map((m) => m.variant);
+          setMrpTierPicker({ barcode, choices });
+          // Show real stock on each card (the scan lookup does not load it).
+          void supabase
+            .from("product_variants")
+            .select("id, stock_qty")
+            .in("id", choices.map((c) => c.id))
+            .then(({ data }) => {
+              if (!data) return;
+              const stockById = Object.fromEntries(data.map((r) => [r.id, Number(r.stock_qty) || 0]));
+              setMrpTierPicker((prev) => (prev && prev.barcode === barcode ? { ...prev, stockById } : prev));
+            });
           return;
         }
 
@@ -7792,6 +7805,28 @@ const PurchaseEntry = () => {
     [mrpTierPicker, addOrIncrementScannedVariant, focusSearchBar],
   );
 
+  /** Picker → "New price": same barcode, same item, new sale price / MRP (price-tier fork). */
+  const handlePurchaseMrpTierNewPrice = useCallback(
+    async (baseChoiceId: string, salePrice: number, mrp: number | null) => {
+      const base = mrpTierPicker?.choices.find((c) => c.id === baseChoiceId);
+      const barcode = mrpTierPicker?.barcode ?? "";
+      setMrpTierPicker(null);
+      if (!base || !barcode) {
+        focusSearchBar();
+        return;
+      }
+      await handleUseExistingProductFromDialog({
+        barcode,
+        pur_price: Number(base.pur_price) || 0,
+        sale_price: salePrice,
+        ...(mrp != null && mrp > 0 ? { mrp } : {}),
+        brand: base.brand,
+        style: base.style,
+      });
+    },
+    [mrpTierPicker, handleUseExistingProductFromDialog, focusSearchBar],
+  );
+
   const purchaseMrpTierDialog = mrpTierPicker ? (
     <LazyOpen open>
       <MrpTierSelectionDialog
@@ -7813,10 +7848,13 @@ const PurchaseEntry = () => {
         color: v.color,
         mrp: v.mrp ?? 0,
         salePrice: v.sale_price,
-        stockQty: 0,
+        stockQty: mrpTierPicker?.stockById?.[v.id] ?? 0,
       }))}
       onSelect={(choiceId) => {
         void handlePurchaseMrpTierSelection(choiceId);
+      }}
+      onAddNewPrice={(baseChoiceId, salePrice, mrp) => {
+        void handlePurchaseMrpTierNewPrice(baseChoiceId, salePrice, mrp);
       }}
     />
     </LazyOpen>
