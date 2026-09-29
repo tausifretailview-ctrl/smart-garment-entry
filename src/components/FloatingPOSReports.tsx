@@ -729,6 +729,7 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
 
   const totalQty = saleRows.reduce((sum, row) => sum + row.quantity, 0);
   const totalAmount = saleRows.reduce((sum, row) => sum + row.lineTotal, 0);
+  const totalItemDiscount = saleRows.reduce((sum, row) => sum + row.discountAmount, 0);
   const uniqueBills = new Set(saleRows.map((row) => row.saleId)).size;
 
   return (
@@ -805,6 +806,10 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
                 <span className="text-xs text-muted-foreground">Line Total</span>
                 <p className="font-bold text-lg">₹{Math.round(totalAmount).toLocaleString("en-IN")}</p>
               </div>
+              <div className="bg-rose-50 dark:bg-rose-950 px-4 py-2 rounded-lg">
+                <span className="text-xs text-muted-foreground">Item Discount</span>
+                <p className="font-bold text-lg">₹{Math.round(totalItemDiscount).toLocaleString("en-IN")}</p>
+              </div>
             </div>
 
             <div className="border rounded-lg overflow-hidden">
@@ -819,6 +824,7 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
                     <TableHead>Size</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Sale Price</TableHead>
+                    <TableHead className="text-right">Item Disc</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -849,6 +855,27 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
                       <TableCell className="text-right font-medium">{row.quantity}</TableCell>
                       <TableCell className="text-right font-medium">
                         ₹{row.unitPrice.toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell className="text-right text-xs tabular-nums">
+                        {row.discountPercent > 0.005 || row.discountAmount > 0.005 ? (
+                          <span>
+                            {row.discountPercent > 0.005 && (
+                              <span className="font-medium">
+                                {Number.isInteger(row.discountPercent)
+                                  ? row.discountPercent
+                                  : row.discountPercent.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                                %
+                              </span>
+                            )}
+                            {row.discountAmount > 0.005 && (
+                              <span className={row.discountPercent > 0.005 ? "block text-muted-foreground" : "font-medium"}>
+                                ₹{row.discountAmount.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

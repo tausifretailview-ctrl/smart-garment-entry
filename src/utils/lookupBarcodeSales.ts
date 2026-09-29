@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { hydrateSaleItemDiscountFields } from "@/utils/salesInvoiceDiscountRestore";
 
 export type BarcodeSaleRecord = {
   saleItemId: string;
@@ -13,8 +14,32 @@ export type BarcodeSaleRecord = {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  /** Item discount percent typed on the sale line. 0 when none. */
+  discountPercent: number;
+  /** Item discount in rupees. Excludes the bill's flat discount share. */
+  discountAmount: number;
   isCancelled: boolean;
 };
+
+/** Line discount only. Header flat allocated as discount_share is not item discount. */
+export function quickSaleLineDiscount(item: {
+  unit_price?: number | null;
+  quantity?: number | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  discount_share?: number | null;
+  line_total?: number | null;
+}): { percent: number; amount: number } {
+  const hydrated = hydrateSaleItemDiscountFields(item);
+  const base = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+  const amount =
+    hydrated.discountAmount > 0.005
+      ? hydrated.discountAmount
+      : hydrated.discountPercent > 0.005 && base > 0
+        ? Math.round(((base * hydrated.discountPercent) / 100) * 100) / 100
+        : 0;
+  return { percent: hydrated.discountPercent, amount };
+}
 
 function escapeIlike(term: string) {
   return term.replace(/[%_\\]/g, "\\$&");
@@ -44,6 +69,8 @@ const SALE_ITEM_SELECT = `
   quantity,
   unit_price,
   line_total,
+  discount_percent,
+  discount_share,
   variant_id,
   sales!inner(
     id,
@@ -66,6 +93,7 @@ function mapSaleRows(rows: any[]): BarcodeSaleRecord[] {
     })
     .map((row) => {
       const sale = row.sales;
+      const discount = quickSaleLineDiscount(row);
       return {
         saleItemId: row.id,
         saleId: sale.id,
@@ -79,6 +107,8 @@ function mapSaleRows(rows: any[]): BarcodeSaleRecord[] {
         quantity: Number(row.quantity) || 0,
         unitPrice: Number(row.unit_price) || 0,
         lineTotal: Number(row.line_total) || 0,
+        discountPercent: discount.percent,
+        discountAmount: discount.amount,
         isCancelled: !!sale.is_cancelled,
       };
     });
