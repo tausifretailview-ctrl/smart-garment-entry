@@ -23,7 +23,7 @@ import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useState, useEffect, useMemo } from "react";
 import { SizeStockDialog } from "@/components/SizeStockDialog";
 import { FloatingStockReport } from "@/components/FloatingStockReport";
-import { LazyFloatingSaleReport } from "@/components/lazyFloatingWidgets";
+import { LazyFloatingSaleReport, prefetchFloatingSaleReport } from "@/components/lazyFloatingWidgets";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { resolveFirstAllowedPath } from "@/lib/menuPermissions";
 import { confirmReloadIfPosCartBusy, reloadAppWithUpdateCheck } from "@/lib/appReload";
@@ -41,7 +41,8 @@ import { KeyboardShortcutsModal } from "@/components/KeyboardShortcutsModal";
 import { storeOrgSlug, getStoredOrgSlug } from "@/lib/orgSlug";
 import { resolveOrgLoginPath } from "@/lib/orgLoginRedirect";
 import { CompactOrgSwitcher } from "@/components/CompactOrgSwitcher";
-import { prefetchTabPage } from "@/lib/tabPageRegistry";
+import { prefetchTabPage, shouldAllowSpeculativeChunkPrefetch } from "@/lib/tabPageRegistry";
+import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 
 export const Header = () => {
   const { user, signOut } = useAuth();
@@ -113,6 +114,13 @@ export const Header = () => {
       hasMenuAccess("sales_invoice_dashboard") ||
       hasMenuAccess("pos_sales") ||
       hasMenuAccess("sales_invoice"));
+  // Warm the Quick sale lookup panel once the app is idle, so the first click
+  // does not wait on "Loading sale lookup…". Yields to user navigation and skips
+  // Save-Data / 2g (same gate as tab prefetch).
+  useEffect(() => {
+    if (!canQuickSaleLookup || !shouldAllowSpeculativeChunkPrefetch()) return;
+    return scheduleIdleWork(prefetchFloatingSaleReport, { minDelay: 8_000 });
+  }, [canQuickSaleLookup]);
   const canAccessReportsHub = useMemo(() => {
     if (permissionsLoading) return false;
     if (permissions === null) return true;
@@ -525,6 +533,8 @@ export const Header = () => {
             <button
               type="button"
               className={cn("erp-tbtn", quickSaleOpen && "erp-tbtn--primary")}
+              onPointerEnter={prefetchFloatingSaleReport}
+              onFocus={prefetchFloatingSaleReport}
               onClick={() => setQuickSaleOpen(true)}
             >
               <FileText className="erp-tbtn__icon" />

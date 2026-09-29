@@ -18,6 +18,21 @@ const loadFloatingCashTally = () =>
 const loadFloatingSaleReport = () =>
   import("@/components/FloatingPOSReports").then((m) => ({ default: m.FloatingSaleReport }));
 
+let saleReportWarm: Promise<unknown> | null = null;
+
+/**
+ * Start downloading the Quick sale lookup panel before the click (button hover /
+ * focus, or once on idle). Opening it used to wait for this download every first
+ * time ("Loading sale lookup…"). Failures are ignored here; the click path shows
+ * its own retry UI.
+ */
+export function prefetchFloatingSaleReport(): void {
+  if (saleReportWarm) return;
+  saleReportWarm = loadFloatingSaleReport().catch(() => {
+    saleReportWarm = null;
+  });
+}
+
 const loadFloatingChatButton = () =>
   import("@/components/AIChatbot/FloatingChatButton").then((m) => ({ default: m.FloatingChatButton }));
 
