@@ -147,6 +147,29 @@ same order and with the same limit, so it picks the same free number.
 
 ---
 
+## 5. Sale Order and Sale Bill (Sales Invoice) — product search (2026-09-29)
+
+Both pages were checked end to end. **Save** is already lean on both and was not changed:
+- Sale Bill (new): stock check (1 query for all lines) → bill number → `sales` insert →
+  `sale_items` insert. Points and WhatsApp run in the background.
+- Sale Order: order number → `sale_orders` insert → `sale_order_items` insert.
+
+The slow part people feel all day is the **product search while typing**:
+
+| Page | Before | After |
+|------|--------|-------|
+| Sale Order (also Quotation, Delivery Challan — same hook) | Search fired 150 ms after a key, from the 1st letter; each search is ~5–9 queries | 300 ms (same as Sale Bill), so far fewer searches while typing a name |
+| Sale Order search | Barcode/colour lookup waited for the products lookup | Both sent together (one round trip less per search) |
+| Sale Order search | Variant batches 1 and 2 fetched one after the other | Fetched together; later batches unchanged. Same rows, same query count |
+| Sale Order + Sale Bill | A slow earlier search could replace newer results (wrong list flashes, spinner stops early) | Superseded searches are ignored |
+
+Barcode scanning uses its own input and is not affected by the typing delay.
+
+Not changed (noted): Sale Order search groups run one stock-total query per product group
+(`enrichSaleOrderSearchGroups`); batching it risks the 1000-row API cap, so it was left.
+
+---
+
 ## Verification
 
 - Unit tests updated/added: `src/utils/barcodeCollisionGuard.test.ts`

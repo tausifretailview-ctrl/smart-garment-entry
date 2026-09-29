@@ -9,6 +9,13 @@ import {
   type SaleOrderVariantSearchResult,
 } from "@/utils/saleOrderProductSearch";
 
+/**
+ * Wait this long after the last keystroke before searching. Each search is several
+ * database calls; 150 ms fired one on nearly every key while typing a name.
+ * Same delay as the Sale Bill search. Barcode scans use their own input.
+ */
+export const PRODUCT_SEARCH_DEBOUNCE_MS = 300;
+
 export function useEntryBillProductSearch(
   orgId: string | undefined,
   entryMode: "grid" | "inline",
@@ -35,12 +42,16 @@ export function useEntryBillProductSearch(
 
     setIsProductSearching(true);
     const query = searchInput;
+    // A slower earlier search must not overwrite the results of the text typed since.
+    let stale = false;
     const timer = setTimeout(async () => {
       try {
         const results = await searchSaleOrderVariants(orgId, query);
+        if (stale) return;
         setPopoverSearchResults(results);
         const grouped = groupVariantsByProductFamily(results, query);
         const enriched = await enrichSaleOrderSearchGroups(orgId, grouped, query);
+        if (stale) return;
         setProductSearchGroups(
           [...enriched].sort((a, b) => {
             const scoreA = scoreProductSearchMatch(
@@ -55,15 +66,19 @@ export function useEntryBillProductSearch(
           }),
         );
       } catch (error) {
+        if (stale) return;
         console.error("Product search error:", error);
         setPopoverSearchResults([]);
         setProductSearchGroups([]);
       } finally {
-        setIsProductSearching(false);
+        if (!stale) setIsProductSearching(false);
       }
-    }, 150);
+    }, PRODUCT_SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
   }, [searchInput, orgId]);
 
   const displaySearchCount =

@@ -262,6 +262,31 @@ export async function searchSaleOrderVariants(
   let productIds: string[] = [];
   const strictProductIds: string[] = [];
 
+  // The barcode/colour lookup does not depend on the product match, so start it
+  // now and let it run alongside the products query (one round trip saved).
+  const barcodeOrTerms = expandedTerms
+    .map((term) => {
+      const safe = term.replace(/[%_]/g, "");
+      if (!safe) return [];
+      return [`barcode.ilike.%${safe}%`, `color.ilike.%${safe}%`];
+    })
+    .flat()
+    .join(",");
+
+  // Supabase queries are lazy: calling .then() here is what sends the request now.
+  const barcodeVariantsPromise: PromiseLike<{ data: any[] | null }> = barcodeOrTerms
+    ? supabase
+        .from("product_variants")
+        .select(VARIANT_SEARCH_SELECT)
+        .eq("active", true)
+        .is("deleted_at", null)
+        .eq("organization_id", orgId)
+        .or(barcodeOrTerms)
+        .order("stock_qty", { ascending: false })
+        .limit(50)
+        .then(({ data }) => ({ data: (data as any[] | null) ?? null }))
+    : Promise.resolve({ data: [] as any[] });
+
   // One 4-field contains ILIKE (trigram-friendly). Token-boundary ranking
   // is classified client-side — do not fire the 28-OR PostgREST filter.
   const productOrFilter = buildProductTextOrFilter(expandedTerms);
@@ -318,26 +343,7 @@ export async function searchSaleOrderVariants(
     }
   }
 
-  const barcodeOrTerms = expandedTerms
-    .map((term) => {
-      const safe = term.replace(/[%_]/g, "");
-      if (!safe) return [];
-      return [`barcode.ilike.%${safe}%`, `color.ilike.%${safe}%`];
-    })
-    .flat()
-    .join(",");
-
-  const { data: barcodeVariants } = barcodeOrTerms
-    ? await supabase
-        .from("product_variants")
-        .select(VARIANT_SEARCH_SELECT)
-        .eq("active", true)
-        .is("deleted_at", null)
-        .eq("organization_id", orgId)
-        .or(barcodeOrTerms)
-        .order("stock_qty", { ascending: false })
-        .limit(50)
-    : { data: [] as any[] };
+  const { data: barcodeVariants } = await barcodeVariantsPromise;
 
   let productVariants: any[] = [];
   if (productIds.length > 0) {
@@ -346,7 +352,7 @@ export async function searchSaleOrderVariants(
       ...productIds.filter((id) => !strictProductIds.includes(id)),
     ];
     const chunkSize = 40;
-    for (let i = 0; i < orderedIds.length && productVariants.length < 200; i += chunkSize) {
+    const fetchChunk = async (i: number) => {
       const chunk = orderedIds.slice(i, i + chunkSize);
       const { data } = await supabase
         .from("product_variants")
@@ -357,7 +363,17 @@ export async function searchSaleOrderVariants(
         .in("product_id", chunk)
         .order("stock_qty", { ascending: false })
         .limit(120);
-      productVariants.push(...(data || []));
+      return data || [];
+    };
+    // Each chunk returns at most 120 rows, so the first two chunks are always
+    // fetched before the 200-row stop can trigger. Fetch those two together;
+    // later chunks stay one at a time. Same rows, same order, same query count.
+    const firstTwo = await Promise.all(
+      [0, chunkSize].filter((i) => i < orderedIds.length).map(fetchChunk),
+    );
+    for (const rows of firstTwo) productVariants.push(...rows);
+    for (let i = chunkSize * 2; i < orderedIds.length && productVariants.length < 200; i += chunkSize) {
+      productVariants.push(...(await fetchChunk(i)));
     }
   }
 

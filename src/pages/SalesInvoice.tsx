@@ -1411,9 +1411,13 @@ export default function SalesInvoice() {
 
   // Product search with server-side filtering and smart sorting
   useEffect(() => {
+    // A slower earlier search must not overwrite the results of the text typed since.
+    let stale = false;
     const searchProducts = async () => {
       if (!searchInput || searchInput.length < 2 || !currentOrganization?.id) {
         setProductSearchResults([]);
+        // A superseded search no longer clears the spinner itself.
+        setIsSearching(false);
         return;
       }
 
@@ -1510,6 +1514,7 @@ export default function SalesInvoice() {
         }
 
         const { data, error } = await variantsQuery.limit(200);
+        if (stale) return;
 
         if (error) throw error;
 
@@ -1619,15 +1624,19 @@ export default function SalesInvoice() {
 
         setProductSearchResults(sortedResults);
       } catch (error) {
+        if (stale) return;
         console.error("Product search error:", error);
         setProductSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (!stale) setIsSearching(false);
       }
     };
 
     const debounceTimer = setTimeout(searchProducts, 300);
-    return () => clearTimeout(debounceTimer);
+    return () => {
+      stale = true;
+      clearTimeout(debounceTimer);
+    };
   }, [searchInput, currentOrganization?.id, sizeGroupSizesById]);
   // Open size grid modal for a product - fetch ALL variants fresh from DB
   const openSizeGridForProduct = async (product: any, selectedSalePrice?: number) => {
