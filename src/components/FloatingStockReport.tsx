@@ -65,6 +65,33 @@ async function searchQuickStockByBarcodeScan(orgId: string, term: string): Promi
   return excludeServiceVariants(mapQuickStockScanRows(scan.rows));
 }
 
+const QUICK_STOCK_PRODUCT_FIRST_PAGE = 100;
+
+/**
+ * The first product lookup stops at 100 rows. A common name (SHIRT) can match
+ * hundreds of products; stopping there showed only part of the stock
+ * (937 of 3,201). Load the rest in pages when the first page was full.
+ */
+async function fetchAllQuickStockProducts(orgId: string, productOr: string) {
+  const PAGE = 1000;
+  const all: Array<{ id: string; product_name?: string | null; brand?: string | null; category?: string | null; style?: string | null }> = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id, product_name, brand, category, style")
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .neq("product_type", "service")
+      .or(productOr)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return all;
+}
+
 async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
   if (productIds.length === 0) return [] as any[];
 
@@ -157,7 +184,7 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
           .is("deleted_at", null)
           .neq("product_type", "service")
           .or(productOr)
-          .limit(100)
+          .limit(QUICK_STOCK_PRODUCT_FIRST_PAGE)
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
@@ -176,6 +203,9 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     category?: string | null;
     style?: string | null;
   }> = prodQ.data || [];
+  if (productOr && products.length >= QUICK_STOCK_PRODUCT_FIRST_PAGE) {
+    products = await fetchAllQuickStockProducts(orgId, productOr);
+  }
 
   // NOTE: no product-level AND-filter here. Colour and size live on
   // product_variants, so requiring every token to match product_name/brand/
