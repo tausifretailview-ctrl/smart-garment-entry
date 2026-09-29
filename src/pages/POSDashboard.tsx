@@ -529,7 +529,7 @@ const POSDashboard = () => {
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewHydrating, setPreviewHydrating] = useState(false);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
-  const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string } | null>(null);
+  const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string; points_balance?: number | null } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
 
@@ -1869,7 +1869,7 @@ const POSDashboard = () => {
       const [{ data: finData }, { data: customerData }, accountFacets] = await Promise.all([
         supabase.from("sale_financer_details").select("*").eq("sale_id", sale.id).maybeSingle(),
         sale.customer_id
-          ? supabase.from("customers").select("gst_number, transport_details").eq("id", sale.customer_id).maybeSingle()
+          ? supabase.from("customers").select("gst_number, transport_details, points_balance").eq("id", sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
         (async () => {
           if (!sale.customer_id || !currentOrganization?.id) {
@@ -1945,6 +1945,7 @@ const POSDashboard = () => {
         unusedAdvance: accountFacets.unusedAdvance ?? 0,
         salesman: sale.salesman || "",
         notes: sale.notes || "",
+        pointsBalance: sale.customer_id ? Number(customerData?.points_balance ?? 0) : undefined,
         taxType: normalizeGstTaxType(sale.tax_type),
         financerDetails,
       };
@@ -2216,7 +2217,7 @@ const POSDashboard = () => {
       const [{ data: finData }, { data: custData }] = await Promise.all([
         supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
         sale.customer_id
-          ? supabase.from('customers').select('gst_number, transport_details, address').eq('id', sale.customer_id).maybeSingle()
+          ? supabase.from('customers').select('gst_number, transport_details, address, points_balance').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
       setPreviewFinancerDetails(finData ? {
@@ -4495,6 +4496,7 @@ const POSDashboard = () => {
               customerMobile={previewSale.customer_phone || ''}
               customerGSTIN={previewCustomerData?.gst_number || ''}
               customerTransportDetails={previewCustomerData?.transport_details || ''}
+              pointsBalance={previewSale.customer_id ? Number(previewCustomerData?.points_balance ?? 0) : undefined}
               template={posInvoiceTemplate}
               thermalPaper={posThermalPaper}
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
@@ -4737,6 +4739,7 @@ const POSDashboard = () => {
             unusedAdvance={printData.unusedAdvance ?? 0}
             salesman={printData.salesman || ''}
             notes={printData.notes || ''}
+            pointsBalance={printData.pointsBalance}
             taxType={normalizeGstTaxType(
               printData.taxType ?? resolvePosDefaultTaxType(saleSettings),
             )}

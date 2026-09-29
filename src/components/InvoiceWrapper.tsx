@@ -603,6 +603,10 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       pointsRedeemed: props.pointsRedeemed || 0,
       pointsRedemptionValue: props.pointsRedemptionValue || 0,
       pointsBalance: props.pointsBalance || 0,
+      crmPointsEnabled: Boolean(
+        (settings?.sale_settings as { enable_points_system?: boolean } | null)?.enable_points_system,
+      ),
+      crmPointsBalance: typeof props.pointsBalance === "number" ? props.pointsBalance : undefined,
       
       // Financer details
       financerDetails: props.financerDetails || null,

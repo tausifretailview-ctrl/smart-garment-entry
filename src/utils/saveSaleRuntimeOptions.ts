@@ -18,6 +18,8 @@ export type PosWhatsAppPdfCaptureSnapshot = {
   salesman: string;
   taxType: string;
   notes?: string | null;
+  pointsBalance?: number;
+  pointsRedeemed?: number;
   financerDetails?: unknown;
   enableMrp: boolean;
 };

@@ -104,6 +104,10 @@ interface SaleData {
   salesman?: string | null;
   notes?: string | null;
   pointsRedeemedAmount?: number;
+  /** Printed CRM balance after this bill. Not written to sales. */
+  pointsBalance?: number;
+  /** Points redeemed on this bill (count). Not written to sales. */
+  pointsRedeemed?: number;
   taxType?: "inclusive" | "exclusive" | "no_gst";
   /**
    * Optional caller-supplied sale_date (timestamptz ISO, +05:30 shape).
@@ -193,6 +197,8 @@ function buildPosWhatsAppCaptureMeta(
       taxType: saleData.taxType || "inclusive",
       notes: saleData.notes,
       enableMrp: true,
+      pointsBalance: saleData.pointsBalance,
+      pointsRedeemed: saleData.pointsRedeemed,
     },
   };
 }

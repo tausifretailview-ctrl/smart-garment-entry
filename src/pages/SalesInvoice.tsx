@@ -69,6 +69,7 @@ import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { getKrishnaA5HorizontalPrintPageStyle, resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 
@@ -1197,7 +1198,7 @@ export default function SalesInvoice() {
         try {
           const { data: customerRow } = await supabase
             .from('customers')
-            .select('gst_number, transport_details, address, phone, email, customer_name')
+            .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
             .eq('id', invoiceData.customer_id)
             .maybeSingle();
           customerMeta = customerRow || null;
@@ -2415,7 +2416,7 @@ export default function SalesInvoice() {
       if (invoiceData.customer_id) {
         const { data: customerRow } = await supabase
           .from('customers')
-          .select('gst_number, transport_details, address, phone, email, customer_name')
+          .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
           .eq('id', invoiceData.customer_id)
           .maybeSingle();
         customerMeta = customerRow || null;
@@ -2574,6 +2575,7 @@ export default function SalesInvoice() {
           gst_number: customerMeta?.gst_number || (invoiceData as any).customer_gst_number || null,
           transport_details: customerMeta?.transport_details || (invoiceData as any).customer_transport_details || "",
         },
+        pointsBalance: invoiceData.customer_id ? Number(customerMeta?.points_balance ?? 0) : undefined,
       });
     } catch (err: any) {
       console.error('Failed to load invoice:', err);
@@ -3428,6 +3430,13 @@ Thank you for choosing us!`;
           notes,
           otherCharges,
           customer: selectedCustomer,
+          ...crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId: selectedCustomerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(netAmount),
+          }),
         });
         setShowPrintDialog(true);
       } else {
@@ -3582,6 +3591,13 @@ Thank you for choosing us!`;
           notes,
           otherCharges,
           customer: selectedCustomer,
+          ...crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId: selectedCustomerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(netAmount),
+          }),
         };
 
         // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
@@ -4227,7 +4243,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -5782,6 +5798,8 @@ Thank you for choosing us!`;
             discount={savedInvoiceData?.totalDiscount ?? totalDiscount}
             grandTotal={savedInvoiceData?.netAmount ?? netAmount}
             notes={savedInvoiceData?.notes ?? notes}
+            pointsBalance={savedInvoiceData?.pointsBalance}
+            pointsRedeemed={savedInvoiceData?.pointsRedeemed}
             otherCharges={savedInvoiceData?.otherCharges ?? otherCharges}
             roundOff={roundOff}
             paymentMethod="Cash"

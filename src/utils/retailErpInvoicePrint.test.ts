@@ -7,6 +7,8 @@ import {
   allocateByGrossWeight,
   retailErpDisplayDiscount,
   retailErpLetterpadNoteText,
+  retailErpNoteWithCrmPoints,
+  crmPointsPrintSnapshot,
   retailErpLineDisplayRate,
   retailErpLineGross,
   retailErpLinePrintPlan,
@@ -198,5 +200,60 @@ describe("preprinted letter-pad Note declaration", () => {
         declarationText: custom,
       }),
     ).toBe(custom);
+  });
+});
+
+describe("Retail ERP Note CRM points", () => {
+  it("leaves the note unchanged when CRM is off", () => {
+    expect(
+      retailErpNoteWithCrmPoints("Handle with care", {
+        crmEnabled: false,
+        pointsBalance: 40,
+      }),
+    ).toBe("Handle with care");
+  });
+
+  it("shows the balance in the Note section when CRM is on", () => {
+    expect(
+      retailErpNoteWithCrmPoints("", {
+        crmEnabled: true,
+        pointsBalance: 40,
+      }),
+    ).toBe("CRM Points: 40");
+  });
+
+  it("keeps the sale note and adds redeemed points", () => {
+    expect(
+      retailErpNoteWithCrmPoints("Gift wrap", {
+        crmEnabled: true,
+        pointsBalance: 10,
+        pointsRedeemed: 5,
+      }),
+    ).toBe("Gift wrap\nCRM Points: 10\nRedeemed: 5");
+  });
+
+  it("omits the line for a walk-in with no balance", () => {
+    expect(crmPointsPrintSnapshot({ crmEnabled: true, customerId: "", balanceBefore: 80, pointsEarned: 4 })).toEqual({});
+  });
+
+  it("adds points earned on this bill and drops earn when points are redeemed", () => {
+    expect(
+      crmPointsPrintSnapshot({
+        crmEnabled: true,
+        customerId: "cust-1",
+        balanceBefore: 20,
+        pointsToRedeem: 0,
+        pointsEarned: 8,
+      }),
+    ).toEqual({ pointsBalance: 28, pointsRedeemed: 0 });
+    expect(
+      crmPointsPrintSnapshot({
+        crmEnabled: true,
+        customerId: "cust-1",
+        balanceBefore: 20,
+        pointsToRedeem: 5,
+        pointsEarned: 8,
+      }),
+    ).toEqual({ pointsBalance: 15, pointsRedeemed: 5 });
   });
 });

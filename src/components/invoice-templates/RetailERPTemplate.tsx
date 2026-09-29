@@ -11,6 +11,7 @@ import {
 import {
   retailErpDisplayDiscount,
   retailErpLetterpadNoteText,
+  retailErpNoteWithCrmPoints,
   retailErpLineDisplayRate,
   retailErpLinePrintPlan,
   roundRetailErpMoney,
@@ -99,6 +100,12 @@ interface RetailERPTemplateProps {
   declarationText?: string;
   termsConditions?: string[];
   notes?: string;
+  /** Sale settings → Customer Points System. */
+  crmPointsEnabled?: boolean;
+  /** Customer balance after this bill. Omit for walk-in. */
+  crmPointsBalance?: number | null;
+  /** Points redeemed on this bill. */
+  pointsRedeemed?: number;
   otherCharges?: number;
 
   showHSN?: boolean;
@@ -198,6 +205,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   termsConditions = [],
   declarationText,
   notes,
+  crmPointsEnabled = false,
+  crmPointsBalance,
+  pointsRedeemed = 0,
   otherCharges = 0,
   showHSN = true,
   showDiscountOnRate = true,
@@ -239,11 +249,18 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   /** A5 letterhead leaf: 2in top gap — keep footer at bottom, 6 default item rows. */
   const isPreprintedA5 = isPreprinted && isA5Retail;
   const isPreprintedAny = isPreprinted;
-  const invoiceNoteText = retailErpLetterpadNoteText({
-    isPreprinted,
-    saleNote: notes,
-    declarationText,
-  });
+  const invoiceNoteText = retailErpNoteWithCrmPoints(
+    retailErpLetterpadNoteText({
+      isPreprinted,
+      saleNote: notes,
+      declarationText,
+    }),
+    {
+      crmEnabled: crmPointsEnabled,
+      pointsBalance: crmPointsBalance,
+      pointsRedeemed,
+    },
+  );
   /** Default SN rows on preprinted — stretch to fill space above totals (no blank gap). */
   const PREPRINTED_DEFAULT_ROWS = isA4 ? 12 : 8;
   /** A5 Retail ERP tax invoice: 8 SN lines — full page with footer (Terms + QR + balances). */
