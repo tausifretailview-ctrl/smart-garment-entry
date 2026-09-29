@@ -85,6 +85,9 @@ const LazyWhatsAppTemplateSettings = lazyWithRetry(() =>
 const LazyWhatsAppAPISettings = lazyWithRetry(() =>
   import("@/components/WhatsAppAPISettings").then((m) => ({ default: m.WhatsAppAPISettings })),
 );
+const LazyCustomerPageSettings = lazyWithRetry(() =>
+  import("@/components/settings/CustomerPageSettings").then((m) => ({ default: m.CustomerPageSettings })),
+);
 const LazyStockReconciliation = lazyWithRetry(() =>
   import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
 );
@@ -6192,6 +6195,13 @@ export default function Settings() {
                   <div className="px-3 py-2.5">
                     <LazySettingsPanel>
                       <LazyWhatsAppTemplateSettings />
+                    </LazySettingsPanel>
+                  </div>
+                </SettingsSection>
+                <SettingsSection title="Customer page & notifications">
+                  <div className="px-3 py-2.5">
+                    <LazySettingsPanel>
+                      <LazyCustomerPageSettings />
                     </LazySettingsPanel>
                   </div>
                 </SettingsSection>

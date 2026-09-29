@@ -64,6 +64,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
+import { createCustomerPageLinkForWhatsApp } from "@/utils/customerPageLink";
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
@@ -3631,6 +3632,11 @@ Thank you for choosing us!`;
                 pos_bill_format: String(saleSettings.pos_bill_format || ""),
                 invoice_template: String(saleSettings.invoice_template || ""),
                 sale_source: "sale",
+                // "" unless Customer page + "Add bill link to WhatsApp" are on.
+                customer_page_link: await createCustomerPageLinkForWhatsApp(
+                  currentOrganization.id,
+                  saleData.id,
+                ),
               };
 
               flushSync(() => {
@@ -3678,6 +3684,17 @@ Thank you for choosing us!`;
               console.error("WhatsApp auto-send failed (SalesInvoice):", e);
             }
           })();
+        }
+
+        // Customer push: invoice notification, same as POS (useSaveSale). New
+        // invoices only; push-send skips when the shop has it off and dedupes per
+        // sale+device.
+        if (selectedCustomer?.phone && currentOrganization?.id) {
+          void supabase.functions
+            .invoke("push-send", {
+              body: { organizationId: currentOrganization.id, saleId: saleData.id },
+            })
+            .catch((pushError) => console.error("Customer push send failed (SalesInvoice):", pushError));
         }
 
         // Mark invoice as saved to prevent draft re-save on unmount
