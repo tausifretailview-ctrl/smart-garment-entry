@@ -1984,10 +1984,11 @@ export default function SalesInvoiceDashboard() {
   const ensureSaleItems = async (invoice: any) => {
     const needsItems = !invoice.sale_items || invoice.sale_items.length === 0;
     const needsCustomerGst = invoice.customer_id && !invoice.customers?.gst_number;
+    const needsCustomerPoints = invoice.customer_id && invoice.customers?.points_balance == null;
     const needsCnAdjustDate =
       Number(invoice.sale_return_adjust || 0) > 0.005 && !invoice.cn_adjust_date;
     
-    if (!needsItems && !needsCustomerGst && !needsCnAdjustDate && invoice.financerDetails) {
+    if (!needsItems && !needsCustomerGst && !needsCustomerPoints && !needsCnAdjustDate && invoice.financerDetails) {
       return invoice;
     }
     
@@ -2027,14 +2028,19 @@ export default function SalesInvoiceDashboard() {
       }
       
       // Fetch customer GST number if not already loaded via join
-      if (needsCustomerGst) {
+      if (needsCustomerGst || needsCustomerPoints) {
         const { data: customer } = await supabase
           .from('customers')
-          .select('gst_number, transport_details')
+          .select('gst_number, transport_details, points_balance')
           .eq('id', invoice.customer_id)
           .single();
         if (customer) {
-          updatedInvoice.customers = { ...(invoice.customers || {}), gst_number: customer.gst_number, transport_details: customer.transport_details };
+          updatedInvoice.customers = {
+            ...(invoice.customers || {}),
+            gst_number: customer.gst_number,
+            transport_details: customer.transport_details,
+            points_balance: customer.points_balance,
+          };
         }
       }
       
@@ -2210,6 +2216,7 @@ export default function SalesInvoiceDashboard() {
           paidAmount={invoiceToPrint.paid_amount || 0}
           salesman={invoiceToPrint.salesman || ""}
           notes={invoiceToPrint.notes || ""}
+          pointsBalance={invoiceToPrint.customer_id ? Number(invoiceToPrint.customers?.points_balance ?? 0) : undefined}
           cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
           otherCharges={invoiceToPrint.other_charges || 0}
           roundOff={Number(invoiceToPrint.round_off ?? 0)}
@@ -3651,6 +3658,7 @@ export default function SalesInvoiceDashboard() {
               paidAmount={invoiceToPrint.paid_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              pointsBalance={invoiceToPrint.customer_id ? Number(invoiceToPrint.customers?.points_balance ?? 0) : undefined}
               cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}
@@ -5342,6 +5350,7 @@ export default function SalesInvoiceDashboard() {
               paidAmount={invoiceToPrint.paid_amount || 0}
               salesman={invoiceToPrint.salesman || ''}
               notes={invoiceToPrint.notes || ''}
+              pointsBalance={invoiceToPrint.customer_id ? Number(invoiceToPrint.customers?.points_balance ?? 0) : undefined}
               cnAdjustDate={invoiceToPrint.cn_adjust_date || null}
               otherCharges={invoiceToPrint.other_charges || 0}
               roundOff={Number(invoiceToPrint.round_off ?? 0)}

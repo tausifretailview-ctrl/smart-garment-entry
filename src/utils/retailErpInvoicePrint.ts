@@ -166,3 +166,49 @@ export function retailErpLetterpadNoteText(opts: {
   if (usableSaleNote.toLowerCase().includes(declaration.toLowerCase())) return usableSaleNote;
   return `${usableSaleNote}\n${declaration}`;
 }
+
+export type CrmPointsPrintSnapshot = {
+  pointsBalance?: number;
+  pointsRedeemed?: number;
+};
+
+/**
+ * Balance printed on the bill. Redeemed points come off the old balance.
+ * A bill that redeems does not also earn (same rule as save). Walk-in has no line.
+ */
+export function crmPointsPrintSnapshot(opts: {
+  crmEnabled: boolean;
+  customerId?: string | null;
+  balanceBefore?: number | null;
+  pointsToRedeem?: number | null;
+  pointsEarned?: number | null;
+}): CrmPointsPrintSnapshot {
+  if (!opts.crmEnabled || !String(opts.customerId || "").trim()) return {};
+  const redeemed = Math.max(0, Math.round(Number(opts.pointsToRedeem) || 0));
+  const earned = redeemed > 0 ? 0 : Math.max(0, Math.round(Number(opts.pointsEarned) || 0));
+  const before = Math.max(0, Math.round(Number(opts.balanceBefore) || 0));
+  return {
+    pointsBalance: Math.max(0, before - redeemed + earned),
+    pointsRedeemed: redeemed,
+  };
+}
+
+/** CRM points line for the Retail ERP Note box. Omitted when the feature is off. */
+export function retailErpNoteWithCrmPoints(
+  note: string,
+  opts: {
+    crmEnabled: boolean;
+    pointsBalance?: number | null;
+    pointsRedeemed?: number | null;
+  },
+): string {
+  if (!opts.crmEnabled) return note;
+  if (opts.pointsBalance == null || !Number.isFinite(Number(opts.pointsBalance))) return note;
+  const balance = Math.max(0, Math.round(Number(opts.pointsBalance)));
+  const redeemed = Math.max(0, Math.round(Number(opts.pointsRedeemed) || 0));
+  const line = redeemed > 0 ? `CRM Points: ${balance}\nRedeemed: ${redeemed}` : `CRM Points: ${balance}`;
+  const base = (note || "").trim();
+  if (!base) return line;
+  if (base.toLowerCase().includes("crm points:")) return base;
+  return `${base}\n${line}`;
+}

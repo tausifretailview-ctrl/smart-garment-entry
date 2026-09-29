@@ -157,6 +157,7 @@ import {
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
+import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -3802,6 +3803,13 @@ export default function POSSales() {
   const calculatedRoundOff = billingTotals.calculatedRoundOff;
   const pointsRedemptionValue = billingTotals.pointsRedemptionValue;
   const finalAmount = billingTotals.finalAmount;
+  const posCrmPointsForPrint = crmPointsPrintSnapshot({
+    crmEnabled: isPointsEnabled,
+    customerId,
+    balanceBefore: customerPointsData?.balance || 0,
+    pointsToRedeem,
+    pointsEarned: calculatePoints(finalAmount),
+  });
   const amountBeforeCredit = billingTotals.amountBeforeCredit;
   const posGst = {
     taxableSubtotal: billingTotals.taxableSubtotal,
@@ -4145,6 +4153,8 @@ export default function POSSales() {
           taxType: snapTaxType,
           financerDetails: snapFinancerDetails,
           notes: snapNotes,
+          pointsBalance: snap?.pointsBalance,
+          pointsRedeemed: snap?.pointsRedeemed,
           showMRP: snapEnableMrp,
           showYouSaved: snapEnableMrp ? undefined : false,
         };
@@ -4493,14 +4503,17 @@ export default function POSSales() {
       return;
     }
 
-    const saleData = withPosAdvance(buildSaleData({
-      customerId,
-      customerName,
-      customerPhone,
-      salesman: selectedSalesman || null,
-      notes: saleNotes || null,
-      saleDate: buildPosSaleDate(),
-    }));
+    const saleData = {
+      ...withPosAdvance(buildSaleData({
+        customerId,
+        customerName,
+        customerPhone,
+        salesman: selectedSalesman || null,
+        notes: saleNotes || null,
+        saleDate: buildPosSaleDate(),
+      })),
+      ...posCrmPointsForPrint,
+    };
 
     await attachSameBillReturnsToCustomer();
     const result = isHeldSale && currentSaleId
@@ -4756,14 +4769,17 @@ export default function POSSales() {
     }
 
     // Save the sale with the selected payment method
-    const saleData = withPosAdvance(buildSaleData({
-      customerId,
-      customerName,
-      customerPhone,
-      salesman: selectedSalesman || null,
-      notes: saleNotes || null,
-      saleDate: buildPosSaleDate(),
-    }));
+    const saleData = {
+      ...withPosAdvance(buildSaleData({
+        customerId,
+        customerName,
+        customerPhone,
+        salesman: selectedSalesman || null,
+        notes: saleNotes || null,
+        saleDate: buildPosSaleDate(),
+      })),
+      ...posCrmPointsForPrint,
+    };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     await attachSameBillReturnsToCustomer();
@@ -4846,9 +4862,14 @@ export default function POSSales() {
         paidAmount: method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: saveAccount.previousBalance,
         unusedAdvance: saveAccount.unusedAdvance,
-        pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
-        pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
+        ...crmPointsPrintSnapshot({
+          crmEnabled: isPointsEnabled,
+          customerId,
+          balanceBefore: customerPointsData?.balance || 0,
+          pointsToRedeem,
+          pointsEarned: calculatePoints(finalAmount),
+        }),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
@@ -4989,6 +5010,7 @@ export default function POSSales() {
         saleDate: buildPosSaleDate(),
       })),
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
+      ...posCrmPointsForPrint,
     };
 
     const paymentMethodType: 'multiple' = 'multiple';
@@ -5154,9 +5176,14 @@ export default function POSSales() {
         paidAmount: paymentData.totalPaid,
         previousBalance: mixAccount.previousBalance,
         unusedAdvance: mixAccount.unusedAdvance,
-        pointsRedeemed: pointsToRedeem,
         pointsRedemptionValue: pointsRedemptionValue,
-        pointsBalance: (customerPointsData?.balance || 0) - pointsToRedeem,
+        ...crmPointsPrintSnapshot({
+          crmEnabled: isPointsEnabled,
+          customerId,
+          balanceBefore: customerPointsData?.balance || 0,
+          pointsToRedeem,
+          pointsEarned: calculatePoints(finalAmount),
+        }),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
@@ -5596,6 +5623,8 @@ export default function POSSales() {
                 ? `** ESTIMATE - NOT A FINAL INVOICE **${savedInvoiceData?.notes ? '\n' + savedInvoiceData.notes : ''}`
                 : savedInvoiceData?.notes || saleNotes
             }
+            pointsBalance={savedInvoiceData ? savedInvoiceData.pointsBalance : undefined}
+            pointsRedeemed={savedInvoiceData ? savedInvoiceData.pointsRedeemed : undefined}
             paidAmount={savedInvoiceData?.paidAmount ?? (paymentMethod === 'pay_later' ? 0 : finalAmount)}
             previousBalance={savedInvoiceData?.previousBalance ?? customerBalance ?? 0}
             unusedAdvance={savedInvoiceData?.unusedAdvance ?? customerUnusedAdvance ?? 0}
@@ -8838,6 +8867,8 @@ export default function POSSales() {
                 taxType={invoiceTaxType}
                 financerDetails={financerDetails}
                 notes={saleNotes}
+                pointsBalance={posCrmPointsForPrint.pointsBalance}
+                pointsRedeemed={posCrmPointsForPrint.pointsRedeemed}
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
@@ -9021,6 +9052,8 @@ export default function POSSales() {
                 creditAmount={savedInvoiceData.creditAmount || 0}
                 refundCash={savedInvoiceData.refundCash || 0}
                 notes={savedInvoiceData.notes}
+                pointsBalance={savedInvoiceData.pointsBalance}
+                pointsRedeemed={savedInvoiceData.pointsRedeemed}
                 paidAmount={savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount}
                 previousBalance={savedInvoiceData.previousBalance ?? 0}
                 unusedAdvance={savedInvoiceData.unusedAdvance ?? 0}
