@@ -193,6 +193,7 @@ import {
 } from "@/utils/gstRegisterUtils";
 import { CreditNotePrint } from "@/components/CreditNotePrint";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
+import { createManualSaleReturnCredit, manualSrShortfall } from "@/utils/manualSaleReturnCredit";
 import {
   buildInsufficientStockIssue,
   buildMultipleStockIssues,
@@ -721,6 +722,9 @@ export default function POSSales() {
   const [advanceApplied, setAdvanceApplied] = useState(0);
   const [openingBalanceRemaining, setOpeningBalanceRemaining] = useState(0);
   const [pendingSaleReturnCredits, setPendingSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; credit_note_id: string | null }>>([]);
+  /** S/R typed above the customer's saved return credit → confirm recording an old return. */
+  const [manualSrPrompt, setManualSrPrompt] = useState<{ requested: number; shortfall: number } | null>(null);
+  const [creatingManualSr, setCreatingManualSr] = useState(false);
   const [recentAdjustedSaleReturnCredits, setRecentAdjustedSaleReturnCredits] = useState<Array<{ id: string; return_number: string; net_amount: number; linked_sale_id: string | null; linked_sale_number?: string }>>([]);
   const [showSRCreditDropdown, setShowSRCreditDropdown] = useState(false);
   /** Full return value from same-bill S/R dialog this session — may exceed bill (exchange excess). */
@@ -6437,6 +6441,84 @@ export default function POSSales() {
     selectedEl?.scrollIntoView({ block: "nearest" });
   }, [selectedProductIndex, openProductSearch, filteredProducts.length]);
 
+  const canRecordManualSr = organizationRole === "admin" || organizationRole === "manager";
+
+  const confirmManualSr = async () => {
+    const prompt = manualSrPrompt;
+    if (!prompt || !customerId || !currentOrganization?.id) {
+      setManualSrPrompt(null);
+      return;
+    }
+    setCreatingManualSr(true);
+    try {
+      const created = await createManualSaleReturnCredit(supabase, {
+        organizationId: currentOrganization.id,
+        customerId,
+        customerName: customerName || "Customer",
+        amount: prompt.shortfall,
+      });
+      const { returns: cnPool } = await getAvailableCN(supabase, customerId, currentOrganization.id, {
+        includeUnlinkedAdjusted: true,
+      });
+      setPendingSaleReturnCredits(
+        [...cnPool]
+          .sort((x, y) => String(y.return_date || "").localeCompare(String(x.return_date || "")))
+          .map((r) => ({ id: r.id, return_number: r.return_number || "", net_amount: r.available, credit_note_id: null })),
+      );
+      setSaleReturnAdjust(prompt.requested);
+      toast.success(`Old sale return ${created.returnNumber} recorded — ₹${formatINR2(prompt.shortfall)} credit applied to this bill`);
+    } catch (err) {
+      console.error("Manual S/R credit failed:", err);
+      toast.error(err instanceof Error ? err.message : "Could not record the old sale return");
+      clampSaleReturnAdjust(prompt.requested, { silent: true });
+    } finally {
+      setCreatingManualSr(false);
+      setManualSrPrompt(null);
+    }
+  };
+
+  const manualSrDialog = (
+    <AlertDialog
+      open={!!manualSrPrompt}
+      onOpenChange={(open) => {
+        if (!open && !creatingManualSr && manualSrPrompt) {
+          // Cancel: keep only what the saved returns cover.
+          if (availableSrCredit > 0.01) clampSaleReturnAdjust(manualSrPrompt.requested);
+          else {
+            setSaleReturnAdjust(0);
+            setSameBillReturnGross(0);
+          }
+          setManualSrPrompt(null);
+        }
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Record old sale return?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {availableSrCredit > 0.01
+              ? `${customerName || "This customer"} has ₹${formatINR2(availableSrCredit)} saved return credit. `
+              : `${customerName || "This customer"} has no saved sale return. `}
+            Record ₹{formatINR2(manualSrPrompt?.shortfall ?? 0)} as an old sale return (amount only, stock not
+            changed) and use ₹{formatINR2(manualSrPrompt?.requested ?? 0)} S/R on this bill?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={creatingManualSr}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={creatingManualSr}
+            onClick={(e) => {
+              e.preventDefault();
+              void confirmManualSr();
+            }}
+          >
+            {creatingManualSr ? "Saving…" : "Record & apply"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const creditCustomerRequiredDialog = (
     <AlertDialog open={showCreditCustomerRequiredDialog} onOpenChange={setShowCreditCustomerRequiredDialog}>
       <AlertDialogContent>
@@ -6644,6 +6726,7 @@ export default function POSSales() {
         {posPrintPortal}
 
         {creditCustomerRequiredDialog}
+        {manualSrDialog}
         {unitPriceConfirmDialog}
       </>
     );
@@ -6805,6 +6888,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {manualSrDialog}
         {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
@@ -8427,12 +8511,21 @@ export default function POSSales() {
                         setSaleReturnAdjust(requested);
                         return;
                       }
+                      // Customer's old return that was never entered: admin / manager can
+                      // record it now (amount-only sale return + credit note), then it is used here.
+                      const manualShortfall = customerId
+                        ? manualSrShortfall(Math.min(requested, maxSrFromBill), availableSrCredit)
+                        : 0;
+                      if (manualShortfall > 0 && canRecordManualSr) {
+                        setManualSrPrompt({ requested: Math.min(requested, maxSrFromBill), shortfall: manualShortfall });
+                        return;
+                      }
                       if (
                         customerId &&
                         availableSrCredit <= 0.01 &&
                         requested > 0.01
                       ) {
-                        toast.warning("No pending Sale Return credit for this customer");
+                        toast.warning("No pending Sale Return credit for this customer. Ask an admin or manager to record the old return.");
                         setSaleReturnAdjust(0);
                         setSameBillReturnGross(0);
                         return;
@@ -8953,6 +9046,7 @@ export default function POSSales() {
           </DialogContent>
         </Dialog>
         {creditCustomerRequiredDialog}
+        {manualSrDialog}
         {unitPriceConfirmDialog}
 
         {/* Print Confirmation Dialog */}
