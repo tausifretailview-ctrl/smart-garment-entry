@@ -85,3 +85,18 @@ export async function pickUnusedSameNameProduct(
   )[0];
   return oldest.id;
 }
+
+/**
+ * Purchase entry: which same-name product to use without asking. The one holding
+ * stock is the one in use; ties (e.g. all 0) go to the oldest, same as
+ * pickUnusedSameNameProduct. Null only when there are no matches.
+ */
+export function pickPreferredSameNameProduct(matches: SameNameProductMatch[]): string | null {
+  if (matches.length === 0) return null;
+  const best = [...matches].sort((a, b) => {
+    const byStock = (Number(b.total_stock) || 0) - (Number(a.total_stock) || 0);
+    if (byStock !== 0) return byStock;
+    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  })[0];
+  return best.id;
+}

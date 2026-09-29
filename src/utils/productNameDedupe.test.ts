@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   findSameNameProductsInOrg,
   normalizeProductNameKey,
+  pickPreferredSameNameProduct,
   pickUnusedSameNameProduct,
 } from "./productNameDedupe";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,5 +86,36 @@ describe("pickUnusedSameNameProduct", () => {
 
   it("returns null for no matches", async () => {
     expect(await pickUnusedSameNameProduct([], noHistory)).toBeNull();
+  });
+});
+
+describe("pickPreferredSameNameProduct", () => {
+  const m = (id: string, total_stock: number, created_at: string) => ({
+    id,
+    product_name: "FLEXI C2",
+    brand: null,
+    category: null,
+    created_at,
+    total_stock,
+  });
+
+  it("uses the product holding stock among several FLEXI C2 duplicates", () => {
+    expect(
+      pickPreferredSameNameProduct([
+        m("dup-a", 0, "2026-09-01"),
+        m("in-use", 2, "2026-09-10"),
+        m("dup-b", 0, "2026-08-01"),
+      ]),
+    ).toBe("in-use");
+  });
+
+  it("falls back to the oldest when stock ties", () => {
+    expect(
+      pickPreferredSameNameProduct([m("newer", 0, "2026-09-10"), m("older", 0, "2026-08-01")]),
+    ).toBe("older");
+  });
+
+  it("returns null with no matches", () => {
+    expect(pickPreferredSameNameProduct([])).toBeNull();
   });
 });
