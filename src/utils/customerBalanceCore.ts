@@ -223,16 +223,23 @@ function filterValidSales(sales: CustomerBalanceCoreSale[]): CustomerBalanceCore
 export function computePaidAmountDrift(
   validSales: CustomerBalanceCoreSale[],
   voucherEntries: CustomerBalanceCoreVoucher[],
+  options?: { excludeSettlementMemos?: boolean },
 ): number {
-  const voucherTotalsBySale = new Map<string, number>();
+  // Ledger-aligned mode: CN / advance application memos settle the bill through
+  // sale_return_adjust / advance, not the at-sale tender, and are not counted as
+  // receipts — so they must not cancel POS cash/UPI either (SQL parity: receipts
+  // exclude _is_settlement_memo_receipt). E.g. ₹1,500 bill = ₹500 UPI + ₹1,000 CN
+  // lost the ₹500. Legacy mode counts memos as receipts, so keeps them here too.
+  const excludeMemos = options?.excludeSettlementMemos === true;
+  const cashReceiptsBySale = new Map<string, number>();
+  const memoReceiptsBySale = new Map<string, number>();
   for (const v of voucherEntries) {
     if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
     const refId = v.reference_id;
     if (!refId) continue;
-    voucherTotalsBySale.set(
-      refId,
-      (voucherTotalsBySale.get(refId) || 0) + voucherCredit(v),
-    );
+    const target =
+      excludeMemos && isReceiptMemoApplicationLedgerAligned(v) ? memoReceiptsBySale : cashReceiptsBySale;
+    target.set(refId, (target.get(refId) || 0) + voucherCredit(v));
   }
 
   let drift = 0;
@@ -242,9 +249,12 @@ export function computePaidAmountDrift(
     // Advance-only invoices store settlement in paid_amount but not in cash/card/upi.
     // Memos are excluded from voucherTotals — do not treat advance paid_amount as drift.
     if (tender <= 0.005) continue;
-    const paid = Math.max(Number(s.paid_amount || 0), tender);
+    // Older bills folded the CN / advance application into paid_amount; take it back
+    // out so it is not counted twice (once here, once as the applied credit).
+    const memo = memoReceiptsBySale.get(s.id) || 0;
+    const paid = Math.max(Number(s.paid_amount || 0) - memo, tender);
     if (paid <= 0) continue;
-    const voucherSum = voucherTotalsBySale.get(s.id) || 0;
+    const voucherSum = cashReceiptsBySale.get(s.id) || 0;
     const gap = paid - voucherSum;
     if (gap > 0) drift += gap;
   }
@@ -529,7 +539,9 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     totalAdvanceUsed +
     adjustmentTotal;
 
-  const paidAmountDrift = computePaidAmountDrift(validSales, params.voucherEntries);
+  const paidAmountDrift = computePaidAmountDrift(validSales, params.voucherEntries, {
+    excludeSettlementMemos: useLedgerAlignedApps,
+  });
   const pendingStandaloneSaleReturns = computePendingStandaloneSaleReturns(
     params.saleReturns,
     validSales,
