@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { cleanProductName } from "@/utils/productNameMerge";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1318,7 +1319,7 @@ const ProductEntry = () => {
         // Update existing product - explicitly define columns to avoid sending invalid fields like default_mrp
         const productPayload = {
           product_type: formData.product_type,
-          product_name: formData.product_name,
+          product_name: cleanProductName(formData.product_name),
           category: formData.category || null,
           brand: canonicalizeProductBrand(formData.brand) || null,
           style: formData.style || null,
@@ -1518,7 +1519,7 @@ const ProductEntry = () => {
         if (!currentOrganization?.id) throw new Error("No organization selected");
         const productPayload = {
           product_type: formData.product_type,
-          product_name: formData.product_name,
+          product_name: cleanProductName(formData.product_name),
           category: formData.category || null,
           brand: canonicalizeProductBrand(formData.brand) || null,
           style: formData.style || null,

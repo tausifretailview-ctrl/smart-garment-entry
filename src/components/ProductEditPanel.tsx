@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { cleanProductName } from "@/utils/productNameMerge";
 import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -366,7 +367,7 @@ const ProductEditPanel = ({
       // Update product master (product-wide fields only — NOT colour)
       // Color is variant-level: see product_variants update below.
       const productPatch = {
-          product_name: form.product_name?.toUpperCase(),
+          product_name: form.product_name == null ? undefined : cleanProductName(form.product_name).toUpperCase(),
           brand: form.brand || null,
           category: form.category || null,
           style: form.style || null,

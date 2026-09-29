@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Search, Filter, ChevronDown, ChevronUp, Grid3X3, IndianRupee, ChevronLeft, ChevronRight, FileSpreadsheet, FileText, Loader2, Printer, ArrowLeft, RefreshCcw, Merge } from "lucide-react";
 import { MergeDuplicateBrandsDialog } from "@/components/MergeDuplicateBrandsDialog";
+import { MergeDuplicateProductNamesDialog } from "@/components/MergeDuplicateProductNamesDialog";
 import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
 import { SkeletonGradientKpiStrip } from "@/components/skeletons/SkeletonKpiCards";
 import { SkeletonMobileListRows, SkeletonTableRows } from "@/components/skeletons/SkeletonTableRows";
@@ -453,6 +454,7 @@ export default function StockReport() {
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState<string>("all");
   const [stockStatusFilter, setStockStatusFilter] = useState<string>("all");
   const [mergeBrandsOpen, setMergeBrandsOpen] = useState(false);
+  const [mergeNamesOpen, setMergeNamesOpen] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -1958,15 +1960,26 @@ export default function StockReport() {
 
         <MobileBottomNav />
         {currentOrganization?.id && (
-          <MergeDuplicateBrandsDialog
-            open={mergeBrandsOpen}
-            onOpenChange={setMergeBrandsOpen}
-            organizationId={currentOrganization.id}
-            onMergeComplete={() => {
-              invalidateStockReportQueries(queryClient, currentOrganization.id);
-              handleSearch();
-            }}
-          />
+          <>
+            <MergeDuplicateBrandsDialog
+              open={mergeBrandsOpen}
+              onOpenChange={setMergeBrandsOpen}
+              organizationId={currentOrganization.id}
+              onMergeComplete={() => {
+                invalidateStockReportQueries(queryClient, currentOrganization.id);
+                handleSearch();
+              }}
+            />
+            <MergeDuplicateProductNamesDialog
+              open={mergeNamesOpen}
+              onOpenChange={setMergeNamesOpen}
+              organizationId={currentOrganization.id}
+              onMergeComplete={() => {
+                invalidateStockReportQueries(queryClient, currentOrganization.id);
+                handleSearch();
+              }}
+            />
+          </>
         )}
       </div>
     );
@@ -2017,6 +2030,17 @@ export default function StockReport() {
             >
               <Merge className="h-4 w-4" />
               Merge brands
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 text-sm border-slate-200 gap-1.5"
+              title="Merge product names that differ only by spaces, letter case or hidden characters"
+              onClick={() => setMergeNamesOpen(true)}
+              disabled={!currentOrganization?.id}
+            >
+              <Merge className="h-4 w-4" />
+              Merge names
             </Button>
             <Button
               variant="outline"
@@ -2725,15 +2749,26 @@ export default function StockReport() {
       </Card>
       </div>
       {currentOrganization?.id && (
-        <MergeDuplicateBrandsDialog
-          open={mergeBrandsOpen}
-          onOpenChange={setMergeBrandsOpen}
-          organizationId={currentOrganization.id}
-          onMergeComplete={() => {
-            invalidateStockReportQueries(queryClient, currentOrganization.id);
-            handleSearch();
-          }}
-        />
+        <>
+          <MergeDuplicateBrandsDialog
+            open={mergeBrandsOpen}
+            onOpenChange={setMergeBrandsOpen}
+            organizationId={currentOrganization.id}
+            onMergeComplete={() => {
+              invalidateStockReportQueries(queryClient, currentOrganization.id);
+              handleSearch();
+            }}
+          />
+          <MergeDuplicateProductNamesDialog
+            open={mergeNamesOpen}
+            onOpenChange={setMergeNamesOpen}
+            organizationId={currentOrganization.id}
+            onMergeComplete={() => {
+              invalidateStockReportQueries(queryClient, currentOrganization.id);
+              handleSearch();
+            }}
+          />
+        </>
       )}
     </div>
   );
