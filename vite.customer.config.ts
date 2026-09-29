@@ -12,14 +12,13 @@ export default defineConfig({
     outDir: "dist-customer",
     emptyOutDir: true,
     rollupOptions: {
+      // The service worker (firebase-messaging-sw.js) is a separate,
+      // self-contained build: vite.customer-sw.config.ts.
       input: {
         main: resolve(__dirname, "customer.html"),
-        sw: resolve(__dirname, "src/customer/sw.ts"),
       },
       output: {
-        // The service worker must be served at the domain root with a fixed name.
-        entryFileNames: (chunk) =>
-          chunk.name === "sw" ? "firebase-messaging-sw.js" : "assets/[name]-[hash].js",
+        entryFileNames: "assets/[name]-[hash].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name]-[hash].[ext]",
       },

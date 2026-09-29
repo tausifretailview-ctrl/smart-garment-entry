@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
-    "build:customer": "vite build --config vite.customer.config.ts",
+    "build:customer": "vite build --config vite.customer.config.ts && vite build --config vite.customer-sw.config.ts",
     "lint": "eslint .",
     "typecheck": "tsc -b --force",
     "test": "vitest run",

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-// firebase-messaging-sw.js (built by vite.customer.config.ts from this file).
+// firebase-messaging-sw.js (built by vite.customer-sw.config.ts from this file).
 // Domain-root service worker for the CUSTOMER app only — separate domain from
 // the ERP, no PWA plugin, no caching: push delivery + telemetry only.
 //
