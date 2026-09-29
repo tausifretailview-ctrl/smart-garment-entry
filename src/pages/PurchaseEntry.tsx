@@ -141,9 +141,8 @@ import {
   shouldReuseExistingBarcodeOnPurchaseSelect,
 } from "@/utils/purchaseVariantPriceTierFork";
 import {
-  findReusableUnusedGeneratedSku,
-  recycleOrphanGeneratedSkusOnProduct,
   recycleUnusedGeneratedSku,
+  reuseOrRecycleGeneratedSkusOnProduct,
 } from "@/utils/recycleUnusedGeneratedBarcode";
 import { createPurchaseDraftSkuGuard } from "@/utils/purchaseDraftSkuGuard";
 import { restoreRecycledPurchaseDraftSkus } from "@/utils/restoreRecycledPurchaseDraftSkus";
@@ -2169,7 +2168,9 @@ const PurchaseEntry = () => {
         return { id: newVariant.id, barcode: reusedBarcode };
       }
 
-      const reusable = await findReusableUnusedGeneratedSku({
+      // Reuse a leftover SKU for this size/colour and recycle the product's other
+      // leftovers in one pass (was two loads + two history lookups per size).
+      const { reusable } = await reuseOrRecycleGeneratedSkusOnProduct({
         organizationId: currentOrganization!.id,
         productId: source.product_id,
         size: source.size,
@@ -2178,23 +2179,8 @@ const PurchaseEntry = () => {
       });
       if (reusable) {
         draftSkuGuardRef.current.add(reusable.id);
-        await recycleOrphanGeneratedSkusOnProduct({
-          organizationId: currentOrganization!.id,
-          productId: source.product_id,
-          excludeSkuIds: draftSkuGuardRef.current.exclude(
-            lineItemsRef.current.map((row) => row.sku_id),
-          ),
-        });
         return { ...reusable, reused: true };
       }
-
-      await recycleOrphanGeneratedSkusOnProduct({
-        organizationId: currentOrganization!.id,
-        productId: source.product_id,
-        excludeSkuIds: draftSkuGuardRef.current.exclude(
-          lineItemsRef.current.map((row) => row.sku_id),
-        ),
-      });
 
       const generated = await generateCentralizedBarcode();
       const { data: newVariant, barcode: newBarcode } = await insertGeneratedProductVariant<{

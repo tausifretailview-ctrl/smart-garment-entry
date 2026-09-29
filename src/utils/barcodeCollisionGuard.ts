@@ -52,6 +52,37 @@ async function generatedBarcodeTaken(
   return Boolean(data && data.length > 0);
 }
 
+/** Candidates probed per round trip while walking the series. */
+const WALK_BATCH_SIZE = 25;
+const IN_QUERY_CHUNK = 100;
+
+/**
+ * Which of these generated barcodes already belong to a live variant in the org.
+ * One round trip per 100 values instead of one per value.
+ */
+export async function findTakenGeneratedBarcodes(
+  organizationId: string,
+  barcodes: readonly string[],
+): Promise<Set<string>> {
+  const unique = [...new Set(barcodes.map((b) => String(b ?? "").trim()).filter(Boolean))];
+  const taken = new Set<string>();
+  for (let i = 0; i < unique.length; i += IN_QUERY_CHUNK) {
+    const chunk = unique.slice(i, i + IN_QUERY_CHUNK);
+    const { data, error } = await supabase
+      .from("product_variants")
+      .select("barcode")
+      .eq("organization_id", organizationId)
+      .in("barcode", chunk)
+      .is("deleted_at", null);
+    if (error) throw error;
+    for (const row of (data as { barcode: string | null }[] | null) ?? []) {
+      const bc = String(row.barcode ?? "").trim();
+      if (bc) taken.add(bc);
+    }
+  }
+  return taken;
+}
+
 /**
  * Gap-fill `generate_next_barcode` returns the first free hole and does not
  * reserve it. Saving a purchase product with several sizes therefore gets the
@@ -64,12 +95,21 @@ async function firstFreeFromAllocated(
   claimedInBatch?: Set<string>,
 ): Promise<string | null> {
   let probe = String(startBarcode || "").trim();
-  for (let step = 0; step < MAX_LOCAL_WALK && probe; step += 1) {
-    const takenInBatch = claimedInBatch?.has(probe) === true;
-    if (!takenInBatch && !(await generatedBarcodeTaken(organizationId, probe))) {
-      return probe;
+  let step = 0;
+  while (step < MAX_LOCAL_WALK && probe) {
+    // Same order and limit as probing one value at a time, but each round trip
+    // checks up to WALK_BATCH_SIZE consecutive values.
+    const batch: string[] = [];
+    while (batch.length < WALK_BATCH_SIZE && step < MAX_LOCAL_WALK && probe) {
+      batch.push(probe);
+      probe = nextGeneratedBarcodeCandidate(probe);
+      step += 1;
     }
-    probe = nextGeneratedBarcodeCandidate(probe);
+    const unclaimed = batch.filter((bc) => claimedInBatch?.has(bc) !== true);
+    if (unclaimed.length === 0) continue;
+    const taken = await findTakenGeneratedBarcodes(organizationId, unclaimed);
+    const free = unclaimed.find((bc) => !taken.has(bc));
+    if (free) return free;
   }
   return null;
 }
@@ -114,11 +154,20 @@ export async function ensureFreshGeneratedBarcode(
 export async function ensureFreshGeneratedBarcodes(
   organizationId: string,
   candidates: string[],
+  claimedInBatch: Set<string> = new Set<string>(),
 ): Promise<string[]> {
-  const claimed = new Set<string>();
+  // One lookup for the whole size grid; only values found taken (or repeated in
+  // this batch) fall back to the per-value regenerate path.
+  const taken = await findTakenGeneratedBarcodes(organizationId, candidates);
   const out: string[] = [];
   for (const candidate of candidates) {
-    out.push(await ensureFreshGeneratedBarcode(organizationId, candidate, claimed));
+    const barcode = String(candidate ?? "").trim();
+    if (barcode && !taken.has(barcode) && !claimedInBatch.has(barcode)) {
+      claimedInBatch.add(barcode);
+      out.push(barcode);
+      continue;
+    }
+    out.push(await ensureFreshGeneratedBarcode(organizationId, candidate, claimedInBatch));
   }
   return out;
 }

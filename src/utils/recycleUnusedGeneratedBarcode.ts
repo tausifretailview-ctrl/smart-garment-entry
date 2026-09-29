@@ -210,16 +210,71 @@ export async function recycleOrphanGeneratedSkusOnProduct(opts: {
   const orphans = rows.filter((row) => !history.has(row.id));
   if (orphans.length === 0) return 0;
 
+  return softDeleteGeneratedSkus(
+    organizationId,
+    orphans.map((row) => row.id),
+  );
+}
+
+/** Soft-delete in one UPDATE per 100 ids instead of one round trip per SKU. */
+async function softDeleteGeneratedSkus(organizationId: string, skuIds: string[]): Promise<number> {
+  if (skuIds.length === 0) return 0;
   const now = new Date().toISOString();
   let recycled = 0;
-  for (const row of orphans) {
-    const { error } = await supabase
+  for (let i = 0; i < skuIds.length; i += IN_QUERY_CHUNK) {
+    const chunk = skuIds.slice(i, i + IN_QUERY_CHUNK);
+    const { data, error } = await supabase
       .from("product_variants")
       .update({ deleted_at: now, active: false } as never)
       .eq("organization_id", organizationId)
-      .eq("id", row.id)
-      .is("deleted_at", null);
-    if (!error) recycled += 1;
+      .in("id", chunk)
+      .is("deleted_at", null)
+      .select("id");
+    if (!error) recycled += (data as unknown[] | null)?.length ?? 0;
   }
   return recycled;
+}
+
+/**
+ * `findReusableUnusedGeneratedSku` followed by `recycleOrphanGeneratedSkusOnProduct`
+ * (with the reused SKU excluded), in one load + one history lookup instead of two
+ * of each. Purchase size grid calls this once per size, so the saved round trips add up.
+ */
+export async function reuseOrRecycleGeneratedSkusOnProduct(opts: {
+  organizationId: string;
+  productId: string;
+  size?: string | null;
+  color?: string | null;
+  excludeSkuIds?: string[];
+}): Promise<{ reusable: { id: string; barcode: string } | null; recycled: number }> {
+  const { organizationId, productId } = opts;
+  if (!organizationId || !productId) return { reusable: null, recycled: 0 };
+
+  const exclude = new Set((opts.excludeSkuIds || []).filter(Boolean));
+  const rows = (await loadZeroStockGeneratedOnProduct({ organizationId, productId })).filter(
+    (row) => !exclude.has(row.id),
+  );
+  if (rows.length === 0) return { reusable: null, recycled: 0 };
+
+  const history = await fetchSkuIdsWithPostedHistory(
+    organizationId,
+    rows.map((row) => row.id),
+  );
+  const unused = rows.filter((row) => !history.has(row.id));
+
+  const picked = pickLowestUnusedGeneratedSku(
+    unused.filter(
+      (row) =>
+        normalizeSize(row.size) === normalizeSize(opts.size) &&
+        normalizeColor(row.color) === normalizeColor(opts.color) &&
+        Boolean((row.barcode || "").trim()),
+    ),
+  );
+  const reusable = picked ? { id: picked.id, barcode: (picked.barcode || "").trim() } : null;
+
+  const recycled = await softDeleteGeneratedSkus(
+    organizationId,
+    unused.filter((row) => row.id !== reusable?.id).map((row) => row.id),
+  );
+  return { reusable, recycled };
 }

@@ -85,7 +85,11 @@ import {
   normalizeProductNameKey,
   type SameNameProductMatch,
 } from "@/utils/productNameDedupe";
-import { ensureFreshGeneratedBarcode, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
+import {
+  ensureFreshGeneratedBarcode,
+  ensureFreshGeneratedBarcodes,
+  isBarcodeCollisionError,
+} from "@/utils/barcodeCollisionGuard";
 import { buildMasterOnlySaleOrderVariants } from "@/utils/saleOrderMasterProductVariants";
 import { accessoryVariantCollapseKey } from "@/utils/purchaseImportBarcodeTier";
 import type {
@@ -2417,19 +2421,25 @@ export const ProductEntryDialog = ({
       let insertedVariants: any[] = [];
       if (variantsToCreate.length > 0) {
         const claimedGenerated = new Set<string>();
+        // Generated values may have sat in dialog state (auto-generate button,
+        // unsaved-draft restore, or the variants-created effect) while another
+        // tab saved. Re-check immediately before insert; skip external EANs.
+        // All sizes are checked in one lookup instead of one round trip per size.
+        const generatedVariants = variantsToCreate.filter((v) => v.barcode_source === "generated");
+        const freshGenerated = await ensureFreshGeneratedBarcodes(
+          currentOrganization.id,
+          generatedVariants.map((v) => v.barcode.trim()),
+          claimedGenerated,
+        );
+        const freshBarcodeByVariant = new Map(
+          generatedVariants.map((v, i) => [v, freshGenerated[i]] as const),
+        );
         const variantsToInsert = [];
         for (const v of variantsToCreate) {
           const isGenerated = v.barcode_source === "generated";
           let barcode = v.barcode.trim();
-          // Generated values may have sat in dialog state (auto-generate button,
-          // unsaved-draft restore, or the variants-created effect) while another
-          // tab saved. Re-check immediately before insert; skip external EANs.
           if (isGenerated) {
-            barcode = await ensureFreshGeneratedBarcode(
-              currentOrganization.id,
-              barcode,
-              claimedGenerated,
-            );
+            barcode = freshBarcodeByVariant.get(v) ?? barcode;
             v.barcode = barcode;
           }
           variantsToInsert.push({
