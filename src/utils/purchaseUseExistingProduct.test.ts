@@ -4,6 +4,7 @@ import {
   matchExistingVariantForSizeRow,
   purchaseLinePricesDiffer,
   purchaseLinePricesFromUseExisting,
+  typedExternalBarcode,
 } from "@/utils/purchaseUseExistingProduct";
 
 describe("purchaseUseExistingProduct", () => {
@@ -68,5 +69,18 @@ describe("matchExistingVariantForSizeRow", () => {
 
   it("returns null for a size the product does not have", () => {
     expect(matchExistingVariantForSizeRow(variants, { size: "XXL", color: "", mrp: 300 })).toBeNull();
+  });
+});
+
+describe("typedExternalBarcode", () => {
+  it("keeps a scanned Jockey EAN", () => {
+    expect(typedExternalBarcode({ barcode: " 8901326331101 ", barcode_source: "external" })).toBe("8901326331101");
+    expect(typedExternalBarcode({ barcode: "8901326331101" })).toBe("8901326331101");
+  });
+
+  it("ignores app-generated series codes and blanks", () => {
+    expect(typedExternalBarcode({ barcode: "550081106", barcode_source: "generated" })).toBe("");
+    expect(typedExternalBarcode({ barcode: "" })).toBe("");
+    expect(typedExternalBarcode({})).toBe("");
   });
 });
