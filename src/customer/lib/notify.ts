@@ -60,20 +60,33 @@ async function getRegistration(): Promise<ServiceWorkerRegistration> {
   return navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
 }
 
-async function currentToken(): Promise<string | null> {
+/** Short, customer-safe code for why a token could not be fetched (shown on screen for support). */
+function tokenErrorCode(err: unknown): string {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && code) return code;
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return msg.slice(0, 80) || "token_error";
+}
+
+async function fetchToken(): Promise<{ token: string | null; reason?: string }> {
+  if (!isFirebaseConfigured()) return { token: null, reason: "not_configured" };
   try {
     const { initializeApp, getApps, getApp } = await import("firebase/app");
     const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
-    if (!(await isSupported())) return null;
+    if (!(await isSupported())) return { token: null, reason: "unsupported" };
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig());
     const messaging = getMessaging(app);
     const reg = await getRegistration();
-    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
-    if (!vapidKey) return null;
-    return await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
-  } catch {
-    return null;
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string;
+    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
+    return token ? { token } : { token: null, reason: "empty_token" };
+  } catch (err) {
+    return { token: null, reason: tokenErrorCode(err) };
   }
+}
+
+async function currentToken(): Promise<string | null> {
+  return (await fetchToken()).token;
 }
 
 // Click handler for the "Turn on notifications" button. Requests permission
@@ -90,19 +103,19 @@ export async function enablePush(
     return { ok: false, reason: "denied" };
   }
   if (permission !== "granted") return { ok: false, reason: permission };
-  const fcmToken = await currentToken();
-  if (!fcmToken) return { ok: false, reason: "no_token" };
+  const { token: fcmToken, reason: tokenReason } = await fetchToken();
+  if (!fcmToken) return { ok: false, reason: tokenReason === "unsupported" ? "unsupported" : `token: ${tokenReason ?? "none"}` };
   try {
     const res = await registerPush(subdomain, pageToken, fcmToken, platformName());
-    if (!res.ok) return { ok: false, reason: res.error ?? "register_failed" };
+    if (!res.ok) return { ok: false, reason: `register: ${res.error ?? "failed"}` };
     try {
       localStorage.setItem("ezzy_push_opt", "1");
     } catch {
       /* ignore */
     }
     return { ok: true };
-  } catch {
-    return { ok: false, reason: "register_failed" };
+  } catch (err) {
+    return { ok: false, reason: `register: ${tokenErrorCode(err)}` };
   }
 }
 

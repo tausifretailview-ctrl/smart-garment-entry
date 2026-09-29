@@ -112,7 +112,7 @@ export default function TokenPage() {
           ? "Notifications are blocked for this site. Allow them in your browser settings, then try again."
           : res.reason === "unsupported"
             ? "This browser cannot receive notifications. Try Chrome on Android."
-            : "Could not turn on notifications. Please try again.",
+            : `Could not turn on notifications. Please try again. (${res.reason ?? "unknown"})`,
       );
     }
   }, [subdomain, token]);
