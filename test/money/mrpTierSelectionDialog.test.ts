@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findChoiceAtPrice,
   mrpTierPrimaryValue,
   sortMrpTierChoices,
   toMrpTierSelectionChoices,
@@ -144,5 +145,38 @@ describe("sortMrpTierChoices", () => {
       true,
     );
     expect(sorted.map((c) => c.id)).toEqual(["dear", "cheap"]);
+  });
+});
+
+describe("findChoiceAtPrice (purchase New price)", () => {
+  const choice = (id: string, style: string, salePrice: number, mrp = 0) => ({
+    id,
+    productName: "BRA",
+    brand: "JOCKEY",
+    style,
+    size: "38",
+    color: "SKIN",
+    mrp,
+    salePrice,
+    stockQty: 1,
+  });
+  const choices = [choice("c749", "C", 749), choice("d729", "D", 729)];
+
+  it("a typed price already listed for that item is that card, not a new tier", () => {
+    expect(findChoiceAtPrice(choices, "c749", 749, null)?.id).toBe("c749");
+  });
+
+  it("the same price on a different item (cup D at 749) is new", () => {
+    expect(findChoiceAtPrice(choices, "d729", 749, null)).toBeNull();
+  });
+
+  it("a new sale price is new", () => {
+    expect(findChoiceAtPrice(choices, "c749", 799, null)).toBeNull();
+  });
+
+  it("a different MRP at the same sale price is new when MRP is used", () => {
+    const withMrp = [choice("m", "C", 749, 999)];
+    expect(findChoiceAtPrice(withMrp, "m", 749, 1099)).toBeNull();
+    expect(findChoiceAtPrice(withMrp, "m", 749, 999)?.id).toBe("m");
   });
 });

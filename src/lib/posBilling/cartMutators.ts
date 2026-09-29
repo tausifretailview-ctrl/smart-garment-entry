@@ -5,6 +5,7 @@ import {
   applyPosGarmentGstToItem,
   calculatePosCartLineNet,
   findPosGoodsMergeIndex,
+  posPickedPriceKey,
   findPosServiceMergeIndex,
   sumLineDiscount,
   sumMrpTotal,
@@ -396,7 +397,7 @@ export type AddLineInput = {
   overridePrice?: { sale_price: number; mrp: number };
   brandDiscountPercent?: number;
   customerHasMasterDiscount?: boolean;
-  /** Injected id factory for services (default: variant.id-timestamp-random). */
+  /** Injected id factory for services and for a 2nd line of one SKU at another picked price (default: variant.id-timestamp-random). */
   makeLineId?: () => string;
 };
 
@@ -443,8 +444,12 @@ export function addLine(input: AddLineInput): CartMutatorResult {
       ? Number(variant.stock_qty ?? 0) || 0
       : undefined;
 
+  const pickedPriceKey = isServiceProduct ? "" : posPickedPriceKey(input.overridePrice);
+  // One SKU can sit on two lines at two picked prices: only the first keeps id = variant.id.
+  const goodsIdTaken = !isServiceProduct && input.items.some((item) => item.id === variant.id);
+
   const newItem: PosCartItem = {
-    id: isServiceProduct ? makeId() : variant.id,
+    id: isServiceProduct || goodsIdTaken ? makeId() : variant.id,
     barcode: variant.barcode || "",
     productName: description,
     baseProductName: product.product_name || description.split("-")[0] || description,
@@ -469,12 +474,13 @@ export function addLine(input: AddLineInput): CartMutatorResult {
     uom: product.uom || "NOS",
     showDiscount: priced.showDiscount,
     stockQty: stockQtySnapshot,
+    ...(pickedPriceKey ? { pickedPriceKey } : {}),
   };
   const pricedItem = applyPosGarmentGstToItem(newItem, input.garmentGstSettings);
 
   const prev = input.items;
   if (!isServiceProduct) {
-    const mergeIdx = findPosGoodsMergeIndex(prev, variant.id);
+    const mergeIdx = findPosGoodsMergeIndex(prev, variant.id, pickedPriceKey);
     if (mergeIdx >= 0) {
       const updated = [...prev];
       const line = updated[mergeIdx];

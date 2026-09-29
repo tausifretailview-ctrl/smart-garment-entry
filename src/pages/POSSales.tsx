@@ -60,6 +60,8 @@ import {
   calculatePosCartLineNet,
   findPosServiceMergeIndex,
   findPosGoodsMergeIndex,
+  posCartQtyForVariant,
+  posPickedPriceKey,
   getPosCartStockIndicator,
   minUnitPriceForDiscountCap,
   normalizeFlatDiscountInput,
@@ -3370,19 +3372,6 @@ export default function POSSales() {
       const isServiceProduct = product.product_type === "service";
 
       if (!isServiceProduct) {
-        const beforeIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id);
-        const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
-        const targetQty = beforeQty > 0 ? beforeQty + quantity : quantity;
-
-        const stockCheck = await checkStock(variant.id, targetQty);
-        if (!stockCheck.isAvailable) {
-          openStockIssueDialog(
-            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, targetQty, stockCheck.availableStock),
-            stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
-          );
-          return;
-        }
-
         const masterSalePrice = parseFloat(String(variant.sale_price || 0)) || 0;
         const rawMrp = variant.mrp ? parseFloat(String(variant.mrp)) : 0;
         const masterMrp = rawMrp > 0 ? rawMrp : masterSalePrice;
@@ -3391,6 +3380,23 @@ export default function POSSales() {
           Math.abs(mrp - defaultPrice) > 0.01
             ? { sale_price: mrp, mrp: Math.max(masterMrp, mrp) }
             : undefined;
+        // Same SKU at another price is its own line.
+        const pickedKey = posPickedPriceKey(overridePrice);
+
+        const beforeIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id, pickedKey);
+        const beforeQty = beforeIdx >= 0 ? itemsRef.current[beforeIdx].quantity : 0;
+        const targetQty = beforeQty > 0 ? beforeQty + quantity : quantity;
+        // Stock covers every line of this SKU, not only the one being changed.
+        const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) - beforeQty + targetQty;
+
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
+        if (!stockCheck.isAvailable) {
+          openStockIssueDialog(
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, stockQtyNeeded, stockCheck.availableStock),
+            stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
+          );
+          return;
+        }
 
         const brandDiscount = getBrandDiscountForProduct(product.brand, product.product_name);
         hasManuallyAddedNewItemRef.current = true;
@@ -3401,7 +3407,7 @@ export default function POSSales() {
           brandDiscountPercent: brandDiscount,
         });
 
-        const lineIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id);
+        const lineIdx = findPosGoodsMergeIndex(itemsRef.current, variant.id, pickedKey);
         if (lineIdx < 0) {
           playErrorBeep();
           return;
@@ -3619,18 +3625,21 @@ export default function POSSales() {
         unitCost: svcUnit,
       });
     } else if (!isServiceProduct) {
-      existingItemIndex = findPosGoodsMergeIndex(itemsRef.current, variant.id);
+      // A line picked at another price (price window / last purchase) is not this line.
+      existingItemIndex = findPosGoodsMergeIndex(itemsRef.current, variant.id, posPickedPriceKey(overridePrice));
     }
 
     if (existingItemIndex >= 0) {
       // Real-time stock validation before incrementing (skip for service — unlimited virtual stock)
       const newQty = itemsRef.current[existingItemIndex].quantity + 1;
       if (!isServiceProduct) {
-        const stockCheck = await checkStock(variant.id, newQty);
+        // All lines of this SKU count (one SKU can be on two lines at two prices).
+        const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
-            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, newQty, stockCheck.availableStock),
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, stockQtyNeeded, stockCheck.availableStock),
             stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
           );
           setSearchInput("");
@@ -3649,11 +3658,12 @@ export default function POSSales() {
     } else {
       // Real-time stock validation before adding new item (skip for service)
       if (!isServiceProduct) {
-        const stockCheck = await checkStock(variant.id, 1);
+        const stockQtyNeeded = posCartQtyForVariant(itemsRef.current, variant.id) + 1;
+        const stockCheck = await checkStock(variant.id, stockQtyNeeded);
 
         if (!stockCheck.isAvailable) {
           openStockIssueDialog(
-            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, 1, stockCheck.availableStock),
+            buildInsufficientStockIssue(stockCheck.productName, stockCheck.size, stockQtyNeeded, stockCheck.availableStock),
             stockCheck.availableStock <= 0 ? { productId: product.id, productName: stockCheck.productName } : undefined,
           );
           setSearchInput("");

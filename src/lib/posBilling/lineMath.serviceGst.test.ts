@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { applyPosGarmentGstToItem, calculatePosCartLineNet } from "./lineMath";
+import {
+  applyPosGarmentGstToItem,
+  calculatePosCartLineNet,
+  findPosGoodsMergeIndex,
+  posCartQtyForVariant,
+  posPickedPriceKey,
+} from "./lineMath";
 import { addLine, updateDiscountPercent } from "./cartMutators";
 import type { PosCartItem } from "./types";
 import type { GarmentGstRuleSettings } from "@/utils/gstRules";
@@ -116,5 +122,33 @@ describe("POS cart recompute applies sale-price GST slab to services", () => {
       makeLineId: () => "svc-2",
     });
     expect(expensive.items[0].gstPer).toBe(18);
+  });
+});
+
+describe("POS goods: one SKU scanned at two picked prices", () => {
+  const product = { id: "p1", product_name: "BRA", gst_per: 5, sale_gst_percent: 5, purchase_gst_percent: 5 };
+  const variant = { id: "v1", barcode: "8901326331163", size: "38", sale_price: 749, mrp: 749, stock_qty: 5 };
+
+  it("keeps two lines at two MRPs and merges the same price", () => {
+    const first = addLine({ items: [], grossBasis: "sale_price", garmentGstSettings: null, product, variant,
+      overridePrice: { sale_price: 749, mrp: 749 } });
+    const second = addLine({ items: first.items, grossBasis: "sale_price", garmentGstSettings: null, product, variant,
+      overridePrice: { sale_price: 729, mrp: 729 }, makeLineId: () => "v1-729" });
+    expect(second.items).toHaveLength(2);
+    expect(second.items.map((i) => i.id)).toEqual(["v1", "v1-729"]);
+    expect(posCartQtyForVariant(second.items, "v1")).toBe(2);
+
+    const third = addLine({ items: second.items, grossBasis: "sale_price", garmentGstSettings: null, product, variant,
+      overridePrice: { sale_price: 729, mrp: 729 } });
+    expect(third.merged).toBe(true);
+    expect(third.items[1].quantity).toBe(2);
+  });
+
+  it("without a picked price, a re-scan still merges into the master-price line", () => {
+    const first = addLine({ items: [], grossBasis: "sale_price", garmentGstSettings: null, product, variant });
+    const again = addLine({ items: first.items, grossBasis: "sale_price", garmentGstSettings: null, product, variant });
+    expect(again.items).toHaveLength(1);
+    expect(again.items[0].quantity).toBe(2);
+    expect(findPosGoodsMergeIndex(again.items, "v1", posPickedPriceKey({ sale_price: 729, mrp: 729 }))).toBe(-1);
   });
 });

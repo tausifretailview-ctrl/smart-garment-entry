@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,8 +7,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Check, IndianRupee, Package } from "lucide-react";
+import { Check, IndianRupee, Package, Plus } from "lucide-react";
 import { posVariantDisplayMrp } from "@/utils/posScanPriceSelection";
 
 export type MrpTierSelectionChoice = {
@@ -57,7 +61,43 @@ interface MrpTierSelectionDialogProps {
   onSelect: (choiceId: string) => void;
   /** When org MRP feature is off, label the picker by sale price (549 vs 569). */
   enableMrp?: boolean;
+  /**
+   * Purchase only: the item arrived at a price that is not in the list. Called with
+   * the card to copy (product / size / colour) and the new prices.
+   */
+  onAddNewPrice?: (baseChoiceId: string, salePrice: number, mrp: number | null) => void;
 }
+
+/** A new price that equals a listed one is that card, not a new price tier. */
+export function findChoiceAtPrice(
+  choices: MrpTierSelectionChoice[],
+  baseChoiceId: string,
+  salePrice: number,
+  mrp: number | null,
+): MrpTierSelectionChoice | null {
+  const base = choices.find((c) => c.id === baseChoiceId);
+  if (!base) return null;
+  const sameItem = (c: MrpTierSelectionChoice) =>
+    c.productName === base.productName &&
+    (c.brand ?? "") === (base.brand ?? "") &&
+    (c.style ?? "") === (base.style ?? "") &&
+    (c.size ?? "") === (base.size ?? "") &&
+    (c.color ?? "") === (base.color ?? "");
+  return (
+    choices.find(
+      (c) =>
+        sameItem(c) &&
+        Math.abs(c.salePrice - salePrice) < 0.01 &&
+        (mrp == null || mrp <= 0 || Math.abs(c.mrp - mrp) < 0.01),
+    ) ?? null
+  );
+}
+
+const choiceLabel = (c: MrpTierSelectionChoice) =>
+  [c.productName, c.brand, c.style, [c.size, c.color].filter(Boolean).join(" · ")]
+    .map((part) => (part ?? "").trim())
+    .filter(Boolean)
+    .join(" · ");
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-IN", {
@@ -75,9 +115,37 @@ export function MrpTierSelectionDialog({
   choices,
   onSelect,
   enableMrp = true,
+  onAddNewPrice,
 }: MrpTierSelectionDialogProps) {
   const sortedChoices = sortMrpTierChoices(choices, enableMrp);
   const priceLabel = enableMrp ? "MRP" : "Sale price";
+  const [baseId, setBaseId] = useState("");
+  const [newSale, setNewSale] = useState("");
+  const [newMrp, setNewMrp] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setBaseId(sortedChoices[0]?.id ?? "");
+    setNewSale("");
+    setNewMrp("");
+    // Reset only when the dialog opens for a barcode.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, barcode]);
+
+  const salePriceValue = Number(newSale);
+  const mrpValue = newMrp.trim() ? Number(newMrp) : null;
+  const canAddNewPrice =
+    !!baseId && salePriceValue > 0 && (mrpValue == null || mrpValue >= salePriceValue);
+
+  const submitNewPrice = () => {
+    if (!onAddNewPrice || !canAddNewPrice) return;
+    const existing = findChoiceAtPrice(choices, baseId, salePriceValue, mrpValue);
+    if (existing) {
+      onSelect(existing.id);
+      return;
+    }
+    onAddNewPrice(baseId, salePriceValue, mrpValue);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,6 +222,71 @@ export function MrpTierSelectionDialog({
             );
           })}
         </div>
+
+        {onAddNewPrice ? (
+          <div className="mt-3 space-y-2 rounded-lg border border-dashed p-3">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Plus className="h-4 w-4 text-primary" />
+              New price (same barcode)
+            </div>
+            {sortedChoices.length > 1 ? (
+              <select
+                aria-label="Item for the new price"
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                value={baseId}
+                onChange={(e) => setBaseId(e.target.value)}
+              >
+                {sortedChoices.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {choiceLabel(c)} — now {formatCurrency(c.salePrice)}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="mrp-tier-new-sale" className="text-xs">
+                  Sale price
+                </Label>
+                <Input
+                  id="mrp-tier-new-sale"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={newSale}
+                  onChange={(e) => setNewSale(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitNewPrice();
+                  }}
+                />
+              </div>
+              {enableMrp ? (
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="mrp-tier-new-mrp" className="text-xs">
+                    MRP
+                  </Label>
+                  <Input
+                    id="mrp-tier-new-mrp"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    value={newMrp}
+                    onChange={(e) => setNewMrp(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitNewPrice();
+                    }}
+                  />
+                </div>
+              ) : null}
+              <Button type="button" disabled={!canAddNewPrice} onClick={submitNewPrice}>
+                Add
+              </Button>
+            </div>
+            {mrpValue != null && salePriceValue > 0 && mrpValue < salePriceValue ? (
+              <p className="text-xs text-destructive">MRP cannot be below the sale price.</p>
+            ) : null}
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
