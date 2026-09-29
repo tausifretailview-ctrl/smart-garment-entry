@@ -7,6 +7,8 @@
 
 Do **not** paste this Markdown file into the SQL editor.
 
+> **2026-09-29:** `idx_sale_items_org_size_trgm` and `idx_sale_items_org_color_trgm` from this migration were dropped on live (near-unused; non-org trigram twins kept). The migration is applied — do not re-paste it, or those two indexes come back. See [phase-9-write-path-index-drop-2026-09-29.md](./phase-9-write-path-index-drop-2026-09-29.md).
+
 ---
 
 ## Finish line (2026-09-03)
