@@ -6,7 +6,29 @@ export type UseExistingProductPayload = {
   pur_price: number;
   sale_price: number;
   mrp?: number;
+  /** Typed brand / style: picks the right item when one barcode is on several products. */
+  brand?: string;
+  style?: string;
 };
+
+const identityPart = (value?: string | null): string => (value ?? "").trim().toLowerCase();
+
+/**
+ * Barcode on several products (e.g. BRA cup B and cup C share a Jockey EAN): prefer
+ * the one whose brand + style match what was typed; otherwise keep the first.
+ */
+export function pickBarcodeVariantForTypedProduct<V extends { brand?: string | null; style?: string | null }>(
+  variants: V[],
+  typed: { brand?: string | null; style?: string | null },
+): V | null {
+  if (variants.length === 0) return null;
+  const brand = identityPart(typed.brand);
+  const style = identityPart(typed.style);
+  return (
+    variants.find((v) => identityPart(v.brand) === brand && identityPart(v.style) === style) ??
+    variants[0]
+  );
+}
 
 /**
  * "Product already exists?" (same name + category) → "Use existing instead":

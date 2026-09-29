@@ -3,6 +3,7 @@ import {
   buildUseExistingProductConfirmMessage,
   matchExistingVariantForSizeRow,
   purchaseLinePricesDiffer,
+  pickBarcodeVariantForTypedProduct,
   purchaseLinePricesFromUseExisting,
   typedExternalBarcode,
 } from "@/utils/purchaseUseExistingProduct";
@@ -82,5 +83,22 @@ describe("typedExternalBarcode", () => {
     expect(typedExternalBarcode({ barcode: "550081106", barcode_source: "generated" })).toBe("");
     expect(typedExternalBarcode({ barcode: "" })).toBe("");
     expect(typedExternalBarcode({})).toBe("");
+  });
+});
+
+describe("pickBarcodeVariantForTypedProduct", () => {
+  const cupB = { id: "b", brand: "JOCKEY", style: "B" };
+  const cupC = { id: "c", brand: "JOCKEY", style: "C" };
+
+  it("picks the product with the typed brand + style when a barcode is on several", () => {
+    expect(pickBarcodeVariantForTypedProduct([cupB, cupC], { brand: "Jockey", style: "c" })?.id).toBe("c");
+  });
+
+  it("falls back to the first when none match", () => {
+    expect(pickBarcodeVariantForTypedProduct([cupB, cupC], { brand: "", style: "" })?.id).toBe("b");
+  });
+
+  it("returns null for no variants", () => {
+    expect(pickBarcodeVariantForTypedProduct([], { brand: "X" })).toBeNull();
   });
 });

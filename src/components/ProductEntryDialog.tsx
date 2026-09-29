@@ -82,6 +82,7 @@ import {
 import {
   findSameNameProductsInOrg,
   pickPreferredSameNameProduct,
+  filterSameProductIdentity,
   pickUnusedSameNameProduct,
   normalizeProductNameKey,
   type SameNameProductMatch,
@@ -739,10 +740,14 @@ export const ProductEntryDialog = ({
         pur_price: Number(row?.pur_price ?? formData.default_pur_price) || 0,
         sale_price: Number(row?.sale_price ?? formData.default_sale_price) || 0,
         ...(mrpValue != null && Number(mrpValue) > 0 ? { mrp: Number(mrpValue) } : {}),
+        brand: formData.brand,
+        style: formData.style,
       };
     },
     [
       variants,
+      formData.brand,
+      formData.style,
       formData.default_pur_price,
       formData.default_sale_price,
       formData.default_mrp,
@@ -2227,7 +2232,10 @@ export const ProductEntryDialog = ({
         // Purchase: an unused same-name product (0 stock, no bills) is reused
         // straight away.
         if (onUseExistingProductSizes) {
-          const reuseId = await pickUnusedSameNameProduct(dupes);
+          // Only a product with the same brand + style is the same item (BRA cup B
+          // vs cup C). None → it is a new product: create it as typed, no popup.
+          const sameItem = filterSameProductIdentity(dupes, formData);
+          const reuseId = await pickUnusedSameNameProduct(sameItem);
           if (reuseId) {
             useExistingProductForTypedSizes(reuseId);
             return;
@@ -2235,15 +2243,16 @@ export const ProductEntryDialog = ({
           // Owner request 2026-09-29: never ask in purchase entry. Use the same-name
           // product holding stock (oldest on a tie), also when several match
           // (e.g. MTR roll products duplicated by earlier "Create anyway").
-          const preferredId = pickPreferredSameNameProduct(dupes);
+          const preferredId = pickPreferredSameNameProduct(sameItem);
           if (preferredId) {
             useExistingProductForTypedSizes(preferredId);
             return;
           }
+        } else {
+          setNameDupeMatches(dupes);
+          setShowNameDupeDialog(true);
+          return;
         }
-        setNameDupeMatches(dupes);
-        setShowNameDupeDialog(true);
-        return;
       }
     }
 
