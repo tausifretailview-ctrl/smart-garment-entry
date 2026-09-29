@@ -91,6 +91,7 @@ const AVAILABLE_FIELDS: Record<string, { key: string; label: string; description
     { key: 'facebook', label: 'Facebook', description: 'Facebook page link' },
     { key: 'google_review_link', label: 'Google Review Link', description: 'Google business review URL' },
     { key: 'whatsapp_group_link', label: 'WhatsApp Group Link', description: 'Join-our-group invite link' },
+    { key: 'customer_page_link', label: 'Customer Bill Page Link', description: 'Private bill link (Settings → Customer page)' },
     { key: 'custom_text', label: 'Custom Text', description: 'Enter your own static text' },
   ],
   quotation: [

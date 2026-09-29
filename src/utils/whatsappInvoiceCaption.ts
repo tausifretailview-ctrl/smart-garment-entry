@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { appendCustomerPageLinkLine } from "@/utils/customerPageLink";
 
 const DEFAULT_SALES_INVOICE = `Hello {customer_name},
 
@@ -56,6 +57,7 @@ export function applyWhatsAppTemplatePlaceholders(
     pending_amount: formatInr(netAmount - paidAmount),
     invoice_link: String(saleData.invoice_link || ""),
     invoice_items: String(saleData.invoice_items || ""),
+    customer_page_link: String(saleData.customer_page_link || ""),
   };
 
   let message = templateText;
@@ -80,5 +82,8 @@ export async function buildSalesInvoiceWhatsAppCaption(
 
   const templateText = row?.message_template?.trim() || DEFAULT_SALES_INVOICE;
   const formatted = applyWhatsAppTemplatePlaceholders(templateText, saleData, orgName);
-  return formatted || DEFAULT_SALES_INVOICE;
+  return appendCustomerPageLinkLine(
+    formatted || DEFAULT_SALES_INVOICE,
+    String(saleData.customer_page_link || ""),
+  );
 }

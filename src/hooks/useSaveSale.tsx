@@ -47,6 +47,7 @@ import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
+import { createCustomerPageLinkForWhatsApp } from "@/utils/customerPageLink";
 import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
 import {
   resolvePosCustomerName,
@@ -1275,6 +1276,8 @@ export const useSaveSale = () => {
               instagram: (whatsappSettings.social_links as Record<string, string> | null)?.instagram || '',
               facebook: (whatsappSettings.social_links as Record<string, string> | null)?.facebook || '',
               google_review_link: (whatsappSettings.social_links as Record<string, string> | null)?.google_review || '',
+              // "" unless Customer page + "Add bill link to WhatsApp" are on.
+              customer_page_link: await createCustomerPageLinkForWhatsApp(currentOrganization.id, sale.id),
             };
 
             const isWappConnect = whatsappSettings.send_provider === 'wappconnect';

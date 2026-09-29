@@ -28,8 +28,7 @@ const ROWS: Array<{ key: keyof CustomerPageFlags; label: string; hint: string; n
   {
     key: "add_link_to_whatsapp",
     label: "Add bill link to WhatsApp message",
-    hint: "The invoice WhatsApp message will include the customer's bill link.",
-    next: true,
+    hint: "Invoice WhatsApp messages for new POS and Sale Bill invoices get a private bill link (last line, or {customer_page_link} in your template).",
   },
   {
     key: "print_qr_on_bill",
