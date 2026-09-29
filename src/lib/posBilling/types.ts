@@ -30,6 +30,11 @@ export interface PosCartItem {
   discountAmount: number;
   unitCost: number;
   /**
+   * Cart-only: price picked at scan (see posPickedPriceKey). Lines of one SKU merge
+   * only when this matches. Not persisted to the sale.
+   */
+  pickedPriceKey?: string;
+  /**
    * Purchase/cost price at scan time — for the owner-only live margin indicator.
    * Not persisted to the sale.
    */

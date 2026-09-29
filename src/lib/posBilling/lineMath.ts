@@ -91,13 +91,36 @@ export function posPricesMatch(a: number, b: number): boolean {
   return Math.abs(a - b) < POS_PRICE_MATCH_EPSILON;
 }
 
-/** Same SKU (variant) → one cart line. Shared EANs at different sale prices stay separate. */
-export function findPosGoodsMergeIndex(items: PosCartItem[], variantId: string): number {
+/**
+ * Cart-only key of a price picked at scan (price window / last-purchase / qty dialog).
+ * "" = master price. Same SKU at a different picked MRP / sale price is its own line.
+ */
+export function posPickedPriceKey(overridePrice?: { sale_price?: number | null; mrp?: number | null } | null): string {
+  if (!overridePrice) return "";
+  const r = (v: number | null | undefined) => (Math.round((Number(v) || 0) * 100) / 100).toFixed(2);
+  return `${r(overridePrice.sale_price)}|${r(overridePrice.mrp)}`;
+}
+
+/**
+ * Same SKU (variant) at the same picked price → one cart line. Shared EANs at
+ * different sale prices stay separate, and so does one SKU scanned at two MRPs.
+ */
+export function findPosGoodsMergeIndex(items: PosCartItem[], variantId: string, pickedPriceKey = ""): number {
   const id = (variantId || "").trim();
   if (!id) return -1;
   return items.findIndex(
-    (item) => item.productType !== "service" && item.variantId === id,
+    (item) =>
+      item.productType !== "service" &&
+      item.variantId === id &&
+      (item.pickedPriceKey ?? "") === pickedPriceKey,
   );
+}
+
+/** Units of this SKU already in the cart, over all its lines (for the stock check). */
+export function posCartQtyForVariant(items: PosCartItem[], variantId: string): number {
+  return items
+    .filter((item) => item.productType !== "service" && item.variantId === variantId)
+    .reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
 }
 export function findPosServiceMergeIndex(
   items: PosCartItem[],

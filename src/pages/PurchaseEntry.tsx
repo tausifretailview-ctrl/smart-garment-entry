@@ -160,6 +160,7 @@ import {
   type UseExistingProductSizesPayload,
   typedExternalBarcode,
 } from "@/utils/purchaseUseExistingProduct";
+import { findPurchaseScanMergeIndex, findPurchaseScanSameUnitIndex } from "@/utils/purchaseScanMerge";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import {
   persistedPurchaseItemIdsForEdit,
@@ -3374,11 +3375,24 @@ const PurchaseEntry = () => {
       let conflictCode = "";
 
       setLineItems((prev) => {
-        const idx = prev.findIndex(
-          (i) =>
-            i.sku_id === variant.id ||
-            (!!variant.barcode && i.barcode === variant.barcode),
-        );
+        // Serialised (IMEI): the same unit already on the bill (any price) is a duplicate.
+        const unitIdx = findPurchaseScanSameUnitIndex(prev, { skuId: variant.id, barcode: variant.barcode });
+        if (
+          unitIdx >= 0 &&
+          productRequiresImei({ requires_imei: prev[unitIdx].requires_imei }, mobileERPSettings)
+        ) {
+          conflictCode = (prev[unitIdx].barcode || variant.barcode || "").trim();
+          scan.outcome = "duplicate_imei";
+          return prev;
+        }
+        // Qty +1 only on the same item's line (and same price when one was picked).
+        const idx = findPurchaseScanMergeIndex(prev, {
+          skuId: variant.id,
+          barcode: variant.barcode,
+          salePrice: linePrices.sale_price || 0,
+          mrp: linePrices.mrp || 0,
+          requirePrice: !!options?.linePriceOverride,
+        });
         if (idx >= 0) {
           const item = prev[idx];
           conflictCode = (item.barcode || variant.barcode || "").trim();
