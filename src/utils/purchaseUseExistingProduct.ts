@@ -129,3 +129,16 @@ export function matchExistingVariantForSizeRow<
   // Exact colour match beats a blank-colour match.
   return candidates.find((v) => sizeGridMatchKey(v.color || productColor) === color) ?? candidates[0];
 }
+
+/**
+ * Barcode the user scanned or typed on an Add Product row (e.g. a 14-digit Jockey
+ * EAN), or "" when the row only carries an app-generated series code. The
+ * use-existing path must keep this code on the bill line instead of generating one.
+ */
+export function typedExternalBarcode(row: {
+  barcode?: string | null;
+  barcode_source?: string | null;
+}): string {
+  if ((row.barcode_source || "").trim().toLowerCase() === "generated") return "";
+  return String(row.barcode ?? "").trim();
+}

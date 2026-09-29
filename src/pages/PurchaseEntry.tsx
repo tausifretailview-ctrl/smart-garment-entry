@@ -157,6 +157,7 @@ import {
   type PurchaseLinePriceSnapshot,
   type UseExistingProductPayload,
   type UseExistingProductSizesPayload,
+  typedExternalBarcode,
 } from "@/utils/purchaseUseExistingProduct";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import {
@@ -4348,8 +4349,23 @@ const PurchaseEntry = () => {
       // Check if this is for a new color - need to create variants for all sizes
       const isNewColorVariant = newColor && variant.isCustomSize;
       
-      // Check if this is a custom/new size that needs to be created
-      if (variant.isCustomSize || isNewColorVariant) {
+      // Universal barcode scanned in Add Product (use-existing path): keep it — the
+      // SKU is created with that EAN instead of a generated series barcode.
+      const externalBarcode = String(variant.externalBarcode || "").trim();
+      if (externalBarcode) {
+        const created = await createNewVariantWithBarcode({
+          product_id: gridProduct.id,
+          size: variant.size,
+          color: newColor || variant.color || gridProduct.color || "",
+          pur_price: variant.pur_price || gridProduct.default_pur_price || 0,
+          sale_price: variant.sale_price || gridProduct.default_sale_price || 0,
+          mrp: variant.mrp || 0,
+          barcode: externalBarcode,
+        });
+        if (!created) continue;
+        skuId = created.id;
+        barcode = created.barcode;
+      } else if (variant.isCustomSize || isNewColorVariant) {
         try {
           // Generate barcode for new variant
           barcode = isAutoBarcode ? await generateCentralizedBarcode() : '';
@@ -4632,8 +4648,15 @@ const PurchaseEntry = () => {
       return;
     }
 
+    const existingVariants = data as any[];
     const items = payload.rows.map((row, index) => {
-      const match = matchExistingVariantForSizeRow(data as any[], row, product.color);
+      // A scanned universal barcode (e.g. Jockey EAN) must stay on the line: use the
+      // variant that already has it, otherwise create one with it (not a series code).
+      const scannedBarcode = typedExternalBarcode(row);
+      const scannedVariant = scannedBarcode
+        ? existingVariants.find((v) => String(v.barcode || "").trim() === scannedBarcode)
+        : undefined;
+      const match = scannedVariant ?? matchExistingVariantForSizeRow(existingVariants, row, product.color);
       const typedPrices = {
         pur_price: row.pur_price > 0 ? row.pur_price : Number(match?.pur_price) || 0,
         sale_price: row.sale_price > 0 ? row.sale_price : Number(match?.sale_price) || 0,
@@ -4651,6 +4674,7 @@ const PurchaseEntry = () => {
             barcode: "",
             isCustomSize: true,
             requires_imei: product.requires_imei !== false,
+            externalBarcode: scannedBarcode,
             ...typedPrices,
           },
         };
@@ -4662,6 +4686,8 @@ const PurchaseEntry = () => {
           color: match.color || product.color || "",
           barcode_source: match.barcode_source || "generated",
           requires_imei: product.requires_imei !== false,
+          // Matched by size/colour only: the scanned code still has to go on this line.
+          externalBarcode: scannedVariant ? "" : scannedBarcode,
           ...typedPrices,
         },
       };
