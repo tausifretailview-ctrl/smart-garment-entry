@@ -2224,11 +2224,17 @@ export const ProductEntryDialog = ({
       );
       if (dupes.length > 0) {
         // Purchase: an unused same-name product (0 stock, no bills) is reused
-        // straight away — only ask when one has stock or history.
+        // straight away.
         if (onUseExistingProductSizes) {
           const reuseId = await pickUnusedSameNameProduct(dupes);
           if (reuseId) {
             useExistingProductForTypedSizes(reuseId);
+            return;
+          }
+          // Exactly one same-name product: use it without asking (owner request
+          // 2026-09-29). The dialog only appears when there are several to pick from.
+          if (dupes.length === 1) {
+            useExistingProductForTypedSizes(dupes[0].id);
             return;
           }
         }
