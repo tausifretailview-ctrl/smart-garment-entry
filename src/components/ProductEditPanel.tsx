@@ -335,7 +335,7 @@ const ProductEditPanel = ({
   const criticalFields = ["hsn_code", "gst_per", "uom"];
   const hasCriticalChanges = criticalFields.some(f => modifiedFields.has(f));
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { keepOpen?: boolean }) => {
     if (!form || !item) return;
     if (hasCriticalChanges && !showCriticalConfirm) {
       setShowCriticalConfirm(true);
@@ -455,6 +455,7 @@ const ProductEditPanel = ({
         title: "Product Updated",
         description: `${form.product_name} saved. This barcode's line on the bill was updated.`,
       });
+      if (!options?.keepOpen) onClose();
     } catch (err: any) {
       toast({
         title: "Error",
@@ -486,7 +487,7 @@ const ProductEditPanel = ({
 
   const confirmNav = (save: boolean) => {
     if (save) {
-      handleSave().then(() => {
+      handleSave({ keepOpen: true }).then(() => {
         if (pendingNavIndex !== null) onIndexChange(pendingNavIndex);
         setShowUnsavedPrompt(false);
         setPendingNavIndex(null);
@@ -533,7 +534,8 @@ const ProductEditPanel = ({
             updateField(field, val);
           }}
           className={cn(
-            "h-9 text-sm no-uppercase",
+            "h-9 text-sm",
+            type === "number" && "no-uppercase",
             isModified && "border-l-4 border-l-amber-500",
             opts?.readOnly && "bg-muted cursor-not-allowed"
           )}
@@ -1089,7 +1091,7 @@ const ProductEditPanel = ({
               <p className="text-[11px] text-amber-600">These changes affect existing stock and transaction records</p>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={() => setShowCriticalConfirm(false)} className="h-7 text-xs">Cancel</Button>
-                <Button size="sm" onClick={handleSave} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white">Confirm & Save</Button>
+                <Button size="sm" onClick={() => { void handleSave(); }} className="h-7 text-xs bg-amber-600 hover:bg-amber-700 text-white">Confirm & Save</Button>
               </div>
             </div>
           )}
@@ -1122,7 +1124,7 @@ const ProductEditPanel = ({
               loading={saving}
               loadingText="Saving..."
               disabled={modifiedFields.size === 0}
-              onClick={handleSave}
+              onClick={() => { void handleSave(); }}
               className={cn("text-xs gap-1", saved && "bg-green-600 hover:bg-green-700")}
             >
               {saved ? <><Check className="h-3 w-3" /> Saved!</> : <><Save className="h-3 w-3" /> Save & Update Master</>}
