@@ -4463,6 +4463,9 @@ const PurchaseEntry = () => {
         category: gridProduct.category || "",
         color: newColor || variant.color || gridProduct.color || "",
         style: gridProduct.style || "",
+        // Without uom an MTR line is costed as qty × rate, not meters × rate (bill
+        // PUR/26-27/95 saved ₹10,140 for ₹6,77,430 of rolls). Same as the IMEI branch above.
+        uom: gridProduct.uom || "NOS",
         requires_imei:
           (variant.requires_imei ?? (gridProduct as any).requires_imei) !== false,
       });
