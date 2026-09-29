@@ -3929,6 +3929,8 @@ export default function POSSales() {
   // Same-bill exchange: allow S/R above bill (excess → Mix refund/CN).
   // Also treat live S/R > bill as exchange so we don't wipe credit after a line delete
   // when sameBillReturnGross was not set (manual entry / restored cart).
+  /** Admin / manager may record a customer's old (never entered) sale return from POS. */
+  const canRecordManualSr = organizationRole === "admin" || organizationRole === "manager";
   const isSameBillExchangeSr =
     sameBillReturnGross > 0.005 || saleReturnAdjust > maxSrFromBill + 0.005;
   const maxSrAllowed = isSameBillExchangeSr
@@ -4719,6 +4721,29 @@ export default function POSSales() {
     toast.success("Payment Method Selected", { description: `${method.toUpperCase()} payment selected` });
   };
 
+  /**
+   * New bill with a customer: S/R Adj must be backed by saved sale-return credit,
+   * because save applies it from the customer's credit notes. The S/R box only
+   * checks on blur, and paying straight from the box skipped that (bill saved
+   * "partial" with the S/R unapplied). Returns true when payment must stop.
+   */
+  const blockUnbackedSaleReturnAdjust = (): boolean => {
+    if (!customerId || currentSaleId || isSameBillExchangeSr) return false;
+    const requested = Math.min(Math.max(0, saleReturnAdjust), maxSrFromBill);
+    const shortfall = manualSrShortfall(requested, availableSrCredit);
+    if (shortfall <= 0) return false;
+    if (canRecordManualSr) {
+      setManualSrPrompt({ requested, shortfall });
+    } else {
+      toast.error(
+        availableSrCredit > 0.01
+          ? `S/R Adj is more than this customer's saved return credit (₹${formatINR2(availableSrCredit)}). Ask an admin or manager to record the old return.`
+          : "No saved Sale Return credit for this customer. Ask an admin or manager to record the old return, or clear S/R Adj.",
+      );
+    }
+    return true;
+  };
+
   const handlePaymentAndPrint = async (method: 'cash' | 'card' | 'upi' | 'pay_later') => {
     // Ref-based lock prevents duplicate saves from rapid keyboard + click combos
     // (isSaving is React state and only updates on next render — too slow for rapid inputs)
@@ -4730,6 +4755,11 @@ export default function POSSales() {
     if (items.length === 0) {
       paymentLockRef.current = false;
       toast.error("No Items", { description: "Please add items to the cart before processing payment" });
+      return;
+    }
+
+    if (blockUnbackedSaleReturnAdjust()) {
+      paymentLockRef.current = false;
       return;
     }
 
@@ -4938,6 +4968,7 @@ export default function POSSales() {
       toast.error("No Items", { description: "Please add items to the cart before processing payment" });
       return;
     }
+    if (blockUnbackedSaleReturnAdjust()) return;
     // Auto-set refund if final amount is negative (same-bill exchange excess)
     if (finalAmount < 0 || exchangeRefundDue > 0.005) {
       setRefundAmount(Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue));
@@ -6441,7 +6472,6 @@ export default function POSSales() {
     selectedEl?.scrollIntoView({ block: "nearest" });
   }, [selectedProductIndex, openProductSearch, filteredProducts.length]);
 
-  const canRecordManualSr = organizationRole === "admin" || organizationRole === "manager";
 
   const confirmManualSr = async () => {
     const prompt = manualSrPrompt;
