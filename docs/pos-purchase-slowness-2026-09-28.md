@@ -45,8 +45,14 @@ means deploy frequency directly equals "slow first open" frequency.
    keeps the previous deployment's assets reachable so old pages load old chunks
    instead of 404 + reload. For a plain Vite app it needs the deployment id added to
    asset requests; do this as a separate, tested change.
-3. Do **not** shorten the chunk retry loop yet: without skew protection it is also what
-   rides out real network blips.
+3. Keep the chunk retry loop for network blips, but skip it when the file is really gone.
+   **Done (follow-up PR):** on the first failed chunk load, `importWithRetry` sends one
+   `HEAD` request for that chunk (max 4 s). If the server answers 404/410 (or HTML), the
+   file was replaced by a deploy, so the app reloads onto the new build at once instead of
+   after ~5 s of retries. Offline, timeout, 5xx, or a Safari error without a URL keep
+   the old retry behaviour. Still once per tab session (`attemptSkewRecoveryReload`).
+   Existing behaviour, unchanged: a background prefetch that hits a missing chunk can
+   also trigger that reload (now sooner, not more often).
 
 ---
 

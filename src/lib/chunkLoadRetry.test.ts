@@ -4,6 +4,8 @@ import {
   ELECTRON_CRITICAL_ENTRY_CHUNK_PATHS,
   criticalEntryChunkPathsForShell,
   isChunkLoadError,
+  chunkUrlFromError,
+  isChunkGoneFromServer,
   canAttemptSkewRecoveryReload,
   resetSkewReloadCount,
   SKEW_RELOAD_COOLDOWN_MS,
@@ -234,5 +236,74 @@ describe("idle / wake entry-chunk prefetch lists", () => {
     );
     expect(POS_CONTEXT_WARM_TAB_PATH).toBe("purchase-entry");
     expect(POST_LOGIN_PREFETCH_TAB_PATHS_WEB).not.toContain("purchase-entry");
+  });
+});
+
+describe("deploy-skew fast path", () => {
+  const ORIGIN = "https://app.example";
+
+  it("reads the chunk URL from Chrome's failed dynamic import message", () => {
+    expect(
+      chunkUrlFromError(
+        new Error("Failed to fetch dynamically imported module: https://app.example/assets/POSSales-abc123.js"),
+        ORIGIN,
+      ),
+    ).toBe("https://app.example/assets/POSSales-abc123.js");
+    expect(
+      chunkUrlFromError(new Error("Failed to fetch dynamically imported module: /assets/POSSales.js"), ORIGIN),
+    ).toBe("https://app.example/assets/POSSales.js");
+  });
+
+  it("returns null when there is no app chunk URL to check", () => {
+    // Safari gives no URL; other hosts and non-asset paths are not ours to judge.
+    expect(chunkUrlFromError(new Error("Importing a module script failed."), ORIGIN)).toBeNull();
+    expect(
+      chunkUrlFromError(new Error("Failed to fetch dynamically imported module: https://cdn.other/assets/x.js"), ORIGIN),
+    ).toBeNull();
+    expect(chunkUrlFromError(new Error("Module load timed out"), ORIGIN)).toBeNull();
+  });
+
+  function fakeFetch(status: number, contentType = "application/javascript") {
+    return vi.fn(async () => ({
+      status,
+      ok: status >= 200 && status < 300,
+      headers: { get: () => contentType },
+    })) as unknown as typeof fetch;
+  }
+
+  it("treats 404 / 410 / HTML-for-JS as a chunk that is gone", async () => {
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", fakeFetch(404))).resolves.toBe(true);
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", fakeFetch(410))).resolves.toBe(true);
+    await expect(
+      isChunkGoneFromServer("https://app.example/assets/a.js", fakeFetch(200, "text/html; charset=utf-8")),
+    ).resolves.toBe(true);
+  });
+
+  it("keeps normal retries when the chunk exists or the network is flaky", async () => {
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", fakeFetch(200))).resolves.toBe(false);
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", fakeFetch(503))).resolves.toBe(false);
+    const offline = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", offline)).resolves.toBe(false);
+  });
+
+  it("asks the server with HEAD and no HTTP cache", async () => {
+    const f = fakeFetch(404);
+    await isChunkGoneFromServer("https://app.example/assets/a.js", f);
+    expect(f).toHaveBeenCalledWith(
+      "https://app.example/assets/a.js",
+      expect.objectContaining({ method: "HEAD", cache: "no-store" }),
+    );
+  });
+
+  it("gives up after the timeout instead of holding the retries", async () => {
+    const hang = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    ) as unknown as typeof fetch;
+    await expect(isChunkGoneFromServer("https://app.example/assets/a.js", hang, 10)).resolves.toBe(false);
   });
 });
