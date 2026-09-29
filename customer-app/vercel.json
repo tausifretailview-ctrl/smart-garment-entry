@@ -1,7 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "cd .. && npm ci",
+  "buildCommand": "cd .. && npm run build:customer && rm -rf customer-app/dist && cp -r dist-customer customer-app/dist",
+  "outputDirectory": "dist",
+  "framework": null,
   "cleanUrls": true,
-  "rewrites": [{ "source": "/((?!assets/|manifest\\.webmanifest|icon\\.svg|firebase-messaging-sw\\.js).*)", "destination": "/customer.html" }],
+  "rewrites": [
+    {
+      "source": "/((?!assets/|manifest\\.webmanifest|icon\\.svg|apple-touch-icon\\.png|firebase-messaging-sw\\.js).*)",
+      "destination": "/customer.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -10,17 +19,33 @@
           "key": "Content-Security-Policy-Report-Only",
           "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://fcm.googleapis.com https://firebaseinstallations.googleapis.com https://firebaseremoteconfig.googleapis.com https://www.googleapis.com https://securetoken.googleapis.com https://www.gstatic.com https://firebase.googleapis.com; worker-src 'self'; manifest-src 'self'"
         },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
       "source": "/firebase-messaging-sw.js",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
     },
     {
       "source": "/assets/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }
