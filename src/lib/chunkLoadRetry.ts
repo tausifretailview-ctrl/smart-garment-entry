@@ -384,9 +384,68 @@ function importWithTimeout<T>(
   });
 }
 
+/** Longest the "is this chunk gone?" check may add before normal retries continue. */
+const CHUNK_GONE_CHECK_TIMEOUT_MS = 4_000;
+
+/**
+ * Same-origin `/assets/*.js` URL named in a failed dynamic import message
+ * (Chrome: "Failed to fetch dynamically imported module: https://…/assets/X-hash.js").
+ * Null when the browser does not include the URL (Safari) or it is not an app chunk.
+ */
+export function chunkUrlFromError(error: unknown, origin?: string): string | null {
+  const msg =
+    error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  const match = msg.match(/(https?:\/\/[^\s'"]+?\.js|\/assets\/[^\s'"]+?\.js)/i);
+  if (!match) return null;
+  const base =
+    origin ?? (typeof location !== "undefined" ? location.origin : undefined);
+  if (!base) return null;
+  try {
+    const url = new URL(match[1], base);
+    if (url.origin !== new URL(base).origin) return null;
+    if (!url.pathname.startsWith("/assets/")) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True only when the server says the chunk no longer exists (404/410, or an HTML
+ * page instead of JS). That is deploy skew: the open page runs a build whose
+ * files were replaced, and retrying the same URL can never succeed.
+ * Any network error, timeout or 200 JS response returns false so the normal
+ * retries still ride out a flaky shop connection.
+ */
+export async function isChunkGoneFromServer(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = CHUNK_GONE_CHECK_TIMEOUT_MS,
+): Promise<boolean> {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    // HEAD is not handled by the service worker's GET routes, so this asks the server.
+    const res = await fetchImpl(url, {
+      method: "HEAD",
+      cache: "no-store",
+      signal: controller?.signal,
+    });
+    if (res.status === 404 || res.status === 410) return true;
+    const type = res.headers.get("content-type") || "";
+    return res.ok && type.includes("text/html");
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Retries transient chunk/network failures before a single guarded full reload.
  * Used by React.lazy and tab prefetch loaders (Windows WebView / PWA cold start).
+ * When the first failure is a chunk the server no longer has (deploy skew), skip
+ * the ~5s of pointless retries and reload onto the new build straight away.
  */
 export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T> {
   let lastError: unknown;
@@ -398,6 +457,10 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
       lastError = error;
       if (!isChunkLoadError(error) || attempt >= MAX_IMPORT_RETRIES - 1) {
         break;
+      }
+      if (attempt === 0) {
+        const url = chunkUrlFromError(error);
+        if (url && (await isChunkGoneFromServer(url))) break;
       }
       await new Promise((resolve) =>
         setTimeout(resolve, RETRY_BASE_MS * (attempt + 1)),
