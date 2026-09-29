@@ -3,6 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 export type BarcodeConflict = {
   barcode: string;
   productName: string;
+  /** Product that already holds this barcode. */
+  productId?: string;
   salePrice?: number;
   mrp?: number | null;
 };
@@ -169,6 +171,7 @@ export async function findBarcodeConflictsInOrg(
       return {
         barcode: String(row.barcode),
         productName: product?.product_name || "Unknown Product",
+        productId: row.product_id ? String(row.product_id) : undefined,
         salePrice: row.sale_price != null ? Number(row.sale_price) : undefined,
         mrp: row.mrp != null ? Number(row.mrp) : null,
       };

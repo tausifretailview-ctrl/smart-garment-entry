@@ -2342,6 +2342,20 @@ export const ProductEntryDialog = ({
         );
         if (conflicts.length > 0) {
           const first = conflicts[0];
+          // Purchase entry (owner request 2026-09-29): no error, no label — put the
+          // rows on the bill against the product that already has this barcode.
+          // IMEI units go through the serialised path, which reuses that exact unit
+          // and refuses an IMEI that belongs to a different product.
+          if (onUseExistingProductSizes) {
+            if (formData.requires_imei === true && first.productId) {
+              useExistingProductForTypedSizes(first.productId);
+              return;
+            }
+            if (onUseExistingProduct) {
+              onUseExistingProduct(buildUseExistingProductPayload(first.barcode, variantsToCreate));
+              return;
+            }
+          }
           setBarcodeConflict({
             barcode: first.barcode,
             productName: first.productName,
@@ -3604,6 +3618,7 @@ export const ProductEntryDialog = ({
                         autoComplete="off"
                       />
                       {barcodeConflict &&
+                        !onUseExistingProductSizes &&
                         barcodeConflict.barcode === (variants[0]?.barcode || "").trim() && (
                         <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
                           <p>
@@ -4475,7 +4490,8 @@ export const ProductEntryDialog = ({
                         </Button>
                       )}
                     </div>
-                    {barcodeConflict && !(mobileERPMode?.locked_size_qty && formData.requires_imei === false) && (
+                    {/* Purchase entry resolves a barcode clash on save (uses the existing product), so no label. */}
+                    {barcodeConflict && !onUseExistingProductSizes && !(mobileERPMode?.locked_size_qty && formData.requires_imei === false) && (
                       <div className="rounded-md border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-1.5">
                         <p>
                           Barcode <span className="font-mono font-semibold">{barcodeConflict.barcode}</span> already
