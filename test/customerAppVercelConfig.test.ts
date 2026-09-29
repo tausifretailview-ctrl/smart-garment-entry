@@ -12,7 +12,7 @@ const config = JSON.parse(
   rewrites: Array<{ source: string; destination: string }>;
 };
 
-const spaRewrite = config.rewrites.find((r) => r.destination === "/customer.html")!;
+const spaRewrite = config.rewrites.find((r) => r.destination === "/index.html")!;
 const rewritten = (p: string) => new RegExp(`^${spaRewrite.source}$`).test(p);
 
 describe("customer-app/vercel.json", () => {
@@ -20,6 +20,8 @@ describe("customer-app/vercel.json", () => {
     expect(config.buildCommand).toContain("npm run build:customer");
     expect(config.buildCommand).toContain("customer-app/dist");
     expect(config.outputDirectory).toBe("dist");
+    // Served as index.html so "/" and the SPA rewrite find a real file (no cleanUrls).
+    expect(config.buildCommand).toContain("customer-app/dist/index.html");
   });
 
   it("serves the push service worker and static files as files", () => {

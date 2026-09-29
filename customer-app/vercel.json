@@ -1,14 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "cd .. && npm ci",
-  "buildCommand": "cd .. && npm run build:customer && rm -rf customer-app/dist && cp -r dist-customer customer-app/dist",
+  "buildCommand": "cd .. && npm run build:customer && rm -rf customer-app/dist && cp -r dist-customer customer-app/dist && mv customer-app/dist/customer.html customer-app/dist/index.html",
   "outputDirectory": "dist",
   "framework": null,
-  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/((?!assets/|manifest\\.webmanifest|icon\\.svg|apple-touch-icon\\.png|firebase-messaging-sw\\.js).*)",
-      "destination": "/customer.html"
+      "destination": "/index.html"
     }
   ],
   "headers": [
