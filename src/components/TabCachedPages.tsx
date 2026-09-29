@@ -335,20 +335,21 @@ function TabPageFallback({
           <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto" />
           <p className="text-sm font-medium">Taking longer than expected</p>
           <p className="text-xs text-muted-foreground">
-            This page is still loading. Retry the tab or refresh the app.
+            This page is still loading. Refresh the app to fix it.
           </p>
+          {/* Refresh first: when a chunk download hangs, Chrome hands the same pending
+              module back to a re-import, so "Retry tab" cannot clear it; a reload does. */}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button size="sm" onClick={onRetry}>
-              Retry tab
-            </Button>
             <Button
               size="sm"
-              variant="outline"
               onClick={() => {
                 void reloadAppWithUpdateCheck();
               }}
             >
               Refresh app
+            </Button>
+            <Button size="sm" variant="outline" onClick={onRetry}>
+              Retry tab
             </Button>
           </div>
         </div>
