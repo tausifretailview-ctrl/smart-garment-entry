@@ -81,6 +81,7 @@ import {
 } from "@/utils/barcodeValidation";
 import {
   findSameNameProductsInOrg,
+  pickPreferredSameNameProduct,
   pickUnusedSameNameProduct,
   normalizeProductNameKey,
   type SameNameProductMatch,
@@ -2231,10 +2232,12 @@ export const ProductEntryDialog = ({
             useExistingProductForTypedSizes(reuseId);
             return;
           }
-          // Exactly one same-name product: use it without asking (owner request
-          // 2026-09-29). The dialog only appears when there are several to pick from.
-          if (dupes.length === 1) {
-            useExistingProductForTypedSizes(dupes[0].id);
+          // Owner request 2026-09-29: never ask in purchase entry. Use the same-name
+          // product holding stock (oldest on a tie), also when several match
+          // (e.g. MTR roll products duplicated by earlier "Create anyway").
+          const preferredId = pickPreferredSameNameProduct(dupes);
+          if (preferredId) {
+            useExistingProductForTypedSizes(preferredId);
             return;
           }
         }
