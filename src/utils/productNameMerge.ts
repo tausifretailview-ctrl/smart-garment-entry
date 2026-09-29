@@ -42,7 +42,8 @@ export function groupDuplicateProductNames(names: Array<string | null | undefine
   const groups: ProductNameDuplicateGroup[] = [];
   for (const [key, counts] of byKey) {
     const variants = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      // Ties: plain code-unit order, the same on every machine (localeCompare is not).
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
       .map(([name]) => name);
     const canonical = cleanProductName(variants[0]);
     // One stored spelling that is already clean → nothing to merge.
