@@ -7,7 +7,18 @@ const SKEW_RELOAD_AT_KEY = "skew_reload_at";
 /** Explicit one-shot flag — prevents reload loops after ChunkLoadError recovery. */
 const CHUNK_RECOVERY_RELOADED_KEY = "chunk_recovery_reloaded";
 /**
- * One automatic full reload per tab session after deploy skew (stale hashed chunk 404).
+ * Build that ran the last automatic skew reload. One reload per build, not per tab
+ * session: with several deploys a day, a PWA window that recovered once in the
+ * morning otherwise showed "This tab failed to load" after every later deploy.
+ */
+const SKEW_RELOAD_BUILD_KEY = "skew_reload_build";
+
+function currentAppBuildId(): string {
+  return typeof __APP_BUILD_ID__ !== "undefined" ? __APP_BUILD_ID__ : "dev";
+}
+/**
+ * One automatic full reload per build after deploy skew (stale hashed chunk 404),
+ * see SKEW_RELOAD_BUILD_KEY.
  * A 2-minute cooldown plus a 1s post-boot reset produced an all-pages refresh loop.
  * Overnight / second-wave deploys surface the Update banner — user reloads when ready.
  */
@@ -303,6 +314,7 @@ export function resetSkewReloadCount(): void {
     sessionStorage.removeItem(SKEW_RELOAD_KEY);
     sessionStorage.removeItem(SKEW_RELOAD_AT_KEY);
     sessionStorage.removeItem(CHUNK_RECOVERY_RELOADED_KEY);
+    sessionStorage.removeItem(SKEW_RELOAD_BUILD_KEY);
   } catch {
     // ignore private mode / storage errors
   }
@@ -327,9 +339,20 @@ async function purgeStaleAppCaches(): Promise<void> {
   }
 }
 
-/** True when another automatic skew reload is allowed (once per tab session). */
-export function canAttemptSkewRecoveryReload(_nowMs = Date.now()): boolean {
+/**
+ * True when another automatic skew reload is allowed: once per build.
+ * The build that already reloaded may not reload again (loop guard: a reload that
+ * lands on the same stale build stops there). After the reload lands on a newer
+ * build, the next deploy may recover once more.
+ * Legacy flags written before the build key existed still block for that session.
+ */
+export function canAttemptSkewRecoveryReload(
+  _nowMs = Date.now(),
+  buildId: string = currentAppBuildId(),
+): boolean {
   try {
+    const reloadedFromBuild = sessionStorage.getItem(SKEW_RELOAD_BUILD_KEY);
+    if (reloadedFromBuild) return reloadedFromBuild !== buildId;
     if (sessionStorage.getItem(CHUNK_RECOVERY_RELOADED_KEY) === "1") return false;
     const raw = sessionStorage.getItem(SKEW_RELOAD_AT_KEY);
     if (!raw) return true;
@@ -343,13 +366,14 @@ export function canAttemptSkewRecoveryReload(_nowMs = Date.now()): boolean {
 
 /**
  * Bounded full-page reload for deploy/version skew.
- * Once per tab session. Further chunk 404s stay on the current page (error UI /
- * Update banner) instead of looping reload.
+ * Once per build (see canAttemptSkewRecoveryReload). Further chunk 404s on the
+ * same build stay on the current page (error UI / Update banner) instead of looping.
  * Returns true if reload was initiated (caller should show a brief splash).
  */
 export function attemptSkewRecoveryReload(): boolean {
   try {
     if (!canAttemptSkewRecoveryReload()) return false;
+    sessionStorage.setItem(SKEW_RELOAD_BUILD_KEY, currentAppBuildId());
     sessionStorage.setItem(SKEW_RELOAD_AT_KEY, String(Date.now()));
     sessionStorage.setItem(CHUNK_RECOVERY_RELOADED_KEY, "1");
     // Keep legacy key in sync for older diagnostics / mid-rollout tabs.

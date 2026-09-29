@@ -140,6 +140,25 @@ describe("skew recovery cooldown", () => {
     resetSkewReloadCount();
     expect(canAttemptSkewRecoveryReload()).toBe(true);
   });
+
+  it("blocks a second reload from the same build (loop guard)", () => {
+    sessionStorage.setItem("skew_reload_build", "build-A");
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    expect(canAttemptSkewRecoveryReload(Date.now(), "build-A")).toBe(false);
+  });
+
+  it("allows one more reload after the tab moved to a newer build and that build went stale", () => {
+    // Morning: build A recovered onto build B. Afternoon deploy C: build B's chunks 404.
+    sessionStorage.setItem("skew_reload_build", "build-A");
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    sessionStorage.setItem("skew_reload_at", String(Date.now()));
+    expect(canAttemptSkewRecoveryReload(Date.now(), "build-B")).toBe(true);
+  });
+
+  it("keeps legacy flags (no build key) blocking for the rest of that session", () => {
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    expect(canAttemptSkewRecoveryReload(Date.now(), "build-B")).toBe(false);
+  });
 });
 
 describe("idle / wake entry-chunk prefetch lists", () => {
