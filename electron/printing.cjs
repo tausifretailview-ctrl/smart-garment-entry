@@ -264,7 +264,7 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
           {
             silent: printSilent,
             deviceName: printerName || '',
-            pageSize: useCssPageSize ? undefined : pageSize || 'A4',
+            pageSize: pageSize || (useCssPageSize ? undefined : 'A4'),
             copies: copies || 1,
             landscape: landscape || false,
             margins:

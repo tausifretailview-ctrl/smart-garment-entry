@@ -89,6 +89,7 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
             : undefined;
 
         const html = extractInvoiceHTML(invoiceRef, { thermalPaper: receiptPaper });
+        const isKrishnaA5 = !!invoiceRef.querySelector('.krishna-mobile-a5-invoice');
 
         // Windows desktop app — silent print via Electron (Settings → Desktop Print)
         if (isElectron() && isDesktopSilentPrintConfigured()) {
@@ -100,6 +101,16 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
             type: printType,
             html,
             thermalPaper: receiptPaper ?? '80mm',
+            // A5 loaded sideways: 210mm × 148mm. Do not also set landscape — that
+            // swaps these dimensions back to portrait and clips the left side.
+            ...(isKrishnaA5
+              ? {
+                  pageSize: { width: 210000, height: 148000 },
+                  landscape: false,
+                  preferCSSPageSize: true,
+                  margins: { marginType: 'none' as const },
+                }
+              : {}),
           });
           if (result.success) {
             toast.success('Invoice sent to printer');

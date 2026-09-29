@@ -203,7 +203,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'a5':
         return 'A5 portrait';
       case 'a5-horizontal':
-        return 'A5 landscape';
+        return '210mm 148mm';
       case 'thermal':
         return thermalReceiptBrowserPageSize(thermalPaper);
       default:
@@ -216,7 +216,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
       case 'a5':
         return 'width: 148mm !important; height: 210mm !important;';
       case 'a5-horizontal':
-        return 'width: 210mm !important; height: 148mm !important;';
+        return 'width: 210mm !important; height: 148mm !important; max-width: 210mm !important; max-height: 148mm !important; overflow: hidden !important;';
       case 'thermal':
         return thermalPaper === '58mm'
           ? 'width: 58mm !important; height: auto !important;'
@@ -262,8 +262,9 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     pageStyle: `
       @page {
         size: ${getPageSize()};
-        margin: ${selectedFormat === 'thermal' ? '0' : selectedFormat === 'a4' ? '10mm' : '4mm'};
+        margin: ${selectedFormat === 'thermal' || selectedFormat === 'a5-horizontal' ? '0' : selectedFormat === 'a4' ? '10mm' : '4mm'};
       }
+      ${selectedFormat === 'a5-horizontal' ? `@page :first { size: 210mm 148mm; margin: 0; }` : ''}
       @media print {
         /* Hide all non-print elements */
         .no-print,
@@ -331,6 +332,15 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           opacity: 1 !important;
           display: block !important;
           transform: none !important;
+        }
+
+        .krishna-mobile-a5-invoice {
+          width: 210mm !important;
+          height: 148mm !important;
+          max-height: 148mm !important;
+          margin: 0 !important;
+          overflow: hidden !important;
+          box-sizing: border-box !important;
         }
       }
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}

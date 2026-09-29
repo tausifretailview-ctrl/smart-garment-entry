@@ -98,15 +98,22 @@ const paymentLabel = (p: KrishnaMobileA5TemplateProps): string => {
 
 const PRINT_CSS = `
   @page krishna-a5 { size: 210mm 148mm; margin: 0; }
+  @page krishna-a5:first { size: 210mm 148mm; margin: 0; }
   @media print {
     @page { size: 210mm 148mm; margin: 0; }
-    html, body { margin: 0 !important; padding: 0 !important; }
+    @page :first { size: 210mm 148mm; margin: 0; }
+    html, body {
+      width: 210mm !important;
+      height: 148mm !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
     .krishna-mobile-a5-invoice {
       page: krishna-a5;
       width: 210mm !important;
-      height: 147.5mm !important;
+      height: 148mm !important;
       min-height: 0 !important;
-      max-height: 147.5mm !important;
+      max-height: 148mm !important;
       margin: 0 !important;
       box-shadow: none !important;
       break-after: avoid;

@@ -164,6 +164,7 @@ import {
   posThermalPageCss,
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
+  getKrishnaA5HorizontalPrintPageStyle,
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
@@ -1606,6 +1607,12 @@ const POSDashboard = () => {
   const getPageStyle = () => {
     if (posInvoiceTemplate === "real-tast") {
       return `${getRealTastA4PrintPageStyle()}
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+    }
+
+    if (posInvoiceTemplate === "krishna-mobile-a5") {
+      return `${getKrishnaA5HorizontalPrintPageStyle()}
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
     }

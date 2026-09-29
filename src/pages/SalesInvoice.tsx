@@ -68,7 +68,8 @@ import { createCustomerPageLinkForWhatsApp } from "@/utils/customerPageLink";
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
-import { resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { getKrishnaA5HorizontalPrintPageStyle, resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
+import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
@@ -3814,6 +3815,10 @@ Thank you for choosing us!`;
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
+    pageStyle:
+      saleInvoicePrintTemplate === "krishna-mobile-a5"
+        ? `${getKrishnaA5HorizontalPrintPageStyle()}\n${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}`
+        : undefined,
     onAfterPrint: () => {
       refreshInvoiceDashboardAfterPrint();
       toast({
