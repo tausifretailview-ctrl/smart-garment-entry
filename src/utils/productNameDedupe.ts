@@ -5,6 +5,7 @@ export type SameNameProductMatch = {
   product_name: string;
   brand: string | null;
   category: string | null;
+  style?: string | null;
   created_at?: string | null;
   /** Sum of active variant stock. */
   total_stock?: number;
@@ -27,7 +28,7 @@ export async function findSameNameProductsInOrg(
   if (!trimmed) return [];
   const { data, error } = await supabase
     .from("products")
-    .select("id, product_name, brand, category, created_at, product_variants(stock_qty, deleted_at)")
+    .select("id, product_name, brand, category, style, created_at, product_variants(stock_qty, deleted_at)")
     .eq("organization_id", organizationId)
     .is("deleted_at", null)
     .ilike("product_name", `%${trimmed}%`)
@@ -84,6 +85,23 @@ export async function pickUnusedSameNameProduct(
     String(a.created_at || "").localeCompare(String(b.created_at || "")),
   )[0];
   return oldest.id;
+}
+
+const identityPart = (value?: string | null): string => (value || "").trim().toLowerCase();
+
+/**
+ * Purchase entry auto-use: a same-name product is the same item only when brand and
+ * style also match (blank = blank). Shops name many items alike ("BRA") and tell
+ * them apart by brand / style (cup B vs C); those must not be merged. Colour is per
+ * size row, so it is matched later on the variant, not here.
+ */
+export function filterSameProductIdentity<T extends Pick<SameNameProductMatch, "brand" | "style">>(
+  matches: T[],
+  typed: { brand?: string | null; style?: string | null },
+): T[] {
+  const brand = identityPart(typed.brand);
+  const style = identityPart(typed.style);
+  return matches.filter((m) => identityPart(m.brand) === brand && identityPart(m.style) === style);
 }
 
 /**

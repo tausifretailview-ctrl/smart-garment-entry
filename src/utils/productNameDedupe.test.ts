@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
+  filterSameProductIdentity,
   findSameNameProductsInOrg,
   normalizeProductNameKey,
   pickPreferredSameNameProduct,
@@ -117,5 +118,29 @@ describe("pickPreferredSameNameProduct", () => {
 
   it("returns null with no matches", () => {
     expect(pickPreferredSameNameProduct([])).toBeNull();
+  });
+});
+
+describe("filterSameProductIdentity", () => {
+  const bra = (id: string, brand: string | null, style: string | null) => ({
+    id,
+    product_name: "BRA",
+    brand,
+    category: "FE41",
+    style,
+  });
+
+  it("keeps only same brand + style (BRA cup C does not match cup B)", () => {
+    const matches = [bra("b", "JOCKEY", "B"), bra("c", "JOCKEY", "C"), bra("x", "OTHER", "C")];
+    expect(filterSameProductIdentity(matches, { brand: "jockey ", style: "c" }).map((m) => m.id)).toEqual(["c"]);
+  });
+
+  it("returns none when no product has the typed style, so a new product is created", () => {
+    expect(filterSameProductIdentity([bra("b", "JOCKEY", "B")], { brand: "JOCKEY", style: "C" })).toEqual([]);
+  });
+
+  it("treats blank as blank, not as a wildcard", () => {
+    const matches = [bra("blank", null, null), bra("styled", null, "C")];
+    expect(filterSameProductIdentity(matches, { brand: "", style: "" }).map((m) => m.id)).toEqual(["blank"]);
   });
 });

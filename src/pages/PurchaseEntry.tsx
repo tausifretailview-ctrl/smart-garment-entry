@@ -153,6 +153,7 @@ import {
 } from "@/utils/purchaseBarcodeDuplicateWarnings";
 import {
   matchExistingVariantForSizeRow,
+  pickBarcodeVariantForTypedProduct,
   purchaseLinePricesFromUseExisting,
   type PurchaseLinePriceSnapshot,
   type UseExistingProductPayload,
@@ -3559,7 +3560,10 @@ const PurchaseEntry = () => {
       const barcode = payload.barcode.trim();
       if (!barcode || !orgId) return;
 
-      const variant = await fetchExactBarcodeVariant(barcode);
+      const variant = pickBarcodeVariantForTypedProduct(
+        await fetchExactBarcodeVariants(barcode),
+        payload,
+      );
       if (!variant) {
         toast({
           title: "Product not found",
@@ -3622,7 +3626,7 @@ const PurchaseEntry = () => {
     [
       closeProductDialog,
       currentOrganization?.id,
-      fetchExactBarcodeVariant,
+      fetchExactBarcodeVariants,
       fetchPurchaseVariantById,
       applyUseExistingProductToBill,
       billDate,
