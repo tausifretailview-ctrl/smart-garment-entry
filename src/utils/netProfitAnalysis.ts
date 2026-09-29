@@ -191,6 +191,25 @@ export function computeSaleLineRevenue(
   };
 }
 
+/** Bill ids per purchase_bills .in() request (URL length + 1000-row cap). */
+const PURCHASE_BILL_BATCH = 300;
+/** PostgREST returns at most 1000 rows per request. */
+const PAGE_SIZE = 1000;
+
+/** Fetch every page of a range-able query (headers for a busy month exceed 1000 rows). */
+async function fetchAllPages<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) return rows;
+  }
+}
+
 type VariantCostMaps = {
   variantMap: Map<string, { id: string; pur_price: number | null; product_id: string }>;
   variantPurchasePriceMap: Map<string, number>;
@@ -206,20 +225,23 @@ async function buildVariantCostMaps(
   for (let i = 0; i < variantIds.length; i += variantBatchSize) {
     variantBatches.push(variantIds.slice(i, i + variantBatchSize));
   }
-  const variantBatchResults = await Promise.all(
-    variantBatches.map((batchIds) =>
-      supabase
-        .from("product_variants")
-        .select("id, pur_price, product_id")
-        .eq("organization_id", organizationId)
-        .in("id", batchIds)
-        .then(({ data }) => data ?? []),
+  // Variants and purchase history are independent — fetch them together.
+  const [variantBatchResults, purchaseItems] = await Promise.all([
+    Promise.all(
+      variantBatches.map((batchIds) =>
+        supabase
+          .from("product_variants")
+          .select("id, pur_price, product_id")
+          .eq("organization_id", organizationId)
+          .in("id", batchIds)
+          .then(({ data }) => data ?? []),
+      ),
     ),
-  );
+    fetchAllPurchaseItems(variantIds),
+  ]);
   const allVariants = variantBatchResults.flat();
   const variantMap = new Map(allVariants.map((v) => [v.id, v]));
 
-  const purchaseItems = await fetchAllPurchaseItems(variantIds);
   const purPriceAccum: Record<string, { total: number; qty: number }> = {};
   purchaseItems?.forEach((pi: any) => {
     if (!pi.sku_id) return;
@@ -234,20 +256,33 @@ async function buildVariantCostMaps(
   });
 
   const billIds = [...new Set(purchaseItems?.map((pi) => pi.bill_id).filter(Boolean) || [])];
-  let purchaseBills: { id: string; supplier_id: string | null; supplier_name: string }[] | null = null;
-  if (billIds.length > 0) {
-    const { data } = await supabase
-      .from("purchase_bills")
-      .select("id, supplier_id, supplier_name")
-      .eq("organization_id", organizationId)
-      .in("id", billIds);
-    purchaseBills = data;
+  // Batched: one .in() with thousands of bill ids made an oversized URL and hit the
+  // 1000-row response cap for a busy month.
+  const billBatches: string[][] = [];
+  for (let i = 0; i < billIds.length; i += PURCHASE_BILL_BATCH) {
+    billBatches.push(billIds.slice(i, i + PURCHASE_BILL_BATCH));
   }
+  const billBatchResults = await Promise.all(
+    billBatches.map((batchIds) =>
+      supabase
+        .from("purchase_bills")
+        .select("id, supplier_id, supplier_name")
+        .eq("organization_id", organizationId)
+        .in("id", batchIds)
+        .then(({ data }) => data ?? []),
+    ),
+  );
+  // Map lookup, not .find() per purchase line (was O(lines × bills) on the main thread).
+  const billById = new Map(
+    (billBatchResults.flat() as { id: string; supplier_id: string | null; supplier_name: string }[]).map(
+      (pb) => [pb.id, pb],
+    ),
+  );
 
   const variantToSupplier = new Map<string, { id: string | null; name: string }>();
   purchaseItems?.forEach((pi) => {
     if (!variantToSupplier.has(pi.sku_id)) {
-      const bill = purchaseBills?.find((pb) => pb.id === pi.bill_id);
+      const bill = billById.get(pi.bill_id);
       if (bill) {
         variantToSupplier.set(pi.sku_id, { id: bill.supplier_id, name: bill.supplier_name });
       }
@@ -296,7 +331,7 @@ export async function loadProfitDataset(
   const fromTimestamp = `${fromDate}T00:00:00.000+05:30`;
   const toTimestamp = `${toDate}T23:59:59.999+05:30`;
 
-  const salesQuery = supabase
+  const salesQuery = (from: number, to: number) => supabase
     .from("sales")
     .select(
       "id, sale_number, sale_date, customer_id, customer_name, salesman, payment_method, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, sale_return_adjust",
@@ -307,9 +342,11 @@ export async function loadProfitDataset(
     .is("deleted_at", null)
     .eq("is_cancelled", false)
     .or("payment_status.is.null,payment_status.neq.cancelled")
-    .or("sale_type.is.null,sale_type.neq.sale_return");
+    .or("sale_type.is.null,sale_type.neq.sale_return")
+    .order("id")
+    .range(from, to);
 
-  const returnsQuery = supabase
+  const returnsQuery = (from: number, to: number) => supabase
     .from("sale_returns")
     .select(
       "id, linked_sale_id, original_sale_number, customer_id, customer_name, payment_method, return_date",
@@ -317,13 +354,16 @@ export async function loadProfitDataset(
     .eq("organization_id", organizationId)
     .gte("return_date", fromTimestamp)
     .lte("return_date", toTimestamp)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .order("id")
+    .range(from, to);
 
-  const [{ data: sales, error: salesError }, { data: returns, error: returnsError }] =
-    await Promise.all([salesQuery, returnsQuery]);
-
-  if (salesError) throw salesError;
-  if (returnsError) throw returnsError;
+  // Paged: a single request stops at 1000 rows, which silently dropped bills from
+  // busy months (profit computed on the first 1000 only).
+  const [sales, returns] = await Promise.all([
+    fetchAllPages(salesQuery),
+    fetchAllPages(returnsQuery),
+  ]);
 
   type SaleRow = {
     id: string;
@@ -343,7 +383,6 @@ export async function loadProfitDataset(
   const saleRows = (sales || []) as SaleRow[];
   const saleById = new Map(saleRows.map((s) => [s.id, s]));
   const saleByNumber = new Map(saleRows.map((s) => [s.sale_number, s]));
-  const saleItems = saleRows.length ? await fetchAllSaleItems(saleRows.map((s) => s.id)) : [];
 
   type ReturnHeader = {
     id: string;
@@ -358,12 +397,18 @@ export async function loadProfitDataset(
   const returnHeaders = (returns || []) as ReturnHeader[];
   const returnById = new Map(returnHeaders.map((r) => [r.id, r]));
 
-  const returnItems = returnHeaders.length
-    ? await fetchSaleReturnItemsByIds(
-        returnHeaders.map((r) => r.id),
-        "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price, size, color, hsn_code, barcode",
-      )
-    : [];
+  // Sale lines and return lines are independent — fetch them together.
+  const [saleItems, returnItems] = await Promise.all([
+    saleRows.length
+      ? fetchAllSaleItems(saleRows.map((s) => s.id))
+      : Promise.resolve<Awaited<ReturnType<typeof fetchAllSaleItems>>>([]),
+    returnHeaders.length
+      ? fetchSaleReturnItemsByIds(
+          returnHeaders.map((r) => r.id),
+          "return_id, variant_id, product_id, product_name, quantity, line_total, unit_price, size, color, hsn_code, barcode",
+        )
+      : Promise.resolve<Awaited<ReturnType<typeof fetchSaleReturnItemsByIds>>>([]),
+  ]);
 
   if (saleItems.length === 0 && returnItems.length === 0) {
     return { lines: [], totals: sumLines([]) };
