@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { cleanProductName } from "@/utils/productNameMerge";
 import { useQueryClient } from "@tanstack/react-query";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
 import { createPortal } from "react-dom";
@@ -2400,7 +2401,7 @@ export const ProductEntryDialog = ({
       
       const productPayload = {
         product_type: formData.product_type,
-        product_name: formData.product_name,
+        product_name: cleanProductName(formData.product_name),
         category: formData.category || null,
         brand: canonicalizeProductBrand(formData.brand) || null,
         style: formData.style || null,

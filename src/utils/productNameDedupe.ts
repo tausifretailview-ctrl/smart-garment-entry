@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { productNameMergeKey } from "@/utils/productNameMerge";
 
 export type SameNameProductMatch = {
   id: string;
@@ -12,7 +13,7 @@ export type SameNameProductMatch = {
 };
 
 export const normalizeProductNameKey = (name: string, category?: string | null): string =>
-  `${(name || "").trim().toLowerCase()}|${(category || "").trim().toLowerCase()}`;
+  `${productNameMergeKey(name)}|${productNameMergeKey(category)}`;
 
 /**
  * Name-dupe gate lookup: existing org products whose name AND category match
