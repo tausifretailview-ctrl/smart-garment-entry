@@ -7039,6 +7039,27 @@ export type Database = {
           },
         ]
       }
+      security_guard_backup_20260927: {
+        Row: {
+          new_def: string
+          old_def: string
+          saved_at: string
+          signature: string
+        }
+        Insert: {
+          new_def: string
+          old_def: string
+          saved_at?: string
+          signature: string
+        }
+        Update: {
+          new_def?: string
+          old_def?: string
+          saved_at?: string
+          signature?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           accounting_engine_enabled: boolean
@@ -9792,6 +9813,11 @@ export type Database = {
     Functions: {
       _apply_bulk_purchase_insert_effects: {
         Args: { p_bill_id: string }
+        Returns: undefined
+      }
+      _assert_org_access: { Args: { p_org: string }; Returns: undefined }
+      _assert_row_org_access: {
+        Args: { p_id: string; p_table: unknown }
         Returns: undefined
       }
       _customer_advance_applied_from_vouchers: {
