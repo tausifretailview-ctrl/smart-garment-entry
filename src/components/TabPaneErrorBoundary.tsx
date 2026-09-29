@@ -74,7 +74,7 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
           </p>
           <p className="text-xs text-muted-foreground">
             {chunkError
-              ? "The page module could not be loaded. Try again or refresh the app."
+              ? "The page could not be loaded (usually because the app was just updated). Refresh the app to continue."
               : "An unexpected error occurred. Try again or refresh the app. Other tabs are unaffected."}
           </p>
           {this.state.error?.message && (
@@ -82,13 +82,21 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
               {this.state.error.message}
             </p>
           )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-            <Button size="sm" onClick={this.handleRetry}>
+          {/* Chunk errors: Chrome caches a failed module import, so re-importing the
+              same URL fails again; only a reload onto the current build fixes it. */}
+          <div
+            className={
+              chunkError
+                ? "flex flex-col-reverse gap-2 sm:flex-row-reverse sm:justify-center"
+                : "flex flex-col gap-2 sm:flex-row sm:justify-center"
+            }
+          >
+            <Button size="sm" variant={chunkError ? "outline" : "default"} onClick={this.handleRetry}>
               Retry tab
             </Button>
             <Button
               size="sm"
-              variant="outline"
+              variant={chunkError ? "default" : "outline"}
               onClick={() => {
                 void reloadAppWithUpdateCheck();
               }}
