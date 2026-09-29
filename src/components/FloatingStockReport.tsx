@@ -29,6 +29,9 @@ import {
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
 import { isStockReportBarcodeLikeSearch } from "@/utils/stockReportPurchaseBarcodeResolve";
 
+/** Rupee sign, stored as an escape so a bad file encoding cannot corrupt it. */
+const QUICK_STOCK_CURRENCY = "\u20B9";
+
 // Extracted from FloatingPOSReports.tsx so Quick Stock no longer shares a lazy-loaded
 // chunk with Cashier Report / Daily Tally — that shared chunk caused Quick Stock to
 // hang on "Loading stock report…" on slow connections or after deploy.
@@ -405,11 +408,11 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
               </div>
               <div className="bg-purple-50 dark:bg-purple-950 px-4 py-2 rounded-lg">
                 <span className="text-xs text-muted-foreground">Stock Value</span>
-                <p className="font-bold text-lg">â‚¹{Math.round(totalStockValue).toLocaleString('en-IN')}</p>
+                <p className="font-bold text-lg">{QUICK_STOCK_CURRENCY}{Math.round(totalStockValue).toLocaleString('en-IN')}</p>
               </div>
               {showSearching && (
                 <span className="text-xs text-muted-foreground pb-2">
-                  {isSearching ? "Updating full stockâ€¦" : "Searchingâ€¦"}
+                  {isSearching ? "Updating full stock..." : "Searching..."}
                 </span>
               )}
             </div>
@@ -454,9 +457,9 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
                         </span>
                       </TableCell>
                       <TableCell className="text-xs">{supplierMap[item.id] || '-'}</TableCell>
-                      <TableCell className="text-right text-xs">â‚¹{item.pur_price?.toLocaleString('en-IN') || '-'}</TableCell>
-                      <TableCell className="text-right">â‚¹{item.mrp?.toLocaleString('en-IN')}</TableCell>
-                      <TableCell className="text-right font-medium">â‚¹{item.sale_price?.toLocaleString('en-IN')}</TableCell>
+                      <TableCell className="text-right text-xs">{QUICK_STOCK_CURRENCY}{item.pur_price?.toLocaleString('en-IN') || '-'}</TableCell>
+                      <TableCell className="text-right">{QUICK_STOCK_CURRENCY}{item.mrp?.toLocaleString('en-IN')}</TableCell>
+                      <TableCell className="text-right font-medium">{QUICK_STOCK_CURRENCY}{item.sale_price?.toLocaleString('en-IN')}</TableCell>
                     </TableRow>
                     );
                   })}
@@ -465,7 +468,7 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
             </div>
           </>
         ) : showSearching ? (
-          <div className="text-center py-8 text-muted-foreground">Searchingâ€¦</div>
+          <div className="text-center py-8 text-muted-foreground">Searching...</div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             No products found matching "{searchQuery}"
