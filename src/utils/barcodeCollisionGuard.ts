@@ -72,8 +72,8 @@ export async function findTakenGeneratedBarcodes(
       .from("product_variants")
       .select("barcode")
       .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .in("barcode", chunk);
+      .in("barcode", chunk)
+      .is("deleted_at", null);
     if (error) throw error;
     for (const row of (data as { barcode: string | null }[] | null) ?? []) {
       const bc = String(row.barcode ?? "").trim();

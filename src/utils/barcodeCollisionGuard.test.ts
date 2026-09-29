@@ -37,13 +37,16 @@ function mockLookup(taken: Set<string>) {
         data: taken.has(barcode) ? [{ id: "existing" }] : [],
         error: null,
       });
-    // Batched lookup: .in("barcode", [...]) is the terminal call.
+    // Batched lookup: .in("barcode", [...]).is("deleted_at", null)
     chain.in = (_col: string, values: string[]) => {
       lookups.push(values);
-      return Promise.resolve({
-        data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
-        error: null,
-      });
+      return {
+        is: () =>
+          Promise.resolve({
+            data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
+            error: null,
+          }),
+      };
     };
     return chain as never;
   });
@@ -129,8 +132,9 @@ describe("ensureFreshGeneratedBarcode", () => {
       chain.eq = () => chain;
       chain.is = () => chain;
       chain.limit = () => Promise.resolve({ data: [{ id: "existing" }], error: null });
-      chain.in = (_col: string, values: string[]) =>
-        Promise.resolve({ data: values.map((v) => ({ barcode: v })), error: null });
+      chain.in = (_col: string, values: string[]) => ({
+        is: () => Promise.resolve({ data: values.map((v) => ({ barcode: v })), error: null }),
+      });
       return chain as never;
     });
     vi.mocked(supabase.rpc).mockResolvedValue({ data: "420001730", error: null } as never);
@@ -228,11 +232,13 @@ describe("insertGeneratedProductVariant", () => {
           data: taken.has(barcode) ? [{ id: "existing" }] : [],
           error: null,
         });
-      chain.in = (_col: string, values: string[]) =>
-        Promise.resolve({
-          data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
-          error: null,
-        });
+      chain.in = (_col: string, values: string[]) => ({
+        is: () =>
+          Promise.resolve({
+            data: values.filter((v) => taken.has(v)).map((v) => ({ barcode: v })),
+            error: null,
+          }),
+      });
       chain.insert = (row: { barcode: string }) => {
         mode = "insert";
         barcodeSeen = row.barcode;
