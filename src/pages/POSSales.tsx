@@ -151,6 +151,7 @@ import {
   posThermalPageCss,
   toInvoiceWrapperFormat,
   getRealTastA4PrintPageStyle,
+  getKrishnaA5HorizontalPrintPageStyle,
   getPosDocumentPrintPageStyle,
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
@@ -5239,6 +5240,12 @@ export default function POSSales() {
 
     if (posInvoiceTemplate === 'real-tast') {
       return `${getRealTastA4PrintPageStyle()}
+      ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
+    `;
+    }
+
+    if (posInvoiceTemplate === 'krishna-mobile-a5') {
+      return `${getKrishnaA5HorizontalPrintPageStyle()}
       ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
     `;
     }

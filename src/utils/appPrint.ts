@@ -32,6 +32,11 @@ export interface AppPrintOptions {
   thermalPaper?: PosThermalPaper;
   /** Override default page size for this print type (Electron). */
   pageSize?: string | { width: number; height: number };
+  /** Windows driver orientation. Leave false when pageSize is already 210×148mm. */
+  landscape?: boolean;
+  /** Use the document @page size (Krishna A5 horizontal). */
+  preferCSSPageSize?: boolean;
+  margins?: { marginType: "default" | "none" | "printableArea" | "custom" };
   /** Electron only: true = silent to chosen printer; false = system dialog with preview. Default true. */
   silent?: boolean;
   /** Called instead of window.print() in web mode (e.g. open a preview window). */
@@ -117,13 +122,13 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
   const pageSize =
     options.pageSize ??
     pageSizeForType(options.type, options.type === "receipt" ? thermalPaper : undefined);
-  const margins = marginsForType(options.type);
+  const margins = options.margins ?? marginsForType(options.type);
   const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
   const silent = options.silent !== false;
 
   const isReceipt = options.type === "receipt";
   const isBarcode = options.type === "barcode";
-  const useCssPageSize = isReceipt || isBarcode;
+  const useCssPageSize = isReceipt || isBarcode || options.preferCSSPageSize === true;
   const printHtml =
     options.html && isReceipt
       ? wrapReceiptHtmlForElectron(options.html, thermalPaper)
@@ -134,9 +139,10 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
       ? await electronAPI.printHtml({
           html: printHtml,
           printerName,
-          pageSize: useCssPageSize ? undefined : pageSize,
+          pageSize: useCssPageSize ? options.pageSize : pageSize,
           copies,
           margins,
+          landscape: options.landscape,
           silent,
           printKind: isReceipt ? "receipt" : options.type,
           preferCSSPageSize: useCssPageSize,

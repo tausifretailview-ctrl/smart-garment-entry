@@ -1,4 +1,8 @@
-import { type PosThermalPaper, thermalReceiptRollPageSize } from '@/utils/invoicePrintFormat';
+import {
+  getKrishnaA5HorizontalPrintPageStyle,
+  type PosThermalPaper,
+  thermalReceiptRollPageSize,
+} from '@/utils/invoicePrintFormat';
 import {
   buildThermalReceiptPrintCss,
   detectThermalPaperFromElement,
@@ -78,6 +82,8 @@ export const extractInvoiceHTML = (
     ? (options?.thermalPaper ?? detectThermalPaperFromElement(ref))
     : '80mm';
   const thermalPrintCss = isThermal ? buildThermalReceiptPrintCss(thermalPaper) : '';
+  const isKrishnaA5 = !!ref.querySelector(".krishna-mobile-a5-invoice");
+  const krishnaPrintCss = isKrishnaA5 ? getKrishnaA5HorizontalPrintPageStyle() : "";
 
   return `<!DOCTYPE html>
 <html>
@@ -86,10 +92,11 @@ export const extractInvoiceHTML = (
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; padding: 0; width: ${isThermal ? (thermalPaper === '58mm' ? '58mm' : '80mm') : 'auto'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body { margin: 0; padding: 0; width: ${isThermal ? (thermalPaper === '58mm' ? '58mm' : '80mm') : isKrishnaA5 ? '210mm' : 'auto'}; height: ${isKrishnaA5 ? '148mm' : 'auto'}; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @page { margin: 0; ${isThermal ? `size: ${thermalReceiptRollPageSize(thermalPaper)};` : ''} }
     ${allStyles}
     ${thermalPrintCss}
+    ${krishnaPrintCss}
     ${INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS}
   </style>
 </head>

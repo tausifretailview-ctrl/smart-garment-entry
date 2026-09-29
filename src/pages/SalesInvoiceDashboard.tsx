@@ -73,6 +73,7 @@ import {
   toInvoiceWrapperFormat,
   resolvePosThermalPaper,
   posThermalPageCss,
+  getKrishnaA5HorizontalPrintPageStyle,
   isA5PortraitInvoiceTemplate,
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
@@ -1810,6 +1811,10 @@ export default function SalesInvoiceDashboard() {
   };
 
   const getPageStyle = () => {
+    if (invoiceTemplate === 'krishna-mobile-a5') {
+      return appendInvoicePrintVisibilityCss(getKrishnaA5HorizontalPrintPageStyle());
+    }
+
     if (invoiceTemplate === 'retail-erp-preprinted') {
       const isA5 =
         effectiveSaleBillFormat === 'a5' || effectiveSaleBillFormat === 'a5-horizontal';

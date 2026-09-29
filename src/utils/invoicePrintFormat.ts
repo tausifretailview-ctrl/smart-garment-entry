@@ -142,6 +142,56 @@ export function isA5HorizontalInvoiceTemplate(template?: string | null): boolean
   return Boolean(template && A5_HORIZONTAL_INVOICE_TEMPLATES.has(template));
 }
 
+/**
+ * Krishna mobile tax invoice — one A5 sheet loaded horizontal (210mm × 148mm).
+ * Exact millimetres and a zero margin. `A5 landscape` plus a 5mm margin is
+ * ignored by Chrome on Windows, so the 210mm-wide sheet prints on a portrait
+ * page and the left side (shop, customer, items) misses the paper.
+ */
+export function getKrishnaA5HorizontalPrintPageStyle(): string {
+  return `
+      @page {
+        size: 210mm 148mm;
+        margin: 0;
+      }
+      @page :first {
+        size: 210mm 148mm;
+        margin: 0;
+      }
+      @media print {
+        html, body {
+          width: 210mm !important;
+          height: 148mm !important;
+          max-width: 210mm !important;
+          max-height: 148mm !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          background: #fff !important;
+        }
+        .invoice-print-source,
+        .invoice-print-source-screen,
+        .invoice-print-root,
+        .krishna-mobile-a5-invoice {
+          width: 210mm !important;
+          max-width: 210mm !important;
+          height: 148mm !important;
+          min-height: 0 !important;
+          max-height: 148mm !important;
+          margin: 0 !important;
+          box-shadow: none !important;
+          overflow: hidden !important;
+          break-after: avoid;
+          page-break-after: avoid;
+        }
+        .krishna-mobile-a5-invoice {
+          box-sizing: border-box !important;
+          padding: 5mm !important;
+        }
+      }
+  `;
+}
+
 /** Templates that must print on A5 — not thermal 80mm. */
 export const A5_ONLY_INVOICE_TEMPLATES = new Set([
   'retail-tax-ezzy',

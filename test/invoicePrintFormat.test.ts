@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getRealTastA4PrintPageStyle,
+  getKrishnaA5HorizontalPrintPageStyle,
   isPosSaleDocument,
   isPosThermalBillFormat,
   isThermal80mmInvoiceTemplate,
@@ -352,5 +353,17 @@ describe('preprinted letterhead logo opt-in', () => {
     expect(box.width).toBe('100%');
     expect(box.height).toContain('2in');
     expect(box.height).toContain('4mm');
+  });
+});
+
+describe('Krishna A5 horizontal print page', () => {
+  it('uses a 210mm × 148mm sheet with no margin, including the first page', () => {
+    const css = getKrishnaA5HorizontalPrintPageStyle();
+    expect(css).toContain('size: 210mm 148mm');
+    expect(css).toContain('@page :first');
+    expect(css).toContain('margin: 0');
+    expect(css).toContain('.krishna-mobile-a5-invoice');
+    expect(css).not.toContain('A5 landscape');
+    expect(css).not.toContain('A4');
   });
 });
