@@ -121,6 +121,16 @@ export async function enrichLedgerListRowsWithCanonicalBalance(
   });
 }
 
+/**
+ * Lists built while the party RPC returned nothing (statement timeout) carry opening
+ * balances only, with no advances or credits. Cards must not total such a list.
+ */
+const partialLedgerLists = new WeakSet<object>();
+
+export function isPartialLedgerList(rows: unknown): boolean {
+  return typeof rows === "object" && rows !== null && partialLedgerLists.has(rows);
+}
+
 export type BuildCustomerLedgerListOptions = {
   /** Server-side name/phone filter (party RPC p_search). Min 2 chars from UI. */
   search?: string | null;
@@ -175,7 +185,7 @@ export async function buildCustomerLedgerListFromPartyBalances(
     partyRows.map((row) => [row.customer_id, row]),
   );
 
-  return customers.map((customer) => {
+  const rows = customers.map((customer) => {
     const openingBalance = Math.round(Number(customer.opening_balance) || 0);
     const party = partyByCustomer.get(customer.id);
     if (!party) {
@@ -204,4 +214,6 @@ export async function buildCustomerLedgerListFromPartyBalances(
       adjustmentTotal: 0,
     };
   });
+  if (partyRows.length === 0 && customers.length > 0) partialLedgerLists.add(rows);
+  return rows;
 }
