@@ -1136,6 +1136,7 @@ const DailyCashierReport = () => {
       ["Gross Sale", totals.grossSale],
       ["Less: Discount", totals.totalDiscount],
       ["Round off", totals.totalRoundOff],
+      ["Final Sale", Math.round((totals.netSaleAfterSR + totals.totalSRAdjusted) * 100) / 100],
       ["Less: S/R Adjust (return/CN credit)", totals.totalSRAdjusted],
       ["Net Sale", totals.netSaleAfterSR],
       ["Less: Balance Pending", totals.totalBalance],
@@ -1223,6 +1224,8 @@ const DailyCashierReport = () => {
     doc.text(`Less: Discount: ${formatCurrency(totals.totalDiscount)}`, 20, y);
     y += 7;
     doc.text(`Round off: ${formatCurrency(totals.totalRoundOff)}`, 20, y);
+    y += 7;
+    doc.text(`Final Sale: ${formatCurrency(Math.round((totals.netSaleAfterSR + totals.totalSRAdjusted) * 100) / 100)}`, 20, y);
     y += 7;
     doc.text(`Less: S/R Adjust: ${formatCurrency(totals.totalSRAdjusted)}`, 20, y);
     y += 7;
@@ -2172,6 +2175,10 @@ const DailyCashierReport = () => {
                     <span className="font-semibold tabular-nums">{formatCurrency(totals.totalRoundOff)}</span>
                   </div>
                 )}
+                <div className="flex justify-between py-2 border-b border-slate-100 font-semibold">
+                  <span>Final Sale</span>
+                  <span className="tabular-nums">{formatCurrency(Math.round((totals.netSaleAfterSR + totals.totalSRAdjusted) * 100) / 100)}</span>
+                </div>
                 {totals.totalSRAdjusted > 0 && (
                   <div className="flex justify-between py-2 border-b border-slate-100 text-teal-700">
                     <span>Less: S/R Adjust</span>

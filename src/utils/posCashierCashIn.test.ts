@@ -391,3 +391,33 @@ describe("cashier expenses by payment mode", () => {
     expect(net.upi).toBe(5_600);
   });
 });
+
+describe("Cashier Report Actual Net Receivable: credit adjustments", () => {
+  it("does not count a credit_note_adjustment receipt as money received", () => {
+    // POS/26-27/464: bill 3,900 fully covered by S/R credit; nothing was paid.
+    const result = computeCashierActualNetReceivable({
+      sales: [
+        { id: "s464", net_amount: 3900, paid_amount: 0, cash_amount: 0, card_amount: 0, upi_amount: 0, payment_status: "completed" },
+      ],
+      receipts: [
+        { voucher_type: "receipt", total_amount: 3900, reference_type: "sale", reference_id: "s464", payment_method: "credit_note_adjustment" },
+      ],
+      resolveNet: (s) => Number(s.net_amount) || 0,
+    });
+    expect(result.actualNetReceivable).toBe(0);
+    expect(result.oldBalanceReceiptTotal).toBe(0);
+  });
+
+  it("still counts a real cash receipt on an invoice", () => {
+    const result = computeCashierActualNetReceivable({
+      sales: [
+        { id: "s1", net_amount: 1000, paid_amount: 0, cash_amount: 0, card_amount: 0, upi_amount: 0, payment_status: "pending" },
+      ],
+      receipts: [
+        { voucher_type: "receipt", total_amount: 1000, reference_type: "sale", reference_id: "s1", payment_method: "cash" },
+      ],
+      resolveNet: (s) => Number(s.net_amount) || 0,
+    });
+    expect(result.actualNetReceivable).toBe(1000);
+  });
+});

@@ -7,6 +7,7 @@
  */
 
 import { isHoldSaleNumber } from "@/utils/posHoldBill";
+import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 import {
   buildCashierReceiptModeMap,
   getCashierSalePaymentModeAmounts,
@@ -130,6 +131,11 @@ export function computeCashierActualNetReceivable(params: {
   oldBalanceReceiptCount: number;
   actualNetReceivable: number;
 } {
+  // Advance / credit-note adjustment receipts only move existing credit onto a bill
+  // (already shown as S/R Adjust); no money is received, so they are not settlement.
+  const receipts = params.receipts.filter(
+    (v) => !isNonCashSettlementReceiptMethod(v.payment_method),
+  );
   const eligibleSales = params.sales.filter((sale) => {
     if (sale.is_cancelled) return false;
     if (sale.payment_status === "cancelled") return false;
@@ -140,7 +146,7 @@ export function computeCashierActualNetReceivable(params: {
   const salesById = new Set(eligibleSales.map((s) => s.id as string));
   const receiptSumBySale = sumSameDaySaleLinkedReceiptsBySaleId(
     eligibleSales,
-    params.receipts,
+    receipts,
   );
 
   let effectivePaidTotal = 0;
@@ -154,7 +160,7 @@ export function computeCashierActualNetReceivable(params: {
 
   let oldBalanceReceiptTotal = 0;
   let oldBalanceReceiptCount = 0;
-  for (const v of params.receipts) {
+  for (const v of receipts) {
     if (String(v.voucher_type || "").toLowerCase() !== "receipt") continue;
     const amt = Number(v.total_amount) || 0;
     if (amt <= 0) continue;
