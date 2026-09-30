@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, Suspense, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
-import { lazyWithRetry } from "@/lib/chunkLoadRetry";
-import { prefetchTabPage } from "@/lib/tabPageRegistry";
+import { lazyWithRetry, pauseBackgroundPrefetch, scheduleIdleWork } from "@/lib/chunkLoadRetry";
+import { createSettingsPanel } from "@/components/settings/lazySettingsPanel";
+import { prefetchTabPage, shouldAllowSpeculativeChunkPrefetch } from "@/lib/tabPageRegistry";
 import { logError } from "@/lib/errorLogger";
 import { UOM_OPTIONS } from "@/constants/uom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -79,15 +80,21 @@ const LazyUserManagement = lazyWithRetry(() =>
 const LazySizeGroupManagement = lazyWithRetry(() =>
   import("@/components/SizeGroupManagement").then((m) => ({ default: m.SizeGroupManagement })),
 );
-const LazyWhatsAppTemplateSettings = lazyWithRetry(() =>
+const { Panel: WhatsAppTemplatePanel, preload: preloadWhatsAppTemplatePanel } = createSettingsPanel(() =>
   import("@/components/WhatsAppTemplateSettings").then((m) => ({ default: m.WhatsAppTemplateSettings })),
 );
-const LazyWhatsAppAPISettings = lazyWithRetry(() =>
+const { Panel: WhatsAppAPIPanel, preload: preloadWhatsAppAPIPanel } = createSettingsPanel(() =>
   import("@/components/WhatsAppAPISettings").then((m) => ({ default: m.WhatsAppAPISettings })),
 );
-const LazyCustomerPageSettings = lazyWithRetry(() =>
+const { Panel: CustomerPagePanel, preload: preloadCustomerPagePanel } = createSettingsPanel(() =>
   import("@/components/settings/CustomerPageSettings").then((m) => ({ default: m.CustomerPageSettings })),
 );
+
+function preloadWhatsAppTab() {
+  preloadWhatsAppAPIPanel();
+  preloadWhatsAppTemplatePanel();
+  preloadCustomerPagePanel();
+}
 const LazyStockReconciliation = lazyWithRetry(() =>
   import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
 );
@@ -468,6 +475,11 @@ export default function Settings() {
   const [showClientSecret, setShowClientSecret] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!shouldAllowSpeculativeChunkPrefetch()) return;
+    return scheduleIdleWork(preloadWhatsAppTab, { minDelay: 2_500 });
+  }, []);
 
   useEffect(() => {
     const merged = mergeActivityNavigationState(
@@ -1335,7 +1347,21 @@ export default function Settings() {
         >
           <TabsList className={SETTINGS_TAB_LIST_CLASS}>
             {SETTINGS_TAB_ITEMS.map(({ id, label, icon: Icon }) => (
-              <TabsTrigger key={id} value={id} className={cn(SETTINGS_TAB_TRIGGER_CLASS, "flex items-center")}>
+              <TabsTrigger
+                key={id}
+                value={id}
+                className={cn(SETTINGS_TAB_TRIGGER_CLASS, "flex items-center")}
+                {...(id === "whatsapp"
+                  ? {
+                      onPointerEnter: preloadWhatsAppTab,
+                      onFocus: preloadWhatsAppTab,
+                      onPointerDown: () => {
+                        pauseBackgroundPrefetch(15_000);
+                        preloadWhatsAppTab();
+                      },
+                    }
+                  : {})}
+              >
                 <Icon className="h-3.5 w-3.5" />
                 {label}
               </TabsTrigger>
@@ -6186,23 +6212,17 @@ export default function Settings() {
               <CardContent className="space-y-3">
                 <SettingsSection title="WhatsApp API">
                   <div className="px-3 py-2.5">
-                    <LazySettingsPanel>
-                      <LazyWhatsAppAPISettings />
-                    </LazySettingsPanel>
+                    <WhatsAppAPIPanel />
                   </div>
                 </SettingsSection>
                 <SettingsSection title="Message templates">
                   <div className="px-3 py-2.5">
-                    <LazySettingsPanel>
-                      <LazyWhatsAppTemplateSettings />
-                    </LazySettingsPanel>
+                    <WhatsAppTemplatePanel />
                   </div>
                 </SettingsSection>
                 <SettingsSection title="Customer page & notifications">
                   <div className="px-3 py-2.5">
-                    <LazySettingsPanel>
-                      <LazyCustomerPageSettings />
-                    </LazySettingsPanel>
+                    <CustomerPagePanel />
                   </div>
                 </SettingsSection>
               </CardContent>
