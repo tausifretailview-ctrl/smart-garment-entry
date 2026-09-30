@@ -3110,7 +3110,7 @@ const POSDashboard = () => {
                     muted={cancelled}
                     onClick={() => !cancelled && navigate(`/pos-sales?saleId=${sale.id}`)}
                     title={sale.sale_number}
-                    subtitle={sale.customer_name || "Walk-in"}
+                    subtitle={(sale.customer_name || "Walk-in").toUpperCase()}
                     badge={
                       <span
                         className={cn(
@@ -3759,7 +3759,7 @@ const POSDashboard = () => {
                                 openCustomerAccount(sale.customer_id, sale.customer_name);
                               }}
                             >
-                              {sale.customer_name}
+                              {(sale.customer_name || "Walk-in").toUpperCase()}
                             </TableCell>
                             {columnSettings.phone && (
                               <TableCell className="px-2 py-1.5 text-sm" onClick={() => toggleExpanded(sale.id)}>

@@ -402,7 +402,16 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                 <div style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "2px", textTransform: "uppercase" }}>
                   {businessName}
                 </div>
-                <div style={{ fontSize: "11px", whiteSpace: "pre-line", lineHeight: "1.3" }}>{address}</div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    whiteSpace: "pre-line",
+                    lineHeight: "1.3",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {address}
+                </div>
                 {gstNumber && (
                   <div style={{ fontSize: "11px", fontWeight: "bold", marginTop: "3px" }}>GSTIN/UIN: {gstNumber}</div>
                 )}
