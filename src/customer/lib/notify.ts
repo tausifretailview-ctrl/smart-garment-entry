@@ -4,6 +4,7 @@
 // NEVER call Notification.requestPermission() outside a click handler.
 
 import { registerPush } from "./client";
+import { cleanVapidKey, describeVapidKeyProblem } from "./vapidKey";
 import { withTimeout } from "./withTimeout";
 
 // Each setup step can stall without failing (worker never activates, push service
@@ -76,11 +77,14 @@ function tokenErrorCode(err: unknown): string {
   const code = (err as { code?: unknown } | null)?.code;
   if (typeof code === "string" && code) return code;
   const msg = err instanceof Error ? err.message : String(err ?? "");
-  return msg.slice(0, 80) || "token_error";
+  return msg.slice(0, 120) || "token_error";
 }
 
 async function fetchToken(): Promise<{ token: string | null; reason?: string }> {
   if (!isFirebaseConfigured()) return { token: null, reason: "not_configured" };
+  const vapidKey = cleanVapidKey(import.meta.env.VITE_FIREBASE_VAPID_KEY as string);
+  const vapidProblem = describeVapidKeyProblem(vapidKey);
+  if (vapidProblem) return { token: null, reason: `vapid_${vapidProblem}` };
   try {
     const { initializeApp, getApps, getApp } = await import("firebase/app");
     const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
@@ -92,7 +96,6 @@ async function fetchToken(): Promise<{ token: string | null; reason?: string }> 
     const reg = await withTimeout(getRegistration(), STEP_TIMEOUT_MS.swRegister, "sw_register");
     // A worker that fails to install never becomes active; without this the token step waits on it.
     await withTimeout(navigator.serviceWorker.ready, STEP_TIMEOUT_MS.swActive, "sw_active");
-    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string;
     const token = await withTimeout(
       getToken(messaging, { vapidKey, serviceWorkerRegistration: reg }),
       STEP_TIMEOUT_MS.getToken,

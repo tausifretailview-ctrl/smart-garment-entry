@@ -48,7 +48,7 @@ import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
 import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
 import { POS_APPLY_CREDIT_BANNER_ENABLED } from "@/lib/posBilling/creditBannerFlag";
-import { saleBillFigures } from "@/utils/saleBillFigures";
+import { saleBillFigures, saleRefundForPrint } from "@/utils/saleBillFigures";
 import {
   isPosGoodsAskQtyDialogEnabled,
   resolveGoodsQtyDialogDefaultPrice,
@@ -1569,6 +1569,7 @@ export default function POSSales() {
           },
           flatDiscountAmount: effectiveFlat,
           saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
+          refundCash: saleRefundForPrint(sale),
           finalAmount: saleBillFigures(sale).payable,
           billNetAmount: saleBillFigures(sale).billAmount,
           method: sale.payment_method,
@@ -5935,6 +5936,7 @@ export default function POSSales() {
       },
       flatDiscountAmount: effectiveFlatForSnapshot,
       saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
+      refundCash: saleRefundForPrint(sale),
       finalAmount: saleBillFigures(sale).payable,
       billNetAmount: saleBillFigures(sale).billAmount,
       method: sale.payment_method,

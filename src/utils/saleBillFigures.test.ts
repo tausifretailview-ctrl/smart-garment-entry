@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { printBillNetAmount, saleBillFigures, saleReceivableAfterTender } from "./saleBillFigures";
+import {
+  printBillNetAmount,
+  saleBillFigures,
+  saleReceivableAfterTender,
+  saleRefundForPrint,
+} from "./saleBillFigures";
 
 describe("sale bill figures for old and Rule B rows", () => {
   it("CN ₹250 on a ₹250 Rule B bill: bill 250, payable 0", () => {
@@ -62,5 +67,19 @@ describe("sale bill figures for old and Rule B rows", () => {
       saleReturnAdjust: 500,
       billNetAmount: 800,
     })).toBe(800);
+  });
+});
+
+describe("saleRefundForPrint (reprint of an exchange refund)", () => {
+  it("returns the saved refund so the reprint can show Refund to Customer", () => {
+    expect(saleRefundForPrint({ refund_amount: 450 })).toBe(450);
+    expect(saleRefundForPrint({ refund_amount: 449.996 })).toBe(450);
+  });
+
+  it("is 0 when nothing was refunded or the value is missing or negative", () => {
+    expect(saleRefundForPrint({ refund_amount: 0 })).toBe(0);
+    expect(saleRefundForPrint({ refund_amount: null })).toBe(0);
+    expect(saleRefundForPrint({})).toBe(0);
+    expect(saleRefundForPrint({ refund_amount: -30 })).toBe(0);
   });
 });
