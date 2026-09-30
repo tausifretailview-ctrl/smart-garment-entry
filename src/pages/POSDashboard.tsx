@@ -2214,21 +2214,18 @@ const POSDashboard = () => {
     // shop has Customer page on; otherwise the plain invoice link exactly as before.
     if (sale.customer_phone && currentOrganization?.id) {
       const result = await createCustomerPageLinkForSale(currentOrganization.id, sale.id);
-      if (result.ok) {
-        const copied = await copyToClipboard(result.url);
-        if (copied) {
-          toast({ title: "Customer bill link copied", description: result.url });
-        } else {
-          toast({ title: "Customer bill link", description: result.url });
+      if (result.ok === false) {
+        // Only a real failure is worth telling; page off / no domain is just "feature not on".
+        if (result.reason === "rpc_failed") {
+          toast({
+            title: "Copied the invoice link instead",
+            description: customerPageLinkFailureMessage(result),
+          });
         }
+      } else {
+        const copied = await copyToClipboard(result.url);
+        toast({ title: copied ? "Customer bill link copied" : "Customer bill link", description: result.url });
         return;
-      }
-      // Only a real failure is worth telling; page off / no domain is just "feature not on".
-      if (result.reason === "rpc_failed") {
-        toast({
-          title: "Copied the invoice link instead",
-          description: customerPageLinkFailureMessage(result),
-        });
       }
     }
     copyInvoiceLink(invoiceUrl);
