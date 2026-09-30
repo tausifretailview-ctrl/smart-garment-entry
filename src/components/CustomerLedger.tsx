@@ -56,7 +56,10 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
+import { CustomerLedgerBalanceHeader } from "@/components/CustomerLedgerBalanceHeader";
+import { CustomerAccountAuditDialog } from "@/components/CustomerAccountAuditDialog";
+import { useCustomerAccountState } from "@/hooks/useCustomerAccountState";
+import { ledgerBalanceCheck, ledgerHeadline, ledgerThreeLineSummary } from "@/utils/customerLedgerHeadline";
 import {
   fetchCustomerAccountStateView,
   formatCustomerAccountArithmeticLine,
@@ -460,7 +463,6 @@ export function CustomerLedger({
     ],
   );
 
-  const snapshotOutstandingDr = authoritativeBalance;
 
   /** Same closing balance as Customer Audit Report for the selected date window (business org only). */
   const { data: ledgerAuditClosingBalance } = useQuery({
@@ -1814,6 +1816,37 @@ export function CustomerLedger({
    * Do not use snapshot outstanding_dr: SQL still nets unused_advances into the SUM
    * (Aafra: 10k − 4.8k party net = 5.2k phantom “Refund owed”).
    */
+  // One balance: the table's closing balance. getCustomerAccountState runs only as a check.
+  const accountCheck = useCustomerAccountState(
+    isSchool ? null : selectedCustomer?.id,
+    isSchool ? null : organizationId,
+  );
+  const ledgerAsOfDate = startDate || endDate ? (endDate ?? new Date()) : null;
+  const ledgerNeedsChecking = useMemo(() => {
+    if (isSchool || !transactions || ledgerAsOfDate) return false;
+    return ledgerBalanceCheck({
+      tableBalance: ledgerThreeLineSummary(transactions).balance,
+      checkBalance: accountCheck.state.netPosition,
+      checkLoading: accountCheck.isLoading,
+    }).needsChecking;
+  }, [isSchool, transactions, ledgerAsOfDate, accountCheck.state.netPosition, accountCheck.isLoading]);
+  const [ledgerAuditOpen, setLedgerAuditOpen] = useState(false);
+  const [ledgerDetailsOpen, setLedgerDetailsOpenState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("ezzy_ledger_details_open") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const setLedgerDetailsOpen = (open: boolean) => {
+    setLedgerDetailsOpenState(open);
+    try {
+      localStorage.setItem("ezzy_ledger_details_open", open ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
+
   const refundableCreditBalance = useMemo(() => {
     if (!selectedCustomer || isSchool) return 0;
     const unused = displayUnusedAdvance;
@@ -2678,6 +2711,10 @@ Please clear your dues at the earliest. Thank you!`;
       yPos += paper === "a5" ? 4 : 5;
     }
 
+    // Business orgs print the same headline as the screen: the table's closing balance.
+    const pdfSummary = ledgerThreeLineSummary(transactions);
+    const pdfHeadline = ledgerHeadline(pdfSummary.balance);
+    const pdfRs = (n: number) => `Rs. ${Math.abs(Math.round(n)).toLocaleString("en-IN")}`;
     const pdfCredit =
       refundableCreditBalance > 0
         ? refundableCreditBalance
@@ -2686,7 +2723,28 @@ Please clear your dues at the earliest. Thank you!`;
           : 0;
     const pdfCreditIsRefundable = refundableCreditBalance > 0;
     const balanceBoxY = infoStartY - 3;
-    if (pdfCredit > 0) {
+    if (!isSchool) {
+      const kind = pdfHeadline.kind;
+      pdfSetFill(
+        doc,
+        kind === "owes" ? LEDGER_PDF.redBoxBg : kind === "credit" ? LEDGER_PDF.emeraldBoxBg : LEDGER_PDF.totalsBg,
+      );
+      pdfSetDraw(
+        doc,
+        kind === "owes" ? LEDGER_PDF.redBoxBorder : kind === "credit" ? LEDGER_PDF.emeraldBoxBorder : LEDGER_PDF.reconBorder,
+      );
+      doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
+      pdfSetText(doc, LEDGER_PDF.muted);
+      doc.setFontSize(7);
+      doc.text(pdfHeadline.label, balanceBoxX + 3, balanceBoxY + 5);
+      pdfSetText(
+        doc,
+        kind === "owes" ? LEDGER_PDF.balanceDr : kind === "credit" ? LEDGER_PDF.balanceCr : LEDGER_PDF.balanceSettled,
+      );
+      doc.setFontSize(11);
+      doc.setFont("helvetica", "bold");
+      doc.text(pdfRs(pdfHeadline.amount), balanceBoxX + 3, balanceBoxY + 13);
+    } else if (pdfCredit > 0) {
       pdfSetFill(doc, LEDGER_PDF.tealBoxBg);
       pdfSetDraw(doc, LEDGER_PDF.tealBoxBorder);
       doc.rect(balanceBoxX, balanceBoxY, balanceBoxW, balanceBoxH, "FD");
@@ -2740,11 +2798,17 @@ Please clear your dues at the earliest. Thank you!`;
     yPos = Math.max(yPos, balanceBoxY + balanceBoxH + 6);
 
     // Same Pure Outstanding arithmetic as SID / Record Payment / Collect.
-    if (accountArithmeticLine) {
+    const pdfArithmeticLine = !isSchool
+      ? `Bills ${pdfRs(pdfSummary.bills)} - Paid / credited ${pdfRs(pdfSummary.paidCredited)} + Refunds ${pdfRs(pdfSummary.refunds)}` +
+        (Math.abs(pdfSummary.opening) > 0.5 ? ` (opening ${pdfRs(pdfSummary.opening)})` : "") +
+        (Math.abs(pdfSummary.other) > 0.5 ? ` (other ${pdfRs(pdfSummary.other)})` : "") +
+        ` = ${pdfHeadline.label} ${pdfRs(pdfHeadline.amount)}`
+      : accountArithmeticLine;
+    if (pdfArithmeticLine) {
       pdfSetText(doc, LEDGER_PDF.muted);
       doc.setFontSize(paper === "a5" ? 7 : 8);
       doc.setFont("helvetica", "normal");
-      const wrapped = doc.splitTextToSize(sanitizeLedgerPdfText(accountArithmeticLine), tableWidth);
+      const wrapped = doc.splitTextToSize(sanitizeLedgerPdfText(pdfArithmeticLine), tableWidth);
       doc.text(wrapped, margin, yPos);
       yPos += Math.max(4.5, wrapped.length * 3.8) + 2;
     }
@@ -2881,7 +2945,7 @@ Please clear your dues at the earliest. Thank you!`;
       yPos = 12;
     }
 
-    const invoiceOutstanding = reconciliation.invoiceOutstanding;
+    const invoiceOutstanding = isSchool ? reconciliation.invoiceOutstanding : pdfSummary.balance;
     const reconLines: Array<[string, number]> = [
       ["Opening Balance", reconciliation.opening],
       ["(+) Total Invoiced", reconciliation.grossInvoiced],
@@ -2903,6 +2967,15 @@ Please clear your dues at the earliest. Thank you!`;
     }
     if (reconciliation.adjustments !== 0) {
       reconLines.push(["(+/-) Balance Adjustments", reconciliation.adjustments]);
+    }
+    if (!isSchool) {
+      // Same three lines as the screen, so the footer adds up to the table.
+      reconLines.length = 0;
+      if (Math.abs(pdfSummary.opening) > 0.5) reconLines.push(["Opening Balance", pdfSummary.opening]);
+      reconLines.push(["(+) Bills", pdfSummary.bills]);
+      reconLines.push(["(-) Paid / credited (cash, UPI, card, returns, CN, advances)", -pdfSummary.paidCredited]);
+      reconLines.push(["(+) Refunds paid back", pdfSummary.refunds]);
+      if (Math.abs(pdfSummary.other) > 0.5) reconLines.push(["(+/-) Other adjustments", pdfSummary.other]);
     }
     const finalLabel =
       invoiceOutstanding > 0
@@ -2969,41 +3042,43 @@ Please clear your dues at the earliest. Thank you!`;
       { align: "right" },
     );
     yPos += 6;
-    doc.setFont("helvetica", "normal");
-    pdfSetText(doc, LEDGER_PDF.text);
-    doc.text("(-) Unused Advance", labelX, yPos + 1);
-    drawLedgerPdfCell(
-      doc,
-      `Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`,
-      labelX + reconLabelW,
-      yPos + 1,
-      reconValueW - 6,
-      { align: "right" },
-    );
-    yPos += 5;
-    doc.setFont("helvetica", "bold");
-    pdfSetText(
-      doc,
-      pdfNetPosition > 0
-        ? LEDGER_PDF.balanceDr
-        : pdfNetPosition < 0
-          ? LEDGER_PDF.balanceCr
-          : LEDGER_PDF.balanceSettled,
-    );
-    doc.text(
-      `(=) Net Position (${pdfNetPosition > 0 ? "Dr" : pdfNetPosition < 0 ? "Cr" : "Nil"})`,
-      labelX,
-      yPos + 1,
-    );
-    drawLedgerPdfCell(
-      doc,
-      `Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`,
-      labelX + reconLabelW,
-      yPos + 1,
-      reconValueW - 6,
-      { align: "right" },
-    );
-    yPos += 6;
+    if (isSchool) {
+      doc.setFont("helvetica", "normal");
+      pdfSetText(doc, LEDGER_PDF.text);
+      doc.text("(-) Unused Advance", labelX, yPos + 1);
+      drawLedgerPdfCell(
+        doc,
+        `Rs. ${pdfUnusedAdvance.toLocaleString("en-IN")}`,
+        labelX + reconLabelW,
+        yPos + 1,
+        reconValueW - 6,
+        { align: "right" },
+      );
+      yPos += 5;
+      doc.setFont("helvetica", "bold");
+      pdfSetText(
+        doc,
+        pdfNetPosition > 0
+          ? LEDGER_PDF.balanceDr
+          : pdfNetPosition < 0
+            ? LEDGER_PDF.balanceCr
+            : LEDGER_PDF.balanceSettled,
+      );
+      doc.text(
+        `(=) Net Position (${pdfNetPosition > 0 ? "Dr" : pdfNetPosition < 0 ? "Cr" : "Nil"})`,
+        labelX,
+        yPos + 1,
+      );
+      drawLedgerPdfCell(
+        doc,
+        `Rs. ${Math.abs(pdfNetPosition).toLocaleString("en-IN")}`,
+        labelX + reconLabelW,
+        yPos + 1,
+        reconValueW - 6,
+        { align: "right" },
+      );
+      yPos += 6;
+    }
     if (pdfPoolFloored) {
       doc.setFont("helvetica", "normal");
       pdfSetText(doc, LEDGER_PDF.balanceDr);
@@ -3153,6 +3228,16 @@ Please clear your dues at the earliest. Thank you!`;
   };
 
   const overpaymentRefundDialog = (
+    <>
+    {!isSchool && selectedCustomer && organizationId && (
+      <CustomerAccountAuditDialog
+        open={ledgerAuditOpen}
+        onOpenChange={setLedgerAuditOpen}
+        organizationId={organizationId}
+        customerId={selectedCustomer.id}
+        customerName={selectedCustomer.customer_name}
+      />
+    )}
     <Dialog open={showOverpaymentRefundDialog} onOpenChange={setShowOverpaymentRefundDialog}>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -3314,6 +3399,7 @@ Please clear your dues at the earliest. Thank you!`;
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 
   if (selectedCustomer) {
@@ -3548,18 +3634,14 @@ Please clear your dues at the earliest. Thank you!`;
                   )}
                 </div>
               </div>
-              {refundableCreditBalance > 0 ? (
-              <div className="text-right px-5 py-4 rounded-xl w-full sm:min-w-[160px] sm:w-auto bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
-                <div className="text-sm text-muted-foreground mb-1">Credit balance (Cr)</div>
-                <div className="text-3xl font-bold tabular-nums text-teal-700 dark:text-teal-300">
-                  ₹{refundableCreditBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </div>
-                <div className="mt-2">
-                  <Badge variant="outline" className="border-teal-400 text-teal-800 dark:text-teal-200">
-                    Refund owed
-                  </Badge>
-                </div>
-              </div>
+              {!isSchool ? (
+                <CustomerLedgerBalanceHeader
+                  rows={transactions || []}
+                  checkBalance={accountCheck.state.netPosition}
+                  checkLoading={accountCheck.isLoading || !transactions}
+                  asOfDate={ledgerAsOfDate}
+                  onCheckAccount={() => setLedgerAuditOpen(true)}
+                />
               ) : (
               <div className={cn(
                 "text-right px-5 py-4 rounded-xl w-full sm:min-w-[160px] sm:w-auto",
@@ -3602,48 +3684,22 @@ Please clear your dues at the earliest. Thank you!`;
                     Unused advance bookings ₹0 — Record Payment → From Advance cannot use this party credit until advance is restored or a new booking is created.
                   </p>
                 )}
-                {snapshotOutstandingDr != null &&
-                  !isSchool &&
-                  (() => {
-                    // Compare snapshot to invoice Outstanding (same figure as the header),
-                    // not the last running-balance row (party-cash / memo advances).
-                    const ledgerBalance = effectiveBalance;
-                    return Math.abs(ledgerBalance - snapshotOutstandingDr) > 1;
-                  })() && (
-                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-2 text-left max-w-[260px] ml-auto">
-                      <span className="inline-flex items-start gap-1 font-medium">
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        SQL snapshot ₹
-                        {Math.abs(snapshotOutstandingDr).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        {snapshotOutstandingDr >= 0 ? "Dr" : "Cr"} — ledger uses ₹
-                        {Math.abs(effectiveBalance).toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}{" "}
-                        {effectiveBalance >= 0 ? "Dr" : "Cr"}
-                        . Run migration{" "}
-                        <code className="text-[10px]">20260628120000_fix_reconcile_gross_invoiced_cn_receipts</code>{" "}
-                        in Supabase SQL editor, then hard-refresh. Also run{" "}
-                        <code className="text-[10px]">scripts/report-schema-migrations-drift.sql</code>.
-                      </span>
-                    </p>
-                  )}
               </div>
               )}
             </div>
-            {!isSchool && (
-              <div className="mt-3">
-                <CustomerAccountSummaryStrip
-                  organizationId={organizationId}
-                  customerId={selectedCustomer.id}
-                  customerName={selectedCustomer.customer_name}
-                />
-              </div>
-            )}
           </CardHeader>
           <CardContent>
-            {(() => {
+            {!isSchool && (
+              <button
+                type="button"
+                onClick={() => setLedgerDetailsOpen(!ledgerDetailsOpen)}
+                className="mb-2 text-xs font-medium text-primary hover:underline"
+                data-testid="ledger-details-toggle"
+              >
+                {ledgerDetailsOpen ? "Hide details" : "Show details (sales, payments, advances, returns)"}
+              </button>
+            )}
+            {(isSchool || ledgerDetailsOpen) && (() => {
               const stats = ledgerDerivedStats;
               const totalSales = stats?.totalSales ?? 0;
               const cashPaid = stats?.cashPaid ?? 0;
@@ -3863,7 +3919,7 @@ Please clear your dues at the earliest. Thank you!`;
             })()}
 
             {/* Refund shortcut - shows when customer has credit balance */}
-            {refundableCreditBalance > 0 && (
+            {refundableCreditBalance > 0 && !ledgerNeedsChecking && (
               <div className="mt-3 mb-1 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">

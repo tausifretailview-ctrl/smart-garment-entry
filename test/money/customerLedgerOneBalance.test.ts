@@ -62,3 +62,16 @@ describe("Customer Ledger shows one balance", () => {
     expect(found).toEqual(KNOWN_MISMATCHES);
   });
 });
+
+describe("Customer Ledger page shows a single headline", () => {
+  it("renders the one-balance header and no longer shows a second balance strip", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../../src/components/CustomerLedger.tsx"), "utf8");
+    expect(src).toContain("<CustomerLedgerBalanceHeader");
+    expect(src).not.toContain("<CustomerAccountSummaryStrip");
+    // Rendered text only (comments may still mention the old labels).
+    expect(src).not.toMatch(/^\s*Refund owed\s*$/m);
+    expect(src).not.toContain("SQL snapshot ₹");
+  });
+});
