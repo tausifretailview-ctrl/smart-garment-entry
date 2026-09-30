@@ -92,12 +92,17 @@ const fmt = (n: number) =>
     maximumFractionDigits: 2,
   });
 
+/** Unicode escape so ₹ survives Windows paste/save encoding issues. */
+const rupee = (amount: number | string) => `\u20B9${amount}`;
+
 const dash = (v?: string | null) => (v && String(v).trim() ? String(v).trim() : "");
 
+const EM_DASH = "\u2014";
+
 const formatInvoiceDate = (date?: Date | string | null): string => {
-  if (!date) return "â€”";
+  if (!date) return EM_DASH;
   const d = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(d.getTime())) return "â€”";
+  if (Number.isNaN(d.getTime())) return EM_DASH;
   return format(d, "dd MMM yyyy");
 };
 
@@ -221,7 +226,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
   const placeOfSupply =
     formatPlaceOfSupplyFromGstin(customerGSTIN) ||
     formatPlaceOfSupplyFromGstin(gstNumber) ||
-    "â€”";
+    EM_DASH;
 
   const terms =
     termsConditions && termsConditions.filter((t) => t?.trim()).length > 0
@@ -266,7 +271,12 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
     lineHeight: 1.22,
     color: INK,
   };
-  const num: React.CSSProperties = { ...cell, textAlign: "right", whiteSpace: "nowrap" };
+  const num: React.CSSProperties = {
+    ...cell,
+    textAlign: "right",
+    whiteSpace: "nowrap",
+    fontVariantNumeric: "tabular-nums",
+  };
   const hCell: React.CSSProperties = {
     borderLeft: "1px solid #3d5a80",
     borderRight: "1px solid #3d5a80",
@@ -335,6 +345,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
     fontWeight: 700,
     color: INK,
     whiteSpace: "nowrap",
+    fontVariantNumeric: "tabular-nums",
   };
   const gstHead: React.CSSProperties = {
     padding: "1px 0",
@@ -592,7 +603,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
             >
               <div style={metaLabel}>Invoice No.</div>
               <div style={{ marginTop: "1px", fontSize: "17px", fontWeight: 800, color: ACCENT, letterSpacing: "0.3px" }}>
-                {invoiceNumber || "â€”"}
+                {invoiceNumber || EM_DASH}
               </div>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", flex: 1 }}>
@@ -613,15 +624,14 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         </div>
 
         {/* Customer */}
-        <div style={{ display: "flex", borderBottom: frameLine }}>
-          <div style={{ flex: 1, padding: "7px 16px 8px", minWidth: 0 }}>
-            <div style={sectionLabel}>Bill To</div>
+        <div style={{ display: "flex", borderBottom: frameLine, alignItems: "stretch" }}>
+          <div style={{ flex: 1, padding: "4px 12px 5px", minWidth: 0 }}>
+            <div style={{ ...sectionLabel, marginBottom: "1px" }}>Bill To</div>
             <div
               style={{
-                marginTop: "2px",
-                fontSize: "17px",
+                fontSize: "16px",
                 fontWeight: 800,
-                lineHeight: 1.25,
+                lineHeight: 1.2,
                 textTransform: "uppercase",
                 color: INK,
               }}
@@ -631,9 +641,9 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
             {customerAddress ? (
               <div
                 style={{
-                  marginTop: "2px",
-                  fontSize: "12.5px",
-                  lineHeight: 1.35,
+                  marginTop: "1px",
+                  fontSize: "12px",
+                  lineHeight: 1.28,
                   whiteSpace: "pre-line",
                   color: "#1f2937",
                 }}
@@ -642,8 +652,17 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
               </div>
             ) : null}
           </div>
-          <div style={{ width: "74mm", flexShrink: 0, padding: "7px 12px 8px", borderLeft: b, display: "flex", alignItems: "center" }}>
-            <table style={{ borderCollapse: "collapse", fontSize: "12.5px", lineHeight: 1.55 }}>
+          <div
+            style={{
+              width: "74mm",
+              flexShrink: 0,
+              padding: "4px 10px 5px",
+              borderLeft: b,
+              display: "flex",
+              alignItems: "flex-start",
+            }}
+          >
+            <table style={{ borderCollapse: "collapse", fontSize: "12px", lineHeight: 1.35 }}>
               <tbody>
                 {customerGSTIN ? (
                   <tr>
@@ -675,11 +694,11 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 <th style={{ ...hCell, borderLeft: "none" }}>#</th>
                 <th style={{ ...hCell, textAlign: "left" }}>Item Description</th>
                 {showHSN ? <th style={hCell}>HSN/SAC</th> : null}
-                <th style={hCell}>Rate / Item</th>
+                <th style={{ ...hCell, textAlign: "right" }}>Rate / Item</th>
                 <th style={hCell}>Qty</th>
-                <th style={hCell}>Taxable Value</th>
-                <th style={hCell}>GST</th>
-                <th style={{ ...hCell, borderRight: "none" }}>Amount</th>
+                <th style={{ ...hCell, textAlign: "right" }}>Taxable Value</th>
+                <th style={{ ...hCell, textAlign: "right" }}>GST</th>
+                <th style={{ ...hCell, borderRight: "none", textAlign: "right" }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -696,7 +715,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                       ) : null}
                     </td>
                     {showHSN ? (
-                      <td style={{ ...cell, textAlign: "center" }}>{dash(item.hsn) || "â€”"}</td>
+                      <td style={{ ...cell, textAlign: "center" }}>{dash(item.hsn) || EM_DASH}</td>
                     ) : null}
                     <td style={num}>{fmt(line.unitRate)}</td>
                     <td style={{ ...cell, textAlign: "center", fontWeight: 700, whiteSpace: "nowrap" }}>
@@ -760,13 +779,13 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
 
         <div className="wholesale-gst-a4-footer">
           {/* Bank Â· UPI QR  |  Per-rate GST summary + grand total */}
-          <div style={{ display: "flex", borderBottom: b }}>
+          <div style={{ display: "flex", borderBottom: b, alignItems: "flex-start" }}>
             <div style={{ flex: 1, display: "flex", borderRight: b, minWidth: 0 }}>
-              <div style={{ flex: 1, display: "flex" }}>
-                <div style={{ flex: 1, padding: "8px 14px", minWidth: 0 }}>
-                  <div style={{ ...sectionLabel, marginBottom: "4px" }}>Bank Details</div>
+              <div style={{ flex: 1, display: "flex", alignItems: "flex-start" }}>
+                <div style={{ flex: 1, padding: "4px 10px 5px", minWidth: 0 }}>
+                  <div style={{ ...sectionLabel, marginBottom: "2px" }}>Bank Details</div>
                   {hasBank ? (
-                    <table style={{ borderCollapse: "collapse", fontSize: "12.5px", lineHeight: 1.45 }}>
+                    <table style={{ borderCollapse: "collapse", fontSize: "11.5px", lineHeight: 1.28 }}>
                       <tbody>
                         {[
                           ["Bank Name", bankName],
@@ -788,20 +807,20 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                       </tbody>
                     </table>
                   ) : (
-                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings â†’ Sale</div>
+                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings → Sale</div>
                   )}
                 </div>
                 <div
                   style={{
                     width: "36mm",
                     flexShrink: 0,
-                    padding: "6px 6px",
+                    padding: "4px 4px 5px",
                     borderLeft: b,
                     textAlign: "center",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
+                    justifyContent: "flex-start",
                   }}
                 >
                   {qrCodeUrl ? (
@@ -843,12 +862,12 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 <tbody>
                   <tr>
                     <td style={sumLabel}>Taxable Amount</td>
-                    <td style={sumValue}>â‚¹{fmt(taxableTotal)}</td>
+                    <td style={sumValue}>{rupee(fmt(taxableTotal))}</td>
                   </tr>
                   {slabs.length === 0 ? (
                     <tr>
                       <td style={sumLabel}>Tax</td>
-                      <td style={sumValue}>â‚¹{fmt(0)}</td>
+                      <td style={sumValue}>{rupee(fmt(0))}</td>
                     </tr>
                   ) : (
                     <tr>
@@ -880,11 +899,11 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                                   )}
                                 </td>
                                 {isInterState ? (
-                                  <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>â‚¹{fmt(slab.igst)}</td>
+                                  <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>{rupee(fmt(slab.igst))}</td>
                                 ) : (
                                   <>
-                                    <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>â‚¹{fmt(slab.cgst)}</td>
-                                    <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>â‚¹{fmt(slab.sgst)}</td>
+                                    <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>{rupee(fmt(slab.cgst))}</td>
+                                    <td style={{ ...gstCell, textAlign: "right", fontWeight: 700 }}>{rupee(fmt(slab.sgst))}</td>
                                   </>
                                 )}
                               </tr>
@@ -898,7 +917,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                     <tr>
                       <td style={sumLabel}>Round Off</td>
                       <td style={sumValue}>
-                        {roundOff < 0 ? "âˆ’" : ""}
+                        {roundOff < 0 ? "-" : ""}
                         {fmt(Math.abs(roundOff))}
                       </td>
                     </tr>
@@ -921,7 +940,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                   Grand Total
                 </span>
                 <span style={{ fontSize: "19px", fontWeight: 800, whiteSpace: "nowrap", color: "#fff" }}>
-                  â‚¹{fmt(grandTotal)}
+                  {rupee(fmt(grandTotal))}
                 </span>
               </div>
             </div>
