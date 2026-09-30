@@ -163,6 +163,7 @@ import {
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
 import { saleBillFigures, saleRefundForPrint } from "@/utils/saleBillFigures";
+import { findLeftoverExchangeRefunds, leftoverExchangeRefundMessage } from "@/utils/exchangeRefundAfterDelete";
 import {
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
@@ -1418,6 +1419,23 @@ const POSDashboard = () => {
             ? `Sale ${saleToDelete.sale_number} moved to recycle bin. Stock restored: ${qtyRestored} qty.`
             : `Sale ${saleToDelete.sale_number} moved to recycle bin.`,
       });
+
+      if (currentOrganization?.id) {
+        // The exchange refund voucher is not released with the bill; tell the user it is left.
+        const leftover = await findLeftoverExchangeRefunds(
+          supabase,
+          currentOrganization.id,
+          saleToDelete.sale_number,
+        );
+        if (leftover.length > 0) {
+          toast({
+            title: "Exchange refund is still on the books",
+            description: leftoverExchangeRefundMessage(saleToDelete.sale_number, leftover),
+            variant: "destructive",
+            duration: 20000,
+          });
+        }
+      }
 
       invalidateStockReportQueries(queryClient, currentOrganization?.id);
       if (saleToDelete && currentOrganization?.id) {

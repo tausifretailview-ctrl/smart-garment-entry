@@ -1,3 +1,4 @@
+import { findLiveReturnsLinkedToSale, saleDeleteBlockedByReturnMessage } from "@/utils/saleDeleteReturnGuard";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -106,6 +107,19 @@ export function useSoftDelete() {
         }
 
         case "sales": {
+          // A bill that has a live sale return adjusted on it must have that return
+          // deleted first; deleting the bill underneath it strands the return's credit.
+          const linkedReturns = await findLiveReturnsLinkedToSale(supabase, id);
+          if (linkedReturns.length > 0) {
+            const { data: saleNoRow } = await supabase
+              .from("sales")
+              .select("sale_number")
+              .eq("id", id)
+              .maybeSingle();
+            throw new Error(
+              saleDeleteBlockedByReturnMessage(saleNoRow?.sale_number, linkedReturns),
+            );
+          }
           const { data: saleDeleteResult, error: saleError } = await supabase.rpc(
             "soft_delete_sale",
             {
