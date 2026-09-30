@@ -113,9 +113,13 @@ export const StudentExcelImportDialog = ({
     enabled: !!currentOrganization?.id && open,
   });
 
-  const handleDownloadSample = useCallback(() => {
-    generateSampleExcel(studentMasterFields, "Student_Import_Sample.xlsx", studentMasterSampleData);
-    toast.success("Sample file downloaded");
+  const handleDownloadSample = useCallback(async () => {
+    try {
+      await generateSampleExcel(studentMasterFields, "Student_Import_Sample.xlsx", studentMasterSampleData);
+      toast.success("Sample file downloaded");
+    } catch {
+      toast.error("Could not download the sample file. Please try again.");
+    }
   }, []);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

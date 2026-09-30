@@ -1,4 +1,12 @@
-import * as XLSX from 'xlsx';
+import type { CellObject, WorkSheet } from 'xlsx';
+
+/**
+ * SheetJS is ~430 KB. Importing it statically here pulled it into the first-open
+ * download of every page that only needs the pure helpers below (Purchase Entry,
+ * customer/supplier masters), so it is loaded only when a sheet is read or written.
+ */
+const loadXlsx = () => import('xlsx');
+type XlsxModule = Awaited<ReturnType<typeof loadXlsx>>;
 
 /**
  * Parse localized number format - handles both US (1,234.56) and European (1.234,56) formats
@@ -53,7 +61,7 @@ function isBarcodeLikeHeader(header: string): boolean {
   );
 }
 
-function getWorksheetCellText(cell: XLSX.CellObject | undefined): string {
+function getWorksheetCellText(cell: CellObject | undefined): string {
   if (!cell) return '';
   if (cell.w != null && String(cell.w).trim() !== '') {
     return normalizeImportBarcode(cell.w);
@@ -294,7 +302,7 @@ export const productEntryFields: TargetField[] = [
 ];
 
 // Find the actual header row by checking first 15 rows for the one with most non-empty unique text values
-const findHeaderRow = (worksheet: XLSX.WorkSheet): number => {
+const findHeaderRow = (XLSX: XlsxModule, worksheet: WorkSheet): number => {
   const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
   let bestRowIdx = 0;
   let maxScore = 0;
@@ -330,7 +338,8 @@ const findHeaderRow = (worksheet: XLSX.WorkSheet): number => {
   return bestRowIdx;
 };
 
-export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
+export const parseExcelFile = async (file: File): Promise<ParsedExcelData> => {
+  const XLSX = await loadXlsx();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -341,7 +350,7 @@ export const parseExcelFile = (file: File): Promise<ParsedExcelData> => {
         const worksheet = workbook.Sheets[sheetName];
         
         // Find the actual header row
-        const headerRowIdx = findHeaderRow(worksheet);
+        const headerRowIdx = findHeaderRow(XLSX, worksheet);
         const sheetRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
 
         // Map normalized header label -> worksheet column index (for formatted barcode cells)
@@ -859,7 +868,8 @@ export const validateMappedData = (
   };
 };
 
-export const generateSampleExcel = (fields: TargetField[], filename: string, sampleData: Record<string, any>[]) => {
+export const generateSampleExcel = async (fields: TargetField[], filename: string, sampleData: Record<string, any>[]): Promise<void> => {
+  const XLSX = await loadXlsx();
   const headers = fields.map(f => f.label);
   const wsData = [headers];
   
