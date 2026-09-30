@@ -1426,6 +1426,7 @@ const POSDashboard = () => {
           supabase,
           currentOrganization.id,
           saleToDelete.sale_number,
+          saleToDelete.id,
         );
         if (leftover.length > 0) {
           toast({
