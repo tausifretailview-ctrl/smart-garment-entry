@@ -1565,7 +1565,8 @@ export default function POSSales() {
             quantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
             mrp: Number(sale.gross_amount),
             discount: Number(sale.discount_amount),
-            subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
+            // Gross, like the live bill: the print lists Discount on its own line.
+            subtotal: Number(sale.gross_amount),
           },
           flatDiscountAmount: effectiveFlat,
           saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
@@ -5932,7 +5933,8 @@ export default function POSSales() {
         quantity: loadedItems.reduce((sum, item) => sum + item.quantity, 0),
         mrp: Number(sale.gross_amount),
         discount: Number(sale.discount_amount),
-        subtotal: Number(sale.gross_amount) - Number(sale.discount_amount),
+        // Gross, like the live bill: the print lists Discount on its own line.
+            subtotal: Number(sale.gross_amount),
       },
       flatDiscountAmount: effectiveFlatForSnapshot,
       saleReturnAdjust: Number(sale.sale_return_adjust) || 0,
