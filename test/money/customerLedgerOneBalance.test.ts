@@ -28,8 +28,13 @@ function withSaleItems(db: LedgerDb): LedgerDb {
   };
 }
 
-/** fixture id -> [table, check]. Empty means every fixture agrees. */
-const KNOWN_MISMATCHES: Record<string, [number, number]> = {};
+/** fixture id -> [table, check]. Each entry says why the page should flag it. */
+const KNOWN_MISMATCHES: Record<string, [number, number]> = {
+  // A bare credit_notes row with no parent sale return and no issuance voucher. The app
+  // no longer creates these (useCreditNotes writes one or the other); legacy data like
+  // this should show "Balance needs checking" so the shop can link or remove it.
+  "c-cn": [-750, 0],
+};
 
 describe("Customer Ledger shows one balance", () => {
   it("the three-line summary equals the table's last row on every fixture", async () => {
