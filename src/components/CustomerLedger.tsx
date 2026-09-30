@@ -15,6 +15,7 @@ import {
   buildCustomerLedgerListFromPartyBalances,
   enrichLedgerListRowsWithCanonicalBalance,
   customersForLedgerExport,
+  isPartialLedgerList,
 } from "@/utils/customerLedgerListFromPartyBalances";
 import { PARTY_BALANCE_CANONICAL_ENRICH_MAX } from "@/utils/customerPartyBalanceSnapshot";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -851,7 +852,9 @@ export function CustomerLedger({
   }, [customers, salesPaidLeaked]);
   /** Facet cards (Outstanding / Credit / Net) prefer the loaded customer list. */
   const facetCardsLoading =
-    !isSchool && !(customersForList?.length) && orgReceivablesSummaryLoading;
+    !isSchool &&
+    (!(customersForList?.length) || (isPartialLedgerList(customers) && !serverListSearch)) &&
+    orgReceivablesSummaryLoading;
 
   // Auto-select customer from URL or persisted session when list is loaded
   useEffect(() => {
@@ -1858,7 +1861,9 @@ export function CustomerLedger({
       };
     }
     const list = customersForList || [];
-    if (list.length > 0) {
+    // A list built after a party-RPC timeout has no advances/credits: use the org summary.
+    const listIsPartial = isPartialLedgerList(customers) && !serverListSearch;
+    if (list.length > 0 && !listIsPartial) {
       const totals = summarizeAccountFacets(
         list.map((c) =>
           facetsFromInvoiceOutstanding(c.balance, c.unusedAdvanceTotal || 0),
@@ -1879,7 +1884,7 @@ export function CustomerLedger({
       customerCreditPool: orgReceivablesSummary.customerCreditPoolCr ?? 0,
       netReceivable: orgReceivablesSummary.netReceivable ?? 0,
     };
-  }, [isSchool, filteredCustomers, customersForList, orgReceivablesSummary]);
+  }, [isSchool, filteredCustomers, customersForList, customers, serverListSearch, orgReceivablesSummary]);
 
   // Export customer list to Excel
   const handleExportCustomerListExcel = useCallback(async () => {

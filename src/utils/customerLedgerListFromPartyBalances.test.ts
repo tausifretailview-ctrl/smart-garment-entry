@@ -6,6 +6,7 @@ import {
   buildCustomerLedgerListFromPartyBalances,
   customersForLedgerExport,
   enrichLedgerListRowsWithCanonicalBalance,
+  isPartialLedgerList,
   ledgerListRowToAlignedParty,
   partyLedgerListMoneyFields,
   type CustomerLedgerListRow,
@@ -45,6 +46,19 @@ describe("buildCustomerLedgerListFromPartyBalances", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].customer_name).toBe("NIXC FOOTWEAR");
     expect(rows[0].balance).toBe(500);
+    // Opening balances only: the cards must not total this list.
+    expect(isPartialLedgerList(rows)).toBe(true);
+  });
+
+  it("does not flag a list built from real party balances", async () => {
+    vi.mocked(fetchAllCustomers).mockResolvedValue([
+      { id: "c1", customer_name: "A", phone: "", email: null, gst_number: null, address: null, opening_balance: 0, points_balance: null, discount_percent: null },
+    ]);
+    vi.mocked(fetchAllCustomerPartyBalances).mockResolvedValue([
+      { customer_id: "c1", customer_name: "A", signed_balance: 100, advance_available: 0, direction: "Dr", net_position: 100, total_dr: 0, total_cr: 0, net_receivable: 0 },
+    ]);
+    const rows = await buildCustomerLedgerListFromPartyBalances("org-ok");
+    expect(isPartialLedgerList(rows)).toBe(false);
   });
 });
 
