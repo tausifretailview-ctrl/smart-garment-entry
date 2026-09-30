@@ -6,9 +6,27 @@
  */
 import { describe, expect, it } from "vitest";
 import { fetchAllFixtureLedgers } from "../helpers/customerLedgerExtractDualRun";
-import { createFakeLedgerClient } from "../helpers/fakeLedgerSupabase";
+import { createFakeLedgerClient, type LedgerDb } from "../helpers/fakeLedgerSupabase";
 import { fetchCustomerAccountStateView } from "@/utils/customerAccountStateView";
 import { ledgerBalanceCheck, ledgerThreeLineSummary } from "@/utils/customerLedgerHeadline";
+
+/**
+ * Fixtures carry no sale_items; the account check reads item gross to tell whether a
+ * bill's net already includes a return. Give each bill one line at its net (full bill,
+ * Rule B), as the Maseera reconstruction test does with items_gross.
+ */
+function withSaleItems(db: LedgerDb): LedgerDb {
+  const sales = (db.sales || []) as Array<{ id: string; net_amount?: number }>;
+  return {
+    ...db,
+    sale_items: sales.map((s) => ({
+      sale_id: s.id,
+      quantity: 1,
+      mrp: Number(s.net_amount) || 0,
+      deleted_at: null,
+    })),
+  };
+}
 
 /** fixture id -> [table, check]. Empty means every fixture agrees. */
 const KNOWN_MISMATCHES: Record<string, [number, number]> = {};
@@ -24,14 +42,17 @@ describe("Customer Ledger shows one balance", () => {
   });
 
   it("table and account check agree, except the listed known cases", async () => {
-    const { org, db, ledgers } = await fetchAllFixtureLedgers();
+    const { org, db: rawDb, ledgers } = await fetchAllFixtureLedgers();
+    const db = withSaleItems(rawDb);
     const found: Record<string, [number, number]> = {};
     for (const { id, rows } of ledgers) {
       const table = rows.length ? rows[rows.length - 1].balance : 0;
       const client = createFakeLedgerClient(db) as never;
       const state = await fetchCustomerAccountStateView(client, org, id);
-      const check = ledgerBalanceCheck({ tableBalance: table, checkBalance: state.outstanding });
-      if (check.needsChecking) found[id] = [Math.round(table), Math.round(state.outstanding)];
+      // The table credits advance receipts as they come in, so compare with the check's
+      // net position (outstanding − unused advance), not outstanding alone.
+      const check = ledgerBalanceCheck({ tableBalance: table, checkBalance: state.netPosition });
+      if (check.needsChecking) found[id] = [Math.round(table), Math.round(state.netPosition)];
     }
     expect(found).toEqual(KNOWN_MISMATCHES);
   });

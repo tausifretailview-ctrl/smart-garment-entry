@@ -26,7 +26,7 @@ async function balances(cleaned: boolean) {
   );
   const table = rows.length ? rows[rows.length - 1].balance : 0;
   const state = await fetchCustomerAccountStateView(client, AFREEN_ORG, AFREEN_CUSTOMER);
-  return { table: Math.round(table), check: Math.round(state.outstanding), rows };
+  return { table: Math.round(table), check: Math.round(state.netPosition), rows };
 }
 
 describe("Afreen exchange with cash back", () => {
