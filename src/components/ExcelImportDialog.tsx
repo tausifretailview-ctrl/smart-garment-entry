@@ -257,9 +257,13 @@ export const ExcelImportDialog = ({
     setSelectedTemplate(''); // Clear template selection when manually changing
   };
 
-  const handleDownloadSample = () => {
-    generateSampleExcel(targetFields, sampleFileName, sampleData);
-    toast.success('Sample template downloaded');
+  const handleDownloadSample = async () => {
+    try {
+      await generateSampleExcel(targetFields, sampleFileName, sampleData);
+      toast.success('Sample template downloaded');
+    } catch {
+      toast.error('Could not download the sample template. Please try again.');
+    }
   };
 
   const getMappingStatus = (excelColumn: string) => {
