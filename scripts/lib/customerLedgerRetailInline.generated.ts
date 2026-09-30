@@ -312,6 +312,16 @@ export async function fetchCustomerLedgerTransactionsDesktopInline(
   const saleReceiptSplitMap = splitSaleLinkedReceiptRows(
     [...(vouchersData || []), ...(openingBalancePayments || [])]
       .filter((v: any) => v.voucher_type === "receipt")
+      // A "Phase 4 backfill" receipt on a bill that carries at-sale tender is dropped from
+      // the rows below as a duplicate; it must not also cancel the at-sale payment here.
+      .filter((v: any) => {
+        if (!String(v.description || "").toLowerCase().startsWith("phase 4 backfill")) return true;
+        const s = (salesData || []).find((x: any) => x.id === v.reference_id);
+        return !(
+          s &&
+          (Number(s.cash_amount) || 0) + (Number(s.card_amount) || 0) + (Number(s.upi_amount) || 0) > 0
+        );
+      })
       .map((v: any) => ({
         reference_id: v.reference_id,
         total_amount: v.total_amount,

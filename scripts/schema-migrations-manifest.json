@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-09-28",
-  "count": 809,
-  "fileCount": 826,
+  "generatedAt": "2026-09-30",
+  "count": 810,
+  "fileCount": 827,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -736,6 +736,7 @@
     "20260930140000",
     "20260930150000",
     "20261001100000",
+    "20261001120000",
     "20261001140000",
     "20261002100000",
     "20261002110000",
@@ -1563,6 +1564,7 @@
     "20260930140000_fix_stock_report_in_stock_sort.sql",
     "20260930150000_item_wise_stock_barcode_closing_filters.sql",
     "20261001100000_fix_item_wise_stock_report_min_uuid.sql",
+    "20261001120000_release_credit_note_when_sale_credit_released.sql",
     "20261001140000_purchase_stock_floor_on_qty_decrease.sql",
     "20261002100000_delivery_challan_no_stock_deduction.sql",
     "20261002110000_fix_pos_dashboard_gross_fallback.sql",
