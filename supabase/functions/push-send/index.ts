@@ -70,7 +70,7 @@ async function getAccessToken(sa: ServiceAccount): Promise<string> {
   );
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    pemToDer(sa.private_key),
+    pemToDer(sa.private_key) as unknown as BufferSource,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
