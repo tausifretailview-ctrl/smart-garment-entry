@@ -162,7 +162,7 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
-import { saleBillFigures } from "@/utils/saleBillFigures";
+import { saleBillFigures, saleRefundForPrint } from "@/utils/saleBillFigures";
 import {
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
@@ -1947,6 +1947,8 @@ const POSDashboard = () => {
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
+        // Exchange excess paid back to the customer; the original print showed this line.
+        refundCash: saleRefundForPrint(sale),
         previousBalance: accountFacets.previousBalance ?? 0,
         unusedAdvance: accountFacets.unusedAdvance ?? 0,
         salesman: sale.salesman || "",

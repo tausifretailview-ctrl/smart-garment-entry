@@ -37,6 +37,15 @@ export function saleBillFigures(sale: SaleBillRow): {
   };
 }
 
+/**
+ * Money paid back to the customer on this bill (exchange excess refunded in cash/UPI/bank).
+ * Saved on the row as refund_amount, not derivable from tender, so a reprint must read it
+ * for the "Refund to Customer" line the original print showed.
+ */
+export function saleRefundForPrint(sale: { refund_amount?: number | null }): number {
+  return round2(Math.max(0, Number(sale.refund_amount) || 0));
+}
+
 /** Customer still owes this after tender. */
 export function saleReceivableAfterTender(sale: SaleBillRow): number {
   const paid = round2(Math.max(0, Number(sale.paid_amount) || 0));
