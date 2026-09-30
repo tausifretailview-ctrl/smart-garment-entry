@@ -139,8 +139,14 @@ describe("createCustomerPageLinkForSale (copy button)", () => {
 
   it("says why it cannot make a link", async () => {
     vi.stubEnv("VITE_CUSTOMER_PAGE_DOMAIN", "");
-    const noDomain = await createCustomerPageLinkForSale("org", "sale");
-    expect(noDomain).toMatchObject({ ok: false, reason: "no_domain" });
+    tableReturning({ customer_page_settings: { enabled: true } });
+    expect(await createCustomerPageLinkForSale("org", "sale")).toMatchObject({ ok: false, reason: "no_domain" });
+    // Feature not turned on: a missing web address is not worth reporting.
+    tableReturning({ customer_page_settings: { enabled: false } });
+    expect(await createCustomerPageLinkForSale("org", "sale")).toMatchObject({ ok: false, reason: "page_off" });
+    tableReturning({});
+    expect(await createCustomerPageLinkForSale("org", "sale")).toMatchObject({ ok: false, reason: "page_off" });
+    expect(rpcMock).not.toHaveBeenCalled();
 
     vi.stubEnv("VITE_CUSTOMER_PAGE_DOMAIN", "ezzy.shop");
     tableReturning({ customer_page_settings: { enabled: false, add_link_to_whatsapp: true } });

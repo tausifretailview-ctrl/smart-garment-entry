@@ -2215,8 +2215,9 @@ const POSDashboard = () => {
     if (sale.customer_phone && currentOrganization?.id) {
       const result = await createCustomerPageLinkForSale(currentOrganization.id, sale.id);
       if (result.ok === false) {
-        // Only a real failure is worth telling; page off / no domain is just "feature not on".
-        if (result.reason === "rpc_failed") {
+        // Customer page off is just "feature not on"; anything else means the shop turned it
+        // on but no customer link could be made, so say why.
+        if (result.reason !== "page_off") {
           toast({
             title: "Copied the invoice link instead",
             description: customerPageLinkFailureMessage(result),

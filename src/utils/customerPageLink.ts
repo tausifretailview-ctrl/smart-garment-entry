@@ -73,10 +73,26 @@ export async function createCustomerPageLinkForWhatsApp(
  * Explicit "give me this bill's customer link" (copy button). Needs only Customer page
  * on, not the WhatsApp switch, and says why when it cannot make one.
  */
-export function createCustomerPageLinkForSale(
+export async function createCustomerPageLinkForSale(
   organizationId: string,
   saleId: string,
 ): Promise<CustomerPageLinkResult> {
+  if (!customerPageBaseDomain()) {
+    // A missing web address only matters to a shop that turned Customer page on; for
+    // everyone else it is just "feature not on" and the caller stays quiet.
+    let enabled = false;
+    try {
+      const { data } = await supabase
+        .from("customer_page_settings")
+        .select("enabled")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      enabled = data?.enabled === true;
+    } catch {
+      enabled = false;
+    }
+    return { ok: false, reason: enabled ? "no_domain" : "page_off" };
+  }
   return buildCustomerPageLink(organizationId, saleId, false);
 }
 
