@@ -900,8 +900,10 @@ export default function SalesInvoiceDashboard() {
       dashboardStats.totalInvoices > 0 &&
       // Big ranges (All Time / This Year on large tenants) keep the RPC value
       // instead of downloading every invoice in the range on each visit.
-      dashboardStats.totalInvoices <= INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS &&
-      dashboardFilters.paymentStatusFilter.length === 0,
+      dashboardStats.totalInvoices <= INVOICE_DASHBOARD_RECONCILE_PENDING_MAX_ROWS,
+    // Also runs with a Pending/Partial/... filter on: the reconcile applies the same status
+    // filter, so the tile sums the same balances the table rows show. Without it a filtered
+    // view showed the raw RPC total, which did not match the listed balances.
     ...DASHBOARD_KPI_QUERY_OPTIONS,
     // Full-org receipt reconcile (dozens of round-trips on large orgs) exists only
     // because RPC pendingAmount can diverge from row reconcile on split vouchers.
