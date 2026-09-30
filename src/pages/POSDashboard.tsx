@@ -4549,7 +4549,9 @@ const POSDashboard = () => {
               subTotal={previewSale.gross_amount}
               discount={previewSale.discount_amount + previewSale.flat_discount_amount}
               saleReturnAdjust={previewSale.sale_return_adjust || 0}
-              grandTotal={previewSale.net_amount}
+              grandTotal={saleBillFigures(previewSale).payable}
+              billNetAmount={saleBillFigures(previewSale).billAmount}
+              refundCash={saleRefundForPrint(previewSale)}
               roundOff={previewSale.round_off || 0}
               cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
               upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
