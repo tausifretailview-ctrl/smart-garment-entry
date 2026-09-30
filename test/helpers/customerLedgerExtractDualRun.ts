@@ -699,3 +699,22 @@ export async function runFixtureDualRun(): Promise<{
 
   return { caseCount: cases.length, caseIds: cases.map((c) => c.id), failures };
 }
+
+/** Every fixture customer's ledger rows, plus the shared fake db (for the account check). */
+export async function fetchAllFixtureLedgers(): Promise<{
+  org: string;
+  db: LedgerDb;
+  ledgers: { id: string; label: string; rows: CustomerLedgerTransaction[] }[];
+}> {
+  const { db, cases } = buildDb();
+  const ledgers: { id: string; label: string; rows: CustomerLedgerTransaction[] }[] = [];
+  for (const c of cases) {
+    if (c.dateRange?.startDate || c.dateRange?.endDate) continue; // full history only
+    const client = createFakeLedgerClient(db) as unknown as Parameters<
+      typeof fetchCustomerLedgerTransactionsWithClient
+    >[0];
+    const rows = await fetchCustomerLedgerTransactionsWithClient(client, ORG, c.id, c.dateRange, c.openingBalance);
+    ledgers.push({ id: c.id, label: c.label, rows });
+  }
+  return { org: ORG, db, ledgers };
+}
