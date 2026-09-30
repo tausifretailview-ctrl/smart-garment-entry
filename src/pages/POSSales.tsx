@@ -103,6 +103,10 @@ import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView
 import { posBillHasExchangeRefundDue } from "@/utils/posHoldBill";
 import { isHoldLikePosSale } from "@/utils/posDashboardSettlement";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
+import {
+  recordPosBarcodeScanSuccess,
+  shouldSwallowPosRepeatBarcodeScan,
+} from "@/utils/posBarcodeRepeatGuard";
 import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
 import { isElectronShell } from "@/lib/electronShell";
 import { isPosSalesRoute } from "@/lib/keyboardShortcuts";
@@ -358,28 +362,8 @@ interface PosProductRow {
   [key: string]: unknown;
 }
 
-const POS_BARCODE_REPEAT_CACHE_MS = 5_000;
-const posRecentBarcodeScanAt = new Map<string, number>();
 /** Barcodes currently going through searchAndAddProduct (prevents Enter + debounce double-add). */
 const posSearchAndAddInFlight = new Set<string>();
-
-/** Swallow scanner double-fire within 5s after a successful add for the same barcode. */
-function shouldSwallowPosRepeatBarcodeScan(barcode: string): boolean {
-  const key = barcode.trim();
-  if (!key) return false;
-  const last = posRecentBarcodeScanAt.get(key);
-  return last != null && Date.now() - last < POS_BARCODE_REPEAT_CACHE_MS;
-}
-
-function recordPosBarcodeScanSuccess(barcode: string): void {
-  const key = barcode.trim();
-  if (!key) return;
-  const now = Date.now();
-  posRecentBarcodeScanAt.set(key, now);
-  for (const [k, t] of posRecentBarcodeScanAt) {
-    if (now - t >= POS_BARCODE_REPEAT_CACHE_MS) posRecentBarcodeScanAt.delete(k);
-  }
-}
 
 function posVariantBaseQuery(orgId: string) {
   return supabase
