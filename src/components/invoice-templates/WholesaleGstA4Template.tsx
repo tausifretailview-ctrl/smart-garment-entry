@@ -119,8 +119,11 @@ const HAIR = "#d1d5db";
  * stretched down to the totals band. Longer bills print as plain flowing
  * blocks: Chrome mis-positions flex content that breaks across printed pages.
  */
-/** Printable height inside the frame: 297mm âˆ’ 2Ã—6mm page margin âˆ’ frame lines. */
+/** Printable height inside the frame: 297mm − 2×6mm page margin − frame lines. */
 const PAGE_CONTENT_MM = 281;
+
+/** On a stretched single-page bill, show numbered empty lines down to this row #. */
+const MIN_ITEM_ROWS_ON_FILL = 15;
 
 const wrappedLines = (text: string | undefined, charsPerLine: number) =>
   String(text || "")
@@ -256,6 +259,8 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
     customerAddress,
     hasWordsOverflow: numberToWords(grandTotal).length > 95,
   });
+
+  const paddedEmptyRowCount = fillPage ? Math.max(0, MIN_ITEM_ROWS_ON_FILL - items.length) : 0;
 
   const frameLine = `1.5px solid ${ACCENT}`;
   const b = `1px solid ${GRID}`;
@@ -629,9 +634,9 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
             <div style={{ ...sectionLabel, marginBottom: "1px" }}>Bill To</div>
             <div
               style={{
-                fontSize: "16px",
-                fontWeight: 800,
-                lineHeight: 1.2,
+                fontSize: "14px",
+                fontWeight: 600,
+                lineHeight: 1.25,
                 textTransform: "uppercase",
                 color: INK,
               }}
@@ -643,6 +648,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 style={{
                   marginTop: "1px",
                   fontSize: "12px",
+                  fontWeight: 500,
                   lineHeight: 1.28,
                   whiteSpace: "pre-line",
                   color: "#1f2937",
@@ -662,22 +668,22 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
               alignItems: "flex-start",
             }}
           >
-            <table style={{ borderCollapse: "collapse", fontSize: "12px", lineHeight: 1.35 }}>
+            <table style={{ borderCollapse: "collapse", fontSize: "12px", lineHeight: 1.3 }}>
               <tbody>
                 {customerGSTIN ? (
                   <tr>
                     <td style={partyLabel}>GSTIN</td>
-                    <td style={{ fontWeight: 800, letterSpacing: "0.4px" }}>{customerGSTIN}</td>
+                    <td style={{ fontWeight: 600, letterSpacing: "0.4px" }}>{customerGSTIN}</td>
                   </tr>
                 ) : null}
                 <tr>
                   <td style={partyLabel}>State</td>
-                  <td style={{ fontWeight: 700 }}>{placeOfSupply}</td>
+                  <td style={{ fontWeight: 500 }}>{placeOfSupply}</td>
                 </tr>
                 {customerMobile ? (
                   <tr>
                     <td style={partyLabel}>Phone</td>
-                    <td style={{ fontWeight: 700 }}>{customerMobile}</td>
+                    <td style={{ fontWeight: 500 }}>{customerMobile}</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -735,6 +741,21 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                   </tr>
                 );
               })}
+              {Array.from({ length: paddedEmptyRowCount }, (_, i) => {
+                const sr = items.length + i + 1;
+                return (
+                  <tr key={`pad-${sr}`} className="wholesale-gst-a4-row">
+                    <td style={{ ...cell, borderLeft: "none", textAlign: "center", color: MUTED }}>{sr}</td>
+                    <td style={{ ...cell, height: "7.4mm" }}>&nbsp;</td>
+                    {showHSN ? <td style={cell}>&nbsp;</td> : null}
+                    <td style={num}>&nbsp;</td>
+                    <td style={cell}>&nbsp;</td>
+                    <td style={num}>&nbsp;</td>
+                    <td style={num}>&nbsp;</td>
+                    <td style={{ ...num, borderRight: "none" }}>&nbsp;</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {/* Empty grid behind the remaining space keeps the column lines running
@@ -780,80 +801,72 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         <div className="wholesale-gst-a4-footer">
           {/* Bank Â· UPI QR  |  Per-rate GST summary + grand total */}
           <div style={{ display: "flex", borderBottom: b, alignItems: "flex-start" }}>
-            <div style={{ flex: 1, display: "flex", borderRight: b, minWidth: 0 }}>
-              <div style={{ flex: 1, display: "flex", alignItems: "flex-start" }}>
-                <div style={{ flex: 1, padding: "4px 10px 5px", minWidth: 0 }}>
-                  <div style={{ ...sectionLabel, marginBottom: "2px" }}>Bank Details</div>
-                  {hasBank ? (
-                    <table style={{ borderCollapse: "collapse", fontSize: "11.5px", lineHeight: 1.28 }}>
-                      <tbody>
-                        {[
-                          ["Bank Name", bankName],
-                          ["A/c Holder", bankHolder],
-                          ["A/c No.", bankAc],
-                          ["IFSC Code", bankIfsc],
-                          ["Branch", bankBranch],
-                        ]
-                          .filter(([, v]) => v)
-                          .map(([label, value]) => (
-                            <tr key={label}>
-                              <td style={{ color: MUTED, paddingRight: "6px", whiteSpace: "nowrap", verticalAlign: "top" }}>
-                                {label}
-                              </td>
-                              <td style={{ paddingRight: "6px", color: MUTED, verticalAlign: "top" }}>:</td>
-                              <td style={{ fontWeight: 700, wordBreak: "break-word" }}>{value}</td>
-                            </tr>
-                          ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings → Sale</div>
-                  )}
-                </div>
-                <div
-                  style={{
-                    width: "36mm",
-                    flexShrink: 0,
-                    padding: "4px 4px 5px",
-                    borderLeft: b,
-                    textAlign: "center",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "flex-start",
-                  }}
-                >
-                  {qrCodeUrl ? (
-                    <img src={qrCodeUrl} alt="UPI QR" style={{ width: "25mm", height: "25mm", objectFit: "contain" }} />
-                  ) : (
-                    <div
-                      style={{
-                        width: "25mm",
-                        height: "25mm",
-                        border: `1px dashed ${HAIR}`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "10.5px",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      UPI QR
-                    </div>
-                  )}
+            <div style={{ flex: 1, borderRight: b, minWidth: 0, padding: "3px 8px 4px" }}>
+              <div style={{ ...sectionLabel, marginBottom: "1px" }}>Bank Details</div>
+              {hasBank ? (
+                <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.12 }}>
+                  <tbody>
+                    {[
+                      ["Bank Name", bankName],
+                      ["A/c Holder", bankHolder],
+                      ["A/c No.", bankAc],
+                      ["IFSC Code", bankIfsc],
+                      ["Branch", bankBranch],
+                    ]
+                      .filter(([, v]) => v)
+                      .map(([label, value]) => (
+                        <tr key={label}>
+                          <td
+                            style={{
+                              color: MUTED,
+                              padding: "0 4px 0 0",
+                              whiteSpace: "nowrap",
+                              verticalAlign: "top",
+                            }}
+                          >
+                            {label}
+                          </td>
+                          <td style={{ padding: "0 4px 0 0", color: MUTED, verticalAlign: "top" }}>:</td>
+                          <td style={{ fontWeight: 600, wordBreak: "break-word", padding: 0 }}>{value}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings → Sale</div>
+              )}
+              <div style={{ marginTop: "4px", textAlign: "center" }}>
+                {qrCodeUrl ? (
+                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} />
+                ) : (
                   <div
                     style={{
-                      fontSize: "10.5px",
-                      marginTop: "3px",
-                      fontWeight: 700,
-                      wordBreak: "break-all",
-                      color: "#374151",
-                      lineHeight: 1.25,
+                      width: "22mm",
+                      height: "22mm",
+                      margin: "0 auto",
+                      border: `1px dashed ${HAIR}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "10px",
+                      color: "#9ca3af",
                     }}
                   >
-                    <div style={{ ...sectionLabel, fontSize: "9.5px" }}>Scan &amp; Pay</div>
-                    {upiId || "Any UPI app"}
+                    UPI QR
                   </div>
+                )}
+                <div
+                  style={{
+                    fontSize: "10px",
+                    marginTop: "2px",
+                    fontWeight: 700,
+                    wordBreak: "break-all",
+                    color: "#374151",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  <div style={{ ...sectionLabel, fontSize: "9px", marginBottom: "1px" }}>Scan &amp; Pay</div>
+                  {upiId || "Any UPI app"}
                 </div>
               </div>
             </div>
@@ -963,8 +976,19 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
           {/* Terms Â· Receiver Â· Signatory */}
           <div style={{ display: "flex", minHeight: "28mm" }}>
             <div style={{ flex: 1, padding: "6px 14px 7px", borderRight: b, minWidth: 0 }}>
-              <div style={{ ...sectionLabel, marginBottom: "2px" }}>Terms &amp; Conditions</div>
-              <ol style={{ margin: 0, paddingLeft: "16px", fontSize: "10px", lineHeight: 1.35, color: "#374151" }}>
+              <div style={{ ...sectionLabel, marginBottom: "2px", fontWeight: 800, fontSize: "11px" }}>
+                Terms &amp; Conditions
+              </div>
+              <ol
+                style={{
+                  margin: 0,
+                  paddingLeft: "16px",
+                  fontSize: "10px",
+                  lineHeight: 1.32,
+                  color: "#374151",
+                  fontWeight: 600,
+                }}
+              >
                 {terms.map((t, i) => (
                   <li key={i}>{t}</li>
                 ))}
