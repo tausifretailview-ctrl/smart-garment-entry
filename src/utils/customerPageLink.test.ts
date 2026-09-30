@@ -13,8 +13,10 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   appendCustomerPageLinkLine,
   buildCustomerPageUrl,
+  createCustomerPageLinkForSale,
   createCustomerPageLinkForWhatsApp,
   customerPageBaseDomain,
+  customerPageLinkFailureMessage,
 } from "./customerPageLink";
 import { applyWhatsAppTemplatePlaceholders } from "./whatsappInvoiceCaption";
 
@@ -110,5 +112,56 @@ describe("createCustomerPageLinkForWhatsApp", () => {
     });
     rpcMock.mockResolvedValue({ data: null, error: { message: "Sale has no valid mobile number" } });
     await expect(createCustomerPageLinkForWhatsApp("org", "sale")).resolves.toBe("");
+  });
+});
+
+describe("createCustomerPageLinkForSale (copy button)", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+    vi.stubEnv("VITE_CUSTOMER_PAGE_DOMAIN", "ezzy.shop");
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("makes the link even when the WhatsApp switch is off", async () => {
+    tableReturning({
+      customer_page_settings: { enabled: true, add_link_to_whatsapp: false },
+      organizations: { public_subdomain: "demo" },
+    });
+    rpcMock.mockResolvedValue({ data: { ok: true, token: "tok" }, error: null });
+    await expect(createCustomerPageLinkForSale("org", "sale")).resolves.toEqual({
+      ok: true,
+      url: "https://demo.ezzy.shop/t/tok",
+    });
+  });
+
+  it("says why it cannot make a link", async () => {
+    vi.stubEnv("VITE_CUSTOMER_PAGE_DOMAIN", "");
+    const noDomain = await createCustomerPageLinkForSale("org", "sale");
+    expect(noDomain).toMatchObject({ ok: false, reason: "no_domain" });
+
+    vi.stubEnv("VITE_CUSTOMER_PAGE_DOMAIN", "ezzy.shop");
+    tableReturning({ customer_page_settings: { enabled: false, add_link_to_whatsapp: true } });
+    expect(await createCustomerPageLinkForSale("org", "sale")).toMatchObject({ ok: false, reason: "page_off" });
+
+    tableReturning({
+      customer_page_settings: { enabled: true, add_link_to_whatsapp: true },
+      organizations: { public_subdomain: null },
+    });
+    expect(await createCustomerPageLinkForSale("org", "sale")).toMatchObject({ ok: false, reason: "no_subdomain" });
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("explains a bill with no valid mobile", async () => {
+    tableReturning({
+      customer_page_settings: { enabled: true, add_link_to_whatsapp: true },
+      organizations: { public_subdomain: "demo" },
+    });
+    rpcMock.mockResolvedValue({ data: null, error: { message: "Sale has no valid mobile number" } });
+    const result = await createCustomerPageLinkForSale("org", "sale");
+    expect(result.ok).toBe(false);
+    if (result.ok === false) expect(customerPageLinkFailureMessage(result)).toMatch(/10-digit mobile/);
   });
 });
