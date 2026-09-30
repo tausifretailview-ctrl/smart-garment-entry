@@ -122,8 +122,9 @@ const HAIR = "#d1d5db";
 /** Printable height inside the frame: 297mm − 2×6mm page margin − frame lines. */
 const PAGE_CONTENT_MM = 281;
 
-/** On a stretched single-page bill, show numbered empty lines down to this row #. */
-const MIN_ITEM_ROWS_ON_FILL = 15;
+/** On a stretched single-page bill, show numbered empty lines down to this row # (keeps print on one A4). */
+const MIN_ITEM_ROWS_ON_FILL = 13;
+const EMPTY_PAD_ROW_MM = 5.2;
 
 const wrappedLines = (text: string | undefined, charsPerLine: number) =>
   String(text || "")
@@ -159,7 +160,12 @@ const fitsOnePage = (opts: {
   const seller = Math.max(32, 24 + wrappedLines(opts.address, 60) * 4.5) + (opts.businessName.length > 28 ? 8 : 0);
   const billTo = Math.max(21.5, 16 + wrappedLines(opts.customerAddress, 70) * 3.9);
   const tableChrome = 23.5;
-  const rows = opts.items.reduce((n, item) => n + estimateRowMm(item), 0);
+  const itemRows = opts.items.reduce((n, item) => n + estimateRowMm(item), 0);
+  const padRows =
+    opts.items.length > 0 && opts.items.length < MIN_ITEM_ROWS_ON_FILL
+      ? (MIN_ITEM_ROWS_ON_FILL - opts.items.length) * EMPTY_PAD_ROW_MM
+      : 0;
+  const rows = itemRows + padRows;
   const taxSummary =
     6 + (opts.slabCount > 0 ? 4 + opts.slabCount * 4.7 : 6) + (opts.hasRoundOff ? 6 : 0) + 9.8;
   const bankBand = Math.max(36, taxSummary);
@@ -692,7 +698,14 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         </div>
 
         {/* Item grid â€” stretches down to the totals band */}
-        <div className="wholesale-gst-a4-grid" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+        <div
+          className="wholesale-gst-a4-grid"
+          style={{
+            flex: paddedEmptyRowCount > 0 ? "0 1 auto" : 1,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <table className="wholesale-gst-a4-items" style={gridTable}>
             {colGroup}
             <thead>
@@ -746,7 +759,7 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 return (
                   <tr key={`pad-${sr}`} className="wholesale-gst-a4-row">
                     <td style={{ ...cell, borderLeft: "none", textAlign: "center", color: MUTED }}>{sr}</td>
-                    <td style={{ ...cell, height: "7.4mm" }}>&nbsp;</td>
+                    <td style={{ ...cell, height: `${EMPTY_PAD_ROW_MM}mm` }}>&nbsp;</td>
                     {showHSN ? <td style={cell}>&nbsp;</td> : null}
                     <td style={num}>&nbsp;</td>
                     <td style={cell}>&nbsp;</td>
@@ -758,25 +771,25 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
               })}
             </tbody>
           </table>
-          {/* Empty grid behind the remaining space keeps the column lines running
-              down the sheet. Absolutely positioned, so it never adds height and
-              a full page of items is not pushed onto a second sheet. */}
-          <div
-            className="wholesale-gst-a4-filler"
-            aria-hidden="true"
-            style={{ flex: 1, position: "relative", minHeight: "4mm" }}
-          >
-            <table style={{ ...gridTable, position: "absolute", top: 0, left: 0, height: "100%" }}>
-              {colGroup}
-              <tbody>
-                <tr>
-                  {colWidths.map((_, i) => (
-                    <td key={i} style={{ ...fillerCell, ...edge(i, colWidths.length) }} />
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          </div>
+          {/* Stretch column lines only when we are not using numbered pad rows (pad rows already draw the grid). */}
+          {paddedEmptyRowCount === 0 ? (
+            <div
+              className="wholesale-gst-a4-filler"
+              aria-hidden="true"
+              style={{ flex: 1, position: "relative", minHeight: "4mm" }}
+            >
+              <table style={{ ...gridTable, position: "absolute", top: 0, left: 0, height: "100%" }}>
+                {colGroup}
+                <tbody>
+                  <tr>
+                    {colWidths.map((_, i) => (
+                      <td key={i} style={{ ...fillerCell, ...edge(i, colWidths.length) }} />
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : null}
           <table style={gridTable}>
             {colGroup}
             <tbody>
@@ -801,54 +814,74 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
         <div className="wholesale-gst-a4-footer">
           {/* Bank Â· UPI QR  |  Per-rate GST summary + grand total */}
           <div style={{ display: "flex", borderBottom: b, alignItems: "flex-start" }}>
-            <div style={{ flex: 1, borderRight: b, minWidth: 0, padding: "3px 8px 4px" }}>
-              <div style={{ ...sectionLabel, marginBottom: "1px" }}>Bank Details</div>
-              {hasBank ? (
-                <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.12 }}>
-                  <tbody>
-                    {[
-                      ["Bank Name", bankName],
-                      ["A/c Holder", bankHolder],
-                      ["A/c No.", bankAc],
-                      ["IFSC Code", bankIfsc],
-                      ["Branch", bankBranch],
-                    ]
-                      .filter(([, v]) => v)
-                      .map(([label, value]) => (
-                        <tr key={label}>
-                          <td
-                            style={{
-                              color: MUTED,
-                              padding: "0 4px 0 0",
-                              whiteSpace: "nowrap",
-                              verticalAlign: "top",
-                            }}
-                          >
-                            {label}
-                          </td>
-                          <td style={{ padding: "0 4px 0 0", color: MUTED, verticalAlign: "top" }}>:</td>
-                          <td style={{ fontWeight: 600, wordBreak: "break-word", padding: 0 }}>{value}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings → Sale</div>
-              )}
-              <div style={{ marginTop: "4px", textAlign: "center" }}>
+            <div
+              style={{
+                flex: 1,
+                borderRight: b,
+                minWidth: 0,
+                padding: "3px 6px 4px",
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "flex-start",
+                gap: "4px",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ ...sectionLabel, marginBottom: "1px" }}>Bank Details</div>
+                {hasBank ? (
+                  <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.12 }}>
+                    <tbody>
+                      {[
+                        ["Bank Name", bankName],
+                        ["A/c Holder", bankHolder],
+                        ["A/c No.", bankAc],
+                        ["IFSC Code", bankIfsc],
+                        ["Branch", bankBranch],
+                      ]
+                        .filter(([, v]) => v)
+                        .map(([label, value]) => (
+                          <tr key={label}>
+                            <td
+                              style={{
+                                color: MUTED,
+                                padding: "0 4px 0 0",
+                                whiteSpace: "nowrap",
+                                verticalAlign: "top",
+                              }}
+                            >
+                              {label}
+                            </td>
+                            <td style={{ padding: "0 4px 0 0", color: MUTED, verticalAlign: "top" }}>:</td>
+                            <td style={{ fontWeight: 600, wordBreak: "break-word", padding: 0 }}>{value}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div style={{ fontSize: "11px", color: "#6b7280" }}>Add bank details in Settings → Sale</div>
+                )}
+              </div>
+              <div
+                style={{
+                  width: "30mm",
+                  flexShrink: 0,
+                  textAlign: "center",
+                  paddingTop: "2px",
+                }}
+              >
                 {qrCodeUrl ? (
-                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "22mm", height: "22mm", objectFit: "contain" }} />
+                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} />
                 ) : (
                   <div
                     style={{
-                      width: "22mm",
-                      height: "22mm",
+                      width: "20mm",
+                      height: "20mm",
                       margin: "0 auto",
                       border: `1px dashed ${HAIR}`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "10px",
+                      fontSize: "9px",
                       color: "#9ca3af",
                     }}
                   >
@@ -857,15 +890,15 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                 )}
                 <div
                   style={{
-                    fontSize: "10px",
+                    fontSize: "9px",
                     marginTop: "2px",
                     fontWeight: 700,
                     wordBreak: "break-all",
                     color: "#374151",
-                    lineHeight: 1.2,
+                    lineHeight: 1.15,
                   }}
                 >
-                  <div style={{ ...sectionLabel, fontSize: "9px", marginBottom: "1px" }}>Scan &amp; Pay</div>
+                  <div style={{ ...sectionLabel, fontSize: "8.5px", marginBottom: "1px" }}>Scan &amp; Pay</div>
                   {upiId || "Any UPI app"}
                 </div>
               </div>
