@@ -56,7 +56,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban, Home, BellRing } from "lucide-react";
+import { Loader2, Receipt, Search, ChevronDown, ChevronRight, Printer, Plus, Edit, Trash2, MessageCircle, Eye, Link2, Settings2, IndianRupee, Send, CheckCircle2, Clock, RefreshCcw, ShoppingCart, Pause, FileText, Lock, FileSpreadsheet, FileCheck, XCircle, Download, FileDown, Ban, Home } from "lucide-react";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import type * as XLSXType from "xlsx";
@@ -361,7 +361,7 @@ const POSDashboard = () => {
   }, [location.pathname, orgSlug]);
   const { user, session } = useAuth();
   const { formatMessage } = useWhatsAppTemplates();
-  const { sendWhatsApp, copyInvoiceLink } = useWhatsAppSend();
+  const { sendWhatsApp, copyInvoiceLink, copyToClipboard } = useWhatsAppSend();
   const { settings: whatsAppAPISettings, sendMessageAsync, isSending: isSendingWhatsAppAPI } = useWhatsAppAPI();
   const { hasSpecialPermission } = useUserPermissions();
   const mobileERP = useMobileERP();
@@ -675,20 +675,12 @@ const POSDashboard = () => {
         hidden: isPaidCompletedForDashboard(sale) || sale.payment_status === "hold",
       },
       {
-        label: "Copy Invoice Link",
+        label: "Copy Link",
         icon: Link2,
         onClick: () => {
           void handleCopyLink(sale, noopEvent);
         },
         hidden: !columnSettings.copyLink,
-      },
-      {
-        label: "Copy Customer Bill Link",
-        icon: BellRing,
-        onClick: () => {
-          void handleCopyCustomerPageLink(sale, noopEvent);
-        },
-        hidden: !columnSettings.copyLink || !sale.customer_phone,
       },
       {
         label: "Preview Invoice",
@@ -2218,29 +2210,25 @@ const POSDashboard = () => {
       saleSettings,
       baseUrl: window.location.origin,
     });
+    // Customer bill page link (customer can open the bill and turn on notifications) when the
+    // shop has Customer page on; otherwise the plain invoice link exactly as before.
+    if (sale.customer_phone && currentOrganization?.id) {
+      const result = await createCustomerPageLinkForSale(currentOrganization.id, sale.id);
+      if (result.ok === false) {
+        // Only a real failure is worth telling; page off / no domain is just "feature not on".
+        if (result.reason === "rpc_failed") {
+          toast({
+            title: "Copied the invoice link instead",
+            description: customerPageLinkFailureMessage(result),
+          });
+        }
+      } else {
+        const copied = await copyToClipboard(result.url);
+        toast({ title: copied ? "Customer bill link copied" : "Customer bill link", description: result.url });
+        return;
+      }
+    }
     copyInvoiceLink(invoiceUrl);
-  };
-
-  // Customer bill page link (opens the bill on the shop's customer domain; the customer can
-  // turn on notifications there). Works without WhatsApp: copy it and send it any way.
-  const handleCopyCustomerPageLink = async (sale: Sale, event: React.MouseEvent) => {
-    event.stopPropagation();
-    if (!currentOrganization?.id) return;
-    const result = await createCustomerPageLinkForSale(currentOrganization.id, sale.id);
-    if (result.ok === false) {
-      toast({
-        title: "Customer bill link",
-        description: customerPageLinkFailureMessage(result),
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(result.url);
-      toast({ title: "Customer bill link copied", description: result.url });
-    } catch {
-      toast({ title: "Customer bill link", description: result.url });
-    }
   };
 
   const handlePreviewClick = async (sale: Sale, event: React.MouseEvent) => {
@@ -4105,19 +4093,9 @@ const POSDashboard = () => {
                                     variant="ghost"
                                     size="icon"
                                     onClick={(e) => handleCopyLink(sale, e)}
-                                    title="Copy Invoice Link"
+                                    title="Copy Link (customer bill link when Customer page is on)"
                                   >
                                     <Link2 className="h-3.5 w-3.5 text-blue-600" />
-                                  </Button>
-                                )}
-                                {columnSettings.copyLink && sale.customer_phone && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={(e) => handleCopyCustomerPageLink(sale, e)}
-                                    title="Copy Customer Bill Link (customer can turn on notifications)"
-                                  >
-                                    <BellRing className="h-3.5 w-3.5 text-amber-600" />
                                   </Button>
                                 )}
                                 {columnSettings.preview && (
