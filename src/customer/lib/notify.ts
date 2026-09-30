@@ -4,6 +4,17 @@
 // NEVER call Notification.requestPermission() outside a click handler.
 
 import { registerPush } from "./client";
+import { withTimeout } from "./withTimeout";
+
+// Each setup step can stall without failing (worker never activates, push service
+// unreachable, slow network). Give each a limit so the button reports where it stuck.
+const STEP_TIMEOUT_MS = {
+  isSupported: 8_000,
+  swRegister: 15_000,
+  swActive: 15_000,
+  getToken: 25_000,
+  registerRpc: 20_000,
+};
 
 function firebaseConfig() {
   return {
@@ -73,12 +84,20 @@ async function fetchToken(): Promise<{ token: string | null; reason?: string }> 
   try {
     const { initializeApp, getApps, getApp } = await import("firebase/app");
     const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
-    if (!(await isSupported())) return { token: null, reason: "unsupported" };
+    if (!(await withTimeout(isSupported(), STEP_TIMEOUT_MS.isSupported, "is_supported"))) {
+      return { token: null, reason: "unsupported" };
+    }
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig());
     const messaging = getMessaging(app);
-    const reg = await getRegistration();
+    const reg = await withTimeout(getRegistration(), STEP_TIMEOUT_MS.swRegister, "sw_register");
+    // A worker that fails to install never becomes active; without this the token step waits on it.
+    await withTimeout(navigator.serviceWorker.ready, STEP_TIMEOUT_MS.swActive, "sw_active");
     const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY as string;
-    const token = await getToken(messaging, { vapidKey, serviceWorkerRegistration: reg });
+    const token = await withTimeout(
+      getToken(messaging, { vapidKey, serviceWorkerRegistration: reg }),
+      STEP_TIMEOUT_MS.getToken,
+      "get_token",
+    );
     return token ? { token } : { token: null, reason: "empty_token" };
   } catch (err) {
     return { token: null, reason: tokenErrorCode(err) };
@@ -106,7 +125,11 @@ export async function enablePush(
   const { token: fcmToken, reason: tokenReason } = await fetchToken();
   if (!fcmToken) return { ok: false, reason: tokenReason === "unsupported" ? "unsupported" : `token: ${tokenReason ?? "none"}` };
   try {
-    const res = await registerPush(subdomain, pageToken, fcmToken, platformName());
+    const res = await withTimeout(
+      registerPush(subdomain, pageToken, fcmToken, platformName()),
+      STEP_TIMEOUT_MS.registerRpc,
+      "register_rpc",
+    );
     if (!res.ok) return { ok: false, reason: `register: ${res.error ?? "failed"}` };
     try {
       localStorage.setItem("ezzy_push_opt", "1");
