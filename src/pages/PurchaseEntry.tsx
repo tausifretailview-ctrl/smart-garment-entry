@@ -186,6 +186,11 @@ import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillCon
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import {
+  deletedPurchaseLinesMessage,
+  findDeletedPurchaseLines,
+  type DeletedRefsClient,
+} from "@/utils/purchaseDeletedLineProducts";
 
 const PURCHASE_LINE_UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -5615,6 +5620,26 @@ const PurchaseEntry = () => {
         variant: "destructive",
       });
       return;
+    }
+
+    // A product deleted from the Product screen while this bill was open would get stock
+    // booked into a deleted product (dashboard/stock reports then come up short). New bills
+    // only; runs before anything is written. A lookup error never blocks the save.
+    if (!isEditMode && currentOrganization?.id) {
+      const deletedLines = await findDeletedPurchaseLines(
+        supabase as unknown as DeletedRefsClient,
+        currentOrganization.id,
+        lineItems,
+      );
+      if (deletedLines.length > 0) {
+        toast({
+          title: "Cannot save — product was deleted",
+          description: deletedPurchaseLinesMessage(deletedLines),
+          variant: "destructive",
+          duration: 15000,
+        });
+        return;
+      }
     }
 
     if (barcodeWarnings.size > 0 && !pendingBarcodeSaveRef.current) {
