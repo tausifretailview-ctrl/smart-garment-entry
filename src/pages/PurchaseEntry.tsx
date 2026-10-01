@@ -5991,6 +5991,29 @@ const PurchaseEntry = () => {
     let purchaseSavePhase = "validation";
     const purchaseSaveStartedAt = Date.now();
 
+    // Safety-net draft: only writes the drafts table from the lines as typed, so it does not
+    // depend on the SKU steps below. Start it now and await it after them (it never rejects).
+    const draftSafetySave: Promise<void> = (async () => {
+      try {
+        await saveDraft({
+          billData,
+          softwareBillNo,
+          billDate: billDate.toISOString(),
+          lineItems,
+          roundOff,
+          otherCharges,
+          discountAmount,
+          entryMode,
+          isDcPurchase,
+          isEditMode,
+          editingBillId,
+          originalLineItems,
+        }, false);
+      } catch (draftErr) {
+        console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
+      }
+    })();
+
     // Universal EAN: fork sibling SKU when bill line sale price tier differs from matched variant.
     let billLinesForSave = lineItems;
     const tierResolveOrgId = currentOrganization?.id;
@@ -6022,25 +6045,7 @@ const PurchaseEntry = () => {
     }
 
     // Force-save draft before attempting bill save (safety net against data loss)
-    try {
-      await saveDraft({
-        billData,
-        softwareBillNo,
-        billDate: billDate.toISOString(),
-        lineItems,
-        roundOff,
-        otherCharges,
-        discountAmount,
-        entryMode,
-        isDcPurchase,
-        isEditMode,
-        editingBillId,
-        originalLineItems,
-      }, false);
-      
-    } catch (draftErr) {
-      console.error('[PurchaseEntry] Draft safety-save failed:', draftErr);
-    }
+    await draftSafetySave;
     posSaveMark("draft_safety_save");
 
     let createdBillIdForRollback: string | null = null;
