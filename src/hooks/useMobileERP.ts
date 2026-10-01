@@ -43,3 +43,14 @@ export function useMobileERP(): MobileERPSettings {
     allow_imei_edit_after_save: mobileErp.allow_imei_edit_after_save ?? true,
   };
 }
+
+/**
+ * POS EMI / financer button. On for Mobile ERP shops with Financer Billing (unchanged), and for
+ * any shop that turns on "POS EMI option" in Settings, without needing Mobile ERP mode.
+ */
+export function usePosEmiOption(): boolean {
+  const { data } = useSettings();
+  const mobileErp = useMobileERP();
+  const posEmi = (data as any)?.product_settings?.pos_emi_option === true;
+  return (mobileErp.enabled && mobileErp.financer_billing) || posEmi;
+}

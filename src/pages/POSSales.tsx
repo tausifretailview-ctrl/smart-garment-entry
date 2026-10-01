@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
+import { useMobileERP, usePosEmiOption, validateIMEI } from "@/hooks/useMobileERP";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import { canResolvePosPurchaseBarcode, isPosPriceSearchToken, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
@@ -1253,6 +1253,7 @@ export default function POSSales() {
     markSubmitted,
   } = useBarcodeScanner({ minBarcodeLength: POS_NUMERIC_BARCODE_MIN_LENGTH, autoSubmitDelay: 0 });
   const mobileERP = useMobileERP();
+  const showEmiOption = usePosEmiOption();
   const dropdownDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const productSearchSeqRef = useRef(0);
 
@@ -7817,9 +7818,9 @@ export default function POSSales() {
                 </div>
               </TooltipProvider>
               
-              {/* EMI — only when Mobile ERP and Financer Billing are on */}
+              {/* EMI — Mobile ERP + Financer Billing, or the POS EMI option in Settings */}
               <div className="flex items-center gap-1.5 shrink-0">
-                {mobileERP.enabled && mobileERP.financer_billing && (
+                {showEmiOption && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -9464,7 +9465,7 @@ export default function POSSales() {
       />
 
       {/* Financer / EMI Floating Dialog (Mobile ERP) */}
-      {mobileERP.enabled && mobileERP.financer_billing && (
+      {showEmiOption && (
       <Dialog open={showFinancerDialog} onOpenChange={setShowFinancerDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
