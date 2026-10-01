@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { isIdleEvictableDashboardPath, READ_ONLY_IDLE_UNMOUNT_MS } from "@/lib/tabIdleEvict";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { claimNewerBuildReload, newerServerEntryScript } from "@/lib/appBuildCheck";
 import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { resolveTabLoadShell } from "@/lib/tabLoadShell";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
@@ -273,6 +274,19 @@ function TabPageFallback({
 }) {
   const [timedOut, setTimedOut] = useState(false);
   const [showSoftHint, setShowSoftHint] = useState(false);
+  // Stuck past the soft hint: if the server already has a newer build, this tab is running
+  // replaced files (deploy skew) — reload onto it once instead of waiting for a hard refresh.
+  useEffect(() => {
+    if (!active || !showSoftHint || isElectronShell()) return;
+    let cancelled = false;
+    void newerServerEntryScript().then((serverEntry) => {
+      if (cancelled || !serverEntry) return;
+      if (claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, showSoftHint]);
   useEffect(() => {
     if (!active) {
       setTimedOut(false);
@@ -368,9 +382,15 @@ function TabPageFallback({
     <div className="relative flex flex-1 h-full min-h-0 w-full flex-col">
       <TabLoadShellView path={path} />
       {showSoftHint && (
-        <p className="pointer-events-none absolute bottom-6 left-0 right-0 text-center text-xs text-muted-foreground">
-          {tabLoadMessage(path, resolveTabLoadShell(path)).replace(/^Opening /, "Still opening ").replace(/…$/, " — slow network")}
-        </p>
+        <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center gap-2 text-center text-xs text-muted-foreground">
+          <p className="pointer-events-none">
+            {tabLoadMessage(path, resolveTabLoadShell(path)).replace(/^Opening /, "Still opening ").replace(/…$/, " — slow network")}
+          </p>
+          {/* A new deploy can leave this tab on old files; one click loads the latest app. */}
+          <Button size="sm" variant="outline" onClick={() => void reloadAppWithUpdateCheck()}>
+            Reload app
+          </Button>
+        </div>
       )}
     </div>
   );
