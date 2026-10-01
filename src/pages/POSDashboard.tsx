@@ -229,6 +229,7 @@ interface Sale {
   upi_amount?: number;
   credit_amount?: number;
   refund_amount?: number;
+  finance_amount?: number;
   credit_note_id?: string | null;
   credit_note_amount?: number;
   sale_return_adjust?: number | null;
@@ -1979,6 +1980,7 @@ const POSDashboard = () => {
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
+        financeAmount: Number(sale.finance_amount) || 0,
         paidAmount: sale.paid_amount,
         // Exchange excess paid back to the customer; the original print showed this line.
         refundCash: saleRefundForReprint(sale, voucherRefund),
@@ -4604,6 +4606,7 @@ const POSDashboard = () => {
               cardAmount={previewSale.card_amount}
               upiAmount={previewSale.upi_amount}
               creditAmount={previewSale.credit_amount}
+              financeAmount={Number(previewSale.finance_amount) || 0}
               paidAmount={getEffectivePaidAmountForDashboard(previewSale)}
               salesman={previewSale.salesman || ''}
               notes={previewSale.notes || ''}
@@ -4804,6 +4807,7 @@ const POSDashboard = () => {
             grandTotal={printData.grandTotal}
             billNetAmount={printData.billNetAmount}
             refundCash={printData.refundCash ?? 0}
+            financeAmount={printData.financeAmount ?? 0}
             roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}

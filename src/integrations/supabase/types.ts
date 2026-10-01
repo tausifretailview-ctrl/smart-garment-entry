@@ -6661,6 +6661,7 @@ export type Database = {
           cancelled_by: string | null
           cancelled_reason: string | null
           card_amount: number | null
+          finance_amount: number
           cash_amount: number | null
           created_at: string
           created_by: string | null
@@ -6727,6 +6728,7 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           card_amount?: number | null
+          finance_amount?: number
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
@@ -6793,6 +6795,7 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           card_amount?: number | null
+          finance_amount?: number
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
