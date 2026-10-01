@@ -29,6 +29,8 @@ export function posSaveBegin(label: string): void {
 export function posSaveMark(step: string): void {
   if (!current) return;
   const t = now();
+  // Marks from other flows that reuse the same helpers long after the save are not part of it.
+  if (t - startMs > 120_000) return;
   current.steps.push({ step, ms: Math.round(t - lastMs), totalMs: Math.round(t - startMs) });
   lastMs = t;
 }

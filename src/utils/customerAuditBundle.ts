@@ -444,131 +444,149 @@ export type CustomerAuditBundle = Awaited<ReturnType<typeof fetchCustomerAuditBu
  * All voucher queries use deleted_at IS NULL.
  */
 export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: string, customerId: string) {
-  const { data: customerRow, error: custErr } = await client
-    .from("customers")
-    .select("id, customer_name, phone, opening_balance, organization_id")
-    .eq("id", customerId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null)
-    .maybeSingle();
+  const VOUCHER_COLS =
+    "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method";
+
+  // Stage 1: reads that depend on nothing else. They used to run one after another, and on a
+  // slow connection (~450 ms per round trip) the POS "Invoice Saved" window waited on all of them.
+  const [custRes, salesRes, srRes, vcRes, advRes, baRes] = await Promise.all([
+    client
+      .from("customers")
+      .select("id, customer_name, phone, opening_balance, organization_id")
+      .eq("id", customerId)
+      .eq("organization_id", orgId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    client
+      .from("sales")
+      .select(
+        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+      )
+      .eq("customer_id", customerId)
+      .eq("organization_id", orgId)
+      .is("deleted_at", null),
+    client
+      .from("sale_returns")
+      .select(
+        "id, return_number, return_date, net_amount, credit_status, linked_sale_id, credit_available_balance, refund_type, notes",
+      )
+      .eq("customer_id", customerId)
+      .eq("organization_id", orgId)
+      .is("deleted_at", null),
+    client
+      .from("voucher_entries")
+      .select(VOUCHER_COLS)
+      .eq("organization_id", orgId)
+      .eq("reference_type", "customer")
+      .eq("reference_id", customerId)
+      .is("deleted_at", null)
+      .in("voucher_type", ["receipt", "payment", "credit_note"]),
+    client
+      .from("customer_advances")
+      .select("id, advance_number, advance_date, amount, used_amount, status, description, payment_method")
+      .eq("customer_id", customerId)
+      .eq("organization_id", orgId),
+    client
+      .from("customer_balance_adjustments")
+      .select("id, outstanding_difference, advance_difference, adjustment_date, reason, materialized_at")
+      .eq("customer_id", customerId)
+      .eq("organization_id", orgId)
+      .is("materialized_at", null),
+  ]);
+
+  const { data: customerRow, error: custErr } = custRes;
   if (custErr) throw custErr;
   if (!customerRow) throw new Error("Customer not found");
-
-  const { data: allSales, error: salesErr } = await client
-    .from("sales")
-    .select(
-      "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
-    )
-    .eq("customer_id", customerId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null);
+  const { data: allSales, error: salesErr } = salesRes;
   if (salesErr) throw salesErr;
+  const { data: saleReturns, error: srErr } = srRes;
+  if (srErr) throw srErr;
+  const { data: vouchersCustomer, error: veCustErr } = vcRes;
+  if (veCustErr) throw veCustErr;
+  const { data: advances, error: advErr } = advRes;
+  if (advErr) throw advErr;
+  const { data: balanceAdjustments, error: baErr } = baRes;
+  if (baErr) throw baErr;
 
   const saleIds = (allSales || []).map((s: { id: string }) => s.id).filter(Boolean);
-
-  const { data: saleReturns, error: srErr } = await client
-    .from("sale_returns")
-    .select(
-      "id, return_number, return_date, net_amount, credit_status, linked_sale_id, credit_available_balance, refund_type, notes",
-    )
-    .eq("customer_id", customerId)
-    .eq("organization_id", orgId)
-    .is("deleted_at", null);
-  if (srErr) throw srErr;
-
-  // Merchandise gross (Σ mrp × qty) per sale — discriminates the two net_amount conventions
-  // (pre-return full-bill vs post-return) so an applied sale return credits the customer once.
-  const itemsGrossBySale = new Map<string, number>();
-  if (saleIds.length > 0) {
-    const { data: saleItemsRows, error: siErr } = await client
-      .from("sale_items")
-      .select("sale_id, quantity, mrp")
-      .in("sale_id", saleIds)
-      .is("deleted_at", null);
-    if (siErr) throw siErr;
-    for (const it of saleItemsRows || []) {
-      const sid = String((it as { sale_id?: string }).sale_id || "");
-      if (!sid) continue;
-      itemsGrossBySale.set(
-        sid,
-        (itemsGrossBySale.get(sid) || 0) +
-          (Number((it as { quantity?: number }).quantity) || 0) *
-            (Number((it as { mrp?: number }).mrp) || 0),
-      );
-    }
-  }
-
-  const { data: vouchersCustomer, error: veCustErr } = await client
-    .from("voucher_entries")
-    .select(
-      "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
-    )
-    .eq("organization_id", orgId)
-    .eq("reference_type", "customer")
-    .eq("reference_id", customerId)
-    .is("deleted_at", null)
-    .in("voucher_type", ["receipt", "payment", "credit_note"]);
-  if (veCustErr) throw veCustErr;
-
-  let vouchersRefundBySr: any[] = [];
   const returnNumbers = (saleReturns || [])
     .map((sr: any) => String(sr.return_number || "").trim())
     .filter(Boolean);
-  if (returnNumbers.length > 0) {
-    const orFilter = returnNumbers
-      .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
-      .join(",");
-    if (orFilter) {
-      const { data: vr, error: vrErr } = await client
-        .from("voucher_entries")
-        .select(
-          "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
-        )
-        .eq("organization_id", orgId)
-        .eq("voucher_type", "payment")
-        .eq("reference_type", "customer")
-        .is("deleted_at", null)
-        .or(orFilter);
-      if (vrErr) throw vrErr;
-      vouchersRefundBySr = vr || [];
-    }
-  }
+  const advanceIds = (advances || []).map((a: { id: string }) => a.id).filter(Boolean);
 
-  let vouchersSale: any[] = [];
-  if (saleIds.length > 0) {
-    const { data: vs, error: veSaleErr } = await client
-      .from("voucher_entries")
-      .select(
-        "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
-      )
-      .eq("organization_id", orgId)
-      .eq("voucher_type", "receipt")
-      .eq("reference_type", "sale")
-      .in("reference_id", saleIds)
-      .is("deleted_at", null);
-    if (veSaleErr) throw veSaleErr;
-    vouchersSale = vs || [];
-  }
+  // Stage 2: reads that need ids from stage 1, also in parallel.
+  const orFilter = returnNumbers
+    .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
+    .join(",");
+  const [itemsRes, refundBySrRes, saleVouchersRes, mistaggedRes, refundsRes] = await Promise.all([
+    // Merchandise gross (Σ mrp × qty) per sale — discriminates the two net_amount conventions
+    // (pre-return full-bill vs post-return) so an applied sale return credits the customer once.
+    saleIds.length > 0
+      ? client.from("sale_items").select("sale_id, quantity, mrp").in("sale_id", saleIds).is("deleted_at", null)
+      : Promise.resolve({ data: [], error: null }),
+    orFilter
+      ? client
+          .from("voucher_entries")
+          .select(VOUCHER_COLS)
+          .eq("organization_id", orgId)
+          .eq("voucher_type", "payment")
+          .eq("reference_type", "customer")
+          .is("deleted_at", null)
+          .or(orFilter)
+      : Promise.resolve({ data: [], error: null }),
+    saleIds.length > 0
+      ? client
+          .from("voucher_entries")
+          .select(VOUCHER_COLS)
+          .eq("organization_id", orgId)
+          .eq("voucher_type", "receipt")
+          .eq("reference_type", "sale")
+          .in("reference_id", saleIds)
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [], error: null }),
+    // Phase 1.1: catch legacy mis-tagged receipts where reference_type='customer'
+    // but reference_id is actually one of this customer's sale ids. Classification
+    // downstream is by id-match, so simply pulling these rows into the bundle is
+    // enough — voucherById de-dupes by id.
+    saleIds.length > 0
+      ? client
+          .from("voucher_entries")
+          .select(VOUCHER_COLS)
+          .eq("organization_id", orgId)
+          .eq("voucher_type", "receipt")
+          .eq("reference_type", "customer")
+          .in("reference_id", saleIds)
+          .is("deleted_at", null)
+      : Promise.resolve({ data: [], error: null }),
+    advanceIds.length > 0
+      ? client
+          .from("advance_refunds")
+          .select("id, refund_date, refund_amount, advance_id, reason, payment_method")
+          .eq("organization_id", orgId)
+          .in("advance_id", advanceIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
 
-  // Phase 1.1: catch legacy mis-tagged receipts where reference_type='customer'
-  // but reference_id is actually one of this customer's sale ids. Classification
-  // downstream is by id-match, so simply pulling these rows into the bundle is
-  // enough — voucherById de-dupes by id.
-  let vouchersMistaggedSale: any[] = [];
-  if (saleIds.length > 0) {
-    const { data: vms, error: vmsErr } = await client
-      .from("voucher_entries")
-      .select(
-        "id, voucher_number, voucher_date, voucher_type, reference_type, reference_id, total_amount, discount_amount, description, payment_method",
-      )
-      .eq("organization_id", orgId)
-      .eq("voucher_type", "receipt")
-      .eq("reference_type", "customer")
-      .in("reference_id", saleIds)
-      .is("deleted_at", null);
-    if (vmsErr) throw vmsErr;
-    vouchersMistaggedSale = vms || [];
+  if (itemsRes.error) throw itemsRes.error;
+  const itemsGrossBySale = new Map<string, number>();
+  for (const it of itemsRes.data || []) {
+    const sid = String((it as { sale_id?: string }).sale_id || "");
+    if (!sid) continue;
+    itemsGrossBySale.set(
+      sid,
+      (itemsGrossBySale.get(sid) || 0) +
+        (Number((it as { quantity?: number }).quantity) || 0) *
+          (Number((it as { mrp?: number }).mrp) || 0),
+    );
   }
+  if (refundBySrRes.error) throw refundBySrRes.error;
+  const vouchersRefundBySr: any[] = refundBySrRes.data || [];
+  if (saleVouchersRes.error) throw saleVouchersRes.error;
+  const vouchersSale: any[] = saleVouchersRes.data || [];
+  if (mistaggedRes.error) throw mistaggedRes.error;
+  const vouchersMistaggedSale: any[] = mistaggedRes.data || [];
+  if (refundsRes.error) throw refundsRes.error;
+  const refunds: any[] = refundsRes.data || [];
 
   const voucherById = new Map<string, any>();
   for (const v of [
@@ -580,33 +598,6 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     voucherById.set(v.id, v);
   }
   const vouchersMerged = Array.from(voucherById.values());
-
-  const { data: advances, error: advErr } = await client
-    .from("customer_advances")
-    .select("id, advance_number, advance_date, amount, used_amount, status, description, payment_method")
-    .eq("customer_id", customerId)
-    .eq("organization_id", orgId);
-  if (advErr) throw advErr;
-
-  const advanceIds = (advances || []).map((a: { id: string }) => a.id).filter(Boolean);
-  let refunds: any[] = [];
-  if (advanceIds.length > 0) {
-    const { data: ar, error: arErr } = await client
-      .from("advance_refunds")
-      .select("id, refund_date, refund_amount, advance_id, reason, payment_method")
-      .eq("organization_id", orgId)
-      .in("advance_id", advanceIds);
-    if (arErr) throw arErr;
-    refunds = ar || [];
-  }
-
-  const { data: balanceAdjustments, error: baErr } = await client
-    .from("customer_balance_adjustments")
-    .select("id, outstanding_difference, advance_difference, adjustment_date, reason, materialized_at")
-    .eq("customer_id", customerId)
-    .eq("organization_id", orgId)
-    .is("materialized_at", null);
-  if (baErr) throw baErr;
 
   return {
     customer: customerRow,
