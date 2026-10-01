@@ -69,7 +69,14 @@ export type PaymentReceiptPrintLayout = {
 export function resolvePaymentReceiptPrintLayout(
   settings?: OrgSettingsForPaymentReceipt | null,
 ): PaymentReceiptPrintLayout {
-  const sale = settings?.sale_settings;
+  const sale = settings?.sale_settings as
+    | {
+        pos_bill_format?: string | null;
+        pos_invoice_template?: string | null;
+        invoice_paper_format?: string | null;
+        thermal_receipt_style?: string | null;
+      }
+    | undefined;
   const posInvoiceTemplate = resolvePosInvoiceTemplate(sale);
   const billFormat = resolvePosBillFormat(
     posInvoiceTemplate,
