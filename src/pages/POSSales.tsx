@@ -12,7 +12,7 @@ import { productRequiresImei } from "@/utils/productRequiresImei";
 import { canResolvePosPurchaseBarcode, isPosPriceSearchToken, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
 import {
   divergentPurchaseBarcodeMessage,
-  liveBarcodeMatchesScan,
+  skuIdsServingScan,
   resolvePurchaseBarcodesForStockReport,
   type DivergentPurchaseBarcode,
   type PurchaseBarcodeStockClient,
@@ -528,14 +528,13 @@ async function fetchPosVariantByBarcodeOnce(
       trimmed,
       { exactOnly },
     );
-    const hit = resolutions.find(
-      (r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, trimmed),
-    );
-    // A purchase line can point at a SKU whose barcode was replaced. Do not sell that other barcode.
-    if (!hit) return null;
+    // A label printed from a purchase bill still opens the item when the bill line names the
+    // same product; a line that points at a different product is not sold.
+    const hitSkuId = skuIdsServingScan(resolutions, trimmed)[0];
+    if (!hitSkuId) return null;
 
     const { data: bySku, error: bySkuError } = await posVariantBaseQuery(orgId)
-      .eq('id', hit.skuId)
+      .eq('id', hitSkuId)
       .limit(1);
     if (bySkuError) throw bySkuError;
 
@@ -2664,10 +2663,8 @@ export default function POSSales() {
                 escToken,
                 { exactOnly: true },
               );
-              for (const r of resolutions) {
-                if (!r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, escToken)) {
-                  matchedVariantIds.add(r.skuId);
-                }
+              for (const skuId of skuIdsServingScan(resolutions, escToken)) {
+                matchedVariantIds.add(skuId);
               }
             } catch (err) {
               if (isJwtExpiredError(err)) throw err;

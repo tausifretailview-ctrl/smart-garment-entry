@@ -3,7 +3,7 @@ import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "@/utils/ba
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import {
   firstDivergentPurchaseBarcode,
-  liveBarcodeMatchesScan,
+  skuIdsServingScan,
   resolvePurchaseBarcodesForStockReport,
   type DivergentPurchaseBarcode,
   type PurchaseBarcodeStockClient,
@@ -121,9 +121,7 @@ export async function lookupVariantRowsByScan(
       candidate,
       exactOnly ? { exactOnly: true } : undefined,
     );
-    const skuIds = resolutions
-      .filter((r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, candidate))
-      .map((r) => r.skuId);
+    const skuIds = skuIdsServingScan(resolutions, candidate);
     if (!skuIds.length) {
       const mismatch = firstDivergentPurchaseBarcode(resolutions, candidate);
       if (mismatch) {

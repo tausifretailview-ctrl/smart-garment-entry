@@ -10,7 +10,7 @@ import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   divergentPurchaseBarcodeMessage,
   firstDivergentPurchaseBarcode,
-  liveBarcodeMatchesScan,
+  skuIdsServingScan,
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
@@ -1988,9 +1988,8 @@ export default function SalesInvoice() {
             searchTerm.trim(),
             { exactOnly: true },
           );
-          const hit = resolutions.find(
-            (r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, searchTerm.trim()),
-          );
+          const servingSkuId = skuIdsServingScan(resolutions, searchTerm.trim())[0];
+          const hit = servingSkuId ? { skuId: servingSkuId } : undefined;
           const divergent = firstDivergentPurchaseBarcode(resolutions, searchTerm.trim());
           if (!hit?.skuId && divergent) {
             playErrorBeep();
