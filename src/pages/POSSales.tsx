@@ -19,6 +19,7 @@ import {
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
+import { splitCardAndFinance } from "@/utils/salesFinanceColumn";
 import { pickBestVariantScanRow } from "@/utils/lookupVariantByScan";
 import {
   posVariantDisplayMrp,
@@ -944,10 +945,11 @@ export default function POSSales() {
     }
     return {
       cashAmount: Number(savedInvoiceData.cashAmount) || 0,
-      cardAmount: Number(savedInvoiceData.cardAmount) || 0,
+      // card_amount includes finance; the dialog has a separate Finance box.
+      cardAmount: splitCardAndFinance(savedInvoiceData.cardAmount, savedInvoiceData.financeAmount).card,
       upiAmount: Number(savedInvoiceData.upiAmount) || 0,
       bankAmount: Number(savedInvoiceData.bankAmount) || 0,
-      financeAmount: Number(savedInvoiceData.financeAmount) || 0,
+      financeAmount: splitCardAndFinance(savedInvoiceData.cardAmount, savedInvoiceData.financeAmount).finance,
     };
   }, [
     currentSaleId,
@@ -1594,6 +1596,7 @@ export default function POSSales() {
           cashAmount: Number(sale.cash_amount) || 0,
           upiAmount: Number(sale.upi_amount) || 0,
           cardAmount: Number(sale.card_amount) || 0,
+          financeAmount: Number((sale as any).finance_amount) || 0,
           creditAmount: Number((sale as any).credit_amount) || 0,
           salesman: sale.salesman || null,
           roundOff: Number(sale.round_off) || 0,
@@ -5246,6 +5249,7 @@ export default function POSSales() {
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
+        financeAmount: Number((result as any).finance_amount) || Math.min(Number(result.card_amount) || 0, Number(paymentData.financeAmount) || 0),
         creditAmount: (paymentData.creditAmount || 0) + (creditApplied || 0),
         salesman: salesmanForPrint || null,
         taxType,
@@ -5677,7 +5681,7 @@ export default function POSSales() {
             upiAmount={savedInvoiceData?.upiAmount || 0}
             cardAmount={savedInvoiceData?.cardAmount || 0}
             creditAmount={savedInvoiceData?.creditAmount || 0}
-            financeAmount={savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
+            financeAmount={savedInvoiceData?.financeAmount || savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
             refundCash={savedInvoiceData?.refundCash || 0}
             notes={
               savedInvoiceData?.isEstimate
@@ -5990,6 +5994,7 @@ export default function POSSales() {
       cashAmount: Number(sale.cash_amount) || 0,
       upiAmount: Number(sale.upi_amount) || 0,
       cardAmount: Number(sale.card_amount) || 0,
+          financeAmount: Number((sale as any).finance_amount) || 0,
       creditAmount: Number((sale as any).credit_amount) || 0,
       salesman: sale.salesman || null,
       taxType: navTaxType,
@@ -9015,7 +9020,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
                 creditAmount={savedInvoiceData?.creditAmount || 0}
-            financeAmount={savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
+            financeAmount={savedInvoiceData?.financeAmount || savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData?.refundCash || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
@@ -9212,7 +9217,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData.upiAmount || 0}
                 cardAmount={savedInvoiceData.cardAmount || 0}
                 creditAmount={savedInvoiceData.creditAmount || 0}
-            financeAmount={savedInvoiceData.paymentBreakdown?.financeAmount || 0}
+            financeAmount={savedInvoiceData.financeAmount || savedInvoiceData.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData.refundCash || 0}
                 notes={savedInvoiceData.notes}
                 pointsBalance={savedInvoiceData.pointsBalance}

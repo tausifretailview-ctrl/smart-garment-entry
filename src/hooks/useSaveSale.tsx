@@ -1,4 +1,5 @@
 import { posSaveMark } from "@/lib/posSaveTiming";
+import { salesFinanceFields, salesHasFinanceColumn } from "@/utils/salesFinanceColumn";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -206,6 +207,8 @@ function buildPosWhatsAppCaptureMeta(
 }
 
 export const useSaveSale = () => {
+  // Warm the memoized column check so the first save does not wait for it.
+  void salesHasFinanceColumn(supabase);
   const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
@@ -816,6 +819,7 @@ export const useSaveSale = () => {
     let upiAmt = 0;
     let paidAmt = 0;
     let refundAmt = saleData.refundAmount || 0;
+    let financeAmt = 0;
     let finalPaymentMethod: string = paymentMethod;
     const payableBeforeAdvance = Math.max(
       0,
@@ -847,6 +851,8 @@ export const useSaveSale = () => {
       cardAmt = applied.card;
       upiAmt = applied.upi;
       paidAmt = applied.totalApplied;
+      // Finance sits inside card_amount; keep it apart for the bill (display only).
+      financeAmt = Math.min(applied.card, Math.max(0, Number(paymentBreakdown.financeAmount) || 0));
       refundAmt = paymentBreakdown.refundAmount;
       finalPaymentMethod = 'multiple';
     } else if (options?.isUpdate) {
@@ -919,6 +925,7 @@ export const useSaveSale = () => {
       cashAmt,
       cardAmt,
       upiAmt,
+      financeAmt,
       paidAmt: paidAmount,
       refundAmt,
       payStatus: paymentStatus,
@@ -1114,6 +1121,7 @@ export const useSaveSale = () => {
         cashAmt,
         cardAmt,
         upiAmt,
+        financeAmt,
         paidAmt,
         refundAmt,
         payStatus,
@@ -1153,6 +1161,7 @@ export const useSaveSale = () => {
           cash_amount: cashAmt,
           card_amount: cardAmt,
           upi_amount: upiAmt,
+          ...(await salesFinanceFields(supabase, financeAmt)),
           refund_amount: refundAmt,
           points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
@@ -1854,6 +1863,7 @@ export const useSaveSale = () => {
         cashAmt,
         cardAmt,
         upiAmt,
+        financeAmt,
         paidAmt,
         refundAmt,
         payStatus,
@@ -1940,6 +1950,7 @@ export const useSaveSale = () => {
           cash_amount: cashAmt,
           card_amount: cardAmt,
           upi_amount: upiAmt,
+          ...(await salesFinanceFields(supabase, financeAmt)),
           refund_amount: refundAmt,
           points_redeemed_amount: saleData.pointsRedeemedAmount || 0,
           salesman: saleData.salesman || null,
@@ -2361,6 +2372,7 @@ export const useSaveSale = () => {
         cashAmt,
         cardAmt,
         upiAmt,
+        financeAmt,
         paidAmt,
         refundAmt,
         payStatus,
@@ -2412,6 +2424,7 @@ export const useSaveSale = () => {
           cash_amount: cashAmt,
           card_amount: cardAmt,
           upi_amount: upiAmt,
+          ...(await salesFinanceFields(supabase, financeAmt)),
           refund_amount: refundAmt,
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
