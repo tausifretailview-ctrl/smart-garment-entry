@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -52,6 +53,7 @@ import {
 } from "@/utils/customerPartyBalanceSnapshot";
 import { useOrganizationReceivablesSummary } from "@/hooks/useOrganizationReceivablesSummary";
 import { CustomerLedger } from "@/components/CustomerLedger";
+import { CustomerBalanceCheckDialog } from "@/components/CustomerBalanceCheckDialog";
 import {
   CUSTOMER_PARTY_BALANCES_PAGE_SIZE,
   clampPartyBalancePage,
@@ -105,6 +107,7 @@ export default function CustomerPartyBalancesPage() {
   const [isExporting, setIsExporting] = useState(false);
 
   const orgId = currentOrganization?.id;
+  const [balanceCheckOpen, setBalanceCheckOpen] = useState(false);
   const moneyViewVisibilityKeys = useMemo(
     () => (orgId ? getMoneyViewVisibilityQueryKeys(orgId) : []),
     [orgId],
@@ -620,16 +623,33 @@ export default function CustomerPartyBalancesPage() {
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="h-9 text-sm shrink-0"
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-1.5", isFetching && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBalanceCheckOpen(true)}
+              className="h-9 text-sm"
+              data-testid="open-balance-check"
+            >
+              <AlertTriangle className="h-4 w-4 mr-1.5 text-amber-600" />
+              Accounts to check
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="h-9 text-sm"
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", isFetching && "animate-spin")} />
+              Refresh
+            </Button>
+          </div>
+          <CustomerBalanceCheckDialog
+            open={balanceCheckOpen}
+            onOpenChange={setBalanceCheckOpen}
+            organizationId={orgId}
+          />
         </div>
 
         {/* Org totals — compact strip */}
