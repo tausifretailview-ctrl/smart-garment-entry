@@ -27,6 +27,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { lookupVariantRowsByScan } from "@/utils/lookupVariantByScan";
+import {
+  divergentPurchaseBarcodeMessage,
+  type DivergentPurchaseBarcode,
+} from "@/utils/stockReportPurchaseBarcodeResolve";
 import { isStockReportBarcodeLikeSearch } from "@/utils/stockReportPurchaseBarcodeResolve";
 
 /** Rupee sign, stored as an escape so a bad file encoding cannot corrupt it. */
@@ -56,13 +60,17 @@ function mapQuickStockScanRows(rows: Record<string, unknown>[]): any[] {
   });
 }
 
-async function searchQuickStockByBarcodeScan(orgId: string, term: string): Promise<any[]> {
-  if (!isStockReportBarcodeLikeSearch(term)) return [];
+async function searchQuickStockByBarcodeScan(
+  orgId: string,
+  term: string,
+): Promise<{ rows: any[]; mismatch: DivergentPurchaseBarcode | null }> {
+  if (!isStockReportBarcodeLikeSearch(term)) return { rows: [], mismatch: null };
 
   const scan = await lookupVariantRowsByScan(orgId, term, QUICK_STOCK_SCAN_SELECT.trim());
-  if (!scan.rows.length) return [];
+  if (scan.purchaseBarcodeMismatch) return { rows: [], mismatch: scan.purchaseBarcodeMismatch };
+  if (!scan.rows.length) return { rows: [], mismatch: null };
 
-  return excludeServiceVariants(mapQuickStockScanRows(scan.rows));
+  return { rows: excludeServiceVariants(mapQuickStockScanRows(scan.rows)), mismatch: null };
 }
 
 const QUICK_STOCK_PRODUCT_FIRST_PAGE = 100;
@@ -129,13 +137,16 @@ async function fetchVariantsForProductIds(orgId: string, productIds: string[]) {
 /** Server search for Quick Stock â€” full variant set (not the truncated local cache). */
 async function searchQuickStockVariants(orgId: string, rawQuery: string) {
   const term = rawQuery.trim();
-  if (!term) return [] as any[];
+  const empty = { rows: [] as any[], mismatch: null as DivergentPurchaseBarcode | null };
+  if (!term) return empty;
   const safeTerm = term.replace(/[%_,()]/g, " ").trim();
-  if (!safeTerm) return [] as any[];
+  if (!safeTerm) return empty;
 
-  // 0) Canonical scan resolution â€” purchase-label barcode + doubled scan (same as POS)
+  // 0) Canonical scan resolution — exact barcode only. A purchase bill that points
+  // at a different live barcode is a miss, not that other product.
   const scanMatches = await searchQuickStockByBarcodeScan(orgId, term);
-  if (scanMatches.length > 0) return excludeServiceVariants(scanMatches);
+  if (scanMatches.mismatch) return { rows: [], mismatch: scanMatches.mismatch };
+  if (scanMatches.rows.length > 0) return { rows: excludeServiceVariants(scanMatches.rows), mismatch: null };
 
   // 1) Exact barcode, 2) numeric partial barcode, and 3) product-name match each
   // depend only on the input term, not on one another's results â€” run concurrently
@@ -188,10 +199,12 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
       : Promise.resolve({ data: [] as any[] }),
   ]);
 
-  if (exact.data && exact.data.length > 0) return excludeServiceVariants(exact.data);
+  if (exact.data && exact.data.length > 0) {
+    return { rows: excludeServiceVariants(exact.data), mismatch: null };
+  }
 
   if (numericPartial.data && numericPartial.data.length > 0) {
-    return excludeServiceVariants(numericPartial.data);
+    return { rows: excludeServiceVariants(numericPartial.data), mismatch: null };
   }
 
   // 3) Product-level match â†’ all variants (paginated). Prefer this over size/color
@@ -243,7 +256,7 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     // size abbreviation, as in "PUL194-BR") is applied. Don't stop here â€”
     // fall through to the variant-level barcode/size/colour search below,
     // which covers this exact case ("style-colour" barcode formats).
-    if (filtered.length > 0) return excludeServiceVariants(filtered);
+    if (filtered.length > 0) return { rows: excludeServiceVariants(filtered), mismatch: null };
   }
 
   // 4) Variant-level size / color / barcode when no product matched.
@@ -266,8 +279,9 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
     .or(`barcode.ilike.%${primaryEsc}%,size.ilike.%${primaryEsc}%,color.ilike.%${primaryEsc}%`)
     .limit(200);
   const variantCandidates = excludeServiceVariants(variantQ.data || []);
-  if (tokens.length <= 1) return variantCandidates;
-  return variantCandidates.filter((item: any) =>
+  if (tokens.length <= 1) return { rows: variantCandidates, mismatch: null };
+  return {
+    rows: variantCandidates.filter((item: any) =>
     matchesProductSearchFields(
       {
         product_name: item.product?.product_name,
@@ -280,7 +294,9 @@ async function searchQuickStockVariants(orgId: string, rawQuery: string) {
       },
       safeTerm,
     ),
-  );
+    ),
+    mismatch: null,
+  };
 }
 
 function quickStockSearchReady(rawQuery: string): boolean {
@@ -325,7 +341,9 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
   } = useQuery({
     queryKey: ["floating-stock-search", currentOrganization?.id, debouncedQuery],
     queryFn: async () => {
-      if (!currentOrganization?.id || !quickStockSearchReady(debouncedQuery)) return [];
+      if (!currentOrganization?.id || !quickStockSearchReady(debouncedQuery)) {
+        return { rows: [] as any[], mismatch: null as DivergentPurchaseBarcode | null };
+      }
       return searchQuickStockVariants(currentOrganization.id, debouncedQuery);
     },
     enabled:
@@ -340,7 +358,8 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
     quickStockSearchReady(debouncedQuery) &&
     debouncedQuery === searchQuery.trim() &&
     serverFetched;
-  const displayData = querySettled ? serverData || [] : [];
+  const displayData = querySettled ? serverData?.rows || [] : [];
+  const barcodeNotice = querySettled ? serverData?.mismatch ?? null : null;
   const showSearching = quickStockSearchReady(searchQuery.trim()) && !querySettled;
   const skipSupplierLookup = isStockReportBarcodeLikeSearch(searchQuery.trim());
 
@@ -499,6 +518,13 @@ export function FloatingStockReport({ open, onOpenChange }: { open: boolean; onO
           </>
         ) : showSearching ? (
           <div className="text-center py-8 text-muted-foreground">Searching...</div>
+        ) : barcodeNotice ? (
+          <div className="text-center py-8">
+            <p className="font-medium text-destructive">{divergentPurchaseBarcodeMessage(barcodeNotice).title}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              {divergentPurchaseBarcodeMessage(barcodeNotice).description}
+            </p>
+          </div>
         ) : (
           <div className="text-center py-8 text-muted-foreground">
             No products found matching "{searchQuery}"

@@ -8,6 +8,9 @@ import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
+  divergentPurchaseBarcodeMessage,
+  firstDivergentPurchaseBarcode,
+  liveBarcodeMatchesScan,
   resolvePurchaseBarcodesForStockReport,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
@@ -1985,7 +1988,20 @@ export default function SalesInvoice() {
             searchTerm.trim(),
             { exactOnly: true },
           );
-          const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
+          const hit = resolutions.find(
+            (r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, searchTerm.trim()),
+          );
+          const divergent = firstDivergentPurchaseBarcode(resolutions, searchTerm.trim());
+          if (!hit?.skuId && divergent) {
+            playErrorBeep();
+            const msg = divergentPurchaseBarcodeMessage(divergent);
+            toast({
+              title: msg.title,
+              description: msg.description,
+              variant: "destructive",
+            });
+            return;
+          }
           if (hit?.skuId) {
             const { data: bySku, error: bySkuErr } = await supabase
               .from("product_variants")
@@ -2009,17 +2025,6 @@ export default function SalesInvoice() {
             if (bySku && (bySku as any).products) {
               foundVariant = bySku;
               foundProduct = (bySku as any).products;
-              const liveBarcode = String((bySku as any).barcode || "").trim();
-              if (liveBarcode && liveBarcode !== searchTerm.trim()) {
-                // Purchase label points at a SKU that now carries another barcode
-                // (e.g. two same-size rolls merged into one variant). Say so instead
-                // of silently billing a different barcode.
-                toast({
-                  title: `Barcode ${searchTerm.trim()} is linked to ${liveBarcode}`,
-                  description:
-                    "This label's item was merged into another barcode in Product Master. Added that item; check the roll/label before saving.",
-                });
-              }
             }
           }
         } catch (err) {

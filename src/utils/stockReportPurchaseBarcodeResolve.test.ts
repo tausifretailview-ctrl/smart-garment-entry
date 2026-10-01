@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  divergentPurchaseBarcodeMessage,
+  firstDivergentPurchaseBarcode,
   isStockReportBarcodeLikeSearch,
+  liveBarcodeMatchesScan,
   liveBarcodesForStockReportRetry,
   stockReportPurchaseMissHint,
   type PurchaseBarcodeStockResolution,
@@ -11,6 +14,30 @@ describe("isStockReportBarcodeLikeSearch", () => {
     expect(isStockReportBarcodeLikeSearch("0040017398")).toBe(true);
     expect(isStockReportBarcodeLikeSearch("123")).toBe(false);
     expect(isStockReportBarcodeLikeSearch("PUG42")).toBe(false);
+  });
+});
+
+describe("divergent purchase barcode", () => {
+  const row = (liveBarcode: string): PurchaseBarcodeStockResolution => ({
+    purchaseBarcode: "0040011045",
+    skuId: "v-other",
+    liveBarcode,
+    productName: "PXG03",
+    stockQty: 1,
+    excludeReason: null,
+  });
+
+  it("treats a different live barcode as not this product", () => {
+    expect(liveBarcodeMatchesScan("0040012977", "0040011045")).toBe(false);
+    expect(liveBarcodeMatchesScan("0040011045", "0040011045")).toBe(true);
+    const hit = firstDivergentPurchaseBarcode([row("0040012977")], "0040011045");
+    expect(hit).toMatchObject({ scanned: "0040011045", liveBarcode: "0040012977" });
+    expect(divergentPurchaseBarcodeMessage(hit!).title).toBe("Barcode 0040011045 is not available");
+    expect(divergentPurchaseBarcodeMessage(hit!).description).toContain("0040012977");
+  });
+
+  it("does not flag a purchase line whose live barcode is the one scanned", () => {
+    expect(firstDivergentPurchaseBarcode([row("0040011045")], "0040011045")).toBeNull();
   });
 });
 

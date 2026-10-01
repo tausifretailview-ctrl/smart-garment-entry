@@ -11,7 +11,10 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { productRequiresImei } from "@/utils/productRequiresImei";
 import { canResolvePosPurchaseBarcode, isPosPriceSearchToken, shouldUsePartialPosBarcodeMatch } from "@/utils/posBarcodeLookup";
 import {
+  divergentPurchaseBarcodeMessage,
+  liveBarcodeMatchesScan,
   resolvePurchaseBarcodesForStockReport,
+  type DivergentPurchaseBarcode,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 import { expandBarcodeScanCandidates } from "@/utils/barcodeScanResolve";
@@ -412,7 +415,10 @@ async function fetchPosExactBarcodeMatches(
 async function resolvePosBarcodeLookupMatchesOnce(
   orgId: string,
   trimmedTerm: string,
-): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+): Promise<{
+  matches: Array<{ product: PosProductRow; variant: PosVariantRow }>;
+  mismatch: DivergentPurchaseBarcode | null;
+}> {
   const scanCandidates = expandBarcodeScanCandidates(trimmedTerm);
   const exactBarcodeMatches: Array<{ product: PosProductRow; variant: PosVariantRow }> = [];
   const seen = new Set<string>();
@@ -434,6 +440,9 @@ async function resolvePosBarcodeLookupMatchesOnce(
       supabase,
       { exactOnly: true },
     );
+    if (scan.purchaseBarcodeMismatch) {
+      return { matches: [], mismatch: scan.purchaseBarcodeMismatch };
+    }
     for (const row of scan.rows) {
       const mapped = mapPosVariantLookupRow(
         row as unknown as (PosVariantRow & { products?: PosProductRow }) | undefined,
@@ -445,13 +454,16 @@ async function resolvePosBarcodeLookupMatchesOnce(
     }
   }
 
-  return exactBarcodeMatches;
+  return { matches: exactBarcodeMatches, mismatch: null };
 }
 
 function resolvePosBarcodeLookupMatches(
   orgId: string,
   trimmedTerm: string,
-): Promise<Array<{ product: PosProductRow; variant: PosVariantRow }>> {
+): Promise<{
+  matches: Array<{ product: PosProductRow; variant: PosVariantRow }>;
+  mismatch: DivergentPurchaseBarcode | null;
+}> {
   return withJwtRetry(() => resolvePosBarcodeLookupMatchesOnce(orgId, trimmedTerm));
 }
 
@@ -464,6 +476,7 @@ async function fetchPosVariantByBarcodeOnce(
   product: PosProductRow;
   variant: PosVariantRow;
   remappedLiveBarcode?: string;
+  purchaseBarcodeMismatch?: DivergentPurchaseBarcode;
 } | null> {
   if (!trimmed) return null;
 
@@ -515,7 +528,10 @@ async function fetchPosVariantByBarcodeOnce(
       trimmed,
       { exactOnly },
     );
-    const hit = resolutions.find((r) => !r.excludeReason && r.skuId);
+    const hit = resolutions.find(
+      (r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, trimmed),
+    );
+    // A purchase line can point at a SKU whose barcode was replaced. Do not sell that other barcode.
     if (!hit) return null;
 
     const { data: bySku, error: bySkuError } = await posVariantBaseQuery(orgId)
@@ -528,17 +544,9 @@ async function fetchPosVariantByBarcodeOnce(
     );
     if (!mapped) return null;
 
-    const liveBc = (hit.liveBarcode || mapped.variant.barcode || "").trim();
-    // Keep the scanned label barcode on the cart line (same pattern as legacy IMEI).
-    const variantForCart =
-      liveBc && liveBc !== trimmed
-        ? ({ ...mapped.variant, barcode: trimmed } as PosVariantRow)
-        : mapped.variant;
-
     return {
       product: mapped.product,
-      variant: variantForCart,
-      remappedLiveBarcode: liveBc && liveBc !== trimmed ? liveBc : undefined,
+      variant: mapped.variant,
     };
   } catch (err) {
     if (isJwtExpiredError(err)) throw err;
@@ -556,6 +564,7 @@ async function fetchPosVariantByBarcodeOnceAcrossCandidates(
   product: PosProductRow;
   variant: PosVariantRow;
   remappedLiveBarcode?: string;
+  purchaseBarcodeMismatch?: DivergentPurchaseBarcode;
 } | null> {
   for (const candidate of expandBarcodeScanCandidates(barcode)) {
     const hit = await fetchPosVariantByBarcodeOnce(orgId, candidate, mobileERPConfig, lookupOptions);
@@ -2656,7 +2665,9 @@ export default function POSSales() {
                 { exactOnly: true },
               );
               for (const r of resolutions) {
-                if (!r.excludeReason && r.skuId) matchedVariantIds.add(r.skuId);
+                if (!r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, escToken)) {
+                  matchedVariantIds.add(r.skuId);
+                }
               }
             } catch (err) {
               if (isJwtExpiredError(err)) throw err;
@@ -2726,15 +2737,21 @@ export default function POSSales() {
       if (isNumeric) {
         tokens = [term];
         if (isCompleteNumericBarcodeForPosCart(term)) {
-          const barcodeMatches = await resolvePosBarcodeLookupMatches(
+          const barcodeLookup = await resolvePosBarcodeLookupMatches(
             currentOrganization.id,
             term,
           );
           if (requestSeq !== productSearchSeqRef.current) return;
-          allData = barcodeMatches.map(({ product, variant }) => ({
-            ...variant,
-            products: product,
-          }));
+          if (barcodeLookup.mismatch && barcodeLookup.matches.length === 0) {
+            const msg = divergentPurchaseBarcodeMessage(barcodeLookup.mismatch);
+            toast.error(msg.title, { description: msg.description });
+            allData = [];
+          } else {
+            allData = barcodeLookup.matches.map(({ product, variant }) => ({
+              ...variant,
+              products: product,
+            }));
+          }
         } else {
           const matchedIds = await fetchVariantsForToken(term);
           if (requestSeq !== productSearchSeqRef.current) return;
@@ -3045,7 +3062,18 @@ export default function POSSales() {
       // Lookup barcode first. Non-serialized accessories (shared EAN) must add/merge
       // even when org IMEI min-length would reject a 13-digit retail code.
       // Branded EANs may exist at multiple MRP tiers — ask the cashier to pick.
-      let exactBarcodeMatches = await resolvePosBarcodeLookupMatches(orgId, trimmedTerm);
+      const barcodeLookup = await resolvePosBarcodeLookupMatches(orgId, trimmedTerm);
+      if (barcodeLookup.mismatch && barcodeLookup.matches.length === 0) {
+        playErrorBeep();
+        const msg = divergentPurchaseBarcodeMessage(barcodeLookup.mismatch);
+        toast.error(msg.title, { description: msg.description });
+        setSearchInput("");
+        setProductSearchResults([]);
+        setOpenProductSearch(false);
+        focusBarcodeScanInput();
+        return;
+      }
+      let exactBarcodeMatches = barcodeLookup.matches;
       if (exactBarcodeMatches.length > 1) {
         const seen = new Set<string>();
         exactBarcodeMatches = exactBarcodeMatches.filter((m) => {
