@@ -64,6 +64,7 @@ interface TallyTaxInvoiceTemplateProps {
   cardAmount?: number;
   upiAmount?: number;
   creditAmount?: number;
+  financeAmount?: number;
   declarationText?: string;
   termsConditions?: string[];
   bankDetails?: {
@@ -239,6 +240,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   cardAmount,
   upiAmount,
   creditAmount,
+  financeAmount,
   declarationText,
   termsConditions,
   bankDetails,
@@ -482,6 +484,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                           cardAmount,
                           upiAmount,
                           creditAmount,
+                          financeAmount,
                           financerDetails,
                         },
                         (n) => fmt(n),

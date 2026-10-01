@@ -40,3 +40,35 @@ describe("buildInvoicePaymentModeParts", () => {
     expect(parts).toEqual(["Cash ₹1,800", "Finance ₹25,199"]);
   });
 });
+
+describe("buildInvoicePaymentModeParts with a Mix Payment finance amount", () => {
+  it("shows Finance apart from Card when the whole card bucket is finance", () => {
+    expect(
+      buildInvoicePaymentModeParts(
+        { paymentMethod: "multiple", cashAmount: 6500, cardAmount: 18000, financeAmount: 18000 },
+        fmt,
+      ),
+    ).toEqual(["Cash ₹6,500", "Finance ₹18,000"]);
+  });
+
+  it("keeps the real card part when card and finance are both used", () => {
+    expect(
+      buildInvoicePaymentModeParts(
+        { paymentMethod: "multiple", cashAmount: 1000, cardAmount: 5000, financeAmount: 3000 },
+        fmt,
+      ),
+    ).toEqual(["Cash ₹1,000", "Card ₹2,000", "Finance ₹3,000"]);
+  });
+
+  it("is unchanged without a finance amount", () => {
+    expect(
+      buildInvoicePaymentModeParts({ paymentMethod: "multiple", cashAmount: 100, cardAmount: 200 }, fmt),
+    ).toEqual(["Cash ₹100", "Card ₹200"]);
+  });
+
+  it("never lets finance exceed the card bucket", () => {
+    expect(
+      buildInvoicePaymentModeParts({ cardAmount: 500, financeAmount: 900 }, fmt),
+    ).toEqual(["Finance ₹500"]);
+  });
+});

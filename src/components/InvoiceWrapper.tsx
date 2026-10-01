@@ -119,6 +119,8 @@ interface InvoiceWrapperProps {
   cardAmount?: number;
   upiAmount?: number;
   creditAmount?: number;
+  /** Finance tender from Mix Payment (included in cardAmount); lets bills show Finance apart from Card. */
+  financeAmount?: number;
   paidAmount?: number;
   previousBalance?: number;
   unusedAdvance?: number;
@@ -551,6 +553,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       cardAmount: props.cardAmount,
       upiAmount: props.upiAmount,
       creditAmount: props.creditAmount,
+      financeAmount: props.financeAmount,
       paidAmount: props.paidAmount,
       previousBalance: props.previousBalance ?? 0,
       unusedAdvance: props.unusedAdvance ?? 0,

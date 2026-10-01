@@ -34,6 +34,8 @@ export type InvoicePaymentModeAmounts = {
   cardAmount?: number | null;
   upiAmount?: number | null;
   creditAmount?: number | null;
+  /** Finance tender entered in Mix Payment; it is stored inside card_amount. */
+  financeAmount?: number | null;
   financerDetails?: InvoiceFinancerLabelHint;
 };
 
@@ -49,13 +51,19 @@ export function buildInvoicePaymentModeParts(
 
   if (cash > 0) parts.push(`Cash ₹${formatAmount(cash)}`);
   if (upi > 0) parts.push(`UPI ₹${formatAmount(upi)}`);
-  if (card > 0) {
-    const cardLabel = invoiceCardBucketPaymentLabel({
-      paymentMethod: input.paymentMethod,
-      financerDetails: input.financerDetails,
-    });
-    parts.push(`${cardLabel} ₹${formatAmount(card)}`);
+  // Mix Payment folds Finance into card_amount; show it on its own line when known.
+  const finance = Math.min(card, Math.max(0, Number(input.financeAmount) || 0));
+  const cardOnly = Math.round((card - finance) * 100) / 100;
+  if (cardOnly > 0) {
+    const cardLabel = finance > 0
+      ? "Card"
+      : invoiceCardBucketPaymentLabel({
+          paymentMethod: input.paymentMethod,
+          financerDetails: input.financerDetails,
+        });
+    parts.push(`${cardLabel} ₹${formatAmount(cardOnly)}`);
   }
+  if (finance > 0) parts.push(`Finance ₹${formatAmount(finance)}`);
   if (credit > 0) parts.push(`Credit ₹${formatAmount(credit)}`);
   return parts;
 }
