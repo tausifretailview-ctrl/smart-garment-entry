@@ -577,3 +577,64 @@ describe("CN / S-R Adjustment Register — Phase 1 remaining", () => {
   });
 });
 
+
+describe("CN / S-R Adjustment Register — customer on a return saved without one", () => {
+  it("takes the customer from the bill the return is linked to, not 'Walk-in Customer'", () => {
+    const rows = buildCreditNoteSrRegisterRows({
+      saleReturns: [
+        {
+          id: "sr-nocust",
+          return_number: "SR/26-27/90",
+          return_date: "2026-09-12",
+          customer_id: null,
+          customer_name: null,
+          net_amount: 500,
+          credit_status: "pending",
+          linked_sale_id: "sale-1",
+          credit_note_id: null,
+          refund_type: null,
+        },
+      ],
+      customersById: { "c-1": { customer_name: "HAMZAS", phone: "9865321547" } },
+      salesById: { "sale-1": { customer_id: "c-1", sale_number: "POS/26-27/334", sale_type: "pos" } },
+      creditNotesById: {},
+      vouchers: [],
+    });
+    expect(rows[0].customerName).toBe("HAMZAS");
+    expect(rows[0].customerPhone).toBe("9865321547");
+    expect(rows[0].customerId).toBe("c-1");
+  });
+
+  it("falls back to the name and phone typed on the bill, then to Walk-in Customer", () => {
+    const base = {
+      id: "sr-w",
+      return_number: "SR/26-27/91",
+      return_date: "2026-09-12",
+      customer_id: null,
+      customer_name: null,
+      net_amount: 200,
+      credit_status: "pending",
+      credit_note_id: null,
+      refund_type: null,
+    };
+    const typed = buildCreditNoteSrRegisterRows({
+      saleReturns: [{ ...base, linked_sale_id: "sale-2" }],
+      customersById: {},
+      salesById: {
+        "sale-2": { customer_id: null, customer_name: "Riyaz", customer_phone: "9000000001", sale_number: "POS/1", sale_type: "pos" },
+      },
+      creditNotesById: {},
+      vouchers: [],
+    });
+    expect(typed[0].customerName).toBe("Riyaz");
+    expect(typed[0].customerPhone).toBe("9000000001");
+    const none = buildCreditNoteSrRegisterRows({
+      saleReturns: [{ ...base, linked_sale_id: null }],
+      customersById: {},
+      salesById: {},
+      creditNotesById: {},
+      vouchers: [],
+    });
+    expect(none[0].customerName).toBe("Walk-in Customer");
+  });
+});

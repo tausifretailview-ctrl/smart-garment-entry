@@ -49,6 +49,9 @@ export type CreditNoteSrRegisterSource = {
     string,
     {
       customer_id?: string | null;
+      /** Name/phone typed on the bill; used when the return itself has no customer. */
+      customer_name?: string | null;
+      customer_phone?: string | null;
       sale_number?: string | null;
       sale_return_adjust?: number | null;
       sale_type?: string | null;
@@ -252,7 +255,6 @@ export function buildCreditNoteSrRegisterRows(
       });
       const isMemo = remainingAmount <= SETTLED_REMAINING && consumedAmount > 0.005;
       const cn = sr.credit_note_id ? source.creditNotesById[sr.credit_note_id] : undefined;
-      const customer = sr.customer_id ? source.customersById[sr.customer_id] : undefined;
       const slices = (appliedInfo?.slices || []).filter((slice) => slice.applied > 0.005);
       const redeemedSource =
         slices.length > 0
@@ -310,14 +312,24 @@ export function buildCreditNoteSrRegisterRows(
           }
         }
       }
+      // A return saved without a customer still belongs to whoever the bill it was used on
+      // (or linked to) was made out to. Look there before calling it a walk-in.
+      const billSales = [linkedSaleId, ...redeemedBills.map((bill) => bill.saleId)]
+        .map((id) => (id ? source.salesById[id] : undefined))
+        .filter((sale): sale is NonNullable<typeof sale> => Boolean(sale));
+      const billCustomerId = billSales.map((sale) => String(sale.customer_id || "").trim()).find(Boolean) || "";
+      const resolvedCustomerId = sr.customer_id || billCustomerId;
+      const customer = resolvedCustomerId ? source.customersById[resolvedCustomerId] : undefined;
+      const billName = billSales.map((sale) => String(sale.customer_name || "").trim()).find(Boolean) || "";
+      const billPhone = billSales.map((sale) => String(sale.customer_phone || "").trim()).find(Boolean) || "";
       rows.push({
         id: sr.id,
         returnNumber: sr.return_number || "",
         returnDate: String(sr.return_date || "").slice(0, 10),
-        customerId: sr.customer_id || "",
+        customerId: resolvedCustomerId,
         customerName:
-          (customer?.customer_name || sr.customer_name || "").trim() || "Walk-in Customer",
-        customerPhone: (customer?.phone || "").trim(),
+          (customer?.customer_name || sr.customer_name || billName || "").trim() || "Walk-in Customer",
+        customerPhone: (customer?.phone || billPhone || "").trim(),
         linkedInvoiceNumbers: linkedBills
           .map((bill) => formatRedeemedBillLabel(bill))
           .join(", "),
