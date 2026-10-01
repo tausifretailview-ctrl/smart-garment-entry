@@ -163,7 +163,7 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
-import { saleBillFigures, saleRefundForPrint } from "@/utils/saleBillFigures";
+import { saleBillFigures, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
 import { findLeftoverExchangeRefunds, leftoverExchangeRefundMessage } from "@/utils/exchangeRefundAfterDelete";
 import {
   resolvePosBillFormat,
@@ -537,6 +537,7 @@ const POSDashboard = () => {
   const [previewSale, setPreviewSale] = useState<Sale | null>(null);
   const [previewHydrating, setPreviewHydrating] = useState(false);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
+  const [previewVoucherRefund, setPreviewVoucherRefund] = useState(0);
   const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string; points_balance?: number | null } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
@@ -1928,6 +1929,18 @@ const POSDashboard = () => {
         };
       }
 
+      // Saved refund_amount can be 0 while the cash refund voucher exists; read the voucher then.
+      let voucherRefund = 0;
+      if (saleRefundForPrint(sale) <= 0 && sale.customer_id && currentOrganization?.id) {
+        const refunds = await findLeftoverExchangeRefunds(
+          supabase,
+          currentOrganization.id,
+          sale.sale_number,
+          sale.id,
+        );
+        voucherRefund = refunds.reduce((sum, r) => sum + r.total_amount, 0);
+      }
+
       return {
         billNo: sale.sale_number,
         date: saleDate,
@@ -1968,7 +1981,7 @@ const POSDashboard = () => {
         creditAmount: sale.credit_amount,
         paidAmount: sale.paid_amount,
         // Exchange excess paid back to the customer; the original print showed this line.
-        refundCash: saleRefundForPrint(sale),
+        refundCash: saleRefundForReprint(sale, voucherRefund),
         previousBalance: accountFacets.previousBalance ?? 0,
         unusedAdvance: accountFacets.unusedAdvance ?? 0,
         salesman: sale.salesman || "",
@@ -2260,6 +2273,7 @@ const POSDashboard = () => {
     setPreviewSale(sale);
     setPreviewFinancerDetails(null);
     setPreviewCustomerData(null);
+    setPreviewVoucherRefund(0);
     setPreviewHydrating(true);
     setShowPreviewDialog(true);
     try {
@@ -2278,6 +2292,15 @@ const POSDashboard = () => {
         down_payment: finData.down_payment || undefined,
       } : null);
       setPreviewCustomerData(custData);
+      if (saleRefundForPrint(sale) <= 0 && sale.customer_id && currentOrganization?.id) {
+        const refunds = await findLeftoverExchangeRefunds(
+          supabase,
+          currentOrganization.id,
+          sale.sale_number,
+          sale.id,
+        );
+        setPreviewVoucherRefund(refunds.reduce((sum, r) => sum + r.total_amount, 0));
+      }
     } finally {
       setPreviewHydrating(false);
     }
@@ -4572,7 +4595,7 @@ const POSDashboard = () => {
               saleReturnAdjust={previewSale.sale_return_adjust || 0}
               grandTotal={saleBillFigures(previewSale).payable}
               billNetAmount={saleBillFigures(previewSale).billAmount}
-              refundCash={saleRefundForPrint(previewSale)}
+              refundCash={saleRefundForReprint(previewSale, previewVoucherRefund)}
               roundOff={previewSale.round_off || 0}
               cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
               upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}

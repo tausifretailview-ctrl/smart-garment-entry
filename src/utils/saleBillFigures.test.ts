@@ -4,6 +4,7 @@ import {
   saleBillFigures,
   saleReceivableAfterTender,
   saleRefundForPrint,
+  saleRefundForReprint,
 } from "./saleBillFigures";
 
 describe("sale bill figures for old and Rule B rows", () => {
@@ -81,5 +82,19 @@ describe("saleRefundForPrint (reprint of an exchange refund)", () => {
     expect(saleRefundForPrint({ refund_amount: null })).toBe(0);
     expect(saleRefundForPrint({})).toBe(0);
     expect(saleRefundForPrint({ refund_amount: -30 })).toBe(0);
+  });
+});
+
+describe("saleRefundForReprint", () => {
+  it("uses the saved refund when present", () => {
+    expect(saleRefundForReprint({ refund_amount: 798 }, 500)).toBe(798);
+  });
+  it("falls back to the refund voucher when the column is empty", () => {
+    expect(saleRefundForReprint({ refund_amount: 0 }, 798)).toBe(798);
+    expect(saleRefundForReprint({ refund_amount: null }, 798.004)).toBe(798);
+  });
+  it("is 0 when neither exists", () => {
+    expect(saleRefundForReprint({ refund_amount: 0 })).toBe(0);
+    expect(saleRefundForReprint({}, -5)).toBe(0);
   });
 });

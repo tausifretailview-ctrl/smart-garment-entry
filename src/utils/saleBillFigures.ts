@@ -46,6 +46,20 @@ export function saleRefundForPrint(sale: { refund_amount?: number | null }): num
   return round2(Math.max(0, Number(sale.refund_amount) || 0));
 }
 
+/**
+ * Refund line for a reprint. The saved column wins; when it is empty, fall back to the cash
+ * refund payment voucher written for the bill (older or edited bills can have the voucher but
+ * a zero refund_amount, so the reprint dropped the "Refund to Customer" line the original had).
+ */
+export function saleRefundForReprint(
+  sale: { refund_amount?: number | null },
+  voucherRefund?: number | null,
+): number {
+  const saved = saleRefundForPrint(sale);
+  if (saved > 0) return saved;
+  return round2(Math.max(0, Number(voucherRefund) || 0));
+}
+
 /** Customer still owes this after tender. */
 export function saleReceivableAfterTender(sale: SaleBillRow): number {
   const paid = round2(Math.max(0, Number(sale.paid_amount) || 0));
