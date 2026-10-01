@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/command";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
+import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useLocation } from "react-router-dom";
@@ -84,7 +85,10 @@ interface LineItem {
 
 const customerSchema = z.object({
   customer_name: z.string().trim().max(100).optional().or(z.literal("")),
-  phone: z.string().trim().min(1, "Mobile number is required").max(20),
+  phone: z.string().trim().min(1, "Mobile number is required").max(20).superRefine((value, ctx) => {
+    const message = mobileNumberError(value, { required: true });
+    if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, message });
+  }),
   email: z.string().trim().email("Invalid email").max(255).optional().or(z.literal("")),
   address: z.string().trim().max(500).optional(),
   gst_number: z.string().trim().max(15).optional(),

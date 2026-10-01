@@ -71,6 +71,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
+import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { assertNoCustomerDuplicate, findExistingCustomerByNameOrPhone } from "@/utils/customerUtils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LegacyInvoiceImportDialog } from "@/components/LegacyInvoiceImportDialog";
@@ -567,6 +568,8 @@ const CustomerMaster = () => {
     mutationFn: async (data: typeof formData) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
+      const phoneError = mobileNumberError(data.phone);
+      if (phoneError) throw new Error(phoneError);
       const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
 
       const duplicateCheck = await findExistingCustomerByNameOrPhone(currentOrganization.id, {
@@ -608,6 +611,10 @@ const CustomerMaster = () => {
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
       if (!data.customer_name.trim() && !data.phone.trim()) throw new Error("Either customer name or phone number is required");
+      // Existing customers may carry an older short number; only check it when the user changed it.
+      const phoneChanged = data.phone.trim() !== (editingCustomer?.phone || "").trim();
+      const phoneError = phoneChanged ? mobileNumberError(data.phone) : null;
+      if (phoneError) throw new Error(phoneError);
       const normalizedPhone = data.phone.trim() ? normalizePhoneNumber(data.phone) : null;
 
       const duplicateCheck = await findExistingCustomerByNameOrPhone(

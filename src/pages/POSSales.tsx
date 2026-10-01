@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } fr
 import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn } from "@/lib/utils";
+import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, validateIMEI } from "@/hooks/useMobileERP";
@@ -1071,6 +1072,7 @@ export default function POSSales() {
     address: "",
     gst_number: "",
   });
+  const newCustomerPhoneError = mobileNumberError(newCustomerForm.phone);
   
   // Helper to open Add Customer dialog with phone pre-filled from search
   const openAddCustomerDialog = () => {
@@ -6412,6 +6414,8 @@ export default function POSSales() {
   const createCustomer = useMutation({
     mutationFn: async (data: typeof newCustomerForm) => {
       if (!currentOrganization?.id) throw new Error("No organization selected");
+      const phoneError = mobileNumberError(data.phone);
+      if (phoneError) throw new Error(phoneError);
       
       const { createOrGetCustomer } = await import("@/utils/customerUtils");
       
@@ -6741,14 +6745,15 @@ export default function POSSales() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tablet_phone">Mobile</Label>
-                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number (optional)" />
+                <Input id="tablet_phone" value={newCustomerForm.phone} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="Mobile number (optional)" aria-invalid={!!newCustomerPhoneError} inputMode="tel" />
+                {newCustomerPhoneError && <p className="text-xs text-destructive">{newCustomerPhoneError}</p>}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="tablet_address">Address</Label>
                 <Input id="tablet_address" value={newCustomerForm.address} onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))} placeholder="Address (optional)" />
               </div>
             </div>
-            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim()}>Save Customer</Button>
+            <Button onClick={() => createCustomer.mutate(newCustomerForm)} disabled={!newCustomerForm.customer_name.trim() || !!newCustomerPhoneError}>Save Customer</Button>
           </DialogContent>
         </Dialog>
 
@@ -6891,7 +6896,10 @@ export default function POSSales() {
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="Mobile number (optional)"
+                  aria-invalid={!!newCustomerPhoneError}
+                  inputMode="tel"
                 />
+                {newCustomerPhoneError && <p className="text-xs text-destructive">{newCustomerPhoneError}</p>}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="address">Address</Label>
@@ -6909,7 +6917,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.customer_name.trim()}
+                disabled={!newCustomerForm.customer_name.trim() || !!newCustomerPhoneError}
               >
                 Add Customer
               </Button>
@@ -9029,7 +9037,10 @@ export default function POSSales() {
                   value={newCustomerForm.phone}
                   onChange={(e) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
                   placeholder="Enter mobile number (optional)"
+                  aria-invalid={!!newCustomerPhoneError}
+                  inputMode="tel"
                 />
+                {newCustomerPhoneError && <p className="text-xs text-destructive">{newCustomerPhoneError}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
@@ -9067,7 +9078,7 @@ export default function POSSales() {
               </Button>
               <Button 
                 onClick={() => createCustomer.mutate(newCustomerForm)}
-                disabled={!newCustomerForm.customer_name.trim() || createCustomer.isPending}
+                disabled={!newCustomerForm.customer_name.trim() || !!newCustomerPhoneError || createCustomer.isPending}
               >
                 {createCustomer.isPending ? "Adding..." : "Add Customer"}
               </Button>
