@@ -6,6 +6,10 @@ import {
   splitLineGstFromTotal,
   type GstTaxType,
 } from "@/utils/gstRegisterUtils";
+import {
+  buildInvoicePaymentModeParts,
+  formatInvoicePaymentModeFallback,
+} from "@/utils/invoicePaymentModeDisplay";
 
 interface InvoiceItem {
   sr: number;
@@ -471,12 +475,24 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   </td>
                   <td style={{ borderBottom: b, padding: "4px 6px", lineHeight: "1.3" }}>
                     {(() => {
-                      const parts: string[] = [];
-                      if (cashAmount && cashAmount > 0) parts.push(`Cash ₹${fmt(cashAmount)}`);
-                      if (upiAmount && upiAmount > 0) parts.push(`UPI ₹${fmt(upiAmount)}`);
-                      if (cardAmount && cardAmount > 0) parts.push(`Card ₹${fmt(cardAmount)}`);
-                      if (creditAmount && creditAmount > 0) parts.push(`Credit ₹${fmt(creditAmount)}`);
-                      return <span>{parts.length > 0 ? parts.join(" | ") : paymentMethod || "Cash"}</span>;
+                      const parts = buildInvoicePaymentModeParts(
+                        {
+                          paymentMethod,
+                          cashAmount,
+                          cardAmount,
+                          upiAmount,
+                          creditAmount,
+                          financerDetails,
+                        },
+                        (n) => fmt(n),
+                      );
+                      return (
+                        <span>
+                          {parts.length > 0
+                            ? parts.join(" | ")
+                            : formatInvoicePaymentModeFallback(paymentMethod)}
+                        </span>
+                      );
                     })()}
                   </td>
                 </tr>
