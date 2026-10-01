@@ -55,7 +55,10 @@ import {
 import { fetchAllOpenSettlementVariantIds } from "@/utils/stockSettlementScans";
 import { fetchOldBarcodeSaleItemMappings } from "@/utils/stockReportOldBarcodeSearch";
 import {
+  divergentPurchaseBarcodeMessage,
+  firstDivergentPurchaseBarcode,
   isStockReportBarcodeLikeSearch,
+  liveBarcodeMatchesScan,
   liveBarcodesForStockReportRetry,
   resolvePurchaseBarcodesForStockReport,
   stockReportPurchaseMissHint,
@@ -937,7 +940,10 @@ export default function StockReport() {
             );
             if (requestId !== searchRequestIdRef.current) return;
 
-            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, activeSearch);
+            const divergent = firstDivergentPurchaseBarcode(resolutions, activeSearch);
+            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, activeSearch).filter((liveBc) =>
+              liveBarcodeMatchesScan(liveBc, activeSearch),
+            );
             if (retryBarcodes.length > 0) {
               const merged = new Map<string, StockReportRpcRow>();
               for (const liveBc of retryBarcodes.slice(0, 5)) {
@@ -988,6 +994,9 @@ export default function StockReport() {
                   description: `Label ${searchBc} → live barcode ${shown} (same SKU after master merge).`,
                 });
               }
+            } else if (divergent) {
+              const msg = divergentPurchaseBarcodeMessage(divergent);
+              toast.warning(msg.title, { description: msg.description });
             } else if (resolutions.length > 0) {
               const miss = stockReportPurchaseMissHint(resolutions);
               if (miss) {

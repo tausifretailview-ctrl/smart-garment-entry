@@ -2,7 +2,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { expandBarcodeScanCandidates, isDoubledNumericBarcode } from "@/utils/barcodeScanResolve";
 import { normalizeProductSearchTerm } from "@/utils/productDashboardBarcodeSearch";
 import {
+  firstDivergentPurchaseBarcode,
+  liveBarcodeMatchesScan,
   resolvePurchaseBarcodesForStockReport,
+  type DivergentPurchaseBarcode,
   type PurchaseBarcodeStockClient,
 } from "@/utils/stockReportPurchaseBarcodeResolve";
 
@@ -14,6 +17,11 @@ export type VariantScanLookupResult = {
   wasDoubledScan: boolean;
   resolvedVia: VariantScanResolvedVia | null;
   scanCandidates: string[];
+  /**
+   * Purchase bill has this barcode, but the linked SKU's barcode is different.
+   * Rows stay empty so POS / stock do not open that other product.
+   */
+  purchaseBarcodeMismatch?: DivergentPurchaseBarcode | null;
 };
 
 export type VariantScanLookupOptions = {
@@ -113,8 +121,23 @@ export async function lookupVariantRowsByScan(
       candidate,
       exactOnly ? { exactOnly: true } : undefined,
     );
-    const skuIds = resolutions.filter((r) => !r.excludeReason && r.skuId).map((r) => r.skuId);
-    if (!skuIds.length) continue;
+    const skuIds = resolutions
+      .filter((r) => !r.excludeReason && r.skuId && liveBarcodeMatchesScan(r.liveBarcode, candidate))
+      .map((r) => r.skuId);
+    if (!skuIds.length) {
+      const mismatch = firstDivergentPurchaseBarcode(resolutions, candidate);
+      if (mismatch) {
+        return {
+          rows: [],
+          matchedCandidate: candidate,
+          wasDoubledScan: isDoubledNumericBarcode(raw),
+          resolvedVia: null,
+          scanCandidates,
+          purchaseBarcodeMismatch: mismatch,
+        };
+      }
+      continue;
+    }
 
     const { data: bySkuRows, error: bySkuErr } = await base().in("id", skuIds).limit(25);
     if (!bySkuErr && bySkuRows?.length) {
