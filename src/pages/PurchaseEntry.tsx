@@ -190,7 +190,9 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
+  retargetDeletedPurchaseLines,
   type DeletedRefsClient,
+  type LiveNameCatalogClient,
 } from "@/utils/purchaseDeletedLineProducts";
 
 const PURCHASE_LINE_UUID_RE =
@@ -2821,7 +2823,7 @@ const PurchaseEntry = () => {
           active,
           color,
           product_id,
-          products (
+          products!inner (
             id,
             product_name,
             brand,
@@ -2843,7 +2845,8 @@ const PurchaseEntry = () => {
         `)
         .eq("organization_id", currentOrganization?.id)
         .eq("active", true)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .is("products.deleted_at", null);
 
       if (exactNameProducts && productIds.length > 0) {
         variantsQuery = variantsQuery.in("product_id", productIds);
@@ -3264,7 +3267,7 @@ const PurchaseEntry = () => {
           active,
           color,
           product_id,
-          products (
+          products!inner (
             id,
             product_name,
             brand,
@@ -3285,6 +3288,7 @@ const PurchaseEntry = () => {
         .eq("organization_id", orgId)
         .eq("barcode", barcode)
         .is("deleted_at", null)
+        .is("products.deleted_at", null)
         .eq("active", true)
         .order("mrp", { ascending: false })
         .limit(50);
@@ -3321,7 +3325,7 @@ const PurchaseEntry = () => {
           active,
           color,
           product_id,
-          products (
+          products!inner (
             id,
             product_name,
             brand,
@@ -3342,6 +3346,7 @@ const PurchaseEntry = () => {
         .eq("organization_id", orgId)
         .eq("id", variantId)
         .is("deleted_at", null)
+        .is("products.deleted_at", null)
         .eq("active", true)
         .maybeSingle();
       if (error || !data) return null;
@@ -3739,7 +3744,7 @@ const PurchaseEntry = () => {
           active,
           color,
           product_id,
-          products (
+          products!inner (
             id,
             product_name,
             brand,
@@ -3761,7 +3766,8 @@ const PurchaseEntry = () => {
         `)
         .eq("organization_id", currentOrganization?.id)
         .eq("active", true)
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .is("products.deleted_at", null);
 
       // Exact name hit: only those products' variants. Otherwise name hits + barcode contains.
       if (exactNameProducts && productIds.length > 0) {
@@ -5037,10 +5043,11 @@ const PurchaseEntry = () => {
     // Same IMEI already on this product (e.g. created in Product Master) → that unit.
     const { data: existingRows, error: existingError } = await supabase
       .from('product_variants')
-      .select('id, product_id')
+      .select('id, product_id, products!inner(id)')
       .eq('barcode', imei)
       .eq('organization_id', currentOrganization.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .is('products.deleted_at', null);
     if (existingError) throw existingError;
     const sameProduct = (existingRows || []).find((r) => r.product_id === item.product_id);
     if (sameProduct) return { variantId: sameProduct.id, imei };
@@ -5627,21 +5634,37 @@ const PurchaseEntry = () => {
     // A product deleted from the Product screen while this bill was open would get stock
     // booked into a deleted product (dashboard/stock reports then come up short). New bills
     // only; runs before anything is written. A lookup error never blocks the save.
+    // If the dashboard already has a live product of the same name, the line is moved
+    // onto that product — the Recycle Bin row is the old copy, not the one being billed.
+    let saveLines = lineItems;
     if (!isEditMode && currentOrganization?.id) {
       const deletedLines = await findDeletedPurchaseLines(
         supabase as unknown as DeletedRefsClient,
         currentOrganization.id,
-        lineItems,
+        saveLines,
       );
       posSaveMark("deleted_products_check");
       if (deletedLines.length > 0) {
-        toast({
-          title: "Cannot save — product was deleted",
-          description: deletedPurchaseLinesMessage(deletedLines),
-          variant: "destructive",
-          duration: 15000,
-        });
-        return;
+        const retargeted = await retargetDeletedPurchaseLines(
+          supabase as unknown as LiveNameCatalogClient,
+          currentOrganization.id,
+          saveLines,
+          deletedLines,
+        );
+        if (retargeted.stillDeleted.length > 0) {
+          toast({
+            title: "Cannot save — product was deleted",
+            description: deletedPurchaseLinesMessage(retargeted.stillDeleted),
+            variant: "destructive",
+            duration: 15000,
+          });
+          return;
+        }
+        saveLines = retargeted.lines;
+        if (retargeted.changed) {
+          setLineItems(saveLines);
+          lineItemsRef.current = saveLines;
+        }
       }
     }
 
@@ -5695,7 +5718,7 @@ const PurchaseEntry = () => {
     // set when an import starts and cleared only when it completes — if it is still
     // present, the line items are a truncated subset of the Excel file.
     if (pendingImportRef.current) {
-      const currentQty = lineItems.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const currentQty = saveLines.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
       const { expectedQty } = pendingImportRef.current;
       if (currentQty + 0.5 < expectedQty) {
         toast({
@@ -5742,9 +5765,9 @@ const PurchaseEntry = () => {
         // If this invoice# already belongs to a bill with the same qty/amount, the first
         // Save likely already committed — open it instead of bumping and double-saving.
         if (!isEditMode) {
-          const filledQtyForDup = lineItems.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+          const filledQtyForDup = saveLines.reduce((s, r) => s + (Number(r.qty) || 0), 0);
           const dupTotals = computePurchaseBillTotals(
-            lineItems,
+            saveLines,
             discountAmount,
             otherCharges,
             isDcPurchase,
@@ -5814,7 +5837,7 @@ const PurchaseEntry = () => {
     // supplier on the same date with the same items, all saved within ~30 minutes).
     // We only check non-edit mode; user can override via "Save Anyway".
     if (!isEditMode && !overrideDuplicateRef.current && billData.supplier_id && currentOrganization?.id) {
-      const filledQty = lineItems.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+      const filledQty = saveLines.reduce((s, r) => s + (Number(r.qty) || 0), 0);
       if (filledQty > 0) {
         const billDateStr = format(billDate, "yyyy-MM-dd");
         const { data: sameDayBills } = await supabase
@@ -5830,7 +5853,7 @@ const PurchaseEntry = () => {
 
         if (sameDayBills && sameDayBills.length > 0) {
           const dupTotals = computePurchaseBillTotals(
-            lineItems,
+            saveLines,
             discountAmount,
             otherCharges,
             isDcPurchase,
@@ -5879,7 +5902,7 @@ const PurchaseEntry = () => {
 
     const supplierInvAutoGenerated = !supplierInvManuallyEditedRef.current;
 
-    if (lineItems.length === 0 || !lineItems.some(item => item.qty > 0)) {
+    if (saveLines.length === 0 || !saveLines.some(item => item.qty > 0)) {
       toast({
         title: "Validation Error",
         description: "Please add at least one product with quantity > 0",
@@ -5888,7 +5911,7 @@ const PurchaseEntry = () => {
       return;
     }
 
-    const activeLines = lineItems.filter((item) => item.product_id || item.product_name?.trim());
+    const activeLines = saveLines.filter((item) => item.product_id || item.product_name?.trim());
 
     // Mobile ERP: each physical unit needs its own IMEI row (qty must be 1 per barcode).
     // Non-serialized accessories (requires_imei = false) allow qty > 1 on a shared barcode.
@@ -5999,7 +6022,7 @@ const PurchaseEntry = () => {
           billData,
           softwareBillNo,
           billDate: billDate.toISOString(),
-          lineItems,
+          lineItems: saveLines,
           roundOff,
           otherCharges,
           discountAmount,
@@ -6015,21 +6038,21 @@ const PurchaseEntry = () => {
     })();
 
     // Universal EAN: fork sibling SKU when bill line sale price tier differs from matched variant.
-    let billLinesForSave = lineItems;
+    let billLinesForSave = saveLines;
     const tierResolveOrgId = currentOrganization?.id;
     if (tierResolveOrgId) {
       purchaseSavePhase = "price-tier-resolve";
       billLinesForSave = await resolvePurchaseLineItemsForPriceTiers(
         tierResolveOrgId,
-        lineItems,
+        saveLines,
         format(billDate, "yyyy-MM-dd"),
       );
       posSaveMark("price_tier_resolve");
       const tierRepoined = billLinesForSave.some(
         (row, index) =>
-          row.sku_id !== lineItems[index]?.sku_id ||
-          row.product_id !== lineItems[index]?.product_id ||
-          (row.barcode || "") !== (lineItems[index]?.barcode || ""),
+          row.sku_id !== saveLines[index]?.sku_id ||
+          row.product_id !== saveLines[index]?.product_id ||
+          (row.barcode || "") !== (saveLines[index]?.barcode || ""),
       );
       if (tierRepoined) {
         setLineItems(billLinesForSave);
@@ -6064,7 +6087,7 @@ const PurchaseEntry = () => {
     purchaseSaveFinalizedRef.current = true;
     try {
       const billTotals = computePurchaseBillTotals(
-        lineItems,
+        saveLines,
         discountAmount,
         otherCharges,
         isDcPurchase,
@@ -6822,7 +6845,7 @@ const PurchaseEntry = () => {
 
         // Flag product variants as DC products (or reset if non-DC purchase)
         // Chunk variant updates to avoid IN clause timeout on large bills
-        const variantIds = [...new Set(lineItems.map(i => i.sku_id))];
+        const variantIds = [...new Set(saveLines.map(i => i.sku_id))];
         const VARIANT_CHUNK = 200;
         for (let vi = 0; vi < variantIds.length; vi += VARIANT_CHUNK) {
           const chunk = variantIds.slice(vi, vi + VARIANT_CHUNK);
@@ -6830,7 +6853,7 @@ const PurchaseEntry = () => {
         }
 
         // Clear "user cancelled" tag for products that are now actually billed
-        const billedProductIds = [...new Set(lineItems.map(i => i.product_id).filter(Boolean))];
+        const billedProductIds = [...new Set(saveLines.map(i => i.product_id).filter(Boolean))];
         if (billedProductIds.length > 0) {
           for (let pi = 0; pi < billedProductIds.length; pi += VARIANT_CHUNK) {
             const chunk = billedProductIds.slice(pi, pi + VARIANT_CHUNK);
@@ -6864,14 +6887,14 @@ const PurchaseEntry = () => {
         }
 
         // Batch-fetch product details instead of N individual queries
-        const uniqueProductIds = [...new Set(lineItems.map(i => i.product_id))];
+        const uniqueProductIds = [...new Set(saveLines.map(i => i.product_id))];
         const productDetailsMap = new Map<string, { brand: string; color: string; style: string }>();
         for (let pi = 0; pi < uniqueProductIds.length; pi += 200) {
           const chunk = uniqueProductIds.slice(pi, pi + 200);
           const { data: prods } = await supabase.from("products").select("id, brand, color, style").in("id", chunk);
           (prods || []).forEach(p => productDetailsMap.set(p.id, { brand: p.brand || "", color: p.color || "", style: p.style || "" }));
         }
-        const itemsWithDetails = lineItems.map(item => {
+        const itemsWithDetails = saveLines.map(item => {
           const pd = productDetailsMap.get(item.product_id) || { brand: "", color: "", style: "" };
           return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
         });
@@ -6983,9 +7006,9 @@ const PurchaseEntry = () => {
           operation: 'purchase_bill_save',
           organizationId: currentOrganization?.id,
           additionalContext: {
-            lineItemsCount: lineItems.length,
-            totalQty: lineItems.reduce((sum, row) => sum + (Number(row.qty) || 0), 0),
-            importLineCount: lineItems.filter((row) =>
+            lineItemsCount: saveLines.length,
+            totalQty: saveLines.reduce((sum, row) => sum + (Number(row.qty) || 0), 0),
+            importLineCount: saveLines.filter((row) =>
               String((row as { temp_id?: string }).temp_id || "").startsWith("import_"),
             ).length,
             savePhase: purchaseSavePhase,
@@ -7004,10 +7027,10 @@ const PurchaseEntry = () => {
         hint: error?.hint,
         code: error?.code,
         supplierName: billData.supplier_name,
-        itemCount: lineItems.length,
+        itemCount: saveLines.length,
         isEdit: isEditMode,
       });
-      const copy = formatPurchaseBillSaveFailedCopy({ error, lineItems });
+      const copy = formatPurchaseBillSaveFailedCopy({ error, lineItems: saveLines });
       toast({
         title: copy.title,
         description: copy.message,
