@@ -171,6 +171,8 @@ interface ProductSettings {
   sku_format?: string;
   default_size_group?: string;
   mobile_erp?: MobileERPConfig;
+  /** Show the EMI / financer button in POS without Mobile ERP mode. */
+  pos_emi_option?: boolean;
   /** When false, the POS skips the qty/price dialog for service products and
    * uses the price already defined at product entry. Default (undefined) = enabled. */
   service_quick_entry_dialog?: boolean;
@@ -1811,6 +1813,27 @@ export default function Settings() {
                             ...settings.product_settings?.mobile_erp,
                             enabled: checked,
                           },
+                        },
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                  <div>
+                    <Label className="text-base font-semibold">POS EMI option</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Show the EMI button in POS to enter financer / EMI details. They print on the Tally A4 invoice. Works without Mobile ERP mode.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.product_settings?.pos_emi_option || false}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        product_settings: {
+                          ...settings.product_settings,
+                          pos_emi_option: checked,
                         },
                       })
                     }
