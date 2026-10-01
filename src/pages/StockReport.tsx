@@ -58,12 +58,9 @@ import {
   divergentPurchaseBarcodeMessage,
   firstDivergentPurchaseBarcode,
   isStockReportBarcodeLikeSearch,
- claude/quick-stock-hide-deleted-products
   findHiddenVariantHintByBarcode,
   liveBarcodeMatchesScan,
-=======
   skuIdsServingScan,
-main
   liveBarcodesForStockReportRetry,
   resolvePurchaseBarcodesForStockReport,
   stockReportPurchaseMissHint,
