@@ -1,3 +1,4 @@
+import { posSaveMark } from "@/lib/posSaveTiming";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1107,6 +1108,7 @@ export const useSaveSale = () => {
         }
       }
 
+      posSaveMark("invoice_number");
       const {
         cashAmt,
         cardAmt,
@@ -1163,6 +1165,7 @@ export const useSaveSale = () => {
         .single();
 
       if (saleError) throw saleError;
+      posSaveMark("sale_insert");
       insertedSaleIdForRollback = sale.id;
 
       if (accountingEngineOn) {
@@ -1182,6 +1185,7 @@ export const useSaveSale = () => {
       const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
 
       const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+      posSaveMark("items_insert");
       if (lineInsert.salesmanColumnMissing) {
         toast({
           title: "Bill saved — per-line salesman not stored yet",
@@ -1222,6 +1226,7 @@ export const useSaveSale = () => {
         idempotencyKey: runtimeOptions?.creditIdempotencyKey,
       });
 
+      posSaveMark("credit_apply");
       try {
         const recomputed = await applyRecomputedSalePaymentState(
           sale.id,
@@ -1236,6 +1241,7 @@ export const useSaveSale = () => {
         console.error("applyRecomputedSalePaymentState failed after save:", recomputeErr);
       }
 
+      posSaveMark("recompute_state");
       let pointsAwarded = 0;
       // No points earn on bills that redeem points (pending stays 0).
       const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
