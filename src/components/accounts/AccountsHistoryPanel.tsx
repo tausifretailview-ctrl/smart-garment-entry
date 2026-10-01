@@ -7,6 +7,7 @@ import {
   accountsHistoryCardClass,
   accountsHistoryFooterClass,
   accountsHistorySearchInputClass,
+  accountsHistorySearchWrapClass,
   accountsHistoryTableWrapClass,
   accountsHistoryTitleBarClass,
   accountsHistoryToolbarClass,
@@ -21,6 +22,8 @@ interface AccountsHistoryPanelProps {
   onSearchChange?: (value: string) => void;
   /** Extra filters beside search (dates, selects, etc.) */
   filters?: ReactNode;
+  /** Right-aligned actions on the search row (Excel / PDF, etc.). */
+  actions?: ReactNode;
   footer?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -37,12 +40,13 @@ export function AccountsHistoryPanel({
   searchValue,
   onSearchChange,
   filters,
+  actions,
   footer,
   children,
   className,
   disableTableScroll,
 }: AccountsHistoryPanelProps) {
-  const showSearchRow = onSearchChange != null || filters;
+  const showSearchRow = onSearchChange != null || filters || actions;
   const [draftSearch, setDraftSearch] = useState(searchValue ?? "");
 
   useEffect(() => {
@@ -65,7 +69,7 @@ export function AccountsHistoryPanel({
       {showSearchRow ? (
         <div className={accountsHistoryToolbarClass}>
           {onSearchChange != null ? (
-            <div className="relative flex-1 min-w-[180px]">
+            <div className={accountsHistorySearchWrapClass}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder={searchPlaceholder ?? "Search…"}
@@ -76,6 +80,7 @@ export function AccountsHistoryPanel({
             </div>
           ) : null}
           {filters}
+          {actions ? <div className="flex items-center gap-1.5 shrink-0 sm:ml-auto">{actions}</div> : null}
         </div>
       ) : null}
 

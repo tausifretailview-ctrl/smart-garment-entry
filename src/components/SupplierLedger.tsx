@@ -21,7 +21,8 @@ import { useIsNarrowViewport } from "@/hooks/use-mobile";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
+import { accountsHistorySearchWrapClass, accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { safeMapGet, coerceToArray } from "@/lib/coerceToMap";
 import {
   fetchSupplierBalanceSnapshot,
@@ -1632,7 +1633,7 @@ export function SupplierLedger({
         </div>
         <div className="p-2 sm:p-3">
           <div className="flex flex-wrap items-center gap-2 mb-3 w-full">
-            <div className="relative flex-[2] min-w-[140px]">
+            <div className={accountsHistorySearchWrapClass}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Search by name, phone, or email..."
@@ -1643,7 +1644,7 @@ export function SupplierLedger({
             </div>
             
             <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-              <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
+              <SelectTrigger className="w-[148px] shrink-0 h-9 text-sm">
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
@@ -1663,6 +1664,26 @@ export function SupplierLedger({
                 Clear
               </Button>
             )}
+            <AccountsExportButtons
+              className="sm:ml-auto"
+              rows={filteredSuppliers}
+              fileBase="Supplier_Ledger"
+              sheetName="Supplier Ledger"
+              title="Supplier Ledger"
+              columns={[
+                { header: "Supplier Name", width: 1.6, value: (s) => s.supplier_name },
+                { header: "Phone", width: 1, value: (s) => s.phone || "" },
+                { header: "Email", width: 1.3, value: (s) => s.email || "" },
+                { header: "Total Purchases", width: 1, align: "right", value: (s) => Number(s.totalPurchases || 0).toFixed(2) },
+                { header: "Total Paid", width: 1, align: "right", value: (s) => Number(s.totalPaid || 0).toFixed(2) },
+                { header: "Balance", width: 1, align: "right", value: (s) => Number(s.balance || 0).toFixed(2) },
+                {
+                  header: "Status",
+                  width: 0.8,
+                  value: (s) => (s.balance > 0 ? "Payable" : s.balance < 0 ? "Advance" : "Settled"),
+                },
+              ]}
+            />
           </div>
 
           {isMobile ? (

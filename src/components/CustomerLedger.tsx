@@ -41,7 +41,7 @@ import {
   fetchCustomerLedgerTransactions,
   type CustomerLedgerTransaction,
 } from "@/utils/customerLedgerTransactions";
-import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
+import { accountsHistorySearchWrapClass, accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
@@ -5517,7 +5517,7 @@ Please clear your dues at the earliest. Thank you!`;
         </div>
         <div className="p-2 sm:p-3">
           <div className="flex flex-wrap items-center gap-2 mb-3 w-full">
-            <div className="relative flex-[2] min-w-[140px]">
+            <div className={accountsHistorySearchWrapClass}>
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 placeholder="Search by name, phone, email, GST, or address..."
@@ -5528,7 +5528,7 @@ Please clear your dues at the earliest. Thank you!`;
             </div>
             
             <Select value={paymentStatusFilter} onValueChange={setPaymentStatusFilter}>
-              <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
+              <SelectTrigger className="w-[148px] shrink-0 h-9 text-sm">
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
@@ -5550,7 +5550,7 @@ Please clear your dues at the earliest. Thank you!`;
                   }
                 }}
               >
-                <SelectTrigger className="flex-1 min-w-[120px] h-9 text-sm">
+                <SelectTrigger className="w-[160px] shrink-0 h-9 text-sm">
                   <SelectValue placeholder="Academic Year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -5566,7 +5566,7 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                <Button variant="outline" className="h-9 shrink-0 justify-start text-left font-normal text-sm">
                   <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {startDate ? format(startDate, "dd MMM yyyy") : "Start Date"}
                 </Button>
@@ -5583,7 +5583,7 @@ Please clear your dues at the earliest. Thank you!`;
 
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" className="flex-1 min-w-[130px] h-9 justify-start text-left font-normal text-sm">
+                <Button variant="outline" className="h-9 shrink-0 justify-start text-left font-normal text-sm">
                   <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                   {endDate ? format(endDate, "dd MMM yyyy") : "End Date"}
                 </Button>
