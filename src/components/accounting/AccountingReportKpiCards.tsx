@@ -11,7 +11,13 @@ export type AccountingKpiItem = {
 };
 
 /** Compact KPI strip — same density as Customer Balances totals. */
-export function AccountingReportKpiCards({ items }: { items: AccountingKpiItem[] }) {
+export function AccountingReportKpiCards({
+  items,
+  size = "default",
+}: {
+  items: AccountingKpiItem[];
+  size?: "default" | "large";
+}) {
   if (items.length === 0) return null;
   return (
     <div
@@ -37,7 +43,12 @@ export function AccountingReportKpiCards({ items }: { items: AccountingKpiItem[]
               <p className="text-xs font-medium text-white/80 leading-none truncate">{item.label}</p>
               <Icon className="h-3.5 w-3.5 text-white/80 shrink-0" />
             </div>
-            <p className="text-base sm:text-lg font-black text-white tabular-nums leading-tight mt-1 truncate">
+            <p
+              className={cn(
+                "font-black text-white tabular-nums leading-tight mt-1 truncate",
+                size === "large" ? "text-2xl sm:text-3xl" : "text-base sm:text-lg",
+              )}
+            >
               {item.value}
             </p>
             {item.sub ? (

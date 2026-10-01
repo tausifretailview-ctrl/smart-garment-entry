@@ -371,7 +371,7 @@ export default function CreditNoteSrAdjustmentRegister() {
               {showSettled ? " · including settled" : " · pending only"}
             </p>
           </div>
-          <ReportKpiCards items={kpiItems} />
+          <ReportKpiCards items={kpiItems} size="large" />
           <div className="rounded-md border bg-white overflow-auto flex-1 min-h-0 text-base print:overflow-visible">
             <Table className="text-base">
               <TableHeader className="sticky top-0 z-10">
@@ -410,25 +410,25 @@ export default function CreditNoteSrAdjustmentRegister() {
                       <TableCell>
                         <BillLines bills={row.linkedBills} />
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums font-semibold text-lg print:text-base">
                         {fmt(row.netReturnAmount)}
                       </TableCell>
                       <TableCell>
                         {row.creditNoteNumber || "—"}
                         {row.creditNoteNumber ? (
-                          <div className="text-sm text-muted-foreground font-mono tabular-nums">
+                          <div className="text-base print:text-sm text-muted-foreground font-mono tabular-nums">
                             {fmt(row.creditNoteAmount)}
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums font-semibold text-lg print:text-base">
                         {fmt(row.appliedAmount)}
                       </TableCell>
                       <TableCell>
                         <BillLines bills={row.redeemedBills} showAmount={row.redeemedBills.length > 1} />
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{formatRegisterDate(row.cnAppliedDate) || "—"}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums font-semibold">
+                      <TableCell className="text-right font-mono tabular-nums font-bold text-lg print:text-base">
                         {fmt(row.remainingAmount)}
                       </TableCell>
                       <TableCell className="text-sm">{row.statusLabel}</TableCell>
@@ -440,11 +440,11 @@ export default function CreditNoteSrAdjustmentRegister() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4}>Total · {kpis.count.toLocaleString("en-IN")} returns</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.netReturn)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.netReturn)}</TableCell>
                     <TableCell />
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.applied)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.applied)}</TableCell>
                     <TableCell colSpan={2} />
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.remaining)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.remaining)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableFooter>
