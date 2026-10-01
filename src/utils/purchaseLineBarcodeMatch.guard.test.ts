@@ -14,6 +14,8 @@ const setBasedRematchMigration = readFileSync(
   "utf8",
 );
 const rpcCaller = readFileSync(join(root, "src/pages/PurchaseEntry.tsx"), "utf8");
+const productEdit = readFileSync(join(root, "src/components/ProductEditPanel.tsx"), "utf8");
+const productEntry = readFileSync(join(root, "src/pages/ProductEntry.tsx"), "utf8");
 const fork = readFileSync(join(root, "src/utils/purchaseVariantPriceTierFork.ts"), "utf8");
 
 describe("purchase line barcode must match stocked item (server-side)", () => {
@@ -32,5 +34,13 @@ describe("purchase line barcode must match stocked item (server-side)", () => {
   it("client save resolver rematches an incoming line barcode to the live item", () => {
     expect(fork).toContain("shouldAttachPurchaseLineToExistingBarcode");
     expect(fork).toContain("pickLiveVariantForExistingLineBarcode");
+  });
+
+  it("purchase save forces the line barcode to equal the stocked item barcode", () => {
+    expect(rpcCaller).toContain("alignPurchaseBillLinesToStockedBarcodes");
+    expect(rpcCaller).toContain("writeBarcodeOntoEmptySku");
+    expect(rpcCaller).toContain("syncPurchaseItemBarcodesForSku");
+    expect(productEdit).toContain("syncPurchaseItemBarcodesForSku");
+    expect(productEntry).toContain("syncPurchaseItemBarcodesForSku");
   });
 });

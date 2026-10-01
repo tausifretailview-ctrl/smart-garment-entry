@@ -129,6 +129,11 @@ import {
   purchaseSearchRateLabels,
 } from "@/utils/purchaseProductSearchGroup";
 import { planExistingSkuBarcodeFill } from "@/utils/purchaseVariantBarcode";
+import {
+  alignPurchaseBillLinesToStockedBarcodes,
+  syncPurchaseItemBarcodesForSku,
+  writeBarcodeOntoEmptySku,
+} from "@/utils/alignPurchaseLineBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 import { getRequiresImeiFormDefault, productRequiresImei, rememberRequiresImeiFormChoice } from "@/utils/productRequiresImei";
@@ -3182,7 +3187,7 @@ const PurchaseEntry = () => {
     }
   };
 
-  /** Fill an empty displayed barcode from the SKU, or generate only if the DB is also empty. */
+  /** Use the stocked barcode when the SKU already has one. Write a line barcode onto the SKU only when the SKU barcode is empty. Generate only when both are empty. */
   const barcodeForExistingSku = async (skuId: string, displayedBarcode: string): Promise<string> => {
     const shown = displayedBarcode?.trim() || "";
     if (!currentOrganization?.id) return shown;
@@ -3194,7 +3199,10 @@ const PurchaseEntry = () => {
       .maybeSingle();
     const saved = (data?.barcode || "").trim();
     const plan = planExistingSkuBarcodeFill(shown, saved);
-    if (plan === "displayed") return shown;
+    if (plan === "displayed") {
+      if (!shown) return shown;
+      return writeBarcodeOntoEmptySku(currentOrganization.id, skuId, shown);
+    }
     if (plan === "database") return saved;
     if (!isAutoBarcode) return shown;
     const generated = await generateCentralizedBarcode();
@@ -5286,6 +5294,7 @@ const PurchaseEntry = () => {
 
         if (error) throw error;
 
+        await syncPurchaseItemBarcodesForSku(currentOrganization.id, item.sku_id, cleaned);
         updateLineItem(item.temp_id, "barcode", cleaned);
         toast({ title: "IMEI updated", description: cleaned });
       } catch (err: any) {
@@ -6065,6 +6074,33 @@ const PurchaseEntry = () => {
         skuIds: billLinesForSave.map((item) => item.sku_id),
       });
       posSaveMark("restore_recycled_skus");
+      purchaseSavePhase = "align-line-barcode";
+      const aligned = await alignPurchaseBillLinesToStockedBarcodes(
+        currentOrganization.id,
+        billLinesForSave,
+      );
+      if (aligned.conflict) {
+        toast({
+          title: "Cannot save — barcode mismatch",
+          description: aligned.conflict,
+          variant: "destructive",
+          duration: 12000,
+        });
+        return;
+      }
+      billLinesForSave = aligned.lines;
+      if (aligned.corrections.length > 0) {
+        setLineItems(billLinesForSave);
+        const first = aligned.corrections[0];
+        toast({
+          title: "Barcode matched to stock",
+          description:
+            aligned.corrections.length === 1
+              ? `${first.productName} is stocked under barcode ${first.to}. This bill will use ${first.to}.`
+              : `${aligned.corrections.length} lines will use the barcode already on stock, so a scan finds the same item.`,
+        });
+      }
+      posSaveMark("align_line_barcode");
     }
 
     // Force-save draft before attempting bill save (safety net against data loss)
