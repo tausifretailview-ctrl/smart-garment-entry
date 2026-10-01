@@ -2,6 +2,8 @@ import { forwardRef } from "react";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { posThermalPageCss } from "@/utils/invoicePrintFormat";
 import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
+import { formatReturnTime } from "@/utils/returnTimeDisplay";
+import type { SaleReturnCreditPrintInfo } from "@/utils/saleReturnPrintMeta";
 
 interface SaleReturnItem {
   product_name: string;
@@ -18,6 +20,9 @@ interface SaleReturn {
   return_number?: string | null;
   credit_note_number?: string | null;
   customer_name: string;
+  customer_phone?: string | null;
+  created_at?: string | null;
+  credit_info?: SaleReturnCreditPrintInfo | null;
   original_sale_number: string | null;
   return_date: string;
   gross_amount: number;
@@ -44,6 +49,7 @@ interface SaleReturnThermalPrintProps {
   saleReturn: SaleReturn;
   businessDetails: BusinessDetails;
   thermalPaper?: PosThermalPaper;
+  logoUrl?: string | null;
 }
 
 function numberToWords(num: number): string {
@@ -68,7 +74,7 @@ const clip = (text: string, max: number): string =>
   text.length > max ? `${text.slice(0, max - 2)}..` : text;
 
 export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnThermalPrintProps>(
-  ({ saleReturn, businessDetails, thermalPaper = '80mm' }, ref) => {
+  ({ saleReturn, businessDetails, thermalPaper = '80mm', logoUrl }, ref) => {
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     const isRefund = saleReturn.refund_type === 'cash_refund';
     const creditRefunded = !isRefund ? Number(saleReturn.refunded_amount || 0) : 0;
@@ -80,6 +86,8 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
       month: '2-digit',
       year: '2-digit',
     });
+    const returnTime = formatReturnTime(saleReturn.created_at);
+    const creditInfo = isRefund ? null : saleReturn.credit_info ?? null;
     const thermalPage = posThermalPageCss(thermalPaper);
     const contentWidth = thermalPaper === '58mm' ? '52mm' : '72mm';
 
@@ -165,6 +173,13 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
         {/* Header */}
         <div style={dblLine} />
         <div style={{ ...center, marginBottom: '4px' }}>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ maxHeight: '50px', maxWidth: thermalPaper === '58mm' ? '46mm' : '60mm', margin: '0 auto 2px', display: 'block', objectFit: 'contain' }}
+            />
+          )}
           <div style={{ fontWeight: 900, fontSize: '16px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {clip(businessDetails.business_name || 'Business Name', 24)}
           </div>
@@ -211,9 +226,21 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
             <span>Date:</span>
             <span>{returnDate}</span>
           </div>
+          {returnTime && (
+            <div style={row}>
+              <span>Time:</span>
+              <span>{returnTime}</span>
+            </div>
+          )}
           {saleReturn.customer_name && (
             <div style={{ marginTop: '2px', wordBreak: 'break-word' }}>
               Cust: {clip(saleReturn.customer_name, 28)}
+            </div>
+          )}
+          {saleReturn.customer_phone && (
+            <div style={row}>
+              <span>Mobile:</span>
+              <span style={{ textAlign: 'right' }}>{saleReturn.customer_phone}</span>
             </div>
           )}
           {saleReturn.original_sale_number && (
@@ -312,6 +339,35 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
         )}
         <div style={dblLine} />
 
+        {creditInfo && (
+          <div style={{ fontSize: '12px', marginBottom: '3px' }}>
+            <div style={row}>
+              <span>CN Status:</span>
+              <span style={{ fontWeight: 900, textAlign: 'right' }}>{creditInfo.label}</span>
+            </div>
+            {creditInfo.state !== 'refunded' && creditInfo.adjustedAmount > 0.005 && (
+              <div style={row}>
+                <span>Adjusted:</span>
+                <span style={{ fontWeight: 900 }}>₹{fmtAmt(creditInfo.adjustedAmount)}</span>
+              </div>
+            )}
+            {creditInfo.state !== 'refunded' && creditInfo.state !== 'adjusted' && (
+              <div style={row}>
+                <span>CN Balance:</span>
+                <span style={{ fontWeight: 900 }}>₹{fmtAmt(creditInfo.balanceAmount)}</span>
+              </div>
+            )}
+            {creditInfo.redeemedBills.map((bill) => (
+              <div key={bill.saleNumber} style={{ ...row, fontSize: '11px' }}>
+                <span style={{ wordBreak: 'break-all' }}>Used on {clip(bill.saleNumber, 16)}</span>
+                {creditInfo.redeemedBills.length > 1 && bill.amount > 0.005 && (
+                  <span>₹{fmtAmt(bill.amount)}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ fontSize: '10px', textAlign: 'center', fontStyle: 'italic', margin: '3px 0', lineHeight: 1.35 }}>
           {numberToWords(Math.floor(saleReturn.net_amount))} Rupees Only
         </div>
@@ -330,6 +386,8 @@ export const SaleReturnThermalPrint = forwardRef<HTMLDivElement, SaleReturnTherm
         <div style={{ ...center, fontSize: '11px', marginTop: '6px', lineHeight: 1.4 }}>
           {creditRefunded > 0.005 ? (
             <div style={{ fontWeight: 900 }}>Credit refunded to customer</div>
+          ) : creditInfo?.state === 'adjusted' ? (
+            <div style={{ fontWeight: 900 }}>Credit fully adjusted</div>
           ) : (
             <>
               <div>This credit can be used for future purchases</div>

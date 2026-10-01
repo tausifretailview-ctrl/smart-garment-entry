@@ -1,5 +1,7 @@
 import { forwardRef } from "react";
 import { saleReturnRefundModeLabel } from "@/utils/cashierSaleReturnRefunds";
+import { formatReturnTime } from "@/utils/returnTimeDisplay";
+import type { SaleReturnCreditPrintInfo } from "@/utils/saleReturnPrintMeta";
 
 interface SaleReturnItem {
   product_name: string;
@@ -16,6 +18,9 @@ interface SaleReturn {
   return_number?: string | null;
   credit_note_number?: string | null;
   customer_name: string;
+  customer_phone?: string | null;
+  created_at?: string | null;
+  credit_info?: SaleReturnCreditPrintInfo | null;
   original_sale_number: string | null;
   return_date: string;
   gross_amount: number;
@@ -42,6 +47,7 @@ interface BusinessDetails {
 interface SaleReturnPrintProps {
   saleReturn: SaleReturn;
   businessDetails: BusinessDetails;
+  logoUrl?: string | null;
   format?: 'a4' | 'a5' | 'a5-horizontal';
 }
 
@@ -121,10 +127,12 @@ function amountInWords(amount: number): string {
 }
 
 export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
-  ({ saleReturn, businessDetails, format = 'a4' }, ref) => {
+  ({ saleReturn, businessDetails, format = 'a4', logoUrl }, ref) => {
     const creditRefunded = saleReturn.refund_type !== 'cash_refund' ? Number(saleReturn.refunded_amount || 0) : 0;
     const totalQty = saleReturn.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
     const page = laserPageDimensions(format);
+    const returnTime = formatReturnTime(saleReturn.created_at);
+    const creditInfo = saleReturn.refund_type === 'cash_refund' ? null : saleReturn.credit_info ?? null;
 
     return (
       <div 
@@ -149,6 +157,13 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
             borderBottom: '2px solid #000',
             padding: '10px'
           }}>
+            {logoUrl && (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                style={{ maxHeight: '18mm', maxWidth: '60mm', margin: '0 auto 4px', display: 'block', objectFit: 'contain' }}
+              />
+            )}
             <div style={{ fontSize: '16pt', fontWeight: 'bold', marginBottom: '4px' }}>
               {businessDetails.business_name || "Business Name"}
             </div>
@@ -182,6 +197,9 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 CUSTOMER DETAILS:
               </div>
               <div><strong>Name:</strong> {saleReturn.customer_name}</div>
+              {saleReturn.customer_phone && (
+                <div><strong>Mobile:</strong> {saleReturn.customer_phone}</div>
+              )}
               {saleReturn.original_sale_number && (
                 <div><strong>Original Invoice:</strong> {saleReturn.original_sale_number}</div>
               )}
@@ -196,9 +214,35 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
               {saleReturn.credit_note_number && (
                 <div><strong>Credit Note No:</strong> {saleReturn.credit_note_number}</div>
               )}
-              <div><strong>Return Date:</strong> {new Date(saleReturn.return_date).toLocaleDateString('en-IN')}</div>
+              <div>
+                <strong>Return Date:</strong> {new Date(saleReturn.return_date).toLocaleDateString('en-IN')}
+                {returnTime ? ` ${returnTime}` : ''}
+              </div>
               {saleReturn.refund_type === 'cash_refund' && (
                 <div><strong>Refund Mode:</strong> {saleReturnRefundModeLabel(saleReturn)}</div>
+              )}
+              {creditInfo && (
+                <>
+                  <div><strong>CN Status:</strong> <strong>{creditInfo.label}</strong></div>
+                  {creditInfo.state !== 'refunded' && creditInfo.adjustedAmount > 0.005 && (
+                    <div><strong>Adjusted:</strong> ₹{creditInfo.adjustedAmount.toFixed(2)}</div>
+                  )}
+                  {creditInfo.state !== 'refunded' && creditInfo.state !== 'adjusted' && (
+                    <div><strong>CN Balance:</strong> ₹{creditInfo.balanceAmount.toFixed(2)}</div>
+                  )}
+                  {creditInfo.redeemedBills.length > 0 && (
+                    <div>
+                      <strong>Used on:</strong>{' '}
+                      {creditInfo.redeemedBills
+                        .map((bill) =>
+                          creditInfo.redeemedBills.length > 1 && bill.amount > 0.005
+                            ? `${bill.saleNumber} (₹${bill.amount.toFixed(2)})`
+                            : bill.saleNumber,
+                        )
+                        .join(', ')}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -337,7 +381,9 @@ export const SaleReturnPrint = forwardRef<HTMLDivElement, SaleReturnPrintProps>(
                 We declare that this credit note shows the actual credit amount for goods returned.
                 {creditRefunded > 0.005
                   ? "This credit has been refunded to the customer."
-                  : "This credit can be adjusted against future purchases."}
+                  : creditInfo?.state === 'adjusted'
+                    ? "This credit has been fully adjusted."
+                    : "This credit can be adjusted against future purchases."}
               </div>
             </div>
             <div style={{ width: '150px', textAlign: 'center', paddingTop: '30px' }}>
