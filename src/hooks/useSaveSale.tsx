@@ -1,3 +1,4 @@
+import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
 import { useState, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -403,6 +404,8 @@ export const useSaveSale = () => {
 
   const writeExchangePaymentVouchers = async (params: {
     saleNumber: string;
+    /** Links each voucher to its bill by id (client_request_id); see posExchangeVoucherRequestId. */
+    saleId?: string | null;
     customerId: string;
     txnDate: string;
     cashRefund: number;
@@ -420,7 +423,8 @@ export const useSaveSale = () => {
     const writePaymentVoucher = async (
       amount: number,
       method: string,
-      description: string
+      description: string,
+      requestId: string | null,
     ) => {
       if (amount <= 0 || !currentOrganization?.id) return;
       const { data: voucherNumber, error: numberError } = await supabase.rpc('generate_voucher_number' as any, {
@@ -439,7 +443,11 @@ export const useSaveSale = () => {
         description,
         total_amount: amount,
         payment_method: method,
+        ...(requestId ? { client_request_id: requestId } : {}),
       } as any);
+      // An active voucher with this key already exists for the bill (a retry of the same
+      // save): the refund is already on the books, so do not write it twice.
+      if (error && (error as { code?: string }).code === "23505" && requestId) return;
       if (error) throw error;
     };
 
@@ -447,19 +455,33 @@ export const useSaveSale = () => {
       params.cashRefund,
       refundMethod,
       `Refund paid for POS exchange ${params.saleNumber}`,
+      params.saleId ? posExchangeVoucherRequestId("refund", params.saleId) : null,
     );
     await writePaymentVoucher(
       params.roundOffRemainder,
       "round_off",
       `Round off adjustment for POS exchange ${params.saleNumber}`,
+      params.saleId ? posExchangeVoucherRequestId("roundoff", params.saleId) : null,
     );
   };
 
   const deletePosExchangeVouchersForSaleNumber = async (
     saleNumber: string,
     customerId: string,
+    saleId?: string | null,
   ) => {
     if (!currentOrganization?.id || !saleNumber || !customerId) return;
+    if (saleId) {
+      await (supabase as any)
+        .from("voucher_entries")
+        .delete()
+        .eq("organization_id", currentOrganization.id)
+        .eq("voucher_type", "payment")
+        .in("client_request_id", [
+          posExchangeVoucherRequestId("refund", saleId),
+          posExchangeVoucherRequestId("roundoff", saleId),
+        ]);
+    }
     await (supabase as any)
       .from("voucher_entries")
       .delete()
@@ -1175,6 +1197,7 @@ export const useSaveSale = () => {
           const txnDate = istCalendarYmd();
           await writeExchangePaymentVouchers({
             saleNumber,
+            saleId: sale.id,
             customerId: saleData.customerId,
             txnDate,
             cashRefund: exchange.cashRefund,
@@ -1955,9 +1978,11 @@ export const useSaveSale = () => {
           await deletePosExchangeVouchersForSaleNumber(
             sale.sale_number,
             saleData.customerId,
+            sale.id,
           );
           await writeExchangePaymentVouchers({
             saleNumber: sale.sale_number,
+            saleId: sale.id,
             customerId: saleData.customerId,
             txnDate,
             cashRefund: exchange.cashRefund,
@@ -2419,6 +2444,7 @@ export const useSaveSale = () => {
           }
           await writeExchangePaymentVouchers({
             saleNumber: sale.sale_number,
+            saleId: sale.id,
             customerId: saleData.customerId,
             txnDate,
             cashRefund: exchange.cashRefund,

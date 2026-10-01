@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { findLeftoverExchangeRefunds, leftoverExchangeRefundMessage } from "./exchangeRefundAfterDelete";
+import {
+  findLeftoverExchangeRefunds,
+  leftoverExchangeRefundMessage,
+  posExchangeVoucherRequestId,
+} from "./exchangeRefundAfterDelete";
 
 function stub(rows: unknown[] | null, fail = false) {
   const asked: Record<string, unknown> = {};
@@ -23,6 +27,29 @@ describe("findLeftoverExchangeRefunds", () => {
   it("returns nothing for a blank sale number or a failed lookup", async () => {
     expect(await findLeftoverExchangeRefunds(stub([]).client, "org", "")).toEqual([]);
     expect(await findLeftoverExchangeRefunds(stub(null, true).client, "org", "POS/1")).toEqual([]);
+  });
+});
+
+describe("findLeftoverExchangeRefunds by bill id", () => {
+  it("also looks the voucher up by its bill-id key and does not list it twice", async () => {
+    const keys: unknown[] = [];
+    const q: any = {
+      select: () => q,
+      eq: (k: string, v: unknown) => {
+        if (k === "client_request_id") keys.push(v);
+        return q;
+      },
+      is: () => Promise.resolve({ data: [{ voucher_number: "PAY/26-27/2135", total_amount: 300 }], error: null }),
+    };
+    const client = { from: () => q } as unknown as SupabaseClient;
+    const out = await findLeftoverExchangeRefunds(client, "org", "POS/26-27/464", "sale-464");
+    expect(keys).toEqual(["pos-exchange-refund:sale-464"]);
+    expect(out).toEqual([{ voucher_number: "PAY/26-27/2135", total_amount: 300 }]);
+  });
+
+  it("builds stable keys per bill", () => {
+    expect(posExchangeVoucherRequestId("refund", "s1")).toBe("pos-exchange-refund:s1");
+    expect(posExchangeVoucherRequestId("roundoff", "s1")).toBe("pos-exchange-roundoff:s1");
   });
 });
 
