@@ -66,7 +66,13 @@ async function searchQuickStockByBarcodeScan(
 ): Promise<{ rows: any[]; mismatch: DivergentPurchaseBarcode | null }> {
   if (!isStockReportBarcodeLikeSearch(term)) return { rows: [], mismatch: null };
 
-  const scan = await lookupVariantRowsByScan(orgId, term, QUICK_STOCK_SCAN_SELECT.trim());
+  const scan = await lookupVariantRowsByScan(
+    orgId,
+    term,
+    QUICK_STOCK_SCAN_SELECT.trim(),
+    undefined,
+    { excludeDeletedProducts: true },
+  );
   if (scan.purchaseBarcodeMismatch) return { rows: [], mismatch: scan.purchaseBarcodeMismatch };
   if (!scan.rows.length) return { rows: [], mismatch: null };
 

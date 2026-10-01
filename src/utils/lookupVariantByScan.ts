@@ -27,6 +27,11 @@ export type VariantScanLookupResult = {
 export type VariantScanLookupOptions = {
   /** Skip fuzzy ilike barcode; purchase_items resolves exact barcode only. */
   exactOnly?: boolean;
+  /**
+   * Hide variants whose product is in the Recycle Bin (needs a `products!inner` select).
+   * Quick Stock sets this so it agrees with Stock Report, which never lists deleted products.
+   */
+  excludeDeletedProducts?: boolean;
 };
 
 function escapeIlike(term: string): string {
@@ -58,13 +63,15 @@ export async function lookupVariantRowsByScan(
 
   if (!organizationId || !scanCandidates.length) return empty;
 
-  const base = () =>
-    client
+  const base = () => {
+    const query = client
       .from("product_variants")
       .select(variantSelect)
       .eq("organization_id", organizationId)
       .eq("active", true)
       .is("deleted_at", null);
+    return options?.excludeDeletedProducts ? query.is("products.deleted_at", null) : query;
+  };
 
   const mergedExactIds = new Set<string>();
   const mergedExactRows: Record<string, unknown>[] = [];

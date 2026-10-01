@@ -303,3 +303,40 @@ export function stockReportPurchaseMissHint(
     description: `${label} is on a purchase bill, but Stock Report cannot show it.`,
   };
 }
+
+/**
+ * Stock Report miss with no purchase-bill trail: the barcode may sit on a variant of a product
+ * that was deleted (or on an inactive variant). Returns a hint for that case, else null.
+ */
+export async function findHiddenVariantHintByBarcode(
+  client: PurchaseBarcodeStockClient,
+  organizationId: string,
+  barcode: string,
+): Promise<StockReportPurchaseMissHint | null> {
+  const trimmed = barcode.trim();
+  if (!organizationId || !trimmed) return null;
+  const { data, error } = await client
+    .from("product_variants")
+    .select("barcode, active, deleted_at, products!inner(product_name, deleted_at)")
+    .eq("organization_id", organizationId)
+    .eq("barcode", trimmed)
+    .limit(5);
+  if (error || !data?.length) return null;
+  for (const row of data) {
+    const product = Array.isArray(row.products) ? row.products[0] : row.products;
+    const name = product?.product_name ? ` (${String(product.product_name).trim()})` : "";
+    if (product?.deleted_at || row.deleted_at) {
+      return {
+        title: "Product was deleted",
+        description: `Barcode ${trimmed}${name} belongs to a deleted product. Restore it from Recycle Bin to see it in Stock Report.`,
+      };
+    }
+    if (row.active === false) {
+      return {
+        title: "Product is inactive",
+        description: `Barcode ${trimmed}${name} is inactive, so Stock Report hides it.`,
+      };
+    }
+  }
+  return null;
+}

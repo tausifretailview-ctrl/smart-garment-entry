@@ -58,7 +58,12 @@ import {
   divergentPurchaseBarcodeMessage,
   firstDivergentPurchaseBarcode,
   isStockReportBarcodeLikeSearch,
+ claude/quick-stock-hide-deleted-products
+  findHiddenVariantHintByBarcode,
+  liveBarcodeMatchesScan,
+=======
   skuIdsServingScan,
+main
   liveBarcodesForStockReportRetry,
   resolvePurchaseBarcodesForStockReport,
   stockReportPurchaseMissHint,
@@ -1004,6 +1009,15 @@ export default function StockReport() {
               if (miss) {
                 toast.warning(miss.title, { description: miss.description });
               }
+            }
+            if (rows.length === 0 && !divergent && resolutions.length === 0) {
+              const hidden = await findHiddenVariantHintByBarcode(
+                supabase as unknown as PurchaseBarcodeStockClient,
+                currentOrganization.id,
+                activeSearch,
+              );
+              if (requestId !== searchRequestIdRef.current) return;
+              if (hidden) toast.warning(hidden.title, { description: hidden.description });
             }
           } catch (resolveErr) {
             console.error("Purchase barcode resolve failed", resolveErr);
