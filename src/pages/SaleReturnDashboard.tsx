@@ -69,6 +69,7 @@ import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { formatReturnTime } from "@/utils/returnTimeDisplay";
 
 interface SaleReturn {
   id: string;
@@ -77,6 +78,8 @@ interface SaleReturn {
   customer_id: string | null;
   original_sale_number: string | null;
   return_date: string;
+  /** When the return was actually saved (return_date is only a calendar day). */
+  created_at?: string | null;
   gross_amount: number;
   gst_amount: number;
   net_amount: number;
@@ -462,7 +465,7 @@ export default function SaleReturnDashboard() {
 
       let query = supabase
         .from("sale_returns")
-        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -530,7 +533,7 @@ export default function SaleReturnDashboard() {
         query = query.or(clauses.join(","));
       }
 
-      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+      query = query.order("return_date", { ascending: false }).order("created_at", { ascending: false }).range(startIndex, endIndex);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -967,6 +970,7 @@ export default function SaleReturnDashboard() {
     const exportData = returns.map((ret) => ({
       "Return No": ret.return_number || "-",
       "Date": format(new Date(ret.return_date), "dd/MM/yyyy"),
+      "Time": formatReturnTime(ret.created_at) || "-",
       "Customer": ret.customer_name,
       "Mobile": ret.customer_phone || "-",
       "Original Sale No": ret.original_sale_number || "-",
@@ -1333,7 +1337,10 @@ export default function SaleReturnDashboard() {
                   }
                   meta={
                     <>
-                      <span>{format(new Date(ret.return_date), "dd MMM yyyy")}</span>
+                      <span>
+                        {format(new Date(ret.return_date), "dd MMM yyyy")}
+                        {formatReturnTime(ret.created_at) ? ` · ${formatReturnTime(ret.created_at)}` : ""}
+                      </span>
                       {ret.credit_note_number ? (
                         <button
                           type="button"
@@ -1727,6 +1734,11 @@ export default function SaleReturnDashboard() {
                               >
                                 {ret.return_number || "-"}
                               </span>
+                              {formatReturnTime(ret.created_at) && (
+                                <span className="block text-[11px] leading-tight text-muted-foreground tabular-nums">
+                                  {formatReturnTime(ret.created_at)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="whitespace-nowrap align-middle" onClick={() => toggleRow(ret.id)}>
                               {format(new Date(ret.return_date), "dd/MM/yyyy")}
