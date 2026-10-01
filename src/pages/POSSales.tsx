@@ -5676,6 +5676,7 @@ export default function POSSales() {
             upiAmount={savedInvoiceData?.upiAmount || 0}
             cardAmount={savedInvoiceData?.cardAmount || 0}
             creditAmount={savedInvoiceData?.creditAmount || 0}
+            financeAmount={savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
             refundCash={savedInvoiceData?.refundCash || 0}
             notes={
               savedInvoiceData?.isEstimate
@@ -9013,6 +9014,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData?.upiAmount || 0}
                 cardAmount={savedInvoiceData?.cardAmount || 0}
                 creditAmount={savedInvoiceData?.creditAmount || 0}
+            financeAmount={savedInvoiceData?.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData?.refundCash || 0}
                 paidAmount={paymentMethod === 'pay_later' ? 0 : finalAmount}
                 previousBalance={customerBalance || 0}
@@ -9209,6 +9211,7 @@ export default function POSSales() {
                 upiAmount={savedInvoiceData.upiAmount || 0}
                 cardAmount={savedInvoiceData.cardAmount || 0}
                 creditAmount={savedInvoiceData.creditAmount || 0}
+            financeAmount={savedInvoiceData.paymentBreakdown?.financeAmount || 0}
                 refundCash={savedInvoiceData.refundCash || 0}
                 notes={savedInvoiceData.notes}
                 pointsBalance={savedInvoiceData.pointsBalance}
