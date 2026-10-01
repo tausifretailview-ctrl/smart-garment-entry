@@ -4802,6 +4802,8 @@ const POSDashboard = () => {
             discount={printData.discount}
             saleReturnAdjust={printData.saleReturnAdjust}
             grandTotal={printData.grandTotal}
+            billNetAmount={printData.billNetAmount}
+            refundCash={printData.refundCash ?? 0}
             roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}
