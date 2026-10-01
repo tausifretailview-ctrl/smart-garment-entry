@@ -117,3 +117,75 @@ export function purchaseLineBarcodeDivergesFromSku(args: {
   if (!line) return false;
   return line !== trimBarcode(args.skuBarcode);
 }
+
+export type PurchaseLineForBarcodeAlign = {
+  sku_id?: string | null;
+  barcode?: string | null;
+  product_name?: string | null;
+};
+
+export type PurchaseLineBarcodeCorrection = {
+  productName: string;
+  from: string;
+  to: string;
+};
+
+export type PurchaseLineBarcodeAlignPlan<T> = {
+  lines: T[];
+  /** Empty SKUs that must receive the line barcode before the bill is inserted. */
+  writes: Array<{ skuId: string; barcode: string }>;
+  /** Lines whose barcode was replaced with the barcode already on stock. */
+  corrections: PurchaseLineBarcodeCorrection[];
+  conflict: string | null;
+};
+
+/**
+ * One stocked item, one barcode.
+ * - SKU already has a barcode → the line uses that barcode.
+ * - SKU barcode is empty and the line has one → write the line barcode onto the SKU.
+ * - Two lines for the same empty SKU with different barcodes → do not save.
+ */
+export function planPurchaseBillBarcodeAlign<T extends PurchaseLineForBarcodeAlign>(
+  lines: T[],
+  skuBarcodeById: ReadonlyMap<string, string>,
+): PurchaseLineBarcodeAlignPlan<T> {
+  const writes = new Map<string, string>();
+  const corrections: PurchaseLineBarcodeCorrection[] = [];
+  const next = lines.map((line) => ({ ...line }));
+
+  for (let index = 0; index < next.length; index++) {
+    const line = next[index];
+    const skuId = trimBarcode(line.sku_id);
+    if (!skuId || !skuBarcodeById.has(skuId)) continue;
+
+    const skuBarcode = skuBarcodeById.get(skuId) || "";
+    const lineBarcode = trimBarcode(line.barcode);
+    const productName = trimBarcode(line.product_name) || "This item";
+
+    if (skuBarcode) {
+      if (lineBarcode === skuBarcode) continue;
+      next[index] = { ...line, barcode: skuBarcode };
+      corrections.push({ productName, from: lineBarcode, to: skuBarcode });
+      continue;
+    }
+
+    if (!lineBarcode) continue;
+    const pending = writes.get(skuId);
+    if (pending && pending !== lineBarcode) {
+      return {
+        lines,
+        writes: [],
+        corrections: [],
+        conflict: `${productName} has two barcodes on this bill (${pending} and ${lineBarcode}). Each stock item keeps one barcode. Split the lines onto separate items, then save.`,
+      };
+    }
+    writes.set(skuId, lineBarcode);
+  }
+
+  return {
+    lines: next,
+    writes: [...writes.entries()].map(([skuId, barcode]) => ({ skuId, barcode })),
+    corrections,
+    conflict: null,
+  };
+}

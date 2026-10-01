@@ -1,13 +1,15 @@
 /** Decide how to fill a purchase line barcode on an existing SKU.
- * Never generate-and-write when the variant already has a barcode in the DB
- * (search grouping used to blank the displayed code and overwrite master).
- * Save/edit: a line that already carries barcode X is attached to the live
- * item holding X in purchaseLineBarcodeMatch / resolve_purchase_line_existing_barcode. */
+ * The barcode already on the stocked item wins, even when the line shows a
+ * different number. A second barcode for the same SKU is how a bill can print
+ * 0040008515 while POS only finds 40004714.
+ * A line barcode is kept only when the SKU barcode is still empty (the caller
+ * writes it onto that SKU). Generate only when both are empty. */
 export function planExistingSkuBarcodeFill(
   displayedBarcode: string | null | undefined,
   databaseBarcode: string | null | undefined,
 ): "displayed" | "database" | "generate" {
+  const saved = (databaseBarcode || "").trim();
+  if (saved) return "database";
   if ((displayedBarcode || "").trim()) return "displayed";
-  if ((databaseBarcode || "").trim()) return "database";
   return "generate";
 }
