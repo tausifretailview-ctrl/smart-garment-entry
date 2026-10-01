@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon, Landmark, Loader2 } from "lucide-react";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { cn } from "@/lib/utils";
 import {
   fetchBankLedgerNetBalance,
@@ -270,6 +271,21 @@ export function BankReconciliationTab({ organizationId, visitedTabs }: BankRecon
           {bankLedgerId && difference !== null && Math.abs(difference) < 0.005 && selectedIds.size === 0 && (
             <span className="text-sm text-muted-foreground">Select at least one line to mark reconciled.</span>
           )}
+          <AccountsExportButtons
+            className="sm:ml-auto"
+            rows={unclearedRows}
+            fileBase="Bank_GL_Uncleared"
+            sheetName="Bank GL"
+            title="Bank GL uncleared lines"
+            subtitle={`Statement ${format(statementDate, "dd/MM/yyyy")} · ${unclearedRows.length} lines`}
+            columns={[
+              { header: "Date", width: 0.9, value: (row) => row.date || "" },
+              { header: "Description", width: 2.2, value: (row) => row.description || "" },
+              { header: "Debit", width: 0.9, align: "right", value: (row) => round2(row.debit).toFixed(2) },
+              { header: "Credit", width: 0.9, align: "right", value: (row) => round2(row.credit).toFixed(2) },
+              { header: "Net (DR-CR)", width: 0.9, align: "right", value: (row) => round2(row.debit - row.credit).toFixed(2) },
+            ]}
+          />
         </div>
 
         <div className="rounded-md border overflow-x-auto">

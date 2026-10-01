@@ -26,6 +26,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { paymentSubmitFooterClass, resolvePaymentPickerGridHeight, resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -1448,6 +1449,40 @@ export function SupplierPaymentTab({
               </AlertDialogContent>
             </AlertDialog>
           ) : undefined
+        }
+        actions={
+          <AccountsExportButtons
+            rows={supplierPayments}
+            fileBase="Supplier_Payments"
+            sheetName="Supplier Payments"
+            title="Supplier Payments"
+            columns={[
+              { header: "Voucher No", width: 1.1, value: (v) => v.voucher_number || "" },
+              {
+                header: "Date",
+                width: 0.9,
+                value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : ""),
+              },
+              { header: "Entry Date & Time", width: 1.3, value: (v) => formatEntryDateTime(v.created_at) },
+              {
+                header: "Supplier",
+                width: 1.4,
+                value: (v) =>
+                  supplierNameById.get(String(v.reference_id)) ||
+                  v.description?.match(/Supplier:\s*([^|]+)/i)?.[1]?.trim() ||
+                  "",
+              },
+              { header: "Cash Paid", width: 0.9, align: "right", value: (v) => Number(v.total_amount || 0).toFixed(2) },
+              {
+                header: "Discount",
+                width: 0.8,
+                align: "right",
+                value: (v) => Number((v as { discount_amount?: number }).discount_amount || 0).toFixed(2),
+              },
+              { header: "Method", width: 0.8, value: (v) => v.payment_method || "" },
+              { header: "Description", width: 1.8, value: (v) => v.description || "" },
+            ]}
+          />
         }
         footer={
           totalPaymentPages > 1 ? (

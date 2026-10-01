@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { CalendarIcon, Plus, Pencil, Trash2, Printer, FileDown, Search, IndianRupee, Banknote, CreditCard, Wallet } from "lucide-react";
+import { CalendarIcon, Plus, Pencil, Trash2, Printer, IndianRupee, Banknote, CreditCard, Wallet } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useState, useMemo, useRef, useEffect } from "react";
@@ -22,11 +22,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { toast } from "sonner";
-import type * as XLSXType from "xlsx";
-/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
-let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
-const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
-
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -580,24 +576,6 @@ export function ExpensesTab({
     return Array.from(cats).sort();
   }, [expenseVouchers]);
 
-  const exportExcel = async () => {
-    const data = filteredExpenses.map((v) => ({
-      "Voucher No": v.voucher_number,
-      Date: format(new Date(v.voucher_date), "dd/MM/yyyy"),
-      Category: v.category || v.description || "",
-      Narration: v.description || "",
-      Payment: v.payment_method || "",
-      Amount: v.total_amount,
-      "Paid By": v.paid_by || "",
-      "Bill/Receipt No": v.receipt_number || "",
-    }));
-    const XLSX = await loadXlsx();
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Expenses");
-    XLSX.writeFile(wb, `Expenses_${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-  };
-
   const printVoucher = (v: any) => {
     const w = window.open("", "_blank", "width=400,height=600");
     if (!w) return;
@@ -805,10 +783,24 @@ export function ExpensesTab({
         searchPlaceholder="Search expenses…"
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
-        toolbar={
-          <Button variant="outline" size="sm" onClick={exportExcel} className="h-9 gap-1.5 text-sm border-slate-200 bg-slate-50 hover:bg-white">
-            <FileDown className="h-3.5 w-3.5" /> Export Excel
-          </Button>
+        actions={
+          <AccountsExportButtons
+            rows={filteredExpenses}
+            fileBase="Expenses"
+            sheetName="Expenses"
+            title="Expense History"
+            columns={[
+              { header: "Voucher No", width: 1.1, value: (v) => v.voucher_number || "" },
+              { header: "Date", width: 0.9, value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : "") },
+              { header: "Entry Date & Time", width: 1.3, value: (v) => formatEntryDateTime(v.created_at) },
+              { header: "Category", width: 1.1, value: (v) => v.category || v.description || "" },
+              { header: "Narration", width: 1.8, value: (v) => v.description || "" },
+              { header: "Payment", width: 0.8, value: (v) => v.payment_method || "" },
+              { header: "Amount", width: 0.9, align: "right", value: (v) => Number(v.total_amount || 0).toFixed(2) },
+              { header: "Paid By", width: 1, value: (v) => v.paid_by || "" },
+              { header: "Bill/Receipt No", width: 1, value: (v) => v.receipt_number || "" },
+            ]}
+          />
         }
         filters={
           <>

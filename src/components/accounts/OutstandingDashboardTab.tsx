@@ -4,19 +4,17 @@ import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilte
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Clock, AlertTriangle, AlertCircle, XCircle, 
-  Search, Download, TrendingUp, Users, IndianRupee,
-  ArrowUpDown, ArrowDown, ArrowUp, Phone, FileDown
+  TrendingUp, Users, IndianRupee,
+  ArrowUpDown, ArrowDown, ArrowUp, Phone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, differenceInDays } from "date-fns";
+import { differenceInDays } from "date-fns";
 import {
   fetchOrgLedgerCustomersReference,
   fetchOrgLedgerSalesSummaryReference,
@@ -25,12 +23,7 @@ import {
   fetchCustomerFinancialSnapshotMap,
   fetchCustomersWithFinancialActivity,
 } from "@/utils/customerFinancialSnapshot";
-import type * as XLSXType from "xlsx";
-/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
-let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
-const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
-
-import { toast } from "sonner";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileListCard } from "@/components/mobile/MobileListCard";
@@ -348,27 +341,6 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
     return sortDir === "asc" ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  const handleExport = async () => {
-    const rows = filteredCustomers.map((c) => ({
-      "Customer Name": c.name,
-      "Phone": c.phone || "-",
-      "Total Outstanding": Math.round(c.totalOutstanding),
-      "Invoice Count": c.invoiceCount,
-      "Oldest Days": c.oldestDays,
-      "Current (0-7d)": Math.round(c.aging.current),
-      "8-30 Days": Math.round(c.aging.d30),
-      "31-60 Days": Math.round(c.aging.d60),
-      "61-90 Days": Math.round(c.aging.d90),
-      "90+ Days": Math.round(c.aging.d90plus),
-    }));
-    const XLSX = await loadXlsx();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Outstanding");
-    XLSX.writeFile(wb, `Outstanding_Report_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
-    toast.success("Outstanding report exported");
-  };
-
   const getAgingBadge = (days: number) => {
     if (days <= 7) return <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-xs">Current</Badge>;
     if (days <= 30) return <Badge variant="outline" className="bg-info/10 text-info border-info/30 text-xs">30d</Badge>;
@@ -515,12 +487,25 @@ export function OutstandingDashboardTab({ organizationId, visitedTabs }: Outstan
         searchValue={search}
         onSearchChange={setSearch}
         disableTableScroll={isMobile}
-        toolbar={
-          !isMobile ? (
-            <Button variant="outline" size="sm" onClick={handleExport} className="h-9 gap-1.5 border-slate-200 bg-slate-50 hover:bg-white">
-              <FileDown className="h-4 w-4" /> Export
-            </Button>
-          ) : undefined
+        actions={
+          <AccountsExportButtons
+            rows={filteredCustomers}
+            fileBase="Outstanding_Report"
+            sheetName="Outstanding"
+            title="Customer-wise Outstanding"
+            columns={[
+              { header: "Customer Name", width: 1.6, value: (c) => c.name },
+              { header: "Phone", width: 1, value: (c) => c.phone || "" },
+              { header: "Total Outstanding", width: 1.1, align: "right", value: (c) => Math.round(c.totalOutstanding) },
+              { header: "Invoice Count", width: 0.8, align: "right", value: (c) => c.invoiceCount },
+              { header: "Oldest Days", width: 0.8, align: "right", value: (c) => c.oldestDays },
+              { header: "Current (0-7d)", width: 0.9, align: "right", value: (c) => Math.round(c.aging.current) },
+              { header: "8-30 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d30) },
+              { header: "31-60 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d60) },
+              { header: "61-90 Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90) },
+              { header: "90+ Days", width: 0.8, align: "right", value: (c) => Math.round(c.aging.d90plus) },
+            ]}
+          />
         }
         footer={
           <span className="text-muted-foreground w-full">

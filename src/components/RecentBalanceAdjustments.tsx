@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
@@ -301,6 +302,28 @@ export function RecentBalanceAdjustments({ organizationId, visitedTabs }: Props)
         searchPlaceholder="Search by customer name, phone or reason..."
         searchValue={searchQuery}
         onSearchChange={handleSearch}
+        actions={
+          <AccountsExportButtons
+            rows={filteredAdjustments}
+            fileBase="Balance_Adjustments"
+            sheetName="Balance Adjustments"
+            title="Balance Adjustments"
+            columns={[
+              {
+                header: "Date",
+                width: 1.2,
+                value: (adj) => (adj.created_at ? format(new Date(adj.created_at), "dd/MM/yyyy HH:mm") : ""),
+              },
+              { header: "Customer", width: 1.5, value: (adj) => adj.customers?.customer_name || "" },
+              { header: "Phone", width: 1, value: (adj) => adj.customers?.phone || "" },
+              { header: "Prev Outstanding", width: 1, align: "right", value: (adj) => Number(adj.previous_outstanding || 0).toFixed(2) },
+              { header: "New Outstanding", width: 1, align: "right", value: (adj) => Number(adj.new_outstanding || 0).toFixed(2) },
+              { header: "Prev Advance", width: 1, align: "right", value: (adj) => Number(adj.previous_advance || 0).toFixed(2) },
+              { header: "New Advance", width: 1, align: "right", value: (adj) => Number(adj.new_advance || 0).toFixed(2) },
+              { header: "Reason", width: 1.8, value: (adj) => adj.reason || "" },
+            ]}
+          />
+        }
         footer={
           totalPages > 1 ? (
             <>

@@ -8,6 +8,9 @@ export const accountsHistoryTitleBarClass =
 export const accountsHistoryToolbarClass =
   "flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white";
 
+/** Keeps the search field a modest width so filters and export sit beside it. */
+export const accountsHistorySearchWrapClass = "relative w-full max-w-xs shrink-0";
+
 export const accountsHistorySearchInputClass =
   "pl-10 h-9 w-full text-sm border-slate-200 bg-slate-50 focus:bg-white normal-case placeholder:normal-case";
 

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -27,7 +28,7 @@ import {
   paymentPickerRefClass,
 } from "@/components/accounts/accountsHistoryUi";
 import { format } from "date-fns";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -74,6 +75,7 @@ export function EmployeeSalaryTab({
   );
 
   const [employeePageCount, setEmployeePageCount] = useState(1);
+  const [salarySearch, setSalarySearch] = useState("");
 
   const { data: employees = [], isFetching: isFetchingEmployees } = useQuery({
     queryKey: ["employees", organizationId, "list", employeePageCount],
@@ -198,10 +200,23 @@ export function EmployeeSalaryTab({
     createSalaryVoucher.mutate();
   };
 
-  const salaryRows =
-    vouchers
-      ?.filter((v) => v.reference_type === "employee" && v.voucher_type === "payment" && !v.deleted_at)
-      .slice(0, 10) ?? [];
+  const salaryRows = useMemo(() => {
+    const rows =
+      vouchers?.filter(
+        (v) => v.reference_type === "employee" && v.voucher_type === "payment" && !v.deleted_at,
+      ) ?? [];
+    const q = salarySearch.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((v) => {
+      const employeeName = employees?.find((e) => e.id === v.reference_id)?.employee_name || "";
+      return (
+        employeeName.toLowerCase().includes(q) ||
+        String(v.voucher_number || "").toLowerCase().includes(q) ||
+        String(v.description || "").toLowerCase().includes(q) ||
+        String(v.payment_method || "").toLowerCase().includes(q)
+      );
+    });
+  }, [vouchers, salarySearch, employees]);
 
   return (
     <div className="space-y-6">
@@ -320,7 +335,37 @@ export function EmployeeSalaryTab({
       </Card>
 
       {!shell && (
-      <AccountsHistoryPanel title="Recent Salary Payments">
+      <AccountsHistoryPanel
+        title="Salary Payments"
+        searchPlaceholder="Search employee, voucher, description…"
+        searchValue={salarySearch}
+        onSearchChange={setSalarySearch}
+        actions={
+          <AccountsExportButtons
+            rows={salaryRows}
+            fileBase="Employee_Salary"
+            sheetName="Employee Salary"
+            title="Employee Salary Payments"
+            columns={[
+              { header: "Voucher No", width: 1.1, value: (v) => v.voucher_number || "" },
+              {
+                header: "Date",
+                width: 0.9,
+                value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : ""),
+              },
+              { header: "Entry Date & Time", width: 1.3, value: (v) => formatEntryDateTime(v.created_at) },
+              {
+                header: "Employee",
+                width: 1.4,
+                value: (v) => employees?.find((e) => e.id === v.reference_id)?.employee_name || "",
+              },
+              { header: "Amount", width: 0.9, align: "right", value: (v) => Number(v.total_amount || 0).toFixed(2) },
+              { header: "Method", width: 0.8, value: (v) => v.payment_method || "" },
+              { header: "Description", width: 1.8, value: (v) => v.description || "" },
+            ]}
+          />
+        }
+      >
           <Table className={accountsHistoryTableClass}>
             <TableHeader className="!static">
               <TableRow>
@@ -333,8 +378,14 @@ export function EmployeeSalaryTab({
                 <TableHead className={cn(accountsHistoryThClass, "w-[56px] text-center")}> </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {salaryRows.map((voucher) => (
+              <TableBody>
+                {salaryRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-sm py-8 text-muted-foreground">
+                      {salarySearch ? "No salary payments match your search." : "No salary payments."}
+                    </TableCell>
+                  </TableRow>
+                ) : salaryRows.map((voucher) => (
                 <TableRow key={voucher.id} className="hover:bg-accent/50">
                   <TableCell className={paymentPickerRefClass}>{voucher.voucher_number}</TableCell>
                   <TableCell>{format(new Date(voucher.voucher_date), "dd/MM/yyyy")}</TableCell>

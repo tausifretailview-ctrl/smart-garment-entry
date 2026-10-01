@@ -61,6 +61,7 @@ import {
   validateReceivingBankForSave,
 } from "@/utils/organizationBankAccounts";
 import { ReassignPaymentDialog } from "./ReassignPaymentDialog";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -2252,6 +2253,41 @@ export function CustomerPaymentTab({
               </AlertDialog>
             )}
           </>
+        }
+        actions={
+          <AccountsExportButtons
+            rows={customerPayments}
+            fileBase="Customer_Payments"
+            sheetName="Customer Payments"
+            title="Customer Payments"
+            columns={[
+              { header: "Voucher No", width: 1.1, value: (v) => v.voucher_number || "" },
+              {
+                header: "Payment Date",
+                width: 0.9,
+                value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : ""),
+              },
+              { header: "Entry Date & Time", width: 1.3, value: (v) => formatEntryDateTime(v.created_at) },
+              { header: "Customer", width: 1.4, value: (v) => resolveVoucherPartyName(v, partyNameCtx) },
+              { header: "Amount", width: 0.8, align: "right", value: (v) => Number(v.total_amount || 0).toFixed(2) },
+              { header: "Method", width: 0.8, value: (v) => v.payment_method || "" },
+              {
+                header: "Cheque/Txn Date",
+                width: 1,
+                value: (v) => {
+                  const match = String(v.description || "").match(/(?:UPI Date|Date):\s*(\d{2}\/\d{2}\/\d{4})/);
+                  return match?.[1] || "";
+                },
+              },
+              {
+                header: "Discount",
+                width: 0.8,
+                align: "right",
+                value: (v) => Number((v as { discount_amount?: number }).discount_amount || 0).toFixed(2),
+              },
+              { header: "Description", width: 1.8, value: (v) => v.description || "" },
+            ]}
+          />
         }
         footer={
           customerPayments.length > 0 || customerReceiptHistoryLoading ? (

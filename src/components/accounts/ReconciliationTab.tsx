@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, FileDown, Trash2, TrendingUp, DollarSign, Wallet, Receipt } from "lucide-react";
+import { CalendarIcon, Trash2, TrendingUp, DollarSign, Wallet, Receipt } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
@@ -14,12 +14,9 @@ import { format, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { accountsHistoryTableClass, accountsHistoryTableWrapClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { useUserRoles } from "@/hooks/useUserRoles";
-import type * as XLSXType from "xlsx";
-/** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
-let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
-const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
 interface ReconciliationTabProps {
   organizationId: string;
@@ -192,30 +189,7 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
     onError: (error: Error) => { toast.error(`Failed to delete receipt: ${error.message}`); },
   });
 
-  const handleExport = async () => {
-    const filtered = reconciliationData || [];
-    const XLSX = await loadXlsx();
-    const ws = XLSX.utils.json_to_sheet(filtered.map((payment) => ({
-      "Voucher No": payment.voucher_number,
-      "Payment Date": format(new Date(payment.voucher_date), "dd/MM/yyyy"),
-      "Customer Name": payment.customerName,
-      "Customer Phone": payment.customerPhone || "-",
-      "Invoice Number": payment.invoiceDetails?.sale_number || "-",
-      "Invoice Date": payment.invoiceDetails?.sale_date ? format(new Date(payment.invoiceDetails.sale_date), "dd/MM/yyyy") : "-",
-      "Invoice Amount": payment.invoiceDetails?.net_amount?.toFixed(2) || "0.00",
-      "Cash Amount": payment.invoiceDetails?.cash_amount?.toFixed(2) || "0.00",
-      "Card Amount": payment.invoiceDetails?.card_amount?.toFixed(2) || "0.00",
-      "UPI Amount": payment.invoiceDetails?.upi_amount?.toFixed(2) || "0.00",
-      "Payment Amount": payment.total_amount.toFixed(2),
-      "Payment Method": ((payment as any).metadata?.paymentMethod) || payment.invoiceDetails?.payment_method || "-",
-      "Payment Status": payment.invoiceDetails?.payment_status || "-",
-      "Balance": payment.invoiceDetails ? (payment.invoiceDetails.net_amount - (payment.invoiceDetails.paid_amount || 0)).toFixed(2) : "0.00",
-    })));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Reconciliation");
-    XLSX.writeFile(wb, `Payment_Reconciliation_${format(reconStartDate, "dd-MM-yyyy")}_to_${format(reconEndDate, "dd-MM-yyyy")}.xlsx`);
-    toast.success("Reconciliation report exported to Excel");
-  };
+  const reconciliationRows = reconciliationData || [];
 
   return (
     <div className="space-y-6">
@@ -358,9 +332,52 @@ export function ReconciliationTab({ organizationId, customers, visitedTabs }: Re
             );
           })()}
 
-          {/* Export */}
           <div className="flex justify-end">
-            <Button onClick={handleExport} variant="outline" className="gap-2"><FileDown className="h-4 w-4" /> Export to Excel</Button>
+            <AccountsExportButtons
+              rows={reconciliationRows}
+              fileBase={`Payment_Reconciliation_${format(reconStartDate, "dd-MM-yyyy")}_to_${format(reconEndDate, "dd-MM-yyyy")}`}
+              sheetName="Reconciliation"
+              title="Payment Reconciliation"
+              subtitle={`${format(reconStartDate, "dd/MM/yyyy")} to ${format(reconEndDate, "dd/MM/yyyy")} · ${reconciliationRows.length} rows`}
+              columns={[
+                { header: "Voucher No", width: 1.1, value: (payment) => payment.voucher_number || "" },
+                { header: "Payment Date", width: 0.9, value: (payment) => format(new Date(payment.voucher_date), "dd/MM/yyyy") },
+                { header: "Customer Name", width: 1.4, value: (payment) => payment.customerName || "" },
+                { header: "Customer Phone", width: 1, value: (payment) => payment.customerPhone || "" },
+                { header: "Invoice Number", width: 1.1, value: (payment) => payment.invoiceDetails?.sale_number || "" },
+                {
+                  header: "Invoice Date",
+                  width: 0.9,
+                  value: (payment) =>
+                    payment.invoiceDetails?.sale_date
+                      ? format(new Date(payment.invoiceDetails.sale_date), "dd/MM/yyyy")
+                      : "",
+                },
+                { header: "Invoice Amount", width: 0.9, align: "right", value: (payment) => Number(payment.invoiceDetails?.net_amount || 0).toFixed(2) },
+                { header: "Cash Amount", width: 0.8, align: "right", value: (payment) => Number(payment.invoiceDetails?.cash_amount || 0).toFixed(2) },
+                { header: "Card Amount", width: 0.8, align: "right", value: (payment) => Number(payment.invoiceDetails?.card_amount || 0).toFixed(2) },
+                { header: "UPI Amount", width: 0.8, align: "right", value: (payment) => Number(payment.invoiceDetails?.upi_amount || 0).toFixed(2) },
+                { header: "Payment Amount", width: 0.9, align: "right", value: (payment) => Number(payment.total_amount || 0).toFixed(2) },
+                {
+                  header: "Payment Method",
+                  width: 0.9,
+                  value: (payment) =>
+                    (payment as { metadata?: { paymentMethod?: string } }).metadata?.paymentMethod ||
+                    payment.invoiceDetails?.payment_method ||
+                    "",
+                },
+                { header: "Payment Status", width: 0.8, value: (payment) => payment.invoiceDetails?.payment_status || "" },
+                {
+                  header: "Balance",
+                  width: 0.8,
+                  align: "right",
+                  value: (payment) =>
+                    payment.invoiceDetails
+                      ? (Number(payment.invoiceDetails.net_amount || 0) - Number(payment.invoiceDetails.paid_amount || 0)).toFixed(2)
+                      : "0.00",
+                },
+              ]}
+            />
           </div>
 
           {/* Table */}

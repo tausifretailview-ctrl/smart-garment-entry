@@ -28,6 +28,7 @@ import {
   type PaymentVoucherRow,
 } from "@/utils/paymentVoucherFilters";
 import { useUserRoles } from "@/hooks/useUserRoles";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import {
   accountsHistoryTableClass,
@@ -206,6 +207,37 @@ export function PaymentTransactionHistoryPanel({
           setSearch(v);
           onNavIndexChange(null);
         }}
+        actions={
+          <AccountsExportButtons
+            rows={filtered}
+            fileBase={TAB_LABELS[tab].replace(/\s+/g, "_")}
+            sheetName={TAB_LABELS[tab]}
+            title={TAB_LABELS[tab]}
+            columns={[
+              { header: "Voucher", width: 1.1, value: (v) => v.voucher_number || "" },
+              {
+                header: "Date",
+                width: 0.8,
+                value: (v) => format(new Date(v.voucher_date || v.created_at || 0), "dd/MM/yyyy"),
+              },
+              {
+                header: "Party",
+                width: 1.4,
+                value: (v) =>
+                  resolveVoucherPartyName(v, {
+                    tab,
+                    sales,
+                    customers,
+                    suppliers: suppliersResolved,
+                    employees,
+                  }),
+              },
+              { header: "Amount", width: 0.8, align: "right", value: (v) => Number(v.total_amount || 0).toFixed(2) },
+              { header: "Method", width: 0.8, value: (v) => v.payment_method || "" },
+              { header: "Description", width: 1.8, value: (v) => v.description || "" },
+            ]}
+          />
+        }
         toolbar={
           <>
             <Badge variant="secondary" className="text-xs font-normal">

@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,33 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
               </Button>
             )}
           </>
+        }
+        actions={
+          <AccountsExportButtons
+            rows={filteredVouchers}
+            fileBase="Voucher_Entries"
+            sheetName="Voucher Entries"
+            title="Voucher Entries"
+            columns={[
+              { header: "Voucher No", width: 1.1, value: (v) => v.voucher_number || "" },
+              { header: "Type", width: 0.8, value: (v) => v.voucher_type || "" },
+              {
+                header: "Date",
+                width: 0.9,
+                value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : ""),
+              },
+              { header: "Entry Date & Time", width: 1.4, value: (v) => formatEntryDateTime(v.created_at) },
+              { header: "Party", width: 1.4, value: (v) => resolveVoucherPartyName(v, partyCtx) },
+              { header: "Reference", width: 1, value: (v) => v.reference_type || "" },
+              {
+                header: "Amount",
+                width: 0.9,
+                align: "right",
+                value: (v) => Number(v.total_amount || 0).toFixed(2),
+              },
+              { header: "Description", width: 2, value: (v) => v.description || "" },
+            ]}
+          />
         }
         footer={
           <div className="text-xs text-muted-foreground">
