@@ -59,7 +59,13 @@ function mapQuickStockScanRows(rows: Record<string, unknown>[]): any[] {
 async function searchQuickStockByBarcodeScan(orgId: string, term: string): Promise<any[]> {
   if (!isStockReportBarcodeLikeSearch(term)) return [];
 
-  const scan = await lookupVariantRowsByScan(orgId, term, QUICK_STOCK_SCAN_SELECT.trim());
+  const scan = await lookupVariantRowsByScan(
+    orgId,
+    term,
+    QUICK_STOCK_SCAN_SELECT.trim(),
+    undefined,
+    { excludeDeletedProducts: true },
+  );
   if (!scan.rows.length) return [];
 
   return excludeServiceVariants(mapQuickStockScanRows(scan.rows));
