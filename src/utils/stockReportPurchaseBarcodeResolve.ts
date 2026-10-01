@@ -133,6 +133,56 @@ export async function resolvePurchaseBarcodesForStockReport(
   });
 }
 
+/** True when the variant's current barcode is the one that was scanned. */
+export function liveBarcodeMatchesScan(
+  liveBarcode: string | null | undefined,
+  scanned: string,
+): boolean {
+  const live = (liveBarcode || "").trim().toLowerCase();
+  const scan = scanned.trim().toLowerCase();
+  return Boolean(live) && Boolean(scan) && live === scan;
+}
+
+export type DivergentPurchaseBarcode = {
+  scanned: string;
+  liveBarcode: string;
+  productName: string | null;
+};
+
+/**
+ * Purchase line still has the scanned barcode, but the linked SKU now carries
+ * a different barcode (another product after a merge / re-barcode). That SKU
+ * must not be sold or shown as if it were the scanned barcode.
+ */
+export function firstDivergentPurchaseBarcode(
+  resolutions: PurchaseBarcodeStockResolution[],
+  scanned: string,
+): DivergentPurchaseBarcode | null {
+  for (const row of resolutions) {
+    if (row.excludeReason || !row.skuId) continue;
+    const live = (row.liveBarcode || "").trim();
+    if (!live || liveBarcodeMatchesScan(live, scanned)) continue;
+    return {
+      scanned: scanned.trim(),
+      liveBarcode: live,
+      productName: row.productName,
+    };
+  }
+  return null;
+}
+
+export function divergentPurchaseBarcodeMessage(info: DivergentPurchaseBarcode): {
+  title: string;
+  description: string;
+} {
+  const name = info.productName?.trim();
+  const who = name ? `${name} is not stocked under ${info.scanned}` : `No product is stocked under barcode ${info.scanned}`;
+  return {
+    title: `Barcode ${info.scanned} is not available`,
+    description: `${who}. The linked item uses barcode ${info.liveBarcode}. Scan ${info.liveBarcode} for that item.`,
+  };
+}
+
 /** Live barcodes to re-query get_stock_report with when purchase barcode ≠ master. */
 export function liveBarcodesForStockReportRetry(
   resolutions: PurchaseBarcodeStockResolution[],

@@ -58,7 +58,8 @@ import {
 } from "@/utils/invoiceOverpaymentGuard";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
-import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
+import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { AdaptiveCustomerPicker } from "@/components/mobile/AdaptiveCustomerPicker";
 import { AdaptiveSupplierPicker } from "@/components/mobile/AdaptiveSupplierPicker";
@@ -93,7 +94,11 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
 
   const { data: settings } = useSettings();
 
-  const handlePrintReceipt = useReactToPrint({ contentRef: receiptRef, documentTitle: `Receipt_${receiptData?.voucherNumber}` });
+  const handlePrintReceipt = useReactToPrint({
+    contentRef: receiptRef,
+    documentTitle: `Receipt_${receiptData?.voucherNumber}`,
+    pageStyle: getPaymentReceiptPrintPageStyle(settings ?? undefined),
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -135,27 +140,7 @@ export const FloatingPayments = ({ open, onOpenChange }: FloatingPaymentsProps) 
               <DialogHeader>
                 <DialogTitle>Payment Receipt</DialogTitle>
               </DialogHeader>
-              <PaymentReceipt
-                ref={receiptRef}
-                receiptData={receiptData}
-                companyDetails={{
-                  businessName: settings?.business_name,
-                  address: settings?.address,
-                  mobileNumber: settings?.mobile_number,
-                  emailId: settings?.email_id,
-                  gstNumber: settings?.gst_number,
-                  logoUrl: (settings as any)?.logo_url,
-                  upiId: (settings as any)?.upi_id,
-                }}
-                receiptSettings={{
-                  headerText: (settings as any)?.receipt_header,
-                  footerText: (settings as any)?.receipt_footer,
-                  showCompanyLogo: (settings as any)?.show_company_logo_receipt,
-                  showQrCode: (settings as any)?.show_qr_receipt,
-                  showSignature: (settings as any)?.show_signature_receipt,
-                  signatureLabel: (settings as any)?.signature_label,
-                }}
-              />
+              <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} preview />
               <div className="flex gap-2 justify-end mt-2">
                 <Button size="sm" variant="outline" onClick={() => {
                   if (!receiptData?.customerPhone) { toast.error("No phone number"); return; }

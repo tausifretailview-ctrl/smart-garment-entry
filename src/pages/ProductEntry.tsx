@@ -42,6 +42,7 @@ import {
 } from "@/utils/barcodeValidation";
 import { getRequiresImeiFormDefault } from "@/utils/productRequiresImei";
 import { ensureFreshGeneratedBarcode, insertGeneratedProductVariant, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
+import { syncPurchaseItemBarcodesForSku } from "@/utils/alignPurchaseLineBarcode";
 import { UOM_OPTIONS, DEFAULT_UOM } from "@/constants/uom";
 import {
   resolveGarmentGstForLine,
@@ -1424,7 +1425,7 @@ const ProductEntry = () => {
 
           // Update existing variants by ID (don't overwrite stock_qty with opening_qty)
           for (const v of existingVariants) {
-            const { error: updateError } = await supabase
+            const { data: updatedRows, error: updateError } = await supabase
               .from("product_variants")
               .update({
                 color: v.color || null,
@@ -1438,9 +1439,24 @@ const ProductEntry = () => {
                 // Only update stock_qty if opening_qty was explicitly changed
                 // The actual stock is managed by purchase/sale transactions
               })
-              .eq("id", v.id);
+              .eq("id", v.id)
+              .eq("organization_id", currentOrganization.id)
+              .select("id");
 
             if (updateError) throw updateError;
+            if (!updatedRows?.length) {
+              throw new Error("Could not update this item for the current organization.");
+            }
+
+            const nextBarcode = (v.barcode || "").trim();
+            const previousBarcode = (originalBarcodes.get(v.id) || "").trim();
+            if (nextBarcode && nextBarcode !== previousBarcode) {
+              await syncPurchaseItemBarcodesForSku(
+                currentOrganization.id,
+                v.id,
+                nextBarcode,
+              );
+            }
           }
 
           // Insert new variants (for newly generated ones without IDs)
@@ -1449,8 +1465,9 @@ const ProductEntry = () => {
             // Check if variant already exists (handles NULL color comparison)
             const { data: existingVariant } = await supabase
               .from("product_variants")
-              .select("id")
+              .select("id, barcode")
               .eq("product_id", editingProductId)
+              .eq("organization_id", currentOrganization.id)
               .eq("size", v.size)
               .is("deleted_at", null)
               .or(v.color ? `color.eq.${v.color}` : "color.is.null")
@@ -1458,7 +1475,7 @@ const ProductEntry = () => {
 
             if (existingVariant) {
               // Update existing variant
-              const { error: updateError } = await supabase
+              const { data: updatedRows, error: updateError } = await supabase
                 .from("product_variants")
                 .update({
                   pur_price: v.pur_price,
@@ -1471,9 +1488,22 @@ const ProductEntry = () => {
                   active: v.active,
                   opening_qty: v.opening_qty,
                 })
-                .eq("id", existingVariant.id);
+                .eq("id", existingVariant.id)
+                .eq("organization_id", currentOrganization.id)
+                .select("id");
 
               if (updateError) throw updateError;
+              if (!updatedRows?.length) {
+                throw new Error("Could not update this item for the current organization.");
+              }
+              const nextBarcode = (v.barcode || "").trim();
+              if (nextBarcode && nextBarcode !== (existingVariant.barcode || "").trim()) {
+                await syncPurchaseItemBarcodesForSku(
+                  currentOrganization.id,
+                  existingVariant.id,
+                  nextBarcode,
+                );
+              }
             } else {
               const barcodeSource = classifyBarcodeSource(v.barcode, {
                 organizationNumber: (currentOrganization as { organization_number?: number } | null)?.organization_number,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   lineBarcodeExistsOnLiveItem,
   pickLiveVariantForExistingLineBarcode,
+  planPurchaseBillBarcodeAlign,
   purchaseLineBarcodeDivergesFromSku,
   shouldAttachPurchaseLineToExistingBarcode,
 } from "./purchaseLineBarcodeMatch";
@@ -119,5 +120,68 @@ describe("purchaseLineBarcodeDivergesFromSku", () => {
         skuBarcode: "0040019999",
       }),
     ).toBe(false);
+  });
+});
+
+describe("planPurchaseBillBarcodeAlign", () => {
+  const line = (barcode: string, skuId = "sku-1", productName = "PSB01") => ({
+    sku_id: skuId,
+    barcode,
+    product_name: productName,
+    qty: 24,
+  });
+
+  it("replaces a bill barcode with the barcode already on the stocked item", () => {
+    const plan = planPurchaseBillBarcodeAlign(
+      [line("0040008515")],
+      new Map([["sku-1", "40004714"]]),
+    );
+    expect(plan.conflict).toBeNull();
+    expect(plan.lines[0].barcode).toBe("40004714");
+    expect(plan.writes).toEqual([]);
+    expect(plan.corrections).toEqual([
+      { productName: "PSB01", from: "0040008515", to: "40004714" },
+    ]);
+  });
+
+  it("writes the line barcode onto a SKU that does not have one yet", () => {
+    const plan = planPurchaseBillBarcodeAlign(
+      [line("0040008515")],
+      new Map([["sku-1", ""]]),
+    );
+    expect(plan.conflict).toBeNull();
+    expect(plan.lines[0].barcode).toBe("0040008515");
+    expect(plan.writes).toEqual([{ skuId: "sku-1", barcode: "0040008515" }]);
+    expect(plan.corrections).toEqual([]);
+  });
+
+  it("leaves a line alone when it already matches the stocked barcode", () => {
+    const plan = planPurchaseBillBarcodeAlign(
+      [line("40004714")],
+      new Map([["sku-1", "40004714"]]),
+    );
+    expect(plan.lines[0].barcode).toBe("40004714");
+    expect(plan.writes).toEqual([]);
+    expect(plan.corrections).toEqual([]);
+  });
+
+  it("fills an empty line from the stocked barcode", () => {
+    const plan = planPurchaseBillBarcodeAlign(
+      [line("")],
+      new Map([["sku-1", "40004714"]]),
+    );
+    expect(plan.lines[0].barcode).toBe("40004714");
+    expect(plan.corrections[0].to).toBe("40004714");
+  });
+
+  it("refuses two different barcodes for the same empty stock item", () => {
+    const plan = planPurchaseBillBarcodeAlign(
+      [line("0040008515"), line("0040008516")],
+      new Map([["sku-1", ""]]),
+    );
+    expect(plan.conflict).toContain("0040008515");
+    expect(plan.conflict).toContain("0040008516");
+    expect(plan.lines[0].barcode).toBe("0040008515");
+    expect(plan.writes).toEqual([]);
   });
 });

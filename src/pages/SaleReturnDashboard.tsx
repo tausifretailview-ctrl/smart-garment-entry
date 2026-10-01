@@ -69,6 +69,8 @@ import { cn } from "@/lib/utils";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { formatReturnTime } from "@/utils/returnTimeDisplay";
+import { buildSaleReturnCreditPrintInfo, shouldShowSaleReturnLogo } from "@/utils/saleReturnPrintMeta";
 
 interface SaleReturn {
   id: string;
@@ -77,6 +79,8 @@ interface SaleReturn {
   customer_id: string | null;
   original_sale_number: string | null;
   return_date: string;
+  /** When the return was actually saved (return_date is only a calendar day). */
+  created_at?: string | null;
   gross_amount: number;
   gst_amount: number;
   net_amount: number;
@@ -124,6 +128,7 @@ interface BusinessDetails {
   address: string | null;
   mobile_number: string | null;
   gst_number: string | null;
+  bill_barcode_settings?: { logo_url?: string | null } | null;
 }
 
 const getCreditStatusBadgeClass = (ret: SaleReturn): string => {
@@ -415,6 +420,13 @@ export default function SaleReturnDashboard() {
     returnToPrint?.original_sale_number,
   );
   const isThermal = activePrintFormat === 'thermal';
+  const returnLogoUrl = shouldShowSaleReturnLogo({
+    logoUrl: businessDetails?.bill_barcode_settings?.logo_url,
+    originalSaleNumber: returnToPrint?.original_sale_number,
+    saleSettings: saleSettings as Parameters<typeof shouldShowSaleReturnLogo>[0]["saleSettings"],
+  })
+    ? businessDetails?.bill_barcode_settings?.logo_url
+    : null;
 
   const returnPrintPageStyle = useMemo(
     () =>
@@ -462,7 +474,7 @@ export default function SaleReturnDashboard() {
 
       let query = supabase
         .from("sale_returns")
-        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
+        .select("id, return_number, customer_name, customer_id, original_sale_number, return_date, created_at, gross_amount, gst_amount, net_amount, credit_available_balance, notes, credit_note_id, credit_status, linked_sale_id, refund_type, payment_method", { count: "exact" })
         .eq("organization_id", currentOrganization.id)
         .is("deleted_at", null);
 
@@ -530,7 +542,7 @@ export default function SaleReturnDashboard() {
         query = query.or(clauses.join(","));
       }
 
-      query = query.order("return_date", { ascending: false }).range(startIndex, endIndex);
+      query = query.order("return_date", { ascending: false }).order("created_at", { ascending: false }).range(startIndex, endIndex);
 
       const { data, error, count } = await query;
       if (error) throw error;
@@ -857,7 +869,7 @@ export default function SaleReturnDashboard() {
       return;
     }
 
-    setBusinessDetails(data);
+    setBusinessDetails(data as unknown as BusinessDetails);
     const nextSaleSettings = data?.sale_settings as SaleSettingsBillFormatSlice | undefined;
     setSaleSettings(nextSaleSettings ?? null);
     const barcodeSettings = data?.bill_barcode_settings as { direct_print_pos_paper?: string } | null;
@@ -953,6 +965,17 @@ export default function SaleReturnDashboard() {
         refunded_mode: refund.mode,
       };
     }
+    printData.credit_info = buildSaleReturnCreditPrintInfo({
+      net_amount: Number(returnRecord.net_amount || 0),
+      refund_type: returnRecord.refund_type,
+      credit_status: returnRecord.credit_status,
+      availableAmount: getAvailableCN(returnRecord),
+      actual_adjusted_amt: returnRecord.actual_adjusted_amt,
+      redeemedBills: fallbackRedeemBills(returnRecord).map((b) => ({
+        saleNumber: b.saleNumber,
+        amount: Number(b.amount || 0),
+      })),
+    });
     setReturnToPrint(printData);
     setTimeout(() => handlePrint(), 100);
   };
@@ -967,6 +990,7 @@ export default function SaleReturnDashboard() {
     const exportData = returns.map((ret) => ({
       "Return No": ret.return_number || "-",
       "Date": format(new Date(ret.return_date), "dd/MM/yyyy"),
+      "Time": formatReturnTime(ret.created_at) || "-",
       "Customer": ret.customer_name,
       "Mobile": ret.customer_phone || "-",
       "Original Sale No": ret.original_sale_number || "-",
@@ -1076,6 +1100,7 @@ export default function SaleReturnDashboard() {
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
                 thermalPaper={returnThermalPaper}
+                logoUrl={returnLogoUrl}
               />
             ) : (
               <SaleReturnPrint
@@ -1083,6 +1108,7 @@ export default function SaleReturnDashboard() {
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
                 format={activePrintFormat}
+                logoUrl={returnLogoUrl}
               />
             )
           )}
@@ -1333,7 +1359,10 @@ export default function SaleReturnDashboard() {
                   }
                   meta={
                     <>
-                      <span>{format(new Date(ret.return_date), "dd MMM yyyy")}</span>
+                      <span>
+                        {format(new Date(ret.return_date), "dd MMM yyyy")}
+                        {formatReturnTime(ret.created_at) ? ` · ${formatReturnTime(ret.created_at)}` : ""}
+                      </span>
                       {ret.credit_note_number ? (
                         <button
                           type="button"
@@ -1727,6 +1756,11 @@ export default function SaleReturnDashboard() {
                               >
                                 {ret.return_number || "-"}
                               </span>
+                              {formatReturnTime(ret.created_at) && (
+                                <span className="block text-[11px] leading-tight text-muted-foreground tabular-nums">
+                                  {formatReturnTime(ret.created_at)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="whitespace-nowrap align-middle" onClick={() => toggleRow(ret.id)}>
                               {format(new Date(ret.return_date), "dd/MM/yyyy")}

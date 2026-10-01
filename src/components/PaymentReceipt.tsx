@@ -2,6 +2,7 @@ import { forwardRef } from "react";
 import { format } from "date-fns";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
+import { paymentAmountToWords } from "@/utils/paymentReceiptWords";
 
 interface PaymentReceiptProps {
   receiptData: {
@@ -209,9 +210,9 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
         <div className="mb-2 text-[10px]">
           <span className="font-semibold text-gray-900">Amount in Words: </span>
           <span className="text-gray-700 italic">
-            Rupees {numberToWords(paidAmount)} Only
+            Rupees {paymentAmountToWords(paidAmount)} Only
             {discountAmount > 0 && (
-              <span className="ml-1">(Discount: Rupees {numberToWords(discountAmount)} Only)</span>
+              <span className="ml-1">(Discount: Rupees {paymentAmountToWords(discountAmount)} Only)</span>
             )}
           </span>
         </div>
@@ -245,67 +246,3 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
 );
 
 PaymentReceipt.displayName = "PaymentReceipt";
-
-// Helper function to convert number to words
-function numberToWords(num: number): string {
-  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
-  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-
-  if (num === 0) return "Zero";
-
-  const crores = Math.floor(num / 10000000);
-  const lakhs = Math.floor((num % 10000000) / 100000);
-  const thousands = Math.floor((num % 100000) / 1000);
-  const hundreds = Math.floor((num % 1000) / 100);
-  const remainder = Math.floor(num % 100);
-
-  let words = "";
-
-  if (crores > 0) {
-    words += convertTwoDigit(crores) + " Crore ";
-  }
-
-  if (lakhs > 0) {
-    words += convertTwoDigit(lakhs) + " Lakh ";
-  }
-
-  if (thousands > 0) {
-    words += convertTwoDigit(thousands) + " Thousand ";
-  }
-
-  if (hundreds > 0) {
-    words += ones[hundreds] + " Hundred ";
-  }
-
-  if (remainder > 0) {
-    if (remainder < 10) {
-      words += ones[remainder];
-    } else if (remainder < 20) {
-      words += teens[remainder - 10];
-    } else {
-      words += tens[Math.floor(remainder / 10)];
-      if (remainder % 10 > 0) {
-        words += " " + ones[remainder % 10];
-      }
-    }
-  }
-
-  // Handle decimal part
-  const decimal = Math.round((num % 1) * 100);
-  if (decimal > 0) {
-    words += " and " + convertTwoDigit(decimal) + " Paise";
-  }
-
-  return words.trim();
-}
-
-function convertTwoDigit(num: number): string {
-  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
-  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  const teens = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-
-  if (num < 10) return ones[num];
-  if (num < 20) return teens[num - 10];
-  return tens[Math.floor(num / 10)] + (num % 10 > 0 ? " " + ones[num % 10] : "");
-}

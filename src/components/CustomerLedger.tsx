@@ -4186,7 +4186,7 @@ Please clear your dues at the earliest. Thank you!`;
                                       ○ Pending
                                     </Badge>
                                   )}
-                                  {transaction.type === 'invoice' && transaction.paymentStatus !== 'completed' && effectiveBalance < 0 && (
+                                  {transaction.type === 'invoice' && transaction.paymentStatus !== 'completed' && transaction.balance < -0.5 && (
                                     <Badge className="bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-900/30 dark:text-amber-400 text-[10px] ml-1">
                                       ⚡ Advance available
                                     </Badge>

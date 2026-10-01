@@ -5,6 +5,10 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
+import {
+  getPaymentReceiptPrintPageStyle,
+  resolvePaymentReceiptCompanyDetails,
+} from "@/utils/paymentReceiptPrintConfig";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useEntryOwnership } from "@/hooks/useEntryOwnership";
 import {
@@ -193,6 +197,7 @@ export function useAccountsPaymentDialogs(settings: any) {
   const handlePrintReceipt = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: `Receipt_${receiptData?.voucherNumber}`,
+    pageStyle: getPaymentReceiptPrintPageStyle(settings ?? undefined),
   });
 
   const handleSendWhatsApp = () => {
@@ -226,18 +231,11 @@ export function useAccountsPaymentDialogs(settings: any) {
     }, 300);
   };
 
-  const companyDetails = {
-    businessName: settings?.business_name,
-    address: settings?.address,
-    mobileNumber: settings?.mobile_number,
-    emailId: settings?.email_id,
-    gstNumber: settings?.gst_number,
-    upiId: (settings?.sale_settings as any)?.upiId,
-  };
+  const companyDetails = resolvePaymentReceiptCompanyDetails(settings);
 
   const receiptSettings = {
-    showCompanyLogo: false,
-    showQrCode: !!(settings?.sale_settings as any)?.upiId,
+    showCompanyLogo: true,
+    showQrCode: !!companyDetails.upiId,
     showSignature: true,
     signatureLabel: "Authorized Signature",
   };

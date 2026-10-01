@@ -29,6 +29,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
 import { ensureCreditNoteHeadroom } from "@/utils/saleReturnCnBalance";
 import { resolveSaleReturnUnitPrice } from "@/utils/saleReturnPricing";
+import { resolveCustomerLastSaleReturnPrice } from "@/utils/saleReturnCustomerPrice";
 import { useSettings } from "@/hooks/useSettings";
 import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
@@ -332,8 +333,9 @@ export const FloatingSaleReturn = ({
   const [cnRedeemInputs, setCnRedeemInputs] = useState<Record<string, number>>({});
 
   // Fetch sale return price setting
+  // Re-read each time the window opens so a Settings change applies without reloading POS.
   useEffect(() => {
-    if (organizationId) {
+    if (organizationId && open) {
       supabase
         .from("settings")
         .select("sale_settings")
@@ -344,7 +346,7 @@ export const FloatingSaleReturn = ({
           setUseOriginalPrice(!!saleSettings?.sale_return_use_original_price);
         });
     }
-  }, [organizationId]);
+  }, [organizationId, open]);
 
   // Inline customer search — only relevant when no customer was passed from POS
   useEffect(() => {
@@ -607,6 +609,15 @@ export const FloatingSaleReturn = ({
         const resolved = resolveSaleReturnUnitPrice(billItem, priceOpts);
         if (resolved > 0) return resolved;
       }
+    }
+
+    if (!billSaleId && effectiveCustomerId && organizationId) {
+      const customerPrice = await resolveCustomerLastSaleReturnPrice(
+        supabase,
+        { organizationId, customerId: effectiveCustomerId, variantId },
+        { useOriginalPrice },
+      );
+      if (customerPrice != null) return customerPrice;
     }
 
     let query = supabase

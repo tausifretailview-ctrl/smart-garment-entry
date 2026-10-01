@@ -63,7 +63,7 @@ function BillLines({ bills, showAmount }: { bills: CreditNoteSrRedeemedBill[]; s
         return (
           <div key={`${bill.saleId}-${bill.saleNumber}`}>
             <div className="font-medium whitespace-nowrap">{bill.saleNumber}</div>
-            {meta ? <div className="text-xs text-muted-foreground whitespace-nowrap">{meta}</div> : null}
+            {meta ? <div className="text-sm text-muted-foreground whitespace-nowrap">{meta}</div> : null}
           </div>
         );
       })}
@@ -237,15 +237,15 @@ export default function CreditNoteSrAdjustmentRegister() {
   };
 
   return (
-    <div className="p-3 sm:p-4 space-y-3">
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
+    <div className="flex flex-col h-full min-h-0 w-full bg-slate-50 px-2 sm:px-3 py-2 gap-3 overflow-hidden print:overflow-visible print:h-auto">
+      <div className="flex flex-wrap items-center gap-2 print:hidden shrink-0">
         <Button variant="outline" size="sm" onClick={() => orgNavigate("/reports")}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Reports
         </Button>
         <div>
-          <h1 className="text-lg font-semibold">CN / S-R Adjustment Register</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-xl font-semibold">CN / S-R Adjustment Register</h1>
+          <p className="text-sm text-muted-foreground">
             Redeem and remaining use allocated credit-note FIFO (same as Customer Ledger). Each row
             shows the customer, the POS or Sale bill number and date, the amount redeemed, and the
             balance left. Default hides fully settled / memo returns.
@@ -266,7 +266,7 @@ export default function CreditNoteSrAdjustmentRegister() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2 print:hidden">
+      <div className="flex flex-wrap items-end gap-2 print:hidden shrink-0">
         <div className="space-y-1">
           <Label className="text-xs">Period</Label>
           <Select value={periodType} onValueChange={(v) => handlePeriodChange(v as PeriodType)}>
@@ -362,7 +362,7 @@ export default function CreditNoteSrAdjustmentRegister() {
       {query.isLoading ? (
         <ReportPageSkeleton />
       ) : (
-        <div ref={printRef} className="space-y-3">
+        <div ref={printRef} className="flex flex-col flex-1 min-h-0 gap-3">
           <div className="hidden print:block text-center border-b pb-2">
             <h2 className="text-lg font-bold">CN / S-R Adjustment Register</h2>
             <p className="text-sm">
@@ -371,10 +371,10 @@ export default function CreditNoteSrAdjustmentRegister() {
               {showSettled ? " · including settled" : " · pending only"}
             </p>
           </div>
-          <ReportKpiCards items={kpiItems} />
-          <div className="rounded-md border overflow-auto">
-            <Table>
-              <TableHeader>
+          <ReportKpiCards items={kpiItems} size="large" />
+          <div className="rounded-md border bg-white overflow-auto flex-1 min-h-0 text-base print:overflow-visible">
+            <Table className="text-base">
+              <TableHeader className="sticky top-0 z-10">
                 <TableRow>
                   <TableHead>Return No</TableHead>
                   <TableHead>Date</TableHead>
@@ -402,36 +402,36 @@ export default function CreditNoteSrAdjustmentRegister() {
                       <TableCell className="font-medium whitespace-nowrap">{row.returnNumber}</TableCell>
                       <TableCell className="whitespace-nowrap">{formatRegisterDate(row.returnDate) || "—"}</TableCell>
                       <TableCell>
-                        <div className="font-medium">{row.customerName}</div>
+                        <div className="font-semibold text-base">{row.customerName}</div>
                         {row.customerPhone ? (
-                          <div className="text-xs text-muted-foreground">{row.customerPhone}</div>
+                          <div className="text-sm text-muted-foreground">{row.customerPhone}</div>
                         ) : null}
                       </TableCell>
                       <TableCell>
                         <BillLines bills={row.linkedBills} />
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums font-semibold text-lg print:text-base">
                         {fmt(row.netReturnAmount)}
                       </TableCell>
                       <TableCell>
                         {row.creditNoteNumber || "—"}
                         {row.creditNoteNumber ? (
-                          <div className="text-xs text-muted-foreground font-mono tabular-nums">
+                          <div className="text-base print:text-sm text-muted-foreground font-mono tabular-nums">
                             {fmt(row.creditNoteAmount)}
                           </div>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-right font-mono tabular-nums">
+                      <TableCell className="text-right font-mono tabular-nums font-semibold text-lg print:text-base">
                         {fmt(row.appliedAmount)}
                       </TableCell>
                       <TableCell>
                         <BillLines bills={row.redeemedBills} showAmount={row.redeemedBills.length > 1} />
                       </TableCell>
                       <TableCell className="whitespace-nowrap">{formatRegisterDate(row.cnAppliedDate) || "—"}</TableCell>
-                      <TableCell className="text-right font-mono tabular-nums font-semibold">
+                      <TableCell className="text-right font-mono tabular-nums font-bold text-lg print:text-base">
                         {fmt(row.remainingAmount)}
                       </TableCell>
-                      <TableCell className="text-xs">{row.statusLabel}</TableCell>
+                      <TableCell className="text-sm">{row.statusLabel}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -440,11 +440,11 @@ export default function CreditNoteSrAdjustmentRegister() {
                 <TableFooter>
                   <TableRow>
                     <TableCell colSpan={4}>Total · {kpis.count.toLocaleString("en-IN")} returns</TableCell>
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.netReturn)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.netReturn)}</TableCell>
                     <TableCell />
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.applied)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.applied)}</TableCell>
                     <TableCell colSpan={2} />
-                    <TableCell className="text-right font-mono tabular-nums">{fmt(kpis.remaining)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums font-bold text-xl print:text-base">{fmt(kpis.remaining)}</TableCell>
                     <TableCell />
                   </TableRow>
                 </TableFooter>

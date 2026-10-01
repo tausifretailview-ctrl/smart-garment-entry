@@ -18,6 +18,7 @@ import { ListSkeleton } from "@/components/ui/skeletons";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { resolveCnAdjustDateForSale } from "@/utils/customerAuditBundle";
+import { formatTimelineStamp, resolveEventStamp, type TimelineStamp } from "@/utils/returnTimeDisplay";
 
 interface CreditNoteHistoryDialogProps {
   open: boolean;
@@ -33,6 +34,8 @@ interface TimelineEntry {
   id: string;
   type: TimelineType;
   timestamp: string;
+  /** False when only the day is known; the clock time is then hidden. */
+  hasTime: boolean;
   icon: string;
   title: string;
   lines: string[];
@@ -41,13 +44,7 @@ interface TimelineEntry {
 const fmtMoney = (amount: number) =>
   `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const formatTimelineDate = (ts: string) => {
-  try {
-    return format(new Date(ts), "dd-MMM hh:mm a");
-  } catch {
-    return ts;
-  }
-};
+const nowStamp = (): TimelineStamp => ({ timestamp: new Date().toISOString(), hasTime: true });
 
 const formatCnStatus = (status: string | null | undefined) => {
   if (!status) return "Active";
@@ -287,18 +284,16 @@ export function CreditNoteHistoryDialog({
 
     const firstReturnDate = linkedReturns[0]?.return_date;
     if (creditNote) {
-      const issuedTs =
-        creditNote.issue_date ||
-        (firstReturnDate ? `${String(firstReturnDate).slice(0, 10)}T12:00:00` : null) ||
-        creditNote.created_at ||
-        new Date().toISOString();
+      const issuedStamp =
+        resolveEventStamp(creditNote.created_at, creditNote.issue_date || firstReturnDate) || nowStamp();
       const srNote = linkedReturns[0]?.return_number
         ? `Credit note from sale return ${linkedReturns[0].return_number}`
         : null;
       entries.push({
         id: `issued-${creditNote.id}`,
         type: "issued",
-        timestamp: issuedTs,
+        timestamp: issuedStamp.timestamp,
+        hasTime: issuedStamp.hasTime,
         icon: "📋",
         title: "Credit Note Issued",
         lines: [
@@ -312,10 +307,12 @@ export function CreditNoteHistoryDialog({
 
     for (const sr of linkedReturns) {
       if (!sr) continue;
+      const srStamp = resolveEventStamp(sr.created_at, sr.return_date) || nowStamp();
       entries.push({
         id: `sr-${sr.id}`,
         type: "sale_return",
-        timestamp: sr.return_date || sr.created_at,
+        timestamp: srStamp.timestamp,
+        hasTime: srStamp.hasTime,
         icon: "🔄",
         title: "Sale Return Linked",
         lines: [
@@ -335,10 +332,15 @@ export function CreditNoteHistoryDialog({
         resolveCnAdjustDateForSale(ba.sale_id, cnApplyVouchers, linkedReturns) ||
         ba.apply_date ||
         firstReturnDate;
+      const applyVoucherCreatedAt = cnApplyVouchers.find(
+        (v) => String((v as { reference_id?: string }).reference_id || "") === ba.sale_id,
+      )?.created_at;
+      const baStamp = resolveEventStamp(applyVoucherCreatedAt, cnAt) || nowStamp();
       entries.push({
         id: `billing-${ba.sale_id}`,
         type: "invoice_apply",
-        timestamp: cnAt ? `${cnAt}T12:00:00` : new Date().toISOString(),
+        timestamp: baStamp.timestamp,
+        hasTime: baStamp.hasTime,
         icon: "💳",
         title: "Applied to Invoice",
         lines: [
@@ -349,10 +351,12 @@ export function CreditNoteHistoryDialog({
     }
 
     for (const adj of adjustments) {
+      const adjStamp = resolveEventStamp(adj.created_at, adj.adjustment_date) || nowStamp();
       entries.push({
         id: `adj-${adj.id}`,
         type: "invoice_apply",
-        timestamp: adj.created_at || adj.adjustment_date,
+        timestamp: adjStamp.timestamp,
+        hasTime: adjStamp.hasTime,
         icon: "💳",
         title: "Applied to Invoice",
         lines: [
@@ -367,10 +371,12 @@ export function CreditNoteHistoryDialog({
       if (refId && adjustmentInvoiceIds.has(refId)) continue;
       const amt = Number(v.total_amount || 0);
       if (refId && billingApplyKeys.has(`${refId}-${amt}`)) continue;
+      const vStamp = resolveEventStamp(v.created_at, v.voucher_date) || nowStamp();
       entries.push({
         id: `vapply-${v.id}`,
         type: "invoice_apply",
-        timestamp: v.created_at || v.voucher_date,
+        timestamp: vStamp.timestamp,
+        hasTime: vStamp.hasTime,
         icon: "💳",
         title: "Applied to Invoice",
         lines: [
@@ -381,10 +387,12 @@ export function CreditNoteHistoryDialog({
     }
 
     for (const v of refundVouchers) {
+      const rStamp = resolveEventStamp(v.created_at, v.voucher_date) || nowStamp();
       entries.push({
         id: `refund-${v.id}`,
         type: "refund",
-        timestamp: v.created_at || v.voucher_date,
+        timestamp: rStamp.timestamp,
+        hasTime: rStamp.hasTime,
         icon: "💰",
         title: "Refunded to Customer",
         lines: [
@@ -570,7 +578,7 @@ export function CreditNoteHistoryDialog({
                   <div className="pb-4 flex-1 min-w-0">
                     <p className="text-sm font-semibold text-foreground">
                       <span className="text-muted-foreground font-normal tabular-nums">
-                        {formatTimelineDate(entry.timestamp)}
+                        {formatTimelineStamp(entry)}
                       </span>{" "}
                       {entry.title}
                     </p>

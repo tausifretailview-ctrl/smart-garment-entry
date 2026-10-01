@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { supabase } from "@/integrations/supabase/client";
+import { syncPurchaseItemBarcodesForSku } from "@/utils/alignPurchaseLineBarcode";
 import type { TablesUpdate } from "@/integrations/supabase/types";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -1023,13 +1024,21 @@ const ProductEditPanel = ({
                                 .eq("id", currentVariant.id)
                                 .eq("organization_id", currentOrganization.id);
                               if (error) throw error;
+                              await syncPurchaseItemBarcodesForSku(
+                                currentOrganization.id,
+                                currentVariant.id,
+                                cleaned,
+                              );
                               setCurrentVariant(prev => prev ? { ...prev, barcode: cleaned } : prev);
                               setBarcodeModified(false);
                               onProductUpdated(item.temp_id, { barcode: cleaned }, {
                                 barcode: item.barcode || currentVariant.barcode,
                                 skuId: item.sku_id,
                               });
-                              toast({ title: "IMEI Updated", description: `IMEI changed to ${cleaned}` });
+                              toast({
+                                title: "IMEI Updated",
+                                description: `IMEI changed to ${cleaned}. Purchase lines for this item use the same barcode.`,
+                              });
                             } catch (err: any) {
                               toast({ title: "Error", description: err.message, variant: "destructive" });
                             } finally {
@@ -1046,7 +1055,7 @@ const ProductEditPanel = ({
                           }}>
                           Cancel
                         </Button>
-                        <p className="text-[11px] text-amber-600 w-full">⚠️ Updates variant IMEI for this unit. Re-save the bill to sync purchase line.</p>
+                        <p className="text-[11px] text-amber-600 w-full">Updates this unit&apos;s IMEI and the purchase lines that stock it, so a scan finds the same barcode the bill shows.</p>
                         </div>
                         )}
                         {sizeModified && (
