@@ -724,6 +724,7 @@ export const useSaveSale = () => {
           currentOrganization.id,
           { includeUnlinkedAdjusted: true },
         );
+        posSaveMark("cn_pool");
         if (!cnPool.length) {
           throw new Error("No credit note balance available for this customer");
         }

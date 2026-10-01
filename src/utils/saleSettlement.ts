@@ -3,6 +3,7 @@
  * paid_amount / payment_status, receipt vouchers, advance FIFO, CN availability, pre-save checks.
  */
 
+import { posSaveMark } from "@/lib/posSaveTiming";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { applyPosCredit, newPosCreditIdempotencyKey, posCreditChunkKey } from "@/utils/applyPosCredit";
 import { ensureCreditNoteForSaleReturn } from "@/utils/ensureCreditNoteForSaleReturn";
@@ -611,36 +612,39 @@ export async function getAvailableCN(
   organizationId: string,
   options?: { includeUnlinkedAdjusted?: boolean },
 ): Promise<{ total: number; returns: AvailableCNReturn[] }> {
-  const { data: srs, error } = await supabase
-    .from("sale_returns")
-    .select(
-      "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type, credit_note_id",
-    )
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null)
-    .in("credit_status", ["pending", "partially_adjusted", "adjusted_outstanding"])
-    .neq("refund_type", "cash_refund");
+  const cols =
+    "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type, credit_note_id";
+  // Both reads are independent: run them together (one round trip instead of two).
+  const [{ data: srs, error }, unlinkedRes] = await Promise.all([
+    supabase
+      .from("sale_returns")
+      .select(cols)
+      .eq("customer_id", customerId)
+      .eq("organization_id", organizationId)
+      .is("deleted_at", null)
+      .in("credit_status", ["pending", "partially_adjusted", "adjusted_outstanding"])
+      .neq("refund_type", "cash_refund"),
+    options?.includeUnlinkedAdjusted
+      ? supabase
+          .from("sale_returns")
+          .select(cols)
+          .eq("customer_id", customerId)
+          .eq("organization_id", organizationId)
+          .is("deleted_at", null)
+          .eq("credit_status", "adjusted")
+          .is("linked_sale_id", null)
+          .neq("refund_type", "cash_refund")
+      : Promise.resolve({ data: null, error: null }),
+  ]);
 
   if (error) throw error;
 
   let rows = srs || [];
 
   if (options?.includeUnlinkedAdjusted) {
-    const { data: unlinked, error: uErr } = await supabase
-      .from("sale_returns")
-      .select(
-        "id, net_amount, credit_available_balance, credit_status, return_number, linked_sale_id, return_date, refund_type, credit_note_id",
-      )
-      .eq("customer_id", customerId)
-      .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .eq("credit_status", "adjusted")
-      .is("linked_sale_id", null)
-      .neq("refund_type", "cash_refund");
-    if (uErr) throw uErr;
+    if (unlinkedRes.error) throw unlinkedRes.error;
     const seen = new Set(rows.map((r) => r.id));
-    for (const r of unlinked || []) {
+    for (const r of unlinkedRes.data || []) {
       if (!seen.has(r.id)) rows.push(r);
     }
   }
@@ -785,6 +789,7 @@ export async function applyCreditNoteFifoToSale(
       .eq("id", sr.id)
       .eq("organization_id", params.organizationId)
       .maybeSingle();
+    posSaveMark("cn_reread_return");
     if (isSaleReturnConsumedAtBilling(liveSr || sr)) {
       continue;
     }
@@ -800,6 +805,7 @@ export async function applyCreditNoteFifoToSale(
       returnNumberFallback: sr.return_number || undefined,
       creditAmountFallback: sr.net_amount,
     });
+    posSaveMark("cn_ensure_note");
     if (!creditNoteId) continue;
 
     await ensureCreditNoteHeadroom(supabase, {
@@ -810,6 +816,7 @@ export async function applyCreditNoteFifoToSale(
       saleReturnId: sr.id,
     });
 
+    posSaveMark("cn_headroom");
     const idempotencyKey = posCreditChunkKey(baseIdempotencyKey, creditNoteId);
     const appliedChunk = await applyPosCredit(supabase, {
       organizationId: params.organizationId,
@@ -853,6 +860,7 @@ export async function applyCreditNoteFifoToSale(
     sr.available = cnRemaining;
     remaining -= useFromSR;
     applied += useFromSR;
+    posSaveMark("cn_chunk_done");
   }
 
   applied = Math.round(applied * 100) / 100;
@@ -875,6 +883,7 @@ export async function applyCreditNoteFifoToSale(
     } catch (recomputeErr) {
       console.warn("CN FIFO: sale payment recompute failed", params.saleId, recomputeErr);
     }
+    posSaveMark("cn_recompute");
     // SRA can over-settle an advance-paid invoice; restore unused advance bookings.
     try {
       const { releaseExcessAdvanceOnSale } = await import(
@@ -884,6 +893,7 @@ export async function applyCreditNoteFifoToSale(
     } catch (releaseErr) {
       console.warn("CN FIFO: excess advance release failed", params.saleId, releaseErr);
     }
+    posSaveMark("cn_release_advance");
   }
 
   return { applied, chunks };
