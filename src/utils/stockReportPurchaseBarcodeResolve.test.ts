@@ -5,6 +5,7 @@ import {
   isStockReportBarcodeLikeSearch,
   liveBarcodeMatchesScan,
   liveBarcodesForStockReportRetry,
+  skuIdsServingScan,
   stockReportPurchaseMissHint,
   type PurchaseBarcodeStockResolution,
 } from "./stockReportPurchaseBarcodeResolve";
@@ -115,5 +116,47 @@ describe("stockReportPurchaseMissHint", () => {
     ]);
     expect(hint?.title).toBe("Product was deleted");
     expect(hint?.description).toContain("Recycle Bin");
+  });
+});
+
+describe("skuIdsServingScan (labels printed from purchase bills)", () => {
+  const row = (over: Partial<PurchaseBarcodeStockResolution>): PurchaseBarcodeStockResolution => ({
+    purchaseBarcode: "0040008507",
+    purchaseProductName: "PSB01",
+    skuId: "v1",
+    liveBarcode: "40004716",
+    productName: "PSB01",
+    stockQty: 2,
+    excludeReason: null,
+    ...over,
+  });
+
+  it("opens the same item when only the printed label differs from the live barcode", () => {
+    expect(skuIdsServingScan([row({})], "0040008507")).toEqual(["v1"]);
+    expect(firstDivergentPurchaseBarcode([row({})], "0040008507")).toBeNull();
+  });
+
+  it("matches names ignoring case and spacing", () => {
+    expect(skuIdsServingScan([row({ purchaseProductName: " psb01 " })], "0040008507")).toEqual(["v1"]);
+  });
+
+  it("still blocks a purchase line that points at a different product", () => {
+    const other = row({ productName: "PXG03" });
+    expect(skuIdsServingScan([other], "0040008507")).toEqual([]);
+    expect(firstDivergentPurchaseBarcode([other], "0040008507")).toMatchObject({ liveBarcode: "40004716" });
+  });
+
+  it("does not guess between several same-name items", () => {
+    expect(skuIdsServingScan([row({}), row({ skuId: "v2", liveBarcode: "555" })], "0040008507")).toEqual([]);
+  });
+
+  it("prefers a SKU whose live barcode is the scanned one", () => {
+    expect(
+      skuIdsServingScan([row({}), row({ skuId: "v2", liveBarcode: "0040008507" })], "0040008507"),
+    ).toEqual(["v2"]);
+  });
+
+  it("ignores deleted or inactive items", () => {
+    expect(skuIdsServingScan([row({ excludeReason: "Variant is soft-deleted" })], "0040008507")).toEqual([]);
   });
 });

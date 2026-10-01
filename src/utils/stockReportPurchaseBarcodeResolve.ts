@@ -8,7 +8,7 @@
  */
 
 export const PURCHASE_BARCODE_STOCK_RESOLVE_SELECT =
-  "sku_id, barcode, purchase_bills!inner(organization_id)" as const;
+  "sku_id, barcode, product_name, purchase_bills!inner(organization_id)" as const;
 
 export type PurchaseBarcodeStockClient = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,6 +20,8 @@ export type PurchaseBarcodeStockResolution = {
   skuId: string;
   liveBarcode: string | null;
   productName: string | null;
+  /** Product name printed on the purchase line (snapshot at bill time). */
+  purchaseProductName?: string | null;
   stockQty: number | null;
   /** Non-null ⇒ row cannot appear in get_stock_report base CTE */
   excludeReason: string | null;
@@ -38,7 +40,7 @@ export async function fetchPurchaseBarcodeSkuIds(
   organizationId: string,
   barcode: string,
   options?: { exactOnly?: boolean },
-): Promise<Array<{ skuId: string; purchaseBarcode: string }>> {
+): Promise<Array<{ skuId: string; purchaseBarcode: string; purchaseProductName: string | null }>> {
   if (!organizationId || !barcode.trim()) return [];
 
   const trimmed = barcode.trim();
@@ -59,14 +61,15 @@ export async function fetchPurchaseBarcodeSkuIds(
 
   const { data, error } = await query;
 
-  const out: Array<{ skuId: string; purchaseBarcode: string }> = [];
+  const out: Array<{ skuId: string; purchaseBarcode: string; purchaseProductName: string | null }> = [];
   const seen = new Set<string>();
   for (const row of data || []) {
     const skuId = row.sku_id as string | null;
     const purchaseBarcode = String(row.barcode || "");
     if (!skuId || seen.has(skuId)) continue;
     seen.add(skuId);
-    out.push({ skuId, purchaseBarcode });
+    const purchaseProductName = row.product_name != null ? String(row.product_name) : null;
+    out.push({ skuId, purchaseBarcode, purchaseProductName });
   }
   return out;
 }
@@ -97,11 +100,12 @@ export async function resolvePurchaseBarcodesForStockReport(
   const byId = new Map<string, any>();
   for (const row of data || []) byId.set(row.id, row);
 
-  return links.map(({ skuId, purchaseBarcode }) => {
+  return links.map(({ skuId, purchaseBarcode, purchaseProductName }) => {
     const pv = byId.get(skuId);
     if (!pv) {
       return {
         purchaseBarcode,
+        purchaseProductName,
         skuId,
         liveBarcode: null,
         productName: null,
@@ -124,6 +128,7 @@ export async function resolvePurchaseBarcodesForStockReport(
 
     return {
       purchaseBarcode,
+      purchaseProductName,
       skuId,
       liveBarcode: pv.barcode != null ? String(pv.barcode) : null,
       productName: product?.product_name != null ? String(product.product_name) : null,
@@ -143,6 +148,37 @@ export function liveBarcodeMatchesScan(
   return Boolean(live) && Boolean(scan) && live === scan;
 }
 
+function normName(value: string | null | undefined): string {
+  return (value || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** The purchase line and the linked item carry the same product name. */
+export function isSameItemAsPurchaseLine(
+  r: Pick<PurchaseBarcodeStockResolution, "productName" | "purchaseProductName">,
+): boolean {
+  const a = normName(r.purchaseProductName);
+  return Boolean(a) && a === normName(r.productName);
+}
+
+/**
+ * SKUs a scanned barcode may open. A SKU whose live barcode is the scanned one always counts.
+ * A label printed from a purchase bill (item later holds another barcode) counts only when the
+ * bill line names the same product and exactly one SKU qualifies; a different product, or
+ * several candidates, is never guessed.
+ */
+export function skuIdsServingScan(
+  resolutions: PurchaseBarcodeStockResolution[],
+  scanned: string,
+): string[] {
+  const usable = resolutions.filter((r) => !r.excludeReason && r.skuId);
+  const exact = usable.filter((r) => liveBarcodeMatchesScan(r.liveBarcode, scanned));
+  if (exact.length > 0) return Array.from(new Set(exact.map((r) => r.skuId)));
+  const sameItem = Array.from(
+    new Set(usable.filter((r) => (r.liveBarcode || "").trim() && isSameItemAsPurchaseLine(r)).map((r) => r.skuId)),
+  );
+  return sameItem.length === 1 ? sameItem : [];
+}
+
 export type DivergentPurchaseBarcode = {
   scanned: string;
   liveBarcode: string;
@@ -158,8 +194,9 @@ export function firstDivergentPurchaseBarcode(
   resolutions: PurchaseBarcodeStockResolution[],
   scanned: string,
 ): DivergentPurchaseBarcode | null {
+  const serving = new Set(skuIdsServingScan(resolutions, scanned));
   for (const row of resolutions) {
-    if (row.excludeReason || !row.skuId) continue;
+    if (row.excludeReason || !row.skuId || serving.has(row.skuId)) continue;
     const live = (row.liveBarcode || "").trim();
     if (!live || liveBarcodeMatchesScan(live, scanned)) continue;
     return {

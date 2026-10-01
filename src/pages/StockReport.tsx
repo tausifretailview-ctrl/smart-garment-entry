@@ -58,8 +58,12 @@ import {
   divergentPurchaseBarcodeMessage,
   firstDivergentPurchaseBarcode,
   isStockReportBarcodeLikeSearch,
+ claude/quick-stock-hide-deleted-products
   findHiddenVariantHintByBarcode,
   liveBarcodeMatchesScan,
+=======
+  skuIdsServingScan,
+main
   liveBarcodesForStockReportRetry,
   resolvePurchaseBarcodesForStockReport,
   stockReportPurchaseMissHint,
@@ -942,8 +946,10 @@ export default function StockReport() {
             if (requestId !== searchRequestIdRef.current) return;
 
             const divergent = firstDivergentPurchaseBarcode(resolutions, activeSearch);
-            const retryBarcodes = liveBarcodesForStockReportRetry(resolutions, activeSearch).filter((liveBc) =>
-              liveBarcodeMatchesScan(liveBc, activeSearch),
+            const servingSkuIds = new Set(skuIdsServingScan(resolutions, activeSearch));
+            const retryBarcodes = liveBarcodesForStockReportRetry(
+              resolutions.filter((r) => servingSkuIds.has(r.skuId)),
+              activeSearch,
             );
             if (retryBarcodes.length > 0) {
               const merged = new Map<string, StockReportRpcRow>();
