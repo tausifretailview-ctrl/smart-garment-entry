@@ -70,6 +70,7 @@ import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersist
 import { isDashboardFilterRestoring, restoreDashboardFilters } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
 import { formatReturnTime } from "@/utils/returnTimeDisplay";
+import { buildSaleReturnCreditPrintInfo, shouldShowSaleReturnLogo } from "@/utils/saleReturnPrintMeta";
 
 interface SaleReturn {
   id: string;
@@ -127,6 +128,7 @@ interface BusinessDetails {
   address: string | null;
   mobile_number: string | null;
   gst_number: string | null;
+  bill_barcode_settings?: { logo_url?: string | null } | null;
 }
 
 const getCreditStatusBadgeClass = (ret: SaleReturn): string => {
@@ -418,6 +420,13 @@ export default function SaleReturnDashboard() {
     returnToPrint?.original_sale_number,
   );
   const isThermal = activePrintFormat === 'thermal';
+  const returnLogoUrl = shouldShowSaleReturnLogo({
+    logoUrl: businessDetails?.bill_barcode_settings?.logo_url,
+    originalSaleNumber: returnToPrint?.original_sale_number,
+    saleSettings: saleSettings as Parameters<typeof shouldShowSaleReturnLogo>[0]["saleSettings"],
+  })
+    ? businessDetails?.bill_barcode_settings?.logo_url
+    : null;
 
   const returnPrintPageStyle = useMemo(
     () =>
@@ -860,7 +869,7 @@ export default function SaleReturnDashboard() {
       return;
     }
 
-    setBusinessDetails(data);
+    setBusinessDetails(data as unknown as BusinessDetails);
     const nextSaleSettings = data?.sale_settings as SaleSettingsBillFormatSlice | undefined;
     setSaleSettings(nextSaleSettings ?? null);
     const barcodeSettings = data?.bill_barcode_settings as { direct_print_pos_paper?: string } | null;
@@ -956,6 +965,17 @@ export default function SaleReturnDashboard() {
         refunded_mode: refund.mode,
       };
     }
+    printData.credit_info = buildSaleReturnCreditPrintInfo({
+      net_amount: Number(returnRecord.net_amount || 0),
+      refund_type: returnRecord.refund_type,
+      credit_status: returnRecord.credit_status,
+      availableAmount: getAvailableCN(returnRecord),
+      actual_adjusted_amt: returnRecord.actual_adjusted_amt,
+      redeemedBills: fallbackRedeemBills(returnRecord).map((b) => ({
+        saleNumber: b.saleNumber,
+        amount: Number(b.amount || 0),
+      })),
+    });
     setReturnToPrint(printData);
     setTimeout(() => handlePrint(), 100);
   };
@@ -1080,6 +1100,7 @@ export default function SaleReturnDashboard() {
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
                 thermalPaper={returnThermalPaper}
+                logoUrl={returnLogoUrl}
               />
             ) : (
               <SaleReturnPrint
@@ -1087,6 +1108,7 @@ export default function SaleReturnDashboard() {
                 saleReturn={returnToPrint}
                 businessDetails={businessDetails}
                 format={activePrintFormat}
+                logoUrl={returnLogoUrl}
               />
             )
           )}
