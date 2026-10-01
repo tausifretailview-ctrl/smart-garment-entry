@@ -38,12 +38,7 @@ export type OrgSettingsForPaymentReceipt = {
   gst_number?: string;
   // DB rows type this column as Json; callers pass the raw org settings row.
   bill_barcode_settings?: Json;
-  sale_settings?: {
-    pos_bill_format?: string | null;
-    pos_invoice_template?: string | null;
-    invoice_paper_format?: string | null;
-    thermal_receipt_style?: string | null;
-  };
+  sale_settings?: Json;
 };
 
 export function resolvePaymentReceiptCompanyDetails(
