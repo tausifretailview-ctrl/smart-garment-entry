@@ -670,6 +670,11 @@ export async function fetchCustomerLedgerTransactionsWithClient(
         sale_return_adjust: sale.sale_return_adjust,
         paid_amount: sale.paid_amount,
         split,
+        // Rule B bill (full bill in net, return applied on top, e.g. POS/26-27/334): tell the
+        // status the net is the full bill so the return counts once. Without it a bill paid
+        // in full after its credit note read "Partial". Bills with the return already inside
+        // net keep the old reading.
+        ...(figures.baked ? {} : { items_gross: storedNet }),
       });
       const invoiceDescription = `${sale.sale_type === 'pos' ? 'POS' : 'Invoice'} - ${recDisplay.payment_status}`;
 
