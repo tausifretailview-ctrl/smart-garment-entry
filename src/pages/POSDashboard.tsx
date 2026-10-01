@@ -85,7 +85,8 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
   (html2canvasPromise ??= import("html2canvas").then((m) => m.default));
 
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
-import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
+import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteJournalEntryByReference,
@@ -2547,6 +2548,7 @@ const POSDashboard = () => {
   const handlePrintReceipt = useReactToPrint({
     contentRef: receiptRef,
     documentTitle: `Receipt_${receiptData?.voucherNumber || 'receipt'}`,
+    pageStyle: getPaymentReceiptPrintPageStyle(settings ?? undefined),
     onAfterPrint: () => {
       toast({
         title: "Receipt Printed",
@@ -4921,46 +4923,11 @@ const POSDashboard = () => {
           </DialogHeader>
           
           <div className="hidden">
-            <PaymentReceipt
-              ref={receiptRef}
-              receiptData={receiptData}
-              companyDetails={{
-                businessName: settings?.business_name,
-                address: settings?.address,
-                mobileNumber: settings?.mobile_number,
-                emailId: settings?.email_id,
-                gstNumber: settings?.gst_number,
-                logoUrl: (settings?.sale_settings as any)?.logoUrl,
-                upiId: (settings?.sale_settings as any)?.upiId,
-              }}
-              receiptSettings={{
-                showCompanyLogo: true,
-                showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                showSignature: true,
-                signatureLabel: "Authorized Signature"
-              }}
-            />
+            <PaymentReceiptPrint ref={receiptRef} receiptData={receiptData} />
           </div>
           
-          <div className="border rounded-lg p-4 bg-gray-50">
-            <PaymentReceipt
-              receiptData={receiptData}
-              companyDetails={{
-                businessName: settings?.business_name,
-                address: settings?.address,
-                mobileNumber: settings?.mobile_number,
-                emailId: settings?.email_id,
-                gstNumber: settings?.gst_number,
-                logoUrl: (settings?.sale_settings as any)?.logoUrl,
-                upiId: (settings?.sale_settings as any)?.upiId,
-              }}
-              receiptSettings={{
-                showCompanyLogo: true,
-                showQrCode: !!(settings?.sale_settings as any)?.upiId,
-                showSignature: true,
-                signatureLabel: "Authorized Signature"
-              }}
-            />
+          <div className="border rounded-lg p-4 bg-gray-50 overflow-auto">
+            <PaymentReceiptPrint receiptData={receiptData} preview />
           </div>
 
           <DialogFooter className="gap-2">

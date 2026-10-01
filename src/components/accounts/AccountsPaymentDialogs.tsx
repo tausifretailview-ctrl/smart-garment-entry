@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentReceipt } from "@/components/PaymentReceipt";
+import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
 import { cn } from "@/lib/utils";
 import { useAccountsPaymentDialogs } from "@/hooks/useAccountsPaymentDialogs";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -85,18 +85,19 @@ export function AccountsPaymentDialogs({ dialogs, compactEdit }: AccountsPayment
                 <DialogDescription>Payment receipt for {receiptData.customerName}</DialogDescription>
               </DialogHeader>
               <div className="hidden">
-                <PaymentReceipt
+                <PaymentReceiptPrint
                   ref={receiptRef}
                   receiptData={receiptData}
                   companyDetails={companyDetails}
                   receiptSettings={receiptSettings}
                 />
               </div>
-              <div className="border rounded-lg p-4">
-                <PaymentReceipt
+              <div className="border rounded-lg p-4 overflow-auto">
+                <PaymentReceiptPrint
                   receiptData={receiptData}
                   companyDetails={companyDetails}
                   receiptSettings={receiptSettings}
+                  preview
                 />
               </div>
               <DialogFooter className="gap-2">
