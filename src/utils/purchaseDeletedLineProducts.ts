@@ -43,13 +43,20 @@ async function fetchDeletedIds(
   ids: string[],
 ): Promise<Set<string>> {
   const deleted = new Set<string>();
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const { data, error } = await client
-      .from(table)
-      .select("id")
-      .eq("organization_id", organizationId)
-      .in("id", ids.slice(i, i + CHUNK))
-      .not("deleted_at", "is", null);
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+  // Chunks are independent reads: run them together (a 600-line bill was 3 trips in a row).
+  const results = await Promise.all(
+    chunks.map((chunk) =>
+      client
+        .from(table)
+        .select("id")
+        .eq("organization_id", organizationId)
+        .in("id", chunk)
+        .not("deleted_at", "is", null),
+    ),
+  );
+  for (const { data, error } of results) {
     if (error) throw error;
     for (const row of data ?? []) deleted.add(row.id);
   }
