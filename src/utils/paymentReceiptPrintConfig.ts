@@ -1,3 +1,4 @@
+import type { Json } from "@/integrations/supabase/types";
 import { resolveCompanyUpiId, type CompanyUpiSettings } from "@/utils/companyUpi";
 import {
   posThermalPageCss,
@@ -22,6 +23,12 @@ export type PaymentReceiptCompanyDetails = {
   upiId?: string;
 };
 
+type BillBarcodeSettingsShape = CompanyUpiSettings & {
+  logo_url?: string | null;
+  direct_print_pos_paper?: string | null;
+  instagram_link?: string | null;
+};
+
 export type OrgSettingsForPaymentReceipt = {
   business_name?: string;
   address?: string;
@@ -29,11 +36,8 @@ export type OrgSettingsForPaymentReceipt = {
   owner_phone?: string;
   email_id?: string;
   gst_number?: string;
-  bill_barcode_settings?: CompanyUpiSettings & {
-    logo_url?: string | null;
-    direct_print_pos_paper?: string | null;
-    instagram_link?: string | null;
-  };
+  // DB rows type this column as Json; callers pass the raw org settings row.
+  bill_barcode_settings?: Json;
   sale_settings?: {
     pos_bill_format?: string | null;
     pos_invoice_template?: string | null;
@@ -45,7 +49,7 @@ export type OrgSettingsForPaymentReceipt = {
 export function resolvePaymentReceiptCompanyDetails(
   settings?: OrgSettingsForPaymentReceipt | null,
 ): PaymentReceiptCompanyDetails {
-  const bill = settings?.bill_barcode_settings;
+  const bill = settings?.bill_barcode_settings as BillBarcodeSettingsShape | undefined;
   const logo = (bill?.logo_url || "").trim();
   return {
     businessName: settings?.business_name,
@@ -78,7 +82,8 @@ export function resolvePaymentReceiptPrintLayout(
     sale?.invoice_paper_format ?? undefined,
   );
   const thermalPaper = resolvePosThermalPaper(
-    settings?.bill_barcode_settings?.direct_print_pos_paper,
+    (settings?.bill_barcode_settings as BillBarcodeSettingsShape | undefined)
+      ?.direct_print_pos_paper,
   );
   return {
     billFormat,

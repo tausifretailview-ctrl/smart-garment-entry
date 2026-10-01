@@ -3533,6 +3533,7 @@ export type Database = {
           invoice_id: string
           notes: string | null
           organization_id: string
+          released_at: string | null
           source_document_id: string | null
         }
         Insert: {
@@ -3546,6 +3547,7 @@ export type Database = {
           invoice_id: string
           notes?: string | null
           organization_id: string
+          released_at?: string | null
           source_document_id?: string | null
         }
         Update: {
@@ -3559,6 +3561,7 @@ export type Database = {
           invoice_id?: string
           notes?: string | null
           organization_id?: string
+          released_at?: string | null
           source_document_id?: string | null
         }
         Relationships: []

@@ -125,7 +125,9 @@ export const PaymentReceiptThermal80mm = React.forwardRef<
         .catch(() => setQrCodeUrl(""));
     }, [companyDetails.upiId, companyDetails.businessName, paidAmount, receiptSettings.showQrCode]);
 
-    const billSettings = orgSettings?.bill_barcode_settings;
+    const billSettings = orgSettings?.bill_barcode_settings as
+      | { instagram_link?: string | null }
+      | undefined;
     const shopHeader = useMemo(
       () => splitVastrakalaShopHeader(String(companyDetails.businessName || "STORE NAME")),
       [companyDetails.businessName],
