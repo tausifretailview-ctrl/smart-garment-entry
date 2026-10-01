@@ -81,6 +81,7 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
     saleReturnAdjust = 0,
     roundOff = 0,
     grandTotal,
+    refundCash = 0,
     paymentMethod,
     documentType = 'invoice',
     termsConditions,
@@ -322,6 +323,12 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
         <span>Grand Total</span>
         <span style={{ fontVariantNumeric: 'tabular-nums' }}>₹ {fmtDec(grandTotal)}</span>
       </div>
+      {refundCash > 0 && (
+        <div style={{ ...row, fontSize: '11px' }}>
+          <span>Refund to Customer</span>
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtDec(refundCash)}</span>
+        </div>
+      )}
 
       <div style={rule} />
 

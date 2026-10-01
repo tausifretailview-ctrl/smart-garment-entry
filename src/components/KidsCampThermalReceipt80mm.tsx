@@ -82,6 +82,7 @@ export const KidsCampThermalReceipt80mm = React.forwardRef<
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
+    refundCash = 0,
     documentType = "invoice",
     salesman,
     thermalPaper = "80mm",
@@ -274,6 +275,7 @@ export const KidsCampThermalReceipt80mm = React.forwardRef<
       <div className="kc-pay">
         <PayRow label="RECIEVED AMOUNT" amount={received} />
         <PayRow label="BALANCE AMOUNT" amount={balance} />
+        {refundCash > 0 ? <PayRow label="REFUND TO CUSTOMER" amount={refundCash} /> : null}
         <div className="kc-pay-head">RECIVED DETAIL :-</div>
         <PayRow label="CASH RECIEVED" amount={cash} />
         <PayRow label="ICICI CARD" amount={card} />
