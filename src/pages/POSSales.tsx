@@ -1,3 +1,4 @@
+import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
@@ -4737,6 +4738,7 @@ export default function POSSales() {
       return;
     }
     paymentLockRef.current = true;
+    posSaveBegin(`cash-path:${method}`);
 
     if (items.length === 0) {
       paymentLockRef.current = false;
@@ -4770,6 +4772,7 @@ export default function POSSales() {
       cartItemsForValidation,
       currentSaleId ? originalItemsForEdit : undefined
     );
+    posSaveMark("validate_stock");
     
     if (insufficientItems.length > 0) {
       paymentLockRef.current = false;
@@ -4803,6 +4806,7 @@ export default function POSSales() {
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     await attachSameBillReturnsToCustomer();
+    posSaveMark("attach_returns");
     let result;
     if (isHeldSale && currentSaleId) {
       result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
@@ -4811,6 +4815,7 @@ export default function POSSales() {
     } else {
       result = await saveSale(saleData, method, undefined, 'pos', buildPosRuntimeOpts());
     }
+    posSaveMark("save_sale_total");
     
     // Release lock after save attempt completes
     paymentLockRef.current = false;
@@ -4940,6 +4945,7 @@ export default function POSSales() {
       setIsHeldSale(false);
       setPointsToRedeem(0);
       
+      posSaveMark("before_dialog");
       triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       
       // Focus on barcode input for next sale
@@ -4973,6 +4979,7 @@ export default function POSSales() {
     issueCreditNote?: boolean;
     refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => {
+    posSaveBegin("mix-path");
     // Customer name required only when mix payment leaves a credit balance on the bill
     const mixCreditAmount = Math.max(0, Number(paymentData.creditAmount) || 0);
     if (mixCreditAmount > 0.01 && !hasNamedPosCustomer()) {
@@ -5006,6 +5013,7 @@ export default function POSSales() {
       cartItemsForValidation,
       currentSaleId ? originalItemsForEdit : undefined
     );
+    posSaveMark("validate_stock");
     
     if (insufficientItems.length > 0) {
       openStockIssueDialog(buildMultipleStockIssues(insufficientItems));
@@ -5065,11 +5073,13 @@ export default function POSSales() {
 
     // Completing a parked Hold/ bill must assign a POS number (resumeHeldSale).
     await attachSameBillReturnsToCustomer();
+    posSaveMark("attach_returns");
     const result = isHeldSale && currentSaleId
       ? await resumeHeldSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
       : currentSaleId
       ? await updateSale(currentSaleId, saleData, paymentMethodType as any, breakdownForSave, buildPosRuntimeOpts())
       : await saveSale(saleData, paymentMethodType as any, breakdownForSave, 'pos', buildPosRuntimeOpts());
+    posSaveMark("save_sale_total");
     
     if (result) {
       // Save financer details if provided
@@ -5258,6 +5268,7 @@ export default function POSSales() {
           isRefund ? 0 : finalAmount,
           totals.quantity,
         );
+        posSaveMark("before_dialog");
         triggerPosAutoPrintIfEnabled(() => setShowPrintConfirmDialog(true));
       }
       
