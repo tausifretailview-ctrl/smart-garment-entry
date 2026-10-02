@@ -1702,7 +1702,9 @@ export default function POSSales() {
               ? 'auto'
               : 'auto';
     const maxHeight =
-      posInvoiceTemplate === 'real-tast' || posBillFormat === 'thermal'
+      posInvoiceTemplate === 'real-tast' ||
+      posInvoiceTemplate === 'tally-tax-invoice' ||
+      posBillFormat === 'thermal'
         ? 'none'
         : posBillFormat === 'a4'
           ? '297mm'
@@ -4537,6 +4539,7 @@ export default function POSSales() {
         saleDate: buildPosSaleDate(),
       })),
       ...posCrmPointsForPrint,
+      financerDetails: financerDetails || null,
     };
 
     await attachSameBillReturnsToCustomer();
@@ -4833,6 +4836,7 @@ export default function POSSales() {
         saleDate: buildPosSaleDate(),
       })),
       ...posCrmPointsForPrint,
+      financerDetails: financerDetails || null,
     };
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
@@ -5073,6 +5077,7 @@ export default function POSSales() {
       })),
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
       ...posCrmPointsForPrint,
+      financerDetails: financerDetails || null,
     };
 
     const paymentMethodType: 'multiple' = 'multiple';

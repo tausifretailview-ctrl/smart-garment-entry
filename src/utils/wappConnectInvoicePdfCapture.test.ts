@@ -68,4 +68,29 @@ describe("applyWappConnectInvoicePdfCloneFixes", () => {
     expect(rows[0].getAttribute("data-wapp-blank-row")).toBeNull();
     expect(rows[1].getAttribute("data-wapp-blank-row")).toBe("1");
   });
+
+  it("lets the Tally GST A4 page grow so Finance / EMI is inside the WhatsApp PDF", () => {
+    const doc = document.implementation.createHTMLDocument("invoice");
+    doc.body.innerHTML = `
+      <div class="invoice-print-source">
+        <div class="tally-tax-invoice-print" style="height: 297mm; overflow: hidden;">
+          <div class="tally-tax-invoice-sheet" style="overflow: hidden; height: 297mm;">
+            <div class="tally-finance-emi-block" style="overflow: hidden;">Finance / EMI Details</div>
+          </div>
+        </div>
+      </div>
+    `;
+    const root = doc.body.firstElementChild as HTMLElement;
+    applyWappConnectInvoicePdfCloneFixes(doc, root);
+    const page = root.querySelector(".tally-tax-invoice-print") as HTMLElement;
+    const sheet = root.querySelector(".tally-tax-invoice-sheet") as HTMLElement;
+    const emi = root.querySelector(".tally-finance-emi-block") as HTMLElement;
+    expect(page.style.height).toBe("auto");
+    expect(page.style.overflow).toBe("visible");
+    expect(page.style.maxHeight).toBe("none");
+    expect(sheet.style.overflow).toBe("visible");
+    expect(emi.style.overflow).toBe("visible");
+    expect(emi.style.visibility).toBe("visible");
+    expect(emi.textContent).toContain("Finance / EMI Details");
+  });
 });

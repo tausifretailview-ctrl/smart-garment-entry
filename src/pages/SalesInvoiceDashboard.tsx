@@ -768,15 +768,15 @@ export default function SalesInvoiceDashboard() {
               ? "148mm"
               : "210mm",
       maxHeight:
-        effectiveSaleBillFormat === "a4"
-          ? "297mm"
-          : effectiveSaleBillFormat === "thermal"
-            ? "none"
+        invoiceTemplate === "tally-tax-invoice" || effectiveSaleBillFormat === "thermal"
+          ? "none"
+          : effectiveSaleBillFormat === "a4"
+            ? "297mm"
             : effectiveSaleBillFormat === "a5-horizontal"
               ? "148mm"
               : "210mm",
     }),
-    [effectiveSaleBillFormat],
+    [effectiveSaleBillFormat, invoiceTemplate],
   );
 
   // Debounce search input — keeps invoice line-item RPC off the keystroke path.
@@ -2050,11 +2050,14 @@ export default function SalesInvoiceDashboard() {
       
       // Fetch financer/EMI details if available
       if (!updatedInvoice.financerDetails) {
-        const { data: financer } = await supabase
+        let financerQuery = supabase
           .from('sale_financer_details')
           .select('*')
-          .eq('sale_id', invoice.id)
-          .maybeSingle();
+          .eq('sale_id', invoice.id);
+        if (currentOrganization?.id) {
+          financerQuery = financerQuery.eq('organization_id', currentOrganization.id);
+        }
+        const { data: financer } = await financerQuery.maybeSingle();
         updatedInvoice.financerDetails =
           mapSaleFinancerDetailsForInvoice(financer as Record<string, unknown>) ?? undefined;
       }

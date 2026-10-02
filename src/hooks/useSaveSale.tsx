@@ -120,6 +120,21 @@ interface SaleData {
    * standard behavior. Format must match `saleDateIsoIst()`.
    */
   saleDate?: string;
+  /**
+   * Print-only financer / EMI block. Not written to `sales`.
+   * Frozen onto the WhatsApp PDF snapshot because that capture runs before
+   * `sale_financer_details` is inserted and before POS clears the form.
+   */
+  financerDetails?: {
+    financer_name: string;
+    loan_number?: string;
+    emi_amount?: number;
+    tenure?: number;
+    down_payment?: number;
+    down_payment_mode?: string;
+    bank_transfer_amount?: number;
+    finance_discount?: number;
+  } | null;
 }
 
 function isPerLineSalesmanEnabled(orgSettings: unknown): boolean {
@@ -203,6 +218,7 @@ function buildPosWhatsAppCaptureMeta(
       enableMrp: true,
       pointsBalance: saleData.pointsBalance,
       pointsRedeemed: saleData.pointsRedeemed,
+      financerDetails: saleData.financerDetails ?? undefined,
     },
   };
 }
