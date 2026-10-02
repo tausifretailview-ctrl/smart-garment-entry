@@ -123,7 +123,7 @@ function showWhileOpen(
   if (foregroundAttached) return;
   foregroundAttached = true;
   onMessage(messaging, (payload) => {
-    const d = buildPushDisplay(payload as Parameters<typeof buildPushDisplay>[0]);
+    const d = buildPushDisplay(payload as Parameters<typeof buildPushDisplay>[0], window.location.origin);
     if (d.messageId) void trackMessage(d.messageId, "delivered");
     void reg
       .showNotification(d.title, {

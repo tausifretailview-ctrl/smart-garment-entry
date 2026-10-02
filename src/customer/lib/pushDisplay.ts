@@ -16,12 +16,26 @@ export interface PushDisplay {
   tag: string;
 }
 
-export function buildPushDisplay(payload: PushPayloadLike): PushDisplay {
+/** A bill page link (/t/<token>) on this same site, else null. */
+function sameSiteBillLink(url: string | undefined, origin: string | undefined): string | null {
+  if (!url || !origin) return null;
+  try {
+    const u = new URL(url, origin);
+    return u.origin === new URL(origin).origin && /^\/t\/[A-Za-z0-9_-]+$/.test(u.pathname) ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+export function buildPushDisplay(payload: PushPayloadLike, origin?: string): PushDisplay {
   const data = payload.data ?? {};
   const messageId = data.message_id || undefined;
   const title = payload.notification?.title ?? data.title ?? "New update";
   const body = payload.notification?.body ?? data.body ?? "";
+  // Tap opens the bill page when the push carries its link (same shop site, /t/<token>).
+  const billLink = sameSiteBillLink(data.url, origin);
   const url =
+    billLink ??
     "/m/" +
     encodeURIComponent(messageId ?? "") +
     "?title=" +

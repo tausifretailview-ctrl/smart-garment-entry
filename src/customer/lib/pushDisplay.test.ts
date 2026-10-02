@@ -11,4 +11,12 @@ describe("buildPushDisplay", () => {
     expect(buildPushDisplay({ notification: { title: "T", body: "B" }, data: { title: "x" } })).toMatchObject({ title: "T", body: "B" });
     expect(buildPushDisplay({})).toMatchObject({ title: "New update", body: "", tag: "shop-update", messageId: undefined });
   });
+  it("opens the bill page when the push carries its link", () => {
+    const origin = "https://adtech.inventoryshop.in";
+    const d = buildPushDisplay({ data: { message_id: "m2", url: "https://adtech.inventoryshop.in/t/tok_123" } }, origin);
+    expect(d.url).toBe("https://adtech.inventoryshop.in/t/tok_123");
+    // Another site, or a non-bill path, falls back to the message page.
+    expect(buildPushDisplay({ data: { message_id: "m3", url: "https://evil.example/t/x" } }, origin).url).toMatch(/^\/m\/m3/);
+    expect(buildPushDisplay({ data: { message_id: "m4", url: "https://adtech.inventoryshop.in/x" } }, origin).url).toMatch(/^\/m\/m4/);
+  });
 });

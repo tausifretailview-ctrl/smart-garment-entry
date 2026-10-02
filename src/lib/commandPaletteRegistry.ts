@@ -247,6 +247,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     permission: "sale_return_dashboard",
   },
   {
+    id: "nav-customer-reviews",
+    group: "Go to",
+    label: "Customer Reviews",
+    subtitle: "Ratings and comments customers left on their bill",
+    icon: FileText,
+    path: "/customer-reviews",
+    keywords: ["review", "rating", "feedback", "stars", "customer", "comment"],
+    permission: "sales_invoice_dashboard",
+  },
+  {
     id: "nav-settings",
     group: "Go to",
     label: "Settings",

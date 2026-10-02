@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildCustomerBillUrl } from "../_shared/customerBillLink.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +19,8 @@ interface PushSendRequest {
   organizationId: string;
   saleId?: string;
   campaignId?: string;
+  /** Customer page domain (VITE_CUSTOMER_PAGE_DOMAIN) so the push can open the bill page. */
+  customerPageDomain?: string;
 }
 
 interface ServiceAccount {
@@ -123,7 +126,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (authError || !user) return json(401, { error: "Unauthorized" });
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { organizationId, saleId, campaignId }: PushSendRequest = await req.json();
+    const { organizationId, saleId, campaignId, customerPageDomain }: PushSendRequest = await req.json();
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!organizationId || !uuidRegex.test(organizationId)) {
@@ -158,6 +161,7 @@ const handler = async (req: Request): Promise<Response> => {
     let body = "";
     let targetSaleId: string | null = null;
     let targetCampaignId: string | null = null;
+    let billUrl = "";
     let startOffset = 0;
     let processed = 0;
     // deno-lint-ignore no-explicit-any
@@ -184,6 +188,22 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("receives_invoices", true);
       targets = subs ?? [];
       if (targets.length === 0) return json(200, { ok: true, skipped: "no_subscriptions" });
+
+      // Bill page link for the tap: minted as the logged-in user (create_customer_link checks
+      // org access), only now that a subscribed phone exists. Failure just means no link.
+      const domain = Deno.env.get("CUSTOMER_PAGE_DOMAIN") || customerPageDomain || "";
+      if (domain) {
+        try {
+          const [{ data: org }, { data: linkData }] = await Promise.all([
+            supabase.from("organizations").select("public_subdomain").eq("id", organizationId).maybeSingle(),
+            supabaseAuth.rpc("create_customer_link", { p_sale_id: sale.id }),
+          ]);
+          const token = (linkData as { token?: string } | null)?.token;
+          billUrl = buildCustomerBillUrl(org?.public_subdomain, domain, token) ?? "";
+        } catch {
+          billUrl = "";
+        }
+      }
 
       const amount = Number(sale.net_amount ?? 0).toLocaleString("en-IN");
       title = `Invoice ${sale.sale_number}`;
@@ -273,6 +293,7 @@ const handler = async (req: Request): Promise<Response> => {
                   title: String(title ?? ""),
                   body: String(body ?? ""),
                   message_id: msg.id,
+                  ...(billUrl ? { url: billUrl } : {}),
                   ...(targetSaleId ? { sale_id: targetSaleId } : {}),
                   ...(targetCampaignId ? { campaign_id: targetCampaignId } : {}),
                 },

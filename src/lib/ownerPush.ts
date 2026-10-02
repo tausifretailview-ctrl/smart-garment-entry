@@ -5,7 +5,15 @@
  * Everything here is a no-op on web / Electron.
  */
 import { Capacitor } from "@capacitor/core";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+
+/**
+ * owner_* tables come from migration 20261231170000, applied by hand. Lovable regenerates
+ * types.ts from the live database and drops tables it doesn't have yet, so these reads go
+ * through an untyped client instead of depending on the generated file.
+ */
+export const ownerAlertsDb = supabase as unknown as SupabaseClient;
 
 export const OWNER_ALERT_CHANNEL_ID = "owner_alerts";
 const TOKEN_KEY = "ezzy_owner_push_token";
@@ -75,7 +83,7 @@ async function registerForToken(): Promise<string> {
 }
 
 async function saveDevice(organizationId: string, userId: string, token: string) {
-  const { error } = await supabase.from("owner_push_devices").upsert(
+  const { error } = await ownerAlertsDb.from("owner_push_devices").upsert(
     {
       organization_id: organizationId,
       user_id: userId,
@@ -109,7 +117,7 @@ export async function enableOwnerAlertsOnThisPhone(organizationId: string, userI
 export async function disableOwnerAlertsOnThisPhone(organizationId: string): Promise<void> {
   const token = storedToken();
   if (token) {
-    await supabase
+    await ownerAlertsDb
       .from("owner_push_devices")
       .delete()
       .eq("organization_id", organizationId)
@@ -161,7 +169,7 @@ async function invoiceAlertsOn(organizationId: string): Promise<boolean> {
   if (hit && Date.now() - hit.at < INVOICE_SETTINGS_TTL_MS) return hit.on;
   let on = false;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await ownerAlertsDb
       .from("owner_alert_settings")
       .select("enabled, invoice_mode")
       .eq("organization_id", organizationId)

@@ -46,7 +46,7 @@ const app = initializeApp({
 const messaging = getMessaging(app);
 
 onBackgroundMessage(messaging, (payload) => {
-  const { title, body: bodyText, url, messageId, tag } = buildPushDisplay(payload);
+  const { title, body: bodyText, url, messageId, tag } = buildPushDisplay(payload, self.location.origin);
 
   // Fire telemetry without awaiting (waitUntil keeps the worker alive).
   const trackPromise = track(messageId, "delivered");
