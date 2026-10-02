@@ -26,6 +26,7 @@ import {
   coerceSettingsTab,
 } from "@/components/settings/settingsChrome";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
+import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -4718,11 +4719,14 @@ export default function Settings() {
 
           <TabsContent value="pos" className="mt-0">
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 items-start">
-              <PosSettingsForm
-                settings={settings}
-                setSettings={setSettings}
-                onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
-              />
+              <div className="flex flex-col gap-2 min-w-0">
+                <PosSettingsForm
+                  settings={settings}
+                  setSettings={setSettings}
+                  onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
+                />
+                <OwnerAlertsSettings />
+              </div>
               <SettingsInvoicePreview
                 settings={settings}
                 setSettings={setSettings}

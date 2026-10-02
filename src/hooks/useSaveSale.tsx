@@ -1,4 +1,5 @@
 import { posSaveMark } from "@/lib/posSaveTiming";
+import { notifyOwnersOfNewBill } from "@/lib/ownerPush";
 import { salesFinanceFields, salesHasFinanceColumn } from "@/utils/salesFinanceColumn";
 import { posExchangeVoucherRequestId } from "@/utils/exchangeRefundAfterDelete";
 import { useState, useRef } from "react";
@@ -1567,6 +1568,9 @@ export const useSaveSale = () => {
           console.error('Customer push send failed:', pushError);
         } })();
       }
+
+      // Owner phone alert for the new bill (fire-and-forget; off unless the shop turned it on).
+      notifyOwnersOfNewBill(currentOrganization.id, sale.id);
 
       const totalQty = saleData.items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
       applyPostSaleInvalidation(currentOrganization.id, runtimeOptions, {
