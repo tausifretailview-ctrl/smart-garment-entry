@@ -3,9 +3,10 @@
 // button (or a return visit finds permission already granted).
 // NEVER call Notification.requestPermission() outside a click handler.
 
-import { registerPush } from "./client";
+import { registerPush, trackMessage } from "./client";
 import { cleanVapidKey, describeVapidKeyProblem } from "./vapidKey";
 import { withTimeout } from "./withTimeout";
+import { buildPushDisplay } from "./pushDisplay";
 
 // Each setup step can stall without failing (worker never activates, push service
 // unreachable, slow network). Give each a limit so the button reports where it stuck.
@@ -87,7 +88,7 @@ async function fetchToken(): Promise<{ token: string | null; reason?: string }> 
   if (vapidProblem) return { token: null, reason: `vapid_${vapidProblem}` };
   try {
     const { initializeApp, getApps, getApp } = await import("firebase/app");
-    const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
+    const { getMessaging, getToken, isSupported, onMessage } = await import("firebase/messaging");
     if (!(await withTimeout(isSupported(), STEP_TIMEOUT_MS.isSupported, "is_supported"))) {
       return { token: null, reason: "unsupported" };
     }
@@ -101,10 +102,39 @@ async function fetchToken(): Promise<{ token: string | null; reason?: string }> 
       STEP_TIMEOUT_MS.getToken,
       "get_token",
     );
+    if (token) showWhileOpen(messaging, reg, onMessage);
     return token ? { token } : { token: null, reason: "empty_token" };
   } catch (err) {
     return { token: null, reason: tokenErrorCode(err) };
   }
+}
+
+let foregroundAttached = false;
+
+/**
+ * While the bill page is open, Firebase hands pushes to the page (not the service worker),
+ * and nothing was shown. Show the same notification the worker would.
+ */
+function showWhileOpen(
+  messaging: Parameters<typeof import("firebase/messaging").onMessage>[0],
+  reg: ServiceWorkerRegistration,
+  onMessage: typeof import("firebase/messaging").onMessage,
+): void {
+  if (foregroundAttached) return;
+  foregroundAttached = true;
+  onMessage(messaging, (payload) => {
+    const d = buildPushDisplay(payload as Parameters<typeof buildPushDisplay>[0]);
+    if (d.messageId) void trackMessage(d.messageId, "delivered");
+    void reg
+      .showNotification(d.title, {
+        body: d.body,
+        icon: "/icon.svg",
+        badge: "/icon.svg",
+        data: { url: d.url, messageId: d.messageId },
+        tag: d.tag,
+      })
+      .catch(() => undefined);
+  });
 }
 
 async function currentToken(): Promise<string | null> {

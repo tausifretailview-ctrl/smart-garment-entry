@@ -10,6 +10,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getMessaging, onBackgroundMessage } from "firebase/messaging/sw";
+import { buildPushDisplay } from "./lib/pushDisplay";
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -45,17 +46,7 @@ const app = initializeApp({
 const messaging = getMessaging(app);
 
 onBackgroundMessage(messaging, (payload) => {
-  const data = (payload.data ?? {}) as Record<string, string>;
-  const messageId = data.message_id;
-  const title = payload.notification?.title ?? data.title ?? "New update";
-  const bodyText = payload.notification?.body ?? data.body ?? "";
-  const url =
-    "/m/" +
-    encodeURIComponent(messageId ?? "") +
-    "?title=" +
-    encodeURIComponent(title) +
-    "&body=" +
-    encodeURIComponent(bodyText);
+  const { title, body: bodyText, url, messageId, tag } = buildPushDisplay(payload);
 
   // Fire telemetry without awaiting (waitUntil keeps the worker alive).
   const trackPromise = track(messageId, "delivered");
@@ -64,7 +55,7 @@ onBackgroundMessage(messaging, (payload) => {
     icon: "/icon.svg",
     badge: "/icon.svg",
     data: { url, messageId },
-    tag: messageId ?? "shop-update",
+    tag,
   });
   return Promise.all([trackPromise, showPromise]).then(() => undefined);
 });
