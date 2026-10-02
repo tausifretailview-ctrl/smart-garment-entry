@@ -657,7 +657,7 @@ const PurchaseReturnDashboard = () => {
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `Purchase_Return_${returnToPrint?.original_bill_number || returnToPrint?.id}`,
+    documentTitle: `Purchase_Return_${returnToPrint?.return_number || returnToPrint?.original_bill_number || returnToPrint?.id}`,
   });
 
   const handlePrintClick = async (returnRecord: PurchaseReturn) => {
