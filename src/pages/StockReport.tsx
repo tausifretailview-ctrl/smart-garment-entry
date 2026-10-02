@@ -23,7 +23,7 @@ import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileStatStrip } from "@/components/mobile/MobileStatStrip";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { ProductSearchDropdown } from "@/components/ProductSearchDropdown";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -426,6 +426,10 @@ export default function StockReport() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const { data: orgSettings } = useSettings();
+  /** Settings → Purchase "Show MRP" (the MRP feature): adds an MRP column before Sale Price. */
+  const showMrp =
+    (orgSettings as { purchase_settings?: { show_mrp?: boolean } } | undefined)?.purchase_settings?.show_mrp === true;
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [excelExporting, setExcelExporting] = useState(false);
@@ -452,6 +456,30 @@ export default function StockReport() {
     const tabParam = searchParams.get("tab");
     return tabParam === "sizewise" ? "sizewise" : "all";
   });
+  const mrpVariantIds = useMemo(() => stockItems.map((i) => i.id), [stockItems]);
+  // get_stock_report has no MRP, so read it for the loaded rows only (≤100 per page).
+  const { data: mrpByVariantId } = useQuery({
+    queryKey: ["stock-report-mrp", currentOrganization?.id, mrpVariantIds],
+    enabled: showMrp && activeTab === "all" && !!currentOrganization?.id && mrpVariantIds.length > 0,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const map = new Map<string, number>();
+      for (let i = 0; i < mrpVariantIds.length; i += 200) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, mrp")
+          .eq("organization_id", currentOrganization!.id)
+          .in("id", mrpVariantIds.slice(i, i + 200));
+        if (error) throw error;
+        for (const v of data ?? []) {
+          if (v.mrp != null) map.set(v.id, Number(v.mrp));
+        }
+      }
+      return map;
+    },
+  });
+  const mrpOf = useCallback((id: string): number | null => mrpByVariantId?.get(id) ?? null, [mrpByVariantId]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -1604,6 +1632,7 @@ export default function StockReport() {
       "Current Stock",
       "Pur Price",
       "Stock Value",
+      ...(showMrp ? ["MRP"] : []),
       "Sale Price",
       "Status",
     ];
@@ -1625,6 +1654,7 @@ export default function StockReport() {
       item.stock_qty,
       item.pur_price || 0,
       Math.round((item.pur_price || 0) * item.stock_qty),
+      ...(showMrp ? [mrpOf(item.id) ?? ""] : []),
       item.sale_price,
       item.stock_qty === 0 ? "Out of Stock" : item.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
     ]);
@@ -1640,6 +1670,7 @@ export default function StockReport() {
       filteredStockItems.reduce((s, i) => s + i.stock_qty, 0),
       "",
       Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)),
+      ...(showMrp ? [""] : []),
       Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)),
       "",
     ]);
@@ -1664,7 +1695,7 @@ export default function StockReport() {
         const { data, error } = await supabase
           .from("product_variants")
           .select(`
-            id, size, color, stock_qty, opening_qty, sale_price, pur_price, barcode,
+            id, size, color, stock_qty, opening_qty, sale_price, pur_price, mrp, barcode,
             products!inner (product_name, brand, category, style, product_type, deleted_at)
           `)
           .eq("organization_id", currentOrganization.id)
@@ -1697,6 +1728,7 @@ export default function StockReport() {
         opening_qty: v.opening_qty || 0,
         pur_price: v.pur_price || 0,
         sale_price: v.sale_price || 0,
+        mrp: v.mrp != null ? Number(v.mrp) : null,
       }));
 
       const headers = [
@@ -1712,6 +1744,7 @@ export default function StockReport() {
         "Current Stock",
         "Pur Price",
         "Stock Value",
+        ...(showMrp ? ["MRP"] : []),
         "Sale Price",
         "Sale Value",
         "Status",
@@ -1729,6 +1762,7 @@ export default function StockReport() {
         item.stock_qty,
         item.pur_price,
         Math.round(item.pur_price * item.stock_qty),
+        ...(showMrp ? [item.mrp ?? ""] : []),
         item.sale_price,
         Math.round(item.sale_price * item.stock_qty),
         item.stock_qty === 0 ? "Out of Stock" : item.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
@@ -1748,6 +1782,7 @@ export default function StockReport() {
         totalCurrentStock,
         "",
         totalStockVal,
+        ...(showMrp ? [""] : []),
         "",
         totalSaleVal,
         `${items.length} variants`,
@@ -1789,6 +1824,7 @@ export default function StockReport() {
         <td style="text-align:right">${item.sale_return_qty}</td>
         <td style="text-align:right;font-weight:bold">${item.stock_qty}</td>
         <td style="text-align:right">${item.pur_price ? '₹' + item.pur_price : '-'}</td>
+        ${showMrp ? `<td style="text-align:right">${mrpOf(item.id) ? '₹' + mrpOf(item.id) : '-'}</td>` : ""}
         <td style="text-align:right">${item.sale_price ? '₹' + item.sale_price : '-'}</td>
       </tr>`).join("");
 
@@ -1802,6 +1838,7 @@ export default function StockReport() {
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.sale_return_qty, 0)}</td>
         <td style="text-align:right">${filteredStockItems.reduce((s, i) => s + i.stock_qty, 0)}</td>
         <td style="text-align:right">₹${Math.round(filteredStockItems.reduce((s, i) => s + (i.pur_price || 0) * i.stock_qty, 0)).toLocaleString('en-IN')}</td>
+        ${showMrp ? "<td></td>" : ""}
         <td style="text-align:right">₹${Math.round(filteredStockItems.reduce((s, i) => s + i.sale_price * i.stock_qty, 0)).toLocaleString('en-IN')}</td>
       </tr>`;
 
@@ -1821,7 +1858,7 @@ export default function StockReport() {
       <table>
         <thead><tr>
           <th>Sr</th><th>Product</th>${showBrand ? `<th>${fieldLabels.brand}</th>` : ""}<th>Size</th>${showColor ? `<th>${fieldLabels.color}</th>` : ""}<th>Barcode</th>
-          <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th><th>Stock</th><th>Pur ₹</th><th>Sale ₹</th>
+          <th>Open</th><th>Pur</th><th>P.Ret</th><th>Sales</th><th>S.Ret</th><th>Stock</th><th>Pur ₹</th>${showMrp ? "<th>MRP ₹</th>" : ""}<th>Sale ₹</th>
         </tr></thead>
         <tbody>${rows}${totalRow}</tbody>
       </table></body></html>`);
@@ -2317,6 +2354,7 @@ export default function StockReport() {
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
+                    {showMrp && <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>MRP</TableHead>}
                     <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Sale Price</TableHead>
                     <TableHead className={STOCK_NEUTRAL_TH}>Status</TableHead>
                   </TableRow>
@@ -2390,6 +2428,7 @@ export default function StockReport() {
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH, "bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-100")}>Current Stock</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Pur Price</TableHead>
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Stock Value</TableHead>
+                        {showMrp && <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>MRP</TableHead>}
                         <TableHead className={cn("text-right", STOCK_NEUTRAL_TH)}>Sale Price</TableHead>
                         <TableHead className={STOCK_NEUTRAL_TH}>Status</TableHead>
                       </TableRow>
@@ -2397,7 +2436,7 @@ export default function StockReport() {
                     <TableBody>
                       {paginatedStockItems.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={19} className="h-20 text-center text-base text-muted-foreground">
+                          <TableCell colSpan={showMrp ? 20 : 19} className="h-20 text-center text-base text-muted-foreground">
                             No products found matching your search
                           </TableCell>
                         </TableRow>
@@ -2480,6 +2519,15 @@ export default function StockReport() {
                                 <span className="text-muted-foreground">-</span>
                               )}
                             </TableCell>
+                            {showMrp && (
+                              <TableCell className={cn(STOCK_DATA_CELL, "text-right")}>
+                                {mrpOf(item.id) ? (
+                                  <span>₹{mrpOf(item.id)}</span>
+                                ) : (
+                                  <span className="text-muted-foreground">-</span>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className={cn(STOCK_DATA_CELL, "text-right")}>
                               <span>₹{item.sale_price}</span>
                             </TableCell>
@@ -2525,6 +2573,9 @@ export default function StockReport() {
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-primary bg-slate-200 dark:bg-slate-700")}>
                             ₹{allStockTotals.stockValue.toLocaleString('en-IN')}
                           </TableCell>
+                          {showMrp && (
+                            <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>—</TableCell>
+                          )}
                           <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>
                             ₹{allStockTotals.saleValue.toLocaleString('en-IN')}
                           </TableCell>
