@@ -200,9 +200,33 @@ export function notifyOwnersOfNewBill(organizationId: string, saleId: string): v
   })();
 }
 
+/**
+ * Plain words for a failed owner-alerts call. "Failed to send a request to the Edge Function"
+ * (FunctionsFetchError) means the owner-alerts function is not deployed / not reachable.
+ */
+export function ownerAlertErrorText(e: unknown): string {
+  const name = e && typeof e === "object" && "name" in e ? String((e as { name?: unknown }).name) : "";
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  if (name === "FunctionsFetchError" || /failed to send a request to the edge function/i.test(msg)) {
+    return "The owner alerts service is not set up on the server yet (owner-alerts function not deployed). Ask your EzzyERP admin to deploy it, then try again.";
+  }
+  if (/push provider not configured|firebase|FIREBASE_SERVICE_ACCOUNT/i.test(msg)) {
+    return "Firebase is not set up on the server yet (FIREBASE_SERVICE_ACCOUNT_JSON secret). Ask your EzzyERP admin.";
+  }
+  return msg || "Unknown error";
+}
+
 export async function sendOwnerTestAlert(organizationId: string): Promise<{ sent: number; failed: number }> {
   const { data, error } = await supabase.functions.invoke("owner-alerts", { body: { type: "test", organizationId } });
-  if (error) throw error;
+  if (error) {
+    // FunctionsHttpError keeps the Response in .context; surface the function's own reason.
+    const ctx = (error as { context?: unknown }).context;
+    if (ctx instanceof Response) {
+      const body = (await ctx.clone().json().catch(() => null)) as { error?: string } | null;
+      if (body?.error) throw new Error(body.error);
+    }
+    throw error;
+  }
   const r = (data ?? {}) as { sent?: number; failed?: number; error?: string };
   if (r.error) throw new Error(r.error);
   return { sent: Number(r.sent) || 0, failed: Number(r.failed) || 0 };

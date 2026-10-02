@@ -14,6 +14,7 @@ import {
   isOwnerPushSupported,
   ownerAlertsDb,
   sendOwnerTestAlert,
+  ownerAlertErrorText,
   thisPhoneHasOwnerAlerts,
 } from "@/lib/ownerPush";
 
@@ -159,12 +160,19 @@ export function OwnerAlertsSettings() {
 
   const test = async () => {
     if (!orgId) return;
+    if (activeDevices.length === 0) {
+      toast.warning("No phone added yet", {
+        description:
+          "On the owner's phone, open the EzzyERP Android app, log in, go to Settings → POS → Owner alerts and tap \"Turn on alerts on this phone\".",
+      });
+      return;
+    }
     try {
       const r = await sendOwnerTestAlert(orgId);
       if (r.sent > 0) toast.success(`Test alert sent to ${r.sent} phone${r.sent === 1 ? "" : "s"}`);
       else toast.warning("No phone received it", { description: "Turn on alerts in the EzzyERP Android app first." });
     } catch (e) {
-      toast.error("Test alert failed", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Test alert failed", { description: ownerAlertErrorText(e) });
     }
   };
 
