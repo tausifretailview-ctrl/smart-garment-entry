@@ -36,7 +36,12 @@ describe("Product dashboard Insights chrome", () => {
     const importAt = page.indexOf("Import Stock");
     expect(importAt).toBeGreaterThan(panelAt);
     expect(page).toContain("flex-nowrap items-center gap-2 overflow-x-auto");
-    expect(page).toContain("showDensityToggle={false}");
+    expect(page).toContain('id="product-column-picker"');
+    expect(page.indexOf('id="product-column-picker"')).toBeGreaterThan(stockAt);
+    expect(page).toContain('label: "Product Type"');
+    expect(page).toContain('label: "Size Group"');
+    expect(page).toContain('label: "GST%"');
+    expect(page).toContain("showColumnToggle={false}");
     expect(page).toContain("ColorLabelRow");
   });
 });

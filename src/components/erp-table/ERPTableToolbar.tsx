@@ -12,6 +12,7 @@ interface ERPTableToolbarProps<T> {
   onToggleDensity: () => void;
   onResetSettings: () => void;
   showDensityToggle?: boolean;
+  showColumnToggle?: boolean;
 }
 
 export function ERPTableToolbar<T>({
@@ -20,6 +21,7 @@ export function ERPTableToolbar<T>({
   onToggleDensity,
   onResetSettings,
   showDensityToggle = true,
+  showColumnToggle = true,
 }: ERPTableToolbarProps<T>) {
   const allColumns = table.getAllLeafColumns().filter((c) => c.id !== "actions");
 
@@ -42,7 +44,7 @@ export function ERPTableToolbar<T>({
       </Button>
       )}
 
-      {/* Column visibility */}
+      {showColumnToggle && (
       <Popover>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="h-7 gap-1 text-[11px] px-2.5 border-slate-200 text-slate-600">
@@ -74,6 +76,7 @@ export function ERPTableToolbar<T>({
           </div>
         </PopoverContent>
       </Popover>
+      )}
 
       {/* Reset */}
       <Button

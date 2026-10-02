@@ -32,7 +32,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, Package, Search, Download, Upload, Filter, Plus, MoreHorizontal, Home, ChevronDown, ChevronRight, X, Trash2, Settings2, Barcode, RefreshCw, Eye, Edit, ShoppingCart, History, Ban, Merge, Boxes, Tags, TrendingDown, TrendingUp, AlertTriangle, Columns3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import {
@@ -70,7 +71,7 @@ import {
   displayVariantDashboardStock,
   isServiceProduct,
 } from "@/utils/productStockDisplay";
-import { distinctColorLabels, formatColorName } from "@/utils/formatColorName";
+import { colorChipStyle, distinctColorLabels } from "@/utils/formatColorName";
 
 interface ProductVariant {
   variant_id: string;
@@ -97,6 +98,7 @@ interface ProductRow {
   default_pur_price: number;
   default_sale_price: number;
   status: string;
+  size_group_id: string;
   variants: ProductVariant[];
   total_stock: number;
   variant_count: number;
@@ -154,14 +156,18 @@ function ColorLabelRow({ labels }: { labels: string[] }) {
   }
   return (
     <div className="flex flex-nowrap items-center gap-1">
-      {labels.map((label) => (
-        <span
-          key={label}
-          className="inline-flex h-6 shrink-0 items-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium leading-none text-slate-700"
-        >
-          {label}
-        </span>
-      ))}
+      {labels.map((label) => {
+        const chip = colorChipStyle(label);
+        return (
+          <span
+            key={label}
+            style={{ backgroundColor: chip.backgroundColor, color: chip.color }}
+            className="inline-flex h-6 shrink-0 items-center rounded-md border border-black/15 px-2 text-xs font-semibold leading-none"
+          >
+            {label}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -542,9 +548,12 @@ const ProductDashboard = () => {
     gst: false,
     purPrice: true,
     salePrice: true,
+    mrp: false,
     status: true,
     totalQty: true,
     variants: true,
+    productType: false,
+    sizeGroup: false,
   };
 
   const { columnSettings: columnVisibility, updateColumnSetting, isLoading: settingsLoading } = 
@@ -738,6 +747,7 @@ const ProductDashboard = () => {
         default_pur_price: Number(p.default_pur_price) || 0,
         default_sale_price: Number(p.default_sale_price) || 0,
         status: p.status || "active",
+        size_group_id: p.size_group_id || "",
         user_cancelled_at: p.user_cancelled_at ?? null,
         variants: [],
         total_stock: displayProductDashboardStock(
@@ -1409,10 +1419,11 @@ const ProductDashboard = () => {
       });
     }
 
+    if (columnVisibility.productType) cols.push({ accessorKey: "product_type", header: "Product Type", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
     if (columnVisibility.category && showCategoryField) cols.push({ accessorKey: "category", header: fieldLabels.category, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
     if (columnVisibility.brand && showBrandField) cols.push({ accessorKey: "brand", header: fieldLabels.brand, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
     if (columnVisibility.style && showStyleField) cols.push({ accessorKey: "style", header: fieldLabels.style, cell: ({ getValue }) => getValue() || "—", size: 110 });
-    if (showColorField) cols.push({
+    if (columnVisibility.color && showColorField) cols.push({
       id: "color",
       header: fieldLabels.color,
       cell: ({ row }) => {
@@ -1426,10 +1437,32 @@ const ProductDashboard = () => {
       },
       size: 220,
     });
+    if (columnVisibility.sizeGroup) cols.push({
+      id: "sizeGroup",
+      header: "Size Group",
+      cell: ({ row }) => {
+        const name = sizeGroups.find((group) => group.id === row.original.size_group_id)?.group_name;
+        return <span className="text-slate-700">{name || "—"}</span>;
+      },
+      size: 140,
+    });
     if (columnVisibility.hsn && showHsnField) cols.push({ accessorKey: "hsn_code", header: fieldLabels.hsn_code, cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
     if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
     if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
     if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Selling Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
+    if (columnVisibility.mrp && showMrp) cols.push({
+      id: "mrp",
+      header: "MRP",
+      cell: ({ row }) => {
+        const prices = [...new Set(row.original.variants.map((variant) => variant.mrp).filter((price) => price > 0))];
+        if (prices.length === 0) return <span className="block text-right text-slate-400">—</span>;
+        const label = prices.length === 1
+          ? `₹${prices[0].toFixed(2)}`
+          : `₹${Math.min(...prices).toFixed(2)}–${Math.max(...prices).toFixed(2)}`;
+        return <span className="block text-right tabular-nums">{label}</span>;
+      },
+      size: 120,
+    });
     if (columnVisibility.status) cols.push({ accessorKey: "status", header: "Status", cell: ({ getValue }) => { const status = getValue() as string; const isActive = status === "active"; return (<Badge className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wide", isActive ? "bg-emerald-500 text-white border-0 hover:bg-emerald-500" : "bg-slate-200 text-slate-600 border-0")}>{isActive ? "Active" : status || "Inactive"}</Badge>); }, size: 100 });
     if (columnVisibility.totalQty) cols.push({ accessorKey: "total_stock", header: "Qty", cell: ({ row, getValue }) => { const qty = getValue() as number; const isService = isServiceProduct(row.original.product_type); return (<span className={`text-right block font-bold tabular-nums text-base ${isService ? "text-slate-600" : qty === 0 ? 'text-red-500' : qty <= 5 ? 'text-orange-500' : 'text-foreground'}`}>{qty}</span>); }, size: 95 });
     if (columnVisibility.variants) cols.push({ id: "variants", header: "Variants", cell: ({ row }) => (<Badge className="bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900 dark:text-sky-200 font-semibold tabular-nums">{row.original.variant_count || row.original.variants.length}</Badge>), size: 90 });
@@ -1489,6 +1522,7 @@ const ProductDashboard = () => {
     fieldLabels.color,
     fieldLabels.hsn_code,
     variantColorLabels,
+    sizeGroups,
   ]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
@@ -1610,6 +1644,25 @@ const ProductDashboard = () => {
   const totalPurchaseValue = dashboardStats.purchase_value;
   const totalSaleValue = dashboardStats.sale_value;
 
+  const productColumnOptions = [
+    { key: "image", label: "Image" },
+    { key: "productName", label: "Name" },
+    { key: "productType", label: "Product Type" },
+    ...(showCategoryField ? [{ key: "category", label: fieldLabels.category }] : []),
+    ...(showBrandField ? [{ key: "brand", label: fieldLabels.brand }] : []),
+    ...(showStyleField ? [{ key: "style", label: fieldLabels.style }] : []),
+    ...(showColorField ? [{ key: "color", label: fieldLabels.color }] : []),
+    { key: "sizeGroup", label: "Size Group" },
+    ...(showHsnField ? [{ key: "hsn", label: fieldLabels.hsn_code }] : []),
+    { key: "gst", label: "GST%" },
+    { key: "purPrice", label: "Pur Price" },
+    { key: "salePrice", label: "Selling Price" },
+    ...(showMrp ? [{ key: "mrp", label: "MRP" }] : []),
+    { key: "status", label: "Status" },
+    { key: "totalQty", label: "Qty" },
+    { key: "variants", label: "Variants" },
+  ];
+
   const extraFilterCount = [
     selectedCategory !== "all",
     selectedProductType !== "all",
@@ -1711,6 +1764,34 @@ const ProductDashboard = () => {
                 <SelectItem value="out_of_stock">Out of Stock</SelectItem>
               </SelectContent>
             </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="product-column-picker"
+                  variant="outline"
+                  className="h-9 shrink-0 gap-2 border-slate-200 text-sm"
+                >
+                  <Columns3 className="h-4 w-4" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="z-50 w-64 p-3">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Product columns
+                </p>
+                <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {productColumnOptions.map((column) => (
+                    <label key={column.key} className="flex cursor-pointer items-center gap-2 text-sm">
+                      <Checkbox
+                        checked={columnVisibility[column.key] === true}
+                        onCheckedChange={(checked) => updateColumnSetting(column.key, checked === true)}
+                      />
+                      <span>{column.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             {searchQuery && (
               <span className="text-sm text-slate-500 whitespace-nowrap">
                 {totalCount.toLocaleString("en-IN")} results
@@ -2038,6 +2119,7 @@ const ProductDashboard = () => {
                 fitToContainer
                 className="product-dashboard-table"
                 showDensityToggle={false}
+                showColumnToggle={false}
                 renderSubRow={renderProductSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={toggleExpanded}

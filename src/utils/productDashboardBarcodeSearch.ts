@@ -132,6 +132,7 @@ export type ProductCatalogRowPayload = {
   default_pur_price: number;
   default_sale_price: number;
   status: string;
+  size_group_id: string;
   user_cancelled_at?: string | null;
   total_stock: number;
   variant_count: number;
@@ -147,7 +148,7 @@ export async function fetchCatalogRowsForProductIds(
   const { data: products, error: productsErr } = await supabase
     .from("products")
     .select(
-      "id, product_name, product_type, category, brand, style, color, image_url, hsn_code, gst_per, default_pur_price, default_sale_price, status, user_cancelled_at",
+      "id, product_name, product_type, category, brand, style, color, image_url, hsn_code, gst_per, default_pur_price, default_sale_price, status, user_cancelled_at, size_group_id",
     )
     .eq("organization_id", organizationId)
     .in("id", productIds)
@@ -198,6 +199,7 @@ export async function fetchCatalogRowsForProductIds(
       default_pur_price: Number(p.default_pur_price) || 0,
       default_sale_price: Number(p.default_sale_price) || 0,
       status: p.status || "active",
+      size_group_id: p.size_group_id || "",
       user_cancelled_at: p.user_cancelled_at ?? null,
       total_stock: displayProductDashboardStock(p.product_type, agg.total_stock),
       variant_count: agg.variant_count,
