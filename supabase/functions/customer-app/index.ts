@@ -99,13 +99,28 @@ async function readSession(supabase: SupabaseClient, orgId: string, token: unkno
   return data ? { organizationId: orgId, customerId: s.customerId } : null;
 }
 
-/** Counts recent attempts (all of them, matched or not). null = limiter unavailable → fail closed. */
-async function loginBlocked(
+/**
+ * Records this attempt FIRST (as failed), then counts recent attempts including it. Because
+ * every request's own row is committed before its count, the n-th concurrent request sees at
+ * least n rows, so parallel bursts cannot slip past the caps (check-then-insert could).
+ * Returns the attempt id when allowed, "blocked" when over a cap, null when the limiter is
+ * unavailable (caller fails closed).
+ */
+async function reserveLoginAttempt(
   supabase: SupabaseClient,
   orgId: string,
   ip: string,
   last10: string,
-): Promise<boolean | null> {
+): Promise<number | "blocked" | null> {
+  const { data: row, error: insertError } = await supabase
+    .from("customer_app_login_attempts")
+    .insert({ organization_id: orgId, ip, phone_last10: last10, success: false })
+    .select("id")
+    .single();
+  if (insertError || !row) {
+    console.error("customer-app: could not record login attempt", insertError);
+    return null;
+  }
   const since = (ms: number) => new Date(Date.now() - ms).toISOString();
   const head = { count: "exact" as const, head: true };
   const [byIp, byMobile, failedShop] = await Promise.all([
@@ -131,25 +146,12 @@ async function loginBlocked(
     console.error("customer-app: login limiter unavailable", byIp.error ?? byMobile.error ?? failedShop.error);
     return null;
   }
-  return (
-    (byIp.count ?? 0) >= LIMITS.perIp.max ||
-    (byMobile.count ?? 0) >= LIMITS.perMobile.max ||
-    (failedShop.count ?? 0) >= LIMITS.failedPerShop.max
-  );
-}
-
-async function recordAttempt(
-  supabase: SupabaseClient,
-  orgId: string,
-  ip: string,
-  last10: string,
-  success: boolean,
-): Promise<boolean> {
-  const { error } = await supabase
-    .from("customer_app_login_attempts")
-    .insert({ organization_id: orgId, ip, phone_last10: last10, success });
-  if (error) console.error("customer-app: could not record login attempt", error);
-  return !error;
+  // Counts include this request's own row, hence ">".
+  const over =
+    (byIp.count ?? 0) > LIMITS.perIp.max ||
+    (byMobile.count ?? 0) > LIMITS.perMobile.max ||
+    (failedShop.count ?? 0) > LIMITS.failedPerShop.max;
+  return over ? "blocked" : (row.id as number);
 }
 
 /** Customer in this shop with this mobile; when several share it, the one billed most recently. */
@@ -215,13 +217,13 @@ const handler = async (req: Request): Promise<Response> => {
       const last10 = phoneLast10(body.mobile);
       if (!last10) return json(400, { error: "invalid_mobile" });
       const ip = clientIp(req.headers);
-      const blocked = await loginBlocked(supabase, org.id, ip, last10);
-      if (blocked === null) return json(503, { error: "login_unavailable" });
-      if (blocked) return json(429, { error: "too_many_attempts" });
+      const attempt = await reserveLoginAttempt(supabase, org.id, ip, last10);
+      if (attempt === null) return json(503, { error: "login_unavailable" });
+      if (attempt === "blocked") return json(429, { error: "too_many_attempts" });
       const customer = await findCustomerByMobile(supabase, org.id, last10);
-      // The attempt is recorded before any session is issued; no record → no session.
-      if (!(await recordAttempt(supabase, org.id, ip, last10, !!customer))) {
-        return json(503, { error: "login_unavailable" });
+      if (customer) {
+        // Successful logins don't count toward the per-shop failed cap.
+        await supabase.from("customer_app_login_attempts").update({ success: true }).eq("id", attempt);
       }
       if (!customer) return json(404, { error: "no_account" });
       const token = await createSession(org.id, customer.id);
