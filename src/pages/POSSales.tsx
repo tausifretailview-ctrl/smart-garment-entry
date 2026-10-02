@@ -5004,6 +5004,8 @@ export default function POSSales() {
     cardAmount: number;
     upiAmount: number;
     bankAmount?: number;
+    /** Mix Payment Finance box (kept inside card_amount; shown as Finance on the bill). */
+    financeAmount?: number;
     creditAmount: number;
     totalPaid: number;
     refundAmount: number;
