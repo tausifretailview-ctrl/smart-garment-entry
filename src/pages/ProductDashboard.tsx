@@ -72,6 +72,7 @@ import {
   isServiceProduct,
 } from "@/utils/productStockDisplay";
 import { colorChipStyle, distinctColorLabels } from "@/utils/formatColorName";
+import { columnHasVisibleValue } from "@/utils/productDashboardColumns";
 
 interface ProductVariant {
   variant_id: string;
@@ -864,7 +865,7 @@ const ProductDashboard = () => {
     () => productRows.map((row) => row.product_id),
     [productRows],
   );
-  const { data: variantColorLabels = EMPTY_COLOR_LABELS } = useQuery({
+  const { data: variantColorLabels = EMPTY_COLOR_LABELS, isFetched: colorLabelsFetched } = useQuery({
     queryKey: ["product-dashboard-color-labels", currentOrganization?.id, pageProductIds],
     queryFn: async () => {
       const orgId = currentOrganization?.id;
@@ -1419,11 +1420,15 @@ const ProductDashboard = () => {
       });
     }
 
-    if (columnVisibility.productType) cols.push({ accessorKey: "product_type", header: "Product Type", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
-    if (columnVisibility.category && showCategoryField) cols.push({ accessorKey: "category", header: fieldLabels.category, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
-    if (columnVisibility.brand && showBrandField) cols.push({ accessorKey: "brand", header: fieldLabels.brand, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
-    if (columnVisibility.style && showStyleField) cols.push({ accessorKey: "style", header: fieldLabels.style, cell: ({ getValue }) => getValue() || "—", size: 110 });
-    if (columnVisibility.color && showColorField) cols.push({
+    if (columnVisibility.productType && columnHasVisibleValue(paginatedRows, (row) => row.product_type)) cols.push({ accessorKey: "product_type", header: "Product Type", cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.category && showCategoryField && columnHasVisibleValue(paginatedRows, (row) => row.category)) cols.push({ accessorKey: "category", header: fieldLabels.category, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.brand && showBrandField && columnHasVisibleValue(paginatedRows, (row) => row.brand)) cols.push({ accessorKey: "brand", header: fieldLabels.brand, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
+    if (columnVisibility.style && showStyleField && columnHasVisibleValue(paginatedRows, (row) => row.style)) cols.push({ accessorKey: "style", header: fieldLabels.style, cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (columnVisibility.color && showColorField && (paginatedRows.length === 0 || !colorLabelsFetched || paginatedRows.some((row) => {
+      const fromVariants = row.variants.length ? distinctColorLabels(row.variants.map((variant) => variant.color)) : [];
+      const labels = fromVariants.length ? fromVariants : (variantColorLabels[row.product_id] ?? distinctColorLabels([row.color]));
+      return labels.length > 0;
+    }))) cols.push({
       id: "color",
       header: fieldLabels.color,
       cell: ({ row }) => {
@@ -1437,7 +1442,7 @@ const ProductDashboard = () => {
       },
       size: 220,
     });
-    if (columnVisibility.sizeGroup) cols.push({
+    if (columnVisibility.sizeGroup && columnHasVisibleValue(paginatedRows, (row) => sizeGroups.find((group) => group.id === row.size_group_id)?.group_name)) cols.push({
       id: "sizeGroup",
       header: "Size Group",
       cell: ({ row }) => {
@@ -1446,11 +1451,11 @@ const ProductDashboard = () => {
       },
       size: 140,
     });
-    if (columnVisibility.hsn && showHsnField) cols.push({ accessorKey: "hsn_code", header: fieldLabels.hsn_code, cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
-    if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
+    if (columnVisibility.hsn && showHsnField && columnHasVisibleValue(paginatedRows, (row) => row.hsn_code)) cols.push({ accessorKey: "hsn_code", header: fieldLabels.hsn_code, cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
+    if (columnVisibility.gst && columnHasVisibleValue(paginatedRows, (row) => (row.gst_per ? row.gst_per : ""))) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
     if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
     if (columnVisibility.salePrice) cols.push({ accessorKey: "default_sale_price", header: "Selling Price", cell: ({ getValue }) => <span className="text-right block text-emerald-700 dark:text-emerald-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
-    if (columnVisibility.mrp && showMrp) cols.push({
+    if (columnVisibility.mrp && showMrp && (paginatedRows.length === 0 || paginatedRows.some((row) => row.variants.some((variant) => variant.mrp > 0)) || paginatedRows.some((row) => (row.variant_count ?? 0) > 0 && row.variants.length === 0))) cols.push({
       id: "mrp",
       header: "MRP",
       cell: ({ row }) => {
@@ -1522,6 +1527,7 @@ const ProductDashboard = () => {
     fieldLabels.color,
     fieldLabels.hsn_code,
     variantColorLabels,
+    colorLabelsFetched,
     sizeGroups,
   ]);
 
@@ -2116,7 +2122,6 @@ const ProductDashboard = () => {
                 isLoading={loading && productRows.length === 0}
                 emptyMessage="No products found"
                 defaultDensity="comfortable"
-                fitToContainer
                 className="product-dashboard-table"
                 showDensityToggle={false}
                 showColumnToggle={false}
