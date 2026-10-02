@@ -1,5 +1,6 @@
 import { cn, displayBarcode } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { formatColorName } from "@/utils/formatColorName";
 
 interface VariantResult {
   id: string;
@@ -24,25 +25,6 @@ interface ERPVariantRowProps {
   onClick?: () => void;
   onMouseEnter?: () => void;
 }
-
-/** Format raw color codes into readable names */
-const formatColorName = (color: string): string => {
-  if (!color) return "";
-  const abbrevMap: Record<string, string> = {
-    "BK": "Black", "BL": "Blue", "GR": "Green", "GY": "Gray",
-    "RD": "Red", "WH": "White", "YL": "Yellow", "OR": "Orange",
-    "PK": "Pink", "PR": "Purple", "BR": "Brown", "NV": "Navy",
-    "MHD": "Mahendi", "MRN": "Maroon", "CR": "Cream", "BG": "Beige",
-    "LB": "Light Blue", "DG": "Dark Green", "OL": "Olive",
-    "TN": "Tan", "CL": "Coral", "LV": "Lavender",
-  };
-  const parts = color.split(/[.,\/\-]/).map(p => p.trim()).filter(Boolean);
-  const formatted = parts.map(part => {
-    const upper = part.toUpperCase();
-    return abbrevMap[upper] || (part.charAt(0).toUpperCase() + part.slice(1).toLowerCase());
-  });
-  return formatted.join(" / ");
-};
 
 /** Format brand names properly */
 const formatBrandName = (brand: string): string => {

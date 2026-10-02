@@ -70,6 +70,7 @@ import {
   displayVariantDashboardStock,
   isServiceProduct,
 } from "@/utils/productStockDisplay";
+import { distinctColorLabels, formatColorName } from "@/utils/formatColorName";
 
 interface ProductVariant {
   variant_id: string;
@@ -142,6 +143,26 @@ function ProductKpiCard({
         <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
       </CardContent>
     </Card>
+  );
+}
+
+const EMPTY_COLOR_LABELS: Record<string, string[]> = {};
+
+function ColorLabelRow({ labels }: { labels: string[] }) {
+  if (labels.length === 0) {
+    return <span className="text-slate-400">—</span>;
+  }
+  return (
+    <div className="flex flex-nowrap items-center gap-1">
+      {labels.map((label) => (
+        <span
+          key={label}
+          className="inline-flex h-6 shrink-0 items-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium leading-none text-slate-700"
+        >
+          {label}
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -516,7 +537,7 @@ const ProductDashboard = () => {
     category: true,
     brand: true,
     style: false,
-    color: false,
+    color: true,
     hsn: false,
     gst: false,
     purPrice: true,
@@ -829,6 +850,38 @@ const ProductDashboard = () => {
   });
 
   const productRows = catalogData?.rows ?? [];
+  const pageProductIds = useMemo(
+    () => productRows.map((row) => row.product_id),
+    [productRows],
+  );
+  const { data: variantColorLabels = EMPTY_COLOR_LABELS } = useQuery({
+    queryKey: ["product-dashboard-color-labels", currentOrganization?.id, pageProductIds],
+    queryFn: async () => {
+      const orgId = currentOrganization?.id;
+      if (!orgId || pageProductIds.length === 0) return EMPTY_COLOR_LABELS;
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("product_id, color")
+        .eq("organization_id", orgId)
+        .in("product_id", pageProductIds)
+        .is("deleted_at", null);
+      if (error) throw error;
+      const grouped: Record<string, string[]> = {};
+      for (const variant of data || []) {
+        const id = String(variant.product_id || "");
+        if (!id) continue;
+        if (!grouped[id]) grouped[id] = [];
+        grouped[id].push(variant.color || "");
+      }
+      const labels: Record<string, string[]> = {};
+      for (const [id, colors] of Object.entries(grouped)) {
+        labels[id] = distinctColorLabels(colors);
+      }
+      return labels;
+    },
+    enabled: !!currentOrganization?.id && pageProductIds.length > 0,
+    staleTime: STALE_REFERENCE,
+  });
   const displayRows = useMemo(
     () =>
       productRows.map((row) => ({
@@ -1359,7 +1412,20 @@ const ProductDashboard = () => {
     if (columnVisibility.category && showCategoryField) cols.push({ accessorKey: "category", header: fieldLabels.category, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
     if (columnVisibility.brand && showBrandField) cols.push({ accessorKey: "brand", header: fieldLabels.brand, cell: ({ getValue }) => <span className="text-slate-700">{getValue() || "—"}</span>, size: 130 });
     if (columnVisibility.style && showStyleField) cols.push({ accessorKey: "style", header: fieldLabels.style, cell: ({ getValue }) => getValue() || "—", size: 110 });
-    if (columnVisibility.color && showColorField) cols.push({ accessorKey: "color", header: fieldLabels.color, cell: ({ getValue }) => getValue() || "—", size: 110 });
+    if (showColorField) cols.push({
+      id: "color",
+      header: fieldLabels.color,
+      cell: ({ row }) => {
+        const fromVariants = row.original.variants.length
+          ? distinctColorLabels(row.original.variants.map((variant) => variant.color))
+          : [];
+        const labels = fromVariants.length
+          ? fromVariants
+          : (variantColorLabels[row.original.product_id] ?? distinctColorLabels([row.original.color]));
+        return <ColorLabelRow labels={labels} />;
+      },
+      size: 220,
+    });
     if (columnVisibility.hsn && showHsnField) cols.push({ accessorKey: "hsn_code", header: fieldLabels.hsn_code, cell: ({ getValue }) => <span>{getValue() || "—"}</span>, size: 100 });
     if (columnVisibility.gst) cols.push({ accessorKey: "gst_per", header: "GST%", cell: ({ getValue }) => <span className="text-right block tabular-nums">{getValue()}%</span>, size: 80 });
     if (columnVisibility.purPrice) cols.push({ accessorKey: "default_pur_price", header: "Pur Price", cell: ({ getValue }) => <span className="text-right block text-orange-700 dark:text-orange-400 font-semibold tabular-nums">₹{(getValue() as number).toFixed(2)}</span>, size: 120 });
@@ -1422,6 +1488,7 @@ const ProductDashboard = () => {
     fieldLabels.style,
     fieldLabels.color,
     fieldLabels.hsn_code,
+    variantColorLabels,
   ]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
@@ -1518,7 +1585,9 @@ const ProductDashboard = () => {
                     )}
                   </TableCell>
                   {showColorField && (
-                    <TableCell className="text-base py-2.5">{variant.color || row.color || "—"}</TableCell>
+                    <TableCell className="py-2.5 align-middle">
+                      <ColorLabelRow labels={distinctColorLabels([variant.color || row.color])} />
+                    </TableCell>
                   )}
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.pur_price.toFixed(2)}</TableCell>
                   <TableCell className="text-right text-base tabular-nums py-2.5">₹{variant.sale_price.toFixed(2)}</TableCell>
@@ -1584,7 +1653,7 @@ const ProductDashboard = () => {
           />
         </div>
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+          <div className="flex shrink-0 flex-nowrap items-center gap-2 overflow-x-auto border-b border-slate-100 bg-white px-3 py-2">
             <Button
               variant={showFilters ? "default" : "outline"}
               className="h-9 text-sm gap-2 border-slate-200"
@@ -1607,16 +1676,7 @@ const ProductDashboard = () => {
               <Download className="h-4 w-4" />
               Export
             </Button>
-            <Button
-              variant="outline"
-              className="h-9 text-sm gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-              onClick={() => setShowStockImportDialog(true)}
-              disabled={productRows.length === 0}
-            >
-              <Upload className="h-4 w-4" />
-              Import Stock
-            </Button>
-            <div className="relative w-full max-w-sm min-w-[180px] shrink-0">
+            <div className="relative min-w-[8rem] flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search name, brand, or barcode..."
@@ -1686,9 +1746,19 @@ const ProductDashboard = () => {
         {showFilters && (
           <Card className="mx-3 mb-2 shrink-0 border-slate-200 shadow-none">
             <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between gap-2 mb-4">
                 <h3 className="text-sm font-semibold text-foreground">Filter Products</h3>
-                {hasActiveFilters && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => setShowStockImportDialog(true)}
+                    disabled={productRows.length === 0}
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Import Stock
+                  </Button>
+                  {hasActiveFilters && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -1698,12 +1768,13 @@ const ProductDashboard = () => {
                     <X className="h-3 w-3 mr-1" />
                     Clear All
                   </Button>
-                )}
+                  )}
+                </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="flex flex-nowrap items-end gap-3 overflow-x-auto">
                 {/* Product Type Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 w-[160px] shrink-0">
                   <Label htmlFor="product-type-filter" className="text-xs font-medium">Product Type</Label>
                   <Select value={selectedProductType} onValueChange={setSelectedProductType}>
                     <SelectTrigger id="product-type-filter" className="h-9">
@@ -1720,7 +1791,7 @@ const ProductDashboard = () => {
 
                 {/* Category Filter */}
                 {showCategoryField && (
-                <div className="space-y-2">
+                <div className="space-y-2 w-[160px] shrink-0">
                   <Label htmlFor="category-filter" className="text-xs font-medium">{fieldLabels.category}</Label>
                   <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                     <SelectTrigger id="category-filter" className="h-9">
@@ -1737,7 +1808,7 @@ const ProductDashboard = () => {
                 )}
 
                 {/* Size Group Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 w-[160px] shrink-0">
                   <Label htmlFor="size-group-filter" className="text-xs font-medium">Size Group</Label>
                   <Select value={selectedSizeGroup} onValueChange={setSelectedSizeGroup}>
                     <SelectTrigger id="size-group-filter" className="h-9">
@@ -1753,7 +1824,7 @@ const ProductDashboard = () => {
                 </div>
 
                 {/* Min Price Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 w-[160px] shrink-0">
                   <Label htmlFor="min-price-filter" className="text-xs font-medium">Min Price</Label>
                   <Input
                     id="min-price-filter"
@@ -1768,7 +1839,7 @@ const ProductDashboard = () => {
                 </div>
 
                 {/* Max Price Filter */}
-                <div className="space-y-2">
+                <div className="space-y-2 w-[160px] shrink-0">
                   <Label htmlFor="max-price-filter" className="text-xs font-medium">Max Price</Label>
                   <Input
                     id="max-price-filter"
@@ -1966,6 +2037,7 @@ const ProductDashboard = () => {
                 defaultDensity="comfortable"
                 fitToContainer
                 className="product-dashboard-table"
+                showDensityToggle={false}
                 renderSubRow={renderProductSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={toggleExpanded}

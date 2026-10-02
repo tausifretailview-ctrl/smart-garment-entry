@@ -11,6 +11,7 @@ interface ERPTableToolbarProps<T> {
   density: ERPTableDensity;
   onToggleDensity: () => void;
   onResetSettings: () => void;
+  showDensityToggle?: boolean;
 }
 
 export function ERPTableToolbar<T>({
@@ -18,12 +19,13 @@ export function ERPTableToolbar<T>({
   density,
   onToggleDensity,
   onResetSettings,
+  showDensityToggle = true,
 }: ERPTableToolbarProps<T>) {
   const allColumns = table.getAllLeafColumns().filter((c) => c.id !== "actions");
 
   return (
     <div className="flex items-center gap-1.5 flex-nowrap">
-      {/* Density toggle */}
+      {showDensityToggle && (
       <Button
         variant="outline"
         size="sm"
@@ -38,6 +40,7 @@ export function ERPTableToolbar<T>({
         )}
         {density === "compact" ? "Comfortable" : "Compact"}
       </Button>
+      )}
 
       {/* Column visibility */}
       <Popover>
