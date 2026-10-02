@@ -15,15 +15,22 @@ describe("Product dashboard Insights chrome", () => {
     expect(isFillHeightDashboardPath("/demo/product-entry")).toBe(false);
   });
 
-  it("drops the title and KPI bars and keeps stock filter on the search row", () => {
+  it("keeps the old KPI cards, hides the page title, and defaults stock to greater than 0", () => {
     const page = readFileSync(resolve(repoRoot, "src/pages/ProductDashboard.tsx"), "utf8");
-    expect(page).not.toContain("Remaining Stock");
+    expect(page).toContain("ProductKpiCard");
+    expect(page).toContain("Remaining Stock");
+    expect(page).toContain("Remain Value (Pur)");
+    expect(page).toContain("Remain Value (Sale)");
     expect(page).not.toContain("Browse inventory");
-    expect(page).not.toContain("ProductKpiCard");
+    expect(page).toContain('useState<string>(DEFAULT_STOCK_LEVEL)');
+    expect(page).toContain('const DEFAULT_STOCK_LEVEL = "in_stock"');
     const stockAt = page.indexOf('id="stock-level-filter"');
     const panelAt = page.indexOf("Filter Products");
     const searchAt = page.indexOf('placeholder="Search name, brand, or barcode..."');
+    const cardsAt = page.indexOf("Remaining Stock");
     expect(searchAt).toBeGreaterThan(-1);
+    expect(cardsAt).toBeGreaterThan(-1);
+    expect(cardsAt).toBeLessThan(searchAt);
     expect(stockAt).toBeGreaterThan(searchAt);
     expect(panelAt).toBeGreaterThan(stockAt);
   });

@@ -118,6 +118,33 @@ const EMPTY_DASHBOARD_STATS: DashboardStats = {
   sale_value: 0,
 };
 
+/** Default list filter: on-hand quantity greater than 0 (`in_stock` in the catalog RPC). */
+const DEFAULT_STOCK_LEVEL = "in_stock";
+
+function ProductKpiCard({
+  title,
+  subtitle,
+  value,
+  shellClass,
+  valueClass,
+}: {
+  title: string;
+  subtitle: string;
+  value: string;
+  shellClass: string;
+  valueClass: string;
+}) {
+  return (
+    <Card className={cn("rounded-xl border shadow-sm transition-shadow hover:shadow-md", shellClass)}>
+      <CardContent className="flex min-h-[84px] flex-col items-center justify-center px-2 py-3 text-center sm:min-h-[92px] sm:px-3">
+        <p className="text-sm font-semibold leading-snug text-slate-600">{title}</p>
+        <p className={cn("mt-1.5 text-xl font-bold tabular-nums leading-none sm:text-2xl", valueClass)}>{value}</p>
+        <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
 const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const queryClient = useQueryClient();
@@ -150,7 +177,7 @@ const ProductDashboard = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   const [selectedSizeGroup, setSelectedSizeGroup] = useState<string>("all");
-  const [selectedStockLevel, setSelectedStockLevel] = useState<string>("all");
+  const [selectedStockLevel, setSelectedStockLevel] = useState<string>(DEFAULT_STOCK_LEVEL);
   const [minPrice, setMinPrice] = useState<string>("");
   const [maxPrice, setMaxPrice] = useState<string>("");
 
@@ -184,7 +211,7 @@ const ProductDashboard = () => {
   );
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
-    "product-dashboard",
+    "product-dashboard-v2",
     currentOrganization?.id,
     productFilterSnapshot,
     (saved) => {
@@ -774,6 +801,7 @@ const ProductDashboard = () => {
   });
 
   const {
+    data: dashboardStats = EMPTY_DASHBOARD_STATS,
     isLoading: statsLoading,
     isFetching: statsFetching,
   } = useQuery({
@@ -878,7 +906,7 @@ const ProductDashboard = () => {
     setSelectedCategory("all");
     setSelectedProductType("all");
     setSelectedSizeGroup("all");
-    setSelectedStockLevel("all");
+    setSelectedStockLevel(DEFAULT_STOCK_LEVEL);
     setMinPrice("");
     setMaxPrice("");
     setSearchQuery("");
@@ -1508,6 +1536,11 @@ const ProductDashboard = () => {
     );
   }, [showMrp, showColorField, fieldLabels.color, filteredRows, variantCache, variantsLoading, debouncedSearch]);
 
+  const totalStockQty = dashboardStats.total_stock_qty;
+  const totalItems = dashboardStats.total_items;
+  const totalPurchaseValue = dashboardStats.purchase_value;
+  const totalSaleValue = dashboardStats.sale_value;
+
   const extraFilterCount = [
     selectedCategory !== "all",
     selectedProductType !== "all",
@@ -1519,7 +1552,37 @@ const ProductDashboard = () => {
   return (
     <>
     <div className="product-dashboard-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
+        <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+          <ProductKpiCard
+            title="Remaining Stock"
+            subtitle="Units on hand"
+            value={totalStockQty.toLocaleString("en-IN")}
+            shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
+            valueClass="text-sky-800"
+          />
+          <ProductKpiCard
+            title="Active Products"
+            subtitle="In catalog"
+            value={totalItems.toLocaleString("en-IN")}
+            shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
+            valueClass="text-violet-800"
+          />
+          <ProductKpiCard
+            title="Remain Value (Pur)"
+            subtitle="At purchase price"
+            value={`₹${Math.round(totalPurchaseValue).toLocaleString("en-IN")}`}
+            shellClass="bg-orange-50 border-orange-200/70 hover:bg-orange-100/80"
+            valueClass="text-orange-800"
+          />
+          <ProductKpiCard
+            title="Remain Value (Sale)"
+            subtitle="At selling price"
+            value={`₹${Math.round(totalSaleValue).toLocaleString("en-IN")}`}
+            shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
+            valueClass="text-emerald-800"
+          />
+        </div>
         <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
           <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
             <Button
@@ -1583,7 +1646,7 @@ const ProductDashboard = () => {
               </SelectTrigger>
               <SelectContent className="bg-popover z-50">
                 <SelectItem value="all">All Stock</SelectItem>
-                <SelectItem value="in_stock">In Stock</SelectItem>
+                <SelectItem value="in_stock">Stock &gt; 0</SelectItem>
                 <SelectItem value="low_stock">Low Stock (≤{lowStockThreshold})</SelectItem>
                 <SelectItem value="out_of_stock">Out of Stock</SelectItem>
               </SelectContent>
