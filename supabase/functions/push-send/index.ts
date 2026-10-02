@@ -266,12 +266,17 @@ const handler = async (req: Request): Promise<Response> => {
             body: JSON.stringify({
               message: {
                 token: sub.fcm_token,
-                notification: { title, body },
+                // Data-only: the customer service worker (src/customer/sw.ts) shows the one
+                // notification. A `notification` block made the Firebase SDK show a second
+                // copy without our data, so tapping it skipped the bill page and telemetry.
                 data: {
+                  title: String(title ?? ""),
+                  body: String(body ?? ""),
                   message_id: msg.id,
                   ...(targetSaleId ? { sale_id: targetSaleId } : {}),
                   ...(targetCampaignId ? { campaign_id: targetCampaignId } : {}),
                 },
+                webpush: { headers: { Urgency: "high" } },
               },
             }),
           });
