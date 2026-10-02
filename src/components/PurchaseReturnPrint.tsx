@@ -1,10 +1,14 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useMemo } from "react";
 import { format } from "date-fns";
 import {
   formatGstStateLabel,
   getStateFromGSTIN,
   isInterState,
 } from "@/utils/gstRegisterUtils";
+import {
+  paginatePurchaseReturnItems,
+  purchaseReturnPadRowCount,
+} from "@/utils/purchaseReturnPrintLayout";
 
 interface PurchaseReturnItem {
   id: string;
@@ -188,20 +192,45 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     
     // Get logo URL
     const logo = logoUrl || saleSettings?.logo_url;
-    
+
+    const itemPages = useMemo(() => paginatePurchaseReturnItems(items), [items]);
+    const pageCount = itemPages.length;
+    const returnDateLabel = format(new Date(returnData.return_date), "dd/MM/yyyy");
+
     return (
-      <div ref={ref} className="bg-white text-black" style={{ width: "210mm", fontFamily: "Arial, sans-serif", padding: "5mm" }}>
+      <div ref={ref} className="pr-print-root bg-white text-black" style={{ width: "210mm", fontFamily: "Arial, sans-serif" }}>
         <style>
           {`
             @media print {
               @page {
-                size: A4;
+                size: A4 portrait;
                 margin: 5mm;
               }
               body {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
               }
+              .pr-print-page {
+                page-break-after: always;
+                break-after: page;
+              }
+              .pr-print-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+              }
+              .pr-print-footer-block {
+                page-break-inside: avoid;
+                break-inside: avoid;
+              }
+              thead { display: table-header-group; }
+            }
+            .pr-print-page {
+              box-sizing: border-box;
+              width: 100%;
+              min-height: 287mm;
+              padding: 0;
+              display: flex;
+              flex-direction: column;
             }
             .pr-border {
               border: 1px solid #000;
@@ -213,7 +242,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             .pr-table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 12px;
+              font-size: 11px;
             }
             .pr-table th, .pr-table td {
               border: 1px solid #000;
@@ -236,16 +265,24 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           `}
         </style>
 
-        <div className="pr-border">
+        {itemPages.map((pageItems, pageIndex) => {
+          const isFirst = pageIndex === 0;
+          const isLast = pageIndex === pageCount - 1;
+          const padRows = isLast ? purchaseReturnPadRowCount(items.length, pageCount) : 0;
+          const srStart = itemPages.slice(0, pageIndex).reduce((acc, p) => acc + p.length, 0);
+          return (
+        <div key={pageIndex} className="pr-print-page pr-border">
+          {isFirst ? (
+          <>
           {/* Header Section - Business name centered, logo on right */}
-          <div className="flex items-start pr-border-b p-2">
+          <div className="flex items-start pr-border-b p-1">
             {/* Empty left space for balance */}
             <div style={{ flex: 1 }}></div>
             
             {/* Center - Business Name & Address */}
             <div style={{ flex: 2 }} className="text-center">
-              <h1 className="text-xl font-bold mb-1">{businessDetails?.business_name || "Company Name"}</h1>
-              <p className="text-sm">{businessDetails?.address || ""}</p>
+              <h1 className="text-lg font-bold mb-0.5">{businessDetails?.business_name || "Company Name"}</h1>
+              <p className="text-xs leading-snug">{businessDetails?.address || ""}</p>
               <p className="text-sm">
                 {businessDetails?.mobile_number && `Phone: ${businessDetails.mobile_number}`}
                 {businessDetails?.email_id && ` | Email: ${businessDetails.email_id}`}
@@ -320,8 +357,21 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               </div>
             </div>
           </div>
+          </>
+          ) : (
+            <div className="pr-border-b px-2 py-1 text-center" style={{ backgroundColor: "#f5f5f5" }}>
+              <p className="text-sm font-bold">{businessDetails?.business_name || "Company Name"}</p>
+              <p className="text-xs font-bold">
+                PURCHASE RETURN ({isDC ? "DELIVERY CHALLAN" : "DEBIT NOTE"}) — Page {pageIndex + 1} of {pageCount}
+              </p>
+              <p className="text-xs">
+                Return No: {returnData.return_number || "—"} | Date: {returnDateLabel}
+                {returnData.original_bill_number ? ` | S Bill: ${returnData.original_bill_number}` : ""}
+              </p>
+            </div>
+          )}
 
-          {/* Items Table */}
+          <div style={{ flex: 1, minHeight: 0 }}>
           <table className="pr-table">
             <thead>
               <tr>
@@ -337,9 +387,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               </tr>
             </thead>
             <tbody>
-              {items.map((item, index) => (
+              {pageItems.map((item, index) => (
                 <tr key={item.id}>
-                  <td className="text-center">{index + 1}</td>
+                  <td className="text-center">{srStart + index + 1}</td>
                   <td>{item.product_name || "-"}</td>
                   <td className="text-center">{item.color || "-"}</td>
                   <td className="text-center">{isDC ? "" : (item.hsn_code || "")}</td>
@@ -350,9 +400,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                   <td className="text-right">{((Number(item.qty) || 0) * (Number(item.pur_price) || 0)).toFixed(2)}</td>
                 </tr>
               ))}
-              {/* Add empty rows for minimum 10 rows */}
-              {items.length < 10 && Array.from({ length: 10 - items.length }).map((_, index) => (
-                <tr key={`empty-${index}`} style={{ height: "18px" }}>
+              {padRows > 0 &&
+                Array.from({ length: padRows }).map((_, index) => (
+                <tr key={`empty-${index}`} style={{ height: "14px" }}>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
@@ -366,7 +416,10 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               ))}
             </tbody>
           </table>
+          </div>
 
+          {isLast ? (
+          <div className="pr-print-footer-block" style={{ marginTop: "auto" }}>
           {/* Total Row */}
           <div className="flex pr-border-t">
             <div className="pr-border-r p-1 text-center font-bold" style={{ width: "6%", fontSize: "12px" }}></div>
@@ -462,12 +515,21 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
 
               {/* Signatory */}
               <div className="p-2 text-center">
-                <p className="text-sm font-bold mb-6">For, {businessDetails?.business_name || ""}</p>
+                <p className="text-sm font-bold mb-4">For, {businessDetails?.business_name || ""}</p>
                 <p className="text-sm font-bold">Authorised Signatory</p>
               </div>
             </div>
           </div>
+          </div>
+          ) : (
+            <div className="pr-border-t px-2 py-2 text-center text-xs" style={{ marginTop: "auto" }}>
+              <p className="font-semibold">Continued on next page…</p>
+              <p className="mt-1">For, {businessDetails?.business_name || ""}</p>
+            </div>
+          )}
         </div>
+          );
+        })}
       </div>
     );
   }
