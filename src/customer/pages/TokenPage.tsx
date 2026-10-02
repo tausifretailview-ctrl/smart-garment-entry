@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isPushSetupProblem, pushFailureMessage } from "../lib/pushFailureMessage";
 import { Link, useParams } from "react-router-dom";
-import { loginWithBillToken } from "../lib/account";
 import {
   logEvent,
   pageGet,
@@ -86,8 +85,6 @@ export default function TokenPage() {
         if (res.feedback) setRatingDone(true);
         // Quietly repair rotated FCM tokens on visits with granted permission.
         void repairPushRegistration(subdomain, token);
-        // The bill link proves the phone: sign in so "My account" shows every bill.
-        if (res.sale) void loginWithBillToken(token);
         if (!loggedOpen.current) {
           loggedOpen.current = true;
           void logEvent(token, "page_open");

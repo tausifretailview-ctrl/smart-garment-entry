@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   buildCustomerTransactions,
   cleanSubdomain,
-  createRateLimiter,
+  clientIp,
+  deriveSessionSecret,
   lineTax,
   maskPhone,
   phoneLast10,
+  signSessionToken,
+  verifySessionToken,
 } from "../supabase/functions/_shared/customerApp";
 
 describe("customer-app helpers", () => {
@@ -39,11 +42,32 @@ describe("customer-app helpers", () => {
     expect(rows[2].note).toBe("Against POS/1");
   });
 
-  it("rate limits within a window", () => {
-    const allow = createRateLimiter(2, 1000);
-    expect(allow("k", 0)).toBe(true);
-    expect(allow("k", 10)).toBe(true);
-    expect(allow("k", 20)).toBe(false);
-    expect(allow("k", 1500)).toBe(true);
+  it("picks the client IP from platform headers first", () => {
+    const h = (o: Record<string, string>) => ({ get: (k: string) => o[k] ?? null });
+    expect(clientIp(h({ "cf-connecting-ip": "1.1.1.1", "x-forwarded-for": "9.9.9.9" }))).toBe("1.1.1.1");
+    expect(clientIp(h({ "x-forwarded-for": "2.2.2.2, 10.0.0.1" }))).toBe("2.2.2.2");
+    expect(clientIp(h({}))).toBe("unknown");
+  });
+
+  it("signs and verifies customer-app sessions; rejects tampering, expiry and other shops", async () => {
+    const secret = await deriveSessionSecret("service-role-key-for-test");
+    const org = "11111111-1111-4111-8111-111111111111";
+    const now = 1_800_000_000_000;
+    const token = await signSessionToken({ organizationId: org, customerId: "c1", expiresAt: now + 1000 }, secret);
+    expect(token.startsWith("ca1.")).toBe(true);
+    expect(await verifySessionToken(token, secret, org, now)).toEqual({
+      organizationId: org,
+      customerId: "c1",
+      expiresAt: now + 1000,
+    });
+    expect(await verifySessionToken(token, secret, org, now + 1000)).toBeNull();
+    expect(await verifySessionToken(token, secret, "22222222-2222-4222-8222-222222222222", now)).toBeNull();
+    expect(await verifySessionToken(token, await deriveSessionSecret("other"), org, now)).toBeNull();
+    const [, payload, sig] = token.split(".");
+    const forged = Buffer.from(JSON.stringify({ o: org, c: "c2", e: now + 1000 })).toString("base64url");
+    expect(await verifySessionToken(`ca1.${forged}.${sig}`, secret, org, now)).toBeNull();
+    expect(await verifySessionToken(`ca1.${payload}.${sig.slice(0, -2)}xx`, secret, org, now)).toBeNull();
+    // A B2B portal_sessions token (uuid-uuid) is never a customer-app session.
+    expect(await verifySessionToken(`${crypto.randomUUID()}-${crypto.randomUUID()}`, secret, org, now)).toBeNull();
   });
 });

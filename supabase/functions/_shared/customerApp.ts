@@ -109,18 +109,80 @@ export function buildCustomerTransactions(
   return rows.sort((a, b) => String(b.date).localeCompare(String(a.date)));
 }
 
-/** Simple sliding-window limiter (per edge instance; DB checks back it up). */
-export function createRateLimiter(limit: number, windowMs: number) {
-  const hits = new Map<string, number[]>();
-  return (key: string, now = Date.now()): boolean => {
-    const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-    if (recent.length >= limit) {
-      hits.set(key, recent);
-      return false;
-    }
-    recent.push(now);
-    hits.set(key, recent);
-    if (hits.size > 5000) hits.clear();
-    return true;
-  };
+/** Client IP for login rate limits: platform headers first, then the first X-Forwarded-For hop. */
+export function clientIp(headers: { get(name: string): string | null }): string {
+  const ip =
+    headers.get("cf-connecting-ip") ||
+    headers.get("x-real-ip") ||
+    (headers.get("x-forwarded-for") ?? "").split(",")[0];
+  return String(ip ?? "").trim().slice(0, 64) || "unknown";
+}
+
+// ── Customer app session token ─────────────────────────────────────────────
+// Stateless and HMAC-signed: "ca1.<payload>.<sig>". Deliberately NOT a portal_sessions row, so
+// the B2B portal functions (portal-catalogue / portal-order) never accept it.
+
+export type CustomerAppSession = { organizationId: string; customerId: string; expiresAt: number };
+
+const enc = new TextEncoder();
+
+function b64url(bytes: Uint8Array): string {
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function fromB64url(s: string): Uint8Array {
+  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  const out = new Uint8Array(b.length);
+  for (let i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
+  return out;
+}
+
+async function hmacKey(secret: string): Promise<CryptoKey> {
+  return crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+    "verify",
+  ]);
+}
+
+/** Session signing secret derived from a server secret (so no extra env var is required). */
+export async function deriveSessionSecret(serverSecret: string): Promise<string> {
+  const sig = await crypto.subtle.sign("HMAC", await hmacKey(serverSecret), enc.encode("customer-app-session-v1"));
+  return b64url(new Uint8Array(sig));
+}
+
+export async function signSessionToken(session: CustomerAppSession, secret: string): Promise<string> {
+  const payload = b64url(
+    enc.encode(JSON.stringify({ o: session.organizationId, c: session.customerId, e: session.expiresAt })),
+  );
+  const sig = await crypto.subtle.sign("HMAC", await hmacKey(secret), enc.encode(`ca1.${payload}`));
+  return `ca1.${payload}.${b64url(new Uint8Array(sig))}`;
+}
+
+/** Valid, unexpired token for this org → session; anything else → null. */
+export async function verifySessionToken(
+  token: unknown,
+  secret: string,
+  organizationId: string,
+  now = Date.now(),
+): Promise<CustomerAppSession | null> {
+  const t = String(token ?? "");
+  if (t.length > 1000) return null;
+  const parts = t.split(".");
+  if (parts.length !== 3 || parts[0] !== "ca1") return null;
+  try {
+    const ok = await crypto.subtle.verify(
+      "HMAC",
+      await hmacKey(secret),
+      fromB64url(parts[2]) as unknown as BufferSource,
+      enc.encode(`ca1.${parts[1]}`),
+    );
+    if (!ok) return null;
+    const p = JSON.parse(new TextDecoder().decode(fromB64url(parts[1]))) as { o?: string; c?: string; e?: number };
+    if (!p.o || !p.c || typeof p.e !== "number" || p.o !== organizationId || p.e <= now) return null;
+    return { organizationId: p.o, customerId: p.c, expiresAt: p.e };
+  } catch {
+    return null;
+  }
 }
