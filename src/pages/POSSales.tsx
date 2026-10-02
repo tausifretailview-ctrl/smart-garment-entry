@@ -764,8 +764,8 @@ export default function POSSales() {
   const [showMobilePaymentSheet, setShowMobilePaymentSheet] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
-  // Customer balance hook — footer chip is invoice leftover, unused advance stays in Adv.
-  const { grossOutstanding: customerLedgerBalance, unusedAdvanceTotal: customerUnusedAdvance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+  // Invoice leftover for receipts and the customer search badge. Unused advance stays in Adv.
+  const { grossOutstanding: customerLedgerBalance, unusedAdvanceTotal: customerUnusedAdvance, openingBalance: customerOpeningBalance } = useCustomerBalance(
     customerId || null,
     currentOrganization?.id || null
   );
@@ -8825,25 +8825,6 @@ export default function POSSales() {
                       ✓ Applied
                     </div>
                   )}
-                </div>
-              )}
-
-              {customerId && (
-                <div className="text-center shrink-0 min-w-[160px]">
-                  <div className="text-sm text-white/90 uppercase font-bold mb-1 tracking-wide">Customer Balance</div>
-                  <div
-                    className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md flex items-center justify-center ${
-                      customerBalance > 0
-                        ? "bg-red-100 text-red-700"
-                        : customerBalance < 0
-                          ? "bg-green-100 text-green-700"
-                          : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {isBalanceLoading
-                      ? "..."
-                      : `₹${Math.abs(customerBalance).toLocaleString('en-IN')}`}
-                  </div>
                 </div>
               )}
             </div>
