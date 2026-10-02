@@ -51,7 +51,7 @@ import { invalidateAfterSaleSave } from "@/utils/invalidateDashboardQueries";
 import type { PosDashboardSaleSeed } from "@/utils/posDashboardSales";
 import { istCalendarYmd, saleDateIsoIst } from "@/lib/localDayBounds";
 import { buildSalesInvoiceWhatsAppCaption } from "@/utils/whatsappInvoiceCaption";
-import { createCustomerPageLinkForWhatsApp } from "@/utils/customerPageLink";
+import { createCustomerPageLinkForWhatsApp, customerPageBaseDomain } from "@/utils/customerPageLink";
 import { ensureFreshSupabaseSession, isJwtExpiredError } from "@/lib/jwtRetry";
 import {
   resolvePosCustomerName,
@@ -1562,7 +1562,12 @@ export const useSaveSale = () => {
       if (saleData.customerPhone && currentOrganization?.id) {
         void (async () => { try {
           await supabase.functions.invoke('push-send', {
-            body: { organizationId: currentOrganization.id, saleId: sale.id },
+            body: {
+              organizationId: currentOrganization.id,
+              saleId: sale.id,
+              // Lets push-send add the bill page link, so tapping the alert opens the bill.
+              customerPageDomain: customerPageBaseDomain() || undefined,
+            },
           });
         } catch (pushError) {
           console.error('Customer push send failed:', pushError);

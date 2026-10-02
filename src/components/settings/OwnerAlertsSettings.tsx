@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,7 @@ import {
   disableOwnerAlertsOnThisPhone,
   enableOwnerAlertsOnThisPhone,
   isOwnerPushSupported,
+  ownerAlertsDb,
   sendOwnerTestAlert,
   thisPhoneHasOwnerAlerts,
 } from "@/lib/ownerPush";
@@ -76,8 +76,8 @@ export function OwnerAlertsSettings() {
     setLoading(true);
     try {
       const [{ data: row }, { data: devs }] = await Promise.all([
-        supabase.from("owner_alert_settings").select("*").eq("organization_id", orgId).maybeSingle(),
-        supabase
+        ownerAlertsDb.from("owner_alert_settings").select("*").eq("organization_id", orgId).maybeSingle(),
+        ownerAlertsDb
           .from("owner_push_devices")
           .select("id, user_id, platform, status, last_seen_at")
           .eq("organization_id", orgId)
@@ -108,7 +108,7 @@ export function OwnerAlertsSettings() {
     if (!orgId) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from("owner_alert_settings").upsert({
+      const { error } = await ownerAlertsDb.from("owner_alert_settings").upsert({
         organization_id: orgId,
         ...form,
         low_stock_times: form.low_stock_times.filter((t) => /^\d{2}:\d{2}$/.test(t)),
@@ -153,7 +153,7 @@ export function OwnerAlertsSettings() {
   };
 
   const removeDevice = async (id: string) => {
-    await supabase.from("owner_push_devices").delete().eq("id", id);
+    await ownerAlertsDb.from("owner_push_devices").delete().eq("id", id);
     void load();
   };
 

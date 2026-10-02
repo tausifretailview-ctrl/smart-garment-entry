@@ -123,6 +123,14 @@ const ALL_REPORTS: ReportItem[] = [
     permissionAlt: "sale_return",
   },
   {
+    icon: Star,
+    label: "Customer Reviews",
+    path: "/customer-reviews",
+    desc: "Ratings and comments customers left on their bill",
+    tab: "sales",
+    permission: "sales_invoice_dashboard",
+  },
+  {
     icon: FileSpreadsheet,
     label: "CN / S-R Adjustment Register",
     path: "/cn-sr-adjustment-register",
