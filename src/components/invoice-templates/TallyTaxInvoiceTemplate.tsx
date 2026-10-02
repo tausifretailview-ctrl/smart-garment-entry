@@ -208,6 +208,69 @@ const getStateFromGSTIN = (gstin?: string): { name: string; code: string } => {
 
 const MIN_ITEM_ROWS = 5;
 
+function TallyFinanceEmiDetailsBlock({
+  financerDetails,
+  fmt,
+}: {
+  financerDetails: NonNullable<TallyTaxInvoiceTemplateProps["financerDetails"]>;
+  fmt: (n: number) => string;
+}) {
+  const dpMode = financerDetails.down_payment_mode
+    ? financerDetails.down_payment_mode.replace(/_/g, " ")
+    : "";
+  return (
+    <>
+      <div
+        style={{
+          fontWeight: "bold",
+          fontSize: "10px",
+          marginBottom: "4px",
+          textDecoration: "underline",
+          textTransform: "uppercase",
+        }}
+      >
+        Finance / EMI Details
+      </div>
+      <div style={{ fontSize: "10px", lineHeight: "1.55" }}>
+        <div>
+          <strong>Financer:</strong> {financerDetails.financer_name}
+        </div>
+        {financerDetails.loan_number ? (
+          <div>
+            <strong>DSBS / Ref No.:</strong> {financerDetails.loan_number}
+          </div>
+        ) : null}
+        {financerDetails.tenure != null && financerDetails.tenure > 0 ? (
+          <div>
+            <strong>Tenure:</strong> {financerDetails.tenure} Months
+          </div>
+        ) : null}
+        {financerDetails.down_payment != null && financerDetails.down_payment > 0 ? (
+          <div>
+            <strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)}
+            {dpMode ? ` (${dpMode})` : ""}
+          </div>
+        ) : null}
+        {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 ? (
+          <div>
+            <strong>Monthly EMI:</strong> ₹{fmt(financerDetails.emi_amount)}
+          </div>
+        ) : null}
+        {financerDetails.bank_transfer_amount != null && financerDetails.bank_transfer_amount > 0 ? (
+          <div>
+            <strong>Bank Transfer:</strong> ₹{fmt(financerDetails.bank_transfer_amount)}
+          </div>
+        ) : null}
+        {financerDetails.finance_discount != null && financerDetails.finance_discount > 0 ? (
+          <div>
+            <strong>Finance Discount:</strong> ₹{fmt(financerDetails.finance_discount)}
+          </div>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
 export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = ({
   businessName,
   address,
@@ -259,6 +322,9 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   const isGstInclusive = taxType === "inclusive" || isNoGst;
   const sellerState = getStateFromGSTIN(gstNumber);
   const buyerState = getStateFromGSTIN(customerGSTIN);
+  const activeTerms = (termsConditions || []).filter((t) => t && t.trim());
+  const showFinancerBlock = Boolean(financerDetails?.financer_name?.trim());
+  const showTermsRow = activeTerms.length > 0 || showFinancerBlock;
   const isInterState = gstNumber && customerGSTIN && gstNumber.substring(0, 2) !== customerGSTIN.substring(0, 2);
 
   // Normalize bankDetails
@@ -518,79 +584,37 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         </div>
 
-        {/* Consignee + Finance Details */}
-        <div style={{ display: "flex", borderBottom: b, flexShrink: 0 }}>
-          <div style={{ flex: 1, padding: "6px 8px", borderRight: b }}>
-            <div style={{ fontSize: "10px", color: "#555", marginBottom: "2px" }}>Buyer (Bill to)</div>
-            <div style={{ fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>
-              {customerName || "Walk-in Customer"}
-            </div>
-            {customerAddress && (
-              <div style={{ fontSize: "10px", whiteSpace: "pre-line", marginTop: "2px", lineHeight: "1.3" }}>
-                {customerAddress}
-              </div>
-            )}
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: "bold",
-                marginTop: "4px",
-                padding: "2px 4px",
-                borderRadius: "2px",
-                display: "inline-block",
-                backgroundColor: customerGSTIN ? "#f0f7f0" : "#fff8f0",
-                border: `0.5px solid ${customerGSTIN ? "#4a9e4a" : "#ccc"}`,
-              }}
-            >
-              GSTIN/UIN: {customerGSTIN || "URD"}
-            </div>
-            {buyerState.name && (
-              <div style={{ fontSize: "10px", marginTop: "3px" }}>
-                State Name: {buyerState.name}, Code: {buyerState.code}
-              </div>
-            )}
-            {customerMobile && <div style={{ fontSize: "10px", marginTop: "1px" }}>Contact: {customerMobile}</div>}
+        {/* Buyer (Bill to) — full width; EMI details print beside Terms below */}
+        <div style={{ borderBottom: b, flexShrink: 0, padding: "6px 8px" }}>
+          <div style={{ fontSize: "10px", color: "#555", marginBottom: "2px" }}>Buyer (Bill to)</div>
+          <div style={{ fontSize: "12px", fontWeight: "bold", textTransform: "uppercase" }}>
+            {customerName || "Walk-in Customer"}
           </div>
-
-          <div style={{ width: "45%", padding: "6px 8px" }}>
-            {financerDetails?.financer_name ? (
-              <>
-                <div style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "3px", textDecoration: "underline" }}>
-                  Finance / EMI Details
-                </div>
-                <div style={{ fontSize: "10px", lineHeight: "1.5" }}>
-                  <div>
-                    <strong>Financer:</strong> {financerDetails.financer_name}
-                  </div>
-                  {financerDetails.loan_number && (
-                    <div>
-                      <strong>DSBS No:</strong> {financerDetails.loan_number}
-                    </div>
-                  )}
-                  {financerDetails.down_payment != null && financerDetails.down_payment > 0 && (
-                    <div>
-                      <strong>Down Payment:</strong> ₹{fmt(financerDetails.down_payment)}
-                    </div>
-                  )}
-                  {financerDetails.bank_transfer_amount != null && financerDetails.bank_transfer_amount > 0 && (
-                    <div>
-                      <strong>Bank Transfer:</strong> ₹{fmt(financerDetails.bank_transfer_amount)}
-                    </div>
-                  )}
-                  {financerDetails.emi_amount != null && financerDetails.emi_amount > 0 && (
-                    <div>
-                      <strong>EMI Amount:</strong> ₹{fmt(financerDetails.emi_amount)}
-                    </div>
-                  )}
-                  {financerDetails.tenure != null && financerDetails.tenure > 0 && (
-                    <div>
-                      <strong>Tenure:</strong> {financerDetails.tenure} Months
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : null}
+          {customerAddress && (
+            <div style={{ fontSize: "10px", whiteSpace: "pre-line", marginTop: "2px", lineHeight: "1.3" }}>
+              {customerAddress}
+            </div>
+          )}
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: "bold",
+              marginTop: "4px",
+              padding: "2px 4px",
+              borderRadius: "2px",
+              display: "inline-block",
+              backgroundColor: customerGSTIN ? "#f0f7f0" : "#fff8f0",
+              border: `0.5px solid ${customerGSTIN ? "#4a9e4a" : "#ccc"}`,
+            }}
+          >
+            GSTIN/UIN: {customerGSTIN || "URD"}
           </div>
+          {buyerState.name && (
+            <div style={{ fontSize: "10px", marginTop: "3px" }}>
+              State Name: {buyerState.name}, Code: {buyerState.code}
+            </div>
+          )}
+          {customerMobile && <div style={{ fontSize: "10px", marginTop: "1px" }}>Contact: {customerMobile}</div>}
         </div>
 
         {/* ===== ITEMS TABLE ===== */}
@@ -733,13 +757,49 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
           </div>
         </div>
 
-        {/* Terms & Conditions */}
-        {termsConditions && termsConditions.filter(t => t && t.trim()).length > 0 && (
-          <div style={{ borderTop: b, padding: "4px 8px", flexShrink: 0 }}>
-            <div style={{ fontWeight: "bold", fontSize: "10px", marginBottom: "2px", textDecoration: "underline" }}>Terms & Conditions:</div>
-            {termsConditions.filter(t => t && t.trim()).map((term, idx) => (
-              <div key={idx} style={{ fontSize: "9.5px", lineHeight: "1.5", paddingLeft: "8px" }}>{term}</div>
-            ))}
+        {/* Terms & Conditions (left) + Finance / EMI (right) */}
+        {showTermsRow && (
+          <div style={{ display: "flex", borderTop: b, flexShrink: 0, alignItems: "stretch" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                borderRight: showFinancerBlock ? b : undefined,
+                minHeight: showFinancerBlock ? "72px" : undefined,
+              }}
+            >
+              {activeTerms.length > 0 ? (
+                <>
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "10px",
+                      marginBottom: "3px",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    Terms & Conditions:
+                  </div>
+                  {activeTerms.map((term, idx) => (
+                    <div key={idx} style={{ fontSize: "9.5px", lineHeight: "1.5", paddingLeft: "4px" }}>
+                      {term}
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </div>
+            {showFinancerBlock && financerDetails ? (
+              <div
+                style={{
+                  width: "42%",
+                  maxWidth: "320px",
+                  padding: "6px 8px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <TallyFinanceEmiDetailsBlock financerDetails={financerDetails} fmt={fmt} />
+              </div>
+            ) : null}
           </div>
         )}
 

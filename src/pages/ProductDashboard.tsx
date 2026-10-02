@@ -118,30 +118,6 @@ const EMPTY_DASHBOARD_STATS: DashboardStats = {
   sale_value: 0,
 };
 
-function ProductKpiCard({
-  title,
-  subtitle,
-  value,
-  shellClass,
-  valueClass,
-}: {
-  title: string;
-  subtitle: string;
-  value: string;
-  shellClass: string;
-  valueClass: string;
-}) {
-  return (
-    <Card className={cn("rounded-xl border shadow-sm transition-shadow hover:shadow-md", shellClass)}>
-      <CardContent className="flex min-h-[84px] flex-col items-center justify-center px-2 py-3 text-center sm:min-h-[92px] sm:px-3">
-        <p className="text-sm font-semibold leading-snug text-slate-600">{title}</p>
-        <p className={cn("mt-1.5 text-xl font-bold tabular-nums leading-none sm:text-2xl", valueClass)}>{value}</p>
-        <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-      </CardContent>
-    </Card>
-  );
-}
-
 const ProductDashboard = () => {
   useNavPerfPage(PERF_PATH);
   const queryClient = useQueryClient();
@@ -798,7 +774,6 @@ const ProductDashboard = () => {
   });
 
   const {
-    data: dashboardStats = EMPTY_DASHBOARD_STATS,
     isLoading: statsLoading,
     isFetching: statsFetching,
   } = useQuery({
@@ -811,7 +786,7 @@ const ProductDashboard = () => {
         return EMPTY_DASHBOARD_STATS;
       }
       // RPC already zeros service virtual stock (see get_product_dashboard_stats).
-      // Do not re-subtract client-side — that double-floors Remaining Stock to 0.
+      // Do not re-subtract client-side — that double-floors on-hand qty to 0.
       const s = (data || {}) as Record<string, number>;
       return {
         total_items: s.total_items || 0,
@@ -1533,30 +1508,96 @@ const ProductDashboard = () => {
     );
   }, [showMrp, showColorField, fieldLabels.color, filteredRows, variantCache, variantsLoading, debouncedSearch]);
 
-  // Use server-side stats from RPC
-  const totalStockQty = dashboardStats.total_stock_qty;
-  const totalItems = dashboardStats.total_items;
-  const totalPurchaseValue = dashboardStats.purchase_value;
-  const totalSaleValue = dashboardStats.sale_value;
+  const extraFilterCount = [
+    selectedCategory !== "all",
+    selectedProductType !== "all",
+    selectedSizeGroup !== "all",
+    minPrice !== "",
+    maxPrice !== "",
+  ].filter(Boolean).length;
 
   return (
     <>
     <div className="product-dashboard-workspace flex h-full min-h-0 w-full flex-col overflow-hidden bg-slate-50 px-2 py-2 sm:px-3">
-      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-2">
-        {/* Page header — Vasy-style full workspace */}
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold leading-none tracking-tight text-teal-700">
-              <Home className="h-4 w-4 shrink-0 opacity-70" />
-              Products
-            </h1>
-            <p className="mt-1 text-sm text-slate-500">Browse inventory, variants, and pricing</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              className="h-9 text-sm gap-2 border-slate-200"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Filter className="h-4 w-4" />
+              Filter
+              {extraFilterCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
+                  {extraFilterCount}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 text-sm gap-2 border-slate-300 text-slate-600 hover:bg-slate-100"
+              onClick={handleExportToExcel}
+              disabled={productRows.length === 0}
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+            <Button
+              variant="outline"
+              className="h-9 text-sm gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+              onClick={() => setShowStockImportDialog(true)}
+              disabled={productRows.length === 0}
+            >
+              <Upload className="h-4 w-4" />
+              Import Stock
+            </Button>
+            <div className="relative w-full max-w-sm min-w-[180px] shrink-0">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search name, brand, or barcode..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 pr-8 h-9 text-sm border-slate-200 bg-slate-50 focus:bg-white"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
+                >
+                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <Select value={selectedStockLevel} onValueChange={setSelectedStockLevel}>
+              <SelectTrigger
+                id="stock-level-filter"
+                aria-label="Stock level"
+                className={cn(
+                  "h-9 w-[168px] shrink-0 text-sm border-slate-200 bg-slate-50",
+                  selectedStockLevel !== "all" && "border-blue-400 bg-blue-50 text-blue-800",
+                )}
+              >
+                <SelectValue placeholder="Stock" />
+              </SelectTrigger>
+              <SelectContent className="bg-popover z-50">
+                <SelectItem value="all">All Stock</SelectItem>
+                <SelectItem value="in_stock">In Stock</SelectItem>
+                <SelectItem value="low_stock">Low Stock (≤{lowStockThreshold})</SelectItem>
+                <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            {searchQuery && (
+              <span className="text-sm text-slate-500 whitespace-nowrap">
+                {totalCount.toLocaleString("en-IN")} results
+              </span>
+            )}
+            <div id="erp-toolbar-portal-product" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
             <Button
               variant="outline"
               size="sm"
-              className="h-9 gap-1.5 border-slate-200 text-sm"
+              className="h-9 gap-1.5 border-slate-200 text-sm shrink-0"
               onClick={() => void fetchProductVariants()}
               disabled={catalogFetching || statsFetching}
             >
@@ -1571,102 +1612,11 @@ const ProductDashboard = () => {
               onPointerEnter={() => void prefetchTabPage("product-entry")}
               onFocus={() => void prefetchTabPage("product-entry")}
               onClick={() => navigate("/product-entry")}
-              className="h-9 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5"
+              className="h-9 px-3 text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5 shrink-0"
             >
               <Plus className="h-4 w-4" />
               Create New
             </Button>
-          </div>
-        </div>
-
-        {/* KPI strip — remaining stock / value (Vasy pastel style) */}
-        <div className="grid shrink-0 grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
-          <ProductKpiCard
-            title="Remaining Stock"
-            subtitle="Units on hand"
-            value={totalStockQty.toLocaleString("en-IN")}
-            shellClass="bg-sky-50 border-sky-200/70 hover:bg-sky-100/80"
-            valueClass="text-sky-800"
-          />
-          <ProductKpiCard
-            title="Active Products"
-            subtitle="In catalog"
-            value={totalItems.toLocaleString("en-IN")}
-            shellClass="bg-violet-50 border-violet-200/70 hover:bg-violet-100/80"
-            valueClass="text-violet-800"
-          />
-          <ProductKpiCard
-            title="Remain Value (Pur)"
-            subtitle="At purchase price"
-            value={`₹${Math.round(totalPurchaseValue).toLocaleString("en-IN")}`}
-            shellClass="bg-orange-50 border-orange-200/70 hover:bg-orange-100/80"
-            valueClass="text-orange-800"
-          />
-          <ProductKpiCard
-            title="Remain Value (Sale)"
-            subtitle="At selling price"
-            value={`₹${Math.round(totalSaleValue).toLocaleString("en-IN")}`}
-            shellClass="bg-emerald-50 border-emerald-200/70 hover:bg-emerald-100/80"
-            valueClass="text-emerald-800"
-          />
-        </div>
-
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 shadow-sm p-0">
-          <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2.5">
-            <Button
-              variant={showFilters ? "default" : "outline"}
-              className="h-10 text-base gap-2 border-slate-200"
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Filter className="h-4 w-4" />
-              Filter
-              {hasActiveFilters && (
-                <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 flex items-center justify-center">
-                  {[selectedCategory !== "all", selectedProductType !== "all", selectedSizeGroup !== "all", selectedStockLevel !== "all", minPrice !== "", maxPrice !== ""].filter(Boolean).length}
-                </Badge>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              className="h-10 text-base gap-2 border-slate-300 text-slate-600 hover:bg-slate-100"
-              onClick={handleExportToExcel}
-              disabled={productRows.length === 0}
-            >
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-            <Button
-              variant="outline"
-              className="h-10 text-base gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-              onClick={() => setShowStockImportDialog(true)}
-              disabled={productRows.length === 0}
-            >
-              <Upload className="h-4 w-4" />
-              Import Stock
-            </Button>
-            <div className="relative flex-1 min-w-[200px] max-w-full sm:max-w-md md:max-w-lg lg:max-w-xl">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                placeholder="Search name, brand, or barcode..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-11 pr-8 h-10 text-base border-slate-200 bg-slate-50 focus:bg-white"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-muted transition-colors"
-                >
-                  <X className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-              )}
-            </div>
-            {searchQuery && (
-              <span className="text-sm text-slate-500 whitespace-nowrap">
-                {totalCount.toLocaleString("en-IN")} results
-              </span>
-            )}
-            <div id="erp-toolbar-portal-product" className="flex items-center gap-1.5 ml-auto flex-shrink-0" />
           </div>
 
         {/* Filters Panel */}
@@ -1688,7 +1638,7 @@ const ProductDashboard = () => {
                 )}
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Product Type Filter */}
                 <div className="space-y-2">
                   <Label htmlFor="product-type-filter" className="text-xs font-medium">Product Type</Label>
@@ -1735,22 +1685,6 @@ const ProductDashboard = () => {
                       {sizeGroups.map((sg) => (
                         <SelectItem key={sg.id} value={sg.id}>{sg.group_name}</SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Stock Level Filter */}
-                <div className="space-y-2">
-                  <Label htmlFor="stock-level-filter" className="text-xs font-medium">Stock Level</Label>
-                  <Select value={selectedStockLevel} onValueChange={setSelectedStockLevel}>
-                    <SelectTrigger id="stock-level-filter" className="h-9">
-                      <SelectValue placeholder="All Stock Levels" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover z-50">
-                      <SelectItem value="all">All Stock Levels</SelectItem>
-                      <SelectItem value="in_stock">In Stock</SelectItem>
-                      <SelectItem value="low_stock">Low Stock (≤{lowStockThreshold})</SelectItem>
-                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1968,7 +1902,7 @@ const ProductDashboard = () => {
                 emptyMessage="No products found"
                 defaultDensity="comfortable"
                 fitToContainer
-                className="product-dashboard-table [&_td]:!text-base [&_th]:!text-sm [&_th]:!font-semibold [&_th]:!uppercase [&_th]:!tracking-wide [&_tbody_tr:nth-child(even)]:bg-slate-50/80 [&_tbody_tr:hover]:bg-sky-50/70"
+                className="product-dashboard-table"
                 renderSubRow={renderProductSubRow}
                 expandedRows={expandedRows}
                 onToggleExpand={toggleExpanded}

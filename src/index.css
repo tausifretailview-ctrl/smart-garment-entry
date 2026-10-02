@@ -2771,6 +2771,35 @@ main:has(.product-dashboard-workspace) {
   overflow-x: auto;
   overscroll-behavior-y: contain;
 }
+/* Match Insights reports: slate header, 44px rows, readable body text.
+   !important beats ERPTable's black header class and sticky-right inline background. */
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table thead,
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table thead th,
+.product-dashboard-workspace .product-dashboard-table .erp-table-header {
+  background-color: #1e293b !important;
+  color: #ffffff;
+  height: 2.5rem;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table tbody tr {
+  height: 44px;
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table td {
+  height: 44px;
+  font-size: 16px;
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table tbody tr:nth-child(even) {
+  background: rgb(248 250 252 / 0.8);
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table tbody tr:hover {
+  background: rgb(240 249 255 / 0.7);
+  border-left: none;
+}
 
 /* Accounts Management — sidebar-only full workspace (no header / tab strip) */
 .accounts-management-workspace {
