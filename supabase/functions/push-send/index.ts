@@ -21,6 +21,14 @@ interface PushSendRequest {
   campaignId?: string;
   /** Customer page domain (VITE_CUSTOMER_PAGE_DOMAIN) so the push can open the bill page. */
   customerPageDomain?: string;
+  /** Staff "Send offer": create the campaign here (service role) and send its first batch. */
+  newCampaign?: {
+    title?: string;
+    body?: string;
+    imageUrl?: string | null;
+    offerCode?: string | null;
+    validTill?: string | null;
+  };
 }
 
 interface ServiceAccount {
@@ -126,14 +134,16 @@ const handler = async (req: Request): Promise<Response> => {
     if (authError || !user) return json(401, { error: "Unauthorized" });
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { organizationId, saleId, campaignId, customerPageDomain }: PushSendRequest = await req.json();
+    const reqBody: PushSendRequest = await req.json();
+    const { organizationId, saleId, customerPageDomain, newCampaign } = reqBody;
+    let campaignId = reqBody.campaignId;
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!organizationId || !uuidRegex.test(organizationId)) {
       return json(400, { error: "Invalid organizationId format" });
     }
-    if ((saleId && campaignId) || (!saleId && !campaignId)) {
-      return json(400, { error: "Exactly one of saleId or campaignId is required" });
+    if ([saleId, campaignId, newCampaign].filter(Boolean).length !== 1) {
+      return json(400, { error: "Exactly one of saleId, campaignId or newCampaign is required" });
     }
     if ((saleId && !uuidRegex.test(saleId)) || (campaignId && !uuidRegex.test(campaignId))) {
       return json(400, { error: "Invalid saleId/campaignId format" });
@@ -155,6 +165,35 @@ const handler = async (req: Request): Promise<Response> => {
       .maybeSingle();
     if (!pageSettings?.enabled || !pageSettings?.push_enabled) {
       return json(200, { ok: true, skipped: "push_disabled" });
+    }
+
+    if (newCampaign) {
+      const cTitle = String(newCampaign.title ?? "").trim().slice(0, 80);
+      const cBody = String(newCampaign.body ?? "").trim().slice(0, 300);
+      if (!cTitle || !cBody) return json(400, { error: "Offer title and message are required" });
+      const imageUrl = String(newCampaign.imageUrl ?? "").trim();
+      const validTill = String(newCampaign.validTill ?? "").trim();
+      const { data: created, error: createError } = await supabase
+        .from("push_campaigns")
+        .insert({
+          organization_id: organizationId,
+          kind: "offer",
+          title: cTitle,
+          body: cBody,
+          image_url: /^https:\/\//i.test(imageUrl) ? imageUrl.slice(0, 500) : null,
+          offer_code: String(newCampaign.offerCode ?? "").trim().slice(0, 40) || null,
+          valid_till: /^\d{4}-\d{2}-\d{2}$/.test(validTill) ? validTill : null,
+          status: "sending",
+          target: {},
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (createError || !created) {
+        console.error("push-send: could not create campaign", createError);
+        return json(400, { error: `Could not create offer: ${createError?.message ?? "unknown"}` });
+      }
+      campaignId = created.id;
     }
 
     let title = "";
@@ -200,9 +239,20 @@ const handler = async (req: Request): Promise<Response> => {
           ]);
           const token = (linkData as { token?: string } | null)?.token;
           billUrl = buildCustomerBillUrl(org?.public_subdomain, domain, token) ?? "";
-        } catch {
+          if (!billUrl) {
+            console.error("push-send: no bill link", {
+              saleId: sale.id,
+              hasSubdomain: !!org?.public_subdomain,
+              hasToken: !!token,
+            });
+          }
+        } catch (linkError) {
+          console.error("push-send: bill link failed", linkError);
           billUrl = "";
         }
+      } else {
+        // The customer app still opens the bill from sale_id for logged-in customers.
+        console.error("push-send: CUSTOMER_PAGE_DOMAIN not set; push has no bill link");
       }
 
       const amount = Number(sale.net_amount ?? 0).toLocaleString("en-IN");
@@ -244,7 +294,7 @@ const handler = async (req: Request): Promise<Response> => {
           .from("push_campaigns")
           .update({ status: "done", sent_at: new Date().toISOString() })
           .eq("id", campaign.id);
-        return json(200, { ok: true, completed: true, sent: 0, skipped: 0, failed: 0 });
+        return json(200, { ok: true, completed: true, sent: 0, skipped: 0, failed: 0, campaignId: campaign.id });
       }
       title = campaign.title;
       body = campaign.body;
@@ -354,6 +404,7 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("id", targetCampaignId);
       return json(200, {
         ok: true,
+        campaignId: targetCampaignId,
         sent,
         skipped,
         failed,

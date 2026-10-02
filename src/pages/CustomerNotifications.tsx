@@ -27,6 +27,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { createCustomerPageLinkForSale } from "@/utils/customerPageLink";
+import SendOfferDialog from "@/components/SendOfferDialog";
 import {
   buildPushInviteMessage,
   customersNotEnabled,
@@ -305,6 +306,9 @@ export default function CustomerNotifications() {
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-3 shrink-0">
+            {orgId ? (
+              <SendOfferDialog organizationId={orgId} disabled={!!pageOff} onSent={() => void messagesQ.refetch()} />
+            ) : null}
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</Label>
               <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="h-9 w-[9.5rem] text-sm bg-white" />

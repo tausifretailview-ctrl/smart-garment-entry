@@ -16,6 +16,8 @@ export interface PushDisplay {
   tag: string;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** A bill page link (/t/<token>) on this same site, else null. */
 function sameSiteBillLink(url: string | undefined, origin: string | undefined): string | null {
   if (!url || !origin) return null;
@@ -34,6 +36,11 @@ export function buildPushDisplay(payload: PushPayloadLike, origin?: string): Pus
   const body = payload.notification?.body ?? data.body ?? "";
   // Tap opens the bill page when the push carries its link (same shop site, /t/<token>).
   const billLink = sameSiteBillLink(data.url, origin);
+  // No bill link: the message page still opens the full bill from sale_id for a logged-in
+  // customer (or asks for the mobile number), and offers link to the offers page.
+  const extra =
+    (UUID.test(data.sale_id ?? "") ? "&sale=" + data.sale_id : "") +
+    (UUID.test(data.campaign_id ?? "") ? "&campaign=" + data.campaign_id : "");
   const url =
     billLink ??
     "/m/" +
@@ -41,6 +48,7 @@ export function buildPushDisplay(payload: PushPayloadLike, origin?: string): Pus
     "?title=" +
     encodeURIComponent(title) +
     "&body=" +
-    encodeURIComponent(body);
+    encodeURIComponent(body) +
+    extra;
   return { title, body, url, messageId, tag: messageId ?? "shop-update" };
 }
