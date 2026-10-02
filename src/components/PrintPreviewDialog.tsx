@@ -222,7 +222,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           ? 'width: 58mm !important; height: auto !important;'
           : 'width: 80mm !important; height: auto !important;';
       default:
-        return 'width: 210mm !important; height: 297mm !important;';
+        return 'width: 210mm !important; height: auto !important; overflow: visible !important;';
     }
   };
 

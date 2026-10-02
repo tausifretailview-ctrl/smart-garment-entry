@@ -95,6 +95,21 @@ export function applyWappConnectInvoicePdfCloneFixes(
 
   const retailErp = isRetailErpCloneRoot(clonedElement);
 
+  // Tally GST A4 used a fixed 297mm box. Cell padding in this clone pushes
+  // Finance / EMI past that box — let the page grow so the block is captured.
+  clonedElement
+    .querySelectorAll<HTMLElement>(".tally-tax-invoice-print, .tally-tax-invoice-sheet")
+    .forEach((el) => {
+      el.style.height = "auto";
+      el.style.maxHeight = "none";
+      el.style.overflow = "visible";
+    });
+  clonedElement.querySelectorAll<HTMLElement>(".tally-finance-emi-block").forEach((el) => {
+    el.style.overflow = "visible";
+    el.style.visibility = "visible";
+    el.style.flexShrink = "0";
+  });
+
   // Thermal receipts (80mm / 58mm roll) — tight line-heights + Arial Black render
   // clipped in html2canvas, so product lines came through cut in half in the
   // WhatsApp PDF. Relax leading / spacing on the clone only.

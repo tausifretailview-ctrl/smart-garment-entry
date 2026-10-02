@@ -221,6 +221,7 @@ function TallyFinanceEmiDetailsBlock({
   return (
     <>
       <div
+        className="tally-finance-emi-title"
         style={{
           fontWeight: "bold",
           fontSize: "10px",
@@ -435,7 +436,8 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
       className="tally-tax-invoice-print"
       style={{
         width: "210mm",
-        height: "297mm",
+        minHeight: "297mm",
+        height: "auto",
         padding: "8mm",
         fontFamily: "'Arial', 'Helvetica', sans-serif",
         fontSize: "10px",
@@ -446,7 +448,18 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
         flexDirection: "column",
       }}
     >
-      <div style={{ border: "1px solid #000", flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Height grows past one A4 sheet so Finance / EMI is never clipped. */}
+      <div
+        className="tally-tax-invoice-sheet"
+        style={{
+          border: "1px solid #000",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "visible",
+          minHeight: "100%",
+        }}
+      >
         {/* ===== HEADER SECTION ===== */}
         <div
           style={{
@@ -790,11 +803,16 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
             </div>
             {showFinancerBlock && financerDetails ? (
               <div
+                className="tally-finance-emi-block"
                 style={{
                   width: "42%",
                   maxWidth: "320px",
                   padding: "6px 8px",
                   boxSizing: "border-box",
+                  flexShrink: 0,
+                  overflow: "visible",
+                  breakInside: "avoid",
+                  pageBreakInside: "avoid",
                 }}
               >
                 <TallyFinanceEmiDetailsBlock financerDetails={financerDetails} fmt={fmt} />
