@@ -68,4 +68,20 @@ describe("applyWappConnectInvoicePdfCloneFixes", () => {
     expect(rows[0].getAttribute("data-wapp-blank-row")).toBeNull();
     expect(rows[1].getAttribute("data-wapp-blank-row")).toBe("1");
   });
+
+  it("keeps Trendzo thermal columns visible instead of ellipsizing them in the WhatsApp PDF", () => {
+    const doc = document.implementation.createHTMLDocument("invoice");
+    doc.body.innerHTML = `
+      <div class="trendzo-pos-thermal-receipt-80mm thermal-receipt-container">
+        <span class="tz-items-num">2000.00</span>
+      </div>
+    `;
+    const root = doc.body.firstElementChild as HTMLElement;
+    applyWappConnectInvoicePdfCloneFixes(doc, root);
+    const css = doc.head.querySelector("style[data-wappconnect-thermal-pdf-fix]")?.textContent || "";
+    expect(css).toContain(".trendzo-pos-thermal-receipt-80mm span");
+    expect(css).toContain("overflow: visible");
+    expect(css).toContain(".tz-items-qty-col");
+    expect(css).toContain("text-align: right");
+  });
 });

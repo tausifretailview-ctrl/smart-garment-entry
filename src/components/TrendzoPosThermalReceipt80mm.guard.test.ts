@@ -77,6 +77,15 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toMatch(/\.tz-payment \.tz-pair-left \{[\s\S]*white-space:\s*normal/);
   });
 
+  it("keeps product columns in a flex row so QTY, rate, and amount do not overlap", () => {
+    expect(css).toMatch(/\.tz-items-head,[\s\S]*display:\s*flex/);
+    expect(css).toMatch(/\.tz-items-qty-col \{[\s\S]*flex:\s*0 0 8mm/);
+    expect(css).toMatch(/\.tz-items-num-col \{[\s\S]*flex:\s*0 0 17mm/);
+    expect(css).not.toContain("grid-template-columns");
+    expect(css).toMatch(/\.tz-pair-right \{[\s\S]*flex:\s*0 0 auto/);
+    expect(css).toMatch(/\.tz-header-ids span \{[\s\S]*overflow:\s*visible/);
+  });
+
   it("uses larger body type than the original 11/9px receipt", () => {
     expect(css).toMatch(/\.thermal-receipt \{[\s\S]*font-size: 13px;/);
     expect(css).toMatch(/\.tz-terms-list \{[\s\S]*font-size: 11px;/);

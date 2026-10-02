@@ -131,6 +131,63 @@ export function applyWappConnectInvoicePdfCloneFixes(
         padding-top: 1px !important;
         padding-bottom: 1px !important;
       }
+      /* Trendzo 80mm: do not ellipsize columns. Flex widths keep ITEM | QTY | RATE | AMT apart. */
+      .trendzo-pos-thermal-receipt-80mm,
+      .trendzo-pos-thermal-receipt-80mm * {
+        line-height: 1.3 !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm span,
+      .trendzo-pos-thermal-receipt-80mm .tz-pair-left,
+      .trendzo-pos-thermal-receipt-80mm .tz-pair-right,
+      .trendzo-pos-thermal-receipt-80mm .tz-items-num,
+      .trendzo-pos-thermal-receipt-80mm .tz-header-ids span {
+        overflow: visible !important;
+        text-overflow: clip !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-items-head,
+      .trendzo-pos-thermal-receipt-80mm .tz-items-row,
+      .trendzo-pos-thermal-receipt-80mm .tz-pair-row,
+      .trendzo-pos-thermal-receipt-80mm .tz-grand-total,
+      .trendzo-pos-thermal-receipt-80mm .tz-header-ids {
+        display: flex !important;
+        width: 100% !important;
+        align-items: flex-start !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-pair-row,
+      .trendzo-pos-thermal-receipt-80mm .tz-grand-total,
+      .trendzo-pos-thermal-receipt-80mm .tz-header-ids {
+        justify-content: space-between !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-header-ids {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-items-item-col {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        text-align: left !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-items-qty-col {
+        flex: 0 0 8mm !important;
+        width: 8mm !important;
+        text-align: center !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-items-num-col {
+        flex: 0 0 17mm !important;
+        width: 17mm !important;
+        text-align: right !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-items-num-col:last-child {
+        flex-basis: 19mm !important;
+        width: 19mm !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-pair-right {
+        flex: 0 0 auto !important;
+        text-align: right !important;
+      }
+      .trendzo-pos-thermal-receipt-80mm .tz-item-name {
+        white-space: normal !important;
+      }
       .kids-thermal-receipt-80mm .kids-thermal-particulars {
         flex: 1 1 auto !important;
         min-width: 0 !important;
