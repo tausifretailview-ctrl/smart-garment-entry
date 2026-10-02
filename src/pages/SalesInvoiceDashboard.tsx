@@ -90,6 +90,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
 import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
+import { mapSaleFinancerDetailsForInvoice } from "@/utils/saleFinancerDetailsForInvoice";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2039,15 +2040,8 @@ export default function SalesInvoiceDashboard() {
           .select('*')
           .eq('sale_id', invoice.id)
           .maybeSingle();
-        if (financer) {
-          updatedInvoice.financerDetails = {
-            financer_name: financer.financer_name,
-            loan_number: financer.loan_number,
-            emi_amount: financer.emi_amount,
-            tenure: financer.tenure,
-            down_payment: financer.down_payment,
-          };
-        }
+        updatedInvoice.financerDetails =
+          mapSaleFinancerDetailsForInvoice(financer as Record<string, unknown>) ?? undefined;
       }
 
       // Resolve CN adjust date for bill print Note when list row lacked cn_adjust_date.

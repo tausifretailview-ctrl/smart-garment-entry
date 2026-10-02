@@ -87,6 +87,7 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { PaymentReceiptPrint } from "@/components/PaymentReceiptPrint";
 import { getPaymentReceiptPrintPageStyle } from "@/utils/paymentReceiptPrintConfig";
+import { mapSaleFinancerDetailsForInvoice } from "@/utils/saleFinancerDetailsForInvoice";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteJournalEntryByReference,
@@ -1871,15 +1872,7 @@ const POSDashboard = () => {
         })(),
       ]);
 
-      if (finData) {
-        financerDetails = {
-          financer_name: finData.financer_name,
-          loan_number: finData.loan_number || undefined,
-          emi_amount: finData.emi_amount || undefined,
-          tenure: finData.tenure || undefined,
-          down_payment: finData.down_payment || undefined,
-        };
-      }
+      financerDetails = mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>);
 
       return {
         billNo: sale.sale_number,
@@ -2197,13 +2190,7 @@ const POSDashboard = () => {
           ? supabase.from('customers').select('gst_number, transport_details, address').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
-      setPreviewFinancerDetails(finData ? {
-        financer_name: finData.financer_name,
-        loan_number: finData.loan_number || undefined,
-        emi_amount: finData.emi_amount || undefined,
-        tenure: finData.tenure || undefined,
-        down_payment: finData.down_payment || undefined,
-      } : null);
+      setPreviewFinancerDetails(mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>));
       setPreviewCustomerData(custData);
     } finally {
       setPreviewHydrating(false);
