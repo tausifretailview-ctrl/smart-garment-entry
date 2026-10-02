@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -86,13 +87,14 @@ async function fetchMessages(orgId: string, from: string, to: string) {
   return { rows, sales };
 }
 
+/**
+ * Subscription metadata via RPC (migration 20261231180000): staff have no table read on
+ * push_subscriptions because it holds fcm_token. Untyped until types.ts is regenerated.
+ */
 async function fetchSubscriptions(orgId: string): Promise<PushSubscriptionRow[]> {
-  const { data, error } = await supabase
-    .from("push_subscriptions")
-    .select("id, customer_phone_last10, customer_id, status, receives_invoices, confirmed_at, created_at, last_seen_at, inactive_reason")
-    .eq("organization_id", orgId)
-    .order("created_at", { ascending: false })
-    .limit(5000);
+  const { data, error } = await (supabase as unknown as SupabaseClient).rpc("get_org_push_subscriptions", {
+    p_organization_id: orgId,
+  });
   if (error) throw error;
   return (data ?? []) as PushSubscriptionRow[];
 }
