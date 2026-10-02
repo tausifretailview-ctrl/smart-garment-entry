@@ -37,6 +37,7 @@ import InstallApp from "./pages/InstallApp";
 const OAuthConsent = lazyWithRetry(() => import("./pages/OAuthConsent"));
 import { MobileOrgIndexRedirect } from "@/components/mobile/MobileOrgIndexRedirect";
 import { NativeAppBridge } from "@/components/NativeAppBridge";
+import { OwnerPushBridge } from "@/components/OwnerPushBridge";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { isAppBootRoute } from "@/lib/appBootSplash";
 import { isEntryFullscreenPath } from "@/lib/entryPageLayout";
@@ -474,6 +475,7 @@ const App = () => {
         <AuthProvider>
           <OrganizationProvider>
             <AppUpdatePrompt />
+            <OwnerPushBridge />
             <WindowTabsProvider>
             <Suspense fallback={<LazyFallback />}>
             <SuspensionGate>
