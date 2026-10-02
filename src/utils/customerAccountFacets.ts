@@ -35,7 +35,7 @@ function roundRupee(n: number): number {
 }
 
 /**
- * POS footer Customer Balance chip.
+ * Invoice leftover for the POS customer-search due badge and receipt previous balance.
  * Unused booking advance stays in the Adv field — pass invoice leftover
  * (`outstanding` / `useCustomerBalance.grossOutstanding`), never `netPosition`.
  */

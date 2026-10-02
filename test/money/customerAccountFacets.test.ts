@@ -95,7 +95,7 @@ describe("customerAccountFacets", () => {
     expect(partyDebtorNetFromRpcRow({ signed_balance: 158_700 })).toBe(158_700);
   });
 
-  it("POS footer Customer Balance ignores unused advance (Adv field only)", () => {
+  it("POS due amount ignores unused advance (Adv field only)", () => {
     const unusedOnly = facetsFromInvoiceOutstanding(0, 1_000);
     expect(posFooterCustomerBalance(unusedOnly.outstanding)).toBe(0);
     expect(unusedOnly.unusedAdvance).toBe(1_000);
