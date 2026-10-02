@@ -138,6 +138,7 @@ const CreditNoteSrAdjustmentRegister = lazyWithRetry(
   () => import("./pages/CreditNoteSrAdjustmentRegister"),
 );
 const CustomerReviews = lazyWithRetry(() => import("./pages/CustomerReviews"));
+const CustomerNotifications = lazyWithRetry(() => import("./pages/CustomerNotifications"));
 const CustomerLedgerReport = lazyWithRetry(() => import("./pages/CustomerLedgerReport"));
 const CustomerPointsReport = lazyWithRetry(() => import("./pages/CustomerPointsReport"));
 const CustomerAccountStatementAuditPage = lazyWithRetry(
@@ -1507,6 +1508,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <CustomerAuditReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="customer-notifications"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerNotifications />
                       </Layout>
                     </ProtectedRoute>
                   }

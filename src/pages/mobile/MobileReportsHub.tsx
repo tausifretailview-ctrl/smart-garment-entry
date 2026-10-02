@@ -98,6 +98,7 @@ export default function MobileReportsHub() {
         { icon: ShieldCheck, label: "Customer Audit", path: "/customer-audit-report", desc: "Verified customer outstanding" },
         { icon: FileText, label: "CN / S-R Register", path: "/cn-sr-adjustment-register", desc: "Sale-return credit notes remaining" },
         { icon: FileText, label: "Customer Reviews", path: "/customer-reviews", desc: "Ratings customers left on their bill" },
+        { icon: FileText, label: "Customer Notifications", path: "/customer-notifications", desc: "Sent, read, failed; invite to turn on" },
         { icon: Receipt, label: "GST Report", path: "/gst-reports", desc: "GST summaries" },
       ]
     },

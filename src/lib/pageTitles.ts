@@ -65,6 +65,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "customer-audit-report": { label: "Customer Audit", icon: "History" },
   "cn-sr-adjustment-register": { label: "CN / S-R Register", icon: "FileSpreadsheet" },
   "customer-reviews": { label: "Customer Reviews", icon: "FileSpreadsheet" },
+  "customer-notifications": { label: "Customer Notifications", icon: "FileSpreadsheet" },
   "customer-reconciliation": { label: "Customer Reconciliation", icon: "History" },
   "stock-reconciliation": { label: "Stock Reconciliation", icon: "History" },
   "accounting-reports": { label: "Accounting Reports", icon: "BookOpen" },
