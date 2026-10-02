@@ -65,9 +65,25 @@ export const INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS = `
     body .credit-note-print,
     body .credit-note-print *,
     body .sale-return-thermal,
-    body .sale-return-thermal * {
+    body .sale-return-thermal *,
+    body .tally-tax-invoice-print,
+    body .tally-tax-invoice-print *,
+    body .tally-finance-emi-block,
+    body .tally-finance-emi-block * {
       visibility: visible !important;
       opacity: 1 !important;
+    }
+    /* Fixed 297mm + overflow:hidden used to clip Finance / EMI on full bills. */
+    .tally-tax-invoice-print,
+    .tally-tax-invoice-sheet,
+    .tally-finance-emi-block {
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+    }
+    .tally-finance-emi-block {
+      break-inside: avoid !important;
+      page-break-inside: avoid !important;
     }
   }
   ${PRINT_NESTED_STYLE_TAG_HIDE_CSS}

@@ -14,6 +14,23 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
 
 export type InvoicePdfPageFormat = "a4" | "a5" | "thermal";
 
+/**
+ * Place a rasterized invoice on A4/A5 without cutting off the bottom.
+ * A bill only a few millimetres over one sheet is scaled down so Finance / EMI
+ * stays on page 1. Taller bills paginate. Never crop.
+ */
+export function planInvoicePdfPages(
+  scaledHeightMm: number,
+  pageHeightMm: number,
+): { mode: "fit-page"; drawWidthScale: number } | { mode: "paginate" } {
+  if (!(pageHeightMm > 0) || !(scaledHeightMm > 0)) return { mode: "paginate" };
+  if (scaledHeightMm <= pageHeightMm) return { mode: "fit-page", drawWidthScale: 1 };
+  if (scaledHeightMm <= pageHeightMm * 1.05) {
+    return { mode: "fit-page", drawWidthScale: pageHeightMm / scaledHeightMm };
+  }
+  return { mode: "paginate" };
+}
+
 export interface CaptureElementToPdfOptions {
   pageFormat?: InvoicePdfPageFormat;
   thermalPaper?: "58mm" | "80mm";
@@ -171,10 +188,13 @@ export async function captureElementToPdfBlob(
   const imgWidth = canvas.width;
   const imgHeight = canvas.height;
   const scaledHeight = (imgHeight * pdfWidth) / imgWidth;
-  const singlePageThreshold = pdfHeight * 1.05;
+  const pagePlan = planInvoicePdfPages(scaledHeight, pdfHeight);
 
-  if (scaledHeight <= singlePageThreshold) {
-    pdf.addImage(imgData, imageType, 0, 0, pdfWidth, Math.min(scaledHeight, pdfHeight));
+  if (pagePlan.mode === "fit-page") {
+    const drawW = pdfWidth * pagePlan.drawWidthScale;
+    const drawH = scaledHeight * pagePlan.drawWidthScale;
+    const offsetX = (pdfWidth - drawW) / 2;
+    pdf.addImage(imgData, imageType, offsetX, 0, drawW, drawH);
     return pdf.output("blob");
   }
 

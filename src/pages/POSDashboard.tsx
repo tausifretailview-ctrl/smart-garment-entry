@@ -796,7 +796,9 @@ const POSDashboard = () => {
                 ? "148mm"
                 : "210mm",
       maxHeight:
-        posInvoiceTemplate === "real-tast" || effectivePosBillFormat === "thermal"
+        posInvoiceTemplate === "real-tast" ||
+        posInvoiceTemplate === "tally-tax-invoice" ||
+        effectivePosBillFormat === "thermal"
           ? "none"
           : effectivePosBillFormat === "a4"
             ? "297mm"
@@ -1895,8 +1897,12 @@ const POSDashboard = () => {
       const saleDate = new Date(sale.sale_date);
 
       let financerDetails = null;
+      let financerQuery = supabase.from("sale_financer_details").select("*").eq("sale_id", sale.id);
+      if (currentOrganization?.id) {
+        financerQuery = financerQuery.eq("organization_id", currentOrganization.id);
+      }
       const [{ data: finData }, { data: customerData }, accountFacets] = await Promise.all([
-        supabase.from("sale_financer_details").select("*").eq("sale_id", sale.id).maybeSingle(),
+        financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from("customers").select("gst_number, transport_details, points_balance").eq("id", sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
@@ -2273,8 +2279,12 @@ const POSDashboard = () => {
     setShowPreviewDialog(true);
     try {
       await fetchSaleItems(sale.id);
+      let financerQuery = supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id);
+      if (currentOrganization?.id) {
+        financerQuery = financerQuery.eq('organization_id', currentOrganization.id);
+      }
       const [{ data: finData }, { data: custData }] = await Promise.all([
-        supabase.from('sale_financer_details').select('*').eq('sale_id', sale.id).maybeSingle(),
+        financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details, address, points_balance').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
@@ -4547,7 +4557,7 @@ const POSDashboard = () => {
           defaultFormat={posInvoiceWrapperFormat}
           thermalPaper={posThermalPaper}
           renderInvoice={(format) => (
-            previewHydrating && !(saleItems[previewSale.id]?.length) ? (
+            previewHydrating ? (
               <div data-invoice-loading className="p-6 text-sm text-muted-foreground">Loading preview…</div>
             ) : (
             <InvoiceWrapper
