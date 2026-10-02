@@ -247,6 +247,16 @@ export const COMMAND_PALETTE_REGISTRY: CommandPaletteRegistryItem[] = [
     permission: "sale_return_dashboard",
   },
   {
+    id: "nav-customer-notifications",
+    group: "Go to",
+    label: "Customer Notifications",
+    subtitle: "Push notifications sent, read, failed; invite customers to turn on",
+    icon: FileText,
+    path: "/customer-notifications",
+    keywords: ["notification", "push", "sent", "read", "failed", "invite", "customer app"],
+    permission: "sales_invoice_dashboard",
+  },
+  {
     id: "nav-customer-reviews",
     group: "Go to",
     label: "Customer Reviews",

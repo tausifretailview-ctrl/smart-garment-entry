@@ -169,6 +169,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
   },
   "customer-reviews": { loader: () => import("@/pages/CustomerReviews"), layout: "layout" },
+  "customer-notifications": { loader: () => import("@/pages/CustomerNotifications"), layout: "layout" },
   "customer-reconciliation": {
     loader: () => import("@/pages/CustomerReconciliation"),
     layout: "layout",
