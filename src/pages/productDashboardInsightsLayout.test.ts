@@ -33,5 +33,10 @@ describe("Product dashboard Insights chrome", () => {
     expect(cardsAt).toBeLessThan(searchAt);
     expect(stockAt).toBeGreaterThan(searchAt);
     expect(panelAt).toBeGreaterThan(stockAt);
+    const importAt = page.indexOf("Import Stock");
+    expect(importAt).toBeGreaterThan(panelAt);
+    expect(page).toContain("flex-nowrap items-center gap-2 overflow-x-auto");
+    expect(page).toContain("showDensityToggle={false}");
+    expect(page).toContain("ColorLabelRow");
   });
 });

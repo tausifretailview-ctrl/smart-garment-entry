@@ -63,6 +63,8 @@ export interface ERPTableProps<T> {
   fitToContainer?: boolean;
   /** Render prop that receives toolbar element for custom placement */
   renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
+  /** Hide the Compact / Comfortable density toggle. Columns and Reset stay. */
+  showDensityToggle?: boolean;
 }
 
 export function ERPTable<T>({
@@ -87,6 +89,7 @@ export function ERPTable<T>({
   getRowId,
   getRowClassName,
   renderToolbar,
+  showDensityToggle = true,
   fitToContainer = false,
 }: ERPTableProps<T>) {
   const defaultColIds = useMemo(() => columns.map((c) => (c as any).accessorKey ?? (c as any).id ?? ""), [columns]);
@@ -158,6 +161,7 @@ export function ERPTable<T>({
       density={persistence.density}
       onToggleDensity={persistence.toggleDensity}
       onResetSettings={persistence.resetSettings}
+      showDensityToggle={showDensityToggle}
     />
   );
 
