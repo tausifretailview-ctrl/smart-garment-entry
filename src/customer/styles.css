@@ -284,6 +284,91 @@ textarea.c-input {
   line-height: 1.5;
 }
 
+/* Customer account (login by mobile) */
+.c-nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 8px 0 10px;
+  background: var(--bg);
+}
+
+.c-nav a {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.c-nav a.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.c-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.c-stat {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.c-stat span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.c-stat b {
+  font-size: 17px;
+}
+
+.c-list a,
+.c-list .c-li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.c-list a:last-child,
+.c-list .c-li:last-child {
+  border-bottom: 0;
+}
+
+.c-offer img {
+  width: 100%;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.c-code {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
 @media print {
   body {
     background: #fff;

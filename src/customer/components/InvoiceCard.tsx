@@ -68,6 +68,12 @@ export default function InvoiceCard({
             <span>− {formatINR(sale.discount_amount)}</span>
           </div>
         ) : null}
+        {Number((sale as { sale_return_adjust?: number }).sale_return_adjust) > 0 ? (
+          <div className="row">
+            <span>Sale return adjusted</span>
+            <span>− {formatINR(Number((sale as { sale_return_adjust?: number }).sale_return_adjust))}</span>
+          </div>
+        ) : null}
         {Number(sale.round_off) !== 0 ? (
           <div className="row">
             <span>Round off</span>

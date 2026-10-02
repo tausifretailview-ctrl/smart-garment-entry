@@ -67,7 +67,7 @@ import { BackToDashboard } from "@/components/BackToDashboard";
 import { InvoiceWrapper } from "@/components/InvoiceWrapper";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import { resendSaleInvoiceWhatsApp } from "@/utils/resendSaleInvoiceWhatsApp";
-import { createCustomerPageLinkForWhatsApp } from "@/utils/customerPageLink";
+import { createCustomerPageLinkForWhatsApp, customerPageBaseDomain } from "@/utils/customerPageLink";
 import { invokeSendWhatsAppMessage } from "@/utils/invokeSendWhatsAppMessage";
 import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
@@ -3717,7 +3717,12 @@ Thank you for choosing us!`;
         if (selectedCustomer?.phone && currentOrganization?.id) {
           void supabase.functions
             .invoke("push-send", {
-              body: { organizationId: currentOrganization.id, saleId: saleData.id },
+              body: {
+                organizationId: currentOrganization.id,
+                saleId: saleData.id,
+                // Lets push-send add the bill page link, so tapping the alert opens the bill.
+                customerPageDomain: customerPageBaseDomain() || undefined,
+              },
             })
             .catch((pushError) => console.error("Customer push send failed (SalesInvoice):", pushError));
         }

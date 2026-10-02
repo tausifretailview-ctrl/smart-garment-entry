@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isPushSetupProblem, pushFailureMessage } from "../lib/pushFailureMessage";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import { loginWithBillToken } from "../lib/account";
 import {
   logEvent,
   pageGet,
@@ -85,6 +86,8 @@ export default function TokenPage() {
         if (res.feedback) setRatingDone(true);
         // Quietly repair rotated FCM tokens on visits with granted permission.
         void repairPushRegistration(subdomain, token);
+        // The bill link proves the phone: sign in so "My account" shows every bill.
+        if (res.sale) void loginWithBillToken(token);
         if (!loggedOpen.current) {
           loggedOpen.current = true;
           void logEvent(token, "page_open");
@@ -172,7 +175,10 @@ export default function TokenPage() {
         <div className="c-card c-center">
           <h2 style={{ margin: "0 0 8px" }}>{org?.business_name || org?.name || "Shop"}</h2>
           <p>This bill link has expired (bills stay viewable for 90 days).</p>
-          <p className="c-muted">Your offers and ratings linked to this bill are no longer available.</p>
+          <p className="c-muted">Log in with your mobile number to see all your bills and offers.</p>
+          <Link className="c-btn" style={{ textDecoration: "none", textAlign: "center" }} to="/account">
+            My account
+          </Link>
         </div>
       </div>
     );
@@ -212,6 +218,14 @@ export default function TokenPage() {
           Share
         </button>
       </div>
+
+      <Link
+        className="c-btn c-btn-ghost no-print"
+        style={{ textDecoration: "none", textAlign: "center", marginBottom: 12 }}
+        to="/account"
+      >
+        My account · all bills, returns & offers
+      </Link>
 
       {showPushCard ? (
         <div className="c-card no-print" style={{ marginTop: 12 }}>

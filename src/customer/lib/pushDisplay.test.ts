@@ -19,4 +19,13 @@ describe("buildPushDisplay", () => {
     expect(buildPushDisplay({ data: { message_id: "m3", url: "https://evil.example/t/x" } }, origin).url).toMatch(/^\/m\/m3/);
     expect(buildPushDisplay({ data: { message_id: "m4", url: "https://adtech.inventoryshop.in/x" } }, origin).url).toMatch(/^\/m\/m4/);
   });
+  it("carries sale_id / campaign_id to the message page so it can open the bill or offers", () => {
+    const sale = "0b0c2f3e-1111-4222-8333-944455556666";
+    const d = buildPushDisplay({ data: { message_id: "m5", title: "Invoice X", body: "B", sale_id: sale } });
+    expect(d.url).toBe(`/m/m5?title=Invoice%20X&body=B&sale=${sale}`);
+    const c = buildPushDisplay({ data: { message_id: "m6", title: "Sale", body: "50% off", campaign_id: sale } });
+    expect(c.url).toMatch(new RegExp(`&campaign=${sale}$`));
+    // Junk ids are dropped, never injected into the URL.
+    expect(buildPushDisplay({ data: { message_id: "m7", sale_id: "x&y=1" } }).url).not.toContain("sale=");
+  });
 });

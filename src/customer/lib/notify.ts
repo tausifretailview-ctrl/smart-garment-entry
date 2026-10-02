@@ -4,6 +4,7 @@
 // NEVER call Notification.requestPermission() outside a click handler.
 
 import { registerPush, trackMessage } from "./client";
+import { registerAccountPush } from "./account";
 import { cleanVapidKey, describeVapidKeyProblem } from "./vapidKey";
 import { withTimeout } from "./withTimeout";
 import { buildPushDisplay } from "./pushDisplay";
@@ -147,6 +148,29 @@ export async function enablePush(
   subdomain: string,
   pageToken: string,
 ): Promise<{ ok: boolean; reason?: string }> {
+  return enablePushWith((fcmToken, platform) => registerPush(subdomain, pageToken, fcmToken, platform));
+}
+
+/** Logged-in customer (account pages): register this device to the account, no bill link needed. */
+export async function enableAccountPush(): Promise<{ ok: boolean; reason?: string }> {
+  return enablePushWith((fcmToken, platform) => registerAccountPush(fcmToken, platform));
+}
+
+/** Return visits while logged in: re-register a rotated token silently. Never prompts. */
+export async function repairAccountPush(): Promise<void> {
+  try {
+    if (!isPushSupportedBrowser()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const fcmToken = await currentToken();
+    if (fcmToken) await registerAccountPush(fcmToken, platformName()).catch(() => undefined);
+  } catch {
+    /* silent */
+  }
+}
+
+async function enablePushWith(
+  register: (fcmToken: string, platform: string) => Promise<{ ok: boolean; error?: string }>,
+): Promise<{ ok: boolean; reason?: string }> {
   if (!isPushSupportedBrowser()) return { ok: false, reason: "unsupported" };
   let permission: NotificationPermission;
   try {
@@ -159,7 +183,7 @@ export async function enablePush(
   if (!fcmToken) return { ok: false, reason: tokenReason === "unsupported" ? "unsupported" : `token: ${tokenReason ?? "none"}` };
   try {
     const res = await withTimeout(
-      registerPush(subdomain, pageToken, fcmToken, platformName()),
+      register(fcmToken, platformName()),
       STEP_TIMEOUT_MS.registerRpc,
       "register_rpc",
     );
