@@ -262,7 +262,7 @@ export default function CustomerNotifications() {
     setInviting(c.phone);
     try {
       const link = await createCustomerPageLinkForSale(orgId, c.lastSaleId);
-      if (!link.ok) {
+      if (link.ok === false) {
         toast.error("Could not make the bill link", { description: LINK_FAILURE_TEXT[link.reason] ?? link.detail });
         return;
       }
