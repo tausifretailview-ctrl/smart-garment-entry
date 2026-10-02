@@ -42,6 +42,8 @@ describe("Product dashboard Insights chrome", () => {
     expect(page).toContain('label: "Size Group"');
     expect(page).toContain('label: "GST%"');
     expect(page).toContain("showColumnToggle={false}");
+    expect(page).not.toContain("fitToContainer");
+    expect(page).toContain("columnHasVisibleValue");
     expect(page).toContain("ColorLabelRow");
   });
 });

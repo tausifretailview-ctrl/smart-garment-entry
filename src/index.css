@@ -2800,6 +2800,24 @@ main:has(.product-dashboard-workspace) {
   background: rgb(240 249 255 / 0.7);
   border-left: none;
 }
+/* Let the table panel own both scrollbars. Columns grow to their text
+   instead of being crushed into the window, so Color stays reachable. */
+.product-dashboard-workspace .product-dashboard-table > div,
+.product-dashboard-workspace .product-dashboard-table > div > div {
+  overflow: visible !important;
+  max-width: none;
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table {
+  table-layout: auto !important;
+  width: max-content !important;
+  min-width: 100%;
+}
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table th,
+.product-dashboard-workspace .product-dashboard-table .erp-desktop-table td {
+  width: auto !important;
+  max-width: none;
+  white-space: nowrap;
+}
 
 /* Accounts Management — sidebar-only full workspace (no header / tab strip) */
 .accounts-management-workspace {
