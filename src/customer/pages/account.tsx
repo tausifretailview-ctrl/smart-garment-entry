@@ -214,7 +214,10 @@ export function AccountPage() {
           <button
             type="button"
             className="c-btn c-btn-ghost no-print"
-            onClick={() => void logout().then(() => navigate("/"))}
+            onClick={() => {
+              logout();
+              navigate("/");
+            }}
           >
             Log out
           </button>

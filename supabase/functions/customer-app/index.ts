@@ -2,20 +2,26 @@ import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supa
 import {
   buildCustomerTransactions,
   cleanSubdomain,
-  createRateLimiter,
+  clientIp,
+  deriveSessionSecret,
   lineTax,
   maskPhone,
   phoneLast10,
+  signSessionToken,
+  verifySessionToken,
 } from "../_shared/customerApp.ts";
 
 // ---------------------------------------------------------------------------
 // customer-app: the shop customer's own account in the customer PWA
 // (<shop>.<customer-domain>). verify_jwt = false: customers have no Supabase
-// login. Every data action needs a portal_sessions token and is scoped to that
-// session's organization + customer with the service role.
+// login. Every data action needs a customer-app session token (HMAC-signed,
+// see _shared/customerApp.ts) and is scoped to that session's organization +
+// customer with the service role. These tokens are not portal_sessions rows,
+// so the B2B portal functions (catalogue / orders) never accept them.
 //
-// Login is by mobile number (shop's choice, no OTP), or automatically from a
-// valid bill link token (/t/<token>), which already proves the phone.
+// Login is by mobile number only (shop's choice, no OTP). Every attempt is
+// recorded in customer_app_login_attempts and limited per IP, per mobile and
+// per shop. A bill link never logs anyone in: links are made to be forwarded.
 // ---------------------------------------------------------------------------
 
 const corsHeaders = {
@@ -27,9 +33,12 @@ const SESSION_DAYS = 30;
 const PAGE_SIZE = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Per instance: 10 login attempts / 10 min per IP, 5 per mobile.
-const ipLimiter = createRateLimiter(10, 10 * 60 * 1000);
-const mobileLimiter = createRateLimiter(5, 10 * 60 * 1000);
+const LIMITS = {
+  perIp: { max: 10, windowMs: 10 * 60_000 },
+  perMobile: { max: 5, windowMs: 10 * 60_000 },
+  /** Failed logins per shop: bounds guessing which mobiles have accounts. */
+  failedPerShop: { max: 100, windowMs: 60 * 60_000 },
+};
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -57,29 +66,92 @@ async function resolveOrg(supabase: SupabaseClient, subdomain: string): Promise<
   return settings?.enabled ? (org as Org) : null;
 }
 
-async function createSession(supabase: SupabaseClient, orgId: string, customerId: string): Promise<string> {
-  const sessionToken = `${crypto.randomUUID()}-${crypto.randomUUID()}`;
-  const { error } = await supabase.from("portal_sessions").insert({
-    organization_id: orgId,
-    customer_id: customerId,
-    session_token: sessionToken,
-    expires_at: new Date(Date.now() + SESSION_DAYS * 86_400_000).toISOString(),
-  });
-  if (error) throw new Error(`session: ${error.message}`);
-  return sessionToken;
+let sessionSecret: string | null = null;
+
+async function getSessionSecret(): Promise<string> {
+  if (!sessionSecret) {
+    const explicit = Deno.env.get("CUSTOMER_APP_SESSION_SECRET");
+    sessionSecret = explicit && explicit.length >= 32
+      ? explicit
+      : await deriveSessionSecret(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  }
+  return sessionSecret;
+}
+
+async function createSession(orgId: string, customerId: string): Promise<string> {
+  return signSessionToken(
+    { organizationId: orgId, customerId, expiresAt: Date.now() + SESSION_DAYS * 86_400_000 },
+    await getSessionSecret(),
+  );
 }
 
 async function readSession(supabase: SupabaseClient, orgId: string, token: unknown): Promise<Session | null> {
-  const t = String(token ?? "");
-  if (t.length < 20 || t.length > 200) return null;
+  const s = await verifySessionToken(token, await getSessionSecret(), orgId);
+  if (!s) return null;
+  // Customer removed / deleted since login → session no longer valid.
   const { data } = await supabase
-    .from("portal_sessions")
-    .select("organization_id, customer_id, expires_at")
-    .eq("session_token", t)
+    .from("customers")
+    .select("id")
+    .eq("id", s.customerId)
     .eq("organization_id", orgId)
+    .is("deleted_at", null)
     .maybeSingle();
-  if (!data || new Date(data.expires_at).getTime() < Date.now()) return null;
-  return { organizationId: data.organization_id, customerId: data.customer_id };
+  return data ? { organizationId: orgId, customerId: s.customerId } : null;
+}
+
+/**
+ * Records this attempt FIRST (as failed), then counts recent attempts including it. Because
+ * every request's own row is committed before its count, the n-th concurrent request sees at
+ * least n rows, so parallel bursts cannot slip past the caps (check-then-insert could).
+ * Returns the attempt id when allowed, "blocked" when over a cap, null when the limiter is
+ * unavailable (caller fails closed).
+ */
+async function reserveLoginAttempt(
+  supabase: SupabaseClient,
+  orgId: string,
+  ip: string,
+  last10: string,
+): Promise<number | "blocked" | null> {
+  const { data: row, error: insertError } = await supabase
+    .from("customer_app_login_attempts")
+    .insert({ organization_id: orgId, ip, phone_last10: last10, success: false })
+    .select("id")
+    .single();
+  if (insertError || !row) {
+    console.error("customer-app: could not record login attempt", insertError);
+    return null;
+  }
+  const since = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const head = { count: "exact" as const, head: true };
+  const [byIp, byMobile, failedShop] = await Promise.all([
+    supabase
+      .from("customer_app_login_attempts")
+      .select("id", head)
+      .eq("ip", ip)
+      .gte("created_at", since(LIMITS.perIp.windowMs)),
+    supabase
+      .from("customer_app_login_attempts")
+      .select("id", head)
+      .eq("organization_id", orgId)
+      .eq("phone_last10", last10)
+      .gte("created_at", since(LIMITS.perMobile.windowMs)),
+    supabase
+      .from("customer_app_login_attempts")
+      .select("id", head)
+      .eq("organization_id", orgId)
+      .eq("success", false)
+      .gte("created_at", since(LIMITS.failedPerShop.windowMs)),
+  ]);
+  if (byIp.error || byMobile.error || failedShop.error) {
+    console.error("customer-app: login limiter unavailable", byIp.error ?? byMobile.error ?? failedShop.error);
+    return null;
+  }
+  // Counts include this request's own row, hence ">".
+  const over =
+    (byIp.count ?? 0) > LIMITS.perIp.max ||
+    (byMobile.count ?? 0) > LIMITS.perMobile.max ||
+    (failedShop.count ?? 0) > LIMITS.failedPerShop.max;
+  return over ? "blocked" : (row.id as number);
 }
 
 /** Customer in this shop with this mobile; when several share it, the one billed most recently. */
@@ -142,22 +214,19 @@ const handler = async (req: Request): Promise<Response> => {
 
     // ─── LOGIN: mobile number ──────────────────────────────────────────────
     if (action === "login") {
-      const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
       const last10 = phoneLast10(body.mobile);
       if (!last10) return json(400, { error: "invalid_mobile" });
-      if (!ipLimiter(ip) || !mobileLimiter(`${org.id}:${last10}`)) {
-        return json(429, { error: "too_many_attempts" });
-      }
+      const ip = clientIp(req.headers);
+      const attempt = await reserveLoginAttempt(supabase, org.id, ip, last10);
+      if (attempt === null) return json(503, { error: "login_unavailable" });
+      if (attempt === "blocked") return json(429, { error: "too_many_attempts" });
       const customer = await findCustomerByMobile(supabase, org.id, last10);
+      if (customer) {
+        // Successful logins don't count toward the per-shop failed cap.
+        await supabase.from("customer_app_login_attempts").update({ success: true }).eq("id", attempt);
+      }
       if (!customer) return json(404, { error: "no_account" });
-      // DB-backed limit (survives instance restarts): max 10 sessions / hour per customer.
-      const { count } = await supabase
-        .from("portal_sessions")
-        .select("id", { count: "exact", head: true })
-        .eq("customer_id", customer.id)
-        .gte("created_at", new Date(Date.now() - 3_600_000).toISOString());
-      if ((count ?? 0) >= 10) return json(429, { error: "too_many_attempts" });
-      const token = await createSession(supabase, org.id, customer.id);
+      const token = await createSession(org.id, customer.id);
       return json(200, {
         ok: true,
         token,
@@ -166,47 +235,9 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // ─── LOGIN: from a bill link token (/t/<token>) ─────────────────────────
-    if (action === "login_bill") {
-      const billToken = String(body.billToken ?? "");
-      if (!/^[A-Za-z0-9_-]{8,200}$/.test(billToken)) return json(400, { error: "invalid_link" });
-      const { data: page, error: pageError } = await supabase.rpc("customer_page_get", {
-        p_subdomain: cleanSubdomain(body.subdomain),
-        p_token: billToken,
-      });
-      const saleNumber = (page as { sale?: { sale_number?: string } | null } | null)?.sale?.sale_number;
-      if (pageError || !saleNumber) return json(404, { error: "link_expired" });
-      const { data: sale } = await supabase
-        .from("sales")
-        .select("customer_id, customer_phone")
-        .eq("organization_id", org.id)
-        .eq("sale_number", saleNumber)
-        .is("deleted_at", null)
-        .maybeSingle();
-      let customerId = sale?.customer_id as string | null | undefined;
-      if (!customerId && sale?.customer_phone) {
-        const last10 = phoneLast10(sale.customer_phone);
-        customerId = last10 ? (await findCustomerByMobile(supabase, org.id, last10))?.id : null;
-      }
-      if (!customerId) return json(404, { error: "no_account" });
-      const token = await createSession(supabase, org.id, customerId);
-      const profile = await customerProfile(supabase, { organizationId: org.id, customerId });
-      return json(200, {
-        ok: true,
-        token,
-        customer: { name: profile?.customer_name ?? "", phone: maskPhone(profile?.phone) },
-        shop: org.name,
-      });
-    }
-
     // Everything below needs a session.
     const session = await readSession(supabase, org.id, body.token);
     if (!session) return json(401, { error: "session_expired" });
-
-    if (action === "logout") {
-      await supabase.from("portal_sessions").delete().eq("session_token", String(body.token));
-      return json(200, { ok: true });
-    }
 
     if (action === "summary") {
       const profile = await customerProfile(supabase, session);

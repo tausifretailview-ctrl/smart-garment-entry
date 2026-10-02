@@ -132,19 +132,8 @@ export async function loginWithMobile(mobile: string): Promise<void> {
   setSessionToken(res.token);
 }
 
-/** Opened from a bill link: log in quietly so the account is there next time. */
-export async function loginWithBillToken(billToken: string): Promise<void> {
-  if (getSessionToken()) return;
-  try {
-    const res = await call<{ token: string }>("login_bill", { billToken });
-    setSessionToken(res.token);
-  } catch {
-    /* optional convenience — the bill page works without it */
-  }
-}
-
-export async function logout(): Promise<void> {
-  await call("logout").catch(() => undefined);
+/** Sessions are signed tokens with no server copy: forgetting it on this device logs out. */
+export function logout(): void {
   setSessionToken(null);
 }
 
@@ -164,6 +153,8 @@ export function accountErrorMessage(err: unknown): string {
       return "Please enter your 10-digit mobile number.";
     case "no_account":
       return "No bills found for this mobile number at this shop. Use the number given at billing.";
+    case "login_unavailable":
+      return "Login is not available right now. Please try again later.";
     case "too_many_attempts":
       return "Too many tries. Please wait a few minutes and try again.";
     case "shop_not_found":
