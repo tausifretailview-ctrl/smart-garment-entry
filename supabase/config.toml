@@ -74,3 +74,6 @@ verify_jwt = false
 
 [functions.push-send]
 verify_jwt = false
+
+[functions.owner-alerts]
+verify_jwt = false
