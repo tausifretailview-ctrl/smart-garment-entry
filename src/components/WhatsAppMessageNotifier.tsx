@@ -31,6 +31,14 @@ export function WhatsAppMessageNotifier() {
   const location = useLocation();
   const { orgNavigate } = useOrgNavigation();
   const notifiedIdsRef = useRef<Set<string>>(new Set());
+  // Read through refs so the realtime channel is not torn down on every screen change
+  // (a reply arriving while it re-subscribed got no alert).
+  const pathnameRef = useRef(location.pathname);
+  const navigateRef = useRef(orgNavigate);
+  const queryClientRef = useRef(queryClient);
+  pathnameRef.current = location.pathname;
+  navigateRef.current = orgNavigate;
+  queryClientRef.current = queryClient;
 
   const canNotify =
     !permLoading &&
@@ -81,18 +89,23 @@ export function WhatsAppMessageNotifier() {
           const preview =
             (msg.message_text || "").trim().slice(0, 100) || "New WhatsApp message";
 
-          queryClient.invalidateQueries({
+          const qc = queryClientRef.current;
+          qc.invalidateQueries({
             queryKey: ["whatsapp-unread-count", currentOrganization.id],
           });
-          queryClient.invalidateQueries({
+          qc.invalidateQueries({
             queryKey: ["activity-center-whatsapp-preview", currentOrganization.id],
           });
-          queryClient.invalidateQueries({
+          qc.invalidateQueries({
             queryKey: ["whatsapp-conversations", currentOrganization.id],
           });
-          queryClient.invalidateQueries({ queryKey: ["whatsapp-messages"] });
+          qc.invalidateQueries({ queryKey: ["whatsapp-messages"] });
 
-          const onInboxPage = location.pathname.includes("/whatsapp-inbox");
+          const onInboxPage = pathnameRef.current.includes("/whatsapp-inbox");
+          const canAskDesktopAlerts =
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "default";
           if (!onInboxPage) {
             toast(`WhatsApp: ${customerLabel}`, {
               description: preview,
@@ -101,10 +114,21 @@ export function WhatsAppMessageNotifier() {
               action: {
                 label: "Open Inbox",
                 onClick: () =>
-                  orgNavigate("/whatsapp-inbox", {
+                  navigateRef.current("/whatsapp-inbox", {
                     state: { openUnread: true, conversationId: msg.conversation_id },
                   }),
               },
+              // Browsers only honour a permission request made from a click.
+              ...(canAskDesktopAlerts
+                ? {
+                    cancel: {
+                      label: "Enable desktop alerts",
+                      onClick: () => {
+                        Notification.requestPermission().catch(() => {});
+                      },
+                    },
+                  }
+                : {}),
             });
           }
 
@@ -121,7 +145,7 @@ export function WhatsAppMessageNotifier() {
               });
               notification.onclick = () => {
                 window.focus();
-                orgNavigate("/whatsapp-inbox", {
+                navigateRef.current("/whatsapp-inbox", {
                   state: { openUnread: true, conversationId: msg.conversation_id },
                 });
                 notification.close();
@@ -137,14 +161,7 @@ export function WhatsAppMessageNotifier() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [canNotify, currentOrganization?.id, queryClient, location.pathname, orgNavigate]);
-
-  useEffect(() => {
-    if (!canNotify) return;
-    if (typeof window === "undefined" || !("Notification" in window)) return;
-    if (Notification.permission !== "default") return;
-    Notification.requestPermission().catch(() => {});
-  }, [canNotify]);
+  }, [canNotify, currentOrganization?.id]);
 
   return null;
 }
