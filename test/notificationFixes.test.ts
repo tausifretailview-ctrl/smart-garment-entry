@@ -17,8 +17,10 @@ describe("customer push is data-only (one notification, tap opens the bill)", ()
   });
   it("service worker still reads title/body from data", () => {
     const sw = read("src/customer/sw.ts");
-    expect(sw).toContain("data.title");
-    expect(sw).toContain("data.body");
+    expect(sw).toContain("buildPushDisplay(payload");
+    const display = read("src/customer/lib/pushDisplay.ts");
+    expect(display).toContain("data.title");
+    expect(display).toContain("data.body");
   });
 });
 
