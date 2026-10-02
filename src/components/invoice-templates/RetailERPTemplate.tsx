@@ -5,6 +5,7 @@ import { retailErpWhatsAppProductLabel, formatRetailErpInvoiceSize } from "@/uti
 import { normalizeGstTaxType, type GstTaxType } from "@/utils/gstRegisterUtils";
 import {
   gurukrupaInvoiceAccountLines,
+  invoiceReceivedToday,
   invoiceThisBillBalance,
   invoiceTotalDue,
 } from "@/utils/invoiceAccountDue";
@@ -550,10 +551,12 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
         : "";
 
   const settledPaid = Number(paidAmount) || 0;
-  const receivedToday =
-    mixAppliedTotal > 0
-      ? Math.min(billTotal, mixAppliedTotal)
-      : Math.min(billTotal, settledPaid > 0 ? settledPaid : 0);
+  // Credit (on-account) is unpaid — Received is cash + UPI + card only.
+  const receivedToday = invoiceReceivedToday({
+    billTotal,
+    tenderApplied: cashPaidAmt + upiPaidAmt + cardPaidAmt,
+    paidAmount: settledPaid,
+  });
   const currentBalance = invoiceThisBillBalance(billTotal, receivedToday);
   const gurukrupaAccount = isGurukrupa
     ? gurukrupaInvoiceAccountLines({

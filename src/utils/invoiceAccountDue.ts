@@ -20,6 +20,27 @@ export function invoiceThisBillBalance(billTotal: number, receivedToday: number)
   return Math.max(0, Math.round((Number(billTotal) - Number(receivedToday)) * 100) / 100);
 }
 
+/**
+ * Amount actually received against this bill (cash + UPI + card, after change is peeled).
+ * Mix-payment "Credit" is the unpaid part left on the customer account — never Received.
+ *
+ * Gurukrupa POS/26-27/2000 (2026-10-02): Bill ₹1,800 = Cash ₹1,000 + Credit ₹800 printed
+ * Received ₹1,800 / Balance ₹0, so Outstanding dropped this bill's ₹800.
+ */
+export function invoiceReceivedToday(opts: {
+  billTotal: number;
+  /** Cash + UPI + card applied to the bill (excluding any on-account credit). */
+  tenderApplied: number;
+  /** Settled paid amount (fallback when no mode split is known). */
+  paidAmount: number;
+}): number {
+  const bill = Number(opts.billTotal) || 0;
+  const tender = Math.max(0, Number(opts.tenderApplied) || 0);
+  const paid = Math.max(0, Number(opts.paidAmount) || 0);
+  const received = tender > 0 ? tender : paid;
+  return Math.max(0, Math.min(bill, Math.round(received * 100) / 100));
+}
+
 export function invoicePreviousBalanceFromAccount(opts: {
   /** Invoice leftover outstanding (POS footer / `state.outstanding`), not net-of-advance. */
   accountOutstanding: number;
