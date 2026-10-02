@@ -6,6 +6,8 @@ import {
   liveBarcodeMatchesScan,
   liveBarcodesForStockReportRetry,
   skuIdsServingScan,
+  findLiveTwinsForDeletedLines,
+  sizesMatch,
   stockReportPurchaseMissHint,
   type PurchaseBarcodeStockResolution,
 } from "./stockReportPurchaseBarcodeResolve";
@@ -146,8 +148,17 @@ describe("skuIdsServingScan (labels printed from purchase bills)", () => {
     expect(firstDivergentPurchaseBarcode([other], "0040008507")).toMatchObject({ liveBarcode: "40004716" });
   });
 
-  it("does not guess between several same-name items", () => {
-    expect(skuIdsServingScan([row({}), row({ skuId: "v2", liveBarcode: "555" })], "0040008507")).toEqual([]);
+  it("same name and size duplicates: uses the one with the most stock", () => {
+    expect(
+      skuIdsServingScan([row({ stockQty: 1 }), row({ skuId: "v2", liveBarcode: "555", stockQty: 6 })], "0040008507"),
+    ).toEqual(["v2"]);
+  });
+
+  it("picks the size printed on the purchase line (KS Footwear PSB01)", () => {
+    const size9 = row({ purchaseSize: "9", liveSize: "9", skuId: "v9", liveBarcode: "40004716", stockQty: 6 });
+    const size12 = row({ purchaseSize: "9", liveSize: "12", skuId: "v12", liveBarcode: "0040008510", stockQty: 1 });
+    expect(skuIdsServingScan([size12, size9], "0040008507")).toEqual(["v9"]);
+    expect(skuIdsServingScan([size12], "0040008507")).toEqual([]);
   });
 
   it("prefers a SKU whose live barcode is the scanned one", () => {
@@ -158,5 +169,46 @@ describe("skuIdsServingScan (labels printed from purchase bills)", () => {
 
   it("ignores deleted or inactive items", () => {
     expect(skuIdsServingScan([row({ excludeReason: "Variant is soft-deleted" })], "0040008507")).toEqual([]);
+  });
+});
+
+describe("deleted purchase-line SKU → live twin (same name + size)", () => {
+  const deletedLine: PurchaseBarcodeStockResolution = {
+    purchaseBarcode: "0040008507",
+    purchaseProductName: "PSB01",
+    purchaseSize: "9",
+    skuId: "old",
+    liveBarcode: "0040008507",
+    productName: "PSB01",
+    stockQty: 0,
+    excludeReason: "Variant is soft-deleted (Stock Report hides deleted variants)",
+  };
+  const variants = [
+    { id: "v9", barcode: "40004716", size: "9", stock_qty: 6, products: { product_name: "PSB01", deleted_at: null, product_type: "goods" } },
+    { id: "v12", barcode: "0040008510", size: "12", stock_qty: 1, products: { product_name: "PSB01", deleted_at: null, product_type: "goods" } },
+    { id: "x", barcode: "1", size: "9", stock_qty: 9, products: { product_name: "PSB01 GOLD", deleted_at: null, product_type: "goods" } },
+  ];
+  const client = () => {
+    const chain: Record<string, unknown> = {};
+    for (const k of ["select", "eq", "is", "ilike"]) chain[k] = () => chain;
+    chain.limit = () => Promise.resolve({ data: variants, error: null });
+    return { from: () => chain };
+  };
+
+  it("finds the live size-9 PSB01 and the scan opens it", async () => {
+    const twins = await findLiveTwinsForDeletedLines(client(), "org", [deletedLine]);
+    expect(twins.map((t) => t.skuId)).toEqual(["v9"]);
+    expect(twins[0].viaTwin).toBe(true);
+    expect(skuIdsServingScan([deletedLine, ...twins], "0040008507")).toEqual(["v9"]);
+  });
+
+  it("does nothing for lines that are not deleted", async () => {
+    expect(await findLiveTwinsForDeletedLines(client(), "org", [{ ...deletedLine, excludeReason: null }])).toEqual([]);
+  });
+
+  it("matches sizes loosely but never a different size", () => {
+    expect(sizesMatch(" 9 ", "9")).toBe(true);
+    expect(sizesMatch(null, "9")).toBe(true);
+    expect(sizesMatch("9", "10")).toBe(false);
   });
 });
