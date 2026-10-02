@@ -4076,129 +4076,6 @@ export type Database = {
           },
         ]
       }
-      owner_alert_settings: {
-        Row: {
-          cashier_enabled: boolean
-          cashier_every_hours: number
-          day_end_enabled: boolean
-          day_end_time: string
-          enabled: boolean
-          invoice_min_amount: number
-          invoice_mode: string
-          low_stock_enabled: boolean
-          low_stock_threshold: number
-          low_stock_times: string[]
-          organization_id: string
-          shop_close: string
-          shop_open: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          cashier_enabled?: boolean
-          cashier_every_hours?: number
-          day_end_enabled?: boolean
-          day_end_time?: string
-          enabled?: boolean
-          invoice_min_amount?: number
-          invoice_mode?: string
-          low_stock_enabled?: boolean
-          low_stock_threshold?: number
-          low_stock_times?: string[]
-          organization_id: string
-          shop_close?: string
-          shop_open?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          cashier_enabled?: boolean
-          cashier_every_hours?: number
-          day_end_enabled?: boolean
-          day_end_time?: string
-          enabled?: boolean
-          invoice_min_amount?: number
-          invoice_mode?: string
-          low_stock_enabled?: boolean
-          low_stock_threshold?: number
-          low_stock_times?: string[]
-          organization_id?: string
-          shop_close?: string
-          shop_open?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      owner_push_devices: {
-        Row: {
-          created_at: string
-          device_label: string | null
-          fcm_token: string
-          id: string
-          inactive_reason: string | null
-          last_seen_at: string
-          organization_id: string
-          platform: string
-          status: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          device_label?: string | null
-          fcm_token: string
-          id?: string
-          inactive_reason?: string | null
-          last_seen_at?: string
-          organization_id: string
-          platform?: string
-          status?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          device_label?: string | null
-          fcm_token?: string
-          id?: string
-          inactive_reason?: string | null
-          last_seen_at?: string
-          organization_id?: string
-          platform?: string
-          status?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      owner_push_log: {
-        Row: {
-          created_at: string
-          failed_count: number
-          id: string
-          kind: string
-          organization_id: string
-          ref: string
-          sent_count: number
-        }
-        Insert: {
-          created_at?: string
-          failed_count?: number
-          id?: string
-          kind: string
-          organization_id: string
-          ref: string
-          sent_count?: number
-        }
-        Update: {
-          created_at?: string
-          failed_count?: number
-          id?: string
-          kind?: string
-          organization_id?: string
-          ref?: string
-          sent_count?: number
-        }
-        Relationships: []
-      }
       organizations: {
         Row: {
           created_at: string
@@ -6784,7 +6661,6 @@ export type Database = {
           cancelled_by: string | null
           cancelled_reason: string | null
           card_amount: number | null
-          finance_amount: number
           cash_amount: number | null
           created_at: string
           created_by: string | null
@@ -6851,7 +6727,6 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           card_amount?: number | null
-          finance_amount?: number
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
@@ -6918,7 +6793,6 @@ export type Database = {
           cancelled_by?: string | null
           cancelled_reason?: string | null
           card_amount?: number | null
-          finance_amount?: number
           cash_amount?: number | null
           created_at?: string
           created_by?: string | null
