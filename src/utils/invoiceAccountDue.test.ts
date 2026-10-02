@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   gurukrupaInvoiceAccountLines,
+  invoiceReceivedToday,
   invoicePreviousBalanceFromAccount,
   invoicePrintBalances,
   invoiceThisBillBalance,
@@ -114,5 +115,34 @@ describe("Gurukrupa A5 split Outstanding / Advance (POS/26-27/1903 SHREEVASTAV)"
     });
     expect(lines.advance).toBe(0);
     expect(lines.totalDue).toBe(16_250);
+  });
+});
+
+describe("Mix payment Credit is unpaid, not Received (Gurukrupa POS/26-27/2000 SARSWATI JI)", () => {
+  it("Bill ₹1,800 = Cash ₹1,000 + Credit ₹800 → Received ₹1,000, Balance ₹800", () => {
+    const received = invoiceReceivedToday({ billTotal: 1_800, tenderApplied: 1_000, paidAmount: 1_000 });
+    expect(received).toBe(1_000);
+    const balance = invoiceThisBillBalance(1_800, received);
+    expect(balance).toBe(800);
+
+    // Account after save = ₹4,300 (₹3,500 old + ₹800 this bill).
+    const prev = invoicePreviousBalanceFromAccount({
+      accountOutstanding: 4_300,
+      thisBillBalance: balance,
+      accountIncludesThisBill: true,
+    });
+    expect(prev).toBe(3_500);
+    const lines = gurukrupaInvoiceAccountLines({ previousBalance: prev, thisBillBalance: balance, unusedAdvance: 0 });
+    expect(lines.outstanding).toBe(4_300);
+    expect(lines.totalDue).toBe(4_300);
+  });
+
+  it("full credit bill receives nothing", () => {
+    expect(invoiceReceivedToday({ billTotal: 1_800, tenderApplied: 0, paidAmount: 0 })).toBe(0);
+  });
+
+  it("falls back to settled paid when no mode split, capped at bill total", () => {
+    expect(invoiceReceivedToday({ billTotal: 1_800, tenderApplied: 0, paidAmount: 1_200 })).toBe(1_200);
+    expect(invoiceReceivedToday({ billTotal: 1_800, tenderApplied: 2_000, paidAmount: 0 })).toBe(1_800);
   });
 });
