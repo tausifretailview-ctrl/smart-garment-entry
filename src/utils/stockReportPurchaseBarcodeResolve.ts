@@ -8,7 +8,7 @@
  */
 
 export const PURCHASE_BARCODE_STOCK_RESOLVE_SELECT =
-  "sku_id, barcode, product_name, purchase_bills!inner(organization_id)" as const;
+  "sku_id, barcode, product_name, size, purchase_bills!inner(organization_id)" as const;
 
 export type PurchaseBarcodeStockClient = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,7 +22,12 @@ export type PurchaseBarcodeStockResolution = {
   productName: string | null;
   /** Product name printed on the purchase line (snapshot at bill time). */
   purchaseProductName?: string | null;
+  /** Size on the purchase line / on the live variant (KS Footwear: same name, many sizes). */
+  purchaseSize?: string | null;
+  liveSize?: string | null;
   stockQty: number | null;
+  /** Live variant found by name + size because the line's own SKU was deleted. */
+  viaTwin?: boolean;
   /** Non-null ⇒ row cannot appear in get_stock_report base CTE */
   excludeReason: string | null;
 };
@@ -32,6 +37,13 @@ export function isStockReportBarcodeLikeSearch(term: string): boolean {
   return t.length >= 4 && /^\d+$/.test(t);
 }
 
+export type PurchaseLineLink = {
+  skuId: string;
+  purchaseBarcode: string;
+  purchaseProductName: string | null;
+  purchaseSize: string | null;
+};
+
 /**
  * Org-scoped purchase_items → sku_id for a barcode fragment.
  */
@@ -40,7 +52,7 @@ export async function fetchPurchaseBarcodeSkuIds(
   organizationId: string,
   barcode: string,
   options?: { exactOnly?: boolean },
-): Promise<Array<{ skuId: string; purchaseBarcode: string; purchaseProductName: string | null }>> {
+): Promise<PurchaseLineLink[]> {
   if (!organizationId || !barcode.trim()) return [];
 
   const trimmed = barcode.trim();
@@ -61,7 +73,7 @@ export async function fetchPurchaseBarcodeSkuIds(
 
   const { data, error } = await query;
 
-  const out: Array<{ skuId: string; purchaseBarcode: string; purchaseProductName: string | null }> = [];
+  const out: PurchaseLineLink[] = [];
   const seen = new Set<string>();
   for (const row of data || []) {
     const skuId = row.sku_id as string | null;
@@ -69,7 +81,8 @@ export async function fetchPurchaseBarcodeSkuIds(
     if (!skuId || seen.has(skuId)) continue;
     seen.add(skuId);
     const purchaseProductName = row.product_name != null ? String(row.product_name) : null;
-    out.push({ skuId, purchaseBarcode, purchaseProductName });
+    const purchaseSize = row.size != null ? String(row.size) : null;
+    out.push({ skuId, purchaseBarcode, purchaseProductName, purchaseSize });
   }
   return out;
 }
@@ -90,7 +103,7 @@ export async function resolvePurchaseBarcodesForStockReport(
   const { data, error } = await client
     .from("product_variants")
     .select(
-      "id, barcode, stock_qty, active, deleted_at, products!inner(product_name, deleted_at, product_type)",
+      "id, barcode, size, stock_qty, active, deleted_at, products!inner(product_name, deleted_at, product_type)",
     )
     .eq("organization_id", organizationId)
     .in("id", skuIds);
@@ -100,12 +113,13 @@ export async function resolvePurchaseBarcodesForStockReport(
   const byId = new Map<string, any>();
   for (const row of data || []) byId.set(row.id, row);
 
-  return links.map(({ skuId, purchaseBarcode, purchaseProductName }) => {
+  const resolutions: PurchaseBarcodeStockResolution[] = links.map(({ skuId, purchaseBarcode, purchaseProductName, purchaseSize }) => {
     const pv = byId.get(skuId);
     if (!pv) {
       return {
         purchaseBarcode,
         purchaseProductName,
+        purchaseSize,
         skuId,
         liveBarcode: null,
         productName: null,
@@ -129,13 +143,84 @@ export async function resolvePurchaseBarcodesForStockReport(
     return {
       purchaseBarcode,
       purchaseProductName,
+      purchaseSize,
       skuId,
       liveBarcode: pv.barcode != null ? String(pv.barcode) : null,
+      liveSize: pv.size != null ? String(pv.size) : null,
       productName: product?.product_name != null ? String(product.product_name) : null,
       stockQty: pv.stock_qty != null ? Number(pv.stock_qty) : null,
       excludeReason,
     };
   });
+
+  // The line's own SKU was deleted (duplicate masters cleaned up): add the live variant of
+  // the same product name + size so a box sticker still opens the item that holds the stock.
+  if (!resolutions.some((r) => !r.excludeReason)) {
+    try {
+      resolutions.push(...(await findLiveTwinsForDeletedLines(client, organizationId, resolutions)));
+    } catch {
+      /* lookup failure: keep today's behaviour */
+    }
+  }
+  return resolutions;
+}
+
+function isDeletedLine(r: PurchaseBarcodeStockResolution): boolean {
+  return /soft-deleted|no product_variants row/.test(r.excludeReason ?? "");
+}
+
+function escapeIlike(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
+/**
+ * Live variants with the same product name (and size, when the line has one) as purchase
+ * lines whose own SKU was deleted. Returned as extra resolutions marked viaTwin.
+ */
+export async function findLiveTwinsForDeletedLines(
+  client: PurchaseBarcodeStockClient,
+  organizationId: string,
+  resolutions: PurchaseBarcodeStockResolution[],
+): Promise<PurchaseBarcodeStockResolution[]> {
+  const deleted = resolutions.filter((r) => isDeletedLine(r) && normName(r.purchaseProductName));
+  if (!deleted.length) return [];
+  const out: PurchaseBarcodeStockResolution[] = [];
+  const seen = new Set<string>();
+  const names = Array.from(new Set(deleted.map((r) => (r.purchaseProductName ?? "").trim())));
+  for (const name of names.slice(0, 5)) {
+    const { data } = await client
+      .from("product_variants")
+      .select("id, barcode, size, stock_qty, created_at, products!inner(product_name, deleted_at, product_type)")
+      .eq("organization_id", organizationId)
+      .eq("active", true)
+      .is("deleted_at", null)
+      .is("products.deleted_at", null)
+      .ilike("products.product_name", escapeIlike(name))
+      .limit(50);
+    for (const line of deleted.filter((r) => (r.purchaseProductName ?? "").trim() === name)) {
+      for (const pv of data || []) {
+        const product = Array.isArray(pv.products) ? pv.products[0] : pv.products;
+        if (product?.product_type === "service") continue;
+        if (normName(product?.product_name) !== normName(name)) continue;
+        if (!sizesMatch(line.purchaseSize, pv.size)) continue;
+        if (seen.has(pv.id)) continue;
+        seen.add(pv.id);
+        out.push({
+          purchaseBarcode: line.purchaseBarcode,
+          purchaseProductName: line.purchaseProductName,
+          purchaseSize: line.purchaseSize,
+          skuId: pv.id,
+          liveBarcode: pv.barcode != null ? String(pv.barcode) : null,
+          liveSize: pv.size != null ? String(pv.size) : null,
+          productName: product?.product_name != null ? String(product.product_name) : null,
+          stockQty: pv.stock_qty != null ? Number(pv.stock_qty) : null,
+          excludeReason: null,
+          viaTwin: true,
+        });
+      }
+    }
+  }
+  return out;
 }
 
 /** True when the variant's current barcode is the one that was scanned. */
@@ -160,11 +245,23 @@ export function isSameItemAsPurchaseLine(
   return Boolean(a) && a === normName(r.productName);
 }
 
+function normSize(value: string | null | undefined): string {
+  return (value || "").replace(/\s+/g, "").trim().toLowerCase();
+}
+
+/** Sizes agree; a line without a size (or a free-size item) matches on name alone. */
+export function sizesMatch(lineSize: string | null | undefined, liveSize: string | null | undefined): boolean {
+  const a = normSize(lineSize);
+  if (!a || a === "none" || a === "freesize" || a === "free") return true;
+  return a === normSize(liveSize);
+}
+
 /**
  * SKUs a scanned barcode may open. A SKU whose live barcode is the scanned one always counts.
- * A label printed from a purchase bill (item later holds another barcode) counts only when the
- * bill line names the same product and exactly one SKU qualifies; a different product, or
- * several candidates, is never guessed.
+ * A label printed from a purchase bill (item later holds another barcode) counts when the bill
+ * line names the same product and the same size. Several such SKUs are duplicates of one item
+ * (e.g. KS Footwear masters entered twice): the one with the most stock is used. A different
+ * product or size is never guessed.
  */
 export function skuIdsServingScan(
   resolutions: PurchaseBarcodeStockResolution[],
@@ -173,10 +270,12 @@ export function skuIdsServingScan(
   const usable = resolutions.filter((r) => !r.excludeReason && r.skuId);
   const exact = usable.filter((r) => liveBarcodeMatchesScan(r.liveBarcode, scanned));
   if (exact.length > 0) return Array.from(new Set(exact.map((r) => r.skuId)));
-  const sameItem = Array.from(
-    new Set(usable.filter((r) => (r.liveBarcode || "").trim() && isSameItemAsPurchaseLine(r)).map((r) => r.skuId)),
+  const sameItem = usable.filter(
+    (r) => (r.liveBarcode || "").trim() && isSameItemAsPurchaseLine(r) && sizesMatch(r.purchaseSize, r.liveSize),
   );
-  return sameItem.length === 1 ? sameItem : [];
+  if (!sameItem.length) return [];
+  const best = [...sameItem].sort((a, b) => (Number(b.stockQty) || 0) - (Number(a.stockQty) || 0))[0];
+  return [best.skuId];
 }
 
 export type DivergentPurchaseBarcode = {
