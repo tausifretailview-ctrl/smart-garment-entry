@@ -70,7 +70,7 @@ import {
   displayVariantDashboardStock,
   isServiceProduct,
 } from "@/utils/productStockDisplay";
-import { distinctColorLabels, formatColorName } from "@/utils/formatColorName";
+import { colorChipStyle, distinctColorLabels } from "@/utils/formatColorName";
 
 interface ProductVariant {
   variant_id: string;
@@ -154,14 +154,18 @@ function ColorLabelRow({ labels }: { labels: string[] }) {
   }
   return (
     <div className="flex flex-nowrap items-center gap-1">
-      {labels.map((label) => (
-        <span
-          key={label}
-          className="inline-flex h-6 shrink-0 items-center rounded-md border border-slate-200 bg-white px-2 text-xs font-medium leading-none text-slate-700"
-        >
-          {label}
-        </span>
-      ))}
+      {labels.map((label) => {
+        const chip = colorChipStyle(label);
+        return (
+          <span
+            key={label}
+            style={{ backgroundColor: chip.backgroundColor, color: chip.color }}
+            className="inline-flex h-6 shrink-0 items-center rounded-md border border-black/15 px-2 text-xs font-semibold leading-none"
+          >
+            {label}
+          </span>
+        );
+      })}
     </div>
   );
 }
