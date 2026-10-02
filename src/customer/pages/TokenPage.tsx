@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isPushSetupProblem, pushFailureMessage } from "../lib/pushFailureMessage";
 import { useParams } from "react-router-dom";
 import {
   logEvent,
@@ -107,13 +108,9 @@ export default function TokenPage() {
       void logEvent(token, "push_opt_in");
     } else {
       setPushState("idle");
-      setPushMsg(
-        res.reason === "denied"
-          ? "Notifications are blocked for this site. Allow them in your browser settings, then try again."
-          : res.reason === "unsupported"
-            ? "This browser cannot receive notifications. Try Chrome on Android."
-            : `Could not turn on notifications. Please try again. (${res.reason ?? "unknown"})`,
-      );
+      // Setup problems (e.g. a cut-off VAPID key in the deploy) are ours to fix: log the code for support.
+      if (isPushSetupProblem(res.reason)) console.warn("Customer push setup problem:", res.reason);
+      setPushMsg(pushFailureMessage(res.reason));
     }
   }, [subdomain, token]);
 
