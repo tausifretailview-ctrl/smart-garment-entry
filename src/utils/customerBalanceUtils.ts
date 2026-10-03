@@ -829,11 +829,7 @@ export function splitSaleLinkedReceiptRows(
         cur.cash += cashAmt;
         cur.discount += discAmt;
         const saleDate = saleDatesById?.get(r.reference_id);
-        const sameDay =
-          !saleDatesById ||
-          !saleDate ||
-          !r.voucher_date ||
-          String(r.voucher_date).slice(0, 10) === String(saleDate).slice(0, 10);
+        const sameDay = !saleDatesById || isSaleDayReceipt(r.voucher_date, saleDate);
         if (sameDay) cur.cashSameDay = (cur.cashSameDay || 0) + cashAmt;
       }
       map.set(r.reference_id, cur);
@@ -842,6 +838,25 @@ export function splitSaleLinkedReceiptRows(
     }
   }
   return map;
+}
+
+/**
+ * A receipt dated on the sale's own day (UTC date of sale_date, or its India date) stands for
+ * the counter tender already stored in cash/card/upi; later receipts are extra payments.
+ * SQL twin: public._is_sale_day_receipt (migration 20261231200000).
+ */
+export function isSaleDayReceipt(
+  voucherDate: string | null | undefined,
+  saleDate: string | null | undefined,
+): boolean {
+  if (!voucherDate || !saleDate) return true;
+  const v = String(voucherDate).slice(0, 10);
+  const raw = String(saleDate);
+  if (v === raw.slice(0, 10)) return true;
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t) || raw.length <= 10) return false;
+  const istYmd = new Date(t + 330 * 60_000).toISOString().slice(0, 10);
+  return v === istYmd;
 }
 
 /**
