@@ -10173,6 +10173,10 @@ export type Database = {
         Args: { p_description: string; p_organization_id: string }
         Returns: boolean
       }
+      _is_sale_day_receipt: {
+        Args: { p_sale_date: string; p_voucher_date: string }
+        Returns: boolean
+      }
       _is_settlement_memo_receipt: {
         Args: { p_description: string; p_payment_method: string }
         Returns: boolean
@@ -10211,6 +10215,15 @@ export type Database = {
       _product_is_orphan: {
         Args: { p_organization_id: string; p_product_id: string }
         Returns: boolean
+      }
+      _sale_counter_tender_settled: {
+        Args: {
+          p_net: number
+          p_sale_date: string
+          p_sale_id: string
+          p_tender: number
+        }
+        Returns: number
       }
       _sale_return_remaining_credit_for_balance: {
         Args: {
