@@ -2080,8 +2080,8 @@ export default function POSSales() {
           adjustedBy: user?.id ?? null,
           customerName,
         });
-        if (!credit.ok) {
-          toast.error("Save Failed", { description: credit.message });
+        if (credit.ok === false) {
+          toast.error("Save Failed", { description: (credit as { message?: string }).message });
           return;
         }
         if (credit.changed) {
