@@ -60,7 +60,10 @@ BEGIN
     AND s.organization_id = NEW.organization_id
     AND s.deleted_at IS NULL
     AND COALESCE(s.is_cancelled, false) = false
-    AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold');
+    AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
+  -- Serialise receipts on the same bill: a second concurrent receipt waits here, then reads the
+  -- first one's committed row below (READ COMMITTED takes a new snapshot per statement).
+  FOR UPDATE OF s;
   IF NOT FOUND THEN
     RETURN NEW;  -- not a live bill (customer-keyed / opening-balance receipt)
   END IF;
@@ -114,8 +117,10 @@ REVOKE ALL ON FUNCTION public.guard_receipt_not_over_bill() FROM PUBLIC, anon, a
 
 DROP TRIGGER IF EXISTS trg_guard_receipt_not_over_bill ON public.voucher_entries;
 CREATE TRIGGER trg_guard_receipt_not_over_bill
+  -- description is listed: a row saved as a memo (skipped) and then renamed to a normal receipt
+  -- must be checked again.
   BEFORE INSERT OR UPDATE OF total_amount, discount_amount, reference_id, reference_type,
-    voucher_date, voucher_type, deleted_at, payment_method
+    voucher_date, voucher_type, deleted_at, payment_method, description, organization_id
   ON public.voucher_entries
   FOR EACH ROW
   EXECUTE FUNCTION public.guard_receipt_not_over_bill();

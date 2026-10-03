@@ -91,6 +91,9 @@ describe("migration + scan wiring", () => {
     expect(mig).toMatch(/CREATE TRIGGER trg_guard_receipt_not_over_bill\s+BEFORE INSERT OR UPDATE/);
     expect(mig).toContain("public._is_sale_day_receipt(NEW.voucher_date, v_sale.sale_date)");
     expect(mig).toContain("LEAST(GREATEST(0, v_tender - v_other_same_day), v_cur_paid)");
+    // security review: serialise per bill, and re-check when a memo row is renamed
+    expect(mig).toContain("FOR UPDATE OF s;");
+    expect(mig).toMatch(/UPDATE OF [^;]*\bdescription\b/);
   });
 
   it("cap migration: counter tender never credits a bill beyond net, everywhere", () => {
