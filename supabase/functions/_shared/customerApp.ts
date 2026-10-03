@@ -110,6 +110,40 @@ export function buildCustomerTransactions(
 }
 
 /** Client IP for login rate limits: platform headers first, then the first X-Forwarded-For hop. */
+export type CustomerAppShop = {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  logo_url: string | null;
+};
+
+/**
+ * Public shop header for the customer app (no session): name, address, phone and logo from
+ * the shop's settings. Logo only when it is an https URL; WhatsApp is the 91-prefixed mobile.
+ */
+export function shopProfileFromSettings(
+  orgName: string,
+  settings: {
+    business_name?: string | null;
+    address?: string | null;
+    mobile_number?: string | null;
+    bill_barcode_settings?: unknown;
+  } | null,
+): CustomerAppShop {
+  const logoRaw = (settings?.bill_barcode_settings as { logo_url?: unknown } | null | undefined)?.logo_url;
+  const logo = typeof logoRaw === "string" && /^https:\/\//i.test(logoRaw.trim()) ? logoRaw.trim().slice(0, 500) : null;
+  const phone = (settings?.mobile_number ?? "").trim() || null;
+  const last10 = phoneLast10(phone);
+  return {
+    name: (settings?.business_name ?? "").trim() || orgName,
+    address: (settings?.address ?? "").replace(/\s+/g, " ").trim().slice(0, 200) || null,
+    phone,
+    whatsapp: last10 ? `91${last10}` : null,
+    logo_url: logo,
+  };
+}
+
 export function clientIp(headers: { get(name: string): string | null }): string {
   const ip =
     headers.get("cf-connecting-ip") ||

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { BottomNav, PoweredBy, ShopHeader, Skeleton } from "../components/AppChrome";
 import InvoiceCard from "../components/InvoiceCard";
 import LoginCard from "../components/LoginCard";
 import {
@@ -13,6 +14,8 @@ import {
   fetchTransactions,
   getSessionToken,
   logout,
+  readCache,
+  writeCache,
   type AccountSummary,
   type BillListRow,
   type BillSale,
@@ -32,9 +35,14 @@ import {
 } from "../lib/notify";
 import { pushFailureMessage } from "../lib/pushFailureMessage";
 
-/** Load data for a logged-in page; shows login when there is no (or an expired) session. */
-function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
+/**
+ * Load data for a logged-in page; shows login when there is no (or an expired) session.
+ * With a cacheKey the last answer shows at once and is refreshed in the background.
+ */
+function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = [], cacheKey?: string) {
+  const [data, setData] = useState<T | null>(() =>
+    cacheKey && getSessionToken() ? readCache<T>(cacheKey) : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [needLogin, setNeedLogin] = useState(!getSessionToken());
   const [tick, setTick] = useState(0);
@@ -45,14 +53,20 @@ function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = []) {
       return;
     }
     let cancelled = false;
+    const fetchedWith = getSessionToken();
     setNeedLogin(false);
     setError(null);
     load()
-      .then((d) => !cancelled && setData(d))
+      .then((d) => {
+        if (cancelled) return;
+        if (cacheKey) writeCache(cacheKey, d, fetchedWith);
+        setData(d);
+      })
       .catch((e: unknown) => {
         if (cancelled) return;
         if (e instanceof AccountError && e.code === "session_expired") setNeedLogin(true);
-        else setError(accountErrorMessage(e));
+        // Keep showing cached data on a network blip; only show the error with nothing to show.
+        else if (!(cacheKey && readCache(cacheKey))) setError(accountErrorMessage(e));
       });
     return () => {
       cancelled = true;
@@ -64,45 +78,54 @@ function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = []) {
   return { data, error, needLogin, reload };
 }
 
-function AccountNav() {
-  const tabs: Array<[string, string]> = [
-    ["/account", "Home"],
-    ["/bills", "Bills"],
-    ["/returns", "Returns"],
-    ["/transactions", "History"],
-    ["/offers", "Offers"],
-  ];
-  return (
-    <nav className="c-nav no-print">
-      {tabs.map(([to, label]) => (
-        <NavLink key={to} to={to} end className={({ isActive }) => (isActive ? "on" : "")}>
-          {label}
-        </NavLink>
-      ))}
-    </nav>
-  );
+/** Warm the other tabs in the background so they open instantly. */
+function prefetchTabs() {
+  const fetchedWith = getSessionToken();
+  if (!fetchedWith) return;
+  // writeCache drops the answer if this customer logged out / someone else logged in meanwhile.
+  const warm = <T,>(key: string, load: () => Promise<T>) =>
+    load()
+      .then((d) => writeCache(key, d, fetchedWith))
+      .catch(() => undefined);
+  void warm("bills:0", () => fetchBills(0));
+  void warm("offers", fetchOffers);
+  void warm("transactions", fetchTransactions);
+  void warm("returns", fetchReturns);
 }
 
 function Shell({
   state,
+  title,
+  skeleton,
   children,
 }: {
   state: { error: string | null; needLogin: boolean; reload: () => void; loading: boolean };
+  title?: string;
+  skeleton?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="c-wrap">
-      <AccountNav />
-      {state.needLogin ? (
-        <LoginCard onDone={state.reload} />
-      ) : state.error ? (
-        <div className="c-err">{state.error}</div>
-      ) : state.loading ? (
-        <div className="c-loading">Loading…</div>
-      ) : (
-        children
-      )}
-    </div>
+    <>
+      <ShopHeader />
+      <div className={state.needLogin ? "c-wrap" : "c-wrap c-wrap-tabs"}>
+        {title && !state.needLogin ? <h1 className="c-page-title">{title}</h1> : null}
+        {state.needLogin ? (
+          <LoginCard onDone={state.reload} />
+        ) : state.error ? (
+          <div className="c-err">
+            {state.error}
+            <button type="button" className="c-btn c-btn-ghost" onClick={state.reload}>
+              Try again
+            </button>
+          </div>
+        ) : state.loading ? (
+          (skeleton ?? <Skeleton />)
+        ) : (
+          children
+        )}
+      </div>
+      {state.needLogin ? null : <BottomNav />}
+    </>
   );
 }
 
@@ -147,42 +170,50 @@ function PushCard() {
 
 export function AccountPage() {
   const navigate = useNavigate();
-  const { data, error, needLogin, reload } = useAccountData<AccountSummary>(fetchSummary);
+  const { data, error, needLogin, reload } = useAccountData<AccountSummary>(fetchSummary, [], "summary");
   const due = data ? data.balance.outstanding - data.balance.advance : 0;
+  useEffect(() => {
+    if (getSessionToken()) prefetchTabs();
+  }, [needLogin]);
+  const firstName = (data?.customer.name || "").trim().split(/\s+/)[0] || "Customer";
   return (
-    <Shell state={{ error, needLogin, reload, loading: !data }}>
+    <Shell state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton hero rows={3} />}>
       {data ? (
         <>
-          <div className="c-card">
-            <div className="c-muted" style={{ fontSize: 12 }}>
-              {data.shop}
+          <div className="c-hero">
+            <div className="c-hero-hi">Hello, {firstName}</div>
+            <div className="c-hero-phone">{data.customer.phone}</div>
+            <div className="c-hero-amt">
+              <span>{due > 0 ? "Amount due" : due < 0 ? "Your advance" : "All paid up"}</span>
+              <b>{formatINR(Math.abs(due))}</b>
             </div>
-            <h2 style={{ margin: "4px 0 2px", fontSize: 19 }}>Hello, {data.customer.name || "Customer"}</h2>
-            <div className="c-muted">{data.customer.phone}</div>
+            {data.customer.points > 0 ? <div className="c-hero-pts">★ {data.customer.points} reward points</div> : null}
           </div>
-          <div className="c-card">
-            <div className="c-stats">
-              <div className="c-stat">
-                <span>Total shopping</span>
-                <b>{formatINR(data.totals.shopping)}</b>
-              </div>
-              <div className="c-stat">
-                <span>Bills</span>
-                <b>{data.totals.bills}</b>
-              </div>
-              <div className="c-stat">
-                <span>Items bought</span>
-                <b>{data.totals.items}</b>
-              </div>
-              <div className="c-stat">
-                <span>Returns</span>
-                <b>
-                  {data.totals.returns} · {formatINR(data.totals.returnAmount)}
-                </b>
-              </div>
+
+          <div className="c-stats">
+            <Link to="/bills" className="c-stat">
+              <span>Total shopping</span>
+              <b>{formatINR(data.totals.shopping)}</b>
+            </Link>
+            <Link to="/bills" className="c-stat">
+              <span>Bills</span>
+              <b>{data.totals.bills}</b>
+            </Link>
+            <div className="c-stat">
+              <span>Items bought</span>
+              <b>{data.totals.items}</b>
             </div>
+            <Link to="/returns" className="c-stat">
+              <span>Returns</span>
+              <b>
+                {data.totals.returns}
+                {data.totals.returnAmount ? <small> · {formatINR(data.totals.returnAmount)}</small> : null}
+              </b>
+            </Link>
           </div>
+
           <div className="c-card">
+            <div className="c-section">Balance</div>
             <div className="c-totals">
               <div className="row">
                 <span>Outstanding</span>
@@ -198,16 +229,6 @@ export function AccountPage() {
                   <span>{formatINR(data.balance.creditNotes)}</span>
                 </div>
               ) : null}
-              {data.customer.points > 0 ? (
-                <div className="row">
-                  <span>Reward points</span>
-                  <span>{data.customer.points}</span>
-                </div>
-              ) : null}
-              <div className="row grand">
-                <span>{due >= 0 ? "Total due" : "Your advance"}</span>
-                <span>{formatINR(Math.abs(due))}</span>
-              </div>
             </div>
           </div>
           <PushCard />
@@ -221,6 +242,7 @@ export function AccountPage() {
           >
             Log out
           </button>
+          <PoweredBy />
         </>
       ) : null}
     </Shell>
@@ -230,12 +252,16 @@ export function AccountPage() {
 export function BillsPage() {
   const [page, setPage] = useState(0);
   const [rows, setRows] = useState<BillListRow[]>([]);
-  const { data, error, needLogin, reload } = useAccountData(() => fetchBills(page), [page]);
+  const { data, error, needLogin, reload } = useAccountData(
+    () => fetchBills(page),
+    [page],
+    page === 0 ? "bills:0" : undefined,
+  );
   useEffect(() => {
     if (data) setRows((prev) => (page === 0 ? data.bills : [...prev, ...data.bills]));
   }, [data, page]);
   return (
-    <Shell state={{ error, needLogin, reload, loading: !data && rows.length === 0 }}>
+    <Shell title="Your bills" state={{ error, needLogin, reload, loading: !data && rows.length === 0 }}>
       <div className="c-card c-list">
         {rows.length === 0 ? <p className="c-muted">No bills yet.</p> : null}
         {rows.map((b) => {
@@ -250,7 +276,7 @@ export function BillsPage() {
               </span>
               <span style={{ textAlign: "right" }}>
                 <b>{formatINR(b.net_amount)}</b>
-                <div className={due > 0 ? "c-due" : "c-muted"}>{due > 0 ? `${formatINR(due)} due` : "Paid"}</div>
+                <div className={due > 0 ? "c-due" : "c-paid"}>{due > 0 ? `${formatINR(due)} due` : "Paid"}</div>
               </span>
             </Link>
           );
@@ -279,7 +305,7 @@ export function BillView({ saleId }: { saleId: string }) {
   const { data, error, needLogin, reload } = useAccountData<{ sale: BillSale }>(() => fetchBill(saleId), [saleId]);
   if (needLogin) return <LoginCard title="Log in to see your full bill" onDone={reload} />;
   if (error) return <div className="c-err">{error}</div>;
-  if (!data) return <div className="c-loading">Loading your bill…</div>;
+  if (!data) return <Skeleton rows={5} />;
   return (
     <>
       <InvoiceCard sale={data.sale} />
@@ -298,17 +324,20 @@ export function BillView({ saleId }: { saleId: string }) {
 export function BillPage() {
   const { saleId = "" } = useParams();
   return (
-    <div className="c-wrap">
-      <AccountNav />
-      <BillView saleId={saleId} />
-    </div>
+    <>
+      <ShopHeader />
+      <div className="c-wrap c-wrap-tabs">
+        <BillView saleId={saleId} />
+      </div>
+      <BottomNav />
+    </>
   );
 }
 
 export function ReturnsPage() {
-  const { data, error, needLogin, reload } = useAccountData<{ returns: ReturnRow[] }>(fetchReturns);
+  const { data, error, needLogin, reload } = useAccountData<{ returns: ReturnRow[] }>(fetchReturns, [], "returns");
   return (
-    <Shell state={{ error, needLogin, reload, loading: !data }}>
+    <Shell title="Returns" state={{ error, needLogin, reload, loading: !data }}>
       <div className="c-card c-list">
         {data && data.returns.length === 0 ? <p className="c-muted">No returns.</p> : null}
         {data?.returns.map((r) => (
@@ -334,9 +363,9 @@ export function ReturnsPage() {
 const TXN_LABEL: Record<TxnRow["kind"], string> = { bill: "Bill", payment: "Payment", return: "Return" };
 
 export function TransactionsPage() {
-  const { data, error, needLogin, reload } = useAccountData<{ transactions: TxnRow[] }>(fetchTransactions);
+  const { data, error, needLogin, reload } = useAccountData<{ transactions: TxnRow[] }>(fetchTransactions, [], "transactions");
   return (
-    <Shell state={{ error, needLogin, reload, loading: !data }}>
+    <Shell title="History" state={{ error, needLogin, reload, loading: !data }}>
       <div className="c-card c-list">
         {data && data.transactions.length === 0 ? <p className="c-muted">No transactions yet.</p> : null}
         {data?.transactions.map((t, i) => {
@@ -357,7 +386,7 @@ export function TransactionsPage() {
                   {formatINR(t.amount)}
                 </b>
                 {t.kind === "bill" ? (
-                  <div className={t.due ? "c-due" : "c-muted"}>{t.due ? `${formatINR(t.due)} due` : "Paid"}</div>
+                  <div className={t.due ? "c-due" : "c-paid"}>{t.due ? `${formatINR(t.due)} due` : "Paid"}</div>
                 ) : null}
               </span>
             </>
@@ -378,9 +407,9 @@ export function TransactionsPage() {
 }
 
 export function OffersPage() {
-  const { data, error, needLogin, reload } = useAccountData<{ offers: OfferRow[] }>(fetchOffers);
+  const { data, error, needLogin, reload } = useAccountData<{ offers: OfferRow[] }>(fetchOffers, [], "offers");
   return (
-    <Shell state={{ error, needLogin, reload, loading: !data }}>
+    <Shell title="Offers" state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton rows={2} />}>
       {data && data.offers.length === 0 ? (
         <div className="c-card c-center c-muted">No offers right now. We'll notify you about new ones.</div>
       ) : null}
