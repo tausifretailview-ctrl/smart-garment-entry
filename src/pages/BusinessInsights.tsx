@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ArrowLeft, LineChart } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { isDeadSlowMovingInsightsState } from "@/utils/dashboardStockHealth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,12 +47,16 @@ function defaultDateRange(): { startDate: string; endDate: string } {
 
 export default function BusinessInsights() {
   const { orgNavigate } = useOrgNavigation();
+  const location = useLocation();
+  const openDeadSlowMoving = isDeadSlowMovingInsightsState(location.state);
   const initialRange = useMemo(() => defaultDateRange(), []);
   const [startDate, setStartDate] = useState(initialRange.startDate);
   const [endDate, setEndDate] = useState(initialRange.endDate);
-  const [selectedTab, setSelectedTab] = useState<InsightsTabId>("executive-summary");
+  const [selectedTab, setSelectedTab] = useState<InsightsTabId>(
+    openDeadSlowMoving ? "stock-health" : "executive-summary",
+  );
   const [visitedTabs, setVisitedTabs] = useState<Set<InsightsTabId>>(
-    () => new Set(["executive-summary"]),
+    () => new Set(openDeadSlowMoving ? ["stock-health"] : ["executive-summary"]),
   );
 
   const shouldMountTab = useCallback(
@@ -63,6 +69,11 @@ export default function BusinessInsights() {
     setSelectedTab(id);
     setVisitedTabs((prev) => (prev.has(id) ? prev : new Set([...prev, id])));
   }, []);
+
+  useEffect(() => {
+    if (!openDeadSlowMoving) return;
+    handleTabChange("stock-health");
+  }, [openDeadSlowMoving, location.key, handleTabChange]);
 
   const showSharedDateRange = selectedTab !== "quiet-customers" && selectedTab !== "reorder-analysis";
 
@@ -161,7 +172,12 @@ export default function BusinessInsights() {
           </TabsContent>
 
           <TabsContent value="stock-health" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
-            {shouldMountTab("stock-health") ? <StockHealthTab /> : null}
+            {shouldMountTab("stock-health") ? (
+              <StockHealthTab
+                initialSubTab={openDeadSlowMoving ? "slow-moving" : "low-stock"}
+                focusKey={openDeadSlowMoving ? location.key : undefined}
+              />
+            ) : null}
           </TabsContent>
 
           <TabsContent value="supplier-analysis" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">

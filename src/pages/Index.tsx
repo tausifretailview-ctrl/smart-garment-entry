@@ -49,6 +49,7 @@ import {
   Layers,
   Percent,
   Building2,
+  Archive,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -56,6 +57,11 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { DashboardMetricCard as AnimatedMetricCard } from "@/components/dashboard/DashboardMetricCard";
+import { useSlowMovingStock } from "@/hooks/useBusinessInsights";
+import {
+  DASHBOARD_SLOW_MOVING_IDLE_DAYS,
+  INSIGHTS_DEAD_SLOW_MOVING_STATE,
+} from "@/utils/dashboardStockHealth";
 import {
   Select,
   SelectContent,
@@ -480,6 +486,19 @@ const DesktopDashboard = () => {
       }
     },
   });
+
+  const {
+    data: slowMovingStock,
+    isLoading: slowMovingLoading,
+    isFetching: slowMovingFetching,
+    isError: slowMovingError,
+  } = useSlowMovingStock(
+    currentOrganization?.id,
+    DASHBOARD_SLOW_MOVING_IDLE_DAYS,
+    metricsQueryEnabled && auxiliaryMetricsEnabled,
+  );
+  const slowMovingCount = slowMovingStock?.length ?? 0;
+  const slowMovingPending = slowMovingStock === undefined && !slowMovingError;
 
   const displayedCustomerSegments = useMemo(
     () =>
@@ -1141,6 +1160,17 @@ const DesktopDashboard = () => {
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
+            />
+            <AnimatedMetricCard
+              title="Stock Health"
+              value={slowMovingError ? 0 : slowMovingCount}
+              icon={Archive}
+              accentColor="bg-amber-500"
+              onClick={() => navigate("/insights", { state: INSIGHTS_DEAD_SLOW_MOVING_STATE })}
+              tooltip="In-stock variants with no sale in 60 days. Click to open Dead / Slow Moving."
+              caption="Dead / Slow Moving"
+              placeholder={showPlaceholders || (slowMovingPending && (slowMovingLoading || !auxiliaryMetricsEnabled))}
+              loading={slowMovingFetching && slowMovingStock !== undefined}
             />
             </div>
           </div>

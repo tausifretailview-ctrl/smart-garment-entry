@@ -53,4 +53,5 @@ export const DASHBOARD_REFRESH_QUERY_KEYS = [
   "top-products",
   "customer-segment-counts",
   "organization-receivables",
+  "insights-slow-moving-stock",
 ] as const;
