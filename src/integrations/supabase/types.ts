@@ -1453,6 +1453,48 @@ export type Database = {
           },
         ]
       }
+      customer_app_login_attempts: {
+        Row: {
+          created_at: string
+          id: number
+          ip: string
+          organization_id: string
+          phone_last10: string
+          success: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          ip: string
+          organization_id: string
+          phone_last10: string
+          success?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          ip?: string
+          organization_id?: string
+          phone_last10?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_app_login_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_app_login_attempts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       customer_balance_adjustments: {
         Row: {
           adjustment_date: string
@@ -4124,6 +4166,174 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_alert_settings: {
+        Row: {
+          cashier_enabled: boolean
+          cashier_every_hours: number
+          day_end_enabled: boolean
+          day_end_time: string
+          enabled: boolean
+          invoice_min_amount: number
+          invoice_mode: string
+          low_stock_enabled: boolean
+          low_stock_threshold: number
+          low_stock_times: string[]
+          organization_id: string
+          shop_close: string
+          shop_open: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cashier_enabled?: boolean
+          cashier_every_hours?: number
+          day_end_enabled?: boolean
+          day_end_time?: string
+          enabled?: boolean
+          invoice_min_amount?: number
+          invoice_mode?: string
+          low_stock_enabled?: boolean
+          low_stock_threshold?: number
+          low_stock_times?: string[]
+          organization_id: string
+          shop_close?: string
+          shop_open?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cashier_enabled?: boolean
+          cashier_every_hours?: number
+          day_end_enabled?: boolean
+          day_end_time?: string
+          enabled?: boolean
+          invoice_min_amount?: number
+          invoice_mode?: string
+          low_stock_enabled?: boolean
+          low_stock_threshold?: number
+          low_stock_times?: string[]
+          organization_id?: string
+          shop_close?: string
+          shop_open?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_alert_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_alert_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      owner_push_devices: {
+        Row: {
+          created_at: string
+          device_label: string | null
+          fcm_token: string
+          id: string
+          inactive_reason: string | null
+          last_seen_at: string
+          organization_id: string
+          platform: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_label?: string | null
+          fcm_token: string
+          id?: string
+          inactive_reason?: string | null
+          last_seen_at?: string
+          organization_id: string
+          platform?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_label?: string | null
+          fcm_token?: string
+          id?: string
+          inactive_reason?: string | null
+          last_seen_at?: string
+          organization_id?: string
+          platform?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_push_devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_push_devices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
+      owner_push_log: {
+        Row: {
+          created_at: string
+          failed_count: number
+          id: string
+          kind: string
+          organization_id: string
+          ref: string
+          sent_count: number
+        }
+        Insert: {
+          created_at?: string
+          failed_count?: number
+          id?: string
+          kind: string
+          organization_id: string
+          ref: string
+          sent_count?: number
+        }
+        Update: {
+          created_at?: string
+          failed_count?: number
+          id?: string
+          kind?: string
+          organization_id?: string
+          ref?: string
+          sent_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "owner_push_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "owner_push_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_counts"
+            referencedColumns: ["organization_id"]
+          },
+        ]
+      }
       payment_gateway_secrets: {
         Row: {
           created_at: string
@@ -6681,6 +6891,7 @@ export type Database = {
           einvoice_qr_code: string | null
           einvoice_status: string | null
           einvoice_test_mode: boolean | null
+          finance_amount: number
           flat_discount_amount: number
           flat_discount_percent: number
           gross_amount: number
@@ -6747,6 +6958,7 @@ export type Database = {
           einvoice_qr_code?: string | null
           einvoice_status?: string | null
           einvoice_test_mode?: boolean | null
+          finance_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
@@ -6813,6 +7025,7 @@ export type Database = {
           einvoice_qr_code?: string | null
           einvoice_status?: string | null
           einvoice_test_mode?: boolean | null
+          finance_amount?: number
           flat_discount_amount?: number
           flat_discount_percent?: number
           gross_amount?: number
@@ -10341,6 +10554,7 @@ export type Database = {
         }[]
       }
       dispatch_nightly_backups: { Args: never; Returns: number }
+      dispatch_owner_alerts: { Args: never; Returns: number }
       fix_missing_mrp_for_org: { Args: { p_org_id: string }; Returns: number }
       fix_stock_discrepancies: {
         Args: { p_organization_id: string }
@@ -10753,6 +10967,20 @@ export type Database = {
         Returns: Json
       }
       get_org_public_info: { Args: { p_slug: string }; Returns: Json }
+      get_org_push_subscriptions: {
+        Args: { p_organization_id: string }
+        Returns: {
+          confirmed_at: string
+          created_at: string
+          customer_id: string
+          customer_phone_last10: string
+          id: string
+          inactive_reason: string
+          last_seen_at: string
+          receives_invoices: boolean
+          status: string
+        }[]
+      }
       get_org_whatsapp_stats: {
         Args: { p_end_date?: string; p_start_date?: string }
         Returns: {
