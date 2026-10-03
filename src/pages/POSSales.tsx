@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
@@ -95,7 +96,7 @@ import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
-import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot, grossOutstandingFromFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   applyExistingAdvanceToSale,
   capPosAdvanceApplyAmount,
@@ -765,7 +766,14 @@ export default function POSSales() {
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
   // Invoice leftover for receipts and the customer search badge. Unused advance stays in Adv.
-  const { grossOutstanding: customerLedgerBalance, unusedAdvanceTotal: customerUnusedAdvance, openingBalance: customerOpeningBalance } = useCustomerBalance(
+  const {
+    grossOutstanding: customerLedgerBalance,
+    unusedAdvanceTotal: customerUnusedAdvance,
+    openingBalance: customerOpeningBalance,
+    netPosition: customerNetBalance,
+    cnAvailableTotal: customerPendingCn,
+    isLoading: isCustomerBalanceLoading,
+  } = useCustomerBalance(
     customerId || null,
     currentOrganization?.id || null
   );
@@ -5849,7 +5857,7 @@ export default function POSSales() {
             currentOrganization.id,
             custId,
           );
-          customerBalance = Math.round(Number(grossOutstandingFromFinancialSnapshot(snap)) || 0);
+          customerBalance = Math.round(Number(snap.outstandingDr) || 0);
         } catch {
           customerBalance = 0;
         }
@@ -7586,9 +7594,8 @@ export default function POSSales() {
                       <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
                           const snap = getCustomerSnapshot(customer.id);
-                          const balance = posFooterCustomerBalance(
-                            snap ? grossOutstandingFromFinancialSnapshot(snap) : 0,
-                          );
+                          // Net balance (after advance and pending CN), same as the balance badge.
+                          const balance = Math.round(Number(snap?.outstandingDr) || 0);
                           const advanceAmt = getCustomerAdvance(customer.id);
                           const creditNoteAmt = getCustomerCreditNote(customer.id);
                           return (
@@ -8347,6 +8354,19 @@ export default function POSSales() {
                 />
               </div>
             </div>
+            {customerId && (
+              // The one customer balance (same as Ledger / Payments / Settle): Net, with CN and advance beside it.
+              <div className="px-2 pt-2 flex justify-end" data-testid="pos-customer-balance">
+                <CustomerBalanceBadge
+                  grossOutstanding={customerLedgerBalance}
+                  unusedAdvance={customerUnusedAdvance}
+                  pendingCn={customerPendingCn}
+                  netPosition={customerNetBalance}
+                  isLoading={isCustomerBalanceLoading}
+                  customerName={customerName}
+                />
+              </div>
+            )}
             {customerId && (() => {
               const customer = customers?.find((c: any) => c.id === customerId);
               const customerMasterDiscount = customer?.discount_percent || 0;

@@ -38,6 +38,9 @@ import {
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import { useCustomerFinancialSnapshot } from "@/hooks/useCustomerFinancialSnapshot";
+import { useCustomerAccountState } from "@/hooks/useCustomerAccountState";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
+import { customerBalanceBreakdown, formatNetPositionLabel } from "@/utils/customerAccountStateView";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
 import {
@@ -210,10 +213,15 @@ export function SettleCustomerAccountDialog({
   });
 
   const {
-    outstandingDr: snapshotOutstanding,
     advanceAvailable: snapshotAdvance,
     cnAvailableTotal: snapshotCnTotal,
   } = useCustomerFinancialSnapshot(open ? customerId : null, organizationId);
+  // The customer's balance: same source and breakdown as Ledger, Payments, POS and Sale screens.
+  const { state: accountState, isLoading: accountLoading } = useCustomerAccountState(
+    open ? customerId : null,
+    organizationId,
+  );
+  const balance = customerBalanceBreakdown(accountState);
 
   const selectedInvoiceRows = useMemo(() => {
     return (pendingInvoices || [])
@@ -232,7 +240,6 @@ export function SettleCustomerAccountDialog({
 
   const availableAdvance = snapshotAdvance || advanceData?.total || 0;
   const availableCN = snapshotCnTotal || cnData?.total || 0;
-  const trueOutstanding = snapshotOutstanding;
   const discountToApply = Math.max(0, parseFloat(discountAmount) || 0);
 
   const dryAllocation = useMemo(
@@ -639,24 +646,20 @@ export function SettleCustomerAccountDialog({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-center">
-                    <p className="text-[10px] uppercase font-semibold text-red-700">Outstanding</p>
-                    <p className="text-lg font-bold text-red-800 tabular-nums">
-                      {invoicesLoading ? "…" : fmt(trueOutstanding || 0)}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-center">
-                    <p className="text-[10px] uppercase font-semibold text-purple-700">Advance</p>
-                    <p className="text-lg font-bold text-purple-800 tabular-nums">{fmt(availableAdvance)}</p>
-                  </div>
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
-                    <p className="text-[10px] uppercase font-semibold text-amber-700">CN Available</p>
-                    <p className="text-lg font-bold text-amber-800 tabular-nums">{fmt(availableCN)}</p>
-                    {availableCN <= 0.01 && (
-                      <p className="text-[10px] text-amber-900/80 mt-1">No CN pool — use Adjust CN on invoice</p>
-                    )}
-                  </div>
+                <CustomerAccountSummaryStrip
+                  organizationId={organizationId}
+                  customerId={customerId}
+                  customerName={customerName}
+                  compact
+                />
+                <div className="flex flex-wrap gap-2 text-xs" data-testid="settle-available-pools">
+                  <span className="rounded border border-purple-200 bg-purple-50 px-2 py-1 text-purple-800">
+                    Advance to use now <span className="font-semibold tabular-nums">{fmt(availableAdvance)}</span>
+                  </span>
+                  <span className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                    CN to use now <span className="font-semibold tabular-nums">{fmt(availableCN)}</span>
+                    {availableCN <= 0.01 && <span className="ml-1 text-amber-900/80">(none — use Adjust CN on invoice)</span>}
+                  </span>
                 </div>
 
                 <div>
@@ -817,9 +820,18 @@ export function SettleCustomerAccountDialog({
                     ))}
                     <Separator />
                     <div className="flex justify-between font-medium">
-                      <span>New outstanding (approx.)</span>
+                      <span>Bills due after</span>
                       <span className="tabular-nums">
-                        {fmt(Math.max(0, (trueOutstanding || 0) - selectedTotal))}
+                        {accountLoading ? "…" : fmt(Math.max(0, balance.billsDue - liveTotals.total))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-medium" data-testid="settle-net-after">
+                      <span>Net balance after</span>
+                      <span className="tabular-nums">
+                        {/* Advance and CN only move credit onto bills; cash and discount change what is owed. */}
+                        {accountLoading
+                          ? "…"
+                          : formatNetPositionLabel(balance.net - cashEntered - liveTotals.discount)}
                       </span>
                     </div>
                   </div>

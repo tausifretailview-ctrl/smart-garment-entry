@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
@@ -4859,6 +4860,14 @@ const POSDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedSaleForPayment?.customer_id && currentOrganization?.id && (
+              <CustomerAccountSummaryStrip
+                organizationId={currentOrganization.id}
+                customerId={selectedSaleForPayment.customer_id}
+                customerName={selectedSaleForPayment.customer_name}
+                compact
+              />
+            )}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Customer:</span>
