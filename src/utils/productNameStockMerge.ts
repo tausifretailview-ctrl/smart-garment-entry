@@ -112,6 +112,11 @@ export async function findNameMergeGroups(organizationId: string): Promise<NameM
   return groupProductsByNameKey(await fetchProductsForNameMerge(organizationId));
 }
 
+/** Merging moves stock and bills and soft-deletes products: admins and managers only (as the DB enforces). */
+export function canMergeProducts(role: string | null | undefined): boolean {
+  return role === "admin" || role === "manager";
+}
+
 /**
  * Merge the chosen products into `keepId` with merge_products (moves sizes, stock,
  * bills and history; the source goes to the Recycle Bin), then give the kept
@@ -123,6 +128,18 @@ export async function mergeProductsIntoKeep(params: {
   sourceIds: string[];
   canonical: string;
 }): Promise<{ merged: number }> {
+  // Every product must be a live product of this organisation before anything moves.
+  const ids = [...new Set([params.keepId, ...params.sourceIds])];
+  const { data: owned, error: ownErr } = await supabase
+    .from("products")
+    .select("id")
+    .eq("organization_id", params.organizationId)
+    .is("deleted_at", null)
+    .in("id", ids);
+  if (ownErr) throw ownErr;
+  if ((owned ?? []).length !== ids.length) {
+    throw new Error("Some products are not in this organisation or were already deleted. Refresh and try again.");
+  }
   let merged = 0;
   for (const sourceId of params.sourceIds) {
     if (sourceId === params.keepId) continue;

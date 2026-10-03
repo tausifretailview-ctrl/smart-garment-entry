@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { groupProductsByNameKey, type NameMergeProduct } from "./productNameStockMerge";
+import { canMergeProducts, groupProductsByNameKey, type NameMergeProduct } from "./productNameStockMerge";
 
 const p = (over: Partial<NameMergeProduct> & { id: string; productName: string }): NameMergeProduct => ({
   brand: null,
@@ -63,6 +63,19 @@ describe("one product per name — every create / rename path checks it", () => 
   it("rename paths block a name another product already has", () => {
     expect(read("src/components/ProductEditPanel.tsx")).toContain("findProductNameMatch(");
     expect(read("src/components/ProductBrandUpdateDialog.tsx")).toMatch(/if \(collision\) \{/);
+  });
+
+  it("merge is admin / manager only, in the app and in the database", () => {
+    expect(canMergeProducts("admin")).toBe(true);
+    expect(canMergeProducts("manager")).toBe(true);
+    expect(canMergeProducts("user")).toBe(false);
+    expect(canMergeProducts(null)).toBe(false);
+    expect(read("src/components/MergeDuplicateProductNamesDialog.tsx")).toContain("disabled={!canMerge ||");
+    const mig = read("supabase/migrations/20270103150000_merge_products_admin_manager_only.sql");
+    expect(mig).toContain("gm.role IN ('admin'::public.app_role, 'manager'::public.app_role)");
+    expect(mig).toContain("IF auth.uid() IS NOT NULL");
+    // ids are checked against the organisation before the RPC
+    expect(read("src/utils/productNameStockMerge.ts")).toContain('.eq("organization_id", params.organizationId)');
   });
 
   it("Stock Report merge moves stock with merge_products", () => {

@@ -13,10 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  canMergeProducts,
   findNameMergeGroups,
   mergeProductsIntoKeep,
   type NameMergeGroup,
 } from "@/utils/productNameStockMerge";
+import { useOrganization } from "@/contexts/OrganizationContext";
 
 interface MergeDuplicateProductNamesDialogProps {
   open: boolean;
@@ -41,6 +43,8 @@ export function MergeDuplicateProductNamesDialog({
   organizationId,
   onMergeComplete,
 }: MergeDuplicateProductNamesDialogProps) {
+  const { organizationRole } = useOrganization();
+  const canMerge = canMergeProducts(organizationRole);
   const [loading, setLoading] = useState(false);
   const [mergingKey, setMergingKey] = useState<string | null>(null);
   const [groups, setGroups] = useState<NameMergeGroup[]>([]);
@@ -96,6 +100,7 @@ export function MergeDuplicateProductNamesDialog({
     });
 
   const handleMergeGroup = async (group: NameMergeGroup) => {
+    if (!canMerge) return;
     const choice = choices[group.key];
     if (!choice || choice.sourceIds.size === 0) return;
     const keep = group.products.find((p) => p.id === choice.keepId);
@@ -131,6 +136,11 @@ export function MergeDuplicateProductNamesDialog({
             different brand or style are not ticked — tick them only if they are really the same item.
           </DialogDescription>
         </DialogHeader>
+        {!canMerge && (
+          <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900" data-testid="name-merge-admin-only">
+            Only an admin or manager can merge products. You can see the look-alike names here.
+          </p>
+        )}
         <div className="max-h-[55vh] space-y-3 overflow-y-auto py-2">
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
@@ -184,7 +194,7 @@ export function MergeDuplicateProductNamesDialog({
                       type="button"
                       size="sm"
                       onClick={() => void handleMergeGroup(g)}
-                      disabled={busy || !!mergingKey || !choice || choice.sourceIds.size === 0}
+                      disabled={!canMerge || busy || !!mergingKey || !choice || choice.sourceIds.size === 0}
                     >
                       {busy ? (
                         <>
