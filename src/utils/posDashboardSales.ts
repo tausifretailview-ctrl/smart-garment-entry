@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import {
   buildPosSaleHeaderSearchFilter,
+  isPosCustomerNameSearch,
   looksLikeInvoiceSequence,
   rankPosDashboardSearchResults,
   shouldUnionSaleItemsForPosSearch,
@@ -828,8 +829,14 @@ async function resolvePosSearchUncached(
   if (!searchStr) return null;
 
   const saleTextFilter = buildPosSaleHeaderSearchFilter(searchStr);
+  // Name search uses the same header ILIKE as the KPI cards (dates bypassed
+  // while a search is active). Do not prefetch a 12-month id list and do not
+  // union line items — that list was a different customer's product hit.
+  if (isPosCustomerNameSearch(searchStr)) {
+    return { saleTextFilter, restrictToIds: null };
+  }
   // Invoice-serial lookups must reach old bills, so they stay date-unbounded.
-  // Name / phone searches stay inside the selected window (bounded to 12 months
+  // Phone and barcode lookups stay inside the selected window (bounded to 12 months
   // for "All Time") so they never scan the org's full history.
   const dateBounded = !looksLikeInvoiceSequence(searchStr);
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);

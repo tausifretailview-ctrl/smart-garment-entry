@@ -13,16 +13,27 @@ export function looksLikeInvoiceSequence(search: string): boolean {
   return /^\d{1,6}$/.test(t);
 }
 
-/** True when line-item union search should run (barcode / product name). */
+/**
+ * Letters mean a customer name (or a written sale number such as POS/26-27/1843).
+ * Those stay on the sale header. Product, size, color, and brand ILIKE must not
+ * run — a name like "saras" was returning another customer's bill that only
+ * contained that text on a line item, while the totals stayed at 0.
+ */
+export function isPosCustomerNameSearch(search: string): boolean {
+  const t = search.trim();
+  if (!t || looksLikeInvoiceSequence(t) || /^\d+$/.test(t)) return false;
+  return /[A-Za-z]/.test(t);
+}
+
+/** True when line-item union search should run (barcode only). */
 export function shouldUnionSaleItemsForPosSearch(searchStr: string): boolean {
   const t = searchStr.trim();
   if (!t) return false;
-  // Pure invoice serials should match sale_number first — skip noisy line-item union.
-  if (looksLikeInvoiceSequence(t)) return false;
+  // Invoice serials and customer names match the sale header only.
+  if (looksLikeInvoiceSequence(t) || isPosCustomerNameSearch(t)) return false;
   // Digits that aren't invoice serials are barcode-like — align with invoice search min.
   if (/^\d+$/.test(t)) return t.length >= 8;
-  // Product text: require 4+ chars so 1–3 keystroke stubs never hit sale_items ILIKE.
-  return /[A-Za-z]/.test(t) && t.length >= 4;
+  return false;
 }
 
 /** PostgREST `.or()` filter for sale header text search. */
