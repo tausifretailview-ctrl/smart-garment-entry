@@ -53,12 +53,13 @@ function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = [], cacheKe
       return;
     }
     let cancelled = false;
+    const fetchedWith = getSessionToken();
     setNeedLogin(false);
     setError(null);
     load()
       .then((d) => {
         if (cancelled) return;
-        if (cacheKey) writeCache(cacheKey, d);
+        if (cacheKey) writeCache(cacheKey, d, fetchedWith);
         setData(d);
       })
       .catch((e: unknown) => {
@@ -79,9 +80,12 @@ function useAccountData<T>(load: () => Promise<T>, deps: unknown[] = [], cacheKe
 
 /** Warm the other tabs in the background so they open instantly. */
 function prefetchTabs() {
+  const fetchedWith = getSessionToken();
+  if (!fetchedWith) return;
+  // writeCache drops the answer if this customer logged out / someone else logged in meanwhile.
   const warm = <T,>(key: string, load: () => Promise<T>) =>
     load()
-      .then((d) => writeCache(key, d))
+      .then((d) => writeCache(key, d, fetchedWith))
       .catch(() => undefined);
   void warm("bills:0", () => fetchBills(0));
   void warm("offers", fetchOffers);

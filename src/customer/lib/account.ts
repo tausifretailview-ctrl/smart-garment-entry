@@ -139,23 +139,45 @@ async function call<T>(action: string, args: Record<string, unknown> = {}): Prom
 }
 
 // ---- Instant screens: last answer per action is kept on this device (per shop) ----
-// Pages show it at once and refresh in the background. Cleared on login/logout so one
-// customer never sees another's cached data on a shared phone.
+// Pages show it at once and refresh in the background. Customer data is keyed by the
+// login session it was fetched with, and a write is dropped if the session changed while
+// the request was in flight, so on a shared phone one customer never sees another's data.
+// Everything is also cleared on login, logout and session expiry.
 const CACHE_PREFIX = "ezzy_cust_cache:";
-const cacheKey = (key: string, subdomain = resolveSubdomain()) => `${CACHE_PREFIX}${subdomain}:${key}`;
+/** Public, not customer data: kept across logins. */
+const PUBLIC_KEYS = new Set(["shop"]);
+
+function sessionScope(token: string | null): string {
+  return token ? token.slice(-16).replace(/[^A-Za-z0-9_-]/g, "") : "anon";
+}
+
+const cacheKey = (key: string, token: string | null, subdomain = resolveSubdomain()) =>
+  PUBLIC_KEYS.has(key)
+    ? `${CACHE_PREFIX}${subdomain}:${key}`
+    : `${CACHE_PREFIX}${subdomain}:${sessionScope(token)}:${key}`;
 
 export function readCache<T>(key: string): T | null {
   try {
-    const raw = localStorage.getItem(cacheKey(key));
+    const token = getSessionToken();
+    if (!token && !PUBLIC_KEYS.has(key)) return null;
+    const raw = localStorage.getItem(cacheKey(key, token));
     return raw ? (JSON.parse(raw) as T) : null;
   } catch {
     return null;
   }
 }
 
-export function writeCache(key: string, value: unknown): void {
+/**
+ * Save an answer. Pass the session token captured when the request started: if the
+ * customer logged out or someone else logged in meanwhile, the answer is thrown away.
+ */
+export function writeCache(key: string, value: unknown, fetchedWithToken?: string | null): void {
   try {
-    localStorage.setItem(cacheKey(key), JSON.stringify(value));
+    const current = getSessionToken();
+    if (!PUBLIC_KEYS.has(key)) {
+      if (!current || fetchedWithToken === undefined || fetchedWithToken !== current) return;
+    }
+    localStorage.setItem(cacheKey(key, current), JSON.stringify(value));
   } catch {
     /* storage full / blocked: just no instant screen next time */
   }
@@ -163,11 +185,11 @@ export function writeCache(key: string, value: unknown): void {
 
 function clearCustomerCache(subdomain = resolveSubdomain()): void {
   try {
-    const prefix = cacheKey("", subdomain);
+    const prefix = `${CACHE_PREFIX}${subdomain}:`;
+    const keep = new Set([...PUBLIC_KEYS].map((k) => cacheKey(k, null, subdomain)));
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      // Shop header is public and safe to keep.
-      if (k && k.startsWith(prefix) && k !== cacheKey("shop", subdomain)) localStorage.removeItem(k);
+      if (k && k.startsWith(prefix) && !keep.has(k)) localStorage.removeItem(k);
     }
   } catch {
     /* ignore */
