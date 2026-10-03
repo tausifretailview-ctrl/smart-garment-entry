@@ -54,7 +54,14 @@ import {
   fetchOrgProductsByIds,
   fetchOrgProductsForWebsitePicker,
 } from "@/utils/fetchAllRows";
-import { aggregateVariantRows } from "@/lib/storefrontVariantSummary";
+import {
+  aggregateVariantRows,
+  bookedVariantIdsFromMessage,
+  enquiryDisplayPieces,
+  enquiryMessageForDisplay,
+  type VariantPieceLabels,
+  type VariantSizeColor,
+} from "@/lib/storefrontVariantSummary";
 import { coerceToArray, lookupMap } from "@/lib/coerceToMap";
 import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
@@ -78,11 +85,13 @@ type CatalogProduct = {
 };
 
 type VariantRow = {
+  id?: string;
   product_id: string;
   sale_price: number | null;
   stock_qty: number;
   size?: string | null;
   color?: string | null;
+  barcode?: string | null;
 };
 
 type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "enquiries";
@@ -609,12 +618,13 @@ function AddProducts({
         product_id: string;
         size?: string | null;
         color?: string | null;
+        barcode?: string | null;
         stock_qty?: number | null;
       }[] = [];
       for (let i = 0; i < ids.length; i += 100) {
         const { data, error } = await supabase
           .from("product_variants")
-          .select("product_id, size, color, stock_qty")
+          .select("product_id, size, color, barcode, stock_qty")
           .eq("organization_id", orgId!)
           .in("product_id", ids.slice(i, i + 100))
           .is("deleted_at", null);
@@ -868,6 +878,7 @@ function AddProducts({
             <InsightsStaticTh label="Category" />
             <InsightsStaticTh label="Brand" />
             <InsightsStaticTh label="Size" />
+            <InsightsStaticTh label="Barcode" />
             <InsightsStaticTh label="Colour" />
             <InsightsStaticTh label="Stock" className="text-right w-16" />
             <InsightsStaticTh label="Section" className="w-40" />
@@ -876,7 +887,7 @@ function AddProducts({
           </InsightsTableHeader>
           <TableBody>
             {pageRows.map((p) => {
-              const variantMeta = lookupMap<{ sizesLabel: string; colorsLabel: string }>(
+              const variantMeta = lookupMap<VariantPieceLabels>(
                 variantsQuery.data?.labels,
                 p.id,
               );
@@ -906,6 +917,9 @@ function AddProducts({
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.brand || "—"}</TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.sizesLabel ?? "—"}
+                </TableCell>
+                <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs tabular-nums text-slate-800")}>
+                  {variantMeta?.barcodesLabel ?? "—"}
                 </TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>
                   {variantMeta?.colorsLabel ?? "—"}
@@ -946,7 +960,7 @@ function AddProducts({
             })}
             {inStockRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={10} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={11} className="px-3 py-10 text-center text-sm text-muted-foreground">
                   {productsQuery.isLoading || !stockReady
                     ? "Loading…"
                     : "No in-stock unpublished products match."}
@@ -1005,7 +1019,7 @@ function PublishedCatalogue({
       for (let i = 0; i < productIds.length; i += 200) {
         const { data, error } = await supabase
           .from("product_variants")
-          .select("product_id, sale_price, stock_qty, size, color")
+          .select("id, product_id, sale_price, stock_qty, size, color, barcode")
           .eq("organization_id", orgId!)
           .in("product_id", productIds.slice(i, i + 200))
           .is("deleted_at", null);
@@ -1015,6 +1029,7 @@ function PublishedCatalogue({
       return {
         stock: aggregateWebsiteVariantStock(rows),
         variants: aggregateVariantRows(rows),
+        rows,
       };
     },
   });
@@ -1139,6 +1154,7 @@ function PublishedCatalogue({
                 <InsightsStaticTh label="Category" />
                 <InsightsStaticTh label="Brand" />
                 <InsightsStaticTh label="Size" />
+                <InsightsStaticTh label="Barcode" />
                 <InsightsStaticTh label="Colour" />
                 <InsightsStaticTh label="Section" className="w-40" />
                 <InsightsStaticTh label="Stock" />
@@ -1156,10 +1172,17 @@ function PublishedCatalogue({
                     variantsQuery.data?.stock,
                     listing.product_id,
                   );
-                  const variantMeta = lookupMap<{ sizesLabel: string; colorsLabel: string }>(
+                  const variantMeta = lookupMap<VariantPieceLabels>(
                     variantsQuery.data?.variants,
                     listing.product_id,
                   );
+                  const listingVariants = (variantsQuery.data?.rows ?? []).filter((row) =>
+                    listing.variant_id ? row.id === listing.variant_id : row.product_id === listing.product_id,
+                  );
+                  const pieceLabels =
+                    listing.variant_id && listingVariants.length > 0
+                      ? aggregateVariantRows(listingVariants)[listing.product_id]
+                      : variantMeta;
                   const publicStock = classifyStorefrontStock(stock?.qty ?? 0);
                   return (
                     <SortableListingRow
@@ -1167,8 +1190,9 @@ function PublishedCatalogue({
                       listing={listing}
                       product={product}
                       categoryLabel={product?.category || "—"}
-                      sizesLabel={variantMeta?.sizesLabel ?? "—"}
-                      colorsLabel={variantMeta?.colorsLabel ?? "—"}
+                      sizesLabel={pieceLabels?.sizesLabel ?? "—"}
+                      barcodesLabel={pieceLabels?.barcodesLabel ?? "—"}
+                      colorsLabel={pieceLabels?.colorsLabel ?? "—"}
                       stockLabel={publicStock.label}
                       salePrice={listing.display_price ?? stock?.price ?? product?.default_sale_price ?? null}
                       orgId={orgId!}
@@ -1192,6 +1216,7 @@ function SortableListingRow({
   product,
   categoryLabel,
   sizesLabel,
+  barcodesLabel,
   colorsLabel,
   stockLabel,
   salePrice,
@@ -1204,6 +1229,7 @@ function SortableListingRow({
   product?: CatalogProduct;
   categoryLabel: string;
   sizesLabel: string;
+  barcodesLabel: string;
   colorsLabel: string;
   stockLabel: string;
   salePrice: number | null;
@@ -1325,6 +1351,9 @@ function SortableListingRow({
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{categoryLabel}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{product?.brand || "—"}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{sizesLabel}</TableCell>
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs tabular-nums text-slate-800")}>
+        {barcodesLabel}
+      </TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600 text-xs")}>{colorsLabel}</TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
         {sections.length > 0 ? (
@@ -1398,6 +1427,9 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
 
   const rows = coerceToArray<WebsiteEnquiry>(enquiriesQuery.data);
   const productIds = [...new Set(rows.map((e) => e.product_id).filter(Boolean))] as string[];
+  const bookedVariantIds = [
+    ...new Set(rows.flatMap((row) => bookedVariantIdsFromMessage(row.message))),
+  ];
   const namesQuery = useQuery({
     queryKey: ["website_enquiry_products", orgId, productIds.join(",")],
     enabled: !!orgId && productIds.length > 0,
@@ -1410,6 +1442,45 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
         .in("id", productIds);
       if (error) throw error;
       return Object.fromEntries((data || []).map((p) => [p.id, p.product_name]));
+    },
+  });
+
+  const piecesQuery = useQuery({
+    queryKey: ["website_enquiry_pieces", orgId, productIds.join(","), bookedVariantIds.join(",")],
+    enabled: !!orgId && (productIds.length > 0 || bookedVariantIds.length > 0),
+    staleTime: STALE_FREQUENT,
+    queryFn: async () => {
+      const collected: VariantSizeColor[] = [];
+      const seen = new Set<string>();
+      const push = (chunk: VariantSizeColor[]) => {
+        for (const row of chunk) {
+          const key = row.id || `${row.product_id}:${row.size}:${row.barcode}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          collected.push(row);
+        }
+      };
+      for (let i = 0; i < productIds.length; i += 100) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, product_id, size, color, barcode")
+          .eq("organization_id", orgId!)
+          .in("product_id", productIds.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (error) throw error;
+        push((data || []) as VariantSizeColor[]);
+      }
+      for (let i = 0; i < bookedVariantIds.length; i += 100) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, product_id, size, color, barcode")
+          .eq("organization_id", orgId!)
+          .in("id", bookedVariantIds.slice(i, i + 100))
+          .is("deleted_at", null);
+        if (error) throw error;
+        push((data || []) as VariantSizeColor[]);
+      }
+      return collected;
     },
   });
 
@@ -1448,7 +1519,7 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
         <TabsContent value={statusFilter} className="mt-0 flex flex-1 min-h-0 flex-col focus-visible:outline-none">
           <InsightsPanel
             title="Customer enquiries"
-            subtitle="Messages from the public store — no cart in Phase 1"
+            subtitle="Size and barcode of the piece that was booked, with the customer's message"
             className="flex-1 min-h-0"
             footer={
               <span className="text-xs text-muted-foreground">
@@ -1461,12 +1532,17 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
               <InsightsTableHeader>
                 <InsightsStaticTh label="Customer" />
                 <InsightsStaticTh label="Product" />
+                <InsightsStaticTh label="Size" />
+                <InsightsStaticTh label="Barcode" />
                 <InsightsStaticTh label="Message" />
                 <InsightsStaticTh label="Status" />
                 <InsightsStaticTh label="When" />
               </InsightsTableHeader>
               <TableBody>
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const pieces = enquiryDisplayPieces(row, piecesQuery.data ?? []);
+                  const message = enquiryMessageForDisplay(row.message);
+                  return (
                   <TableRow key={row.id} className={cn(INSIGHTS_BODY_ROW, "align-top")}>
                     <TableCell className={INSIGHTS_BODY_CELL}>
                       <div className="font-semibold text-slate-900">{row.customer_name}</div>
@@ -1489,8 +1565,14 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                     <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-700")}>
                       {(row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "—"}
                     </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-700 text-xs")}>
+                      {pieces.sizesLabel}
+                    </TableCell>
+                    <TableCell className={cn(INSIGHTS_BODY_CELL, "font-mono text-xs tabular-nums text-slate-800")}>
+                      {pieces.barcodesLabel}
+                    </TableCell>
                     <TableCell className={cn(INSIGHTS_BODY_CELL, "max-w-xs text-slate-600")}>
-                      {row.message || "—"}
+                      {message || "—"}
                     </TableCell>
                     <TableCell className={INSIGHTS_BODY_CELL}>
                       <select
@@ -1509,10 +1591,11 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                       {new Date(row.created_at).toLocaleString()}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
                 {rows.length === 0 ? (
                   <TableRow className="hover:bg-transparent">
-                    <TableCell colSpan={5} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={7} className="px-3 py-10 text-center text-sm text-muted-foreground">
                       {enquiriesQuery.isLoading ? "Loading…" : "No enquiries yet."}
                     </TableCell>
                   </TableRow>
