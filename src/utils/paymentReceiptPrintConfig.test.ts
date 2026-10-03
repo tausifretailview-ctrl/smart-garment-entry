@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  paymentReceiptPrintRootClassName,
   resolvePaymentReceiptCompanyDetails,
   resolvePaymentReceiptPrintLayout,
 } from "@/utils/paymentReceiptPrintConfig";
@@ -25,6 +26,24 @@ describe("paymentReceiptPrintConfig", () => {
     expect(layout.isThermal).toBe(true);
     expect(layout.posInvoiceTemplate).toBe("vastrakala-80mm");
     expect(layout.thermalPaper).toBe("58mm");
+  });
+
+  it("keeps the dialog preview on screen and the print copy off screen", () => {
+    const preview = paymentReceiptPrintRootClassName({
+      preview: true,
+      isThermal: true,
+      thermalPaper: "80mm",
+    });
+    expect(preview).toContain("payment-receipt-screen-preview");
+    expect(preview).not.toContain("invoice-print-source-screen");
+
+    const printSource = paymentReceiptPrintRootClassName({
+      isThermal: true,
+      thermalPaper: "58mm",
+    });
+    expect(printSource).toContain("invoice-print-source-screen");
+    expect(printSource).toContain("thermal-paper-58");
+    expect(printSource).not.toContain("payment-receipt-screen-preview");
   });
 
   it("uses A4 when POS template is A4-only", () => {

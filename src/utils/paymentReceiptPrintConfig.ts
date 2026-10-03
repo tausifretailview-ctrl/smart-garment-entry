@@ -96,6 +96,43 @@ export function resolvePaymentReceiptPrintLayout(
   };
 }
 
+/**
+ * Screen preview must stay in the dialog. `invoice-print-source-screen` parks
+ * the print source off-screen (`left: -10000px`), which leaves the preview box blank.
+ */
+export function paymentReceiptPrintRootClassName(options: {
+  preview?: boolean;
+  isThermal: boolean;
+  thermalPaper: PosThermalPaper;
+}): string {
+  const { preview, isThermal, thermalPaper } = options;
+  if (preview) {
+    return [
+      "payment-receipt-print-root",
+      "payment-receipt-screen-preview",
+      "relative",
+      "bg-white",
+      "mx-auto",
+      "w-fit",
+      "max-w-full",
+      isThermal ? "py-2" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (isThermal) {
+    return [
+      "payment-receipt-print-root",
+      "invoice-print-source-screen",
+      "thermal-print-page",
+      thermalPaper === "58mm" ? "thermal-paper-58" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+  return "payment-receipt-print-root bg-white";
+}
+
 /** Page CSS for react-to-print on customer payment receipts. */
 export function getPaymentReceiptPrintPageStyle(
   settings?: OrgSettingsForPaymentReceipt | null,

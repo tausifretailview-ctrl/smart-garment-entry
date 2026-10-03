@@ -1395,6 +1395,20 @@ All colors MUST be HSL.
   white-space: normal;
 }
 
+/* Payment receipt dialog preview — stay in the box, even if a print-source class is also present. */
+.payment-receipt-screen-preview {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: auto !important;
+  pointer-events: auto !important;
+  overflow: visible !important;
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* Utility class to hide elements during printing */
 .no-print {
   @media print {
