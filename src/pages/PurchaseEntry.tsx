@@ -101,6 +101,8 @@ import {
   barcodeTierLookupKey,
   makePurchaseImportProductKey,
 } from "@/utils/purchaseImportBarcodeTier";
+import { cleanProductName } from "@/utils/productNameMerge";
+import { productNameMatchKey } from "@/utils/productNameDedupe";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -7486,6 +7488,8 @@ const PurchaseEntry = () => {
     // ── Phase 1: Load ALL org products (Supabase default cap is 1000 rows/page) ──
     reportImportProgress(0, validRows.length, "Loading product catalog...");
     const productMap = new Map<string, string>();
+    /** Product name spelling already in the catalog, by productNameMatchKey. */
+    const catalogNameByKey = new Map<string, string>();
     const PRODUCT_PAGE = 1000;
     let productOffset = 0;
     while (true) {
@@ -7501,6 +7505,8 @@ const PurchaseEntry = () => {
       }
       if (!page?.length) break;
       page.forEach((p) => {
+        const nameKey = productNameMatchKey(p.product_name);
+        if (nameKey && !catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, p.product_name);
         productMap.set(
           makePurchaseImportProductKey(
             { ...p, sale_price: p.default_sale_price, mrp: null },
@@ -7511,6 +7517,17 @@ const PurchaseEntry = () => {
       });
       if (page.length < PRODUCT_PAGE) break;
       productOffset += PRODUCT_PAGE;
+    }
+
+    // Same product name typed with other case / spaces / - _ . / → the catalog's spelling,
+    // so stock is not split across look-alike names. Only the name is snapped; brand,
+    // category, style, colour and price tier still decide the product as before.
+    for (const row of validRows) {
+      const typed = cleanProductName(row.product_name?.toString());
+      const nameKey = productNameMatchKey(typed);
+      if (!nameKey) continue;
+      if (!catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, typed);
+      row.product_name = catalogNameByKey.get(nameKey);
     }
 
     reportImportProgress(0, validRows.length, "Preparing barcodes...", { skippedCount });
