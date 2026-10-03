@@ -322,7 +322,7 @@ function posCartGridColumns(
 ): string {
   // Sr | Barcode | Product | Size | Color | [Salesman] | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
   const mrpCol = showMrpColumn ? " 96px" : "";
-  const salesmanCol = showSalesmanColumn ? " 88px" : "";
+  const salesmanCol = showSalesmanColumn ? " minmax(112px, 148px)" : "";
   return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px${salesmanCol} 56px${mrpCol} 68px 72px 96px 110px 118px`;
 }
 
@@ -8107,11 +8107,11 @@ export default function POSSales() {
                             {item.color || '-'}
                           </div>
                           {posPerLineSalesman && (
-                            <div>
+                            <div className="flex min-w-0 items-center">
                               <select
                                 value={effectiveCartLineSalesman(item, selectedSalesman) || ""}
                                 onChange={(e) => updateLineSalesman(index, e.target.value)}
-                                className="h-8 w-full rounded-md text-[11px] border border-border/60 bg-muted/30 px-1 truncate focus:outline-none focus:ring-2 focus:ring-ring"
+                                className="pos-sales-line-salesman-select h-9 w-full min-w-0 max-w-full rounded-md border border-border/60 bg-background px-2 text-xs font-medium leading-tight text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                                 title="Line salesperson"
                               >
                                 <option value="">—</option>
