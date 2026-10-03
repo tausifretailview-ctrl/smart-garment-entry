@@ -17,6 +17,9 @@
 -- When every receipt is same-day this equals the old max(tender, receipts), so dual-written
 -- bills do not change.
 --
+-- compute_sale_settlement and _org_sale_receipt_settlement_by_sale are SECURITY DEFINER: they
+-- keep the _assert_org_access / _assert_row_org_access guards that 20261231120100 injected.
+--
 -- Function bodies that may have diverged live are patched in place (pg_get_functiondef +
 -- regexp_replace), the same way 20261225120000 did. Idempotent: re-running is a no-op.
 
@@ -59,6 +62,9 @@ DECLARE
   v_payment_method text;
   v_settled_for_status numeric;
 BEGIN
+  -- security review 2026-09-27: organisation guard (kept from 20261231120100)
+  PERFORM public._assert_row_org_access('public.sales'::regclass, p_sale_id);
+  PERFORM public._assert_org_access(p_org_id);
   SELECT s.net_amount,
          COALESCE(s.sale_return_adjust, 0),
          COALESCE(s.cash_amount, 0) + COALESCE(s.card_amount, 0) + COALESCE(s.upi_amount, 0),
@@ -131,6 +137,8 @@ STABLE
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+-- security review 2026-09-27: organisation guard (kept from 20261231120100)
+SELECT public._assert_org_access(p_organization_id);
   SELECT
     ve.reference_id AS sale_id,
     COALESCE(SUM(

@@ -167,4 +167,12 @@ describe("migration 20261231200000 wiring", () => {
     expect(sql).toContain("'_get_customer_party_balances_rows'");
     expect(sql).toContain("'get_customer_financial_snapshot_all'");
   });
+  it("keeps the organisation guards on the SECURITY DEFINER functions it replaces", () => {
+    const settle = sql.slice(sql.indexOf("FUNCTION public.compute_sale_settlement"));
+    expect(settle.slice(0, settle.indexOf("$$;"))).toMatch(
+      /PERFORM public\._assert_row_org_access\('public\.sales'::regclass, p_sale_id\);\s+PERFORM public\._assert_org_access\(p_org_id\);/,
+    );
+    const helper = sql.slice(sql.indexOf("FUNCTION public._org_sale_receipt_settlement_by_sale"));
+    expect(helper.slice(0, helper.indexOf("$$;"))).toContain("SELECT public._assert_org_access(p_organization_id);");
+  });
 });
