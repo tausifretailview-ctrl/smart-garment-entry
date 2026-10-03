@@ -5,6 +5,7 @@ import {
   canonicalCustomerName,
   isWalkInCustomerName,
   planUnlinkedSaleParties,
+  totalCustomerCount,
 } from "./salePartyCustomerMaster";
 
 const master = [
@@ -114,6 +115,29 @@ describe("POS parties missing from Customer Master", () => {
     expect(plan.links).toEqual([
       { customerId: "c-aaman", saleIds: ["s1"], phoneToSet: "9527465086" },
     ]);
+  });
+});
+
+describe("totalCustomerCount", () => {
+  it("counts master rows and named bills, and skips walk-in", () => {
+    const total = totalCustomerCount(master, [
+      { id: "s1", customer_name: "PARSHANT MAHTRE", customer_phone: "9833700838" },
+      { id: "s2", customer_name: "PARSHANT MAHTRE", customer_phone: "9833700838" },
+      { id: "s3", customer_name: "Walk-in Customer", customer_phone: "9999999999" },
+      { id: "s4", customer_id: "c-aaman", customer_name: "AAMAN", customer_phone: "9527465086" },
+      { id: "s5", customer_name: "AAMAN", customer_phone: "9527465086" },
+    ]);
+    // 2 master rows + Parshant. Aaman's unlinked bill matches the master. Walk-in is not a customer.
+    expect(total).toBe(3);
+  });
+
+  it("is the number the main dashboard Customers card uses", () => {
+    const dashboard = readFileSync(resolve(process.cwd(), "src/pages/Index.tsx"), "utf8");
+    expect(dashboard).toContain("fetchTotalCustomerCount");
+    expect(dashboard).toContain('title="Customers"');
+    const card = dashboard.slice(dashboard.indexOf('title="Customers"'), dashboard.indexOf('title="Total Purchase"'));
+    expect(card).toContain("customersCount");
+    expect(card).not.toContain("displayedDashStats?.customer_count");
   });
 });
 

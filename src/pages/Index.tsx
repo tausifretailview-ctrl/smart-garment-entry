@@ -15,6 +15,7 @@ import {
   isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
+import { fetchTotalCustomerCount } from "@/utils/salePartyCustomerMaster";
 import {
   NPA_NET_PROFIT_CAPTION,
   NET_PROFIT_KPI_QUERY_HEAD,
@@ -354,6 +355,18 @@ const DesktopDashboard = () => {
     }
   };
 
+  // Master rows plus named bills that were never saved as customers. The stats
+  // RPC only counts the customers table, which under-reports the shop.
+  const { data: liveCustomerTotal, isFetching: customerTotalFetching, isError: customerTotalError } = useQuery({
+    queryKey: ["dashboard-customer-total", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return 0;
+      return fetchTotalCustomerCount(currentOrganization.id);
+    },
+    enabled: metricsQueryEnabled,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
+  });
+
   // Single RPC call replaces 8-10 separate queries
   const { data: liveDashStats, isFetching: isLoading } = useQuery({
     queryKey: dashStatsQueryKey,
@@ -480,7 +493,11 @@ const DesktopDashboard = () => {
   // Extract metrics from single RPC result (live or persisted cache)
   const salesData = { total: displayedDashStats?.total_sales || 0, count: displayedDashStats?.invoice_count || 0, soldQty: displayedDashStats?.sold_qty || 0 };
   const purchaseData = { total: displayedDashStats?.total_purchase || 0, count: displayedDashStats?.purchase_count || 0, purchaseQty: displayedDashStats?.purchase_qty || 0 };
-  const customersCount = displayedDashStats?.customer_count || 0;
+  const customersCount =
+    liveCustomerTotal ??
+    (customerTotalError ? displayedDashStats?.customer_count || 0 : 0);
+  const customersCountPending =
+    metricsLoadRequested && liveCustomerTotal == null && !customerTotalError && customerTotalFetching;
   // product_count / total_stock_qty are get_erp_dashboard_stats aggregates
   // (one RPC), not N product rows painted on this page. A 500ms+ main-thread
   // task after Dashboard load is not explained by these two numbers.
@@ -977,9 +994,9 @@ const DesktopDashboard = () => {
               accentColor="bg-pink-500"
               prefetchPath="customers"
               onClick={() => navigate("/customers")}
-              tooltip="Total registered customers. Click to manage customers."
-              placeholder={showPlaceholders}
-              loading={metricsLoading}
+              tooltip="Total customers, including names on bills. Walk-in bills are not counted. Click to manage customers."
+              placeholder={showPlaceholders || customersCountPending}
+              loading={metricsLoading || customersCountPending}
             />
           </div>
 

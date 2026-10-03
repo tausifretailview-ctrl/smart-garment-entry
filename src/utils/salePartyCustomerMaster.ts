@@ -187,6 +187,18 @@ export function planUnlinkedSaleParties(
   };
 }
 
+/**
+ * Customer Master rows plus named bill parties that are not in the master yet.
+ * Walk-in bills are not customers. The same mobile on many bills is one customer.
+ */
+export function totalCustomerCount(
+  customers: ExistingCustomerRef[],
+  unlinkedSales: SalePartyInput[],
+): number {
+  const plan = planUnlinkedSaleParties(unlinkedSales, customers);
+  return customers.length + plan.creates.length;
+}
+
 async function loadCandidateCustomers(
   client: SupabaseClient,
   organizationId: string,
@@ -423,6 +435,39 @@ async function syncUnlinkedSalesIntoCustomerMasterOnce(
     created: plan.creates.length,
     linked: plan.links.reduce((sum, link) => sum + link.saleIds.length, 0) + createdIds.size,
   };
+}
+
+/**
+ * Total customers for the main dashboard.
+ * The stats RPC only counts `customers` rows, so a shop with many named bills
+ * and few master rows shows a count that is too small. This adds those names.
+ */
+export async function fetchTotalCustomerCount(
+  organizationId: string,
+  client: SupabaseClient = defaultClient,
+): Promise<number> {
+  const { count: masterCount, error: masterError } = await client
+    .from("customers")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+  if (masterError) throw masterError;
+
+  const { count: unlinkedCount, error: unlinkedError } = await client
+    .from("sales")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .is("customer_id", null);
+  if (unlinkedError) throw unlinkedError;
+
+  if (!unlinkedCount) return masterCount || 0;
+
+  const [customers, sales] = await Promise.all([
+    loadAllCustomers(client, organizationId),
+    loadUnlinkedSales(client, organizationId),
+  ]);
+  return totalCustomerCount(customers, sales);
 }
 
 /**
