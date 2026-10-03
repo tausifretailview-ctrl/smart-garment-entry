@@ -3322,6 +3322,13 @@ main:has(.supplier-party-balances-workspace) {
     height: 2.25rem !important;
     min-height: 2.25rem !important;
   }
+  .pos-sales-readable .pos-sales-cart-row .pos-sales-line-salesman-select {
+    font-size: 14px !important;
+    min-height: 2.375rem !important;
+    height: 2.375rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
   .pos-sales-readable label { font-size: 13px !important; }
   .pos-sales-readable .pos-sales-footer .text-\[11px\],
   .pos-sales-readable .pos-sales-footer .text-\[12px\] { font-size: 13px !important; }

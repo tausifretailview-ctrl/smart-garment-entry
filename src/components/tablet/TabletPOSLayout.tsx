@@ -109,8 +109,8 @@ export function TabletPOSLayout({
 
   const cartGridCols = posPerLineSalesman
     ? enableMrp
-      ? "grid-cols-[1fr_88px_80px_110px_85px_36px]"
-      : "grid-cols-[1fr_88px_110px_85px_36px]"
+      ? "grid-cols-[1fr_minmax(112px,148px)_80px_110px_85px_36px]"
+      : "grid-cols-[1fr_minmax(112px,148px)_110px_85px_36px]"
     : enableMrp
       ? "grid-cols-[1fr_80px_110px_85px_36px]"
       : "grid-cols-[1fr_110px_85px_36px]";
@@ -335,7 +335,7 @@ export function TabletPOSLayout({
 
                     {posPerLineSalesman && (
                       <select
-                        className="h-9 w-full rounded-lg border border-input bg-card px-1 text-[10px] truncate"
+                        className="pos-sales-line-salesman-select h-10 w-full min-w-0 rounded-lg border border-input bg-card px-2 text-xs font-medium leading-tight truncate"
                         value={(item.salesman || selectedSalesman || "").trim()}
                         onChange={(e) => onLineSalesmanChange?.(idx, e.target.value)}
                         title="Line salesperson"
