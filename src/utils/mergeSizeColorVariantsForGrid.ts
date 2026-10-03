@@ -120,6 +120,11 @@ export function mergeSizeColorVariantsForGrid<T extends SizeGridVariantSource>(
   options?: {
     selectedSalePrice?: number;
     cartQtyByVariant?: Map<string, number>;
+    /**
+     * Quotation: show live on-hand. Cart qty is not a reservation and must not
+     * reduce the stock figure on the grid.
+     */
+    holdLiveStock?: boolean;
     defaultColor?: string;
     /** When variants come from several products: colour + name per product id. */
     products?: SizeGridProductInfo[];
@@ -143,15 +148,17 @@ export function mergeSizeColorVariantsForGrid<T extends SizeGridVariantSource>(
     groups.set(key, list);
   }
 
-  const { selectedSalePrice, cartQtyByVariant, defaultColor = "" } = options ?? {};
+  const { selectedSalePrice, cartQtyByVariant, holdLiveStock = false, defaultColor = "" } = options ?? {};
 
   return Array.from(groups.values()).map((group) => {
     const rep = pickRepresentativeVariant(group, selectedSalePrice);
     const totalStock = group.reduce((sum, v) => sum + (v.stock_qty || 0), 0);
-    const cartReserved = group.reduce(
-      (sum, v) => sum + (cartQtyByVariant?.get(v.id) || 0),
-      0,
-    );
+    const cartReserved = holdLiveStock
+      ? 0
+      : group.reduce(
+          (sum, v) => sum + (cartQtyByVariant?.get(v.id) || 0),
+          0,
+        );
     return {
       id: rep.id,
       product_id: rep.product_id,
