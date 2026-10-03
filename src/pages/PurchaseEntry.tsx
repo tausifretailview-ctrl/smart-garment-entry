@@ -165,6 +165,8 @@ import {
   type UseExistingProductPayload,
   type UseExistingProductSizesPayload,
   typedExternalBarcode,
+  embeddedProductRecord,
+  existingProductSizesLoadMessage,
 } from "@/utils/purchaseUseExistingProduct";
 import { findPurchaseScanMergeIndex, findPurchaseScanSameUnitIndex } from "@/utils/purchaseScanMerge";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
@@ -4681,27 +4683,50 @@ const PurchaseEntry = () => {
       `)
       .eq("product_id", payload.productId)
       .eq("organization_id", currentOrganization.id)
-      .eq("active", true)
+      // Null active is still a live size. active = false is a deactivated SKU.
+      .or("active.eq.true,active.is.null")
       .is("deleted_at", null);
 
-    const product = (data?.[0]?.products as any) ?? null;
-    if (error || !data?.length || !product) {
+    if (error) {
       toast({
         title: "Could not add product",
-        description: "Could not load the existing product's sizes. Search it in the bill instead.",
+        description: existingProductSizesLoadMessage(error.message),
         variant: "destructive",
       });
       return;
     }
 
+    // A product header with no active sizes is still the existing product.
+    // The typed rows are added as new sizes below instead of blocking the bill.
+    const existingVariants = (data || []) as any[];
+    let product = embeddedProductRecord<any>(existingVariants[0]?.products);
+    if (!product) {
+      const { data: productRow, error: productError } = await supabase
+        .from("products")
+        .select(
+          "id, product_name, brand, category, color, style, hsn_code, gst_per, requires_imei, purchase_gst_percent, sale_gst_percent, default_pur_price, default_sale_price, purchase_discount_type, purchase_discount_value, uom",
+        )
+        .eq("id", payload.productId)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (productError || !productRow) {
+        toast({
+          title: "Could not add product",
+          description: existingProductSizesLoadMessage(productError?.message),
+          variant: "destructive",
+        });
+        return;
+      }
+      product = productRow;
+    }
+
     // Serialised (IMEI) product: every typed row is its own unit. Matching by
     // size/colour would put every unit on the first unit's variant — and its IMEI.
     if (productRequiresImei({ requires_imei: product.requires_imei }, mobileERPSettings)) {
-      await addSerializedUnitsFromUseExisting(product, data as any[], payload.rows);
+      await addSerializedUnitsFromUseExisting(product, existingVariants, payload.rows);
       return;
     }
-
-    const existingVariants = data as any[];
     const items = payload.rows.map((row, index) => {
       // A scanned universal barcode (e.g. Jockey EAN) must stay on the line: use the
       // variant that already has it, otherwise create one with it (not a series code).
