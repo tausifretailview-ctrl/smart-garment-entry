@@ -165,7 +165,11 @@ import {
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
 import { saleBillFigures, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
-import { findLeftoverExchangeRefunds, leftoverExchangeRefundMessage } from "@/utils/exchangeRefundAfterDelete";
+import {
+  findLeftoverExchangeRefunds,
+  leftoverExchangeRefundMessage,
+  type LeftoverExchangeRefund,
+} from "@/utils/exchangeRefundAfterDelete";
 import {
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
@@ -1392,9 +1396,13 @@ const POSDashboard = () => {
     setIsDeleting(true);
     try {
       let qtyRestored = 0;
+      let refundVouchersDeleted: LeftoverExchangeRefund[] = [];
       const success = await softDelete("sales", saleToDelete.id, {
         onSaleStockRestored: (info) => {
           qtyRestored = info.qtyRestored;
+        },
+        onExchangeRefundVouchersDeleted: (vouchers) => {
+          refundVouchersDeleted = vouchers;
         },
       });
       if (!success) throw new Error("Failed to delete sale");
@@ -1426,8 +1434,16 @@ const POSDashboard = () => {
             : `Sale ${saleToDelete.sale_number} moved to recycle bin.`,
       });
 
+      if (refundVouchersDeleted.length > 0) {
+        const total = refundVouchersDeleted.reduce((sum, v) => sum + v.total_amount, 0);
+        toast({
+          title: "Exchange refund removed too",
+          description: `${refundVouchersDeleted.map((v) => v.voucher_number).join(", ")} (₹${Math.round(total).toLocaleString("en-IN")}) moved to the Recycle Bin with ${saleToDelete.sale_number}.`,
+        });
+      }
+
       if (currentOrganization?.id) {
-        // The exchange refund voucher is not released with the bill; tell the user it is left.
+        // Only left if removing it with the bill failed; tell the user.
         const leftover = await findLeftoverExchangeRefunds(
           supabase,
           currentOrganization.id,
