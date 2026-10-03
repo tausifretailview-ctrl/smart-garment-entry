@@ -63,6 +63,7 @@ import {
   softCancelEmptySaleHeader,
 } from "@/utils/saleEmptyHeaderRollback";
 import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
+import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
 
 interface CartItem {
   id: string;
@@ -953,6 +954,26 @@ export const useSaveSale = () => {
     };
   };
 
+  /** Typed POS name/mobile becomes a Customer Master row before the bill is stored. */
+  async function attachSaleCustomerMasterId(
+    saleData: SaleData,
+    organizationId: string,
+  ): Promise<SaleData> {
+    if (saleData.customerId) return saleData;
+    try {
+      const customerId = await linkOrCreateCustomerFromSaleParty(supabase, {
+        organizationId,
+        customerName: saleData.customerName,
+        customerPhone: saleData.customerPhone,
+      });
+      if (!customerId) return saleData;
+      return { ...saleData, customerId };
+    } catch (err) {
+      console.error("Could not add the POS customer to Customer Master:", err);
+      return saleData;
+    }
+  }
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -1064,6 +1085,7 @@ export const useSaveSale = () => {
       !!paymentBreakdown?.issueCreditNote ||
       (saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({
@@ -1785,6 +1807,7 @@ export const useSaveSale = () => {
       !!paymentBreakdown?.issueCreditNote ||
       (saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessUpdate });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({
@@ -2354,6 +2377,7 @@ export const useSaveSale = () => {
       !!paymentBreakdown?.issueCreditNote ||
       (saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessResume });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({

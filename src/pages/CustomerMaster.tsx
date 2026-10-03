@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { useCreateFormDraftPersistence } from "@/hooks/useCreateFormDraftPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
@@ -68,6 +68,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { syncUnlinkedSalesIntoCustomerMaster } from "@/utils/salePartyCustomerMaster";
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
@@ -175,8 +176,37 @@ const CustomerMaster = () => {
     portal_enabled: false,
   });
   const { toast } = useToast();
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
   const queryClient = useQueryClient();
   const { currentOrganization } = useOrganization();
+
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    let cancelled = false;
+    void syncUnlinkedSalesIntoCustomerMaster(orgId)
+      .then((result) => {
+        if (cancelled || (result.created === 0 && result.linked === 0)) return;
+        void queryClient.invalidateQueries({ queryKey: ["customers", orgId] });
+        void queryClient.invalidateQueries({ queryKey: ["customers-count", orgId] });
+        void queryClient.invalidateQueries({ queryKey: ["customer-segments", orgId] });
+        void queryClient.invalidateQueries({ queryKey: ["customer-segment-counts", orgId] });
+      })
+      .catch((error) => {
+        console.error("Customer Master could not add POS customers:", error);
+        if (!cancelled) {
+          toastRef.current({
+            title: "Customer list incomplete",
+            description: "POS customer names could not be added to Customer Master.",
+            variant: "destructive",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentOrganization?.id, queryClient]);
   const { data: orgSettings, isLoading: settingsLoading } = useSettings();
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
     ?.sale_settings?.enable_points_system;
