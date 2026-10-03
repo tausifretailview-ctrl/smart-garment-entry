@@ -19,7 +19,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import {
   applyCreditNoteFifoToSale,
   computeExchangeRefundDue,
-  derivePaidAndStatus,
+  derivePosPaidAndStatus,
   fetchLiveCreditNoteAdjustTotal,
   getAvailableCN,
   normalizeDiscountsAgainstGross,
@@ -921,7 +921,7 @@ export const useSaveSale = () => {
             ? 'pending'
             : 'pending';
 
-    const { paidAmount, paymentStatus } = derivePaidAndStatus({
+    const { paidAmount, paymentStatus } = derivePosPaidAndStatus({
       netAmount: saleData.netAmount,
       // Credit is not on the row until apply_pos_credit succeeds. Status stays
       // pending so a failed apply leaves a visible balance.
@@ -929,7 +929,7 @@ export const useSaveSale = () => {
       cashReceived,
       advanceApplied: 0,
       cnApplied: 0,
-      discountGiven: saleData.pointsRedeemedAmount || 0,
+      pointsRedeemedAmount: saleData.pointsRedeemedAmount || 0,
       paymentMethod,
     });
 
