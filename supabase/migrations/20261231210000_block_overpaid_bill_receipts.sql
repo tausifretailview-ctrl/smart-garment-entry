@@ -116,9 +116,9 @@ COMMENT ON FUNCTION public.guard_receipt_not_over_bill() IS
 REVOKE ALL ON FUNCTION public.guard_receipt_not_over_bill() FROM PUBLIC, anon, authenticated;
 
 DROP TRIGGER IF EXISTS trg_guard_receipt_not_over_bill ON public.voucher_entries;
+-- description is listed: a row saved as a memo (skipped) and then renamed to a normal receipt
+-- must be checked again.
 CREATE TRIGGER trg_guard_receipt_not_over_bill
-  -- description is listed: a row saved as a memo (skipped) and then renamed to a normal receipt
-  -- must be checked again.
   BEFORE INSERT OR UPDATE OF total_amount, discount_amount, reference_id, reference_type,
     voucher_date, voucher_type, deleted_at, payment_method, description, organization_id
   ON public.voucher_entries
