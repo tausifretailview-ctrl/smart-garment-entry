@@ -726,9 +726,16 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       const voucherCashOnSale = isExchangeCoveredByReturn
         ? 0
         : Number(split.cashSameDay ?? split.cash ?? 0);
+      // Counter tender never credits the bill beyond net (SQL twin: _sale_counter_tender_settled,
+      // migration 20261231205000). Bills saved with a payment mode whose money arrived later as a
+      // full receipt must not count twice.
+      const receiptsOnSale = Number(split.cash || 0) + Number(split.discount || 0);
       const paidAtSale = isExchangeCoveredByReturn
         ? 0
-        : residualPaymentAtSaleTender(sale, voucherCashOnSale);
+        : Math.min(
+            residualPaymentAtSaleTender(sale, voucherCashOnSale),
+            Math.max(0, Number(sale.net_amount || 0) - receiptsOnSale),
+          );
       
       if (paidAtSale > 0) {
         runningBalance -= paidAtSale;

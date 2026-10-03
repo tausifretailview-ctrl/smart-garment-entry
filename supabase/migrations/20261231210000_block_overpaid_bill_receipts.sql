@@ -4,8 +4,10 @@
 -- already paid ₹4,100 at the counter, and RCP/26-27/1090 (₹500) overpaid POS/26-27/718. The
 -- extra money had never been received, but every balance screen counted it.
 --
--- Same rule as compute_sale_settlement (20261231200000):
---   effective paid = all receipts + counter tender not already a same-day receipt
+-- Same rule as compute_sale_settlement (20261231205000):
+--   effective paid = all receipts + counter tender not already a same-day receipt, the tender
+--                    counted only as far as POS booked it as paid (sales.paid_amount). Stale
+--                    tender on a pay-later bill (paid_amount 0) does not block the real payment.
 --   due            = net − sale_return_adjust (only when SRA is not already inside net:
 --                    items_gross gate, as in reconcile_customer_balance)
 -- A write that leaves effective paid > due + ₹1 is rejected. Extra money belongs in an
@@ -29,6 +31,7 @@ DECLARE
   v_sra numeric;
   v_due numeric;
   v_tender numeric;
+  v_cur_paid numeric;
   v_other numeric;
   v_other_same_day numeric;
   v_new numeric;
@@ -48,6 +51,7 @@ BEGIN
 
   SELECT s.id, s.sale_number, s.net_amount, s.sale_date,
          COALESCE(s.sale_return_adjust, 0) AS sra,
+         GREATEST(COALESCE(s.paid_amount, 0), 0) AS paid,
          GREATEST(COALESCE(s.cash_amount, 0), 0) + GREATEST(COALESCE(s.card_amount, 0), 0)
            + GREATEST(COALESCE(s.upi_amount, 0), 0) AS tender
     INTO v_sale
@@ -70,6 +74,7 @@ BEGIN
                 THEN 0 ELSE v_sale.sra END;
   v_due := COALESCE(v_sale.net_amount, 0) - v_sra;
   v_tender := v_sale.tender;
+  v_cur_paid := v_sale.paid;
 
   SELECT COALESCE(SUM(COALESCE(ve.total_amount, 0) + COALESCE(ve.discount_amount, 0)), 0),
          COALESCE(SUM(CASE WHEN public._is_sale_day_receipt(ve.voucher_date, v_sale.sale_date)
@@ -87,9 +92,9 @@ BEGIN
   v_new := COALESCE(NEW.total_amount, 0) + COALESCE(NEW.discount_amount, 0);
   v_new_same_day := public._is_sale_day_receipt(NEW.voucher_date, v_sale.sale_date);
 
-  v_paid_before := v_other + GREATEST(0, v_tender - v_other_same_day);
+  v_paid_before := v_other + LEAST(GREATEST(0, v_tender - v_other_same_day), v_cur_paid);
   v_paid_after := v_other + v_new
-    + GREATEST(0, v_tender - v_other_same_day - CASE WHEN v_new_same_day THEN v_new ELSE 0 END);
+    + LEAST(GREATEST(0, v_tender - v_other_same_day - CASE WHEN v_new_same_day THEN v_new ELSE 0 END), v_cur_paid);
 
   -- Only block writes that push the bill over (or further over) its amount.
   IF v_paid_after > v_due + 1 AND v_paid_after > v_paid_before + 0.005 THEN

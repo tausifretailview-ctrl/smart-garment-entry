@@ -1,11 +1,19 @@
 -- READ-ONLY. Find bills paid more than once (double / extra receipts), all organisations.
--- Same rule as compute_sale_settlement (migration 20261231200000):
---   effective paid = all receipts + counter tender not already a same-day receipt
---   due            = net − sale_return_adjust (only when SRA is not already inside net)
--- A bill is listed when effective paid > due + ₹1. The LAST receipt in receipt_list is usually
--- the duplicate (e.g. Gurukrupa SARASWATI JI: RCP/25-26/180 on POS/25-26/667, RCP/26-27/1090
--- on POS/26-27/718). Rows with kind = 'orphan' are live receipts tagged reference_type 'sale'
--- whose reference_id is not a bill (no screen counts them; check what they were for).
+--   due = net − sale_return_adjust (only when SRA is not already inside net)
+-- kind:
+--   receipts_exceed_bill  : receipts ALONE are more than the bill. Definite extra money — it shows
+--                           as customer credit. The last receipt in receipt_list is usually the
+--                           duplicate. Confirm with the customer; delete the wrong receipt or move
+--                           the extra to an Advance.
+--   check_counter_payment : receipts fit the bill, but counter tender (cash/card/upi columns) +
+--                           receipts are more than the bill. Balances already count the bill only
+--                           once (20261231205000). Either the bill was saved with a payment mode but
+--                           the money came later as the receipt (normal, e.g. finance / pay later),
+--                           or the receipt repeats counter money (SARASWATI JI RCP/25-26/180 on
+--                           POS/25-26/667). Only the shop can tell; affects the cash book, not the
+--                           customer balance.
+--   orphan_receipt        : live receipt tagged reference_type 'sale' whose reference_id is not a
+--                           bill (mostly opening-balance payments). Not counted on any balance.
 -- Fix: confirm with the customer, then delete the wrong receipt in Payments → Customer receipts.
 WITH items_gross AS (
   SELECT si.sale_id, SUM(COALESCE(si.quantity, 0) * COALESCE(si.mrp, 0))::numeric AS gross
@@ -47,7 +55,8 @@ bills AS (
     AND COALESCE(s.is_cancelled, false) = false
     AND lower(COALESCE(s.payment_status, '')) NOT IN ('cancelled', 'hold')
 )
-SELECT 'overpaid_bill' AS kind,
+SELECT CASE WHEN b.receipts > (b.net_amount - b.sra_counted) + 1
+            THEN 'receipts_exceed_bill' ELSE 'check_counter_payment' END AS kind,
        o.name AS organization,
        b.sale_number AS bill,
        (b.sale_date AT TIME ZONE 'Asia/Kolkata')::date AS bill_date,
