@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { findProductNameMatch } from "@/utils/productNameDedupe";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -363,6 +364,25 @@ const ProductEditPanel = ({
         });
         setSaving(false);
         return;
+      }
+
+      // One product per name: renaming to a name another product already has
+      // (capitals, spaces and - _ . / ignored) would split its stock — use Merge instead.
+      if (modifiedFields.has("product_name") && form.product_name) {
+        const nameMatch = await findProductNameMatch(
+          currentOrganization.id,
+          form.product_name,
+          item.product_id,
+        );
+        if (nameMatch) {
+          toast({
+            title: `"${nameMatch.product_name}" already exists`,
+            description: "Another product already has this name. Use Merge products to combine them.",
+            variant: "destructive",
+          });
+          setSaving(false);
+          return;
+        }
       }
 
       // Update product master (product-wide fields only — NOT colour)

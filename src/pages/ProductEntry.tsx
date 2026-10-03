@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { canonicalizeProductBrand } from "@/utils/productBrandUtils";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
+import { findProductNameMatch, productNameMatchKey } from "@/utils/productNameDedupe";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
@@ -130,6 +132,8 @@ const ProductEntry = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  /** Name the product had when opened for edit — the name check runs only if it changes. */
+  const loadedProductNameRef = useRef<string>("");
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
@@ -752,6 +756,7 @@ const ProductEntry = () => {
           ? [...new Set(product.product_variants.map((v: any) => v.color).filter(Boolean))]
           : [];
         
+        loadedProductNameRef.current = product.product_name || "";
         // Set form data
         setFormData({
           product_type: (product.product_type as ProductType) || "goods",
@@ -1293,6 +1298,36 @@ const ProductEntry = () => {
     const barcodesValid = await validateBarcodeUniqueness();
     if (!barcodesValid) return;
 
+    // One product per name: "ELN-DUP", "eln dup", "ELN.DUP" are the same name.
+    const nameChanged =
+      !editingProductId ||
+      productNameMatchKey(formData.product_name) !== productNameMatchKey(loadedProductNameRef.current);
+    if (nameChanged && currentOrganization?.id) {
+      const nameMatch = await findProductNameMatch(
+        currentOrganization.id,
+        formData.product_name,
+        editingProductId,
+      );
+      if (nameMatch) {
+        toast({
+          title: `"${nameMatch.product_name}" already exists`,
+          description: editingProductId
+            ? "Another product already has this name (capitals, spaces and - _ . / are ignored). Use Merge products to combine them."
+            : "Open the existing product to add sizes or colours, so its stock stays under one name.",
+          variant: "destructive",
+          action: editingProductId ? undefined : (
+            <ToastAction
+              altText="Open existing product"
+              onClick={() => orgNavigate(`/product-entry?id=${nameMatch.id}`)}
+            >
+              Open existing
+            </ToastAction>
+          ),
+        });
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       // Try to upload image if exists, but don't fail if it doesn't work
@@ -1740,10 +1775,30 @@ const ProductEntry = () => {
   ) => {
     if (!currentOrganization) return;
     
+    // Get existing (live) products to check for duplicates
+    const { data: existingProducts } = await supabase
+      .from('products')
+      .select('id, product_name, brand, category, color, style')
+      .eq('organization_id', currentOrganization.id)
+      .is('deleted_at', null);
+
+    // Same product name typed with other case / spaces / - _ . / → existing spelling.
+    // Only the name is snapped; category / brand / style / colour still decide the product.
+    const nameByKey = new Map<string, string>();
+    (existingProducts || []).forEach(p => {
+      const k = productNameMatchKey(p.product_name);
+      if (k && !nameByKey.has(k)) nameByKey.set(k, p.product_name);
+    });
+
     // Filter valid rows (must have product_name and size)
-    const validRows = mappedData.filter(row => 
-      row.product_name?.toString().trim() && row.size?.toString().trim()
-    );
+    const validRows = mappedData
+      .filter(row => row.product_name?.toString().trim() && row.size?.toString().trim())
+      .map((row): (typeof mappedData)[number] => {
+        const typed = cleanProductName(row.product_name?.toString());
+        const k = productNameMatchKey(typed);
+        if (!nameByKey.has(k)) nameByKey.set(k, typed);
+        return { ...row, product_name: nameByKey.get(k) };
+      });
 
     // Group rows by product attributes
     const productGroups = new Map<string, Record<string, any>[]>();
@@ -1771,12 +1826,6 @@ const ProductEntry = () => {
     let variantsCreated = 0;
     let variantsSkipped = 0;
     let errorCount = 0;
-
-    // Get existing products to check for duplicates
-    const { data: existingProducts } = await supabase
-      .from('products')
-      .select('id, product_name, brand, category, color, style')
-      .eq('organization_id', currentOrganization.id);
 
     const existingProductMap = new Map<string, string>();
     (existingProducts || []).forEach(p => {

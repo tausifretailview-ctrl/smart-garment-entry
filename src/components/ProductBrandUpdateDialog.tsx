@@ -99,7 +99,8 @@ export function ProductBrandUpdateDialog({
       toast.error("New name is the same as the current name");
       return;
     }
-    if (collision?.kind === "exact") {
+    // Same name ignoring capitals, spaces and - _ . / counts too: one product per name.
+    if (collision) {
       toast.error(`"${collision.product.productName}" already exists — merge instead of renaming`);
       return;
     }
