@@ -445,6 +445,8 @@ async function fetchBarcodeDuplicateLookup(
         .select("id, barcode, size, color, created_at, products!inner(product_name)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
+        // Products in the Recycle Bin keep live variants; their barcodes are free to reuse.
+        .is("products.deleted_at", null)
         .in("barcode", barcodeSubChunk);
 
       if (error) throw error;
@@ -7526,10 +7528,11 @@ const PurchaseEntry = () => {
       const chunk = [...new Set(excelBarcodes.slice(b, b + 500))];
       const { data: existingVariants } = await supabase
         .from('product_variants')
-        .select('id, barcode, mrp, sale_price')
+        .select('id, barcode, mrp, sale_price, products!inner(id)')
         .eq('organization_id', currentOrganization.id)
         .in('barcode', chunk)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .is('products.deleted_at', null);
       (existingVariants || []).forEach((v) => {
         if (!v.barcode) return;
         existingVariantByBarcodeTier.set(

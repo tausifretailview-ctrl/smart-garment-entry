@@ -114,3 +114,18 @@ describe("buildBarcodeDuplicateWarnings", () => {
     expect(warnings.get("b")).toMatch(/Duplicate barcode in this bill/);
   });
 });
+
+describe("purchase barcode lookups skip Recycle Bin products", () => {
+  it("duplicate-warning and Excel-import lookups filter products.deleted_at", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const src = readFileSync(resolve(__dirname, "../pages/PurchaseEntry.tsx"), "utf8");
+    // Vivo V70 FE: deleted product kept a live variant, so its IMEI showed "Barcode already used".
+    expect(src).toMatch(
+      /products!inner\(product_name\)"\)[\s\S]{0,300}?\.is\("products\.deleted_at", null\)[\s\S]{0,40}?\.in\("barcode", barcodeSubChunk\)/,
+    );
+    expect(src).toMatch(
+      /select\('id, barcode, mrp, sale_price, products!inner\(id\)'\)[\s\S]{0,200}?\.is\('products\.deleted_at', null\)/,
+    );
+  });
+});
