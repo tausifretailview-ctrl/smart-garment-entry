@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS } from "@/lib/chunkLoadRetry";
+import { TAB_PAGE_REGISTRY } from "@/lib/tabPageRegistry";
+import { resolveTabLoadShell } from "@/lib/tabLoadShell";
+import { tabLoadMessage } from "@/lib/tabLoadLabels";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../..");
@@ -27,6 +31,24 @@ describe("Recycle Bin Insights chrome", () => {
     expect(layout).toContain("recycle-bin");
     expect(layout).toMatch(/FILL_HEIGHT_DASHBOARD_PATH[\s\S]*recycle-bin/);
     expect(layout).toMatch(/SIDEBAR_ONLY_WORKSPACE_PATH[\s\S]*recycle-bin/);
+  });
+
+  it("loads inside the shell instead of blanking the app", () => {
+    const app = readFileSync(resolve(repoRoot, "src/App.tsx"), "utf8");
+    const start = app.indexOf('path="recycle-bin"');
+    const block = app.slice(start, app.indexOf('path="user-rights"', start));
+    const layoutAt = block.indexOf("<Layout>");
+    const suspenseAt = block.indexOf("<Suspense fallback={<LazyFallback />}>");
+    const pageAt = block.indexOf("<RecycleBin />");
+    expect(layoutAt).toBeGreaterThan(-1);
+    expect(suspenseAt).toBeGreaterThan(layoutAt);
+    expect(pageAt).toBeGreaterThan(suspenseAt);
+
+    expect(TAB_PAGE_REGISTRY["recycle-bin"]?.layout).toBe("layout");
+    expect(TAB_PAGE_REGISTRY["recycle-bin"]?.roles).toEqual(["admin"]);
+    expect(POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS).toContain("recycle-bin");
+    expect(resolveTabLoadShell("recycle-bin")).toBe("dashboard");
+    expect(tabLoadMessage("recycle-bin", "dashboard")).toBe("Opening Recycle Bin…");
   });
 
   it("requires permanent-delete password before hard delete", () => {

@@ -1891,7 +1891,9 @@ const App = () => {
                     <ProtectedRoute>
                       <RoleProtectedRoute allowedRoles={["admin"]}>
                         <Layout>
-                          <RecycleBin />
+                          <Suspense fallback={<LazyFallback />}>
+                            <RecycleBin />
+                          </Suspense>
                         </Layout>
                       </RoleProtectedRoute>
                     </ProtectedRoute>
