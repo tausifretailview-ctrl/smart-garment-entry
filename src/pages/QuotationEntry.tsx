@@ -464,27 +464,18 @@ export default function QuotationEntry() {
       return;
     }
 
-    const cartQtyByVariant = new Map<string, number>();
-    for (const item of lineItems) {
-      if (item.variantId) {
-        cartQtyByVariant.set(
-          item.variantId,
-          (cartQtyByVariant.get(item.variantId) || 0) + item.quantity,
-        );
-      }
-    }
-
+    // Live on-hand only. A quotation line is not a stock movement.
     setSizeGridProduct(productRow);
     setSizeGridVariants(
       mergeSizeColorVariantsForGrid(data, {
         selectedSalePrice,
-        cartQtyByVariant,
+        holdLiveStock: true,
         defaultColor: productRow.color || "",
         products: groupProducts || [productRow],
       }),
     );
     setSizeGridLoading(false);
-  }, [currentOrganization?.id, lineItems, toast, setOpenProductSearch, setSearchInput]);
+  }, [currentOrganization?.id, toast, setOpenProductSearch, setSearchInput]);
 
   const handleSizeGridConfirm = (items: Array<{ variant: any; qty: number }>) => {
     const product = sizeGridProduct;
@@ -894,6 +885,8 @@ export default function QuotationEntry() {
         quotationId = data.id;
       }
 
+      // Document only: quotations and quotation_items. Do not write stock_qty,
+      // sale_items, or stock_movements. A quotation is not a sale.
       const quotationItems = filledItems.map((item) => ({
         quotation_id: quotationId,
         product_id: item.productId,
