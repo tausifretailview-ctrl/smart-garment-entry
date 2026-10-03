@@ -18,6 +18,7 @@ const TAB_LOAD_LABELS: Record<string, string> = {
   backup: "Opening Backup…",
   website: "Opening Website…",
   "user-rights": "Opening User Rights…",
+  "recycle-bin": "Opening Recycle Bin…",
   "pos-sales": "Opening POS…",
   "pos-dashboard": "Opening POS Dashboard…",
   "pos-delivery-challan": "Opening Delivery Challan POS…",

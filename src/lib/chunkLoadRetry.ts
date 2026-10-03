@@ -113,6 +113,7 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
 export const POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS = [
   "settings",
   "user-rights",
+  "recycle-bin",
   "accounts",
   "accounts-payments",
   "customer-account-statement",

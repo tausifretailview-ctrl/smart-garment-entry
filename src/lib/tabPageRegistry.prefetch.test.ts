@@ -82,6 +82,7 @@ describe("tab load shell coverage", () => {
   it("maps settings, user-rights, and third-party routes to dashboard shell", () => {
     expect(resolveTabLoadShell("settings")).toBe("dashboard");
     expect(resolveTabLoadShell("user-rights")).toBe("dashboard");
+    expect(resolveTabLoadShell("recycle-bin")).toBe("dashboard");
     expect(resolveTabLoadShell("third-party-entry")).toBe("dashboard");
     expect(resolveTabLoadShell("third-party-balances")).toBe("dashboard");
     expect(resolveTabLoadShell("accounts")).toBe("dashboard");

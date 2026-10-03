@@ -186,6 +186,7 @@ describe("idle / wake entry-chunk prefetch lists", () => {
       expect.arrayContaining([
         "settings",
         "user-rights",
+        "recycle-bin",
         "accounts",
         "accounts-payments",
         "customer-account-statement",
