@@ -47,9 +47,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ProductHistoryDialog } from "@/components/ProductHistoryDialog";
-import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { useProductProtection } from "@/hooks/useProductProtection";
-import { ProductRelationDialog } from "@/components/ProductRelationDialog";
+import { ProductRelationDialog, type ProductStockOnHandRow } from "@/components/ProductRelationDialog";
+import { softDeleteOrphanedProducts } from "@/utils/fetchAllRows";
+import { collectProductsWithBlockingStock } from "@/utils/productDashboardDeleteGuard";
 import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
@@ -275,7 +276,8 @@ const ProductDashboard = () => {
     productName: string;
     productId: string;
     relations: Array<{ type: string; count: number; samples: string[] }>;
-  }>({ open: false, productName: "", productId: "", relations: [] });
+    stockOnHand: ProductStockOnHandRow[];
+  }>({ open: false, productName: "", productId: "", relations: [], stockOnHand: [] });
   const [isMarkingInactive, setIsMarkingInactive] = useState(false);
 
   // Product history dialog states
@@ -464,8 +466,7 @@ const ProductDashboard = () => {
         label: "Delete Product",
         icon: Trash2,
         onClick: () => {
-          setSelectedProducts(new Set([product.product_id]));
-          setShowBulkDeleteDialog(true);
+          void runDeletePrecheck([product.product_id]);
         },
         destructive: true,
       }] : []),
@@ -995,36 +996,75 @@ const ProductDashboard = () => {
     setSelectedProducts(newSelected);
   };
 
-  // Check if product has any transaction history (sales, purchases, returns, etc.)
-  const checkProductHasTransactions = async (productId: string): Promise<{ hasTransactions: boolean; productName: string }> => {
-    const product = productRows.find(p => p.product_id === productId);
-    const productName = product?.product_name || 'Unknown Product';
-
-    // Check all transaction tables in parallel (including delivery challans)
-    const [saleItems, purchaseItems, saleReturns, purchaseReturns, quotations, saleOrders, challans] = await Promise.all([
-      supabase.from("sale_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("purchase_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("sale_return_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("purchase_return_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("quotation_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("sale_order_items").select("id").eq("product_id", productId).limit(1),
-      supabase.from("delivery_challan_items").select("id").eq("product_id", productId).limit(1),
-    ]);
-
-    const hasTransactions = 
-      (saleItems.data?.length ?? 0) > 0 ||
-      (purchaseItems.data?.length ?? 0) > 0 ||
-      (saleReturns.data?.length ?? 0) > 0 ||
-      (purchaseReturns.data?.length ?? 0) > 0 ||
-      (quotations.data?.length ?? 0) > 0 ||
-      (saleOrders.data?.length ?? 0) > 0 ||
-      (challans.data?.length ?? 0) > 0;
-
-    return { hasTransactions, productName };
-  };
-
-  const { softDelete, bulkSoftDelete } = useSoftDelete();
   const { getProductRelationDetails } = useProductProtection();
+
+  const runDeletePrecheck = useCallback(
+    async (productIds: string[]) => {
+      if (productIds.length === 0) return;
+      if (!canDelete) {
+        toast({
+          title: "Permission Denied",
+          description:
+            "You don't have permission to delete products. Ask admin to enable 'Delete Records' in User Rights.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const productsWithTransactions: Array<{
+        id: string;
+        name: string;
+        relations: Array<{ type: string; count: number; samples: string[] }>;
+      }> = [];
+
+      for (const productId of productIds) {
+        const product = productRows.find((p) => p.product_id === productId);
+        const result = await getProductRelationDetails(productId);
+        if (result.hasTransactions) {
+          productsWithTransactions.push({
+            id: productId,
+            name: product?.product_name || "Unknown",
+            relations: result.relations,
+          });
+        }
+      }
+
+      if (productsWithTransactions.length > 0) {
+        const first = productsWithTransactions[0];
+        setRelationDialog({
+          open: true,
+          productName:
+            first.name +
+            (productsWithTransactions.length > 1
+              ? ` (and ${productsWithTransactions.length - 1} more with transactions)`
+              : ""),
+          productId: first.id,
+          relations: first.relations,
+          stockOnHand: [],
+        });
+        return;
+      }
+
+      const withStock = collectProductsWithBlockingStock(productRows, productIds, isServiceProduct);
+      if (withStock.length > 0) {
+        setRelationDialog({
+          open: true,
+          productName:
+            withStock.length === 1
+              ? withStock[0].product_name
+              : `${withStock.length} products with stock`,
+          productId: withStock.length === 1 ? withStock[0].product_id : "",
+          relations: [],
+          stockOnHand: withStock.map((p) => ({ name: p.product_name, stock: p.total_stock })),
+        });
+        return;
+      }
+
+      setSelectedProducts(new Set(productIds));
+      setShowBulkDeleteDialog(true);
+    },
+    [canDelete, getProductRelationDetails, productRows, toast],
+  );
 
   const handleBulkDelete = async () => {
     if (!canDelete) {
@@ -1036,75 +1076,47 @@ const ProductDashboard = () => {
       setShowBulkDeleteDialog(false);
       return;
     }
+    const orgId = currentOrganization?.id;
+    if (!orgId) {
+      toast({ title: "Error", description: "Organization not loaded.", variant: "destructive" });
+      return;
+    }
+
     setIsDeleting(true);
     try {
       const productsToDelete = Array.from(selectedProducts);
-      
-      // For single product, show detailed relation dialog
-      if (productsToDelete.length === 1) {
-        const productId = productsToDelete[0];
-        const product = productRows.find(p => p.product_id === productId);
-        const productName = product?.product_name || 'Unknown Product';
-        
-        const result = await getProductRelationDetails(productId);
-        
-        if (result.hasTransactions) {
-          setRelationDialog({
-            open: true,
-            productName,
-            productId,
-            relations: result.relations,
-          });
-          setIsDeleting(false);
-          setShowBulkDeleteDialog(false);
-          return;
-        }
-      } else {
-        // For multiple products, check all for transaction history
-        const productsWithTransactions: Array<{ id: string; name: string; relations: Array<{ type: string; count: number; samples: string[] }> }> = [];
-        
-        for (const productId of productsToDelete) {
-          const product = productRows.find(p => p.product_id === productId);
-          const result = await getProductRelationDetails(productId);
-          if (result.hasTransactions) {
-            productsWithTransactions.push({
-              id: productId,
-              name: product?.product_name || 'Unknown',
-              relations: result.relations,
-            });
-          }
-        }
+      const result = await softDeleteOrphanedProducts(orgId, productsToDelete);
 
-        // If any product has transactions, show first one's relation dialog
-        if (productsWithTransactions.length > 0) {
-          const first = productsWithTransactions[0];
-          setRelationDialog({
-            open: true,
-            productName: first.name + (productsWithTransactions.length > 1 ? ` (and ${productsWithTransactions.length - 1} more)` : ''),
-            productId: first.id,
-            relations: first.relations,
-          });
-          setIsDeleting(false);
-          setShowBulkDeleteDialog(false);
-          return;
+      if (result.deleted_count > 0) {
+        toast({
+          title: "Moved to Recycle Bin",
+          description: `${result.deleted_count} product(s) and their variants were soft-deleted. Restore from Recycle Bin if needed.`,
+        });
+      }
+
+      if (result.skipped.length > 0) {
+        const notOrphan = result.skipped.filter((s) => s.reason === "not_orphan").length;
+        toast({
+          title: result.deleted_count > 0 ? "Some items skipped" : "Nothing deleted",
+          description:
+            notOrphan > 0
+              ? `${result.skipped.length} product(s) still have stock or live transactions. Refresh and review.`
+              : `${result.skipped.length} product(s) could not be deleted.`,
+          variant: result.deleted_count > 0 ? "default" : "destructive",
+        });
+        if (result.deleted_count === 0 && notOrphan > 0) {
+          await runDeletePrecheck(productsToDelete);
         }
       }
 
-      // Soft delete products without transaction history
-      const count = await bulkSoftDelete("products", productsToDelete);
-
-      toast({
-        title: "Success",
-        description: `${count} product(s) moved to recycle bin`,
-      });
-
       setSelectedProducts(new Set());
       setShowBulkDeleteDialog(false);
-      await fetchProductVariants();
-    } catch (error: any) {
+      await invalidateProductDashboardQueries(queryClient, orgId);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete products";
       toast({
         title: "Error",
-        description: error.message || "Failed to delete products",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -1124,7 +1136,13 @@ const ProductDashboard = () => {
       {
         onSettled: () => {
           setIsMarkingInactive(false);
-          setRelationDialog({ open: false, productName: "", productId: "", relations: [] });
+          setRelationDialog({
+            open: false,
+            productName: "",
+            productId: "",
+            relations: [],
+            stockOnHand: [],
+          });
           setSelectedProducts(new Set());
         },
       },
@@ -1489,14 +1507,8 @@ const ProductDashboard = () => {
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
-                onClick={async () => {
-                  const result = await getProductRelationDetails(row.original.product_id);
-                  if (result.hasTransactions) {
-                    setRelationDialog({ open: true, productName: row.original.product_name, productId: row.original.product_id, relations: result.relations });
-                  } else {
-                    setSelectedProducts(new Set([row.original.product_id]));
-                    setShowBulkDeleteDialog(true);
-                  }
+                onClick={() => {
+                  void runDeletePrecheck([row.original.product_id]);
                 }}
               >
                 Delete
@@ -1529,6 +1541,7 @@ const ProductDashboard = () => {
     variantColorLabels,
     colorLabelsFetched,
     sizeGroups,
+    runDeletePrecheck,
   ]);
 
   const renderProductSubRow = useCallback((row: ProductRow) => {
@@ -2082,7 +2095,7 @@ const ProductDashboard = () => {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setShowBulkDeleteDialog(true)}
+                      onClick={() => void runDeletePrecheck(Array.from(selectedProducts))}
                       className="gap-2"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -2177,9 +2190,9 @@ const ProductDashboard = () => {
         <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Permanently Delete Selected Products</AlertDialogTitle>
+              <AlertDialogTitle>Move Selected Products to Recycle Bin?</AlertDialogTitle>
               <AlertDialogDescription>
-                Are you sure you want to permanently delete {selectedProducts.size} product(s)? This will remove all associated variants, stock records, and transaction history. This action cannot be undone.
+                This soft-deletes {selectedProducts.size} orphaned product(s) with zero stock and no live bills or sales. Product master and variants can be restored from Recycle Bin.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -2217,10 +2230,23 @@ const ProductDashboard = () => {
       {/* Product Relation Dialog (blocked deletion) */}
       <ProductRelationDialog
         open={relationDialog.open}
-        onOpenChange={(open) => setRelationDialog(prev => ({ ...prev, open }))}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRelationDialog({
+              open: false,
+              productName: "",
+              productId: "",
+              relations: [],
+              stockOnHand: [],
+            });
+          } else {
+            setRelationDialog((prev) => ({ ...prev, open: true }));
+          }
+        }}
         productName={relationDialog.productName}
         relations={relationDialog.relations}
-        onMarkInactive={handleMarkProductInactive}
+        stockOnHand={relationDialog.stockOnHand}
+        onMarkInactive={relationDialog.productId ? handleMarkProductInactive : undefined}
         isMarkingInactive={isMarkingInactive}
       />
 
