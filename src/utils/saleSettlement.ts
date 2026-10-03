@@ -78,6 +78,36 @@ export function derivePaidAndStatus(params: {
   return { paidAmount, paymentStatus };
 }
 
+/**
+ * POS paid_amount / status.
+ *
+ * `netAmount` is `computePosBillTotals.billAmount`, which already subtracts
+ * loyalty points. Cash tender is that reduced payable. Adding the points
+ * value again as a settlement discount makes paid exceed the bill
+ * (₹3,987 paid vs ₹3,640 payable) and the save is rejected.
+ */
+export function derivePosPaidAndStatus(params: {
+  netAmount: number;
+  saleReturnAdjust: number;
+  cashReceived: number;
+  advanceApplied: number;
+  cnApplied: number;
+  paymentMethod?: string;
+  /** Already removed from netAmount. Kept so callers pass it explicitly. */
+  pointsRedeemedAmount?: number;
+}): { paidAmount: number; paymentStatus: SalePaymentStatus } {
+  void params.pointsRedeemedAmount;
+  return derivePaidAndStatus({
+    netAmount: params.netAmount,
+    saleReturnAdjust: params.saleReturnAdjust,
+    cashReceived: params.cashReceived,
+    advanceApplied: params.advanceApplied,
+    cnApplied: params.cnApplied,
+    discountGiven: 0,
+    paymentMethod: params.paymentMethod,
+  });
+}
+
 export type CreateReceiptVoucherParams = {
   organizationId: string;
   /** Sale id for invoice receipts; customer id for opening-balance receipts. */
