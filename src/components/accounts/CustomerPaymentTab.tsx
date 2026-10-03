@@ -1394,9 +1394,9 @@ export function CustomerPaymentTab({
       queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
       queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-invoice-voucher-splits"] });
-      queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      void queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["customer-invoice-voucher-splits"] });
+      void queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
       invalidateAfterCustomerPaymentMutation(queryClient, organizationId, customerId);
       queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
       queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
