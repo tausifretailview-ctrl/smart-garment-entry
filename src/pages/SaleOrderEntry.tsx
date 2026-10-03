@@ -209,15 +209,6 @@ export default function SaleOrderEntry() {
 
   useEntryViewportSync();
 
-  const focusProductSearchBar = useCallback(() => {
-    // Open browse search so the CommandInput receives the cursor (not Customer / Scan Barcode).
-    setTimeout(() => setOpenProductSearch(true), 50);
-  }, [setOpenProductSearch]);
-
-  useEffect(() => {
-    focusProductSearchBar();
-  }, [focusProductSearchBar]);
-
   // Draft save hook
   const {
     hasDraft,
@@ -824,7 +815,6 @@ export default function SaleOrderEntry() {
     }
     setSearchInput("");
     setOpenProductSearch(false);
-    focusProductSearchBar();
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
@@ -953,7 +943,6 @@ export default function SaleOrderEntry() {
     
     setOpenProductSearch(false);
     setSearchInput("");
-    focusProductSearchBar();
     toast({ title: "Product Added", description: `${product.product_name} (${variant.size}) added` });
     setTimeout(() => tableEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
@@ -2206,7 +2195,7 @@ export default function SaleOrderEntry() {
         onClose={() => {
           setShowSizeGrid(false);
           setSizeGridLoading(false);
-          focusProductSearchBar();
+          setOpenProductSearch(false);
         }}
         product={sizeGridProduct}
         variants={sizeGridVariants}
