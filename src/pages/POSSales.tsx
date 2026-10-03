@@ -185,6 +185,10 @@ import {
   POS_FOCUS_BARCODE_EVENT,
 } from "@/utils/posSalesRefresh";
 import {
+  persistPosEditCreditAdjust,
+  posEditCreditSaveMessage,
+} from "@/utils/posEditCreditSave";
+import {
   clearPosCartSnapshot,
   readPosCartSnapshot,
   writePosCartSnapshot,
@@ -2060,12 +2064,31 @@ export default function POSSales() {
     }
   }, [currentSaleId, setIsEditing]);
 
-  // Save metadata changes handler (customer, salesman, notes only)
+  // Save customer, salesman, notes, and a changed pending credit-note (S/R) adjust.
   const handleSaveMetadataChanges = useCallback(async () => {
     if (!currentSaleId || !currentOrganization?.id) return;
     
     setIsSavingChanges(true);
     try {
+      let creditDescription = "";
+      if (!isHeldSale) {
+        const credit = await persistPosEditCreditAdjust(supabase, {
+          organizationId: currentOrganization.id,
+          saleId: currentSaleId,
+          customerId: customerId || null,
+          requested: saleReturnAdjust,
+          adjustedBy: user?.id ?? null,
+          customerName,
+        });
+        if (!credit.ok) {
+          toast.error("Save Failed", { description: credit.message });
+          return;
+        }
+        if (credit.changed) {
+          creditDescription = posEditCreditSaveMessage(credit);
+        }
+      }
+
       const { error } = await supabase
         .from('sales')
         .update({
@@ -2080,7 +2103,11 @@ export default function POSSales() {
 
       if (error) throw error;
 
-      toast.success("Changes Saved", { description: "Customer, salesman & notes updated successfully." });
+      toast.success("Changes Saved", {
+        description: creditDescription
+          ? `Customer, salesman and notes saved. ${creditDescription}`
+          : "Customer, salesman & notes updated successfully.",
+      });
 
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       notifyPosSalesChanged({ organizationId: currentOrganization?.id });
@@ -2097,7 +2124,7 @@ export default function POSSales() {
     } finally {
       setIsSavingChanges(false);
     }
-  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, toast, queryClient, setIsSavingChanges]);
+  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, saleReturnAdjust, isHeldSale, user?.id, toast, queryClient, setIsSavingChanges]);
 
   // Register save changes handler
   useEffect(() => {
