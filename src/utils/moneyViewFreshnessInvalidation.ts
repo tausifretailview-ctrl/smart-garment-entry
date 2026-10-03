@@ -55,6 +55,12 @@ export function invalidateMoneyViewsAfterMutation(
 ) {
   notifyMoneyViewChanged({ organizationId });
   invalidateMoneyViewFreshness(queryClient, organizationId);
+  // The one balance breakdown (CustomerAccountSummaryStrip) on every screen.
+  void queryClient.invalidateQueries({
+    queryKey: customerId
+      ? ["customer-account-state-view", organizationId, customerId]
+      : ["customer-account-state-view", organizationId],
+  });
   if (customerId) {
     void queryClient.invalidateQueries({
       queryKey: ["customer-transactions", organizationId, customerId],

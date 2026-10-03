@@ -3639,6 +3639,8 @@ Please clear your dues at the earliest. Thank you!`;
                   rows={transactions || []}
                   checkBalance={accountCheck.state.netPosition}
                   checkLoading={accountCheck.isLoading || !transactions}
+                  unusedAdvance={accountCheck.state.unusedAdvance}
+                  pendingCn={accountCheck.state.unclaimedSaleReturn}
                   asOfDate={ledgerAsOfDate}
                   onCheckAccount={() => setLedgerAuditOpen(true)}
                 />

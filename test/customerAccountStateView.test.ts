@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  customerBalanceBreakdown,
   formatAccountInr,
   formatCustomerAccountArithmeticLine,
   formatNetPositionLabel,
@@ -189,5 +190,25 @@ describe("getCustomerAccountState facets (no parallel maths)", () => {
     });
     expect(state.netPosition).toBeCloseTo(-100, 0);
     expect(state.unclaimedSaleReturnCredit).toBeCloseTo(100, 0);
+  });
+});
+
+describe("customerBalanceBreakdown — one breakdown on every screen", () => {
+  it("Bills due − Pending CN − Advance = Net, pending CN taken off once", () => {
+    // outstanding already has the ₹500 pending return credit taken off
+    const b = customerBalanceBreakdown({ outstanding: 2_500, unusedAdvance: 1_000, unclaimedSaleReturn: 500, netPosition: 1_500 });
+    expect(b).toEqual({ billsDue: 3_000, pendingCn: 500, unusedAdvance: 1_000, net: 1_500 });
+    expect(b.billsDue - b.pendingCn - b.unusedAdvance).toBe(b.net);
+  });
+
+  it("no CN and no advance: Bills due = Net", () => {
+    expect(customerBalanceBreakdown({ outstanding: 4_300, unusedAdvance: 0, unclaimedSaleReturn: 0, netPosition: 4_300 }))
+      .toEqual({ billsDue: 4_300, pendingCn: 0, unusedAdvance: 0, net: 4_300 });
+  });
+
+  it("customer in credit (advance bigger than bills)", () => {
+    const b = customerBalanceBreakdown({ outstanding: 200, unusedAdvance: 1_200, unclaimedSaleReturn: 0, netPosition: -1_000 });
+    expect(b.net).toBe(-1_000);
+    expect(b.billsDue - b.pendingCn - b.unusedAdvance).toBe(b.net);
   });
 });

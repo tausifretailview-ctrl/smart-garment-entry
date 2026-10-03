@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { ChevronDown, Loader2, ShieldCheck } from "lucide-react";
 import { useCustomerAccountState } from "@/hooks/useCustomerAccountState";
 import {
+  customerBalanceBreakdown,
   formatAccountInr,
   formatNetPositionLabel,
   type CustomerAccountStateView,
@@ -30,8 +31,9 @@ type Props = {
 };
 
 /**
- * One shared Pure Outstanding strip: Outstanding − Advance [= Unclaimed SR] = Net.
- * Same component / same numbers everywhere users look.
+ * One shared customer balance strip:
+ *   Bills due − Pending CN / return credit − Advance held = Net balance.
+ * Same component / same numbers everywhere users look (getCustomerAccountState).
  */
 export function CustomerAccountSummaryStrip({
   organizationId,
@@ -53,7 +55,7 @@ export function CustomerAccountSummaryStrip({
 
   if (!customerId && !stateOverride) return null;
 
-  const showUnclaimed = state.unclaimedSaleReturn > 0;
+  const breakdown = customerBalanceBreakdown(state);
   const netLabel = formatNetPositionLabel(state.netPosition);
   const netPositive = state.netPosition > 0;
   const netCredit = state.netPosition < 0;
@@ -103,16 +105,27 @@ export function CustomerAccountSummaryStrip({
             )}
           >
             <span className="text-foreground">
-              <span className="text-muted-foreground font-normal text-xs mr-1">Customer owes</span>
-              {formatAccountInr(state.outstanding)}
-              <span className="sr-only"> (Outstanding)</span>
+              <span className="text-muted-foreground font-normal text-xs mr-1">Bills due</span>
+              {formatAccountInr(breakdown.billsDue)}
+              {breakdown.billsDue < 0 ? " Cr" : ""}
             </span>
+            {breakdown.pendingCn > 0 && (
+              <>
+                <span className="text-muted-foreground font-normal" aria-hidden>
+                  −
+                </span>
+                <span className="text-foreground" data-testid="strip-pending-cn">
+                  <span className="text-muted-foreground font-normal text-xs mr-1">Pending CN / return</span>
+                  {formatAccountInr(breakdown.pendingCn)}
+                </span>
+              </>
+            )}
             <span className="text-muted-foreground font-normal" aria-hidden>
               −
             </span>
             <span className="text-foreground">
               <span className="text-muted-foreground font-normal text-xs mr-1">Advance held</span>
-              {formatAccountInr(state.unusedAdvance)}
+              {formatAccountInr(breakdown.unusedAdvance)}
               <span className="sr-only"> (Unused Advance)</span>
             </span>
             <span className="text-muted-foreground font-normal" aria-hidden>
@@ -126,27 +139,13 @@ export function CustomerAccountSummaryStrip({
                 !netPositive && !netCredit && "text-foreground",
               )}
             >
-              <span className="text-muted-foreground font-normal text-xs mr-1">Net</span>
+              <span className="text-muted-foreground font-normal text-xs mr-1">Net balance</span>
               {netLabel}
               <span className="sr-only"> (Net Position)</span>
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-              Outstanding {formatAccountInr(state.outstanding)}
-            </Badge>
-            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-              Unused Advance {formatAccountInr(state.unusedAdvance)}
-            </Badge>
-            {showUnclaimed && (
-              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-                Unclaimed SR {formatAccountInr(state.unclaimedSaleReturn)}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
-              Net Position {netLabel}
-            </Badge>
             {state.openingBalance !== 0 && (
               <Badge variant="secondary" className="text-[10px] font-normal">
                 Includes opening balance {formatAccountInr(state.openingBalance)}
