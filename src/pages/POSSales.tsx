@@ -2081,11 +2081,7 @@ export default function POSSales() {
           customerName,
         });
         if (credit.ok === false) {
- claude/brave-mayer-mx54w9
-          toast.error("Save Failed", { description: credit.message });
-
           toast.error("Save Failed", { description: (credit as { message?: string }).message });
- main
           return;
         }
         if (credit.changed) {
