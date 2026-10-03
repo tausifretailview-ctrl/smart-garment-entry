@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-03",
-  "count": 818,
-  "fileCount": 835,
+  "count": 820,
+  "fileCount": 837,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -821,7 +821,9 @@
     "20261231200000",
     "20261231205000",
     "20261231210000",
-    "20270103120000"
+    "20270103120000",
+    "20270103140000",
+    "20270103150000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1658,7 +1660,9 @@
     "20261231200000_counter_tender_plus_later_receipts.sql",
     "20261231205000_cap_counter_tender_at_bill.sql",
     "20261231210000_block_overpaid_bill_receipts.sql",
-    "20270103120000_website_enquiry_booked_size_barcode.sql"
+    "20270103120000_website_enquiry_booked_size_barcode.sql",
+    "20270103140000_quotation_no_stock_deduction.sql",
+    "20270103150000_push_campaigns_allow_offer_kind.sql"
   ],
   "duplicateVersions": [
     {
