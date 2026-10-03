@@ -508,7 +508,6 @@ const DesktopDashboard = () => {
   const profitData = displayedNpaKpis?.gross_profit ?? 0;
   const npaKpisReady = displayedNpaKpis != null;
   const profitLoading = metricsLoadRequested && npaKpisFetching && npaKpisReady;
-  const cashCollection = displayedDashStats?.cash_collection || 0;
   const receivablesData = { total: displayedDashStats?.total_receivables || 0 };
   const saleReturnData = { total: displayedDashStats?.sale_return_total || 0, count: displayedDashStats?.sale_return_count || 0, returnQty: displayedDashStats?.sale_return_qty || 0 };
   const purchaseReturnData = { total: displayedDashStats?.purchase_return_total || 0, count: displayedDashStats?.purchase_return_count || 0, returnQty: displayedDashStats?.purchase_return_qty || 0 };
@@ -1009,7 +1008,8 @@ const DesktopDashboard = () => {
               accentColor="bg-emerald-500"
               prefetchPath="purchase-bills"
               onClick={() => navigate("/purchase-bills")}
-              tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
+              tooltip="Purchase bill net: taxable amount plus GST, other charges, and round off. Click to view Purchase Dashboard."
+              caption="Incl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1043,7 +1043,8 @@ const DesktopDashboard = () => {
               accentColor="bg-amber-500"
               prefetchPath="purchase-return-dashboard"
               onClick={() => navigate("/purchase-return-dashboard")}
-              tooltip="Total purchase return amount. Click to view Purchase Returns."
+              tooltip="Purchase return net, including GST. Click to view Purchase Returns."
+              caption="Incl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1108,7 +1109,8 @@ const DesktopDashboard = () => {
               accentColor="bg-purple-500"
               prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
-              tooltip="Total value of current inventory at purchase price. Click to view details."
+              tooltip="On-hand quantity times purchase rate. GST is not added. Click to view Stock Report."
+              caption="Excl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1136,18 +1138,6 @@ const DesktopDashboard = () => {
               prefetchPath="customer-party-balances"
               onClick={() => navigate("/customer-party-balances")}
               tooltip="Outstanding on pending/partial invoices (from dashboard stats). For full customer net balance including OB, advance, and CN, open Customer Balances."
-              isCurrency
-              placeholder={showPlaceholders}
-              loading={metricsLoading}
-            />
-            <AnimatedMetricCard
-              title="Cash Collection"
-              value={cashCollection || 0}
-              icon={DollarSign}
-              accentColor="bg-blue-600"
-              prefetchPath="daily-cashier-report"
-              onClick={() => navigate("/daily-cashier-report")}
-              tooltip="Total cash collected from sales. Click to view Cashier Report."
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
