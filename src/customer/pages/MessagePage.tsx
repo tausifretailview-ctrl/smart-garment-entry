@@ -1,5 +1,6 @@
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { BillView } from "./account";
+import { PoweredBy, ShopHeader } from "../components/AppChrome";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -17,21 +18,24 @@ export default function MessagePage() {
 
   if (UUID.test(saleId)) {
     return (
+      <>
+      <ShopHeader />
       <div className="c-wrap">
         <BillView saleId={saleId} />
         <Link className="c-btn c-btn-ghost no-print" style={{ textDecoration: "none", textAlign: "center" }} to="/account">
           My account
         </Link>
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    <ShopHeader />
     <div className="c-wrap">
-      <div className="c-card">
-        <div className="c-muted" style={{ fontSize: 11 }}>
-          Message {id.slice(0, 8)}
-        </div>
+      <div className="c-card c-msg">
+        <div className="c-section">{UUID.test(campaignId) ? "Offer" : "Message"} · {id.slice(0, 8)}</div>
         <h2 style={{ margin: "6px 0 8px", fontSize: 18 }}>{title}</h2>
         {body ? <p style={{ margin: 0, lineHeight: 1.55 }}>{body}</p> : null}
       </div>
@@ -40,6 +44,8 @@ export default function MessagePage() {
           {UUID.test(campaignId) ? "See all offers" : "My bills & offers"}
         </Link>
       </div>
+      <PoweredBy />
     </div>
+    </>
   );
 }

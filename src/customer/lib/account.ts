@@ -80,6 +80,14 @@ export type OfferRow = {
   created_at: string;
 };
 
+export type ShopInfo = {
+  name: string;
+  address: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  logo_url: string | null;
+};
+
 export class AccountError extends Error {
   constructor(public code: string) {
     super(code);
@@ -121,21 +129,65 @@ async function call<T>(action: string, args: Record<string, unknown> = {}): Prom
   }
   const data = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok || data.error) {
-    if (data.error === "session_expired") setSessionToken(null, subdomain);
+    if (data.error === "session_expired") {
+      clearCustomerCache(subdomain);
+      setSessionToken(null, subdomain);
+    }
     throw new AccountError(data.error ?? `http_${res.status}`);
   }
   return data as T;
 }
 
+// ---- Instant screens: last answer per action is kept on this device (per shop) ----
+// Pages show it at once and refresh in the background. Cleared on login/logout so one
+// customer never sees another's cached data on a shared phone.
+const CACHE_PREFIX = "ezzy_cust_cache:";
+const cacheKey = (key: string, subdomain = resolveSubdomain()) => `${CACHE_PREFIX}${subdomain}:${key}`;
+
+export function readCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(cacheKey(key));
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCache(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(cacheKey(key), JSON.stringify(value));
+  } catch {
+    /* storage full / blocked: just no instant screen next time */
+  }
+}
+
+function clearCustomerCache(subdomain = resolveSubdomain()): void {
+  try {
+    const prefix = cacheKey("", subdomain);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      // Shop header is public and safe to keep.
+      if (k && k.startsWith(prefix) && k !== cacheKey("shop", subdomain)) localStorage.removeItem(k);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export async function loginWithMobile(mobile: string): Promise<void> {
   const res = await call<{ token: string }>("login", { mobile });
+  clearCustomerCache();
   setSessionToken(res.token);
 }
 
 /** Sessions are signed tokens with no server copy: forgetting it on this device logs out. */
 export function logout(): void {
+  clearCustomerCache();
   setSessionToken(null);
 }
+
+/** Public shop header (no login needed). */
+export const fetchShop = () => call<{ shop: ShopInfo }>("shop");
 
 export const fetchSummary = () => call<AccountSummary>("summary");
 export const fetchBills = (page: number) => call<{ bills: BillListRow[]; hasMore: boolean }>("bills", { page });
