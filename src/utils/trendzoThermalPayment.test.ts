@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildTrendzoPaymentLines,
   formatTrendzoPaymentModeLabel,
+  posWhatsAppReceiptFigures,
+  trendzoDisplayedSettlement,
   trendzoMixAmountPair,
   trendzoPartyAccountPair,
 } from "./trendzoThermalPayment";
@@ -72,5 +74,53 @@ describe("trendzoPartyAccountPair", () => {
 
   it("omits the row when both are empty", () => {
     expect(trendzoPartyAccountPair({ previousBalance: 0.4, unusedAdvance: 0 })).toBeNull();
+  });
+});
+
+describe("POS/26-27/167 exchange refund on the WhatsApp receipt", () => {
+  it("prints grand total ₹0 and refund ₹200, not balance due ₹3,300", () => {
+    expect(
+      posWhatsAppReceiptFigures({
+        netAmount: 3300,
+        saleReturnAdjust: 3300,
+        paidAmount: 0,
+        refundAmount: -200,
+      }),
+    ).toEqual({
+      grandTotal: 0,
+      saleReturnAdjust: 3300,
+      paidAmount: 0,
+      balanceDue: 0,
+      refundCash: 200,
+    });
+  });
+
+  it("keeps a normal cash bill paid in full", () => {
+    expect(
+      posWhatsAppReceiptFigures({
+        netAmount: 3300,
+        saleReturnAdjust: 0,
+        paidAmount: 3300,
+      }).balanceDue,
+    ).toBe(0);
+  });
+
+  it("does not pretend an unpaid S/R-settled bill was paid, and does not double-subtract a payable grand total", () => {
+    expect(
+      trendzoDisplayedSettlement({
+        grandTotal: 3300,
+        saleReturnAdjust: 3300,
+        collected: 0,
+        refundCash: 200,
+      }),
+    ).toEqual({ grandTotal: 0, paid: 0, balanceDue: 0, refundCash: 200 });
+
+    expect(
+      trendzoDisplayedSettlement({
+        grandTotal: 2300,
+        saleReturnAdjust: 1000,
+        collected: 2300,
+      }),
+    ).toMatchObject({ grandTotal: 2300, paid: 2300, balanceDue: 0 });
   });
 });
