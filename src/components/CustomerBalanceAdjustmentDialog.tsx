@@ -29,6 +29,7 @@ import {
   type AdjustmentAllocation,
 } from "@/utils/applyAdjustmentToInvoices";
 import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
+import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
 
 interface CustomerBalanceAdjustmentDialogProps {
   open: boolean;
@@ -178,31 +179,7 @@ export function CustomerBalanceAdjustmentDialog({
         createdBy: user?.id,
       });
     } else if (advDiff < 0) {
-      const { data: activeAdvances } = await supabase
-        .from("customer_advances")
-        .select("id, amount, used_amount")
-        .eq("customer_id", customerId)
-        .eq("organization_id", organizationId)
-        .in("status", ["active", "partially_used"])
-        .order("advance_date", { ascending: true });
-
-      let remaining = Math.abs(advDiff);
-      for (const adv of activeAdvances || []) {
-        if (remaining <= 0) break;
-        const available = (adv.amount || 0) - (adv.used_amount || 0);
-        const deduct = Math.min(available, remaining);
-        if (deduct > 0) {
-          const newUsed = (adv.used_amount || 0) + deduct;
-          await supabase
-            .from("customer_advances")
-            .update({
-              used_amount: newUsed,
-              status: newUsed >= (adv.amount || 0) ? "fully_used" : "partially_used",
-            })
-            .eq("id", adv.id);
-          remaining -= deduct;
-        }
-      }
+      await deductCustomerAdvanceManually(supabase, organizationId, customerId, advDiff);
     }
   };
 

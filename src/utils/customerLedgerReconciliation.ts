@@ -93,3 +93,17 @@ export function saleReturnCreditForReconciliation(row: {
   const remainingCredit = (row.credit ?? 0) || 0;
   return displayCredit > remainingCredit + 0.005 ? remainingCredit : displayCredit;
 }
+
+/**
+ * Advance removed by a Balance Adjustment, read from the ledger row text
+ * "... (Advance Refund: ₹40,000)" written by fetchCustomerLedgerTransactions. That part of the
+ * row's debit takes the advance out of the customer's credit; it is not owed on invoices, so
+ * it must stay out of the reconciliation's Outstanding (the retail ledger body is frozen by a
+ * golden-source test, hence the text instead of a new field on the row).
+ */
+export function advanceReductionFromAdjustmentDescription(description?: string | null): number {
+  const m = /\(Advance Refund: ₹([\d,]+(?:\.\d+)?)\)/.exec(description || "");
+  if (!m) return 0;
+  const n = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}

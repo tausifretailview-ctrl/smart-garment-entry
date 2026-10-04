@@ -1395,6 +1395,7 @@ export type Database = {
           payment_method: string | null
           status: string | null
           transaction_id: string | null
+          manual_used_amount: number
           used_amount: number
         }
         Insert: {
@@ -1411,6 +1412,7 @@ export type Database = {
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
+          manual_used_amount?: number
           used_amount?: number
         }
         Update: {
@@ -1427,6 +1429,7 @@ export type Database = {
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
+          manual_used_amount?: number
           used_amount?: number
         }
         Relationships: [
