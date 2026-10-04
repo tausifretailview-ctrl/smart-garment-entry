@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
 import type { PosThermalPaper } from '@/utils/invoicePrintFormat';
+import { ThermalPartyLines } from '@/components/thermal/ThermalPartyLines';
 import {
   formatKidsParticularsLine,
   kidsLayoutForPaper,
@@ -35,6 +36,8 @@ interface KidsThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   salesman?: string;
   settingsOverride?: Record<string, unknown>;
@@ -75,6 +78,8 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
       creditPaid = 0,
       paidAmount = 0,
       refundCash = 0,
+      previousBalance = 0,
+      unusedAdvance = 0,
       documentType = 'invoice',
       salesman,
       thermalPaper = '80mm',
@@ -347,6 +352,11 @@ export const KidsThermalReceipt80mm = React.forwardRef<HTMLDivElement, KidsTherm
         {refundCash > 0 && (
           <div style={{ fontSize: '10px', fontWeight: 800 }}>Refund: ₹{fmtAmt(refundCash)}</div>
         )}
+        <ThermalPartyLines
+          previousBalance={previousBalance}
+          unusedAdvance={unusedAdvance}
+          formatMoney={(n) => `₹${fmtAmt(n)}`}
+        />
 
         <div style={solid} />
 

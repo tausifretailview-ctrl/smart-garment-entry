@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
+import { ThermalPartyLines } from '@/components/thermal/ThermalPartyLines';
 
 interface ThermalItem {
   sr: number;
@@ -36,6 +37,8 @@ interface NewDesignThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
   notes?: string;
@@ -82,6 +85,8 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
     roundOff = 0,
     grandTotal,
     refundCash = 0,
+    previousBalance = 0,
+    unusedAdvance = 0,
     paymentMethod,
     documentType = 'invoice',
     termsConditions,
@@ -329,6 +334,11 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
           <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtDec(refundCash)}</span>
         </div>
       )}
+      <ThermalPartyLines
+        previousBalance={previousBalance}
+        unusedAdvance={unusedAdvance}
+        formatMoney={(n) => fmtDec(n)}
+      />
 
       <div style={rule} />
 

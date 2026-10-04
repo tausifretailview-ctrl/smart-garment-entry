@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
 import { resolveInvoiceUpiId } from '@/utils/companyUpi';
+import { ThermalPartyLines } from '@/components/thermal/ThermalPartyLines';
 
 interface ThermalItem {
   sr: number;
@@ -48,6 +49,8 @@ interface TvsThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
   notes?: string;
@@ -97,6 +100,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
+      previousBalance = 0, unusedAdvance = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice, settingsOverride, showYouSaved = true,
@@ -362,6 +366,7 @@ export const TvsThermalReceipt80mm = React.forwardRef<HTMLDivElement, TvsThermal
                 <div style={{ ...row, fontWeight: 900 }}><span>TOTAL PAID</span><span>₹{fmtAmt(totalPaid)}</span></div>
               )}
               {refundCash > 0 && <div style={row}><span>Refund</span><span>₹{fmtAmt(refundCash)}</span></div>}
+              <ThermalPartyLines previousBalance={previousBalance} unusedAdvance={unusedAdvance} formatMoney={(n) => `₹${fmtAmt(n)}`} />
               {Math.abs(balanceDue) > 1 && (
                 <div style={{ ...row, fontWeight: 900 }}>
                   <span>{balanceDue < 0 ? 'CREDIT DUE' : 'BALANCE DUE'}</span>

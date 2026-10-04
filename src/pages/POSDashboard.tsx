@@ -33,6 +33,7 @@ import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
+import { saleRowThermalTender } from "@/utils/thermalReceiptSettlement";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -165,7 +166,7 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
-import { saleBillFigures, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
+import { saleBillFigures, saleInvoicePrintAccountOpts, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
 import {
   findLeftoverExchangeRefunds,
   leftoverExchangeRefundMessage,
@@ -545,6 +546,7 @@ const POSDashboard = () => {
   const [previewHydrating, setPreviewHydrating] = useState(false);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [previewVoucherRefund, setPreviewVoucherRefund] = useState(0);
+  const [previewAccount, setPreviewAccount] = useState({ previousBalance: 0, unusedAdvance: 0 });
   const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string; points_balance?: number | null } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
@@ -1932,11 +1934,7 @@ const POSDashboard = () => {
               supabase,
               currentOrganization.id,
               sale.customer_id,
-              {
-                billTotal: Number(sale.net_amount) || 0,
-                receivedToday: Number(sale.paid_amount) || 0,
-                accountIncludesThisBill: true,
-              },
+              saleInvoicePrintAccountOpts(sale),
             );
           } catch {
             return { previousBalance: 0, unusedAdvance: 0 };
@@ -1989,15 +1987,13 @@ const POSDashboard = () => {
         grandTotal: saleBillFigures(sale).payable,
         billNetAmount: saleBillFigures(sale).billAmount,
         roundOff: sale.round_off || 0,
-        cashPaid: sale.payment_method === "cash" ? sale.net_amount : 0,
-        upiPaid: sale.payment_method === "upi" ? sale.net_amount : 0,
+        ...saleRowThermalTender(sale),
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
         financeAmount: Number(sale.finance_amount) || 0,
-        paidAmount: sale.paid_amount,
         // Exchange excess paid back to the customer; the original print showed this line.
         refundCash: saleRefundForReprint(sale, voucherRefund),
         previousBalance: accountFacets.previousBalance ?? 0,
@@ -2292,6 +2288,7 @@ const POSDashboard = () => {
     setPreviewFinancerDetails(null);
     setPreviewCustomerData(null);
     setPreviewVoucherRefund(0);
+    setPreviewAccount({ previousBalance: 0, unusedAdvance: 0 });
     setPreviewHydrating(true);
     setShowPreviewDialog(true);
     try {
@@ -2300,14 +2297,26 @@ const POSDashboard = () => {
       if (currentOrganization?.id) {
         financerQuery = financerQuery.eq('organization_id', currentOrganization.id);
       }
-      const [{ data: finData }, { data: custData }] = await Promise.all([
+      const [{ data: finData }, { data: custData }, accountFacets] = await Promise.all([
         financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details, address, points_balance').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
+        sale.customer_id && currentOrganization?.id
+          ? fetchInvoicePrintAccountFacets(
+              supabase,
+              currentOrganization.id,
+              sale.customer_id,
+              saleInvoicePrintAccountOpts(sale),
+            ).catch(() => ({ previousBalance: 0, unusedAdvance: 0 }))
+          : Promise.resolve({ previousBalance: 0, unusedAdvance: 0 }),
       ]);
       setPreviewFinancerDetails(mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>));
       setPreviewCustomerData(custData);
+      setPreviewAccount({
+        previousBalance: accountFacets.previousBalance ?? 0,
+        unusedAdvance: accountFacets.unusedAdvance ?? 0,
+      });
       if (saleRefundForPrint(sale) <= 0 && sale.customer_id && currentOrganization?.id) {
         const refunds = await findLeftoverExchangeRefunds(
           supabase,
@@ -4613,8 +4622,12 @@ const POSDashboard = () => {
               billNetAmount={saleBillFigures(previewSale).billAmount}
               refundCash={saleRefundForReprint(previewSale, previewVoucherRefund)}
               roundOff={previewSale.round_off || 0}
-              cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
-              upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
+              cashPaid={saleRowThermalTender(previewSale).cashPaid}
+              upiPaid={saleRowThermalTender(previewSale).upiPaid}
+              cardPaid={saleRowThermalTender(previewSale).cardPaid}
+              creditPaid={saleRowThermalTender(previewSale).creditPaid}
+              previousBalance={previewAccount.previousBalance}
+              unusedAdvance={previewAccount.unusedAdvance}
               paymentMethod={previewSale.payment_method}
               cashAmount={previewSale.cash_amount}
               cardAmount={previewSale.card_amount}
@@ -4825,6 +4838,8 @@ const POSDashboard = () => {
             roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}
+            cardPaid={printData.cardPaid}
+            creditPaid={printData.creditPaid}
             paymentMethod={printData.paymentMethod}
             cashAmount={printData.cashAmount}
             cardAmount={printData.cardAmount}

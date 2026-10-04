@@ -4203,8 +4203,15 @@ export default function POSSales() {
           discount: snapDiscount,
           saleReturnAdjust: snapSaleReturnAdjust,
           grandTotal: snapGrandTotal,
-          cashPaid: snapPaymentMethod === "cash" ? snapGrandTotal : 0,
-          upiPaid: snapPaymentMethod === "upi" ? snapGrandTotal : 0,
+          billNetAmount: snap?.billNetAmount,
+          cashPaid:
+            snap?.cashAmount ?? (snapPaymentMethod === "cash" ? snapGrandTotal : 0),
+          upiPaid: snap?.upiAmount ?? (snapPaymentMethod === "upi" ? snapGrandTotal : 0),
+          cashAmount: snap?.cashAmount ?? 0,
+          cardAmount: snap?.cardAmount ?? 0,
+          upiAmount: snap?.upiAmount ?? 0,
+          cardPaid: snap?.cardAmount ?? 0,
+          financeAmount: snap?.financeAmount ?? 0,
           paymentMethod: snapPaymentMethod,
           paidAmount: snapPaidAmount,
           refundCash: Number(snap?.refundCash) || 0,
@@ -5740,10 +5747,26 @@ export default function POSSales() {
                 : totals.discount + flatDiscountAmount
             }
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            grandTotal={savedInvoiceData ? savedInvoiceData.finalAmount : finalAmount}
             billNetAmount={savedInvoiceData?.billNetAmount ?? totals.billAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'cash' ? posTenderDue : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'upi' ? posTenderDue : 0}
+            cashPaid={
+              savedInvoiceData
+                ? savedInvoiceData.method === "cash"
+                  ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                  : savedInvoiceData.cashAmount || 0
+                : paymentMethod === "cash"
+                  ? posTenderDue
+                  : 0
+            }
+            upiPaid={
+              savedInvoiceData
+                ? savedInvoiceData.method === "upi"
+                  ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                  : savedInvoiceData.upiAmount || 0
+                : paymentMethod === "upi"
+                  ? posTenderDue
+                  : 0
+            }
             paymentMethod={savedInvoiceData?.method || paymentMethod}
             cashAmount={savedInvoiceData?.cashAmount || 0}
             upiAmount={savedInvoiceData?.upiAmount || 0}
@@ -9271,8 +9294,17 @@ export default function POSSales() {
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
                 billNetAmount={savedInvoiceData.billNetAmount ?? totals.billAmount}
-                cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
-                upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
+                cashPaid={
+                  savedInvoiceData.method === "cash"
+                    ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                    : savedInvoiceData.cashAmount || 0
+                }
+                upiPaid={
+                  savedInvoiceData.method === "upi"
+                    ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                    : savedInvoiceData.upiAmount || 0
+                }
+                cardPaid={savedInvoiceData.cardAmount || 0}
                 paymentMethod={savedInvoiceData.method}
                 cashAmount={savedInvoiceData.cashAmount || 0}
                 upiAmount={savedInvoiceData.upiAmount || 0}

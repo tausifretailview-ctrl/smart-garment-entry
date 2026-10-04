@@ -10,8 +10,14 @@ export type PosWhatsAppPdfCaptureSnapshot = {
   discount: number;
   saleReturnAdjust: number;
   grandTotal: number;
+  /** Full bill before sale-return. Grand total on the snapshot is already the payable. */
+  billNetAmount?: number;
   paymentMethod: string;
   paidAmount: number;
+  cashAmount?: number;
+  cardAmount?: number;
+  upiAmount?: number;
+  financeAmount?: number;
   /** Cash/UPI/bank paid back when the return is larger than this bill. */
   refundCash?: number;
   previousBalance: number;

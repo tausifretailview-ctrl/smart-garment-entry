@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import { ThermalPartyLines } from "@/components/thermal/ThermalPartyLines";
 import {
   buildKidsCampGstRateBreakdown,
   buildKidsCampGstTaxRows,
@@ -46,6 +47,8 @@ interface KidsCampThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   salesman?: string;
   settingsOverride?: Record<string, unknown>;
@@ -83,6 +86,8 @@ export const KidsCampThermalReceipt80mm = React.forwardRef<
     creditPaid = 0,
     paidAmount = 0,
     refundCash = 0,
+    previousBalance = 0,
+    unusedAdvance = 0,
     documentType = "invoice",
     salesman,
     thermalPaper = "80mm",
@@ -276,6 +281,11 @@ export const KidsCampThermalReceipt80mm = React.forwardRef<
         <PayRow label="RECIEVED AMOUNT" amount={received} />
         <PayRow label="BALANCE AMOUNT" amount={balance} />
         {refundCash > 0 ? <PayRow label="REFUND TO CUSTOMER" amount={refundCash} /> : null}
+        <ThermalPartyLines
+          previousBalance={previousBalance}
+          unusedAdvance={unusedAdvance}
+          formatMoney={(n) => fmtKidsCampAmt(n)}
+        />
         <div className="kc-pay-head">RECIVED DETAIL :-</div>
         <PayRow label="CASH RECIEVED" amount={cash} />
         <PayRow label="ICICI CARD" amount={card} />

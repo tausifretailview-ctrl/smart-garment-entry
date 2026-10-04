@@ -60,6 +60,25 @@ export function saleRefundForReprint(
   return round2(Math.max(0, Number(voucherRefund) || 0));
 }
 
+/**
+ * Bill total and received amount for Prev Bal on a reprint.
+ * Payable is what this invoice added to the account. A return that covers the
+ * bill (payable ₹0, cash refund) must not be subtracted as if ₹3,300 were still due.
+ */
+export function saleInvoicePrintAccountOpts(sale: SaleBillRow): {
+  billTotal: number;
+  receivedToday: number;
+  accountIncludesThisBill: true;
+} {
+  const billTotal = Math.max(0, saleBillFigures(sale).payable);
+  const paid = Math.max(0, round2(Number(sale.paid_amount) || 0));
+  return {
+    billTotal,
+    receivedToday: Math.min(billTotal, paid),
+    accountIncludesThisBill: true,
+  };
+}
+
 /** Customer still owes this after tender. */
 export function saleReceivableAfterTender(sale: SaleBillRow): number {
   const paid = round2(Math.max(0, Number(sale.paid_amount) || 0));
