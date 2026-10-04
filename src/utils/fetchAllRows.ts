@@ -843,7 +843,7 @@ export async function fetchAllSaleItems(saleIds: string[]) {
       const { data, error } = await supabase
         .from("sale_items")
         .select(
-          "variant_id, quantity, line_total, unit_price, mrp, discount_percent, discount_share, round_off_share, net_after_discount, gst_percent, product_id, product_name, sale_id, hsn_code, is_dc_item, barcode, size, color"
+          "variant_id, quantity, line_total, unit_price, mrp, discount_percent, discount_share, round_off_share, net_after_discount, gst_percent, product_id, product_name, sale_id, hsn_code, is_dc_item, barcode, size, color, salesman"
         )
         .in("sale_id", batchIds)
         .is("deleted_at", null)
