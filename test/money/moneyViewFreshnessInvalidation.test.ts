@@ -57,9 +57,11 @@ describe("moneyViewFreshnessInvalidation", () => {
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["sales-invoice-dashboard"],
+      refetchType: "all",
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["invoice-dashboard-unified"],
+      refetchType: "all",
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["payment-invoices"],

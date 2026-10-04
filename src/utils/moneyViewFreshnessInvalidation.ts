@@ -20,9 +20,13 @@ export function invalidateMoneyViewFreshness(
   });
   void queryClient.invalidateQueries({
     queryKey: ["sales-invoice-dashboard"],
+    // Sales Dashboard may be an unmounted window tab (auto-shrink / not yet
+    // opened this session). refetchType "all" refreshes that cache too.
+    refetchType: "all",
   });
   void queryClient.invalidateQueries({
     queryKey: ["invoice-dashboard-unified"],
+    refetchType: "all",
   });
   void queryClient.invalidateQueries({
     queryKey: ["payment-invoices"],

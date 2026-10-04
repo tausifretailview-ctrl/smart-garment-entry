@@ -148,6 +148,7 @@ import {
 import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
 import { usePosDashboardRealtimeRefresh } from "@/hooks/usePosDashboardRealtimeRefresh";
 import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
+import { patchInvoiceDashboardPaymentFields } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
@@ -2527,6 +2528,12 @@ const POSDashboard = () => {
         prevPaymentStatus: selectedSaleForPayment.payment_status,
         netAmount: latestNet,
         outstandingCleared: Math.max(0, prevOutstanding - currentBalance),
+      });
+      patchInvoiceDashboardPaymentFields(queryClient, orgId, saleId, {
+        paid_amount: recomputedPaid,
+        payment_status: recomputedStatus,
+        outstanding: currentBalance,
+        sale_return_adjust: latestSra,
       });
 
       toast({
