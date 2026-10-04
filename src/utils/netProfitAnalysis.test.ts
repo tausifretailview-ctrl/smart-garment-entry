@@ -3,6 +3,7 @@ import {
   aggregateForTab,
   applySrAdjusted,
   computeSaleLineRevenue,
+  profitSalesmanName,
   rowsHaveReturns,
   sumAggregates,
   type ProfitLine,
@@ -219,6 +220,34 @@ describe("aggregateForTab", () => {
     expect(rows[0].grossProfit).toBe(50);
     expect(rows[0].qtyReturned).toBe(1);
     expect(rows[0].returnAmount).toBe(100);
+  });
+
+  it("attributes a piece to the line salesman, then the bill header", () => {
+    expect(profitSalesmanName("ZAHIR JR.", "SALMAN ANSARI")).toBe("ZAHIR JR.");
+    expect(profitSalesmanName(null, "SALMAN ANSARI")).toBe("SALMAN ANSARI");
+    expect(profitSalesmanName("  ", "SALMAN ANSARI")).toBe("SALMAN ANSARI");
+    expect(profitSalesmanName(null, "  ")).toBeNull();
+  });
+
+  it("salesman-wise qty follows the line salesman, not only the bill header", () => {
+    const rows = aggregateForTab(
+      [
+        line({ netSales: 1000, totalCOGS: 400, qty: 3, salesman: "ZAHIR JR." }),
+        line({
+          netSales: 500,
+          totalCOGS: 200,
+          qty: 1,
+          salesman: "SALMAN ANSARI",
+          saleId: "s2",
+          saleNumber: "POS/26-27/2",
+        }),
+      ],
+      "salesman-wise",
+    );
+    const zahir = rows.find((r) => r.label === "ZAHIR JR.");
+    const salman = rows.find((r) => r.label === "SALMAN ANSARI");
+    expect(zahir?.itemsSold).toBe(3);
+    expect(salman?.itemsSold).toBe(1);
   });
 
   it("customer-wise and salesman-wise group header dims", () => {
