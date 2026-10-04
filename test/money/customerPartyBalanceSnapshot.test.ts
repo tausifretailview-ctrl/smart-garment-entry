@@ -60,29 +60,57 @@ describe("alignPartyRowFromRpc", () => {
     net_receivable: 0,
   };
 
-  it("nets unused Advance on live unnetted signed (Aafra leftover ₹14,800)", () => {
+  it("live signed is already net of Advance: never subtract it twice (ELLA NOOR Sana Nasir)", () => {
+    // Bills due 11,550 − Advance 2,70,000 = Net 2,58,450 Cr (payment dialog, ledger, snapshot).
+    // The Customer Outstanding report showed 5,28,450 Cr because Advance was taken off again.
+    const aligned = alignPartyRowFromRpc(
+      {
+        ...baseRow,
+        customer_name: "Sana Nasir",
+        signed_balance: -258_450,
+        advance_available: 270_000,
+        direction: "Cr",
+        net_position: -528_450,
+      },
+      "",
+    );
+    expect(aligned.net_position).toBe(-258_450);
+    expect(aligned.signed_balance).toBe(-258_450);
+    expect(aligned.gross_outstanding).toBe(11_550);
+    expect(aligned.advance_available).toBe(270_000);
+    expect(aligned.net_position).not.toBe(-528_450);
+    expect(aligned.direction).toBe("Cr");
+  });
+
+  it("customer who owes after Advance keeps the full due (Aafra ₹14,800 with ₹10,000 Advance)", () => {
     const aligned = alignPartyRowFromRpc(baseRow, "9999999999");
-    expect(aligned.gross_outstanding).toBe(14_800);
-    expect(aligned.net_position).toBe(4_800);
-    expect(aligned.signed_balance).toBe(4_800);
+    expect(aligned.net_position).toBe(14_800);
+    expect(aligned.signed_balance).toBe(14_800);
+    expect(aligned.gross_outstanding).toBe(24_800);
     expect(aligned.advance_available).toBe(10_000);
     expect(aligned.net_position).not.toBe(-5_200);
     expect(partyBalanceRowFacets(aligned)).toEqual({
-      outstanding: 14_800,
+      outstanding: 24_800,
       unusedAdvance: 10_000,
-      netPosition: 4_800,
+      netPosition: 14_800,
       cnAvailable: 0,
     });
   });
 
-  it("Sana-class: signed ₹0 + Advance ₹1,70,000 is Net ₹1,70,000 Cr, not fake Dr", () => {
+  it("Advance equal to bills due nets to settled, not a fake credit (signed ₹0 + Advance ₹1,70,000)", () => {
     const aligned = alignPartyRowFromRpc(
       { ...baseRow, customer_name: "Sana Nasir", signed_balance: 0, advance_available: 170_000 },
       "",
     );
-    expect(aligned.gross_outstanding).toBe(0);
-    expect(aligned.net_position).toBe(-170_000);
-    expect(aligned.direction).toBe("Cr");
+    expect(aligned.gross_outstanding).toBe(170_000);
+    expect(aligned.net_position).toBe(0);
+    expect(aligned.direction).toBe("Settled");
+  });
+
+  it("an explicit signedIsEconomicNet: false still treats signed as invoice leftover", () => {
+    const aligned = alignPartyRowFromRpc(baseRow, "", { signedIsEconomicNet: false });
+    expect(aligned.gross_outstanding).toBe(14_800);
+    expect(aligned.net_position).toBe(4_800);
   });
 
   it("pure advance credit shows Cr direction from signed net", () => {

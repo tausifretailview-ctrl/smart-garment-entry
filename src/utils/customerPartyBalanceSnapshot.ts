@@ -89,9 +89,12 @@ export function applyCanonicalStateToPartyRow(
 
 /**
  * Derive unified-balance facets from a party RPC row (single RPC — no snapshot_all).
- * Live signed_balance is invoice leftover; unused Advance is netted here.
- * Pass `signedIsEconomicNet` when the caller already has JS/enrich netPosition.
- * Ignores legacy RPC `net_position` (double-subtracts Advance when signed is netted).
+ * Live signed_balance is already the economic net (Bills due − Advance), equal to
+ * get_customer_financial_snapshot_all.outstanding_dr (ELLA NOOR 2026-10-04: 723 of 723
+ * customers). Advance is NOT subtracted again, so Sana Nasir stays ₹2,58,450 Cr
+ * (Bills due 11,550 − Advance 2,70,000), not ₹5,28,450 Cr.
+ * Pass `{ signedIsEconomicNet: false }` only for a row whose signed is invoice leftover.
+ * Ignores legacy RPC `net_position` (double-subtracts Advance).
  */
 export function alignPartyRowFromRpc(
   row: CustomerPartyBalanceRpcRow,
@@ -99,7 +102,10 @@ export function alignPartyRowFromRpc(
   opts?: { signedIsEconomicNet?: boolean },
 ): CustomerPartyBalanceAlignedRow {
   const rawSigned = Math.round(Number(row.signed_balance) || 0);
-  const facets = facetsFromPartyRpcRow(rawSigned, row.advance_available, opts);
+  const facets = facetsFromPartyRpcRow(rawSigned, row.advance_available, {
+    signedIsEconomicNet: true,
+    ...opts,
+  });
 
   return {
     ...row,
