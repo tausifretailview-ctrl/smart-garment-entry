@@ -483,7 +483,7 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
       .in("voucher_type", ["receipt", "payment", "credit_note"]),
     client
       .from("customer_advances")
-      .select("id, advance_number, advance_date, amount, used_amount, status, description, payment_method")
+      .select("id, advance_number, advance_date, amount, used_amount, manual_used_amount, status, description, payment_method")
       .eq("customer_id", customerId)
       .eq("organization_id", orgId),
     client
@@ -503,7 +503,17 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
   if (srErr) throw srErr;
   const { data: vouchersCustomer, error: veCustErr } = vcRes;
   if (veCustErr) throw veCustErr;
-  const { data: advances, error: advErr } = advRes;
+  let { data: advances, error: advErr } = advRes;
+  if (advErr && String(advErr.message || "").includes("manual_used_amount")) {
+    // migration 20270104130000 not applied on this database yet
+    const legacy = await client
+      .from("customer_advances")
+      .select("id, advance_number, advance_date, amount, used_amount, status, description, payment_method")
+      .eq("customer_id", customerId)
+      .eq("organization_id", orgId);
+    advances = legacy.data as typeof advances;
+    advErr = legacy.error;
+  }
   if (advErr) throw advErr;
   const { data: balanceAdjustments, error: baErr } = baRes;
   if (baErr) throw baErr;

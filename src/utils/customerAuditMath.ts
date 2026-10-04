@@ -42,7 +42,7 @@ function computeCustomerOutstandingLegacyAudit(
       discount_amount?: number | null;
       payment_method?: string | null;
     }>;
-    customerAdvances: Array<{ amount: number; used_amount: number; status: string }>;
+    customerAdvances: Array<{ amount: number; used_amount: number; manual_used_amount?: number | null; status: string }>;
     advanceRefunds: Array<{ refund_amount: number }>;
     adjustmentTotal?: number;
   },
@@ -97,7 +97,10 @@ function computeCustomerOutstandingLegacyAudit(
   const totalRealPayments = receiptCredits + creditNoteCredits;
 
   const totalAdvanceReceived = params.customerAdvances.reduce((sum, a) => sum + Number(a.amount || 0), 0);
-  const totalAdvanceUsed = params.customerAdvances.reduce((sum, a) => sum + Number(a.used_amount || 0), 0);
+  const totalAdvanceUsed = params.customerAdvances.reduce(
+    (sum, a) => sum + Math.max(0, Number(a.used_amount || 0) - Number(a.manual_used_amount || 0)),
+    0,
+  );
   const advanceRefundedTotal = params.advanceRefunds.reduce(
     (sum, r) => sum + Number(r.refund_amount || 0),
     0,
@@ -150,7 +153,7 @@ export const computeCustomerOutstanding = (
       discount_amount?: number | null;
       payment_method?: string | null;
     }>;
-    customerAdvances: Array<{ amount: number; used_amount: number; status: string }>;
+    customerAdvances: Array<{ amount: number; used_amount: number; manual_used_amount?: number | null; status: string }>;
     advanceRefunds: Array<{ refund_amount: number }>;
     adjustmentTotal?: number;
     saleReturns?: Array<{

@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
+import { getCustomerAccountState } from "@/utils/customerBalanceCore";
 import {
   advanceReductionFromAdjustmentDescription,
   computeInvoiceOutstandingFromReconciliation,
@@ -155,5 +156,57 @@ describe("Balance Adjustment advance removal stays out of ledger Outstanding", (
     expect(src).toContain("advanceReductionFromAdjustmentDescription(t.description)");
     expect(src).toContain("adjustments += (t.debit || 0) - (t.credit || 0) - advancePart;");
     expect(src).toContain("Advance removed in Balance Adjustment (not in Outstanding)");
+  });
+});
+
+describe("balance engine: advance removed in Balance Adjustment is not advance applied to a bill", () => {
+  const saniya = (usedAmount: number, manualUsed?: number) =>
+    getCustomerAccountState({
+      openingBalance: 0,
+      customerId: "c1",
+      sales: [
+        { id: "s1", customer_id: "c1", net_amount: 19_600, paid_amount: 19_600, payment_status: "completed", sale_return_adjust: 0 },
+      ] as never,
+      voucherEntries: [
+        {
+          id: "v1",
+          voucher_type: "receipt",
+          reference_type: "sale",
+          reference_id: "s1",
+          total_amount: 19_600,
+          payment_method: "advance_adjustment",
+          description: "Adjusted from advance balance for invoice INV/25-26/753",
+          deleted_at: null,
+        },
+      ] as never,
+      customerAdvances: [
+        { id: "a1", customer_id: "c1", amount: 59_600, used_amount: usedAmount, manual_used_amount: manualUsed, status: "used" },
+      ] as never,
+      advanceRefunds: [],
+      adjustmentTotal: 0,
+      saleReturns: [],
+    });
+
+  it("Saniya: used 59,600 of which 40,000 removed in Balance Adj → Outstanding 0, unused 0, Net 0 (was Net −40,000 Cr)", () => {
+    const s = saniya(59_600, 40_000);
+    expect(s.outstanding).toBe(0);
+    expect(s.unusedAdvancePool).toBe(0);
+    expect(s.netPosition).toBe(0);
+  });
+
+  it("before the advance was removed: unused 40,000 → Net −40,000 Cr (unchanged)", () => {
+    const s = saniya(19_600, 0);
+    expect(s.outstanding).toBe(0);
+    expect(s.unusedAdvancePool).toBe(40_000);
+    expect(s.netPosition).toBe(-40_000);
+  });
+
+  it("rows without manual_used_amount behave as before", () => {
+    const s = saniya(19_600);
+    expect(s.netPosition).toBe(-40_000);
+  });
+
+  it("the audit bundle loads manual_used_amount", () => {
+    expect(read("src/utils/customerAuditBundle.ts")).toContain("amount, used_amount, manual_used_amount, status");
   });
 });
