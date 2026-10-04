@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   MONEY_VIEW_FRESHNESS_LS_KEY,
+  MONEY_VIEW_FRESHNESS_MAX_AGE_MS,
   notifyMoneyViewChanged,
   parseMoneyFreshnessMarker,
+  shouldApplyMoneyFreshnessMarker,
 } from "@/utils/posSalesRefresh";
 
 describe("posSalesRefresh localStorage bridge", () => {
@@ -41,5 +43,38 @@ describe("posSalesRefresh localStorage bridge", () => {
     expect(dispatchEvent).not.toHaveBeenCalled();
 
     vi.unstubAllGlobals();
+  });
+
+  it("applies a recent marker the background tab has not seen yet", () => {
+    const now = 1_700_000_100_000;
+    expect(
+      shouldApplyMoneyFreshnessMarker(
+        { organizationId: "org-1", ts: now - 5_000 },
+        { organizationId: "org-1", lastAppliedTs: 0, now },
+      ),
+    ).toBe(true);
+  });
+
+  it("skips a marker this tab already applied, another org, or an old one", () => {
+    const now = 1_700_000_100_000;
+    const ts = now - 1_000;
+    expect(
+      shouldApplyMoneyFreshnessMarker(
+        { organizationId: "org-1", ts },
+        { organizationId: "org-1", lastAppliedTs: ts, now },
+      ),
+    ).toBe(false);
+    expect(
+      shouldApplyMoneyFreshnessMarker(
+        { organizationId: "org-2", ts },
+        { organizationId: "org-1", lastAppliedTs: 0, now },
+      ),
+    ).toBe(false);
+    expect(
+      shouldApplyMoneyFreshnessMarker(
+        { organizationId: "org-1", ts: now - MONEY_VIEW_FRESHNESS_MAX_AGE_MS - 1 },
+        { organizationId: "org-1", lastAppliedTs: 0, now },
+      ),
+    ).toBe(false);
   });
 });

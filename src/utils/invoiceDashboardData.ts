@@ -1147,7 +1147,28 @@ export function resolveInvoiceDashboardDisplayRows(
 
 export const INVOICE_DASHBOARD_QUERY_KEY = "invoice-dashboard-unified" as const;
 
-/** Invalidate page, stats, and reconcile queries after a dashboard mutation. */
+/** Page identity plus payment fields, so a receipt changes the reconcile query. */
+export function invoiceDashboardReconcileSourceKey(
+  sourceRows:
+    | Array<{
+        id?: string;
+        paid_amount?: number | null;
+        payment_status?: string | null;
+        sale_return_adjust?: number | null;
+      }>
+    | null
+    | undefined,
+): string {
+  if (!sourceRows?.length) return "";
+  return sourceRows
+    .map((row) =>
+      [row.id ?? "", row.payment_status ?? "", row.paid_amount ?? "", row.sale_return_adjust ?? ""].join(
+        ":",
+      ),
+    )
+    .join(",");
+}
+
 export function invalidateInvoiceDashboardQueries(
   queryClient: QueryClient,
   organizationId?: string,
@@ -1156,6 +1177,7 @@ export function invalidateInvoiceDashboardQueries(
     queryKey: organizationId
       ? [INVOICE_DASHBOARD_QUERY_KEY, organizationId]
       : [INVOICE_DASHBOARD_QUERY_KEY],
+    refetchType: "all",
   });
 }
 

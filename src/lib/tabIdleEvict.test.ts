@@ -11,6 +11,9 @@ describe("read-only tab idle eviction", () => {
     expect(isIdleEvictableDashboardPath("purchase-entry")).toBe(false);
     expect(isIdleEvictableDashboardPath("pos-sales")).toBe(false);
     expect(isIdleEvictableDashboardPath("sales-invoice")).toBe(false);
+    // Sales / POS dashboards stay mounted. Chrome auto-shrink only drops reports.
+    expect(isIdleEvictableDashboardPath("sales-invoice-dashboard")).toBe(false);
+    expect(isIdleEvictableDashboardPath("pos-dashboard")).toBe(false);
   });
 });
 

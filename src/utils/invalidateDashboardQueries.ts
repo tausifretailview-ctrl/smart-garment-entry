@@ -13,8 +13,9 @@ import { invalidateMoneyViewFreshness } from "@/utils/moneyViewFreshnessInvalida
 
 /** Sales invoice list + unified dashboard table pages. */
 export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
-  void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"] });
-  void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"] });
+  const opts = { refetchType: "all" as const };
+  void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"], ...opts });
+  void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"], ...opts });
 }
 
 /** Status bar stock + receivables tile (get_dashboard_stock_summary / v_dashboard_receivables). */

@@ -153,6 +153,7 @@ import {
   fetchInvoiceDashboardExportRows,
   formatInvoiceDashboardPaymentStatusLabel,
   getInvoiceDashboardDisplayStatus,
+  invoiceDashboardReconcileSourceKey,
   patchInvoiceDashboardDeliveryStatus,
   patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
@@ -162,6 +163,7 @@ import {
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
+import { patchPosDashboardSalePayment } from "@/utils/posDashboardSales";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -227,7 +229,7 @@ const defaultColumnSettings: ColumnSettings = {
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
-  const { orgNavigate: navigate } = useOrgNavigation();
+  const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { user, session } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { accounts: bankAccounts } = useOrganizationBankAccounts(currentOrganization?.id ?? "");
@@ -940,7 +942,7 @@ export default function SalesInvoiceDashboard() {
   });
 
   const reconcileSourceKey = useMemo(
-    () => dashboardPage?.sourceRows?.map((row: any) => row.id).join(",") ?? "",
+    () => invoiceDashboardReconcileSourceKey(dashboardPage?.sourceRows),
     [dashboardPage?.sourceRows],
   );
 
@@ -1069,6 +1071,34 @@ export default function SalesInvoiceDashboard() {
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const salesDashboardWasActiveRef = useRef(false);
+  const salesDashboardRouteActive = useMemo(() => {
+    const fullPath = location.pathname;
+    const segment =
+      orgSlug && fullPath.startsWith(`/${orgSlug}`)
+        ? fullPath.slice(orgSlug.length + 2).split("/")[0] || ""
+        : fullPath.replace(/^\//, "").split("/")[0] || "";
+    return segment === "sales-invoice-dashboard";
+  }, [location.pathname, orgSlug]);
+
+  // Window-tab return: refetchOnMount is off, and a shrunk/unmounted pane misses
+  // an active-only refetch. If a receipt invalidated this cache, load it now.
+  useEffect(() => {
+    if (!salesDashboardRouteActive || !currentOrganization?.id) {
+      salesDashboardWasActiveRef.current = false;
+      return;
+    }
+    const justActivated = !salesDashboardWasActiveRef.current;
+    salesDashboardWasActiveRef.current = true;
+    if (!justActivated) return;
+    const orgId = currentOrganization.id;
+    const cached = queryClient.getQueryCache().findAll({
+      queryKey: ["invoice-dashboard-unified", orgId],
+    });
+    if (cached.some((query) => query.state.isInvalidated)) {
+      void refetchInvoiceDashboardQueries(queryClient, orgId);
+    }
+  }, [salesDashboardRouteActive, currentOrganization?.id, queryClient]);
   const downloadPdfId = searchParams.get('downloadPdf');
   const downloadTriggeredRef = useRef<string | null>(null);
 
@@ -2932,6 +2962,18 @@ export default function SalesInvoiceDashboard() {
         payment_status: reconciledStatus,
         outstanding: paymentOutstanding,
         sale_return_adjust: latestSRAdjust,
+      });
+      const prevOutstanding = Math.max(
+        0,
+        Math.round(latestNet - saleSnapshot.paid_amount - saleSnapshot.sale_return_adjust),
+      );
+      patchPosDashboardSalePayment(queryClient, orgId, saleId, {
+        paid_amount: reconciledPaid,
+        payment_status: reconciledStatus,
+        payment_method: paymentMode,
+        prevPaymentStatus: saleSnapshot.payment_status,
+        netAmount: latestNet,
+        outstandingCleared: Math.max(0, prevOutstanding - paymentOutstanding),
       });
 
       toast({
