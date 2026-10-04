@@ -71,7 +71,7 @@ describe("one product per name — every create / rename path checks it", () => 
     expect(canMergeProducts("user")).toBe(false);
     expect(canMergeProducts(null)).toBe(false);
     expect(read("src/components/MergeDuplicateProductNamesDialog.tsx")).toContain("disabled={!canMerge ||");
-    const mig = read("supabase/migrations/20270103150000_merge_products_admin_manager_only.sql");
+    const mig = read("supabase/migrations/20270103160000_merge_products_admin_manager_only.sql");
     expect(mig).toContain("gm.role IN ('admin'::public.app_role, 'manager'::public.app_role)");
     expect(mig).toContain("IF auth.uid() IS NOT NULL");
     // ids are checked against the organisation before the RPC

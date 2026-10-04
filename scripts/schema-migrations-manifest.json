@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-10-03",
-  "count": 820,
-  "fileCount": 837,
+  "generatedAt": "2026-10-04",
+  "count": 821,
+  "fileCount": 838,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -823,7 +823,8 @@
     "20261231210000",
     "20270103120000",
     "20270103140000",
-    "20270103150000"
+    "20270103150000",
+    "20270103160000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1662,10 +1663,8 @@
     "20261231210000_block_overpaid_bill_receipts.sql",
     "20270103120000_website_enquiry_booked_size_barcode.sql",
     "20270103140000_quotation_no_stock_deduction.sql",
-claude/brave-mayer-mx54w9
-    "20270103150000_merge_products_admin_manager_only.sql"
-    "20270103150000_push_campaigns_allow_offer_kind.sql"
-    main
+    "20270103150000_push_campaigns_allow_offer_kind.sql",
+    "20270103160000_merge_products_admin_manager_only.sql"
   ],
   "duplicateVersions": [
     {
