@@ -168,7 +168,7 @@ import {
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
-import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
+import { coalesceCrmPointsPrint, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -4954,13 +4954,16 @@ export default function POSSales() {
         previousBalance: saveAccount.previousBalance,
         unusedAdvance: saveAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
-        ...crmPointsPrintSnapshot({
-          crmEnabled: isPointsEnabled,
-          customerId,
-          balanceBefore: customerPointsData?.balance || 0,
-          pointsToRedeem,
-          pointsEarned: calculatePoints(finalAmount),
-        }),
+        ...coalesceCrmPointsPrint(
+          crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(finalAmount),
+          }),
+          result,
+        ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
@@ -5282,13 +5285,16 @@ export default function POSSales() {
         previousBalance: mixAccount.previousBalance,
         unusedAdvance: mixAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
-        ...crmPointsPrintSnapshot({
-          crmEnabled: isPointsEnabled,
-          customerId,
-          balanceBefore: customerPointsData?.balance || 0,
-          pointsToRedeem,
-          pointsEarned: calculatePoints(finalAmount),
-        }),
+        ...coalesceCrmPointsPrint(
+          crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(finalAmount),
+          }),
+          result,
+        ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
