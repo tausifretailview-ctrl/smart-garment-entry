@@ -128,7 +128,7 @@ export type CustomerBalanceCoreParams = {
   customerId?: string;
   sales: CustomerBalanceCoreSale[];
   voucherEntries: CustomerBalanceCoreVoucher[];
-  customerAdvances: Array<{ amount?: number | null; used_amount?: number | null }>;
+  customerAdvances: Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>;
   advanceRefunds: Array<{ refund_amount?: number | null }>;
   adjustmentTotal?: number;
   saleReturns?: CustomerBalanceCoreSaleReturn[];
@@ -507,8 +507,10 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     (sum, a) => sum + Number(a.amount || 0),
     0,
   );
+  // Advance applied against bills. `manual_used_amount` (Balance Adjustment "advance removed")
+  // is part of used_amount but was never applied to a bill, so it stays out of this figure.
   const totalAdvanceUsed = params.customerAdvances.reduce(
-    (sum, a) => sum + Number(a.used_amount || 0),
+    (sum, a) => sum + Math.max(0, Number(a.used_amount || 0) - Number(a.manual_used_amount || 0)),
     0,
   );
   const advanceRefundedTotal = params.advanceRefunds.reduce(
@@ -598,7 +600,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
 export type OrgCustomerBalanceBatch = {
   salesByCustomerId: Map<string, CustomerBalanceCoreSale[]>;
   vouchersByCustomerId: Map<string, CustomerBalanceCoreVoucher[]>;
-  advancesByCustomerId: Map<string, Array<{ amount?: number | null; used_amount?: number | null }>>;
+  advancesByCustomerId: Map<string, Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>>;
   refundsByCustomerId: Map<string, Array<{ refund_amount?: number | null }>>;
   adjustmentsByCustomerId: Map<string, number>;
   saleReturnsByCustomerId: Map<string, CustomerBalanceCoreSaleReturn[]>;
@@ -621,7 +623,7 @@ export function resolveVoucherCustomerId(
 export function buildOrgCustomerBalanceBatch(params: {
   sales: Array<CustomerBalanceCoreSale & { id: string; customer_id: string }>;
   vouchers: CustomerBalanceCoreVoucher[];
-  advances: Array<{ customer_id: string; amount?: number | null; used_amount?: number | null }>;
+  advances: Array<{ customer_id: string; amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>;
   refunds: Array<{ customer_id: string; refund_amount?: number | null }>;
   adjustments: Array<{ customer_id: string; outstanding_difference?: number | null }>;
   saleReturns: Array<
@@ -652,7 +654,7 @@ export function buildOrgCustomerBalanceBatch(params: {
 
   const advancesByCustomerId = new Map<
     string,
-    Array<{ amount?: number | null; used_amount?: number | null }>
+    Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>
   >();
   for (const a of params.advances) {
     const list = advancesByCustomerId.get(a.customer_id) || [];
