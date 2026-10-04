@@ -5,7 +5,9 @@
 -- It changes employee_name / employee_id only. sale_amount, commission_amount,
 -- and payment_status stay. Hand-check at least five rows here before applying.
 
-SELECT
+SELECT *
+FROM (
+SELECT DISTINCT ON (sc.id)
   sc.sale_number,
   sc.sale_date::date AS sale_date,
   sc.product_name,
@@ -41,4 +43,6 @@ WHERE sc.organization_id = 'b230c582-4f0b-420f-b18b-bef26c2f5ce8'
       ELSE GREATEST(0::numeric, COALESCE(si.line_total, 0) - COALESCE(si.discount_share, 0))
     END - COALESCE(sc.sale_amount, 0)
   ) <= 0.05
-ORDER BY sc.sale_date, sc.sale_number, sc.id;
+ORDER BY sc.id, si.created_at, si.id
+) reviewed
+ORDER BY sale_date, sale_number, commission_id;
