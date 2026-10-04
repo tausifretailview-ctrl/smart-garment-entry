@@ -10,6 +10,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
+import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
@@ -191,7 +192,14 @@ function buildPosWhatsAppCaptureMeta(
   saleData: SaleData,
   finalPaymentMethod: string,
   paidAmt: number,
+  refundAmt = 0,
 ): PosWhatsAppPdfCaptureMeta {
+  const figures = posWhatsAppReceiptFigures({
+    netAmount: saleData.netAmount,
+    saleReturnAdjust: saleData.saleReturnAdjust,
+    paidAmount: paidAmt,
+    refundAmount: refundAmt,
+  });
   return {
     saleNumber,
     saleId,
@@ -207,10 +215,11 @@ function buildPosWhatsAppCaptureMeta(
       })),
       subTotal: saleData.grossAmount,
       discount: saleData.discountAmount + saleData.flatDiscountAmount,
-      saleReturnAdjust: saleData.saleReturnAdjust,
-      grandTotal: saleData.netAmount,
+      saleReturnAdjust: figures.saleReturnAdjust,
+      grandTotal: figures.grandTotal,
       paymentMethod: finalPaymentMethod,
-      paidAmount: paidAmt,
+      paidAmount: figures.paidAmount,
+      refundCash: figures.refundCash,
       previousBalance: 0,
       roundOff: saleData.roundOff,
       salesman: saleData.salesman || "",
@@ -409,7 +418,8 @@ export const useSaveSale = () => {
         consumeSrAmount: roundMoney(computed.appliedSr + computed.refundDue),
       };
     }
-    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), computed.refundDue);
+    const requestedRefund = Math.abs(roundMoney(refundAmt || 0));
+    const cashRefund = Math.min(requestedRefund, computed.refundDue);
     const roundOffRemainder = Math.max(0, roundMoney(computed.refundDue - cashRefund));
     return {
       isExchangeRefund: computed.isExchangeRefund && cashRefund > 0.005,
@@ -836,7 +846,7 @@ export const useSaveSale = () => {
     let cardAmt = 0;
     let upiAmt = 0;
     let paidAmt = 0;
-    let refundAmt = saleData.refundAmount || 0;
+    let refundAmt = Math.abs(roundMoney(saleData.refundAmount || 0));
     let financeAmt = 0;
     let finalPaymentMethod: string = paymentMethod;
     const payableBeforeAdvance = Math.max(
@@ -871,7 +881,7 @@ export const useSaveSale = () => {
       paidAmt = applied.totalApplied;
       // Finance sits inside card_amount; keep it apart for the bill (display only).
       financeAmt = Math.min(applied.card, Math.max(0, Number(paymentBreakdown.financeAmount) || 0));
-      refundAmt = paymentBreakdown.refundAmount;
+      refundAmt = Math.abs(roundMoney(paymentBreakdown.refundAmount || 0));
       finalPaymentMethod = 'multiple';
     } else if (options?.isUpdate) {
       if (paymentMethod === 'pay_later') {
@@ -1081,9 +1091,9 @@ export const useSaveSale = () => {
     }
 
     const settleExcess =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess });
     saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
@@ -1419,6 +1429,7 @@ export const useSaveSale = () => {
                             saleData,
                             finalPaymentMethod,
                             paidAmt,
+                            refundAmt,
                           ),
                         )
                       : await generateInvoicePdfBase64(pdfData);
@@ -1554,6 +1565,7 @@ export const useSaveSale = () => {
                           saleData,
                           finalPaymentMethod,
                           paidAmt,
+                          refundAmt,
                         ),
                       )
                     : await generateInvoicePdfBase64(pdfData);
@@ -1803,9 +1815,9 @@ export const useSaveSale = () => {
     }
 
     const settleExcessUpdate =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessUpdate });
     saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
@@ -2373,9 +2385,9 @@ export const useSaveSale = () => {
     }
 
     const settleExcessResume =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessResume });
     saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 

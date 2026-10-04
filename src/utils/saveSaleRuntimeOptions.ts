@@ -12,6 +12,8 @@ export type PosWhatsAppPdfCaptureSnapshot = {
   grandTotal: number;
   paymentMethod: string;
   paidAmount: number;
+  /** Cash/UPI/bank paid back when the return is larger than this bill. */
+  refundCash?: number;
   previousBalance: number;
   unusedAdvance?: number;
   roundOff: number;

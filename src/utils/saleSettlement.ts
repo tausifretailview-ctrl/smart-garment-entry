@@ -987,7 +987,8 @@ export function computeExchangeRefundDue(params: {
 } {
   const sra = Math.max(0, roundMoney2(params.saleReturnAdjust));
   const net = roundMoney2(params.netAmount);
-  const explicit = Math.max(0, roundMoney2(params.explicitRefundAmount || 0));
+  // A minus typed in the refund box (−200) is the same cash paid back, not a charge.
+  const explicit = Math.abs(roundMoney2(params.explicitRefundAmount || 0));
   if (net < -SETTLEMENT_TOLERANCE) {
     const billAmount = Math.max(0, roundMoney2(net + sra));
     const refundDue = Math.max(explicit, roundMoney2(-net));

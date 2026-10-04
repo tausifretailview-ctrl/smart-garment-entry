@@ -11,6 +11,7 @@ import {
   buildTrendzoPaymentLines,
   formatTrendzoMoney,
   formatTrendzoPaymentModeLabel,
+  trendzoDisplayedSettlement,
   trendzoMixAmountPair,
   trendzoPartyAccountPair,
 } from "@/utils/trendzoThermalPayment";
@@ -201,14 +202,22 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
   const itemCount = items.length;
   const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;
   const totalPaid = breakdownPaid > 0 ? breakdownPaid : paidAmount;
-  const balanceDue = grandTotal - totalPaid;
+  const shownSettlement = trendzoDisplayedSettlement({
+    grandTotal,
+    saleReturnAdjust,
+    collected: totalPaid,
+    refundCash,
+  });
+  const displayGrandTotal = shownSettlement.grandTotal;
+  const displayPaid = shownSettlement.paid;
+  const balanceDue = shownSettlement.balanceDue;
   const staffLabel = (salesman || cashier || billSettings.login_display_name || "").trim();
   const partyName = (customerName || "").trim();
 
   const upiId = resolveCompanyUpiId(billSettings);
 
   useEffect(() => {
-    if (!upiId || grandTotal <= 0) {
+    if (!upiId || displayGrandTotal <= 0) {
       setQrCodeUrl("");
       return;
     }
@@ -219,7 +228,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           buildUpiPayLink({
             upiId,
             payeeName: businessName,
-            amount: grandTotal,
+            amount: displayGrandTotal,
             note: billNo,
           }),
           {
@@ -237,7 +246,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     return () => {
       cancelled = true;
     };
-  }, [upiId, grandTotal, businessName, billNo]);
+  }, [upiId, displayGrandTotal, businessName, billNo]);
 
   const savedFromMrp = useMemo(() => {
     if (!showYouSaved) return 0;
@@ -356,13 +365,13 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
 
       <div className="tz-grand-total">
         <span>GRAND TOTAL</span>
-        <span>{fmtMoney(grandTotal)}</span>
+        <span>{fmtMoney(displayGrandTotal)}</span>
       </div>
 
       <div className="tz-payment">
         <PairRow
           left={<>Payment: {paymentModeLabel}</>}
-          right={<>Paid {fmtMoney(totalPaid > 0 ? totalPaid : grandTotal)}</>}
+          right={<>Paid {fmtMoney(displayPaid)}</>}
         />
         {mixAmountPair ? (
           <PairRow left={mixAmountPair.left} right={mixAmountPair.right} />
@@ -371,7 +380,7 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
           <PairRow left={partyAccountPair.left} right={partyAccountPair.right} />
         ) : null}
         <AmountRow label="Balance / Due" amount={balanceDue} show={balanceDue > 0.5} />
-        <AmountRow label="Return Amount" amount={refundCash} />
+        <AmountRow label="Return Amount" amount={shownSettlement.refundCash} />
         <AmountRow label="You Saved" amount={youSaved} show={youSaved > 0} />
       </div>
 

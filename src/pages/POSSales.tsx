@@ -4207,6 +4207,7 @@ export default function POSSales() {
           upiPaid: snapPaymentMethod === "upi" ? snapGrandTotal : 0,
           paymentMethod: snapPaymentMethod,
           paidAmount: snapPaidAmount,
+          refundCash: Number(snap?.refundCash) || 0,
           previousBalance: snapAccount.previousBalance,
           unusedAdvance: snapAccount.unusedAdvance,
           roundOff: snapRoundOff,
@@ -4820,9 +4821,13 @@ export default function POSSales() {
       return;
     }
 
-    // Same-bill exchange / negative net: open Mix so cashier can Process Refund or Issue C/Note.
-    // Cash refund does not require a customer name.
-    if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
+    // Same-bill exchange: Cash pays the refund now (the net box used to show −200,
+    // and clicking Cash left that ₹200 on the customer). UPI / card / credit still open Mix.
+    const cashExchangeRefund =
+      method === "cash" && (finalAmount < -0.005 || exchangeRefundDue > 0.005)
+        ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
+        : 0;
+    if ((finalAmount < -0.005 || exchangeRefundDue > 0.005) && cashExchangeRefund <= 0.005) {
       paymentLockRef.current = false;
       handleMixPayment();
       return;
@@ -4870,20 +4875,35 @@ export default function POSSales() {
         notes: saleNotes || null,
         saleDate: buildPosSaleDate(),
       })),
+      refundAmount: cashExchangeRefund,
       ...posCrmPointsForPrint,
       financerDetails: financerDetails || null,
     };
+    const exchangeBreakdown =
+      cashExchangeRefund > 0.005
+        ? {
+            cashAmount: 0,
+            cardAmount: 0,
+            upiAmount: 0,
+            bankAmount: 0,
+            totalPaid: 0,
+            refundAmount: cashExchangeRefund,
+            issueCreditNote: false,
+            refundMode: "cash" as const,
+          }
+        : undefined;
+    const saveMethod = exchangeBreakdown ? "multiple" : method;
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     await attachSameBillReturnsToCustomer();
     posSaveMark("attach_returns");
     let result;
     if (isHeldSale && currentSaleId) {
-      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
+      result = await resumeHeldSale(currentSaleId, saleData, saveMethod, exchangeBreakdown, buildPosRuntimeOpts());
     } else if (currentSaleId) {
-      result = await updateSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
+      result = await updateSale(currentSaleId, saleData, saveMethod, exchangeBreakdown, buildPosRuntimeOpts());
     } else {
-      result = await saveSale(saleData, method, undefined, 'pos', buildPosRuntimeOpts());
+      result = await saveSale(saleData, saveMethod, exchangeBreakdown, 'pos', buildPosRuntimeOpts());
     }
     posSaveMark("save_sale_total");
     
@@ -4926,8 +4946,8 @@ export default function POSSales() {
       const saveAccount = await resolvePosInvoiceAccountFacets({
         organizationId: currentOrganization?.id,
         customerId,
-        billTotal: finalAmount,
-        receivedToday: method === "pay_later" ? 0 : posTenderDue,
+        billTotal: cashExchangeRefund > 0.005 ? 0 : finalAmount,
+        receivedToday: cashExchangeRefund > 0.005 || method === "pay_later" ? 0 : posTenderDue,
         accountIncludesThisBill: true,
         fallback: customerBalance,
         fallbackUnusedAdvance: customerUnusedAdvance,
@@ -4941,9 +4961,10 @@ export default function POSSales() {
         totals: totals,
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
-        finalAmount: finalAmount,
+        finalAmount: cashExchangeRefund > 0.005 ? 0 : finalAmount,
+        refundCash: cashExchangeRefund,
         billNetAmount: totals.billAmount,
-        method: method,
+        method: cashExchangeRefund > 0.005 ? "multiple" : method,
         customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
@@ -4954,7 +4975,7 @@ export default function POSSales() {
         creditApplied: creditApplied,
         creditAmount: creditApplied,
         notes: saleNotes || null,
-        paidAmount: method === 'pay_later' ? 0 : posTenderDue,
+        paidAmount: cashExchangeRefund > 0.005 ? 0 : method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: saveAccount.previousBalance,
         unusedAdvance: saveAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
@@ -5051,6 +5072,11 @@ export default function POSSales() {
     issueCreditNote?: boolean;
     refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => {
+    // −200 in the refund box is ₹200 paid back to the customer, not a new charge.
+    paymentData = {
+      ...paymentData,
+      refundAmount: Math.abs(Number(paymentData.refundAmount) || 0),
+    };
     posSaveBegin("mix-path");
     // Customer name required only when mix payment leaves a credit balance on the bill
     const mixCreditAmount = Math.max(0, Number(paymentData.creditAmount) || 0);
@@ -8911,7 +8937,7 @@ export default function POSSales() {
               <Input
                 type="number"
                 className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md bg-white tabular-nums ${finalAmount < 0 || exchangeRefundDue > 0.005 ? 'text-orange-600' : 'text-emerald-700'}`}
-                value={Math.round(finalAmount < 0 || exchangeRefundDue > 0.005 ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue) : finalAmount)}
+                value={Math.round(finalAmount < 0 || exchangeRefundDue > 0.005 ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue) : finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
                 readOnly={finalAmount < -0.005 || exchangeRefundDue > 0.005}

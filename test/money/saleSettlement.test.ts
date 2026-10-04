@@ -405,6 +405,17 @@ describe("shouldMaterializeAtSaleTender", () => {
     ).toBe(true);
   });
 
+  it("treats a minus refund (−200) as ₹200 cash back, not a balance due", () => {
+    const due = computeExchangeRefundDue({
+      netAmount: 3300,
+      saleReturnAdjust: 3500,
+      explicitRefundAmount: -200,
+    });
+    expect(due.appliedSr).toBe(3300);
+    expect(due.refundDue).toBe(200);
+    expect(due.isExchangeRefund).toBe(true);
+  });
+
   it("does not materialize when tender + incoming exceeds the bill", () => {
     expect(
       shouldMaterializeAtSaleTender({
