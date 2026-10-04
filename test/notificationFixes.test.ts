@@ -24,6 +24,19 @@ describe("customer push is data-only (one notification, tap opens the bill)", ()
   });
 });
 
+describe("customer push is only 'delivered' once the phone shows it", () => {
+  const sw = read("src/customer/sw.ts");
+
+  it("tracks delivered after showNotification resolves, not alongside it", () => {
+    expect(sw).toContain('.then(() => track(messageId, "delivered"))');
+    expect(sw).not.toContain('const trackPromise = track(messageId, "delivered")');
+    expect(sw.indexOf("showNotification(")).toBeLessThan(sw.indexOf('track(messageId, "delivered")'));
+  });
+  it("a refused notification does not throw out of the handler", () => {
+    expect(sw).toContain(".catch(() => undefined)");
+  });
+});
+
 describe("WhatsApp reply alerts keep their realtime channel across screens", () => {
   const src = read("src/components/WhatsAppMessageNotifier.tsx");
 

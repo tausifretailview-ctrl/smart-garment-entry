@@ -4,7 +4,7 @@
 // the ERP, no PWA plugin, no caching: push delivery + telemetry only.
 //
 // Telemetry mapping (push_messages.id arrives as FCM data.message_id):
-//   background push received -> push_track 'delivered'
+//   notification shown (showNotification resolved) -> push_track 'delivered'
 //   notificationclick        -> push_track 'opened', then open /m/:id
 //   notificationclose        -> push_track 'dismissed'
 
@@ -48,16 +48,20 @@ const messaging = getMessaging(app);
 onBackgroundMessage(messaging, (payload) => {
   const { title, body: bodyText, url, messageId, tag } = buildPushDisplay(payload, self.location.origin);
 
-  // Fire telemetry without awaiting (waitUntil keeps the worker alive).
-  const trackPromise = track(messageId, "delivered");
-  const showPromise = self.registration.showNotification(title, {
-    body: bodyText,
-    icon: "/icon.svg",
-    badge: "/icon.svg",
-    data: { url, messageId },
-    tag,
-  });
-  return Promise.all([trackPromise, showPromise]).then(() => undefined);
+  // 'delivered' means the phone accepted the notification, not just that the worker woke up.
+  // If display is refused (notifications blocked for the site/app, permission revoked) the
+  // message stays 'sent' instead of being reported as delivered. Returning the promise keeps
+  // the worker alive until the telemetry call is made.
+  return self.registration
+    .showNotification(title, {
+      body: bodyText,
+      icon: "/icon.svg",
+      badge: "/icon.svg",
+      data: { url, messageId },
+      tag,
+    })
+    .then(() => track(messageId, "delivered"))
+    .catch(() => undefined);
 });
 
 self.addEventListener("notificationclick", (event) => {
