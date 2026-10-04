@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { useSettings } from "@/hooks/useSettings";
 import { resolveCompanyUpiId } from "@/utils/companyUpi";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
+import { ThermalPartyLines } from "@/components/thermal/ThermalPartyLines";
 
 export interface RetailPosThermalItem {
   particulars: string;
@@ -30,6 +31,9 @@ interface RetailPosThermalReceipt80mmProps {
   cardPaid?: number;
   creditPaid?: number;
   paidAmount?: number;
+  refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   salesman?: string;
   cashier?: string;
@@ -127,6 +131,9 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
+    refundCash = 0,
+    previousBalance = 0,
+    unusedAdvance = 0,
     documentType = "pos",
     salesman,
     cashier,
@@ -368,6 +375,17 @@ export const RetailPosThermalReceipt80mm = React.forwardRef<
           ))}
         </>
       ) : null}
+      {refundCash > 0 ? (
+        <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+          <span>REFUND :</span>
+          <span>{fmtDec(refundCash)}</span>
+        </div>
+      ) : null}
+      <ThermalPartyLines
+        previousBalance={previousBalance}
+        unusedAdvance={unusedAdvance}
+        formatMoney={(n) => fmtDec(n)}
+      />
 
       {qrCodeUrl ? (
         <div style={{ textAlign: "center", marginTop: 6, textTransform: "none" }}>

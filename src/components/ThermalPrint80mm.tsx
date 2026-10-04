@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ThermalPartyLines } from "@/components/thermal/ThermalPartyLines";
 import { format } from "date-fns";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
@@ -51,6 +52,8 @@ interface ThermalPrint80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   /** Settings / prop override for the centered document heading (e.g. BILL OF SUPPLY). */
   documentTitle?: string;
@@ -137,6 +140,8 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
       creditPaid = 0,
       paidAmount = 0,
       refundCash = 0,
+      previousBalance = 0,
+      unusedAdvance = 0,
       documentType = "invoice",
       documentTitle: documentTitleProp,
       termsConditions,
@@ -702,6 +707,11 @@ export const ThermalPrint80mm = React.forwardRef<HTMLDivElement, ThermalPrint80m
                 <span className="tr-num">{fmtMoney(refundCash)}</span>
               </div>
             )}
+            <ThermalPartyLines
+              previousBalance={previousBalance}
+              unusedAdvance={unusedAdvance}
+              formatMoney={fmtMoney}
+            />
             {showYouSaved && discount > 0 && (
               <div className="tr-row" style={{ fontWeight: 700 }}>
                 <span>You Saved</span>

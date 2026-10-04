@@ -71,8 +71,11 @@ describe("Trendzo POS thermal receipt layout", () => {
     );
     expect(trendzoCase).toContain("previousBalance={props.previousBalance ?? 0}");
     expect(trendzoCase).toContain("unusedAdvance={props.unusedAdvance ?? 0}");
-    expect(trendzoCase).toContain("creditPaid={props.creditAmount}");
-    expect(trendzoCase).toContain("cashPaid={props.cashPaid || props.cashAmount}");
+    expect(trendzoCase).toContain("creditPaid={thermalMoney.creditPaid}");
+    expect(trendzoCase).toContain("cashPaid={thermalMoney.cashPaid}");
+    expect(trendzoCase).toContain("grandTotal={thermalMoney.grandTotal}");
+    expect(wrapper).toContain("cashPaid: props.cashPaid || props.cashAmount");
+    expect(wrapper).toContain("cardPaid: props.cardPaid || props.cardAmount");
 
     expect(css).toMatch(/\.tz-payment \.tz-pair-left \{[\s\S]*white-space:\s*normal/);
   });

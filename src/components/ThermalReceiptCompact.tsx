@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useSettings } from '@/hooks/useSettings';
+import { ThermalPartyLines } from '@/components/thermal/ThermalPartyLines';
 import QRCode from 'qrcode';
 import { resolveInvoiceUpiId } from '@/utils/companyUpi';
 import { THERMAL_POS_BC_FONT_SIZE, THERMAL_POS_BC_FONT_WEIGHT } from '@/utils/thermalPosItemLayout';
@@ -51,6 +52,8 @@ interface ThermalReceiptCompactProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   // Saved-sale signed amounts (negative = refund outflow). When provided and
   // grandTotal < 0, the receipt renders a "Refund Paid" line and shows the
   // bill as settled (Net Settled ₹0) instead of leaving a negative TOTAL.
@@ -82,6 +85,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
+      previousBalance = 0, unusedAdvance = 0,
       cashAmount = 0, upiAmount = 0, cardAmount = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
@@ -335,6 +339,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
             {totalPaid > 0 && <div style={{ ...row, fontWeight: 900 }}><span>TOTAL PAID</span><span>₹{fmtAmt(totalPaid)}</span></div>}
             {refundCash > 0 && <div style={row}><span>Refund to Customer</span><span>₹{fmtAmt(refundCash)}</span></div>}
             {balanceDue > 1 && <div style={{ ...row, fontWeight: 900 }}><span>BAL DUE</span><span>₹{fmtAmt(balanceDue)}</span></div>}
+            <ThermalPartyLines previousBalance={previousBalance} unusedAdvance={unusedAdvance} formatMoney={(n) => `₹${fmtAmt(n)}`} />
           </div>
         )}
 

@@ -193,6 +193,12 @@ function buildPosWhatsAppCaptureMeta(
   finalPaymentMethod: string,
   paidAmt: number,
   refundAmt = 0,
+  tender?: {
+    cashAmount?: number;
+    cardAmount?: number;
+    upiAmount?: number;
+    financeAmount?: number;
+  },
 ): PosWhatsAppPdfCaptureMeta {
   const figures = posWhatsAppReceiptFigures({
     netAmount: saleData.netAmount,
@@ -217,8 +223,13 @@ function buildPosWhatsAppCaptureMeta(
       discount: saleData.discountAmount + saleData.flatDiscountAmount,
       saleReturnAdjust: figures.saleReturnAdjust,
       grandTotal: figures.grandTotal,
+      billNetAmount: saleData.netAmount,
       paymentMethod: finalPaymentMethod,
       paidAmount: figures.paidAmount,
+      cashAmount: Math.max(0, Number(tender?.cashAmount) || 0),
+      cardAmount: Math.max(0, Number(tender?.cardAmount) || 0),
+      upiAmount: Math.max(0, Number(tender?.upiAmount) || 0),
+      financeAmount: Math.max(0, Number(tender?.financeAmount) || 0),
       refundCash: figures.refundCash,
       previousBalance: 0,
       roundOff: saleData.roundOff,
@@ -1430,6 +1441,12 @@ export const useSaveSale = () => {
                             finalPaymentMethod,
                             paidAmt,
                             refundAmt,
+                            {
+                              cashAmount: cashAmt,
+                              cardAmount: cardAmt,
+                              upiAmount: upiAmt,
+                              financeAmount: financeAmt,
+                            },
                           ),
                         )
                       : await generateInvoicePdfBase64(pdfData);
@@ -1566,6 +1583,12 @@ export const useSaveSale = () => {
                           finalPaymentMethod,
                           paidAmt,
                           refundAmt,
+                          {
+                            cashAmount: cashAmt,
+                            cardAmount: cardAmt,
+                            upiAmount: upiAmt,
+                            financeAmount: financeAmt,
+                          },
                         ),
                       )
                     : await generateInvoicePdfBase64(pdfData);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   printBillNetAmount,
   saleBillFigures,
+  saleInvoicePrintAccountOpts,
   saleReceivableAfterTender,
   saleRefundForPrint,
   saleRefundForReprint,
@@ -68,6 +69,37 @@ describe("sale bill figures for old and Rule B rows", () => {
       saleReturnAdjust: 500,
       billNetAmount: 800,
     })).toBe(800);
+  });
+});
+
+describe("saleInvoicePrintAccountOpts", () => {
+  it("a covered return is not treated as ₹3,300 still due on this bill", () => {
+    expect(
+      saleInvoicePrintAccountOpts({
+        net_amount: 3300,
+        sale_return_adjust: 3300,
+        paid_amount: 0,
+      }),
+    ).toEqual({
+      billTotal: 0,
+      receivedToday: 0,
+      accountIncludesThisBill: true,
+    });
+  });
+
+  it("uses payable and the cash actually received", () => {
+    expect(
+      saleInvoicePrintAccountOpts({
+        gross_amount: 3300,
+        net_amount: 3300,
+        sale_return_adjust: 1000,
+        paid_amount: 2300,
+      }),
+    ).toEqual({
+      billTotal: 2300,
+      receivedToday: 2300,
+      accountIncludesThisBill: true,
+    });
   });
 });
 
