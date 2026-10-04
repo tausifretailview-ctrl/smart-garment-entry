@@ -193,6 +193,57 @@ export function crmPointsPrintSnapshot(opts: {
   };
 }
 
+/**
+ * Print snapshot for a saved bill. Keeps a balance the screen already computed.
+ * When that is missing (customer linked only at save), build it from the
+ * balance before this bill. suppressEarn matches save: pay-later and redeem
+ * do not also earn.
+ */
+export function resolveSaleCrmPointsPrint(opts: {
+  crmEnabled: boolean;
+  customerId?: string | null;
+  existingBalance?: number | null;
+  existingRedeemed?: number | null;
+  balanceBefore?: number | null;
+  pointsToRedeem?: number | null;
+  pointsEarned?: number | null;
+  suppressEarn?: boolean;
+}): CrmPointsPrintSnapshot {
+  if (typeof opts.existingBalance === "number" && Number.isFinite(opts.existingBalance)) {
+    return {
+      pointsBalance: opts.existingBalance,
+      pointsRedeemed: Math.max(0, Math.round(Number(opts.existingRedeemed) || 0)),
+    };
+  }
+  return crmPointsPrintSnapshot({
+    crmEnabled: opts.crmEnabled,
+    customerId: opts.customerId,
+    balanceBefore: opts.balanceBefore,
+    pointsToRedeem: opts.pointsToRedeem,
+    pointsEarned: opts.suppressEarn ? 0 : opts.pointsEarned,
+  });
+}
+
+/** Screen snapshot wins. Save-time fill is used only when the screen had no balance. */
+export function coalesceCrmPointsPrint(
+  primary: CrmPointsPrintSnapshot,
+  fallback?: { pointsBalance?: number; pointsRedeemed?: number } | null,
+): CrmPointsPrintSnapshot {
+  if (typeof primary.pointsBalance === "number" && Number.isFinite(primary.pointsBalance)) {
+    return {
+      pointsBalance: primary.pointsBalance,
+      pointsRedeemed: primary.pointsRedeemed,
+    };
+  }
+  if (typeof fallback?.pointsBalance === "number" && Number.isFinite(fallback.pointsBalance)) {
+    return {
+      pointsBalance: fallback.pointsBalance,
+      pointsRedeemed: fallback.pointsRedeemed,
+    };
+  }
+  return {};
+}
+
 /** CRM points line for the Retail ERP Note box. Omitted when the feature is off. */
 export function retailErpNoteWithCrmPoints(
   note: string,

@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
+import { resolveSaleCrmPointsPrint } from "@/utils/retailErpInvoicePrint";
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
@@ -995,6 +996,53 @@ export const useSaveSale = () => {
     }
   }
 
+  /**
+   * WhatsApp Retail ERP reads pointsBalance off this object. A typed name/phone
+   * has no balance until the customer row is linked, so fill it here — before
+   * points are awarded — or the PDF Note stays empty.
+   */
+  async function attachMissingCrmPointsPrint(
+    saleData: SaleData,
+    paymentMethod: string,
+  ): Promise<SaleData> {
+    if (!currentOrganization?.id) return saleData;
+    if (typeof saleData.pointsBalance === "number" && Number.isFinite(saleData.pointsBalance)) {
+      return saleData;
+    }
+    if (!isPointsEnabled || !saleData.customerId) return saleData;
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("points_balance")
+        .eq("id", saleData.customerId)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      if (error) {
+        console.error("CRM points balance read failed:", error);
+      }
+      const balanceBefore = error ? 0 : Number(data?.points_balance) || 0;
+      const redeemedOnBill =
+        (saleData.pointsRedeemedAmount || 0) > 0.005 || (saleData.pointsRedeemed || 0) > 0;
+      const snap = resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: saleData.customerId,
+        balanceBefore,
+        pointsToRedeem: saleData.pointsRedeemed,
+        pointsEarned: calculatePoints(saleData.netAmount),
+        suppressEarn: paymentMethod === "pay_later" || redeemedOnBill,
+      });
+      if (typeof snap.pointsBalance !== "number") return saleData;
+      return {
+        ...saleData,
+        pointsBalance: snap.pointsBalance,
+        pointsRedeemed: snap.pointsRedeemed,
+      };
+    } catch (err) {
+      console.error("CRM points print snapshot failed:", err);
+      return saleData;
+    }
+  }
+
   const saveSale = async (
     saleData: SaleData,
     paymentMethod: 'cash' | 'card' | 'upi' | 'multiple' | 'pay_later',
@@ -1312,6 +1360,7 @@ export const useSaveSale = () => {
       }
 
       posSaveMark("recompute_state");
+      saleData = await attachMissingCrmPointsPrint(saleData, paymentMethod);
       let pointsAwarded = 0;
       // No points earn on bills that redeem points (pending stays 0).
       const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
@@ -1688,7 +1737,13 @@ export const useSaveSale = () => {
         })();
       }
 
-      return { ...sale, pointsAwarded, ...creditResult };
+      return {
+        ...sale,
+        pointsAwarded,
+        ...creditResult,
+        pointsBalance: saleData.pointsBalance,
+        pointsRedeemed: saleData.pointsRedeemed,
+      };
     } catch (error: any) {
       if (insertedSaleIdForRollback) {
         const saleId = insertedSaleIdForRollback;
