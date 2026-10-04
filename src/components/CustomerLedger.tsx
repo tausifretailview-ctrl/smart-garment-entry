@@ -88,6 +88,7 @@ import {
   residualTenderBreakdown,
 } from "@/utils/customerAuditBundle";
 import {
+  advanceReductionFromAdjustmentDescription,
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
   saleReturnCreditForReconciliation,
@@ -1660,6 +1661,7 @@ export function CustomerLedger({
       advanceRefunded: 0,
       cnRefunded: 0,
       adjustments: 0,
+      advanceReduced: 0,
       finalBalance: 0,
       invoiceOutstanding: 0,
     };
@@ -1677,6 +1679,7 @@ export function CustomerLedger({
     let advanceRefunded = 0;
     let cnRefunded = 0;
     let adjustments = 0;
+    let advanceReduced = 0;
 
     for (const t of transactions) {
       if (t.id === "opening-balance") {
@@ -1710,7 +1713,11 @@ export function CustomerLedger({
         // Overpayment refund + CN cash refund both clear party credit.
         cnRefunded += t.debit || 0;
       } else if (t.type === "adjustment") {
-        adjustments += (t.debit || 0) - (t.credit || 0);
+        // The advance part of the debit removes unused advance (no longer spendable);
+        // it is not owed on invoices, so it stays out of Outstanding (shown as its own note).
+        const advancePart = advanceReductionFromAdjustmentDescription(t.description);
+        advanceReduced += advancePart;
+        adjustments += (t.debit || 0) - (t.credit || 0) - advancePart;
       }
     }
 
@@ -1756,6 +1763,7 @@ export function CustomerLedger({
       advanceRefunded,
       cnRefunded,
       adjustments,
+      advanceReduced,
       finalBalance,
       invoiceOutstanding,
     };
@@ -4527,6 +4535,12 @@ Please clear your dues at the earliest. Thank you!`;
                           Unclamped advance pool (received − applied − refunded) is
                           {" "}₹{poolUnclamped.toLocaleString("en-IN")} — a shortfall of
                           {" "}₹{Math.abs(unusedAdvance - poolUnclamped).toLocaleString("en-IN")} needs review.
+                        </div>
+                      )}
+                      {reconciliation.advanceReduced > 0 && (
+                        <div className="flex justify-between text-muted-foreground pt-1 text-xs">
+                          <span>Advance removed in Balance Adjustment (not in Outstanding)</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.advanceReduced).toLocaleString("en-IN")}</span>
                         </div>
                       )}
                       {advanceRefunded > 0 && (

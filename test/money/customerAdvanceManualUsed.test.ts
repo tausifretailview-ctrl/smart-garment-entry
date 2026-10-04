@@ -8,6 +8,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
+import {
+  advanceReductionFromAdjustmentDescription,
+  computeInvoiceOutstandingFromReconciliation,
+} from "@/utils/customerLedgerReconciliation";
 
 const root = resolve(__dirname, "../..");
 const read = (p: string) => readFileSync(resolve(root, p), "utf8");
@@ -116,5 +120,40 @@ describe("recompute_customer_advances_used keeps manual deductions and refunds",
 
   it("does not touch existing data", () => {
     expect(sql).not.toMatch(/^\s*(UPDATE public\.customer_advances\s+SET manual_used_amount|DELETE )/im);
+  });
+});
+
+describe("Balance Adjustment advance removal stays out of ledger Outstanding", () => {
+  it("reads the advance part from the ledger row text (Saniya ₹40,000)", () => {
+    expect(
+      advanceReductionFromAdjustmentDescription(
+        "Balance Adjustment: 40000/-₹ wrong entry done in system (Advance Refund: ₹40,000)",
+      ),
+    ).toBe(40_000);
+    expect(advanceReductionFromAdjustmentDescription("Balance Adjustment: round off")).toBe(0);
+    expect(advanceReductionFromAdjustmentDescription(undefined)).toBe(0);
+  });
+
+  it("Saniya reconciliation: Bills 19,600 − Advance adjusted 19,600, advance removal excluded → Outstanding 0", () => {
+    const adjustments = 40_000 - advanceReductionFromAdjustmentDescription("x (Advance Refund: ₹40,000)");
+    expect(
+      computeInvoiceOutstandingFromReconciliation({
+        opening: 0,
+        grossInvoiced: 19_600,
+        invoiceCnApplied: 0,
+        saleReturns: 0,
+        paymentsCash: 0,
+        paymentsDiscount: 0,
+        advanceApplied: 19_600,
+        adjustments,
+      }),
+    ).toBe(0);
+  });
+
+  it("CustomerLedger subtracts it and notes it separately", () => {
+    const src = read("src/components/CustomerLedger.tsx");
+    expect(src).toContain("advanceReductionFromAdjustmentDescription(t.description)");
+    expect(src).toContain("adjustments += (t.debit || 0) - (t.credit || 0) - advancePart;");
+    expect(src).toContain("Advance removed in Balance Adjustment (not in Outstanding)");
   });
 });
