@@ -784,11 +784,9 @@ export const ProductEntryDialog = ({
         barcode: String(v.barcode || "").trim(),
         barcode_source: v.barcode_source,
       }));
-    // Nothing new was created — do not restore this form as an unsaved draft.
-    skipUnsavedDraftPersistRef.current = true;
-    if (currentOrganization?.id) {
-      clearProductEntryUnsavedDraft(currentOrganization.id);
-    }
+    // Reuse does not insert a product, so the new-master save never runs.
+    // Still remember this form: press 1 opens the next window from it.
+    rememberAddedProductForNextEntry();
     onUseExistingProductSizes({ productId, rows });
   };
 
@@ -1494,6 +1492,17 @@ export const ProductEntryDialog = ({
         rememberRequiresImeiFormChoice(formData.requires_imei !== false, formData.category);
       }
     } catch {}
+  };
+
+  // Last-product memory for the next Add Product window (press 1).
+  // Written for a new master and for Add to Bill against an existing master.
+  // The unsaved draft is cleared so the next open uses this memory, not an older form.
+  const rememberAddedProductForNextEntry = () => {
+    saveLastProductDetails();
+    skipUnsavedDraftPersistRef.current = true;
+    if (currentOrganization?.id) {
+      clearProductEntryUnsavedDraft(currentOrganization.id);
+    }
   };
 
   // Debounced copy-from-existing search
@@ -2373,6 +2382,7 @@ export const ProductEntryDialog = ({
               return;
             }
             if (onUseExistingProduct) {
+              rememberAddedProductForNextEntry();
               onUseExistingProduct(buildUseExistingProductPayload(first.barcode, variantsToCreate));
               return;
             }
@@ -2556,11 +2566,7 @@ export const ProductEntryDialog = ({
       invalidateProductDashboardQueries(queryClient, currentOrganization.id);
 
       // Save last product details for quick entry next time
-      saveLastProductDetails();
-      skipUnsavedDraftPersistRef.current = true;
-      if (currentOrganization?.id) {
-        clearProductEntryUnsavedDraft(currentOrganization.id);
-      }
+      rememberAddedProductForNextEntry();
       commitProductFormSuggestions(formData);
 
       // Call the callback with product data — include purchase_qty from variants
