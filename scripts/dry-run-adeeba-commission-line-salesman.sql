@@ -5,7 +5,9 @@
 -- It changes employee_name / employee_id only. sale_amount, commission_amount,
 -- and payment_status stay. Hand-check at least five rows here before applying.
 
-SELECT
+SELECT *
+FROM (
+SELECT DISTINCT ON (sc.id)
   sc.sale_number,
   sc.sale_date::date AS sale_date,
   sc.product_name,
