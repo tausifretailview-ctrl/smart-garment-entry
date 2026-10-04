@@ -43,4 +43,6 @@ WHERE sc.organization_id = 'b230c582-4f0b-420f-b18b-bef26c2f5ce8'
       ELSE GREATEST(0::numeric, COALESCE(si.line_total, 0) - COALESCE(si.discount_share, 0))
     END - COALESCE(sc.sale_amount, 0)
   ) <= 0.05
-ORDER BY sc.sale_date, sc.sale_number, sc.id;
+ORDER BY sc.id, si.created_at, si.id
+) reviewed
+ORDER BY sale_date, sale_number, commission_id;
