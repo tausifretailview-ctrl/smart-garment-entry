@@ -36,7 +36,7 @@ BEGIN
   SELECT
     si.id,
     si.sale_id,
-    si.product_id,
+    si.product_id::text AS product_id,
     si.product_name,
     si.quantity,
     si.created_at,

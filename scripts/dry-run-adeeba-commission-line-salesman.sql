@@ -25,7 +25,7 @@ JOIN public.sale_items si
  AND si.organization_id = sc.organization_id
  AND si.deleted_at IS NULL
  AND (
-   (sc.product_id IS NOT NULL AND si.product_id = sc.product_id)
+   (sc.product_id IS NOT NULL AND si.product_id::text = sc.product_id)
    OR lower(btrim(COALESCE(si.product_name, ''))) = lower(btrim(COALESCE(sc.product_name, '')))
  )
 JOIN public.sales s
