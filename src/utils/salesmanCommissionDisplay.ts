@@ -2,6 +2,7 @@
  * Display helpers for salesman commission: net sale after discount.
  * Commission % applies to net (after line discount), not gross.
  */
+import { takeUnusedSaleLine } from "@/utils/salesmanCommissionLineRepair";
 
 export type SaleItemDiscountRow = {
   sale_id: string;
@@ -12,6 +13,10 @@ export type SaleItemDiscountRow = {
   discount_share?: number | null;
   net_after_discount?: number | null;
   discount_percent?: number | null;
+  /** sale_items.salesman. Qty follows this person when it differs from the bill header. */
+  salesman?: string | null;
+  headerSalesman?: string | null;
+  id?: string;
 };
 
 export type CommissionDisplayRow = {
@@ -102,6 +107,19 @@ export function enrichCommissionsWithSaleItems(
   const used = new WeakSet<object>();
 
   const takeMatch = (c: CommissionDisplayRow): SaleItemDiscountRow | null => {
+    const paired = takeUnusedSaleLine(
+      {
+        id: c.id,
+        sale_id: c.sale_id,
+        product_id: c.product_id,
+        product_name: (c.product_name as string | null) ?? null,
+        sale_amount: c.sale_amount,
+        employee_name: c.employee_name,
+      },
+      saleItems.filter((item): item is SaleItemDiscountRow & { id: string } => Boolean(item.id)),
+      used,
+    );
+    if (paired) return paired;
     const k1 = itemKey(c.sale_id, c.product_id, c.product_name as string | null);
     const list1 = bySaleProduct.get(k1) || [];
     const free1 = list1.find((i) => !used.has(i));
