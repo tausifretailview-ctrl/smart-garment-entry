@@ -146,7 +146,8 @@ export default function SalesmanCommission() {
       if (saleIds.length === 0) return [];
       const { data, error } = await supabase
         .from("sale_items")
-        .select("sale_id, product_id, product_name, quantity, line_total, discount_share, net_after_discount, discount_percent")
+        .select("id, sale_id, product_id, product_name, quantity, line_total, discount_share, net_after_discount, discount_percent, salesman")
+        .eq("organization_id", currentOrganization!.id)
         .in("sale_id", saleIds)
         .is("deleted_at", null);
       if (error) throw error;
