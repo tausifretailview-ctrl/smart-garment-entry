@@ -7,6 +7,7 @@ import {
   lineTax,
   maskPhone,
   phoneLast10,
+  shopProfileFromSettings,
   signSessionToken,
   verifySessionToken,
 } from "../_shared/customerApp.ts";
@@ -211,6 +212,16 @@ const handler = async (req: Request): Promise<Response> => {
     const action = String(body.action ?? "");
     const org = await resolveOrg(supabase, cleanSubdomain(body.subdomain));
     if (!org) return json(404, { error: "shop_not_found" });
+
+    // ─── SHOP: public header (name, logo, address, phone), no session ─────
+    if (action === "shop") {
+      const { data: settings } = await supabase
+        .from("settings")
+        .select("business_name, address, mobile_number, bill_barcode_settings")
+        .eq("organization_id", org.id)
+        .maybeSingle();
+      return json(200, { ok: true, shop: shopProfileFromSettings(org.name, settings) });
+    }
 
     // ─── LOGIN: mobile number ──────────────────────────────────────────────
     if (action === "login") {

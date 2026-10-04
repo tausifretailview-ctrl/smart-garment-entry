@@ -2081,7 +2081,7 @@ export default function POSSales() {
           customerName,
         });
         if (credit.ok === false) {
-          toast.error("Save Failed", { description: credit.message });
+          toast.error("Save Failed", { description: (credit as { message?: string }).message });
           return;
         }
         if (credit.changed) {

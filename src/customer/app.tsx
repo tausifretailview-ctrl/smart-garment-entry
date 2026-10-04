@@ -3,21 +3,24 @@ import TokenPage from "./pages/TokenPage";
 import MessagePage from "./pages/MessagePage";
 import { AccountPage, BillPage, BillsPage, OffersPage, ReturnsPage, TransactionsPage } from "./pages/account";
 import LoginCard from "./components/LoginCard";
+import { PoweredBy, ShopHeader } from "./components/AppChrome";
 import { getSessionToken } from "./lib/account";
 
 function HomePage() {
   const navigate = useNavigate();
   if (getSessionToken()) return <Navigate to="/account" replace />;
   return (
-    <div className="c-wrap">
-      <div className="c-card c-center">
-        <h2 style={{ margin: "0 0 8px" }}>Your Bill & Offers</h2>
-        <p className="c-muted" style={{ lineHeight: 1.55, margin: 0 }}>
-          See all your bills, returns, balance and the latest offers from the shop.
-        </p>
+    <>
+      <ShopHeader />
+      <div className="c-wrap">
+        <div className="c-welcome">
+          <h2>Your bills &amp; offers</h2>
+          <p>See every bill, return and balance, and get the latest offers from the shop.</p>
+        </div>
+        <LoginCard title="Log in with your mobile number" onDone={() => navigate("/account", { replace: true })} />
+        <PoweredBy />
       </div>
-      <LoginCard title="Log in with your mobile number" onDone={() => navigate("/account", { replace: true })} />
-    </div>
+    </>
   );
 }
 
