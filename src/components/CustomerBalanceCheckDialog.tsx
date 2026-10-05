@@ -84,8 +84,9 @@ export function CustomerBalanceCheckDialog({ open, onOpenChange, organizationId 
           </DialogTitle>
           <DialogDescription>
             Finds customers whose ledger balance does not match the system check, usually because of a
-            duplicate return or refund, or a deleted bill. It only looks at customers with returns, credit
-            notes or exchange refunds (up to {BALANCE_CHECK_SCAN_MAX} per run) and changes nothing.
+            duplicate return or refund, a deleted bill, an advance refund or a Balance Adjustment. It only looks
+            at customers with returns, credit notes, exchange refunds, advance refunds or Balance Adjustments
+            (up to {BALANCE_CHECK_SCAN_MAX} per run) and changes nothing.
           </DialogDescription>
         </DialogHeader>
 

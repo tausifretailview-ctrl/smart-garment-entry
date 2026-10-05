@@ -52,7 +52,12 @@ async function applyAdvanceEffects(
       createdBy: userId,
     });
   } else if (advDiff < 0) {
-    await deductCustomerAdvanceManually(supabaseClient, organizationId, customerId, advDiff);
+    const notTaken = await deductCustomerAdvanceManually(supabaseClient, organizationId, customerId, advDiff);
+    if (notTaken > 0.5) {
+      toast.warning(
+        `Only ₹${(Math.abs(advDiff) - notTaken).toLocaleString("en-IN")} of advance could be removed; ₹${notTaken.toLocaleString("en-IN")} was not available. Check this customer's advance.`,
+      );
+    }
   }
 }
 

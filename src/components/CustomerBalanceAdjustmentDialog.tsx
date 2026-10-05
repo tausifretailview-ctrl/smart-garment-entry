@@ -179,7 +179,12 @@ export function CustomerBalanceAdjustmentDialog({
         createdBy: user?.id,
       });
     } else if (advDiff < 0) {
-      await deductCustomerAdvanceManually(supabase, organizationId, customerId, advDiff);
+      const notTaken = await deductCustomerAdvanceManually(supabase, organizationId, customerId, advDiff);
+      if (notTaken > 0.5) {
+        toast.warning(
+          `Only ₹${(Math.abs(advDiff) - notTaken).toLocaleString("en-IN")} of advance could be removed; ₹${notTaken.toLocaleString("en-IN")} was not available. Check this customer's advance.`,
+        );
+      }
     }
   };
 

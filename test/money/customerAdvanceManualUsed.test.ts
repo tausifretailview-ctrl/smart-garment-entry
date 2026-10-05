@@ -9,6 +9,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
 import { getCustomerAccountState } from "@/utils/customerBalanceCore";
+import { findBalanceCheckCandidates } from "@/utils/customerBalanceCheckScan";
 import {
   advanceReductionFromAdjustmentDescription,
   computeInvoiceOutstandingFromReconciliation,
@@ -208,5 +209,39 @@ describe("balance engine: advance removed in Balance Adjustment is not advance a
 
   it("the audit bundle loads manual_used_amount", () => {
     expect(read("src/utils/customerAuditBundle.ts")).toContain("amount, used_amount, manual_used_amount, status");
+  });
+});
+
+describe("Accounts to check also looks at advance refunds and Balance Adjustments", () => {
+  function tableClient(byTable: Record<string, unknown[]>) {
+    return {
+      from(table: string) {
+        const chain: Record<string, unknown> = {};
+        for (const m of ["select", "eq", "is", "not", "gt", "neq", "ilike", "limit", "in"]) chain[m] = () => chain;
+        chain.then = (res: (v: unknown) => unknown) =>
+          Promise.resolve({ data: byTable[table] ?? [], error: null }).then(res);
+        return chain;
+      },
+    } as never;
+  }
+
+  it("adds customers with a Balance Adjustment and customers with an advance refund", async () => {
+    const ids = await findBalanceCheckCandidates(
+      tableClient({
+        sale_returns: [{ customer_id: "ret" }],
+        customer_balance_adjustments: [{ customer_id: "saniya" }],
+        advance_refunds: [{ customer_advances: { customer_id: "refunded" } }, { customer_advances: [{ customer_id: "refunded2" }] }],
+      }),
+      "org",
+    );
+    expect(ids.sort()).toEqual(["refunded", "refunded2", "ret", "saniya"]);
+  });
+
+  it("a Balance Adj that cannot take the whole advance tells the user", () => {
+    for (const p of ["src/components/CustomerBalanceAdjustmentDialog.tsx", "src/components/RecentBalanceAdjustments.tsx"]) {
+      const src = read(p);
+      expect(src, p).toContain("const notTaken = await deductCustomerAdvanceManually(");
+      expect(src, p).toContain("toast.warning(");
+    }
   });
 });
