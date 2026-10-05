@@ -118,18 +118,37 @@ export function EntryBillProductSearchBar({
 
         <Popover open={openProductSearch} onOpenChange={onOpenProductSearchChange}>
           <PopoverTrigger asChild>
-            <div className="relative flex-1 min-w-[240px] cursor-pointer">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
+            <div
+              className="relative flex-1 min-w-[240px] cursor-text"
+              onClick={(e) => {
+                // Keep the list open. The trigger would otherwise toggle shut on a second click
+                // and the caret would leave the search field.
+                e.preventDefault();
+                onOpenProductSearchChange(true);
+              }}
+            >
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-black/40" />
               <Input
                 ref={productSearchInputRef}
+                value={searchInput}
                 placeholder={noStockRestriction ? "Search Products (No Stock Restriction)" : browsePlaceholder}
-                className="pl-10 pr-4 h-10 bg-white border-black/20 cursor-pointer text-sm font-semibold"
-                readOnly
-                onClick={() => onOpenProductSearchChange(true)}
+                className="pl-10 pr-4 h-10 bg-white border-black/20 cursor-text caret-current text-sm font-semibold"
+                onChange={(e) => {
+                  onSearchInputChange(e.target.value);
+                  if (!openProductSearch) onOpenProductSearchChange(true);
+                }}
+                onFocus={() => {
+                  if (!openProductSearch) onOpenProductSearchChange(true);
+                }}
               />
             </div>
           </PopoverTrigger>
-          <PopoverContent className="w-[700px] p-0" align="start">
+          <PopoverContent
+            className="w-[700px] p-0"
+            align="start"
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
             <Command shouldFilter={false}>
               <CommandInput
                 placeholder="Search by name, barcode, brand, color, size..."
