@@ -8,6 +8,7 @@ import {
   retailErpDisplayDiscount,
   retailErpLetterpadNoteText,
   coalesceCrmPointsPrint,
+  crmPointsFromSaveResult,
   resolveSaleCrmPointsPrint,
   retailErpNoteWithCrmPoints,
   crmPointsPrintSnapshot,
@@ -327,6 +328,15 @@ describe("resolveSaleCrmPointsPrint", () => {
         pointsEarned: 8,
       }),
     ).toEqual({});
+  });
+
+  it("reads points off a save result and ignores a plain sales row", () => {
+    expect(crmPointsFromSaveResult({ pointsBalance: 20, pointsRedeemed: 2, sale_number: "POS/1" })).toEqual({
+      pointsBalance: 20,
+      pointsRedeemed: 2,
+    });
+    expect(crmPointsFromSaveResult({ sale_number: "POS/1", net_amount: 100 })).toEqual({});
+    expect(crmPointsFromSaveResult(null)).toEqual({});
   });
 
   it("uses the save-time balance when the screen snapshot is empty", () => {

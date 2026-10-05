@@ -168,7 +168,7 @@ import {
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
-import { coalesceCrmPointsPrint, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
+import { coalesceCrmPointsPrint, crmPointsFromSaveResult, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -4962,7 +4962,7 @@ export default function POSSales() {
             pointsToRedeem,
             pointsEarned: calculatePoints(finalAmount),
           }),
-          result,
+          crmPointsFromSaveResult(result),
         ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
@@ -5293,7 +5293,7 @@ export default function POSSales() {
             pointsToRedeem,
             pointsEarned: calculatePoints(finalAmount),
           }),
-          result,
+          crmPointsFromSaveResult(result),
         ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
