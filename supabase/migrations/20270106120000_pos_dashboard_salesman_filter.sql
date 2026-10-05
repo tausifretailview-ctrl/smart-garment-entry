@@ -1,8 +1,11 @@
--- POS dashboard user filter also accepts salesman names.
--- p_filters.salesmanFilter is a JSON array of sales.salesman values.
--- Empty / missing = every salesman (existing callers).
--- salesmanFilterApplied tells the app this build honored that key. Older
--- builds ignore unknown JSON and would otherwise return unfiltered totals.
+-- POS dashboard totals honor p_filters.salesmanFilter (sales.salesman names).
+-- Empty or missing list = every salesman.
+-- salesmanFilterApplied marks this build so the app can tell it apart from
+-- older builds that ignore unknown JSON and count every salesman.
+--
+-- Written as one SQL statement with no semicolon inside the function body.
+-- The Supabase SQL editor splits on semicolons and otherwise cuts the script
+-- at the first line, which leaves $$ unclosed (error 42601).
 
 CREATE OR REPLACE FUNCTION public.get_pos_dashboard_stats(
   p_organization_id uuid,
@@ -13,36 +16,32 @@ CREATE OR REPLACE FUNCTION public.get_pos_dashboard_stats(
   p_customer_id uuid DEFAULT NULL
 )
 RETURNS json
-LANGUAGE plpgsql
+LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
-AS $$
-DECLARE
-  v_search text := NULLIF(trim(p_search), '');
-  v_cancel text := COALESCE(NULLIF(trim(p_filters->>'cancelFilter'), ''), 'active');
-  v_payment_method text := COALESCE(NULLIF(trim(p_filters->>'paymentMethodFilter'), ''), 'all');
-  v_sale_type text := COALESCE(NULLIF(trim(p_filters->>'saleTypeFilter'), ''), 'all');
-  v_refund text := COALESCE(NULLIF(trim(p_filters->>'refundFilter'), ''), 'all');
-  v_credit_note text := COALESCE(NULLIF(trim(p_filters->>'creditNoteFilter'), ''), 'all');
-  v_user text := COALESCE(NULLIF(trim(p_filters->>'userFilter'), ''), 'all');
-  v_salesmen jsonb := CASE
-    WHEN jsonb_typeof(p_filters->'salesmanFilter') = 'array' THEN p_filters->'salesmanFilter'
-    ELSE '[]'::jsonb
-  END;
-  v_has_salesmen boolean := jsonb_array_length(v_salesmen) > 0;
-  v_payment_status jsonb := COALESCE(p_filters->'paymentStatusFilter', '[]'::jsonb);
-  v_has_payment_status boolean := jsonb_array_length(COALESCE(p_filters->'paymentStatusFilter', '[]'::jsonb)) > 0;
-  v_bypass_dates boolean := (v_search IS NOT NULL);
-  v_result json;
-BEGIN
-  PERFORM public.assert_org_member(p_organization_id);
-
-  IF p_organization_id IS NULL THEN
-    RAISE EXCEPTION 'organization_id required';
-  END IF;
-
-  WITH filtered_sales AS (
+AS $fn$
+SELECT COALESCE((
+  WITH params AS (
+    SELECT
+      NULLIF(trim(p_search), '') AS v_search,
+      COALESCE(NULLIF(trim(p_filters->>'cancelFilter'), ''), 'active') AS v_cancel,
+      COALESCE(NULLIF(trim(p_filters->>'paymentMethodFilter'), ''), 'all') AS v_payment_method,
+      COALESCE(NULLIF(trim(p_filters->>'saleTypeFilter'), ''), 'all') AS v_sale_type,
+      COALESCE(NULLIF(trim(p_filters->>'refundFilter'), ''), 'all') AS v_refund,
+      COALESCE(NULLIF(trim(p_filters->>'creditNoteFilter'), ''), 'all') AS v_credit_note,
+      COALESCE(NULLIF(trim(p_filters->>'userFilter'), ''), 'all') AS v_user,
+      CASE
+        WHEN jsonb_typeof(p_filters->'salesmanFilter') = 'array' THEN p_filters->'salesmanFilter'
+        ELSE '[]'::jsonb
+      END AS v_salesmen,
+      COALESCE(p_filters->'paymentStatusFilter', '[]'::jsonb) AS v_payment_status,
+      (NULLIF(trim(p_search), '') IS NOT NULL) AS v_bypass_dates
+  ),
+  guard AS MATERIALIZED (
+    SELECT public.assert_org_member(p_organization_id) AS checked
+  ),
+  filtered_sales AS (
     SELECT
       s.id,
       s.gross_amount,
@@ -65,61 +64,63 @@ BEGIN
       s.total_qty,
       s.is_cancelled
     FROM public.sales s
+    CROSS JOIN params p
+    CROSS JOIN guard g
     WHERE s.organization_id = p_organization_id
       AND s.deleted_at IS NULL
       AND (
-        v_sale_type = 'dc' AND s.sale_type = 'delivery_challan'
-        OR v_sale_type = 'pos' AND s.sale_type = 'pos'
-        OR v_sale_type NOT IN ('dc', 'pos')
+        p.v_sale_type = 'dc' AND s.sale_type = 'delivery_challan'
+        OR p.v_sale_type = 'pos' AND s.sale_type = 'pos'
+        OR p.v_sale_type NOT IN ('dc', 'pos')
           AND s.sale_type IN ('pos', 'delivery_challan')
       )
       AND (
-        NOT v_bypass_dates
+        NOT p.v_bypass_dates
         AND (p_date_from IS NULL OR s.sale_date >= p_date_from)
         AND (p_date_to IS NULL OR s.sale_date <= p_date_to)
-        OR v_bypass_dates
+        OR p.v_bypass_dates
       )
       AND (p_customer_id IS NULL OR s.customer_id = p_customer_id)
       AND (
-        v_search IS NULL
-        OR s.sale_number ILIKE '%' || v_search || '%'
-        OR s.customer_name ILIKE '%' || v_search || '%'
-        OR s.customer_phone ILIKE '%' || v_search || '%'
+        p.v_search IS NULL
+        OR s.sale_number ILIKE '%' || p.v_search || '%'
+        OR s.customer_name ILIKE '%' || p.v_search || '%'
+        OR s.customer_phone ILIKE '%' || p.v_search || '%'
         OR (
-          v_search ~ '^\d{1,6}$'
-          AND s.sale_number ILIKE '%/' || v_search
+          p.v_search ~ '^\d{1,6}$'
+          AND s.sale_number ILIKE '%/' || p.v_search
         )
       )
       AND (
-        v_cancel = 'all'
-        OR (v_cancel = 'cancelled' AND s.is_cancelled = true)
-        OR (v_cancel = 'active' AND (s.is_cancelled IS NULL OR s.is_cancelled = false))
+        p.v_cancel = 'all'
+        OR (p.v_cancel = 'cancelled' AND s.is_cancelled = true)
+        OR (p.v_cancel = 'active' AND (s.is_cancelled IS NULL OR s.is_cancelled = false))
       )
-      AND (v_user = 'all' OR v_user = '__pending__' OR s.created_by::text = v_user)
+      AND (p.v_user = 'all' OR p.v_user = '__pending__' OR s.created_by::text = p.v_user)
       AND (
-        NOT v_has_salesmen
-        OR s.salesman = ANY (SELECT jsonb_array_elements_text(v_salesmen))
+        NOT (jsonb_typeof(p.v_salesmen) = 'array' AND jsonb_array_length(p.v_salesmen) > 0)
+        OR s.salesman = ANY (SELECT jsonb_array_elements_text(p.v_salesmen))
       )
-      AND (v_payment_method = 'all' OR s.payment_method = v_payment_method)
+      AND (p.v_payment_method = 'all' OR s.payment_method = p.v_payment_method)
       AND (
-        NOT v_has_payment_status
-        OR s.payment_status = ANY (SELECT jsonb_array_elements_text(v_payment_status))
+        NOT (jsonb_typeof(p.v_payment_status) = 'array' AND jsonb_array_length(p.v_payment_status) > 0)
+        OR s.payment_status = ANY (SELECT jsonb_array_elements_text(p.v_payment_status))
       )
       AND (
-        v_sale_type <> 'cn'
+        p.v_sale_type <> 'cn'
         OR s.credit_note_id IS NOT NULL
         OR COALESCE(s.credit_note_amount, 0) > 0
       )
       AND (
-        v_refund = 'all'
-        OR (v_refund = 'with_refund' AND COALESCE(s.refund_amount, 0) > 0)
-        OR (v_refund = 'without_refund' AND (s.refund_amount IS NULL OR s.refund_amount = 0))
+        p.v_refund = 'all'
+        OR (p.v_refund = 'with_refund' AND COALESCE(s.refund_amount, 0) > 0)
+        OR (p.v_refund = 'without_refund' AND (s.refund_amount IS NULL OR s.refund_amount = 0))
       )
       AND (
-        v_credit_note = 'all'
-        OR (v_credit_note = 'with_credit_note' AND (s.credit_note_id IS NOT NULL OR COALESCE(s.credit_note_amount, 0) > 0))
+        p.v_credit_note = 'all'
+        OR (p.v_credit_note = 'with_credit_note' AND (s.credit_note_id IS NOT NULL OR COALESCE(s.credit_note_amount, 0) > 0))
         OR (
-          v_credit_note = 'without_credit_note'
+          p.v_credit_note = 'without_credit_note'
           AND s.credit_note_id IS NULL
           AND (s.credit_note_amount IS NULL OR s.credit_note_amount = 0)
         )
@@ -208,38 +209,36 @@ BEGIN
     'upiBillCount', COUNT(*) FILTER (WHERE NOT is_hold AND COALESCE(upi_amount, 0) > 0)::integer,
     'salesmanFilterApplied', true
   )
-  INTO v_result
-  FROM classified;
-
-  RETURN COALESCE(v_result, json_build_object(
-    'totalBills', 0,
-    'totalQty', 0,
-    'totalAmount', 0,
-    'totalDiscount', 0,
-    'netSale', 0,
-    'completedCount', 0,
-    'completedAmount', 0,
-    'pendingCount', 0,
-    'pendingAmount', 0,
-    'holdCount', 0,
-    'holdAmount', 0,
-    'refundCount', 0,
-    'refundAmount', 0,
-    'creditNoteCount', 0,
-    'creditNoteAmount', 0,
-    'totalCash', 0,
-    'totalCard', 0,
-    'totalUpi', 0,
-    'totalBalance', 0,
-    'totalSaleReturnAdjust', 0,
-    'totalRoundOff', 0,
-    'cashBillCount', 0,
-    'cardBillCount', 0,
-    'upiBillCount', 0,
-    'salesmanFilterApplied', true
-  ));
-END;
-$$;
+  FROM classified
+), json_build_object(
+  'totalBills', 0,
+  'totalQty', 0,
+  'totalAmount', 0,
+  'totalDiscount', 0,
+  'netSale', 0,
+  'completedCount', 0,
+  'completedAmount', 0,
+  'pendingCount', 0,
+  'pendingAmount', 0,
+  'holdCount', 0,
+  'holdAmount', 0,
+  'refundCount', 0,
+  'refundAmount', 0,
+  'creditNoteCount', 0,
+  'creditNoteAmount', 0,
+  'totalCash', 0,
+  'totalCard', 0,
+  'totalUpi', 0,
+  'totalBalance', 0,
+  'totalSaleReturnAdjust', 0,
+  'totalRoundOff', 0,
+  'cashBillCount', 0,
+  'cardBillCount', 0,
+  'upiBillCount', 0,
+  'salesmanFilterApplied', true
+))
+$fn$
+;
 
 REVOKE ALL ON FUNCTION public.get_pos_dashboard_stats(
   uuid,
@@ -248,7 +247,8 @@ REVOKE ALL ON FUNCTION public.get_pos_dashboard_stats(
   jsonb,
   text,
   uuid
-) FROM PUBLIC, anon;
+) FROM PUBLIC, anon
+;
 
 GRANT EXECUTE ON FUNCTION public.get_pos_dashboard_stats(
   uuid,
@@ -257,4 +257,5 @@ GRANT EXECUTE ON FUNCTION public.get_pos_dashboard_stats(
   jsonb,
   text,
   uuid
-) TO authenticated, service_role;
+) TO authenticated, service_role
+;

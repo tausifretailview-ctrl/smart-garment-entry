@@ -698,8 +698,14 @@ describe("POS dashboard salesman filter", () => {
       new URL("../../supabase/migrations/20270106120000_pos_dashboard_salesman_filter.sql", import.meta.url),
       "utf8",
     );
-    expect(src).toContain("s.salesman = ANY (SELECT jsonb_array_elements_text(v_salesmen))");
+    expect(src).toContain("s.salesman = ANY (SELECT jsonb_array_elements_text(p.v_salesmen))");
     expect(src).toContain("'salesmanFilterApplied', true");
-    expect(src).toContain("s.created_by::text = v_user");
+    expect(src).toContain("s.created_by::text = p.v_user");
+    const bodyStart = src.indexOf("AS $fn$");
+    const bodyEnd = src.indexOf("\n$fn$");
+    const body = src.slice(bodyStart, bodyEnd);
+    expect(bodyStart).toBeGreaterThan(0);
+    expect(bodyEnd).toBeGreaterThan(bodyStart);
+    expect(body).not.toContain(";");
   });
 });
