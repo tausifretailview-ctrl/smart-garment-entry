@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo } from 'react';
 import { Button } from '@/components/ui/button';
-import { isChunkLoadError, attemptSkewRecoveryReload } from '@/lib/chunkLoadRetry';
+import { isChunkLoadError, attemptStaleChunkRecovery, didStartChunkReload, hardReloadAfterChunkMiss } from '@/lib/chunkLoadRetry';
 
 interface Props { children: React.ReactNode; }
 interface State { hasError: boolean; error?: Error; isRecovering?: boolean; }
@@ -18,7 +18,7 @@ export class RootErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('EzzyERP crashed:', error, info.componentStack);
     if (isChunkLoadError(error)) {
-      if (attemptSkewRecoveryReload()) {
+      if (attemptStaleChunkRecovery(error) || didStartChunkReload()) {
         return;
       }
       this.setState({ isRecovering: false });
@@ -45,7 +45,7 @@ export class RootErrorBoundary extends Component<Props, State> {
               Please try refreshing the page.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center items-center w-full">
-              <Button className="w-full sm:w-auto" onClick={() => window.location.reload()}>
+              <Button className="w-full sm:w-auto" onClick={() => hardReloadAfterChunkMiss()}>
                 Refresh Page
               </Button>
               <Button
@@ -53,7 +53,7 @@ export class RootErrorBoundary extends Component<Props, State> {
                 variant="outline"
                 onClick={() => {
                   if (this.state.error && isChunkLoadError(this.state.error)) {
-                    window.location.reload();
+                    hardReloadAfterChunkMiss();
                     return;
                   }
                   this.setState({ hasError: false, error: undefined });
