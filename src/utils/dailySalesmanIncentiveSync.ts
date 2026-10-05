@@ -1,5 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { DailyIncentiveBracket } from "@/utils/dailySalesmanIncentive";
+import {
+  incentiveSettingsAreEditable,
+  type DailyIncentiveBillSlab,
+  type DailyIncentiveBracket,
+} from "@/utils/dailySalesmanIncentive";
 
 export type DailyIncentiveDayRow = {
   id?: string;
@@ -14,18 +18,23 @@ export type DailyIncentiveDayRow = {
   computed_at?: string;
 };
 
-export async function fetchDailyIncentiveConfig(organizationId: string): Promise<{
+export type DailyIncentiveConfig = {
   qty_threshold: number;
   is_enabled: boolean;
   brackets: DailyIncentiveBracket[];
-} | null> {
+  billSlabs: DailyIncentiveBillSlab[];
+};
+
+export async function fetchDailyIncentiveConfig(
+  organizationId: string,
+): Promise<DailyIncentiveConfig | null> {
   const { data: config, error: configError } = await (supabase as any)
     .from("daily_salesman_incentive_configs")
     .select("organization_id, qty_threshold, is_enabled")
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (configError) throw configError;
-  if (!config?.is_enabled) return null;
+  if (!config) return null;
 
   const { data: brackets, error: bracketError } = await (supabase as any)
     .from("daily_salesman_incentive_brackets")
@@ -34,11 +43,105 @@ export async function fetchDailyIncentiveConfig(organizationId: string): Promise
     .order("sort_order", { ascending: true });
   if (bracketError) throw bracketError;
 
+  const { data: slabs, error: slabError } = await (supabase as any)
+    .from("daily_salesman_incentive_bill_slabs")
+    .select("min_bill_amount, incentive_amount, sort_order")
+    .eq("organization_id", organizationId)
+    .order("min_bill_amount", { ascending: true });
+  if (slabError) {
+    console.error("daily incentive bill slabs:", slabError);
+  }
+
   return {
     qty_threshold: Number(config.qty_threshold),
-    is_enabled: true,
+    is_enabled: config.is_enabled === true,
     brackets: (brackets || []) as DailyIncentiveBracket[],
+    billSlabs: slabError ? [] : ((slabs || []) as DailyIncentiveBillSlab[]),
   };
+}
+
+export type DailyIncentiveSettingsInput = {
+  organizationId: string;
+  isEnabled: boolean;
+  qtyThreshold: number;
+  perPieceAmount: number;
+  billSlabs: DailyIncentiveBillSlab[];
+};
+
+/** Writes one organization's incentive settings. ADEEBAAREEBA rows are refused. */
+export async function saveDailyIncentiveSettings(input: DailyIncentiveSettingsInput): Promise<void> {
+  if (!incentiveSettingsAreEditable(input.organizationId)) {
+    throw new Error("ADEEBAAREEBA daily incentive settings stay as they are.");
+  }
+  const qty = Number(input.qtyThreshold);
+  const perPiece = Number(input.perPieceAmount);
+  if (!Number.isFinite(qty) || qty < 0) throw new Error("Minimum quantity must be zero or more.");
+  if (!Number.isFinite(perPiece) || perPiece < 0) throw new Error("Per piece amount must be zero or more.");
+
+  const slabs = input.billSlabs
+    .map((slab, index) => ({
+      min_bill_amount: Number(slab.min_bill_amount),
+      incentive_amount: Number(slab.incentive_amount),
+      sort_order: index + 1,
+    }))
+    .filter((slab) => slab.min_bill_amount > 0 || slab.incentive_amount > 0);
+  for (const slab of slabs) {
+    if (!Number.isFinite(slab.min_bill_amount) || slab.min_bill_amount < 0) {
+      throw new Error("Bill amount must be zero or more.");
+    }
+    if (!Number.isFinite(slab.incentive_amount) || slab.incentive_amount < 0) {
+      throw new Error("Bill incentive must be zero or more.");
+    }
+  }
+
+  const { error: configError } = await (supabase as any)
+    .from("daily_salesman_incentive_configs")
+    .upsert(
+      {
+        organization_id: input.organizationId,
+        qty_threshold: qty,
+        is_enabled: input.isEnabled,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "organization_id" },
+    );
+  if (configError) throw configError;
+
+  const { error: deleteBracketError } = await (supabase as any)
+    .from("daily_salesman_incentive_brackets")
+    .delete()
+    .eq("organization_id", input.organizationId);
+  if (deleteBracketError) throw deleteBracketError;
+
+  const { error: insertBracketError } = await (supabase as any)
+    .from("daily_salesman_incentive_brackets")
+    .insert({
+      organization_id: input.organizationId,
+      min_net_amount: 0,
+      max_net_amount: null,
+      incentive_amount: perPiece,
+      sort_order: 1,
+    });
+  if (insertBracketError) throw insertBracketError;
+
+  const { error: deleteSlabError } = await (supabase as any)
+    .from("daily_salesman_incentive_bill_slabs")
+    .delete()
+    .eq("organization_id", input.organizationId);
+  if (deleteSlabError) throw deleteSlabError;
+
+  if (slabs.length === 0) return;
+  const { error: insertSlabError } = await (supabase as any)
+    .from("daily_salesman_incentive_bill_slabs")
+    .insert(
+      slabs.map((slab) => ({
+        organization_id: input.organizationId,
+        min_bill_amount: slab.min_bill_amount,
+        incentive_amount: slab.incentive_amount,
+        sort_order: slab.sort_order,
+      })),
+    );
+  if (insertSlabError) throw insertSlabError;
 }
 
 function mapRpcDayRow(r: Record<string, unknown>): DailyIncentiveDayRow {
@@ -69,7 +172,7 @@ export async function loadOrComputeDailyIncentiveDays(params: {
   endYmd: string;
 }): Promise<DailyIncentiveDayRow[]> {
   const config = await fetchDailyIncentiveConfig(params.organizationId);
-  if (!config) return [];
+  if (!config?.is_enabled) return [];
 
   const { data, error } = await (supabase as any).rpc("sync_daily_salesman_incentive_days", {
     p_org_id: params.organizationId,
