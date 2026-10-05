@@ -4,10 +4,16 @@ import {
   aggregateDailySalesmanIncentive,
   computeDailyIncentiveAmount,
   findEmployeeBySalesmanName,
+  billIncentiveOwner,
+  billSlabIncentive,
+  describeDailyIncentiveRules,
   incentiveForLineItem,
   incentiveForNetAmount,
+  incentiveSettingsAreEditable,
+  isAdeebaDailyIncentiveOrg,
   isDailyIncentiveUiOrg,
   lineNetForDailyIncentive,
+  REHMANI_NX_ORG_ID,
   resolveEffectiveLineSalesman,
 } from "./dailySalesmanIncentive";
 
@@ -296,9 +302,136 @@ describe("aggregateDailySalesmanIncentive", () => {
 });
 
 describe("org gate", () => {
-  it("only ADEEBAAREEBA orgs are UI-gated", () => {
+  it("shows the incentive tab for every organization and locks ADEEBAAREEBA settings", () => {
     expect(isDailyIncentiveUiOrg(ADEEBAAREEBA_ORG_ID)).toBe(true);
-    expect(isDailyIncentiveUiOrg("0dac440f-e962-4f27-a38d-71c81f9c52b7")).toBe(true);
-    expect(isDailyIncentiveUiOrg("other")).toBe(false);
+    expect(isDailyIncentiveUiOrg(REHMANI_NX_ORG_ID)).toBe(true);
+    expect(isDailyIncentiveUiOrg("other")).toBe(true);
+    expect(isDailyIncentiveUiOrg(null)).toBe(false);
+    expect(isAdeebaDailyIncentiveOrg(ADEEBAAREEBA_ORG_ID)).toBe(true);
+    expect(isAdeebaDailyIncentiveOrg("0dac440f-e962-4f27-a38d-71c81f9c52b7")).toBe(true);
+    expect(isAdeebaDailyIncentiveOrg(REHMANI_NX_ORG_ID)).toBe(false);
+    expect(incentiveSettingsAreEditable(ADEEBAAREEBA_ORG_ID)).toBe(false);
+    expect(incentiveSettingsAreEditable(REHMANI_NX_ORG_ID)).toBe(true);
+  });
+});
+
+const REHMANI_BRACKETS = [
+  { min_net_amount: 0, max_net_amount: null, incentive_amount: 10, sort_order: 1 },
+];
+const REHMANI_SLABS = [
+  { min_bill_amount: 10000, incentive_amount: 100, sort_order: 1 },
+  { min_bill_amount: 15000, incentive_amount: 200, sort_order: 2 },
+];
+
+describe("Rehmani NX bill slabs", () => {
+  it("pays the highest slab only", () => {
+    expect(billSlabIncentive(9999, REHMANI_SLABS)).toBe(0);
+    expect(billSlabIncentive(10000, REHMANI_SLABS)).toBe(100);
+    expect(billSlabIncentive(14999, REHMANI_SLABS)).toBe(100);
+    expect(billSlabIncentive(15000, REHMANI_SLABS)).toBe(200);
+    expect(billSlabIncentive(20000, REHMANI_SLABS)).toBe(200);
+  });
+
+  it("gives the bill bonus to one salesman and skips a mixed bill", () => {
+    expect(billIncentiveOwner("RAHUL", [null, ""])).toBe("RAHUL");
+    expect(billIncentiveOwner(null, ["RAHUL", "RAHUL"])).toBe("RAHUL");
+    expect(billIncentiveOwner(null, ["RAHUL", "AMIT"])).toBe("");
+  });
+
+  it("pays ₹10 per piece after 5 pieces, plus the bill slab", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-10-05",
+      sales: [
+        { id: "b1", salesman: "RAHUL", net_amount: 12000, sale_date: "2026-10-05" },
+        { id: "b2", salesman: "RAHUL", net_amount: 16000, sale_date: "2026-10-05" },
+      ],
+      items: [
+        { sale_id: "b1", quantity: 3, line_total: 6000 },
+        { sale_id: "b2", quantity: 3, line_total: 9000 },
+      ],
+      employees: [{ id: "e1", employee_name: "RAHUL" }],
+      qtyThreshold: 5,
+      brackets: REHMANI_BRACKETS,
+      billSlabs: REHMANI_SLABS,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].total_qty).toBe(6);
+    expect(rows[0].is_eligible).toBe(true);
+    expect(rows[0].incentive_amount).toBe(6 * 10 + 100 + 200);
+  });
+
+  it("pays nothing when the day quantity is under 5", () => {
+    const rows = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-10-05",
+      sales: [{ id: "b1", salesman: "RAHUL", net_amount: 20000, sale_date: "2026-10-05" }],
+      items: [{ sale_id: "b1", quantity: 4, line_total: 20000 }],
+      employees: [{ id: "e1", employee_name: "RAHUL" }],
+      qtyThreshold: 5,
+      brackets: REHMANI_BRACKETS,
+      billSlabs: REHMANI_SLABS,
+    });
+    expect(rows[0].is_eligible).toBe(false);
+    expect(rows[0].incentive_amount).toBe(0);
+  });
+
+  it("leaves ADEEBAAREEBA piece totals unchanged when no bill slabs are configured", () => {
+    const lines = [
+      { q: 1, net: 1800 },
+      { q: 1, net: 900 },
+      { q: 1, net: 400 },
+      { q: 2, net: 1800 },
+      { q: 1, net: 1200 },
+    ];
+    const items = lines.map((l, i) => ({
+      sale_id: `s${i + 1}`,
+      quantity: l.q,
+      line_total: l.net,
+      net_after_discount: l.net,
+    }));
+    const sales = items.map((it, i) => ({
+      id: it.sale_id,
+      salesman: "MOHD ASHRAF FAROOQUI",
+      net_amount: lines[i].net,
+      sale_date: "2026-09-15T10:00:00+05:30",
+    }));
+    const withoutSlabs = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-09-15",
+      sales,
+      items,
+      employees: [{ id: "e-ashraf", employee_name: "MOHD ASHRAF FAROOQUI" }],
+      qtyThreshold: 5,
+      brackets: ADEEBA_BRACKETS,
+    });
+    const emptySlabs = aggregateDailySalesmanIncentive({
+      incentiveDateYmd: "2026-09-15",
+      sales,
+      items,
+      employees: [{ id: "e-ashraf", employee_name: "MOHD ASHRAF FAROOQUI" }],
+      qtyThreshold: 5,
+      brackets: ADEEBA_BRACKETS,
+      billSlabs: [],
+    });
+    expect(withoutSlabs[0].incentive_amount).toBe(emptySlabs[0].incentive_amount);
+    expect(withoutSlabs[0].incentive_amount).toBeGreaterThan(10);
+  });
+
+  it("describes Rehmani slabs and keeps the Adeeba bracket sentence", () => {
+    expect(
+      describeDailyIncentiveRules({
+        qtyThreshold: 5,
+        brackets: REHMANI_BRACKETS,
+        billSlabs: REHMANI_SLABS,
+      }),
+    ).toContain("₹10 per piece");
+    expect(
+      describeDailyIncentiveRules({
+        qtyThreshold: 5,
+        brackets: REHMANI_BRACKETS,
+        billSlabs: REHMANI_SLABS,
+      }),
+    ).toContain("≥₹15,000 → ₹200");
+    expect(
+      describeDailyIncentiveRules({ qtyThreshold: 5, brackets: ADEEBA_BRACKETS }),
+    ).toContain("≥₹1,000→₹10/unit");
   });
 });

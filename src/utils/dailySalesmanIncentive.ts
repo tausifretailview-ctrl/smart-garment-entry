@@ -11,6 +11,13 @@ export type DailyIncentiveBracket = {
   sort_order?: number;
 };
 
+/** Extra ₹ once per bill. The highest min the bill reaches wins. */
+export type DailyIncentiveBillSlab = {
+  min_bill_amount: number;
+  incentive_amount: number;
+  sort_order?: number;
+};
+
 export type SaleForDailyIncentive = {
   id: string;
   salesman: string | null;
@@ -112,6 +119,41 @@ export function incentiveForLineItem(
   return incentiveForNetAmount(perPieceNet, brackets) * q;
 }
 
+/** Highest bill slab the net reaches. Empty slabs pay nothing. */
+export function billSlabIncentive(
+  billNet: number,
+  slabs: DailyIncentiveBillSlab[],
+): number {
+  const net = Number(billNet);
+  if (!Number.isFinite(net) || net < 0 || slabs.length === 0) return 0;
+  const ordered = [...slabs].sort(
+    (a, b) =>
+      Number(b.min_bill_amount) - Number(a.min_bill_amount) ||
+      (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
+  for (const slab of ordered) {
+    if (net >= Number(slab.min_bill_amount)) return Number(slab.incentive_amount) || 0;
+  }
+  return 0;
+}
+
+/**
+ * One salesman owns the bill bonus when every line resolves to the same person
+ * (blank line salesman uses the bill header). Mixed salesmen get no bill bonus.
+ */
+export function billIncentiveOwner(
+  headerSalesman: string | null | undefined,
+  lineSalesmen: Array<string | null | undefined>,
+): string {
+  const names = new Set<string>();
+  for (const line of lineSalesmen) {
+    const name = resolveEffectiveLineSalesman(line, headerSalesman);
+    if (name) names.add(name);
+  }
+  if (names.size === 1) return [...names][0];
+  return "";
+}
+
 export function computeDailyIncentiveAmount(params: {
   totalQty: number;
   lineIncentiveTotal: number;
@@ -140,6 +182,8 @@ export function aggregateDailySalesmanIncentive(params: {
   employees: EmployeeNameRow[];
   qtyThreshold: number;
   brackets: DailyIncentiveBracket[];
+  /** Omitted or empty: piece incentive only (ADEEBAAREEBA). */
+  billSlabs?: DailyIncentiveBillSlab[];
 }): DailyIncentiveComputedRow[] {
   const saleById = new Map<string, SaleForDailyIncentive>();
   for (const sale of params.sales) {
@@ -147,23 +191,29 @@ export function aggregateDailySalesmanIncentive(params: {
     saleById.set(sale.id, sale);
   }
 
+  const billSlabs = params.billSlabs ?? [];
   type Acc = {
     employee_id: string | null;
     employee_name: string;
     qty: number;
     net: number;
     lineIncentive: number;
+    billIncentive: number;
   };
   const byName = new Map<string, Acc>();
+  const itemsBySale = new Map<string, SaleItemForDailyIncentive[]>();
 
   for (const item of params.items) {
     const sale = saleById.get(item.sale_id);
     if (!sale) continue;
+    const qty = Number(item.quantity) || 0;
+    if (qty <= 0) continue;
     const name = resolveEffectiveLineSalesman(item.salesman, sale.salesman);
     if (!name) continue;
 
-    const qty = Number(item.quantity) || 0;
-    if (qty <= 0) continue;
+    const saleItems = itemsBySale.get(item.sale_id) || [];
+    saleItems.push(item);
+    itemsBySale.set(item.sale_id, saleItems);
     const lineNet = lineNetForDailyIncentive(item);
     const lineIncentive = incentiveForLineItem(lineNet, qty, params.brackets);
 
@@ -174,6 +224,7 @@ export function aggregateDailySalesmanIncentive(params: {
       qty: 0,
       net: 0,
       lineIncentive: 0,
+      billIncentive: 0,
     };
     existing.qty += qty;
     existing.net += lineNet;
@@ -182,11 +233,36 @@ export function aggregateDailySalesmanIncentive(params: {
     byName.set(name, existing);
   }
 
+  if (billSlabs.length > 0) {
+    for (const sale of saleById.values()) {
+      const lines = itemsBySale.get(sale.id) || [];
+      const owner = billIncentiveOwner(
+        sale.salesman,
+        lines.map((line) => line.salesman),
+      );
+      if (!owner) continue;
+      const bonus = billSlabIncentive(Number(sale.net_amount) || 0, billSlabs);
+      if (bonus <= 0) continue;
+      const emp = findEmployeeBySalesmanName(params.employees, owner);
+      const existing = byName.get(owner) || {
+        employee_id: emp?.id ?? null,
+        employee_name: owner,
+        qty: 0,
+        net: 0,
+        lineIncentive: 0,
+        billIncentive: 0,
+      };
+      existing.billIncentive += bonus;
+      if (!existing.employee_id && emp) existing.employee_id = emp.id;
+      byName.set(owner, existing);
+    }
+  }
+
   return [...byName.values()]
     .map((acc) => {
       const { isEligible, incentiveAmount } = computeDailyIncentiveAmount({
         totalQty: acc.qty,
-        lineIncentiveTotal: acc.lineIncentive,
+        lineIncentiveTotal: acc.lineIncentive + acc.billIncentive,
         qtyThreshold: params.qtyThreshold,
       });
       return {
@@ -212,6 +288,69 @@ export const DAILY_INCENTIVE_UI_ORG_IDS = [
   ADEEBAAREEBA_STUDIO_ORG_ID,
 ] as const;
 
-export function isDailyIncentiveUiOrg(organizationId: string | null | undefined): boolean {
+/** REHMANI NX (slug rahmani-nx). Seed target only — settings stay editable. */
+export const REHMANI_NX_ORG_ID = "e2e13e68-784e-42d1-a461-df2fd5beb963";
+
+/** ADEEBAAREEBA piece brackets stay fixed. Other orgs edit their own rows. */
+export function isAdeebaDailyIncentiveOrg(organizationId: string | null | undefined): boolean {
   return (DAILY_INCENTIVE_UI_ORG_IDS as readonly string[]).includes(organizationId ?? "");
+}
+
+export function incentiveSettingsAreEditable(organizationId: string | null | undefined): boolean {
+  return Boolean(organizationId) && !isAdeebaDailyIncentiveOrg(organizationId);
+}
+
+/** Daily incentive tab is available in every organization. */
+export function isDailyIncentiveUiOrg(organizationId: string | null | undefined): boolean {
+  return Boolean(organizationId);
+}
+
+/** Flat ₹/piece when the org has a single open bracket from ₹0. */
+export function flatPerPieceAmount(brackets: DailyIncentiveBracket[]): number | null {
+  if (brackets.length !== 1) return null;
+  const bracket = brackets[0];
+  if (Number(bracket.min_net_amount) !== 0) return null;
+  if (bracket.max_net_amount != null) return null;
+  return Number(bracket.incentive_amount) || 0;
+}
+
+export function describeDailyIncentiveRules(config: {
+  qtyThreshold: number;
+  brackets: DailyIncentiveBracket[];
+  billSlabs?: DailyIncentiveBillSlab[];
+}): string {
+  const qty = Number(config.qtyThreshold) || 0;
+  const gate = `Day qty ≥ ${qty} required (sum across all lines that day).`;
+  const orderedBrackets = [...config.brackets].sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.min_net_amount - b.min_net_amount,
+  );
+  const bracketText = orderedBrackets
+    .map((b) => {
+      const min = Number(b.min_net_amount);
+      const max = b.max_net_amount == null ? null : Number(b.max_net_amount);
+      const range =
+        max == null
+          ? `≥₹${min.toLocaleString("en-IN")}`
+          : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
+      return `${range}→₹${Number(b.incentive_amount)}/unit`;
+    })
+    .join(" · ");
+  const slabs = [...(config.billSlabs ?? [])].sort(
+    (a, b) => Number(a.min_bill_amount) - Number(b.min_bill_amount),
+  );
+  if (slabs.length === 0) {
+    return `${gate} Per line: bracket on price per piece (line net after discount ÷ qty), flat ₹ × line qty; day incentive = Σ lines. Brackets: ${bracketText}.`;
+  }
+  const flat = flatPerPieceAmount(config.brackets);
+  const piece =
+    flat == null
+      ? `Piece rates: ${bracketText}.`
+      : `₹${flat.toLocaleString("en-IN")} per piece.`;
+  const slabText = slabs
+    .map(
+      (slab) =>
+        `≥₹${Number(slab.min_bill_amount).toLocaleString("en-IN")} → ₹${Number(slab.incentive_amount).toLocaleString("en-IN")}`,
+    )
+    .join(", ");
+  return `${gate} ${piece} Extra once per bill (one salesman on the bill): ${slabText}. The highest matching bill slab is used. The day quantity gate applies to the total.`;
 }
