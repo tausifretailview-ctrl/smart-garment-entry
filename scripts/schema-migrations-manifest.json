@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-05",
-  "count": 826,
-  "fileCount": 843,
+  "count": 828,
+  "fileCount": 845,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -829,7 +829,9 @@
     "20270104130000",
     "20270104140000",
     "20270104150000",
-    "20270105120000"
+    "20270105120000",
+    "20270106120000",
+    "20270107120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1674,7 +1676,9 @@
     "20270104130000_customer_advances_manual_used_amount.sql",
     "20270104140000_balance_sql_exclude_manual_advance_used.sql",
     "20270104150000_adeeba_commission_line_salesman.sql",
-    "20270105120000_rehmani_daily_incentive_bill_slabs.sql"
+    "20270105120000_rehmani_daily_incentive_bill_slabs.sql",
+    "20270106120000_pos_dashboard_salesman_filter.sql",
+    "20270107120000_get_customer_party_balances_all.sql"
   ],
   "duplicateVersions": [
     {

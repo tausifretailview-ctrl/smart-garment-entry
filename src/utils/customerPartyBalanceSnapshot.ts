@@ -219,22 +219,26 @@ export async function fetchCustomerPartyBalancesPayload(
     }
   }
 
-  const customers = await fetchAllCustomers(organizationId);
+  // Directory and balances do not depend on each other: load both at once.
+  const [customersResult, partyResult] = await Promise.allSettled([
+    fetchAllCustomers(organizationId),
+    fetchAllCustomerPartyBalances(organizationId),
+  ]);
+  if (customersResult.status === "rejected") throw customersResult.reason;
+  const customers = customersResult.value;
   const phoneMap = customerPhoneMapFromDirectory(customers);
 
-  try {
-    const partyRows = await fetchAllCustomerPartyBalances(organizationId);
+  if (partyResult.status === "fulfilled") {
     return {
-      rows: alignedRowsFromPartyRpc(partyRows, phoneMap),
+      rows: alignedRowsFromPartyRpc(partyResult.value, phoneMap),
       partyBalancesComplete: true,
     };
-  } catch (error) {
-    if (!isStatementTimeout(error)) throw error;
-    return {
-      rows: alignedRowsFromCustomerDirectory(customers, phoneMap),
-      partyBalancesComplete: false,
-    };
   }
+  if (!isStatementTimeout(partyResult.reason)) throw partyResult.reason;
+  return {
+    rows: alignedRowsFromCustomerDirectory(customers, phoneMap),
+    partyBalancesComplete: false,
+  };
 }
 
 /**
