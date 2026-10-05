@@ -7,6 +7,7 @@ import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
+import { isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
 import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceApplicationJournalEntry,
@@ -968,12 +969,29 @@ export default function SalesInvoiceDashboard() {
     placeholderData: undefined,
   });
 
-  const isDashboardInitialLoad = isLoading && dashboardPage === undefined;
+  // A cache restored from disk has data but no queryFn. Refetching it stores
+  // "Missing queryFn: [invoice-dashboard-unified, …]" and this screen toasts
+  // that as "Sales dashboard load failed". Ignore it and load through the
+  // queryFn this page just subscribed.
+  const missingDashboardQueryFn = isMissingQueryFnError(invoicesError);
+  const dashboardInvoicesError = missingDashboardQueryFn ? null : invoicesError;
+  const isDashboardInitialLoad =
+    dashboardPage === undefined && (isLoading || missingDashboardQueryFn);
   // useIsFetching-based — app notifyOnChangeProps silences useQuery isFetching flips
   const isDashboardBackgroundRefresh = useQuietRefreshActive(dashboardQueryKey, dashboardQueryEnabled);
+  const missingQueryFnRetryRef = useRef(false);
 
   useEffect(() => {
-    if (!invoicesError) return;
+    if (!invoicesError) {
+      missingQueryFnRetryRef.current = false;
+      return;
+    }
+    if (isMissingQueryFnError(invoicesError)) {
+      if (missingQueryFnRetryRef.current) return;
+      missingQueryFnRetryRef.current = true;
+      void refetch();
+      return;
+    }
     if (isStatementTimeout(invoicesError)) {
       const { title, message } = statementTimeoutMessage();
       toast({ title, description: message, variant: "destructive" });
@@ -992,7 +1010,7 @@ export default function SalesInvoiceDashboard() {
       description: message || "Failed to load sales invoices",
       variant: "destructive",
     });
-  }, [invoicesError, toast]);
+  }, [invoicesError, refetch, toast]);
 
   const paginatedInvoices = useMemo(() => {
     const rows = resolveInvoiceDashboardDisplayRows({
@@ -3507,7 +3525,7 @@ export default function SalesInvoiceDashboard() {
         <div className="flex-1 px-4 space-y-2.5 pb-4">
           {isDashboardInitialLoad ? (
             <SkeletonMobileListRows count={6} />
-          ) : invoicesError ? (
+          ) : dashboardInvoicesError ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <AlertTriangle className="h-12 w-12 text-destructive/70" />
               <p className="text-sm font-medium text-foreground">Could not load invoices</p>
@@ -4236,7 +4254,7 @@ export default function SalesInvoiceDashboard() {
                         count={8}
                         columns={SALES_INVOICE_TABLE_SKELETON_COLUMNS}
                       />
-                    ) : invoicesError ? (
+                    ) : dashboardInvoicesError ? (
                       <TableRow>
                         <TableCell colSpan={invoiceTableColumnCount} className="text-center py-10">
                           <div className="flex flex-col items-center gap-3 text-muted-foreground">
