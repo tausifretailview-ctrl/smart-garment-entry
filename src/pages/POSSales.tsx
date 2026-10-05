@@ -5293,7 +5293,7 @@ export default function POSSales() {
             pointsToRedeem,
             pointsEarned: calculatePoints(finalAmount),
           }),
-          result,
+          result as unknown as { pointsBalance?: number; pointsRedeemed?: number },
         ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
