@@ -4,9 +4,9 @@
  * from saved filters (that path sets the tab without a click).
  */
 export function withSelectedAccountsTab(
-  visited: ReadonlySet<string>,
+  visited: Set<string>,
   selectedTab: string | null | undefined,
-): ReadonlySet<string> {
+): Set<string> {
   if (!selectedTab || selectedTab === "customer-ledger" || visited.has(selectedTab)) {
     return visited;
   }
