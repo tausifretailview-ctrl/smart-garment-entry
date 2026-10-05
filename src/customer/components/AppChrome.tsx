@@ -121,3 +121,13 @@ export function Skeleton({ rows = 4, hero = false }: { rows?: number; hero?: boo
 export function PoweredBy() {
   return <p className="c-powered no-print">Powered by EzzyERP</p>;
 }
+
+/** Animated check mark for "done" moments (notifications on, review sent). */
+export function SuccessTick({ size = 44 }: { size?: number }) {
+  return (
+    <svg className="c-tick" width={size} height={size} viewBox="0 0 52 52" aria-hidden="true">
+      <circle className="c-tick-circle" cx="26" cy="26" r="24" />
+      <path className="c-tick-check" d="M15 27l7 7 15-16" />
+    </svg>
+  );
+}

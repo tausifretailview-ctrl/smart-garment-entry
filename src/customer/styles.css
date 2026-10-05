@@ -636,6 +636,205 @@ textarea.c-input {
   }
 }
 
+/* ---- Motion (CSS only: transform/opacity, 60fps; off with "reduce motion") ---- */
+@keyframes c-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes c-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.22) translateY(-2px);
+  }
+  100% {
+    transform: scale(1) translateY(-1px);
+  }
+}
+
+@keyframes c-bar-in {
+  from {
+    transform: translateX(-50%) scaleX(0);
+  }
+  to {
+    transform: translateX(-50%) scaleX(1);
+  }
+}
+
+@keyframes c-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.85;
+  }
+}
+
+@keyframes c-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes c-tick-pop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.c-enter {
+  animation: c-rise 0.22s ease-out both;
+}
+
+.c-stagger > * {
+  animation: c-rise 0.3s ease-out both;
+}
+
+.c-stagger > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.c-stagger > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.c-stagger > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.c-stagger > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.c-stagger > *:nth-child(n + 6) {
+  animation-delay: 200ms;
+}
+
+.c-hero {
+  animation: c-rise 0.32s ease-out both;
+}
+
+/* Press feedback on tappable cards and rows */
+.c-stat,
+.c-list a,
+.c-offer,
+.c-btn,
+.c-top-btn {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.c-stat:active,
+.c-list a:active,
+.c-offer:active,
+.c-btn:active:not(:disabled),
+.c-top-btn:active {
+  transform: scale(0.97);
+}
+
+/* Bottom tabs: icon bounce + sliding indicator on the active tab */
+.c-tabbar a {
+  position: relative;
+}
+
+.c-tabbar a svg {
+  transition: color 0.15s ease;
+}
+
+.c-tabbar a.on svg {
+  animation: c-pop 0.32s ease-out both;
+}
+
+.c-tabbar a.on::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 28px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--accent);
+  transform: translateX(-50%);
+  animation: c-bar-in 0.25s ease-out both;
+}
+
+.c-new {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+  animation: c-pulse 1.6s ease-in-out infinite;
+}
+
+.c-success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: c-rise 0.3s ease-out both;
+}
+
+.c-tick {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0 auto 6px;
+  animation: c-tick-pop 0.4s ease-out both;
+}
+
+.c-success .c-tick {
+  margin: 0;
+}
+
+.c-tick-circle {
+  fill: #dcfce7;
+  stroke: #16a34a;
+  stroke-width: 2;
+}
+
+.c-tick-check {
+  fill: none;
+  stroke: #16a34a;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: c-draw 0.35s 0.2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .c-tick-check {
+    stroke-dashoffset: 0;
+  }
+}
+
 @media print {
   body {
     background: #fff;
