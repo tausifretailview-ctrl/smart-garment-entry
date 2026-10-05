@@ -21,6 +21,8 @@ type Props = {
   /** Set when a date filter is on: the headline is the balance on that date. */
   asOfDate?: Date | null;
   onCheckAccount?: () => void;
+  /** Ledger rows not loaded yet: show "Loading…" instead of a ₹0.00 "Settled" balance. */
+  loading?: boolean;
   className?: string;
 };
 
@@ -39,8 +41,27 @@ export function CustomerLedgerBalanceHeader({
   pendingCn,
   asOfDate,
   onCheckAccount,
+  loading,
   className,
 }: Props) {
+  if (loading) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border px-5 py-4 w-full sm:w-auto sm:min-w-[280px] bg-slate-50 border-slate-200 text-foreground dark:bg-slate-900 dark:border-slate-700",
+          className,
+        )}
+        data-testid="customer-ledger-balance-header"
+        aria-busy="true"
+      >
+        <div className="text-sm text-muted-foreground">
+          {asOfDate ? `Balance on ${asOfDate.toLocaleDateString("en-IN")}` : "Balance"}
+        </div>
+        <div className="mt-1 h-9 w-36 rounded-md bg-muted animate-pulse" data-testid="ledger-headline-loading" />
+        <div className="mt-2 text-sm text-muted-foreground">Loading…</div>
+      </div>
+    );
+  }
   const summary = ledgerThreeLineSummary(rows);
   const headline = ledgerHeadline(summary.balance);
   // The check covers the whole account, so it only applies to the unfiltered ledger.
