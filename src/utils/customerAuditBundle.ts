@@ -460,7 +460,11 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
     client
       .from("sales")
       .select(
-        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+        // refund_amount must be here. A direct Cash click on an exchange (bill ₹3,300,
+        // return ₹3,500, ₹200 paid back) stores the payout on the sale and also writes
+        // "Refund paid for POS exchange …". The balance skips that voucher only when
+        // refund_amount is loaded; without the column the customer is left owing ₹200.
+        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, refund_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
       )
       .eq("customer_id", customerId)
       .eq("organization_id", orgId)
