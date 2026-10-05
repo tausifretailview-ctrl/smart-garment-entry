@@ -1,5 +1,5 @@
 import { useState, useEffect, Suspense } from "react";
-import { isChunkLoadError, lazyWithRetry, attemptSkewRecoveryReload } from "@/lib/chunkLoadRetry";
+import { isChunkLoadError, lazyWithRetry, attemptStaleChunkRecovery } from "@/lib/chunkLoadRetry";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { RootErrorBoundary } from "@/components/RootErrorBoundary";
 import { ThemeProvider } from "next-themes";
@@ -28,6 +28,7 @@ import { OrganizationSetup } from "@/components/OrganizationSetup";
 import { Layout } from "@/components/Layout";
 import { FullScreenLayout } from "@/components/FullScreenLayout";
 import { POSLayout } from "@/components/POSLayout";
+import { ChunkLoadBoundary } from "@/components/ChunkLoadBoundary";
 import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout";
 import { SchoolFeatureGate } from "./components/school/SchoolFeatureGate";
 import { getStoredOrgSlug } from "@/lib/orgSlug";
@@ -348,7 +349,7 @@ const App = () => {
         return;
       }
       event.preventDefault();
-      if (attemptSkewRecoveryReload()) {
+      if (attemptStaleChunkRecovery(event.reason)) {
         return;
       }
       console.warn("Chunk load failed (skew recovery exhausted):", event.reason);
@@ -359,7 +360,7 @@ const App = () => {
       const msg = event.message || "";
       const fromError = event.error;
       if (!isChunkLoadError(fromError) && !isChunkLoadError(msg)) return;
-      if (attemptSkewRecoveryReload()) {
+      if (attemptStaleChunkRecovery(fromError || msg)) {
         event.preventDefault();
       }
     };
@@ -990,7 +991,9 @@ const App = () => {
                   element={
                     <ProtectedRoute>
                       <POSLayout>
-                        <POSSales />
+                        <ChunkLoadBoundary>
+                          <POSSales />
+                        </ChunkLoadBoundary>
                       </POSLayout>
                     </ProtectedRoute>
                   }

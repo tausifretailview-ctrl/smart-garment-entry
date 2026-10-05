@@ -1,6 +1,6 @@
 import type { ComponentType, LazyExoticComponent } from "react";
 import {
-  attemptSkewRecoveryReload,
+  attemptStaleChunkRecovery,
   importWithRetry,
   isChunkLoadError,
   lazyWithRetry,
@@ -444,7 +444,7 @@ export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions):
   void promise.catch((err) => {
     if (!isChunkLoadError(err)) return;
     if (intent) {
-      attemptSkewRecoveryReload();
+      attemptStaleChunkRecovery(err);
       return;
     }
     console.warn(
