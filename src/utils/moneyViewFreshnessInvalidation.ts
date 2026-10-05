@@ -5,6 +5,7 @@ import {
 } from "@/utils/customerFinancialSnapshot";
 import { ORGANIZATION_RECEIVABLES_QUERY_KEY } from "@/utils/organizationReceivables";
 import { notifyMoneyViewChanged } from "@/utils/posSalesRefresh";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 /** Debounce Realtime / cross-tab bursts so one save does not fan out dozens of refetches. */
 export const MONEY_VIEW_FRESHNESS_DEBOUNCE_MS = 400;
@@ -18,16 +19,10 @@ export function invalidateMoneyViewFreshness(
   void queryClient.invalidateQueries({
     queryKey: ["pos-dashboard-sales", organizationId],
   });
-  void queryClient.invalidateQueries({
-    queryKey: ["sales-invoice-dashboard"],
-    // Sales Dashboard may be an unmounted window tab (auto-shrink / not yet
-    // opened this session). refetchType "all" refreshes that cache too.
-    refetchType: "all",
-  });
-  void queryClient.invalidateQueries({
-    queryKey: ["invoice-dashboard-unified"],
-    refetchType: "all",
-  });
+  // Unmounted window tabs keep their queryFn. A cache restored from disk does
+  // not — refetching that one stores "Missing queryFn" on the Sales dashboard.
+  invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"]);
+  invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"]);
   void queryClient.invalidateQueries({
     queryKey: ["payment-invoices"],
   });

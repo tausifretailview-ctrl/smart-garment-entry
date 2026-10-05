@@ -10,12 +10,12 @@ import {
 } from "@/utils/posDashboardSales";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { invalidateMoneyViewFreshness } from "@/utils/moneyViewFreshnessInvalidation";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 /** Sales invoice list + unified dashboard table pages. */
 export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
-  const opts = { refetchType: "all" as const };
-  void queryClient.invalidateQueries({ queryKey: ["sales-invoice-dashboard"], ...opts });
-  void queryClient.invalidateQueries({ queryKey: ["invoice-dashboard-unified"], ...opts });
+  invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"]);
+  invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"]);
 }
 
 /** Status bar stock + receivables tile (get_dashboard_stock_summary / v_dashboard_receivables). */

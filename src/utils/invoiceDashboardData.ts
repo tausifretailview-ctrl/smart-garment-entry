@@ -20,6 +20,7 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, credit_applied, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
@@ -1173,12 +1174,12 @@ export function invalidateInvoiceDashboardQueries(
   queryClient: QueryClient,
   organizationId?: string,
 ) {
-  queryClient.invalidateQueries({
-    queryKey: organizationId
+  invalidateAndRefetchWithQueryFn(
+    queryClient,
+    organizationId
       ? [INVOICE_DASHBOARD_QUERY_KEY, organizationId]
       : [INVOICE_DASHBOARD_QUERY_KEY],
-    refetchType: "all",
-  });
+  );
 }
 
 function patchInvoiceDashboardCachedRows(
