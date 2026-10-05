@@ -1,12 +1,18 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   POS_DASHBOARD_CREDIT_NOTE_OR,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
   POS_DASHBOARD_WITHOUT_CREDIT_NOTE_OR,
+  POS_SALESMAN_FILTER_CAP,
   applyPosDashboardFilters,
   buildPosDashboardPaymentMethodOrFilter,
+  buildPosDashboardRpcFilters,
   buildPosDashboardSummaryScopeFilters,
   computePosDashboardSummaryStats,
+  normalizePosSalesmanFilter,
+  posDashboardPeopleFilterLabel,
+  posDashboardStatsRpcHonorsSalesmanFilter,
   patchPosDashboardSaleDelete,
   patchPosDashboardSalePayment,
   posDashboardModeTotalsNeedCorrection,
@@ -164,11 +170,15 @@ describe("POS dashboard mix / unpaid filters", () => {
   });
 
   it("summary scope clears status and method so KPI totals include mix+credit bills", () => {
-    const scoped = buildPosDashboardSummaryScopeFilters(baseFilters());
+    const scoped = buildPosDashboardSummaryScopeFilters({
+      ...baseFilters(),
+      salesmanFilter: ["RIZWAN SHAIKH"],
+    });
     expect(scoped.paymentMethodFilter).toBe("all");
     expect(scoped.paymentStatusFilter).toEqual([]);
     expect(scoped.startDate).toBe("2026-07-30");
     expect(scoped.cancelFilter).toBe("active");
+    expect(scoped.salesmanFilter).toEqual(["RIZWAN SHAIKH"]);
   });
 
   it("summary stays valid when Paid filter empties the list but KPIs still have bills", () => {
@@ -628,5 +638,74 @@ describe("patchPosDashboardSaleDelete", () => {
       { netAmount: 100 },
     ]);
     expect(JSON.stringify(store.get(JSON.stringify(summaryKey)))).toBe(before);
+  });
+});
+
+describe("POS dashboard salesman filter", () => {
+  it("keeps unique salesman names and caps the list", () => {
+    expect(normalizePosSalesmanFilter([" RIZWAN SHAIKH ", "rizwan shaikh", "", "SOHAIL SHAIKH"])).toEqual([
+      "RIZWAN SHAIKH",
+      "SOHAIL SHAIKH",
+    ]);
+    const many = Array.from({ length: POS_SALESMAN_FILTER_CAP + 5 }, (_, i) => `S${i}`);
+    expect(normalizePosSalesmanFilter(many)).toHaveLength(POS_SALESMAN_FILTER_CAP);
+  });
+
+  it("filters the sale list by the checked salesman and still applies the user", () => {
+    const one = recordingQuery();
+    applyPosDashboardFilters(one, { ...baseFilters(), userFilter: "user-1", salesmanFilter: ["RIZWAN SHAIKH"] });
+    expect(one.ops).toContainEqual(["eq", "created_by", "user-1"]);
+    expect(one.ops).toContainEqual(["eq", "salesman", "RIZWAN SHAIKH"]);
+
+    const many = recordingQuery();
+    applyPosDashboardFilters(many, {
+      ...baseFilters(),
+      userFilter: "all",
+      salesmanFilter: ["RIZWAN SHAIKH", "SOHAIL SHAIKH"],
+    });
+    expect(many.ops).toContainEqual(["in", "salesman", ["RIZWAN SHAIKH", "SOHAIL SHAIKH"]]);
+    expect(many.ops.some((op) => op[1] === "created_by")).toBe(false);
+
+    const none = recordingQuery();
+    applyPosDashboardFilters(none, baseFilters());
+    expect(none.ops.some((op) => op[1] === "salesman")).toBe(false);
+  });
+
+  it("labels the merged user and salesman filter", () => {
+    expect(posDashboardPeopleFilterLabel({ userFilter: "all", salesmanNames: [] })).toBe("All Users");
+    expect(
+      posDashboardPeopleFilterLabel({ userFilter: "user-1", userLabel: "cashier", salesmanNames: [] }),
+    ).toBe("cashier");
+    expect(
+      posDashboardPeopleFilterLabel({ userFilter: "all", salesmanNames: ["RIZWAN SHAIKH"] }),
+    ).toBe("RIZWAN SHAIKH");
+    expect(
+      posDashboardPeopleFilterLabel({
+        userFilter: "user-1",
+        userLabel: "cashier",
+        salesmanNames: ["RIZWAN SHAIKH", "SOHAIL SHAIKH"],
+      }),
+    ).toBe("cashier · 2 Salesman");
+  });
+
+  it("sends salesman names to the stats RPC and only trusts a build that applied them", () => {
+    expect(buildPosDashboardRpcFilters({ ...baseFilters(), salesmanFilter: [" SOHAIL SHAIKH "] }).salesmanFilter).toEqual([
+      "SOHAIL SHAIKH",
+    ]);
+    expect(posDashboardStatsRpcHonorsSalesmanFilter({ totalBills: 12 })).toBe(false);
+    expect(posDashboardStatsRpcHonorsSalesmanFilter({ totalBills: 2, salesmanFilterApplied: true })).toBe(true);
+    const src = readFileSync(
+      new URL("../../supabase/migrations/20270106120000_pos_dashboard_salesman_filter.sql", import.meta.url),
+      "utf8",
+    );
+    expect(src).toContain("s.salesman = ANY (SELECT jsonb_array_elements_text(p.v_salesmen))");
+    expect(src).toContain("'salesmanFilterApplied', true");
+    expect(src).toContain("s.created_by::text = p.v_user");
+    const bodyStart = src.indexOf("AS $fn$");
+    const bodyEnd = src.indexOf("\n$fn$");
+    const body = src.slice(bodyStart, bodyEnd);
+    expect(bodyStart).toBeGreaterThan(0);
+    expect(bodyEnd).toBeGreaterThan(bodyStart);
+    expect(body).not.toContain(";");
   });
 });

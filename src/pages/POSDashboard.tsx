@@ -15,6 +15,8 @@ import {
   patchPosDashboardSaleDelete,
   type PosDashboardDeletedSaleFigures,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
+  normalizePosSalesmanFilter,
+  posDashboardPeopleFilterLabel,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
   resolvePosDashboardQueryDates,
@@ -390,6 +392,7 @@ const POSDashboard = () => {
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
+  const [salesmanFilter, setSalesmanFilter] = useState<string[]>([]);
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
   const [showSettleDialog, setShowSettleDialog] = useState(false);
@@ -418,6 +421,29 @@ const POSDashboard = () => {
     enabled: !!currentOrganization?.id && !!session?.access_token,
     staleTime: 300000,
   });
+
+  const { data: salesmanOptions = [] } = useQuery({
+    queryKey: ["pos-dashboard-salesmen", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("employees")
+        .select("employee_name")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .eq("status", "active")
+        .order("employee_name");
+      if (error) throw error;
+      return normalizePosSalesmanFilter((data ?? []).map((row) => row.employee_name ?? ""));
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+  });
+
+  const salesmanChoices = useMemo(
+    () => normalizePosSalesmanFilter([...salesmanOptions, ...salesmanFilter]),
+    [salesmanOptions, salesmanFilter],
+  );
 
   // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
@@ -492,6 +518,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter: userFilter === "__pending__" ? undefined : userFilter,
+      salesmanFilter,
       cancelFilter,
       currentPage,
       itemsPerPage,
@@ -507,6 +534,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter,
+      salesmanFilter,
       cancelFilter,
       currentPage,
       itemsPerPage,
@@ -531,7 +559,10 @@ const POSDashboard = () => {
           ["cancelFilter", setCancelFilter],
           ["userFilter", setUserFilter],
         ],
-        stringArrays: [["paymentStatusFilter", setPaymentStatusFilter]],
+        stringArrays: [
+          ["paymentStatusFilter", setPaymentStatusFilter],
+          ["salesmanFilter", setSalesmanFilter],
+        ],
         numbers: [
           ["currentPage", setCurrentPage],
           ["itemsPerPage", setItemsPerPage],
@@ -601,7 +632,8 @@ const POSDashboard = () => {
     refundFilter !== "all" ||
     creditNoteFilter !== "all" ||
     cancelFilter !== "active" ||
-    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "");
+    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "") ||
+    salesmanFilter.length > 0;
 
   const resetPosFilters = () => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -616,6 +648,7 @@ const POSDashboard = () => {
     setCreditNoteFilter("all");
     setCancelFilter("active");
     setUserFilter("all");
+    setSalesmanFilter([]);
     setCurrentPage(1);
     clearPersistedFilters();
   };
@@ -835,6 +868,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter: userFilter && userFilter !== "__pending__" ? userFilter : "all",
+      salesmanFilter: normalizePosSalesmanFilter(salesmanFilter),
       cancelFilter,
     }),
     [
@@ -848,6 +882,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter,
+      salesmanFilter,
       cancelFilter,
     ],
   );
@@ -870,6 +905,7 @@ const POSDashboard = () => {
     refundFilter,
     creditNoteFilter,
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
+    normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
     currentPage,
     itemsPerPage,
@@ -956,6 +992,7 @@ const POSDashboard = () => {
     refundFilter,
     creditNoteFilter,
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
+    normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
   ] as const;
 
@@ -2988,6 +3025,7 @@ const POSDashboard = () => {
     creditNoteFilter,
     saleTypeFilter,
     userFilter,
+    salesmanFilter,
     cancelFilter,
   ]);
 
@@ -3633,19 +3671,78 @@ const POSDashboard = () => {
               </Select>
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
-                  <SelectValue placeholder="Users" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All Users</SelectItem>
-                  {orgUsers.map((user: any) => (
-                    <SelectItem key={user.id} value={user.id} title={user.email}>
-                      {user.email.split("@")[0]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between font-normal px-3"
+                    title="Filter by user or salesman"
+                  >
+                    <span className="truncate">
+                      {posDashboardPeopleFilterLabel({
+                        userFilter,
+                        userLabel: orgUsers.find((u: { id: string }) => u.id === userFilter)?.email?.split("@")[0],
+                        salesmanNames: salesmanFilter,
+                      })}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-2" align="start">
+                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                    <p className="px-2 pt-1 text-xs font-medium text-muted-foreground">Users</p>
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <Checkbox
+                        checked={userFilter === "all"}
+                        onCheckedChange={() => setUserFilter("all")}
+                      />
+                      All Users
+                    </label>
+                    {orgUsers.map((orgUser: { id: string; email: string }) => (
+                      <label key={orgUser.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm" title={orgUser.email}>
+                        <Checkbox
+                          checked={userFilter === orgUser.id}
+                          onCheckedChange={(checked) => setUserFilter(checked ? orgUser.id : "all")}
+                        />
+                        <span className="truncate">{orgUser.email.split("@")[0]}</span>
+                      </label>
+                    ))}
+                    <p className="px-2 pt-2 text-xs font-medium text-muted-foreground">Salesman</p>
+                    {salesmanChoices.length === 0 ? (
+                      <p className="px-2 py-1.5 text-sm text-muted-foreground">No salesman in Employee Master</p>
+                    ) : (
+                      salesmanChoices.map((name) => (
+                        <label key={name} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                          <Checkbox
+                            checked={salesmanFilter.some((picked) => picked.toLowerCase() === name.toLowerCase())}
+                            onCheckedChange={(checked) => {
+                              setSalesmanFilter((prev) =>
+                                normalizePosSalesmanFilter(
+                                  checked ? [...prev, name] : prev.filter((picked) => picked.toLowerCase() !== name.toLowerCase()),
+                                ),
+                              );
+                            }}
+                          />
+                          <span className="truncate">{name}</span>
+                        </label>
+                      ))
+                    )}
+                    {(userFilter !== "all" && userFilter !== "__pending__") || salesmanFilter.length > 0 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs mt-1"
+                        onClick={() => {
+                          setUserFilter("all");
+                          setSalesmanFilter([]);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                  </div>
+                </PopoverContent>
+              </Popover>
               </div>
               {/* Column Settings Popover */}
               <Popover>
