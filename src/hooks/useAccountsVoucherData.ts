@@ -22,6 +22,7 @@ async function fetchAllVoucherEntries(organizationId: string) {
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + PAGE_SIZE - 1);
     if (error) throw error;
     if (data && data.length > 0) {

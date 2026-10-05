@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,19 +9,35 @@ import { AccountsExportButtons } from "@/components/accounts/AccountsExportButto
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
 import { accountsHistoryTableClass, accountsHistoryThClass } from "@/components/accounts/accountsHistoryUi";
 import { cn } from "@/lib/utils";
-import { resolveVoucherPartyName } from "@/utils/paymentVoucherFilters";
-import { filterVoucherEntryRows } from "@/utils/voucherEntryListFilter";
+import { isCustomerReceiptVoucher, resolveVoucherPartyName } from "@/utils/paymentVoucherFilters";
+import {
+  filterVoucherEntryRows,
+  formatVoucherEntryDate,
+  type VoucherEntryKind,
+} from "@/utils/voucherEntryListFilter";
+
+const VOUCHER_ENTRY_PAGE = 500;
 
 interface VoucherEntryTabProps {
   vouchers: any[] | undefined;
   sales?: any[];
   customers?: any[];
+  isLoading?: boolean;
+  errorMessage?: string | null;
 }
 
-export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabProps) {
+export function VoucherEntryTab({
+  vouchers,
+  sales,
+  customers,
+  isLoading = false,
+  errorMessage = null,
+}: VoucherEntryTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState<Date | undefined>();
   const [filterDateTo, setFilterDateTo] = useState<Date | undefined>();
+  const [entryKind, setEntryKind] = useState<VoucherEntryKind>("all");
+  const [visibleCount, setVisibleCount] = useState(VOUCHER_ENTRY_PAGE);
 
   const partyCtx = useMemo(
     () => ({ tab: "customer-payment" as const, sales, customers }),
@@ -35,11 +51,24 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
         searchQuery,
         dateFrom: filterDateFrom,
         dateTo: filterDateTo,
+        entryKind,
         sales,
         customers,
       }),
-    [vouchers, searchQuery, filterDateFrom, filterDateTo, sales, customers],
+    [vouchers, searchQuery, filterDateFrom, filterDateTo, entryKind, sales, customers],
   );
+
+  const receiptCount = useMemo(
+    () => (vouchers || []).filter((row) => isCustomerReceiptVoucher(row)).length,
+    [vouchers],
+  );
+
+  useEffect(() => {
+    setVisibleCount(VOUCHER_ENTRY_PAGE);
+  }, [searchQuery, filterDateFrom, filterDateTo, entryKind]);
+
+  const visibleVouchers = filteredVouchers.slice(0, visibleCount);
+  const waiting = isLoading && vouchers == null;
 
   const formatEntryDateTime = (value: string | null | undefined) => {
     if (!value) return "-";
@@ -47,7 +76,7 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
     return Number.isNaN(date.getTime()) ? "-" : format(date, "dd/MM/yyyy, hh:mm a");
   };
 
-  const hasFilters = !!(searchQuery || filterDateFrom || filterDateTo);
+  const hasFilters = !!(searchQuery || filterDateFrom || filterDateTo || entryKind !== "all");
 
   return (
     <div className="space-y-3">
@@ -80,6 +109,22 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
                 <Calendar mode="single" selected={filterDateTo} onSelect={setFilterDateTo} className="pointer-events-auto" />
               </PopoverContent>
             </Popover>
+            <Button
+              type="button"
+              variant={entryKind === "all" ? "default" : "outline"}
+              className="h-9 text-sm"
+              onClick={() => setEntryKind("all")}
+            >
+              All entries
+            </Button>
+            <Button
+              type="button"
+              variant={entryKind === "payment-receipts" ? "default" : "outline"}
+              className="h-9 text-sm"
+              onClick={() => setEntryKind("payment-receipts")}
+            >
+              Payment receipts
+            </Button>
             {hasFilters && (
               <Button
                 variant="ghost"
@@ -89,6 +134,7 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
                   setSearchQuery("");
                   setFilterDateFrom(undefined);
                   setFilterDateTo(undefined);
+                  setEntryKind("all");
                 }}
               >
                 Clear
@@ -108,7 +154,7 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
               {
                 header: "Date",
                 width: 0.9,
-                value: (v) => (v.voucher_date ? format(new Date(v.voucher_date), "dd/MM/yyyy") : ""),
+                value: (v) => formatVoucherEntryDate(v.voucher_date),
               },
               { header: "Entry Date & Time", width: 1.4, value: (v) => formatEntryDateTime(v.created_at) },
               { header: "Party", width: 1.4, value: (v) => resolveVoucherPartyName(v, partyCtx) },
@@ -124,9 +170,23 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
           />
         }
         footer={
-          <div className="text-xs text-muted-foreground">
-            Showing {filteredVouchers.length}
-            {vouchers?.length != null ? ` of ${vouchers.length}` : ""} vouchers
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
+              {entryKind === "payment-receipts"
+                ? `Showing ${Math.min(visibleCount, filteredVouchers.length)} of ${filteredVouchers.length} payment receipts`
+                : `Showing ${Math.min(visibleCount, filteredVouchers.length)} of ${filteredVouchers.length} vouchers · ${receiptCount} payment receipts`}
+            </span>
+            {visibleCount < filteredVouchers.length ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={() => setVisibleCount((count) => count + VOUCHER_ENTRY_PAGE)}
+              >
+                Show more
+              </Button>
+            ) : null}
           </div>
         }
       >
@@ -144,22 +204,30 @@ export function VoucherEntryTab({ vouchers, sales, customers }: VoucherEntryTabP
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredVouchers.length === 0 ? (
+            {waiting ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm py-8 text-muted-foreground">
+                  Loading voucher entries…
+                </TableCell>
+              </TableRow>
+            ) : errorMessage ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center text-sm py-8 text-destructive">
+                  {errorMessage}
+                </TableCell>
+              </TableRow>
+            ) : filteredVouchers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center text-sm py-8 text-muted-foreground">
                   {hasFilters ? "No vouchers match your search." : "No voucher entries."}
                 </TableCell>
               </TableRow>
             ) : (
-              filteredVouchers.map((voucher) => (
+              visibleVouchers.map((voucher) => (
                 <TableRow key={voucher.id} className="hover:bg-accent/50">
                   <TableCell className="font-medium">{voucher.voucher_number}</TableCell>
                   <TableCell className="capitalize">{voucher.voucher_type}</TableCell>
-                  <TableCell>
-                    {voucher.voucher_date
-                      ? format(new Date(voucher.voucher_date), "dd/MM/yyyy")
-                      : "-"}
-                  </TableCell>
+                  <TableCell>{formatVoucherEntryDate(voucher.voucher_date)}</TableCell>
                   <TableCell>{formatEntryDateTime(voucher.created_at)}</TableCell>
                   <TableCell className="max-w-[160px] truncate">
                     {resolveVoucherPartyName(voucher, partyCtx)}
