@@ -356,3 +356,26 @@ describe("partyBalanceOrgWindowFromRpcRow", () => {
     expect(partyBalanceOrgWindowFromRpcRow(undefined)).toEqual({ netReceivable: 0 });
   });
 });
+
+describe("fetchCustomerPartyBalancesPayload — load order", () => {
+  it("starts the customer directory and the balance list together", async () => {
+    let resolveCustomers: (v: unknown[]) => void = () => undefined;
+    vi.mocked(fetchAllCustomers).mockImplementation(
+      () => new Promise((r) => { resolveCustomers = r as (v: unknown[]) => void; }) as never,
+    );
+    vi.mocked(fetchAllCustomerPartyBalances).mockResolvedValue([]);
+
+    const pending = fetchCustomerPartyBalancesPayload("org-ks");
+    await Promise.resolve();
+    // Balance list already requested while the directory is still loading.
+    expect(fetchAllCustomerPartyBalances).toHaveBeenCalled();
+    resolveCustomers([]);
+    await expect(pending).resolves.toMatchObject({ partyBalancesComplete: true });
+  });
+
+  it("still fails when the customer directory fails", async () => {
+    vi.mocked(fetchAllCustomers).mockRejectedValue(new Error("directory down"));
+    vi.mocked(fetchAllCustomerPartyBalances).mockResolvedValue([]);
+    await expect(fetchCustomerPartyBalancesPayload("org-ks")).rejects.toThrow("directory down");
+  });
+});

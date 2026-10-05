@@ -1336,6 +1336,46 @@ export function CustomerLedger({
     },
   });
 
+  // Warm a customer's ledger while the pointer rests on their row, so the click opens with
+  // rows instead of "Loading ledger…". Same key and the same retail call as the query above.
+  const ledgerPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ledgerPrefetchInFlightRef = useRef(false);
+  const cancelLedgerPrefetch = useCallback(() => {
+    if (ledgerPrefetchTimerRef.current) clearTimeout(ledgerPrefetchTimerRef.current);
+    ledgerPrefetchTimerRef.current = null;
+  }, []);
+  const scheduleLedgerPrefetch = useCallback(
+    (customer: Customer) => {
+      if (isSchool || !organizationId || !customer?.id) return;
+      cancelLedgerPrefetch();
+      ledgerPrefetchTimerRef.current = setTimeout(() => {
+        ledgerPrefetchTimerRef.current = null;
+        if (ledgerPrefetchInFlightRef.current) return;
+        const queryKey = ["customer-transactions", customer.id, startDate, endDate, isSchool, selectedAcademicYearId];
+        if (queryClient.getQueryState(queryKey)?.fetchStatus === "fetching") return;
+        ledgerPrefetchInFlightRef.current = true;
+        void queryClient
+          .prefetchQuery({
+            queryKey,
+            queryFn: () =>
+              fetchCustomerLedgerTransactions(
+                organizationId,
+                customer.id,
+                { startDate: startDate ?? null, endDate: endDate ?? null },
+                customer.opening_balance || 0,
+              ),
+            staleTime: STALE_DASHBOARD_TAB_RETURN,
+            gcTime: 30 * 60 * 1000,
+          })
+          .finally(() => {
+            ledgerPrefetchInFlightRef.current = false;
+          });
+      }, 150);
+    },
+    [isSchool, organizationId, startDate, endDate, selectedAcademicYearId, queryClient, cancelLedgerPrefetch],
+  );
+  useEffect(() => cancelLedgerPrefetch, [cancelLedgerPrefetch]);
+
   // Fetch payment history for selected customer
   const { data: paymentHistory } = useQuery({
     queryKey: ["customer-payment-history", selectedCustomer?.id, startDate, endDate],
@@ -3651,6 +3691,7 @@ Please clear your dues at the earliest. Thank you!`;
                   pendingCn={accountCheck.state.unclaimedSaleReturn}
                   asOfDate={ledgerAsOfDate}
                   onCheckAccount={() => setLedgerAuditOpen(true)}
+                  loading={transactions === undefined}
                 />
               ) : (
               <div className={cn(
@@ -5672,6 +5713,8 @@ Please clear your dues at the earliest. Thank you!`;
                     key={customer.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => selectCustomer(customer)}
+                    onMouseEnter={() => scheduleLedgerPrefetch(customer)}
+                    onMouseLeave={cancelLedgerPrefetch}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
@@ -5789,6 +5832,8 @@ Please clear your dues at the earliest. Thank you!`;
                         key={customer.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => selectCustomer(customer)}
+                        onMouseEnter={() => scheduleLedgerPrefetch(customer)}
+                        onMouseLeave={cancelLedgerPrefetch}
                       >
                         <TableCell className="font-medium">
                           <button

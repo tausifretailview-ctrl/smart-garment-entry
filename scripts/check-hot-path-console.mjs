@@ -35,6 +35,7 @@ const HOT_PATH_FILES = [
   "src/utils/customerBalanceUtils.ts",
   "src/utils/customerBalanceCore.ts",
   "src/lib/queryPersister.ts",
+  "src/utils/customerLedgerTransactions.ts",
 ];
 
 /**
@@ -45,6 +46,7 @@ const HOT_PATH_FILES = [
 const PROBE_FILES = [
   "src/lib/mainThreadViolationProbe.ts",
   "src/lib/pwaColdOpenDiagnostics.ts",
+  "src/lib/ledgerLoadTiming.ts",
 ];
 
 function isCommentOrDocLine(line) {

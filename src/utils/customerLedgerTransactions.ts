@@ -24,6 +24,7 @@ import {
 import { isCnRefundPaymentVoucher } from "@/utils/cnRefundVoucher";
 import { isAdvanceRefundPaymentVoucher } from "@/utils/advanceRefundVoucher";
 import { fetchAdvanceRefundsForAdvances } from "@/utils/advanceRefundService";
+import { ledgerTimingNow, recordLedgerLoad } from "@/lib/ledgerLoadTiming";
 
 export interface CustomerLedgerTransaction {
   id: string;
@@ -107,16 +108,15 @@ export async function fetchCustomerLedgerTransactionsWithClient(
   const customerOpeningBalance = resolvedOpening || 0;
 
   // First, get ALL sales for this customer (without date filter) to get all possible reference_ids
-  const { data: allCustomerSales, error: allSalesError } = await supabase
+  // Load speed: every query that needs nothing from another runs in wave 1, the ones that
+  // need wave-1 rows run together in wave 2. Same queries and maths as the frozen inline
+  // (scripts/lib/customerLedgerRetailInline.generated.ts); the dual-run test proves the rows match.
+  const allCustomerSalesQuery = supabase
     .from("sales")
     .select("id")
     .eq("customer_id", customerId)
     .is("deleted_at", null)
     .neq("payment_status", "hold");
-
-  if (allSalesError) throw allSalesError;
-
-  const allSaleIds = allCustomerSales?.map(s => s.id) || [];
 
   // Build date filter for displayed sales
   let salesQuery = supabase
@@ -135,22 +135,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
   if (endDate) {
     const endDateStr = format(endDate, 'yyyy-MM-dd');
     salesQuery = salesQuery.lte("sale_date", endDateStr);
-  }
-
-  let vouchersQuery = supabase
-    .from("voucher_entries")
-    .select("*")
-    .in("voucher_type", ["receipt", "payment"])
-    .is("deleted_at", null)
-    .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
-
-  if (startDate) {
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    vouchersQuery = vouchersQuery.gte("voucher_date", startDateStr);
-  }
-  if (endDate) {
-    const endDateStr = format(endDate, 'yyyy-MM-dd');
-    vouchersQuery = vouchersQuery.lte("voucher_date", endDateStr);
   }
 
   let openingBalanceQuery = supabase
@@ -208,28 +192,166 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     saleReturnsQuery = saleReturnsQuery.lte("return_date", format(endDate, 'yyyy-MM-dd'));
   }
 
+  // Fetch credit notes for this customer
+  let creditNotesQuery = supabase
+    .from("credit_notes")
+    .select("id, credit_note_number, issue_date, credit_amount, used_amount, status, notes, sale_id, created_at")
+    .eq("customer_id", customerId)
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null);
+
+  if (startDate) {
+    creditNotesQuery = creditNotesQuery.gte("issue_date", format(startDate, 'yyyy-MM-dd'));
+  }
+  if (endDate) {
+    creditNotesQuery = creditNotesQuery.lte("issue_date", format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
+  }
+
+  // Opening B/F inputs (date filter only): sales, advances and returns before startDate.
+  const priorStartDateStr = startDate ? format(startDate, 'yyyy-MM-dd') : null;
+  const noRows = Promise.resolve({ data: null as any[] | null, error: null });
+
+  // Wave 1: everything that needs no other result.
+  const loadStartedAt = ledgerTimingNow();
   const [
+    { data: allCustomerSales, error: allSalesError },
     { data: salesData, error: salesError },
-    { data: vouchersData, error: vouchersError },
     { data: openingBalancePayments, error: openingError },
     { data: advancesData, error: advancesError },
     { data: adjustmentsData, error: adjustmentsError },
     { data: saleReturnsData, error: saleReturnsError },
+    { data: creditNotesData },
+    { data: priorSales },
+    { data: priorAdv },
+    { data: priorReturns },
   ] = await Promise.all([
+    allCustomerSalesQuery,
     salesQuery.order("sale_date", { ascending: true }),
-    vouchersQuery.order("voucher_date", { ascending: true }),
     openingBalanceQuery.order("voucher_date", { ascending: true }),
     advancesQuery.order("advance_date", { ascending: true }),
     adjustmentsQuery.order("created_at", { ascending: true }),
     saleReturnsQuery.order("return_date", { ascending: true }),
+    creditNotesQuery.order("issue_date", { ascending: true }),
+    priorStartDateStr
+      ? supabase
+          .from('sales')
+          .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cash_amount, card_amount, upi_amount')
+          .eq('customer_id', customerId)
+          .is('deleted_at', null)
+          .neq('payment_status', 'hold')
+          .eq('is_cancelled', false)
+          .lt('sale_date', priorStartDateStr)
+      : noRows,
+    priorStartDateStr
+      ? supabase
+          .from('customer_advances')
+          .select('amount')
+          .eq('customer_id', customerId)
+          .eq('organization_id', organizationId)
+          .lt('advance_date', priorStartDateStr)
+      : noRows,
+    priorStartDateStr
+      ? supabase
+          .from('sale_returns')
+          .select('net_amount, credit_status')
+          .eq('customer_id', customerId)
+          .eq('organization_id', organizationId)
+          .is('deleted_at', null)
+          .neq('credit_status', 'pending')
+          .neq('credit_status', 'adjusted')
+          .lt('return_date', priorStartDateStr)
+      : noRows,
   ]);
 
+  const wave1DoneAt = ledgerTimingNow();
+  if (allSalesError) throw allSalesError;
   if (salesError) throw salesError;
-  if (vouchersError) throw vouchersError;
   if (openingError) throw openingError;
   if (advancesError) throw advancesError;
   if (adjustmentsError) throw adjustmentsError;
   if (saleReturnsError) throw saleReturnsError;
+
+  const allSaleIds = allCustomerSales?.map(s => s.id) || [];
+
+  let vouchersQuery = supabase
+    .from("voucher_entries")
+    .select("*")
+    .in("voucher_type", ["receipt", "payment"])
+    .is("deleted_at", null)
+    .in("reference_id", allSaleIds.length > 0 ? allSaleIds : ['00000000-0000-0000-0000-000000000000']);
+
+  if (startDate) {
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    vouchersQuery = vouchersQuery.gte("voucher_date", startDateStr);
+  }
+  if (endDate) {
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    vouchersQuery = vouchersQuery.lte("voucher_date", endDateStr);
+  }
+
+  // Include sale-return refund payment vouchers even when they still point to an old/orphan customer_id.
+  // We map by return_number mentioned in voucher description.
+  const returnNumbers = (saleReturnsData || [])
+    .map((sr: any) => String(sr.return_number || "").trim())
+    .filter(Boolean);
+  const orFilter = returnNumbers
+    .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
+    .join(",");
+
+  // Get linked sale numbers for display
+  const linkedSaleIds = (saleReturnsData || []).filter((sr: any) => sr.linked_sale_id).map((sr: any) => sr.linked_sale_id);
+
+  // Fetch advance refunds for this customer
+  const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
+
+  const priorSaleIds = (priorSales || []).map((s: any) => s.id);
+
+  // Wave 2: queries that need wave-1 rows, all at once.
+  const [
+    { data: vouchersData, error: vouchersError },
+    { data: saleReturnRefundVouchers },
+    { data: linkedSales },
+    filteredAdvanceRefunds,
+    { data: priorVouchers },
+  ] = await Promise.all([
+    vouchersQuery.order("voucher_date", { ascending: true }),
+    orFilter
+      ? supabase
+          .from("voucher_entries")
+          .select("*")
+          .eq("organization_id", organizationId)
+          .eq("voucher_type", "payment")
+          .eq("reference_type", "customer")
+          .is("deleted_at", null)
+          .or(orFilter)
+          .order("voucher_date", { ascending: true })
+      : noRows,
+    linkedSaleIds.length > 0
+      ? supabase
+          .from("sales")
+          .select("id, sale_number")
+          .in("id", linkedSaleIds)
+      : noRows,
+    customerAdvanceIds.length > 0
+      ? fetchAdvanceRefundsForAdvances(
+          supabase,
+          organizationId,
+          customerAdvanceIds,
+          { includeAdvanceNumber: true },
+        )
+      : Promise.resolve([] as any[]),
+    priorSaleIds.length > 0
+      ? supabase
+          .from('voucher_entries')
+          .select('reference_id, total_amount, payment_method, description')
+          .in('reference_id', priorSaleIds)
+          .eq('voucher_type', 'receipt')
+          .is('deleted_at', null)
+      : noRows,
+  ]);
+
+  const wave2DoneAt = ledgerTimingNow();
+  if (vouchersError) throw vouchersError;
 
   // Merge invoice payments and opening balance payments
   // Exclude payment-type (refund) vouchers for sale returns — they are already
@@ -264,46 +386,16 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       return true;
     });
 
-  // Include sale-return refund payment vouchers even when they still point to an old/orphan customer_id.
-  // We map by return_number mentioned in voucher description.
-  const returnNumbers = (saleReturnsData || [])
-    .map((sr: any) => String(sr.return_number || "").trim())
-    .filter(Boolean);
-  if (returnNumbers.length > 0) {
-    const orFilter = returnNumbers
-      .map((rn: string) => `description.ilike.%${rn.replace(/[%,()]/g, " ")}%`)
-      .join(",");
-    if (orFilter) {
-      const { data: saleReturnRefundVouchers } = await supabase
-        .from("voucher_entries")
-        .select("*")
-        .eq("organization_id", organizationId)
-        .eq("voucher_type", "payment")
-        .eq("reference_type", "customer")
-        .is("deleted_at", null)
-        .or(orFilter)
-        .order("voucher_date", { ascending: true });
-
-      if (saleReturnRefundVouchers?.length) {
-        const byId = new Map<string, any>();
-        [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
-          if (v?.id) byId.set(v.id, v);
-        });
-        allVouchers = Array.from(byId.values()).filter((v: any) => !isRefundAlreadyOnBill(v));
-      }
-    }
+  if (saleReturnRefundVouchers?.length) {
+    const byId = new Map<string, any>();
+    [...allVouchers, ...saleReturnRefundVouchers].forEach((v: any) => {
+      if (v?.id) byId.set(v.id, v);
+    });
+    allVouchers = Array.from(byId.values()).filter((v: any) => !isRefundAlreadyOnBill(v));
   }
 
-  // Get linked sale numbers for display
-  const linkedSaleIds = (saleReturnsData || []).filter((sr: any) => sr.linked_sale_id).map((sr: any) => sr.linked_sale_id);
   let linkedSaleMap: Record<string, string> = {};
-  if (linkedSaleIds.length > 0) {
-    const { data: linkedSales } = await supabase
-      .from("sales")
-      .select("id, sale_number")
-      .in("id", linkedSaleIds);
-    linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
-  }
+  linkedSales?.forEach((s: any) => { linkedSaleMap[s.id] = s.sale_number; });
 
   // Build applied-CN map: sale_return_id -> { saleId, saleNumber, applied }[]
   // by reading credit_note_adjustment vouchers that target each linked sale.
@@ -347,34 +439,6 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     linkedSaleMap,
   );
 
-  // Fetch advance refunds for this customer
-  const customerAdvanceIds = (advancesData || []).map((a: any) => a.id);
-  let filteredAdvanceRefunds: any[] = [];
-  if (customerAdvanceIds.length > 0) {
-    filteredAdvanceRefunds = await fetchAdvanceRefundsForAdvances(
-      supabase,
-      organizationId,
-      customerAdvanceIds,
-      { includeAdvanceNumber: true },
-    );
-  }
-
-  // Fetch credit notes for this customer
-  let creditNotesQuery = supabase
-    .from("credit_notes")
-    .select("id, credit_note_number, issue_date, credit_amount, used_amount, status, notes, sale_id, created_at")
-    .eq("customer_id", customerId)
-    .eq("organization_id", organizationId)
-    .is("deleted_at", null);
-
-  if (startDate) {
-    creditNotesQuery = creditNotesQuery.gte("issue_date", format(startDate, 'yyyy-MM-dd'));
-  }
-  if (endDate) {
-    creditNotesQuery = creditNotesQuery.lte("issue_date", format(endDate, 'yyyy-MM-dd') + 'T23:59:59');
-  }
-
-  const { data: creditNotesData } = await creditNotesQuery.order("issue_date", { ascending: true });
 
 
   // Calculate total voucher payments per sale to exclude from "payment at sale".
@@ -443,28 +507,8 @@ export async function fetchCustomerLedgerTransactionsWithClient(
   let effectiveOpeningBalance = customerOpeningBalance || 0;
 
   if (startDate) {
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-
-    // Sales prior to startDate
-    const { data: priorSales } = await supabase
-      .from('sales')
-      .select('id, net_amount, paid_amount, sale_return_adjust, payment_status, is_cancelled, cash_amount, card_amount, upi_amount')
-      .eq('customer_id', customerId)
-      .is('deleted_at', null)
-      .neq('payment_status', 'hold')
-      .eq('is_cancelled', false)
-      .lt('sale_date', startDateStr);
-
-    const priorSaleIds = (priorSales || []).map((s: any) => s.id);
-
+    // Sales prior to startDate (prior rows were loaded in waves 1 and 2)
     if (priorSaleIds.length > 0) {
-      const { data: priorVouchers } = await supabase
-        .from('voucher_entries')
-        .select('reference_id, total_amount, payment_method, description')
-        .in('reference_id', priorSaleIds)
-        .eq('voucher_type', 'receipt')
-        .is('deleted_at', null);
-
       const priorCashVouchers: Record<string, number> = {};
       (priorVouchers || []).forEach((v: any) => {
         if (v.reference_id)
@@ -486,24 +530,9 @@ export async function fetchCustomerLedgerTransactionsWithClient(
     }
 
     // Prior advances reduce balance (credit)
-    const { data: priorAdv } = await supabase
-      .from('customer_advances')
-      .select('amount')
-      .eq('customer_id', customerId)
-      .eq('organization_id', organizationId)
-      .lt('advance_date', startDateStr);
     (priorAdv || []).forEach((a: any) => { effectiveOpeningBalance -= a.amount || 0; });
 
     // Prior actioned sale returns reduce balance
-    const { data: priorReturns } = await supabase
-      .from('sale_returns')
-      .select('net_amount, credit_status')
-      .eq('customer_id', customerId)
-      .eq('organization_id', organizationId)
-      .is('deleted_at', null)
-      .neq('credit_status', 'pending')
-      .neq('credit_status', 'adjusted')
-      .lt('return_date', startDateStr);
     (priorReturns || []).forEach((sr: any) => { effectiveOpeningBalance -= sr.net_amount || 0; });
   }
 
@@ -1138,6 +1167,16 @@ export async function fetchCustomerLedgerTransactionsWithClient(
       return false;
     }
     return true;
+  });
+
+  recordLedgerLoad({
+    at: new Date().toISOString(),
+    customer: customerId.slice(0, 8),
+    dateFiltered: !!startDate,
+    wave1Ms: Math.round(wave1DoneAt - loadStartedAt),
+    wave2Ms: Math.round(wave2DoneAt - wave1DoneAt),
+    totalMs: Math.round(ledgerTimingNow() - loadStartedAt),
+    rows: cleanedTransactions.length,
   });
 
   return cleanedTransactions;
