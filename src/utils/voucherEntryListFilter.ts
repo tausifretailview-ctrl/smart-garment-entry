@@ -1,5 +1,5 @@
 import { format, isValid, parseISO, startOfDay, endOfDay } from "date-fns";
-import { resolveVoucherPartyName } from "@/utils/paymentVoucherFilters";
+import { isCustomerReceiptVoucher, resolveVoucherPartyName } from "@/utils/paymentVoucherFilters";
 
 export type VoucherEntryListRow = {
   id: string;
@@ -27,6 +27,14 @@ export function voucherDateSearchText(voucherDate: string | null | undefined): s
   return format(d, "dd/MM/yyyy");
 }
 
+/** Table date. A bad voucher_date must not throw and blank the tab. */
+export function formatVoucherEntryDate(voucherDate: string | null | undefined): string {
+  const text = voucherDateSearchText(voucherDate);
+  return text || "-";
+}
+
+export type VoucherEntryKind = "all" | "payment-receipts";
+
 /**
  * Filter All Voucher Entries by free-text (party / description / voucher no / date)
  * and optional inclusive voucher_date range.
@@ -36,6 +44,7 @@ export function filterVoucherEntryRows(args: {
   searchQuery: string;
   dateFrom?: Date;
   dateTo?: Date;
+  entryKind?: VoucherEntryKind;
   sales?: Array<{ id: string; customer_id?: string | null; customer_name?: string | null; sale_number?: string | null }>;
   customers?: Array<{ id: string; customer_name?: string | null }>;
 }): VoucherEntryListRow[] {
@@ -50,6 +59,8 @@ export function filterVoucherEntryRows(args: {
   };
 
   return rows.filter((v) => {
+    if (args.entryKind === "payment-receipts" && !isCustomerReceiptVoucher(v)) return false;
+
     const day = parseVoucherDay(v.voucher_date);
     if (from && (!day || day < from)) return false;
     if (to && (!day || day > to)) return false;
