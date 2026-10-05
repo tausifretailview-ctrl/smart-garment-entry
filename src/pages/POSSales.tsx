@@ -168,7 +168,7 @@ import {
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
-import { coalesceCrmPointsPrint, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
+import { coalesceCrmPointsPrint, crmPointsFromSaveResult, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -4962,7 +4962,7 @@ export default function POSSales() {
             pointsToRedeem,
             pointsEarned: calculatePoints(finalAmount),
           }),
-          result,
+          crmPointsFromSaveResult(result),
         ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
@@ -5293,7 +5293,7 @@ export default function POSSales() {
             pointsToRedeem,
             pointsEarned: calculatePoints(finalAmount),
           }),
-          result as unknown as { pointsBalance?: number; pointsRedeemed?: number },
+          crmPointsFromSaveResult(result),
         ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
@@ -7821,13 +7821,15 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
 
-          {/* Invoice Number Display */}
-          <div className="relative w-40 shrink-0">
+          {/* Invoice number. Width is in ch of this field's own font (16px), not rem.
+              Compact desktop sets the root to 13px, so a rem width clips the last digit. */}
+          <div className="relative shrink-0">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
-              className="h-10 text-sm font-semibold text-center bg-muted/50 border-border/80"
+              title={currentInvoiceNumber || nextInvoicePreview || "NEW"}
+              className="h-10 w-[20ch] min-w-[20ch] px-2 text-sm font-semibold text-center tabular-nums bg-muted/50 border-border/80"
               placeholder="Invoice #"
             />
           </div>

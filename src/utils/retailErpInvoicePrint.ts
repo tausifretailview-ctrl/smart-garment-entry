@@ -224,6 +224,23 @@ export function resolveSaleCrmPointsPrint(opts: {
   });
 }
 
+/**
+ * Save, edit, and resume do not share one return type. Read the print fields
+ * off whichever object came back, and ignore a plain sales row.
+ */
+export function crmPointsFromSaveResult(result: unknown): CrmPointsPrintSnapshot {
+  if (!result || typeof result !== "object") return {};
+  const row = result as { pointsBalance?: unknown; pointsRedeemed?: unknown };
+  if (typeof row.pointsBalance !== "number" || !Number.isFinite(row.pointsBalance)) return {};
+  return {
+    pointsBalance: row.pointsBalance,
+    pointsRedeemed:
+      typeof row.pointsRedeemed === "number" && Number.isFinite(row.pointsRedeemed)
+        ? row.pointsRedeemed
+        : undefined,
+  };
+}
+
 /** Screen snapshot wins. Save-time fill is used only when the screen had no balance. */
 export function coalesceCrmPointsPrint(
   primary: CrmPointsPrintSnapshot,

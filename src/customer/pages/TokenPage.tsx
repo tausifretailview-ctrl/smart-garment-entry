@@ -20,6 +20,7 @@ import {
   wasPushOptedIn,
 } from "../lib/notify";
 import InvoiceCard from "../components/InvoiceCard";
+import { SuccessTick } from "../components/AppChrome";
 import { formatINR } from "../lib/format";
 
 const RATING_TAGS = ["Quality", "Prices", "Staff", "Variety", "Billing speed"];
@@ -253,6 +254,7 @@ export default function TokenPage() {
         <div className="c-card no-print" style={{ marginTop: 12 }}>
           {ratingDone || data.feedback ? (
             <div className="c-center">
+              <SuccessTick size={40} />
               <b>Thanks for rating us{data.feedback ? ` ${"★".repeat(data.feedback.rating)}` : ""}!</b>
               <p className="c-muted">We appreciate your feedback.</p>
             </div>

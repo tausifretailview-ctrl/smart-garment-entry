@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterVoucherEntryRows, voucherDateSearchText } from "./voucherEntryListFilter";
+import { filterVoucherEntryRows, formatVoucherEntryDate, voucherDateSearchText } from "./voucherEntryListFilter";
 
 const sales = [
   {
@@ -37,6 +37,9 @@ const vouchers = [
 describe("filterVoucherEntryRows", () => {
   it("formats voucher date like the table", () => {
     expect(voucherDateSearchText("2026-09-03")).toBe("03/09/2026");
+    expect(formatVoucherEntryDate("2026-09-03")).toBe("03/09/2026");
+    expect(formatVoucherEntryDate("not-a-date")).toBe("-");
+    expect(formatVoucherEntryDate(null)).toBe("-");
   });
 
   it("matches customer name via sale reference", () => {
@@ -69,5 +72,27 @@ describe("filterVoucherEntryRows", () => {
       customers,
     });
     expect(rows.map((r) => r.id)).toEqual(["v1"]);
+  });
+
+  it("keeps every payment receipt and drops other voucher types", () => {
+    const rows = filterVoucherEntryRows({
+      vouchers: [
+        ...vouchers,
+        {
+          id: "exp",
+          voucher_number: "EXP/26-27/9",
+          voucher_date: "2026-09-03",
+          voucher_type: "expense",
+          reference_type: "expense",
+          description: "Rent",
+          total_amount: 500,
+        },
+      ],
+      searchQuery: "",
+      entryKind: "payment-receipts",
+      sales,
+      customers,
+    });
+    expect(rows.map((r) => r.id)).toEqual(["v1", "v2"]);
   });
 });

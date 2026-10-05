@@ -624,6 +624,7 @@ export async function fetchAllVouchers(organizationId: string) {
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     if (error) {
@@ -667,6 +668,7 @@ export async function fetchCustomerReceiptVouchers(organizationId: string) {
       .ilike("voucher_type", "receipt")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     if (error) {

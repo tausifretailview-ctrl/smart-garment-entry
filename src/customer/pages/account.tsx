@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BottomNav, PoweredBy, ShopHeader, Skeleton } from "../components/AppChrome";
+import { BottomNav, PoweredBy, ShopHeader, Skeleton, SuccessTick } from "../components/AppChrome";
+import { useCountUp } from "../lib/useCountUp";
 import InvoiceCard from "../components/InvoiceCard";
 import LoginCard from "../components/LoginCard";
 import {
@@ -121,7 +122,7 @@ function Shell({
         ) : state.loading ? (
           (skeleton ?? <Skeleton />)
         ) : (
-          children
+          <div className="c-enter">{children}</div>
         )}
       </div>
       {state.needLogin ? null : <BottomNav />}
@@ -130,11 +131,22 @@ function Shell({
 }
 
 function PushCard() {
-  const [state, setState] = useState<"idle" | "working" | "done">(wasPushOptedIn() ? "done" : "idle");
+  const [state, setState] = useState<"idle" | "working" | "done" | "just-done">(wasPushOptedIn() ? "done" : "idle");
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
     void repairAccountPush();
   }, []);
+  if (state === "just-done") {
+    return (
+      <div className="c-card c-success no-print">
+        <SuccessTick />
+        <div>
+          <b>Notifications are on</b>
+          <p className="c-hint" style={{ marginTop: 2 }}>You'll get your bills and offers on this phone.</p>
+        </div>
+      </div>
+    );
+  }
   if (state === "done" || !isFirebaseConfigured()) return null;
   const iosHint = isIos() && !isIosStandalone();
   if (!iosHint && !isPushSupportedBrowser()) return null;
@@ -155,7 +167,7 @@ function PushCard() {
             setState("working");
             setMsg(null);
             void enableAccountPush().then((res) => {
-              setState(res.ok ? "done" : "idle");
+              setState(res.ok ? "just-done" : "idle");
               if (!res.ok) setMsg(pushFailureMessage(res.reason));
             });
           }}
@@ -176,6 +188,7 @@ export function AccountPage() {
     if (getSessionToken()) prefetchTabs();
   }, [needLogin]);
   const firstName = (data?.customer.name || "").trim().split(/\s+/)[0] || "Customer";
+  const shownDue = useCountUp(Math.abs(due));
   return (
     <Shell state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton hero rows={3} />}>
       {data ? (
@@ -185,12 +198,12 @@ export function AccountPage() {
             <div className="c-hero-phone">{data.customer.phone}</div>
             <div className="c-hero-amt">
               <span>{due > 0 ? "Amount due" : due < 0 ? "Your advance" : "All paid up"}</span>
-              <b>{formatINR(Math.abs(due))}</b>
+              <b>{formatINR(shownDue)}</b>
             </div>
             {data.customer.points > 0 ? <div className="c-hero-pts">★ {data.customer.points} reward points</div> : null}
           </div>
 
-          <div className="c-stats">
+          <div className="c-stats c-stagger">
             <Link to="/bills" className="c-stat">
               <span>Total shopping</span>
               <b>{formatINR(data.totals.shopping)}</b>
@@ -262,7 +275,7 @@ export function BillsPage() {
   }, [data, page]);
   return (
     <Shell title="Your bills" state={{ error, needLogin, reload, loading: !data && rows.length === 0 }}>
-      <div className="c-card c-list">
+      <div className="c-card c-list c-stagger">
         {rows.length === 0 ? <p className="c-muted">No bills yet.</p> : null}
         {rows.map((b) => {
           const due = Math.max(0, b.net_amount - b.paid_amount);
@@ -338,7 +351,7 @@ export function ReturnsPage() {
   const { data, error, needLogin, reload } = useAccountData<{ returns: ReturnRow[] }>(fetchReturns, [], "returns");
   return (
     <Shell title="Returns" state={{ error, needLogin, reload, loading: !data }}>
-      <div className="c-card c-list">
+      <div className="c-card c-list c-stagger">
         {data && data.returns.length === 0 ? <p className="c-muted">No returns.</p> : null}
         {data?.returns.map((r) => (
           <div className="c-li" key={r.id}>
@@ -366,7 +379,7 @@ export function TransactionsPage() {
   const { data, error, needLogin, reload } = useAccountData<{ transactions: TxnRow[] }>(fetchTransactions, [], "transactions");
   return (
     <Shell title="History" state={{ error, needLogin, reload, loading: !data }}>
-      <div className="c-card c-list">
+      <div className="c-card c-list c-stagger">
         {data && data.transactions.length === 0 ? <p className="c-muted">No transactions yet.</p> : null}
         {data?.transactions.map((t, i) => {
           const inner = (
@@ -416,7 +429,10 @@ export function OffersPage() {
       {data?.offers.map((o) => (
         <div className="c-card c-offer" key={o.id}>
           {o.image_url ? <img src={o.image_url} alt="" loading="lazy" /> : null}
-          <b style={{ fontSize: 16 }}>{o.title}</b>
+          <b style={{ fontSize: 16 }}>
+            {o.title}
+            {Date.now() - new Date(o.created_at).getTime() < 86_400_000 ? <span className="c-new">NEW</span> : null}
+          </b>
           <p style={{ margin: "6px 0 0", lineHeight: 1.5, whiteSpace: "pre-line" }}>{o.body}</p>
           {o.offer_code ? <span className="c-code">{o.offer_code}</span> : null}
           <div className="c-muted" style={{ marginTop: 8, fontSize: 12 }}>

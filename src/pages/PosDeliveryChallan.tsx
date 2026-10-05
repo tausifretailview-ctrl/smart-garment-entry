@@ -42,12 +42,13 @@ export default function PosDeliveryChallan() {
   const [showFloatingStockReport, setShowFloatingStockReport] = useState(false);
 
   useEffect(() => {
-    setOnNewChallan(dc.resetChallan);
-    setOnClearCart(dc.resetChallan);
+    // useState setters call a function argument. Wrap so these are stored, not run on open.
+    setOnNewChallan(() => dc.resetChallan);
+    setOnClearCart(() => dc.resetChallan);
     setOnOpenCashierReport(() => () => setShowFloatingCashierReport(true));
     setOnOpenStockReport(() => () => setShowFloatingStockReport(true));
     setOnOpenSaleReturn(() => () => setShowFloatingSaleReturn(true));
-    setOnReprintLast(dc.handleReprintLast);
+    setOnReprintLast(() => dc.handleReprintLast);
     setHasItems(dc.items.length > 0);
     setCanReprint(dc.hasSavedForReprint);
     setIsSaving(dc.isSavingDC);
