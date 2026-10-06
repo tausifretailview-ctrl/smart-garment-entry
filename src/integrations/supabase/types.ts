@@ -8997,6 +8997,8 @@ export type Database = {
           auto_send_payment_reminder: boolean
           auto_send_quotation: boolean
           auto_send_sale_order: boolean
+          builtin_connected_number: string | null
+          builtin_status: string | null
           business_hours_enabled: boolean | null
           business_hours_end: string | null
           business_hours_start: string | null
@@ -9064,6 +9066,8 @@ export type Database = {
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
+          builtin_connected_number?: string | null
+          builtin_status?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
@@ -9131,6 +9135,8 @@ export type Database = {
           auto_send_payment_reminder?: boolean
           auto_send_quotation?: boolean
           auto_send_sale_order?: boolean
+          builtin_connected_number?: string | null
+          builtin_status?: string | null
           business_hours_enabled?: boolean | null
           business_hours_end?: string | null
           business_hours_start?: string | null
@@ -10801,6 +10807,13 @@ export type Database = {
           voucher_type: string
         }[]
       }
+      get_customer_open_invoice_counts: {
+        Args: { p_organization_id: string }
+        Returns: {
+          customer_id: string
+          open_invoice_count: number
+        }[]
+      }
       get_customer_party_balances: {
         Args: { p_organization_id: string; p_search?: string }
         Returns: {
@@ -11495,6 +11508,17 @@ export type Database = {
       get_wappconnect_instance_masked: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      get_whatsapp_reply_conversation_ids: {
+        Args: { p_organization_id: string }
+        Returns: string[]
+      }
+      get_whatsapp_unread_by_conversation: {
+        Args: { p_organization_id: string }
+        Returns: {
+          conversation_id: string
+          unread_count: number
+        }[]
       }
       hard_delete_purchase_bill: {
         Args: { p_bill_id: string; p_user_id: string }
