@@ -8,6 +8,7 @@ import {
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
 import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
+import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
 import {
   missingWhatsAppTemplateError,
@@ -73,8 +74,12 @@ async function resolveOutboundSendProvider(
   organizationId: string,
   orgSettings: Record<string, unknown> | null,
   requestUseWappConnect: boolean,
-): Promise<'wappconnect' | 'existing'> {
+): Promise<'wappconnect' | 'existing' | 'builtin'> {
   const fromSettings = String(orgSettings?.send_provider ?? '').trim();
+
+  if (fromSettings === 'builtin') {
+    return 'builtin';
+  }
 
   if (fromSettings === 'wappconnect') {
     return 'wappconnect';
@@ -621,7 +626,8 @@ serve(async (req) => {
     });
 
     // ========== WappConnect instance API path (per-org opt-in) ==========
-    if (sendProvider === 'wappconnect') {
+    if (sendProvider === 'wappconnect' || sendProvider === 'builtin') {
+      const isBuiltin = sendProvider === 'builtin';
       if (!orgSettings?.is_active) {
         return new Response(
           JSON.stringify({
@@ -643,32 +649,54 @@ serve(async (req) => {
         );
       }
 
-      const { data: wappConnectSecret, error: secretError } = await supabase
-        .from('whatsapp_wappconnect_secrets')
-        .select('instance_id')
-        .eq('organization_id', organizationId)
-        .maybeSingle();
+      let instanceId = '';
+      if (isBuiltin) {
+        if (!getGatewayConfig()) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Built-in WhatsApp gateway is not configured on the server',
+            }),
+            { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+        if (orgSettings?.builtin_status !== 'connected') {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Our WhatsApp is not connected. Scan the QR code in Settings → WhatsApp first.',
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      } else {
+        const { data: wappConnectSecret, error: secretError } = await supabase
+          .from('whatsapp_wappconnect_secrets')
+          .select('instance_id')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
 
-      if (secretError) {
-        console.error('Error fetching WappConnect instance id:', secretError);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'Failed to load WappConnect configuration',
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
+        if (secretError) {
+          console.error('Error fetching WappConnect instance id:', secretError);
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Failed to load WappConnect configuration',
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
 
-      const instanceId = String(wappConnectSecret?.instance_id ?? '').trim();
-      if (!instanceId) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: 'WappConnect instance id is not configured for this organization',
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
+        instanceId = String(wappConnectSecret?.instance_id ?? '').trim();
+        if (!instanceId) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'WappConnect instance id is not configured for this organization',
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
       }
 
       if (referenceId && referenceType === 'sale' && manualResend !== true) {
@@ -821,7 +849,7 @@ serve(async (req) => {
           status: 'pending',
           reference_id: referenceId || null,
           reference_type: referenceType || null,
-          provider: 'wappconnect',
+          provider: isBuiltin ? 'builtin' : 'wappconnect',
         })
         .select()
         .single();
@@ -830,11 +858,21 @@ serve(async (req) => {
         console.error('Error creating WappConnect log entry:', logError);
       }
 
-      const wappConnectResult = await sendViaWappConnect(instanceId, formattedPhone, {
-        message: resolvedMessage || undefined,
-        fileUrl: resolvedFileUrl || undefined,
-        filename: documentFilename || 'Invoice.pdf',
-      });
+      const wappConnectResult = isBuiltin
+        ? {
+            ...(await sendViaBuiltinGateway(organizationId, formattedPhone, {
+              message: resolvedMessage || undefined,
+              fileUrl: resolvedFileUrl || undefined,
+              filename: documentFilename || 'Invoice.pdf',
+            })),
+            endpoint: 'wa-gateway',
+            requestUrlRedacted: 'wa-gateway',
+          }
+        : await sendViaWappConnect(instanceId, formattedPhone, {
+            message: resolvedMessage || undefined,
+            fileUrl: resolvedFileUrl || undefined,
+            filename: documentFilename || 'Invoice.pdf',
+          });
 
       const redactedResponse = redactWappConnectInstanceId(
         {
@@ -856,7 +894,7 @@ serve(async (req) => {
             sent_at: new Date().toISOString(),
             error_message: wappConnectResult.error || null,
             provider_response: redactedResponse,
-            provider: 'wappconnect',
+            provider: isBuiltin ? 'builtin' : 'wappconnect',
           })
           .eq('id', logEntry.id);
       }
@@ -889,7 +927,7 @@ serve(async (req) => {
         JSON.stringify({
           success: true,
           messageId: wappConnectResult.messageId,
-          provider: 'wappconnect',
+          provider: isBuiltin ? 'builtin' : 'wappconnect',
           logId: logEntry?.id,
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },

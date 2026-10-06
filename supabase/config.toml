@@ -80,3 +80,6 @@ verify_jwt = false
 
 [functions.owner-alerts]
 verify_jwt = false
+
+[functions.whatsapp-gateway-proxy]
+verify_jwt = false
