@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildPurchaseLinePatchFromProductEdit,
   persistedPurchaseItemIdsForEdit,
+  persistedPurchaseItemIdsForProduct,
+  purchaseItemBrandSyncRows,
   purchaseItemDbPatchFromLineEdit,
   purchaseLineMatchesProductEdit,
+  resolvePurchaseLineBrand,
   type ProductEditFormSnapshot,
 } from "./purchaseLineProductEdit";
 
@@ -153,6 +156,7 @@ describe("buildPurchaseLinePatchFromProductEdit", () => {
       form: form({ color: "NAVY", product_name: "Y21 5G" }),
       line: {
         product_name: "Y21 5G",
+        brand: "BK-THAVKI",
         color: "MYSTIC BLUE",
         pur_price: 2331,
         sale_price: 3665,
@@ -180,6 +184,51 @@ describe("buildPurchaseLinePatchFromProductEdit", () => {
     expect(patch.color).toBeUndefined();
   });
 
+  it("copies the product master brand when the bill line still shows the old brand", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({
+        product_name: "KURTI PANTS",
+        brand: "LANGO",
+        category: "HOISERY",
+        style: "",
+        color: "WHITE",
+        default_pur_price: 425,
+        default_sale_price: 680,
+        default_mrp: 0,
+      }),
+      line: {
+        product_name: "KURTI PANTS",
+        brand: "SHINY",
+        category: "HOISERY",
+        style: "",
+        color: "WHITE",
+        pur_price: 425,
+        sale_price: 680,
+        mrp: 0,
+      },
+      modifiedFields: new Set(),
+    });
+
+    expect(patch).toEqual({ brand: "LANGO" });
+  });
+
+  it("clears the bill brand when the user clears it", () => {
+    const patch = buildPurchaseLinePatchFromProductEdit({
+      form: form({ brand: "" }),
+      line: {
+        product_name: "18602",
+        brand: "BK-THAVKI",
+        style: "18565",
+        pur_price: 2331,
+        sale_price: 3665,
+        mrp: 4310,
+      },
+      modifiedFields: new Set(["brand"]),
+    });
+
+    expect(patch.brand).toBe("");
+  });
+
   it("clears the bill colour when the user clears it", () => {
     const patch = buildPurchaseLinePatchFromProductEdit({
       form: form({ color: "", product_name: "Y21 5G" }),
@@ -194,6 +243,33 @@ describe("buildPurchaseLinePatchFromProductEdit", () => {
     });
 
     expect(patch.color).toBe("");
+  });
+});
+
+describe("resolvePurchaseLineBrand", () => {
+  it("uses the product master brand when the bill line still has the old one", () => {
+    expect(resolvePurchaseLineBrand("SHINY", "LANGO")).toBe("LANGO");
+    expect(resolvePurchaseLineBrand("SHINY", "  ")).toBe("SHINY");
+    expect(resolvePurchaseLineBrand("", "LANGO")).toBe("LANGO");
+    expect(resolvePurchaseLineBrand("", "")).toBe("");
+  });
+
+  it("lists only lines that still store a different brand", () => {
+    const masters = new Map<string, string>([
+      ["kurti", "LANGO"],
+      ["saree", ""],
+    ]);
+    expect(
+      purchaseItemBrandSyncRows(
+        [
+          { id: "line-1", product_id: "kurti", brand: "SHINY" },
+          { id: "line-2", product_id: "kurti", brand: "LANGO" },
+          { id: "line-3", product_id: "saree", brand: "BK" },
+          { id: "", product_id: "kurti", brand: "SHINY" },
+        ],
+        masters,
+      ),
+    ).toEqual([{ id: "line-1", brand: "LANGO" }]);
   });
 });
 
@@ -217,5 +293,21 @@ describe("purchase item persistence", () => {
         new Set(["saved-imei-1", "saved-imei-2"]),
       ),
     ).toEqual(["saved-imei-1"]);
+  });
+
+  it("includes every saved size of the product when the brand changes", () => {
+    const lines = [
+      { temp_id: "plus", barcode: "150013077", sku_id: "sku-plus", product_id: "kurti" },
+      { temp_id: "xl", barcode: "150013078", sku_id: "sku-xl", product_id: "kurti" },
+      { temp_id: "other", barcode: "999", sku_id: "sku-other", product_id: "saree" },
+      { temp_id: "draft", barcode: "150013079", sku_id: "sku-draft", product_id: "kurti" },
+    ];
+    expect(
+      persistedPurchaseItemIdsForProduct(
+        lines,
+        "kurti",
+        new Set(["plus", "xl", "other"]),
+      ),
+    ).toEqual(["plus", "xl"]);
   });
 });
