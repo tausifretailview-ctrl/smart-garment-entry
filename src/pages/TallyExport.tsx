@@ -411,17 +411,21 @@ const TallyExport = () => {
         
         if (allReturns.length > 0) {
           // Fetch customer GSTIN separately if customer_id exists
-          const returnsWithGstin = await Promise.all(allReturns.map(async (sr) => {
-            let customerGstin = '';
-            if (sr.customer_id) {
-              const { data: customer } = await supabase
-                .from("customers")
-                .select("gst_number")
-                .eq("id", sr.customer_id)
-                .maybeSingle();
-              customerGstin = customer?.gst_number || '';
+          // One batched lookup per 200 distinct customers instead of one query per return.
+          const gstinByCustomer = new Map<string, string>();
+          const customerIds = [...new Set(allReturns.map((sr) => sr.customer_id).filter(Boolean))] as string[];
+          for (let i = 0; i < customerIds.length; i += 200) {
+            const { data: customerRows } = await supabase
+              .from("customers")
+              .select("id, gst_number")
+              .in("id", customerIds.slice(i, i + 200));
+            for (const row of customerRows ?? []) {
+              gstinByCustomer.set(row.id, row.gst_number || '');
             }
-            return { ...sr, customer_gstin: customerGstin };
+          }
+          const returnsWithGstin = allReturns.map((sr) => ({
+            ...sr,
+            customer_gstin: sr.customer_id ? gstinByCustomer.get(sr.customer_id) || '' : '',
           }));
           creditNotes = transformSaleReturnsToCreditNotes(returnsWithGstin, orgGstin);
           setCounts(prev => ({ ...prev, saleReturns: allReturns.length }));

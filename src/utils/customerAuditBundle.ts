@@ -464,7 +464,12 @@ export async function fetchCustomerAuditBundle(client: SupabaseClient, orgId: st
         // return ₹3,500, ₹200 paid back) stores the payout on the sale and also writes
         // "Refund paid for POS exchange …". The balance skips that voucher only when
         // refund_amount is loaded; without the column the customer is left owing ₹200.
-        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, refund_amount, sale_return_adjust, payment_status, is_cancelled, cancelled_at, cancelled_reason",
+        // gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount and round_off
+        // let computeCustomerBalanceCore tell a bill the CN was applied to AFTER billing (net is the
+        // full bill) from one with the return baked into net. Without them the check falls back to
+        // MRP-based items_gross, which misfires on discounted/wholesale bills and leaves the applied
+        // CN out of the balance (KS Footwear / Soni Shoes: Net Position 5,014 vs ledger 2,624).
+        "id, sale_number, sale_date, net_amount, paid_amount, cash_amount, card_amount, upi_amount, refund_amount, sale_return_adjust, gross_amount, discount_amount, flat_discount_amount, points_redeemed_amount, round_off, payment_status, is_cancelled, cancelled_at, cancelled_reason",
       )
       .eq("customer_id", customerId)
       .eq("organization_id", orgId)
