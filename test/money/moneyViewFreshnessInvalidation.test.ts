@@ -64,7 +64,7 @@ describe("moneyViewFreshnessInvalidation", () => {
     expect(refetchQueries).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: ["sales-invoice-dashboard"],
-        type: "all",
+        type: "active",
       }),
     );
     expect(invalidateQueries).toHaveBeenCalledWith({
@@ -74,7 +74,7 @@ describe("moneyViewFreshnessInvalidation", () => {
     expect(refetchQueries).toHaveBeenCalledWith(
       expect.objectContaining({
         queryKey: ["invoice-dashboard-unified"],
-        type: "all",
+        type: "active",
       }),
     );
     expect(invalidateQueries).toHaveBeenCalledWith({

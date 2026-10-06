@@ -10,6 +10,9 @@ import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 /** Debounce Realtime / cross-tab bursts so one save does not fan out dozens of refetches. */
 export const MONEY_VIEW_FRESHNESS_DEBOUNCE_MS = 400;
 
+/** Realtime-only: coalesce a POS save's sale + items + voucher events into one refetch. */
+export const MONEY_VIEW_REALTIME_DEBOUNCE_MS = 1500;
+
 /** Invalidate derived money views — never patch cache from raw Realtime payloads. */
 export function invalidateMoneyViewFreshness(
   queryClient: QueryClient,
@@ -19,10 +22,11 @@ export function invalidateMoneyViewFreshness(
   void queryClient.invalidateQueries({
     queryKey: ["pos-dashboard-sales", organizationId],
   });
-  // Unmounted window tabs keep their queryFn. A cache restored from disk does
-  // not — refetching that one stores "Missing queryFn" on the Sales dashboard.
-  invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"]);
-  invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"]);
+  // Only mounted screens refetch now; cached-but-closed ones are marked stale and
+  // refetch on next open. A cache restored from disk has no queryFn — refetching
+  // that one stores "Missing queryFn" on the Sales dashboard.
+  invalidateAndRefetchWithQueryFn(queryClient, ["sales-invoice-dashboard"], "active");
+  invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"], "active");
   void queryClient.invalidateQueries({
     queryKey: ["payment-invoices"],
   });
