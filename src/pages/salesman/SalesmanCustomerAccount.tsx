@@ -29,7 +29,10 @@ import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
 import { fetchSaleReceiptSplitsForInvoices } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
-import { buildOutstandingReminderInvoices } from "@/utils/salesmanOutstandingReminder";
+import {
+  buildOutstandingReminderInvoices,
+  outstandingReminderBalanceLines,
+} from "@/utils/salesmanOutstandingReminder";
 
 interface CustomerDetails {
   id: string;
@@ -444,7 +447,10 @@ const SalesmanCustomerAccount = () => {
       `You have *${pendingInvoices.length} pending invoice${pendingInvoices.length > 1 ? 's' : ''}*:\n\n` +
       `${invoiceLines}\n\n` +
       `────────────────${openingLine}\n` +
-      `*Total Outstanding: ₹${Math.round(totalOutstanding).toLocaleString('en-IN')}*\n\n` +
+      `${outstandingReminderBalanceLines({
+        invoiceBalanceTotal: billWiseSum,
+        ledgerBalance: totalOutstanding,
+      })}\n\n` +
       `Please clear your dues at the earliest.\n` +
       `Thank you for your business! 🙏`;
 
