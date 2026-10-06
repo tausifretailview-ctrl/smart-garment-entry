@@ -5,10 +5,14 @@
 -- Problem: the balance SQL treats sales.sale_return_adjust (sra) as "already baked into net_amount"
 -- whenever  net + sra <= SUM(qty * mrp) + 1.  On discounted / wholesale bills MRP totals are far above
 -- the billed amount, so a CN applied AFTER billing (net is still the full bill) is skipped and the
--- customer is overstated by the CN.  The app (customerBalanceCore.ts) already decides from the bill header:
---   baked into net  <=>  |net + sra - (gross_amount - discounts + round_off)| <= 0.5
+-- customer is overstated by the CN.
 --
--- Fix: keep the MRP test, but never treat the CN as baked when the header shows net is the full bill.
+-- Rule added (validated on production data, 2026-10-06, all organizations, 29 flagged bills):
+--   the CN is on top of a full bill  <=>  |net - (gross_amount - discounts + round_off)| <= 0.5
+--   i.e. net_amount still EQUALS the full bill by header.  Then it must be deducted.
+--   23 bills matched (KS Footwear 18, ELLA NOOR 2, Gurukrupa 2, ALBELI 1); SONI INV/26-27/1184: net 14,141 = full 14,141, CN 2,390.
+--   6 POS bills (VELVET 4, SACCHI 1, DEMO 1) have net far BELOW the full bill (reduced by more than the CN,
+--   e.g. VELVET POS/26-27/754: full 2,895, net 805, CN 1,095): they are left exactly as today (CN not deducted again).
 --
 -- This migration PATCHES THE LIVE DEFINITIONS (pg_get_functiondef -> regexp_replace -> EXECUTE) instead of
 -- re-creating them from repo copies, so anything applied directly in production is preserved.
@@ -31,7 +35,7 @@ DECLARE
   v_replacement constant text :=
     's.net_amount + COALESCE(s.sale_return_adjust, 0) <= ig.gross + 1 '
     || '/* cn-header-gate */ AND NOT ( COALESCE(s.gross_amount, 0) > 0 '
-    || 'AND ABS(s.net_amount + COALESCE(s.sale_return_adjust, 0) '
+    || 'AND ABS(s.net_amount '
     || '- (COALESCE(s.gross_amount, 0) '
     || '- (COALESCE(s.discount_amount, 0) + COALESCE(s.flat_discount_amount, 0) + COALESCE(s.points_redeemed_amount, 0)) '
     || '+ COALESCE(s.round_off, 0))) > 0.5 )';
@@ -66,5 +70,5 @@ $patch$;
 --   SELECT * FROM public.get_customer_financial_snapshot('<soni customer id>', '<ks footwear org id>');
 -- and compare all customers before/after:
 --   SELECT * FROM public.get_customer_financial_snapshot_all('<ks footwear org id>');
--- Only the 16 customers from the diagnostic query should change in KS Footwear. Other orgs can change too:
--- any customer with a CN applied after billing on a discounted bill was overstated the same way.
+-- Expected: the 18 KS Footwear bills (16 customers) + 5 bills in ALBELI / ELLA NOOR / Gurukrupa change;
+-- VELVET, SACCHI and DEMO customers must NOT change.

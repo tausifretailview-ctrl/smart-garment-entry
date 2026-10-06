@@ -57,4 +57,20 @@ describe("CN applied after billing on a discounted bill", () => {
     };
     expect(computeCustomerBalanceCore(params(baked)).balance).toBe(11751);
   });
+
+  it("does not deduct again when net is already reduced by more than the CN (VELVET POS/26-27/754)", () => {
+    const partlyReduced = {
+      ...baseSale,
+      net_amount: 805,
+      sale_return_adjust: 1095,
+      items_gross: 2895,
+      gross_amount: 2895,
+      discount_amount: 0,
+      flat_discount_amount: 0,
+      points_redeemed_amount: 0,
+      round_off: 0,
+    };
+    // full bill 2,895, net 805: 2,090 already taken off, CN is only 1,095 of it. Left as today.
+    expect(computeCustomerBalanceCore(params(partlyReduced)).balance).toBe(805);
+  });
 });
