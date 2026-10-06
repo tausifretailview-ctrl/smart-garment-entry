@@ -1434,7 +1434,8 @@ export const useSaveSale = () => {
               customer_page_link: await createCustomerPageLinkForWhatsApp(currentOrganization.id, sale.id),
             };
 
-            const isWappConnect = whatsappSettings.send_provider === 'wappconnect';
+            const isWappConnect = whatsappSettings.send_provider === 'wappconnect'
+              || whatsappSettings.send_provider === 'builtin';
 
             if (isWappConnect) {
               try {

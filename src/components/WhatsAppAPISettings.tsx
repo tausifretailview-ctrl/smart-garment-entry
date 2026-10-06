@@ -13,6 +13,7 @@ import { useWhatsAppAPI, TemplateParam, SocialLinks } from "@/hooks/useWhatsAppA
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTierBasedRefresh } from "@/hooks/useTierBasedRefresh";
+import { BuiltinWhatsAppPanel } from "@/components/BuiltinWhatsAppPanel";
 import { MetaTemplateSelector } from "@/components/MetaTemplateSelector";
 import { SyncMetaTemplates } from "@/components/SyncMetaTemplates";
 import { DEFAULT_WHATSAPP_THIRD_PARTY } from "@/constants/defaultWhatsAppThirdParty";
@@ -27,6 +28,7 @@ import {
   WHATSAPP_SEND_PROVIDER_LABELS,
   type WhatsAppSendProvider,
   isWappConnectSendProvider,
+  normalizeSendProvider,
 } from "@/constants/whatsappSendProvider";
 import { normalizeWhatsAppAccessToken } from "@/lib/whatsappApiAuth";
 import { getWhatsAppErrorHint } from "@/utils/whatsappErrorHints";
@@ -256,9 +258,7 @@ export const WhatsAppAPISettings = () => {
   useEffect(() => {
     if (settings) {
       setFormData({
-        send_provider: isWappConnectSendProvider((settings as { send_provider?: string }).send_provider)
-          ? "wappconnect"
-          : "existing",
+        send_provider: normalizeSendProvider((settings as { send_provider?: string }).send_provider),
         wappconnect_connected_number: settings.wappconnect_connected_number || "",
         wappconnect_instance_id: "",
         phone_number_id: settings.phone_number_id || DEFAULT_WHATSAPP_THIRD_PARTY.phone_number_id,
@@ -411,6 +411,7 @@ export const WhatsAppAPISettings = () => {
 
   const handleSave = async () => {
     try {
+      const isBuiltinSend = formData.send_provider === "builtin";
       const isWappConnect = formData.send_provider === "wappconnect";
 
       if (isWappConnect) {
@@ -431,7 +432,7 @@ export const WhatsAppAPISettings = () => {
           await saveWappConnectInstanceAsync(formData.wappconnect_instance_id.trim());
           setFormData((prev) => ({ ...prev, wappconnect_instance_id: "" }));
         }
-      } else if (!formData.use_default_api && formData.phone_number_id) {
+      } else if (!isBuiltinSend && !formData.use_default_api && formData.phone_number_id) {
         const { data: existingSettings } = await supabase
           .from('whatsapp_api_settings')
           .select('organization_id, organizations!inner(name)')
@@ -468,7 +469,7 @@ export const WhatsAppAPISettings = () => {
         payload.access_token = normalizeWhatsAppAccessToken(payload.access_token);
       }
 
-      if (!isWappConnect) {
+      if (!isWappConnect && !isBuiltinSend) {
         const hasOwnProviderCreds =
           !!payload.access_token?.trim() &&
           !!payload.custom_api_url?.trim() &&
@@ -503,10 +504,14 @@ export const WhatsAppAPISettings = () => {
     testConnection(testPhone);
   };
 
-  const isWappConnect = formData.send_provider === "wappconnect";
+  const isBuiltin = formData.send_provider === "builtin";
+  // "Instance flow" = WappConnect or built-in gateway (plain text + PDF, no Meta templates).
+  const isWappConnect = formData.send_provider === "wappconnect" || isBuiltin;
   const hasWappConnectInstance =
     !!maskedWappConnectInstanceId || !!formData.wappconnect_instance_id?.trim();
-  const isConfigured = isWappConnect
+  const isConfigured = isBuiltin
+    ? settings?.builtin_status === "connected"
+    : isWappConnect
     ? hasWappConnectInstance
     : formData.use_default_api || (formData.phone_number_id && formData.access_token);
   const isSaving = isUpdating || isSavingWappConnectInstance;
@@ -612,11 +617,13 @@ export const WhatsAppAPISettings = () => {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Existing orgs keep Meta/BSP until you switch to WappConnect and save.
+              Existing orgs keep Meta/BSP until you switch provider and save.
             </p>
           </div>
 
-          {isWappConnect ? (
+          {isBuiltin ? (
+            <BuiltinWhatsAppPanel />
+          ) : isWappConnect ? (
             <>
               <Alert>
                 <Info className="h-4 w-4" />

@@ -1,0 +1,14 @@
+services:
+  wa-gateway:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY:?set a long random key}
+      APP_EVENT_URL: ${APP_EVENT_URL:?https://<project>.supabase.co/functions/v1/whatsapp-gateway-proxy}
+      MAX_MSGS_PER_DAY: ${MAX_MSGS_PER_DAY:-300}
+    volumes:
+      - wa-data:/data
+volumes:
+  wa-data:
