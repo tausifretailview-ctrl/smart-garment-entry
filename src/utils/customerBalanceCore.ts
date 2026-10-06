@@ -1,6 +1,5 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
-import { isSaleReturnAdjustBakedIntoNet } from "@/utils/posDashboardSettlement";
 import { allocateCnAdjustmentsToSaleReturns } from "@/utils/customerLedgerSaleReturnBalance";
 
 /**
@@ -456,7 +455,16 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     const sra = Number(s.sale_return_adjust || 0);
     const itemsGross = Number(s.items_gross || 0);
     const preReturnByGross = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
-    const fullBillByHeader = sra > 0 && Number((s as any).gross_amount) > 0 && !isSaleReturnAdjustBakedIntoNet(s);
+    // CN applied AFTER billing: net_amount still equals the full bill by header
+    // (gross - discounts + round_off). A net that is merely lower than the full bill is already
+    // reduced by something else (POS credit/advance), so the CN must not be deducted again.
+    const headerGross = Number((s as any).gross_amount) || 0;
+    const headerDiscounts =
+      (Number((s as any).discount_amount) || 0) +
+      (Number((s as any).flat_discount_amount) || 0) +
+      (Number((s as any).points_redeemed_amount) || 0);
+    const headerFullBill = headerGross - headerDiscounts + (Number((s as any).round_off) || 0);
+    const fullBillByHeader = sra > 0 && headerGross > 0 && Math.abs(net - headerFullBill) <= 0.5;
     const preReturn = preReturnByGross || fullBillByHeader;
     return sum + net + (preReturn ? 0 : sra);
   }, 0);
