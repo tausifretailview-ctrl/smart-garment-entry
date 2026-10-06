@@ -1391,11 +1391,11 @@ export type Database = {
           customer_id: string
           description: string | null
           id: string
+          manual_used_amount: number
           organization_id: string
           payment_method: string | null
           status: string | null
           transaction_id: string | null
-          manual_used_amount: number
           used_amount: number
         }
         Insert: {
@@ -1408,11 +1408,11 @@ export type Database = {
           customer_id: string
           description?: string | null
           id?: string
+          manual_used_amount?: number
           organization_id: string
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
-          manual_used_amount?: number
           used_amount?: number
         }
         Update: {
@@ -1425,11 +1425,11 @@ export type Database = {
           customer_id?: string
           description?: string | null
           id?: string
+          manual_used_amount?: number
           organization_id?: string
           payment_method?: string | null
           status?: string | null
           transaction_id?: string | null
-          manual_used_amount?: number
           used_amount?: number
         }
         Relationships: [
@@ -10814,6 +10814,10 @@ export type Database = {
           total_cr: number
           total_dr: number
         }[]
+      }
+      get_customer_party_balances_all: {
+        Args: { p_organization_id: string; p_search?: string }
+        Returns: Json
       }
       get_customer_segment_counts: {
         Args: { p_org_id: string }
