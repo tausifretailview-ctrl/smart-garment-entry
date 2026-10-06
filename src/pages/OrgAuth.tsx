@@ -244,7 +244,7 @@ export default function OrgAuth() {
       } else if (membershipError) {
         // Transient network/auth refresh failure — do NOT sign the user out.
         // Allow the check to run again on the next render cycle.
-        setMembershipChecked(false);
+        setTimeout(() => setMembershipChecked(false), 3000);
       } else {
         setError("You are not a member of this organization. Please contact your administrator.");
         await supabase.auth.signOut();
