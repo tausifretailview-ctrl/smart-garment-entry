@@ -4,9 +4,12 @@
 ALTER TABLE public.whatsapp_api_settings
   DROP CONSTRAINT IF EXISTS whatsapp_api_settings_send_provider_check;
 
+-- NOT VALID + VALIDATE keeps the exclusive lock short (validation scans without blocking writes).
 ALTER TABLE public.whatsapp_api_settings
   ADD CONSTRAINT whatsapp_api_settings_send_provider_check
-  CHECK (send_provider IN ('existing', 'wappconnect', 'builtin'));
+  CHECK (send_provider IN ('existing', 'wappconnect', 'builtin')) NOT VALID;
+ALTER TABLE public.whatsapp_api_settings
+  VALIDATE CONSTRAINT whatsapp_api_settings_send_provider_check;
 
 COMMENT ON COLUMN public.whatsapp_api_settings.send_provider IS
   'Outbound routing: existing (Meta/BSP), wappconnect (WappConnect instance), builtin (own WhatsApp via wa-gateway).';
@@ -72,7 +75,9 @@ ALTER TABLE public.whatsapp_logs
 
 ALTER TABLE public.whatsapp_logs
   ADD CONSTRAINT whatsapp_logs_provider_check
-  CHECK (provider IS NULL OR provider IN ('existing', 'wappconnect', 'builtin'));
+  CHECK (provider IS NULL OR provider IN ('existing', 'wappconnect', 'builtin')) NOT VALID;
+ALTER TABLE public.whatsapp_logs
+  VALIDATE CONSTRAINT whatsapp_logs_provider_check;
 
 -- Display-only status for the built-in (QR-linked) session, kept fresh by wa-gateway-proxy.
 ALTER TABLE public.whatsapp_api_settings
