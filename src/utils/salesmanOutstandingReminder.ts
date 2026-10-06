@@ -109,3 +109,32 @@ export function buildOutstandingReminderInvoices(params: {
     .filter((inv) => inv.balance >= REMINDER_PENDING_MIN_RUPEE)
     .sort((a, b) => a.days_overdue - b.days_overdue);
 }
+
+/** Whole rupees, Indian grouping. Matches the invoice lines in the reminder. */
+export function formatReminderInvoiceRupees(amount: number): string {
+  return Math.round(amount).toLocaleString("en-IN");
+}
+
+/** Ledger figure with paise so it is not read as the invoice-line total. */
+export function formatReminderLedgerRupees(amount: number): string {
+  const sign = amount < 0 ? "-" : "";
+  return `${sign}${Math.abs(amount).toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/**
+ * Listed invoice balances and the customer ledger are different totals.
+ * The reminder prints both so a customer does not treat the ledger figure
+ * as the sum of the invoices above it.
+ */
+export function outstandingReminderBalanceLines(input: {
+  invoiceBalanceTotal: number;
+  ledgerBalance: number;
+}): string {
+  return (
+    `*Invoice balance total: ₹${formatReminderInvoiceRupees(input.invoiceBalanceTotal)}*\n` +
+    `*Ledger balance: ₹${formatReminderLedgerRupees(input.ledgerBalance)}*`
+  );
+}
