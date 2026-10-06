@@ -741,6 +741,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showYouSaved={showYouSaved}
+              documentTitle={documentTitle}
+              settingsOverride={settings}
             />
           );
         }
