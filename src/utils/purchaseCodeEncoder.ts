@@ -43,14 +43,45 @@ export const resolvePurchaseCodeAlphabet = (raw?: string | null): string => {
   return DEFAULT_PURCHASE_CODE_ALPHABET;
 };
 
+/**
+ * Calendar day written on the purchase invoice (YYYY-MM-DD).
+ * Uses the date prefix so `2026-09-01T00:00:00.000Z` stays 1 September,
+ * not the previous local day.
+ */
+export function normalizePurchaseBillDate(value?: string | null): string | undefined {
+  const raw = String(value ?? "").trim();
+  if (!raw) return undefined;
+  const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (isoDay) return `${isoDay[1]}-${isoDay[2]}-${isoDay[3]}`;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  return `${parsed.getFullYear()}-${month}-${day}`;
+}
+
+/**
+ * Month/year on a barcode purchase code follows the purchase invoice date.
+ * After save, Purchase Entry resets the form to today. That reset must not
+ * replace the invoice the user selected (September stays 09, not the current month).
+ * A saved invoice date wins over the label payload when both are present.
+ */
+export function resolveLabelPurchaseBillDate(input: {
+  savedInvoiceDate?: string | null;
+  itemBillDate?: string | null;
+}): string | undefined {
+  return (
+    normalizePurchaseBillDate(input.savedInvoiceDate) ??
+    normalizePurchaseBillDate(input.itemBillDate)
+  );
+}
+
 const parseBillDate = (billDate?: string): Date => {
-  if (!billDate) return new Date();
-  const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(billDate);
-  if (isoDay) {
-    return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]));
-  }
-  const parsed = new Date(billDate);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const normalized = normalizePurchaseBillDate(billDate);
+  if (!normalized) return new Date();
+  const isoDay = /^(\d{4})-(\d{2})-(\d{2})/.exec(normalized);
+  if (!isoDay) return new Date();
+  return new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]));
 };
 
 /**

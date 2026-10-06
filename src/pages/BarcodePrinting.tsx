@@ -46,6 +46,8 @@ const loadHtml2Canvas = (): Promise<typeof html2canvasType> =>
 import type html2canvasType from "html2canvas";
 import {
   encodePurchasePriceForLabel,
+  normalizePurchaseBillDate,
+  resolveLabelPurchaseBillDate,
   resolvePurchaseCodeAlphabet,
   resolvePurchaseCodeIncludeDate,
 } from "@/utils/purchaseCodeEncoder";
@@ -3672,13 +3674,36 @@ export default function BarcodePrinting() {
 
       if (!hydrateStillWanted()) return;
 
+      // Saved invoice date wins. Print Barcodes after save used to stamp today
+      // because the form resets, so September printed as the current month.
+      let savedInvoiceDate: string | undefined;
+      if (pending.billId && currentOrganization?.id) {
+        const { data: billDateRow, error: billDateErr } = await supabase
+          .from("purchase_bills")
+          .select("bill_date")
+          .eq("id", pending.billId)
+          .eq("organization_id", currentOrganization.id)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (billDateErr) {
+          console.warn("[BarcodePrinting] purchase invoice date lookup failed", billDateErr);
+        } else {
+          savedInvoiceDate = normalizePurchaseBillDate(billDateRow?.bill_date);
+        }
+      }
+
+      if (!hydrateStillWanted()) return;
+
       const items: LabelItem[] = pending.items.map((item: any) => {
         const live = item.sku_id ? liveBySku.get(item.sku_id) : undefined;
         // Bill snapshot keeps qty, bill meta, and this barcode's name/style.
         // Variant prices still come from the live SKU.
         const purPrice = live?.pur_price ?? item.pur_price ?? 0;
         const gstPer = item.gst_per || 0;
-        const billDateStr = item.bill_date || undefined;
+        const billDateStr = resolveLabelPurchaseBillDate({
+          savedInvoiceDate,
+          itemBillDate: item.bill_date,
+        });
         const purchaseCode = encodePurchasePriceForLabel(purPrice, purchaseCodeAlphabet, {
           gstPer,
           includeGst: purchaseCodeIncludeGst,
@@ -3709,7 +3734,7 @@ export default function BarcodePrinting() {
           pur_price: purPrice,
           gst_per: gstPer,
           purchase_code: purchaseCode,
-          bill_date: item.bill_date || undefined,
+          bill_date: billDateStr,
           barcode: live?.barcode || item.barcode,
           qty: item.qty,
           uom: live?.uom || item.uom || "NOS",
@@ -4301,10 +4326,10 @@ export default function BarcodePrinting() {
               includeGst: purchaseCodeIncludeGst,
               extraPercentEnabled: purchaseCodeExtraPercentEnabled,
               extraPercent: purchaseCodeExtraPercent,
-              billDate: billData.bill_date,
+              billDate: normalizePurchaseBillDate(billData.bill_date),
               includeDate: purchaseCodeIncludeDate,
             }),
-            bill_date: billData.bill_date || undefined,
+            bill_date: normalizePurchaseBillDate(billData.bill_date),
             barcode: item.barcode || variantInfo.barcode,
             bill_number: billData.software_bill_no || '',
             supplier_invoice_no: billData.supplier_invoice_no || '',

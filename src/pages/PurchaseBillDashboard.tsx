@@ -98,6 +98,7 @@ import { SkeletonMobileListRows } from "@/components/skeletons/SkeletonTableRows
 import { PURCHASE_BILL_TABLE_SKELETON_COLUMNS } from "@/components/skeletons/dashboardSkeletonPresets";
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
+import { normalizePurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
@@ -590,6 +591,7 @@ const PurchaseBillDashboard = () => {
               barcode: item.barcode,
               qty: item.qty,
               bill_number: bill.software_bill_no || bill.supplier_invoice_no,
+              bill_date: normalizePurchaseBillDate(bill.bill_date),
               supplier_code: supplierCode,
             }));
             stashPurchaseBarcodePrintPayload(bill.id, barcodeItems);
@@ -1565,21 +1567,27 @@ const PurchaseBillDashboard = () => {
     setPrintingBill(billId);
 
     try {
-      const { data: billData, error: billError } = await supabase
+      let billQuery = supabase
         .from("purchase_bills")
-        .select("id, software_bill_no, supplier_id")
-        .eq("id", billId)
-        .single();
+        .select("id, software_bill_no, supplier_id, bill_date")
+        .eq("id", billId);
+      if (currentOrganization?.id) {
+        billQuery = billQuery.eq("organization_id", currentOrganization.id);
+      }
+      const { data: billData, error: billError } = await billQuery.single();
 
       if (billError) throw billError;
 
       let supplierCode = "";
       if (billData?.supplier_id) {
-        const { data: supplierData } = await supabase
+        let supplierQuery = supabase
           .from("suppliers")
           .select("supplier_code")
-          .eq("id", billData.supplier_id)
-          .single();
+          .eq("id", billData.supplier_id);
+        if (currentOrganization?.id) {
+          supplierQuery = supplierQuery.eq("organization_id", currentOrganization.id);
+        }
+        const { data: supplierData } = await supplierQuery.single();
         
         supplierCode = supplierData?.supplier_code || "";
       }
@@ -1619,6 +1627,7 @@ const PurchaseBillDashboard = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: billData?.software_bill_no || item.bill_number || "",
+        bill_date: normalizePurchaseBillDate(billData?.bill_date),
         supplier_code: supplierCode,
       }));
 

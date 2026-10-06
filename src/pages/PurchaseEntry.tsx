@@ -192,6 +192,7 @@ import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
+import { resolveLabelPurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
@@ -779,6 +780,11 @@ const PurchaseEntry = () => {
   const purchaseSaveFinalizedRef = useRef(false);
   /** Last bill committed this session — used when a stale import draft is resumed. */
   const lastFinalizedPurchaseBillRef = useRef<{ billId: string; softwareBillNo: string } | null>(null);
+  /**
+   * Supplier bill date of the bill just saved. The form resets to today before
+   * Print Barcodes runs; labels must keep this invoice month/year.
+   */
+  const savedPurchaseInvoiceDateRef = useRef<string>("");
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(
@@ -1147,6 +1153,7 @@ const PurchaseEntry = () => {
     setNavBillIndex(null);
     setSavedBillId(null);
     setSavedPurchaseItems([]);
+    savedPurchaseInvoiceDateRef.current = "";
     setNewlyAddedItems([]);
     setSearchQuery("");
     setSearchResults([]);
@@ -6474,6 +6481,7 @@ const PurchaseEntry = () => {
           return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
         });
         setSavedPurchaseItems(editItemsWithDetails);
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setSavedBillId(editingBillId);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems(insertedNewItems);
@@ -6966,6 +6974,7 @@ const PurchaseEntry = () => {
 
         // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setSavedBillId(billDataResult.id);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
@@ -7032,6 +7041,7 @@ const PurchaseEntry = () => {
           supplier_invoice_no: nextSupplierInv,
         });
         bumpSupplierInvAutoFill();
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setBillDate(new Date());
         setBillEntryAt(null);
         setLineItems([]);
@@ -7225,7 +7235,12 @@ const PurchaseEntry = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: softwareBillNo || "",
-        bill_date: format(billDate, "yyyy-MM-dd"),
+        bill_date:
+          resolveLabelPurchaseBillDate({
+            savedInvoiceDate:
+              gate.itemSource === "just-saved-items" ? savedPurchaseInvoiceDateRef.current : null,
+            itemBillDate: format(billDate, "yyyy-MM-dd"),
+          }) ?? format(billDate, "yyyy-MM-dd"),
         supplier_code: supplierCode,
       }));
 
@@ -9580,7 +9595,11 @@ const PurchaseEntry = () => {
                         barcode: item.barcode,
                         qty: item.qty,
                         bill_number: softwareBillNo || "",
-                        bill_date: format(billDate, "yyyy-MM-dd"),
+                        bill_date:
+                          resolveLabelPurchaseBillDate({
+                            savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
+                            itemBillDate: format(billDate, "yyyy-MM-dd"),
+                          }) ?? format(billDate, "yyyy-MM-dd"),
                         supplier_code: supplierCode,
                       }));
 
@@ -9658,7 +9677,11 @@ const PurchaseEntry = () => {
                           barcode: item.barcode,
                           qty: item.qty,
                           bill_number: softwareBillNo || "",
-                          bill_date: format(billDate, "yyyy-MM-dd"),
+                          bill_date:
+                            resolveLabelPurchaseBillDate({
+                              savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
+                              itemBillDate: format(billDate, "yyyy-MM-dd"),
+                            }) ?? format(billDate, "yyyy-MM-dd"),
                           supplier_code: supplierCode,
                         }));
 
