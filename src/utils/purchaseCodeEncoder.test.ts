@@ -3,7 +3,9 @@ import {
   encodePurchasePrice,
   encodePurchasePriceForLabel,
   getEffectivePurchasePrice,
+  normalizePurchaseBillDate,
   normalizePurchaseCodeAlphabet,
+  resolveLabelPurchaseBillDate,
   resolvePurchaseCodeAlphabet,
   resolvePurchaseCodeIncludeDate,
   validatePurchaseCodeAlphabet,
@@ -132,5 +134,35 @@ describe("encodePurchasePriceForLabel", () => {
   it("returns empty when there is no purchase price", () => {
     expect(encodePurchasePriceForLabel(0, RAHMANI_ALPHABET)).toBe("");
     expect(encodePurchasePriceForLabel(null, RAHMANI_ALPHABET)).toBe("");
+  });
+});
+
+describe("purchase invoice date on the barcode code", () => {
+  it("keeps September when the entry form was reset to October", () => {
+    const invoiceDate = resolveLabelPurchaseBillDate({
+      savedInvoiceDate: "2026-09-18",
+      itemBillDate: "2026-10-06",
+    });
+    expect(invoiceDate).toBe("2026-09-18");
+    expect(
+      encodePurchasePrice(3190, RAHMANI_ALPHABET, invoiceDate, { includeDate: true }),
+    ).toBe("09SEWN26");
+  });
+
+  it("reads the calendar day from an ISO timestamp without shifting the month", () => {
+    expect(normalizePurchaseBillDate("2026-09-01T00:00:00.000Z")).toBe("2026-09-01");
+    expect(
+      encodePurchasePrice(100, "ABCDEFGHIK", "2026-09-01T00:00:00.000Z", { includeDate: true }),
+    ).toBe("09BAA26");
+  });
+
+  it("uses the line date only when the saved invoice date is missing", () => {
+    expect(
+      resolveLabelPurchaseBillDate({
+        savedInvoiceDate: null,
+        itemBillDate: "2026-09-30",
+      }),
+    ).toBe("2026-09-30");
+    expect(resolveLabelPurchaseBillDate({ savedInvoiceDate: "  ", itemBillDate: "" })).toBeUndefined();
   });
 });
