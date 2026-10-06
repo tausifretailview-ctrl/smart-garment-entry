@@ -71,6 +71,22 @@ export function offerContactsFromSubscriptions(
   });
 }
 
+/** Probe failed because the shop login was rejected, not because the service is old. */
+export function offerProbeAuthRejected(message: string | null | undefined): boolean {
+  const text = (message ?? "").toLowerCase();
+  return text.includes("unauthorized") || text.includes("sign in again") || text.includes("no authorization");
+}
+
+export const OFFER_AUTH_REJECTED_MESSAGE =
+  "The notification service did not accept this login. Sign out, sign in again, then send.";
+
+/** Replace a bare Unauthorized from push-send with the sign-in instruction. */
+export function offerSendFailureMessage(message: string | null | undefined, fallback = "Could not send the offer"): string {
+  if (offerProbeAuthRejected(message)) return OFFER_AUTH_REJECTED_MESSAGE;
+  const text = (message ?? "").trim();
+  return text || fallback;
+}
+
 export function filterOfferContacts(contacts: OfferContact[], query: string): OfferContact[] {
   const q = query.trim().toLowerCase();
   if (!q) return contacts;

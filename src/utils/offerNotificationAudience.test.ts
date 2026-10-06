@@ -6,7 +6,13 @@ import {
   isHttpsOfferImage,
   parseOfferPhones,
 } from "../../supabase/functions/_shared/offerAudience";
-import { filterOfferContacts, offerContactsFromSubscriptions, offerSendBody } from "./offerNotificationAudience";
+import {
+  filterOfferContacts,
+  offerContactsFromSubscriptions,
+  offerProbeAuthRejected,
+  offerSendBody,
+  offerSendFailureMessage,
+} from "./offerNotificationAudience";
 
 describe("parseOfferPhones", () => {
   it("treats a missing or empty list as send-to-all", () => {
@@ -139,6 +145,18 @@ describe("offerSendBody", () => {
   });
 });
 
+describe("offerProbeAuthRejected", () => {
+  it("treats Unauthorized as a rejected login, and a missing phone target as an old service", () => {
+    expect(offerProbeAuthRejected("Unauthorized")).toBe(true);
+    expect(offerProbeAuthRejected("Sign in again, then send the offer.")).toBe(true);
+    expect(offerProbeAuthRejected("No authorization header")).toBe(true);
+    expect(offerProbeAuthRejected("Exactly one of saleId, campaignId or newCampaign is required")).toBe(false);
+    expect(offerProbeAuthRejected(null)).toBe(false);
+    expect(offerSendFailureMessage("Unauthorized")).toContain("Sign out, sign in again");
+    expect(offerSendFailureMessage("Turn on Customer page")).toBe("Turn on Customer page");
+  });
+});
+
 describe("push-send wiring", () => {
   const src = readFileSync(new URL("../../supabase/functions/push-send/index.ts", import.meta.url), "utf8");
 
@@ -147,5 +165,7 @@ describe("push-send wiring", () => {
     expect(src).toContain('.in("customer_phone_last10", phoneTarget.phones)');
     expect(src).toContain("supportsPhoneTarget");
     expect(src).toContain("parseOfferPhones");
+    expect(src).toContain("supabase.auth.getUser(token)");
+    expect(src).not.toContain("supabaseAuth.auth.getUser()");
   });
 });
