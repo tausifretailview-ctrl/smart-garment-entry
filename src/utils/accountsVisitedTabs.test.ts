@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { withSelectedAccountsTab } from "./accountsVisitedTabs";
+import { accountsTabShowsAdminFooter, withSelectedAccountsTab } from "./accountsVisitedTabs";
 
 describe("withSelectedAccountsTab", () => {
   it("mounts a restored voucher entry tab that was never clicked", () => {
@@ -16,5 +16,22 @@ describe("withSelectedAccountsTab", () => {
   it("keeps the same set when the tab is already mounted", () => {
     const visited = new Set(["voucher-entry"]);
     expect(withSelectedAccountsTab(visited, "voucher-entry")).toBe(visited);
+  });
+});
+
+describe("accountsTabShowsAdminFooter", () => {
+  it("hides Summary & admin settings on Voucher Entry", () => {
+    expect(accountsTabShowsAdminFooter("voucher-entry")).toBe(false);
+  });
+
+  it("keeps the section on the other accounts tabs", () => {
+    expect(accountsTabShowsAdminFooter("customer-ledger")).toBe(true);
+    expect(accountsTabShowsAdminFooter("expenses")).toBe(true);
+    expect(accountsTabShowsAdminFooter("reconciliation")).toBe(true);
+  });
+
+  it("still hides it on the payment tabs", () => {
+    expect(accountsTabShowsAdminFooter("customer-payment")).toBe(false);
+    expect(accountsTabShowsAdminFooter("supplier-payment")).toBe(false);
   });
 });

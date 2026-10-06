@@ -80,7 +80,7 @@ import { SupplierPaymentTab } from "@/components/accounts/SupplierPaymentTab";
 import { EmployeeSalaryTab } from "@/components/accounts/EmployeeSalaryTab";
 import { ExpensesTab } from "@/components/accounts/ExpensesTab";
 import { VoucherEntryTab } from "@/components/accounts/VoucherEntryTab";
-import { withSelectedAccountsTab } from "@/utils/accountsVisitedTabs";
+import { accountsTabShowsAdminFooter, withSelectedAccountsTab } from "@/utils/accountsVisitedTabs";
 import { ReconciliationTab } from "@/components/accounts/ReconciliationTab";
 import { BankReconciliationTab } from "@/components/accounts/BankReconciliationTab";
 import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
@@ -882,8 +882,7 @@ export default function Accounts() {
     />
   ) : null;
 
-  const showAccountsAdminFooter =
-    selectedTab !== "customer-payment" && selectedTab !== "supplier-payment";
+  const showAccountsAdminFooter = accountsTabShowsAdminFooter(selectedTab);
 
   const accountsManagementFooter = showAccountsAdminFooter ? (
     <div className="mt-8 pt-4 border-t border-dashed border-slate-300">
