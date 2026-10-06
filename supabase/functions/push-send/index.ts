@@ -10,10 +10,13 @@ const corsHeaders = {
 
 // ---------------------------------------------------------------------------
 // push-send: deliver customer push notifications via FCM HTTP v1.
-// verify_jwt = false in config.toml, so this function hardens itself exactly
-// like send-sms: Authorization header -> getUser() -> organization_members.
+// verify_jwt = false in config.toml. Auth is service-role getUser(token),
+// then organization_members. An anon client getUser() with no stored session
+// returns "Auth session missing" on this project and the dialog showed Unauthorized.
 // Invoice pushes are idempotent via the partial unique index
 // push_messages_one_invoice_push_per_sale_idx (sale_id, subscription_id).
+// Merge to main / Vercel does not ship this. Redeploy:
+//   supabase functions deploy push-send
 // ---------------------------------------------------------------------------
 
 interface PushSendRequest {
@@ -123,25 +126,31 @@ const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json(401, { error: "No authorization header" });
-
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) return json(401, { error: "No authorization header" });
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    if (!token || token === supabaseAnonKey) {
+      return json(401, { error: "Sign in again, then send the offer." });
+    }
+
     const saRaw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON");
     if (!saRaw) {
       console.error("FIREBASE_SERVICE_ACCOUNT_JSON not configured");
       return json(400, { error: "Push provider not configured" });
     }
 
-    const { createClient: createAnonClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    const supabaseAuth = createAnonClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-    if (authError || !user) return json(401, { error: "Unauthorized" });
-
+    // Pass the token into getUser. A client with only the Authorization header and
+    // no stored session returns "Auth session missing" and the dialog showed Unauthorized.
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+    const user = userData?.user;
+    if (authError || !user) {
+      console.error("push-send JWT verification failed:", authError?.message);
+      return json(401, { error: "Sign in again, then send the offer." });
+    }
     const reqBody: PushSendRequest = await req.json();
     const { organizationId, saleId, customerPageDomain, newCampaign } = reqBody;
     let campaignId = reqBody.campaignId;

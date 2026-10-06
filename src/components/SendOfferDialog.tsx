@@ -2,12 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImagePlus, Megaphone, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { ensureFreshSupabaseSession } from "@/lib/jwtRetry";
 import { compressImageFile } from "@/lib/compressImage";
+import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { isHttpsOfferImage } from "../../supabase/functions/_shared/offerAudience";
 import {
   filterOfferContacts,
   offerContactsFromSubscriptions,
+  offerProbeAuthRejected,
   offerSendBody,
+  offerSendFailureMessage,
   type OfferContact,
   type OfferCustomerRow,
   type OfferSubscriptionRow,
@@ -111,14 +115,21 @@ export default function SendOfferDialog({
   const [contactQuery, setContactQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [phoneTargetReady, setPhoneTargetReady] = useState<boolean | null>(null);
+  const [probeError, setProbeError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const invoke = useCallback(async (payload: Record<string, unknown>): Promise<PushSendResult> => {
-    const { data, error } = await supabase.functions.invoke("push-send", { body: { organizationId, ...payload } });
-    if (error) {
-      const ctx = (error as { context?: Response }).context;
-      const detail = ctx ? await ctx.json().catch(() => null) : null;
-      throw new Error((detail as { error?: string } | null)?.error ?? error.message);
+    await ensureFreshSupabaseSession();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    const { data, error } = await supabase.functions.invoke("push-send", {
+      body: { organizationId, ...payload },
+      ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+    });
+    const dataError = data && typeof data === "object" ? (data as PushSendResult).error : undefined;
+    if (error || typeof dataError === "string") {
+      const raw = await getEdgeFunctionErrorMessage(error, data, "Could not send the offer");
+      throw new Error(offerSendFailureMessage(raw));
     }
     return (data ?? {}) as PushSendResult;
   }, [organizationId]);
@@ -129,13 +140,17 @@ export default function SendOfferDialog({
     setContactsLoading(true);
     setContactsError(null);
     setPhoneTargetReady(null);
+    setProbeError(null);
 
     void (async () => {
       try {
         const res = await invoke({ probeAudience: true });
         if (!cancelled) setPhoneTargetReady(res.supportsPhoneTarget === true);
-      } catch {
-        if (!cancelled) setPhoneTargetReady(false);
+      } catch (e) {
+        if (!cancelled) {
+          setPhoneTargetReady(false);
+          setProbeError(e instanceof Error ? e.message : "Could not check the notification service");
+        }
       }
     })();
 
@@ -264,7 +279,7 @@ export default function SendOfferDialog({
       resetForm();
       onSent?.();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not send the offer");
+      toast.error(offerSendFailureMessage(e instanceof Error ? e.message : null));
     } finally {
       setSending(false);
       setProgress(null);
@@ -396,7 +411,11 @@ export default function SendOfferDialog({
                   )}
                 </div>
               </div>
-              {phoneTargetReady === false ? (
+              {phoneTargetReady === false && offerProbeAuthRejected(probeError) ? (
+                <p className="text-xs text-destructive">
+                  {offerSendFailureMessage(probeError)} Send to all and selected contacts both use that login.
+                </p>
+              ) : phoneTargetReady === false ? (
                 <p className="text-xs text-amber-800">
                   Send to selected contacts is not available until the notification service is updated. Send to all still works.
                 </p>
