@@ -1,3 +1,14 @@
+const ACCOUNTS_TABS_WITHOUT_ADMIN_FOOTER = new Set([
+  "customer-payment",
+  "supplier-payment",
+  "voucher-entry",
+]);
+
+/** Summary & admin settings sits under the accounts tabs. Voucher Entry does not show it. */
+export function accountsTabShowsAdminFooter(tab: string | null | undefined): boolean {
+  return !ACCOUNTS_TABS_WITHOUT_ADMIN_FOOTER.has(String(tab || ""));
+}
+
 /**
  * Customer ledger waits until heavy money queries are ready.
  * Every other selected tab must mount immediately, including a tab restored
