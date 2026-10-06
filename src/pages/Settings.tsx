@@ -3735,10 +3735,10 @@ export default function Settings() {
                           })
                         }
                         maxLength={80}
-                        placeholder="e.g. BILL OF SUPPLY, CATERING SERVICE, TAX INVOICE"
+                        placeholder="ESTIMATE, TAX INVOICE, BILL OF SUPPLY"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Real Tast A4: shown below your business name (blank → BILL OF SUPPLY). Letter-pad / preprinted: shown below the logo (blank → no title line). Examples: TAX INVOICE, CASH MEMO, BILL OF SUPPLY.
+                        Trendzo bill: heading under the shop name. Leave blank to print ESTIMATE. Type TAX INVOICE or BILL OF SUPPLY when that shop needs it. Real Tast A4: blank stays BILL OF SUPPLY. Letter-pad: blank hides the title.
                       </p>
                     </div>
 
