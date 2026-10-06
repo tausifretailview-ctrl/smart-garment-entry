@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { isJwtExpiredError } from "@/lib/jwtRetry";
 import {
   PERMISSION_VERIFY_BACKOFF_MS,
   isTransientPermissionError,
@@ -85,12 +86,18 @@ export const useUserRoles = (organizationId?: string) => {
       setError(null);
 
       let lastError: Error | null = null;
+      let lastRaw: unknown = null;
 
       for (let attempt = 0; attempt < MAX_VERIFY_ATTEMPTS; attempt++) {
         if (cancelled || runId !== runIdRef.current) return;
 
         if (attempt > 0) {
-          await refreshAuthSessionQuietly();
+          // A 429 from the purchase-bill API is not an expired login. Refreshing
+          // the token on every failed permission check is what rate-limited
+          // Balaji Creation and then signed every browser out.
+          if (isJwtExpiredError(lastRaw)) {
+            await refreshAuthSessionQuietly();
+          }
           await sleep(PERMISSION_VERIFY_BACKOFF_MS[attempt - 1]);
         }
 
@@ -104,6 +111,7 @@ export const useUserRoles = (organizationId?: string) => {
           return;
         } catch (err: unknown) {
           if (cancelled || runId !== runIdRef.current) return;
+          lastRaw = err;
           lastError = err instanceof Error ? err : new Error(String(err));
 
           if (import.meta.env.DEV) {

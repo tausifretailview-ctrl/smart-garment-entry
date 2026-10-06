@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef, Re
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./AuthContext";
+import { isAuthRateLimitError, PROACTIVE_REFRESH_WITHIN_SEC } from "@/lib/authRefreshGuard";
 
 interface Organization {
   id: string;
@@ -34,7 +35,7 @@ interface OrganizationContextType {
 // Cold start in desktop WebView / slow networks can easily exceed 6s.
 // Bump to 20s and fall back to cached orgs on timeout instead of blanking the app.
 const ORG_FETCH_TIMEOUT = 20000;
-const SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC = 300;
+const SESSION_REFRESH_IF_EXPIRES_WITHIN_SEC = PROACTIVE_REFRESH_WITHIN_SEC;
 const ORG_CACHE_KEY_PREFIX = "cachedOrgs_";
 
 const OrganizationContext = createContext<OrganizationContextType>({
@@ -114,6 +115,10 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         console.log("Session token near-expiry, refreshing…");
         const { error } = await supabase.auth.refreshSession();
         if (error) {
+          if (isAuthRateLimitError(error)) {
+            console.warn("Session refresh rate-limited, keeping the current login");
+            return true;
+          }
           console.warn("Session refresh failed:", error.message);
           return false;
         }
@@ -233,8 +238,14 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         console.warn("Empty org result but cache exists — forcing session refresh and retrying…");
         const { error: refreshErr } = await supabase.auth.refreshSession();
         if (refreshErr) {
-          console.warn("Refresh failed, signing out:", refreshErr.message);
-          await supabase.auth.signOut();
+          if (isAuthRateLimitError(refreshErr)) {
+            console.warn("Refresh rate-limited, keeping the current login");
+            setFetchError(true);
+            setLoading(false);
+            return;
+          }
+          console.warn("Refresh failed, signing out this browser only:", refreshErr.message);
+          await supabase.auth.signOut({ scope: "local" });
           setFetchError(true);
           setLoading(false);
           return;

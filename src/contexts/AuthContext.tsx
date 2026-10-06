@@ -5,11 +5,14 @@ import { storeOrgSlug } from "@/lib/orgSlug";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { isElectronShell } from "@/lib/electronShell";
 import { toast } from "sonner";
+import { isAuthRateLimitError, PROACTIVE_REFRESH_WITHIN_SEC } from "@/lib/authRefreshGuard";
 
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
 const REFRESH_COOLDOWN = 5000; // 5 seconds cooldown between refreshes
-const SESSION_EXPIRY_BUFFER = 900; // 15 minutes buffer before expiry
+// Supabase already auto-refreshes inside 90s of expiry. A 15-minute buffer made
+// every open tab rotate the token and trip HTTP 429, which clears the login.
+const SESSION_EXPIRY_BUFFER = PROACTIVE_REFRESH_WITHIN_SEC;
 const PERIODIC_CHECK_INTERVAL = 4 * 60 * 1000; // Check every 4 minutes
 // Initial session fetch can be slow on cold start (desktop WebView, slow mobile networks,
 // Chrome restoring local storage). Use a longer timeout, and only when the user is also
@@ -206,25 +209,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        // Prevent rapid token refresh cycles that can cause 429 errors
+        // The refresh already happened inside supabase-js. Always keep React's
+        // session on that rotated token. Dropping TOKEN_REFRESHED left later
+        // API calls on the previous access token (401) and invited another refresh.
         if (event === 'TOKEN_REFRESHED') {
           const now = Date.now();
-          
-          // Check global lock across tabs
-          if (isRefreshLocked()) {
-            console.log("Skipping token refresh - locked by another tab");
-            return;
-          }
-          
-          // Check local instance cooldown
-          if (isRefreshing || (now - lastRefreshTime < REFRESH_COOLDOWN)) {
+          const duplicate =
+            isRefreshLocked() || isRefreshing || now - lastRefreshTime < REFRESH_COOLDOWN;
+          if (duplicate) {
             console.log("Skipping duplicate token refresh");
-            return;
+          } else {
+            isRefreshing = true;
+            lastRefreshTime = now;
+            setTimeout(() => { isRefreshing = false; }, REFRESH_COOLDOWN);
           }
-          
-          isRefreshing = true;
-          lastRefreshTime = now;
-          setTimeout(() => { isRefreshing = false; }, REFRESH_COOLDOWN);
         }
         
         // If token refresh resulted in null session but we had one before,
@@ -269,10 +267,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Retry refresh up to MAX_REFRESH_RETRIES times
         for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
           try {
-            const { data: refreshData } = await supabase.auth.refreshSession();
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
             if (refreshData.session) {
               setSession(refreshData.session);
               setUser(refreshData.session.user);
+              setLoading(false);
+              return;
+            }
+            if (isAuthRateLimitError(refreshError)) {
+              console.warn("Token refresh rate-limited, keeping the current login");
               setLoading(false);
               return;
             }
@@ -295,10 +298,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.removeItem(REFRESH_LOCK_KEY);
           for (let attempt = 1; attempt <= MAX_REFRESH_RETRIES; attempt++) {
             try {
-              const { data: refreshData } = await supabase.auth.refreshSession();
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
               if (refreshData.session) {
                 setSession(refreshData.session);
                 setUser(refreshData.session.user);
+                setLoading(false);
+                return;
+              }
+              if (isAuthRateLimitError(refreshError)) {
+                console.warn("Token refresh rate-limited, keeping the current login");
+                setSession(existingSession);
+                setUser(existingSession.user);
                 setLoading(false);
                 return;
               }
@@ -386,10 +396,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               if (!refreshError && refreshData.session) {
                 return refreshData.session;
               }
+              if (isAuthRateLimitError(refreshError)) {
+                return sessionRef.current;
+              }
               if (attempt < MAX_REFRESH_RETRIES) await delay(RETRY_DELAY);
             }
             const { data: stored } = await supabase.auth.getSession();
-            return stored.session ?? null;
+            return stored.session ?? sessionRef.current;
           };
 
           if (error || !currentSession) {

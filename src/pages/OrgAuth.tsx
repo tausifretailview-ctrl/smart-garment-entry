@@ -247,7 +247,7 @@ export default function OrgAuth() {
         setTimeout(() => setMembershipChecked(false), 3000);
       } else {
         setError("You are not a member of this organization. Please contact your administrator.");
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       }
     };
 
@@ -356,7 +356,7 @@ export default function OrgAuth() {
         if (membershipQueryError) {
           console.error("Membership query failed:", membershipQueryError);
           setError("Unable to verify organization membership. Please try again.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
@@ -367,7 +367,7 @@ export default function OrgAuth() {
 
         if (!matchingMembership || !matchingMembership.organizations) {
           setError("You are not a member of this organization. Please contact your administrator.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
@@ -384,7 +384,7 @@ export default function OrgAuth() {
 
         if (membershipError || !membership) {
           setError("You are not a member of this organization. Please contact your administrator.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
