@@ -132,14 +132,16 @@ const WhatsAppInbox = () => {
       
       const { data, error } = await supabase
         .from('whatsapp_messages')
-        .select('*')
+        .select('id, direction, message_type, message_text, status, sent_at, delivered_at, read_at')
         .eq('conversation_id', selectedConversation.id)
         .eq('direction', 'inbound')
         .in('message_type', [...WHATSAPP_INBOUND_REPLY_TYPES])
-        .order('sent_at', { ascending: true });
+        .order('sent_at', { ascending: false })
+        .limit(200);
       
       if (error) throw error;
-      return data as Message[];
+      // Newest 200 only (not the whole history); show oldest-to-newest as before.
+      return ((data ?? []) as Message[]).reverse();
     },
     enabled: !!selectedConversation?.id,
     staleTime: 15000, // 15 seconds stale time
