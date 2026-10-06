@@ -21,8 +21,6 @@ export function variantsForSalesmanSizeGrid(
 }
 
 /** How many size boxes the grid will show, not how many stock rows exist. */
-export function salesmanSizeBoxCount(
-  variants: Array<{ size?: string | null; color?: string | null }>,
-): number {
+export function salesmanSizeBoxCount(variants: SizeGridVariantSource[]): number {
   return variantsForSalesmanSizeGrid(variants).length;
 }

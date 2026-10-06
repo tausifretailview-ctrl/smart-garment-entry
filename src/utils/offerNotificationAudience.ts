@@ -95,7 +95,8 @@ export function offerSendBody(input: {
   phones: string[] | null;
 }): { newCampaign: OfferCampaignPayload } | { error: string } {
   const parsed = parseOfferPhones(input.phones);
-  if (!parsed.ok) return { error: parsed.error };
+  // `=== false` narrows the union with strictNullChecks off (tsconfig); `!parsed.ok` does not.
+  if (parsed.ok === false) return { error: parsed.error };
   const image = String(input.imageUrl ?? "").trim();
   const newCampaign: OfferCampaignPayload = {
     title: input.title.trim(),
