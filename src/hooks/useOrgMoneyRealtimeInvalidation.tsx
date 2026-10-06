@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import {
   invalidateMoneyViewFreshness,
-  MONEY_VIEW_FRESHNESS_DEBOUNCE_MS,
+  MONEY_VIEW_REALTIME_DEBOUNCE_MS,
 } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   MONEY_VIEW_FRESHNESS_LS_KEY,
@@ -34,7 +34,7 @@ export function useOrgMoneyRealtimeInvalidation() {
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
       invalidateMoneyViewFreshness(queryClient, orgId);
-    }, MONEY_VIEW_FRESHNESS_DEBOUNCE_MS);
+    }, MONEY_VIEW_REALTIME_DEBOUNCE_MS);
   }, [orgId, queryClient]);
 
   const flushInvalidate = useCallback(() => {

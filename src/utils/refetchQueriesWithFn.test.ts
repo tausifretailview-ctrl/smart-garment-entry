@@ -75,4 +75,27 @@ describe("invalidateAndRefetchWithQueryFn", () => {
 
     expect(calls).toBe(2);
   });
+
+  it('with type "active" leaves closed (inactive) dashboards stale instead of refetching', async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    let calls = 0;
+    await queryClient.prefetchQuery({
+      queryKey: ["invoice-dashboard-unified", "org"],
+      queryFn: async () => {
+        calls += 1;
+        return { invoices: [], totalCount: calls };
+      },
+    });
+
+    invalidateAndRefetchWithQueryFn(queryClient, ["invoice-dashboard-unified"], "active");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(calls).toBe(1);
+    const query = queryClient
+      .getQueryCache()
+      .find({ queryKey: ["invoice-dashboard-unified", "org"] });
+    expect(query?.state.isInvalidated).toBe(true);
+  });
 });

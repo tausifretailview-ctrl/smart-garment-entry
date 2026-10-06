@@ -2269,7 +2269,8 @@ export default function POSSales() {
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
         .or('payment_status.eq.hold,sale_number.like.Hold/%')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200);
       if (error) throw error;
       return (data || []).filter((sale: any) => isHoldLikeBill(sale));
     },

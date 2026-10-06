@@ -20,7 +20,10 @@ import {
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn } from "@/lib/utils";
 import { PaymentLinkDialog } from "@/components/PaymentLinkDialog";
-import { fetchAllCustomers, fetchAllSalesSummary } from "@/utils/fetchAllRows";
+import {
+  fetchOrgLedgerCustomersReference,
+  fetchOrgLedgerSalesSummaryReference,
+} from "@/hooks/useOrgLedgerReferenceData";
 import {
   fetchOrganizationFinancialSnapshotMap,
 } from "@/utils/customerFinancialSnapshot";
@@ -55,8 +58,8 @@ const SalesmanOutstanding = () => {
     staleTime: 120_000,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const customersData = await fetchAllCustomers(orgId!);
-      const allSales = await fetchAllSalesSummary(orgId!);
+      const customersData = await fetchOrgLedgerCustomersReference(orgId!, queryClient);
+      const allSales = await fetchOrgLedgerSalesSummaryReference(orgId!, queryClient);
       // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)
       const snapMap = await fetchOrganizationFinancialSnapshotMap(orgId!);
 

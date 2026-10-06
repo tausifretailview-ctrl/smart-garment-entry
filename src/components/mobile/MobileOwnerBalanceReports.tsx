@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchOrganizationFinancialSnapshotMap } from "@/utils/customerFinancialSnapshot";
-import { fetchAllCustomers, fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { fetchAllSuppliers } from "@/utils/fetchAllRows";
+import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import { loadSupplierBalanceMapForOrg } from "@/utils/supplierBalanceUtils";
 import { sortSizes } from "@/utils/sizeSort";
 import { withMobileQueryTimeout } from "@/lib/mobileQueryTimeout";
@@ -394,6 +395,7 @@ type CustomerBalanceRow = {
 };
 
 export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [showZero, setShowZero] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -404,7 +406,7 @@ export function CustomerBalanceReport({ orgId }: { orgId?: string }) {
     retry: 1,
     queryFn: () =>
       withMobileQueryTimeout(async () => {
-        const customers = await fetchAllCustomers(orgId!);
+        const customers = await fetchOrgLedgerCustomersReference(orgId!, queryClient);
         if (!customers.length) return [] as CustomerBalanceRow[];
 
         // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)

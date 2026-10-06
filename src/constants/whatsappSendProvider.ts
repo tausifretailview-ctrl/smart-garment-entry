@@ -28,3 +28,13 @@ export function isWappConnectSendProvider(
 ): value is 'wappconnect' | 'builtin' {
   return value === 'wappconnect' || value === 'builtin';
 }
+
+/** Non-secret rollout flag; "Our WhatsApp" stays hidden until the gateway + migration are live. */
+export const BUILTIN_WHATSAPP_ENABLED =
+  import.meta.env.VITE_ENABLE_BUILTIN_WHATSAPP === 'true';
+
+export function selectableSendProviders(current?: string | null): WhatsAppSendProvider[] {
+  return WHATSAPP_SEND_PROVIDERS.filter(
+    (p) => p !== 'builtin' || BUILTIN_WHATSAPP_ENABLED || current === 'builtin',
+  );
+}

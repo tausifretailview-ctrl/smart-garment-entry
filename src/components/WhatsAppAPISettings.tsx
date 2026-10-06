@@ -24,7 +24,7 @@ import {
   previewOfficialMetaInvoiceMessage,
 } from "../../supabase/functions/_shared/officialMetaInvoiceTemplate.ts";
 import {
-  WHATSAPP_SEND_PROVIDERS,
+  selectableSendProviders,
   WHATSAPP_SEND_PROVIDER_LABELS,
   type WhatsAppSendProvider,
   isWappConnectSendProvider,
@@ -609,7 +609,7 @@ export const WhatsAppAPISettings = () => {
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent>
-                {WHATSAPP_SEND_PROVIDERS.map((provider) => (
+                {selectableSendProviders(settings?.send_provider).map((provider) => (
                   <SelectItem key={provider} value={provider}>
                     {WHATSAPP_SEND_PROVIDER_LABELS[provider]}
                   </SelectItem>
@@ -622,7 +622,7 @@ export const WhatsAppAPISettings = () => {
           </div>
 
           {isBuiltin ? (
-            <BuiltinWhatsAppPanel />
+            <BuiltinWhatsAppPanel lastStatus={settings?.builtin_status} />
           ) : isWappConnect ? (
             <>
               <Alert>

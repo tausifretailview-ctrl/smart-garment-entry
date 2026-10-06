@@ -22,7 +22,7 @@ interface ControlResponse {
 const POLL_MS = 3000;
 
 /** "Our WhatsApp" setup: link the shop's own number by scanning a QR (no third-party service). */
-export function BuiltinWhatsAppPanel() {
+export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | null }) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
@@ -30,6 +30,7 @@ export function BuiltinWhatsAppPanel() {
   const [qr, setQr] = useState<string | null>(null);
   const [number, setNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -100,8 +101,11 @@ export function BuiltinWhatsAppPanel() {
         apply(res);
         setPolling(res.status !== "connected");
       }
+      setError(null);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Request failed");
+      const msg = e instanceof Error ? e.message : "Request failed";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
@@ -124,9 +128,8 @@ export function BuiltinWhatsAppPanel() {
         <ShieldAlert className="h-4 w-4" />
         <AlertTitle>Use responsibly</AlertTitle>
         <AlertDescription className="text-xs">
-          This links your number like WhatsApp Web. Send only to customers who expect messages (invoices, receipts,
-          reminders). Bulk or unsolicited messaging can get a number banned by WhatsApp. Use the Meta API option for
-          high-volume or promotional sending.
+          ⚠️ Our WhatsApp uses the unofficial WhatsApp Web protocol. WhatsApp may restrict or ban numbers used for
+          bulk messaging or spam. For compliant business messaging, Meta WhatsApp Cloud API is recommended.
         </AlertDescription>
       </Alert>
 
@@ -137,7 +140,7 @@ export function BuiltinWhatsAppPanel() {
         {!connected && (
           <Button type="button" size="sm" disabled={busy || !orgId} onClick={() => void run("start")}>
             {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
-            {qr ? "Refresh QR" : "Generate QR code"}
+            {qr ? "Refresh QR" : "Connect WhatsApp"}
           </Button>
         )}
         {connected && (
@@ -153,6 +156,16 @@ export function BuiltinWhatsAppPanel() {
           </Button>
         )}
       </div>
+
+      {status === "connecting" && (
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" /> Connecting…
+        </p>
+      )}
+      {error && <p className="text-sm text-destructive">Connection error: {error}</p>}
+      {!connected && !qr && lastStatus && status !== "connecting" && (
+        <p className="text-xs text-muted-foreground">Last known status: {lastStatus}</p>
+      )}
 
       {!connected && qr && (
         <div className="inline-block rounded-md border bg-white p-3">
