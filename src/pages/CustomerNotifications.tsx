@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { createCustomerPageLinkForSale } from "@/utils/customerPageLink";
 import SendOfferDialog from "@/components/SendOfferDialog";
+import BulkSendHistory from "@/components/BulkSendHistory";
 import {
   buildPushInviteMessage,
   customersNotEnabled,
@@ -35,7 +36,9 @@ import {
   matchesPushStatus,
   pushFailureLabel,
   pushMessageStage,
+  summarizeBulkSends,
   summarizePushMessages,
+  type BulkCampaignInfo,
   type PushMessageRow,
   type PushStatusFilter,
   type PushSubscriptionRow,
@@ -45,7 +48,7 @@ import {
 const MAX_MESSAGES = 3000;
 const MAX_SALES = 5000;
 
-type TabId = "messages" | "subscribed" | "not-enabled";
+type TabId = "messages" | "bulk" | "subscribed" | "not-enabled";
 
 interface SaleInfo {
   sale_number: string | null;
@@ -92,6 +95,26 @@ async function fetchMessages(orgId: string, from: string, to: string) {
  * Subscription metadata via RPC (migration 20261231180000): staff have no table read on
  * push_subscriptions because it holds fcm_token. Untyped until types.ts is regenerated.
  */
+async function fetchCampaigns(orgId: string, from: string, to: string): Promise<BulkCampaignInfo[]> {
+  const { data, error } = await supabase
+    .from("push_campaigns")
+    .select("id, title, body, created_at, status, target")
+    .eq("organization_id", orgId)
+    .gte("created_at", `${from}T00:00:00+05:30`)
+    .lte("created_at", `${to}T23:59:59.999+05:30`)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    body: row.body,
+    created_at: row.created_at,
+    status: row.status,
+    target: row.target,
+  }));
+}
+
 async function fetchSubscriptions(orgId: string): Promise<PushSubscriptionRow[]> {
   const { data, error } = await (supabase as unknown as SupabaseClient).rpc("get_org_push_subscriptions", {
     p_organization_id: orgId,
@@ -205,6 +228,13 @@ export default function CustomerNotifications() {
     queryFn: () => fetchMessages(orgId!, fromDate, toDate),
   });
 
+  const campaignsQ = useQuery({
+    queryKey: ["customer-notifications-campaigns", orgId, fromDate, toDate],
+    enabled: !!orgId,
+    staleTime: 60_000,
+    queryFn: () => fetchCampaigns(orgId!, fromDate, toDate),
+  });
+
   const subsQ = useQuery({
     queryKey: ["customer-notifications-subs", orgId],
     enabled: !!orgId,
@@ -223,6 +253,10 @@ export default function CustomerNotifications() {
   const subs = useMemo(() => subsQ.data ?? [], [subsQ.data]);
   const subById = useMemo(() => new Map(subs.map((s) => [s.id, s])), [subs]);
   const summary = useMemo(() => summarizePushMessages(messages), [messages]);
+  const bulk = useMemo(
+    () => summarizeBulkSends(messages, campaignsQ.data ?? []),
+    [messages, campaignsQ.data],
+  );
   const onPhones = useMemo(() => enabledPhones(subs), [subs]);
   const activeSubs = useMemo(() => subs.filter((s) => s.status === "confirmed"), [subs]);
   const notEnabled = useMemo(
@@ -307,7 +341,14 @@ export default function CustomerNotifications() {
           </div>
           <div className="flex flex-wrap items-end gap-3 shrink-0">
             {orgId ? (
-              <SendOfferDialog organizationId={orgId} disabled={!!pageOff} onSent={() => void messagesQ.refetch()} />
+              <SendOfferDialog
+                organizationId={orgId}
+                disabled={!!pageOff}
+                onSent={() => {
+                  void messagesQ.refetch();
+                  void campaignsQ.refetch();
+                }}
+              />
             ) : null}
             <div className="space-y-1">
               <Label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">From</Label>
@@ -319,7 +360,7 @@ export default function CustomerNotifications() {
             </div>
             <Input
               className="h-9 w-[220px] bg-white"
-              placeholder="Bill no, customer, phone"
+              placeholder={tab === "bulk" ? "Offer title, phone" : "Bill no, customer, phone"}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -399,6 +440,7 @@ export default function CustomerNotifications() {
             {(
               [
                 ["messages", `Messages (${summary.total})`],
+                ["bulk", `Bulk send (${bulk.history.length})`],
                 ["subscribed", `Turned on (${activeSubs.length})`],
                 ["not-enabled", "Not turned on"],
               ] as const
@@ -478,6 +520,22 @@ export default function CustomerNotifications() {
                 </TableBody>
               </Table>
             )}
+          </TabsContent>
+
+          <TabsContent value="bulk" className="flex-1 min-h-0 mt-0 flex flex-col gap-2 overflow-hidden data-[state=inactive]:hidden">
+            {campaignsQ.error ? (
+              <p className="text-xs text-amber-800 shrink-0">
+                Offer titles could not be loaded. Sent, failed and read still count each phone.
+              </p>
+            ) : null}
+            <BulkSendHistory
+              summary={bulk.summary}
+              history={bulk.history}
+              messages={messages}
+              phoneOf={(id) => subById.get(id)?.customer_phone_last10 ?? ""}
+              search={search}
+              loading={messagesQ.isLoading}
+            />
           </TabsContent>
 
           <TabsContent value="subscribed" className="flex-1 min-h-0 mt-0 overflow-auto rounded-lg border bg-white data-[state=inactive]:hidden">

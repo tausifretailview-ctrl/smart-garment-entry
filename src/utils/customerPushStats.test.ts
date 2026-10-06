@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPushInviteMessage,
+  bulkAudienceLabel,
+  bulkHistoryMatches,
   customersNotEnabled,
   enabledPhones,
   matchesPushStatus,
   pushFailureLabel,
   pushMessageStage,
+  summarizeBulkSends,
   summarizePushMessages,
 } from "./customerPushStats";
 
@@ -67,6 +70,68 @@ describe("customersNotEnabled", () => {
     expect(rows.map((r) => [r.phone, r.bills, r.lastSaleId, r.customer_name])).toEqual([
       ["9000000001", 2, "b", "Ali K"],
       ["9000000002", 1, "c", "Raj"],
+    ]);
+  });
+});
+
+describe("summarizeBulkSends", () => {
+  const campaign = {
+    id: "camp-1",
+    title: "Diwali Sale",
+    body: "New stock",
+    created_at: "2026-10-06T04:00:00Z",
+    status: "done",
+    target: { phones: ["9527465086"] },
+  };
+  const all = {
+    id: "camp-2",
+    title: "All customers",
+    body: "Shop closed Sunday",
+    created_at: "2026-10-05T04:00:00Z",
+    status: "done",
+    target: {},
+  };
+
+  it("totals sent, failed and read for offer messages and keeps one history row per send", () => {
+    const result = summarizeBulkSends(
+      [
+        { campaign_id: "camp-1", status: "sent", delivered_at: "t", opened_at: "t", created_at: "2026-10-06T04:01:00Z" },
+        { campaign_id: "camp-1", status: "failed", delivered_at: null, opened_at: null, created_at: "2026-10-06T04:01:00Z" },
+        { campaign_id: null, status: "sent", delivered_at: null, opened_at: null, created_at: "2026-10-06T04:02:00Z" },
+        { campaign_id: "camp-2", status: "sent", delivered_at: "t", opened_at: null, created_at: "2026-10-05T04:01:00Z" },
+      ],
+      [campaign, all],
+    );
+    expect(result.summary).toMatchObject({ total: 3, sent: 2, opened: 1, failed: 1 });
+    expect(result.history.map((r) => [r.title, r.audience, r.sent, r.failed, r.read])).toEqual([
+      ["Diwali Sale", "1 selected", 1, 1, 1],
+      ["All customers", "All contacts", 1, 0, 0],
+    ]);
+    expect(bulkHistoryMatches(result.history[0], "failed")).toBe(true);
+    expect(bulkHistoryMatches(result.history[1], "failed")).toBe(false);
+    expect(bulkHistoryMatches(result.history[1], "read")).toBe(false);
+    expect(bulkAudienceLabel(null)).toBe("All contacts");
+    expect(bulkAudienceLabel({ phones: ["9000000001", "9000000002"] })).toBe("2 selected");
+  });
+
+  it("still lists a send when the campaign row is missing", () => {
+    const result = summarizeBulkSends(
+      [
+        { campaign_id: "camp-x", status: "failed", delivered_at: null, opened_at: null, created_at: "2026-10-06T10:00:00Z" },
+        { campaign_id: "camp-x", status: "failed", delivered_at: null, opened_at: null, created_at: "2026-10-06T09:00:00Z" },
+      ],
+      [],
+    );
+    expect(result.history).toEqual([
+      expect.objectContaining({
+        campaignId: "camp-x",
+        title: "Offer",
+        audience: "All contacts",
+        sent: 0,
+        failed: 2,
+        read: 0,
+        createdAt: "2026-10-06T09:00:00Z",
+      }),
     ]);
   });
 });

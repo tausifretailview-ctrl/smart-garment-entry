@@ -152,6 +152,112 @@ export function customersNotEnabled(sales: SaleForInvite[], enabled: Set<string>
   return [...byPhone.values()].sort((a, b) => b.bills - a.bills || (a.lastSaleDate < b.lastSaleDate ? 1 : -1));
 }
 
+export interface BulkCampaignInfo {
+  id: string;
+  title: string;
+  body: string;
+  created_at: string;
+  status: string;
+  target: unknown;
+}
+
+export interface BulkSendHistoryRow {
+  campaignId: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  status: string;
+  /** "All contacts" or "N selected". */
+  audience: string;
+  sent: number;
+  failed: number;
+  read: number;
+  total: number;
+}
+
+export type BulkHistoryFilter = "all" | "failed" | "read";
+
+/** Empty or missing phone list is send-to-all. A stored list is a selected send. */
+export function bulkAudienceLabel(target: unknown): string {
+  if (!target || typeof target !== "object" || !Array.isArray((target as { phones?: unknown }).phones)) {
+    return "All contacts";
+  }
+  const phones = (target as { phones: unknown[] }).phones.filter(
+    (p): p is string => typeof p === "string" && /^\d{10}$/.test(p),
+  );
+  if (phones.length === 0) return "All contacts";
+  return phones.length === 1 ? "1 selected" : `${phones.length} selected`;
+}
+
+/**
+ * One history row per bulk (offer) send. Card totals count every phone the
+ * send reached. A campaign with no message rows still appears so a send that
+ * reached nobody is visible.
+ */
+export function summarizeBulkSends(
+  messages: Pick<PushMessageRow, "campaign_id" | "status" | "delivered_at" | "opened_at" | "created_at">[],
+  campaigns: BulkCampaignInfo[],
+): { summary: PushSummary; history: BulkSendHistoryRow[] } {
+  const bulk = messages.filter((m) => !!m.campaign_id);
+  const summary = summarizePushMessages(bulk);
+  const fromCampaign = new Set<string>();
+  const byId = new Map<string, BulkSendHistoryRow>();
+
+  for (const c of campaigns) {
+    fromCampaign.add(c.id);
+    byId.set(c.id, {
+      campaignId: c.id,
+      title: c.title.trim() || "Offer",
+      body: c.body.trim(),
+      createdAt: c.created_at,
+      status: c.status,
+      audience: bulkAudienceLabel(c.target),
+      sent: 0,
+      failed: 0,
+      read: 0,
+      total: 0,
+    });
+  }
+
+  for (const m of bulk) {
+    const id = m.campaign_id as string;
+    let row = byId.get(id);
+    if (!row) {
+      row = {
+        campaignId: id,
+        title: "Offer",
+        body: "",
+        createdAt: m.created_at,
+        status: "",
+        audience: "All contacts",
+        sent: 0,
+        failed: 0,
+        read: 0,
+        total: 0,
+      };
+      byId.set(id, row);
+    } else if (!fromCampaign.has(id) && m.created_at < row.createdAt) {
+      row.createdAt = m.created_at;
+    }
+    const stage = pushMessageStage(m);
+    row.total += 1;
+    if (stage === "failed") row.failed += 1;
+    else if (stage !== "queued") {
+      row.sent += 1;
+      if (stage === "opened") row.read += 1;
+    }
+  }
+
+  const history = [...byId.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return { summary, history };
+}
+
+export function bulkHistoryMatches(row: Pick<BulkSendHistoryRow, "failed" | "read">, filter: BulkHistoryFilter): boolean {
+  if (filter === "failed") return row.failed > 0;
+  if (filter === "read") return row.read > 0;
+  return true;
+}
+
 /** Short reason for a failed push, from push-send's error_code. */
 export function pushFailureLabel(code: string | null | undefined): string {
   const c = (code ?? "").toUpperCase();
