@@ -104,7 +104,7 @@ export async function fetchSaleForInvoicePreview(
     if (productIds.length > 0) {
       const { data: products } = await supabase
         .from("products")
-        .select("id, brand, color, style")
+        .select("id, product_name, brand, category, style, color")
         .eq("organization_id", organizationId)
         .in("id", productIds);
       if (products) {

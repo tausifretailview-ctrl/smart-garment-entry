@@ -652,6 +652,7 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
   return {
     sr: index + 1,
     particulars: item.productName,
+    productId: item.productId,
     size: item.size,
     barcode: item.barcode || "",
     hsn: item.hsnCode || "",
@@ -4186,6 +4187,7 @@ export default function POSSales() {
           items: lineItems.map((item, index) => ({
             sr: index + 1,
             particulars: item.productName,
+            productId: item.productId,
             productNameOnly:
               item.baseProductName || item.productName.split("-")[0] || item.productName,
             itemNotes: item.itemNotes || "",

@@ -2206,6 +2206,7 @@ export default function SalesInvoiceDashboard() {
       (loadedItems[invoice.id] || invoice.sale_items || []).map((item: any, index: number) => ({
         sr: index + 1,
         particulars: item.product_name,
+        productId: item.product_id,
         size: item.size,
         barcode: item.barcode || "",
         hsn: item.hsn_code || "",
@@ -3693,6 +3694,7 @@ export default function SalesInvoiceDashboard() {
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productId: item.product_id,
                 size: item.size,
                 barcode: item.barcode || "",
                 hsn: item.hsn_code || "",
@@ -5350,6 +5352,7 @@ export default function SalesInvoiceDashboard() {
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productId: item.product_id,
                 itemNotes: item.item_notes || "",
                 size: item.size,
                 barcode: item.barcode || "",
