@@ -44,7 +44,7 @@ BEGIN
       AND p.prokind = 'f'
       AND p.prosrc ~ v_pattern
       AND p.prosrc NOT LIKE '%cn-header-gate%'
-    ORDER BY 1::text
+    ORDER BY p.oid::regprocedure::text
   LOOP
     v_def := pg_get_functiondef(v_fn);
     v_new := regexp_replace(v_def, v_pattern, v_replacement, 'g');
