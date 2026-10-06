@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,11 +60,22 @@ const SalesmanOutstanding = () => {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const customersData = await fetchOrgLedgerCustomersReference(orgId!, queryClient);
-      const allSales = await fetchOrgLedgerSalesSummaryReference(orgId!, queryClient);
+      // DB-side count when the RPC exists; otherwise fall back to the cached sales rows.
+      const countsRpc = await (supabase.rpc as any)("get_customer_open_invoice_counts", {
+        p_organization_id: orgId,
+      });
+      const countsFromDb: { customer_id: string; open_invoice_count: number | string }[] | null =
+        !countsRpc.error && Array.isArray(countsRpc.data) ? countsRpc.data : null;
+      const allSales = countsFromDb
+        ? []
+        : await fetchOrgLedgerSalesSummaryReference(orgId!, queryClient);
       // Phase 1c: whole-org set-based snapshot RPC (missing rows = all-zero)
       const snapMap = await fetchOrganizationFinancialSnapshotMap(orgId!);
 
       const invoiceCountMap: Record<string, number> = {};
+      (countsFromDb ?? []).forEach((row) => {
+        invoiceCountMap[row.customer_id] = Number(row.open_invoice_count) || 0;
+      });
       (allSales || []).forEach((sale: any) => {
         if (sale.customer_id && sale.payment_status !== "completed") {
           invoiceCountMap[sale.customer_id] = (invoiceCountMap[sale.customer_id] || 0) + 1;
