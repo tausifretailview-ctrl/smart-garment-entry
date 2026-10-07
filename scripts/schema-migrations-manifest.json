@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
-  "generatedAt": "2026-10-05",
-  "count": 828,
-  "fileCount": 845,
+  "generatedAt": "2026-10-07",
+  "count": 831,
+  "fileCount": 849,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -831,7 +831,10 @@
     "20270104150000",
     "20270105120000",
     "20270106120000",
-    "20270107120000"
+    "20270107120000",
+    "20270108120000",
+    "20270108130000",
+    "20270109120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1583,6 +1586,7 @@
     "20260930150000_item_wise_stock_barcode_closing_filters.sql",
     "20261001100000_fix_item_wise_stock_report_min_uuid.sql",
     "20261001120000_release_credit_note_when_sale_credit_released.sql",
+    "20261001120000_whatsapp_builtin_send_provider.sql",
     "20261001140000_purchase_stock_floor_on_qty_decrease.sql",
     "20261002100000_delivery_challan_no_stock_deduction.sql",
     "20261002110000_fix_pos_dashboard_gross_fallback.sql",
@@ -1678,7 +1682,10 @@
     "20270104150000_adeeba_commission_line_salesman.sql",
     "20270105120000_rehmani_daily_incentive_bill_slabs.sql",
     "20270106120000_pos_dashboard_salesman_filter.sql",
-    "20270107120000_get_customer_party_balances_all.sql"
+    "20270107120000_get_customer_party_balances_all.sql",
+    "20270108120000_perf_missing_indexes.sql",
+    "20270108130000_db_side_counts.sql",
+    "20270109120000_fix_cn_applied_after_billing_header_gate.sql"
   ],
   "duplicateVersions": [
     {
@@ -1791,6 +1798,13 @@
       "files": [
         "20260910120000_fix_party_balances_cn_receipt_double_count.sql",
         "20260910120000_get_supplier_party_balances.sql"
+      ]
+    },
+    {
+      "version": "20261001120000",
+      "files": [
+        "20261001120000_release_credit_note_when_sale_credit_released.sql",
+        "20261001120000_whatsapp_builtin_send_provider.sql"
       ]
     },
     {
