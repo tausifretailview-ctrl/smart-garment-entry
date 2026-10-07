@@ -12,6 +12,8 @@ import {
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
+  maxSupportedPaid,
+  shouldPersistReconciledPaid,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
@@ -1419,12 +1421,19 @@ export async function syncStaleInvoicePaymentFields(
         rec.payment_status,
         derivedStatus,
       );
-      return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
+      return {
+        inv,
+        normalizedPaid: rec.paid_amount,
+        normalizedStatus: rec.payment_status,
+        supportedPaid: maxSupportedPaid(inv, split),
+      };
     })
     .filter(
-      ({ inv, normalizedPaid, normalizedStatus }) =>
-        Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
-        (inv.payment_status || "pending") !== normalizedStatus,
+      ({ inv, normalizedPaid, normalizedStatus, supportedPaid }) =>
+        (Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
+          (inv.payment_status || "pending") !== normalizedStatus) &&
+        // Never persist a higher paid amount that no receipt or counter tender supports.
+        shouldPersistReconciledPaid(Number(inv.paid_amount || 0), normalizedPaid, supportedPaid),
     );
 
   if (staleUpdates.length === 0) return false;

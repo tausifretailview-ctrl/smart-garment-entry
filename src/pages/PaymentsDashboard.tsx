@@ -78,6 +78,7 @@ import {
 } from "@/utils/customerFinancialSnapshot";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 import {
   accountsHistoryFooterClass,
   accountsHistorySearchInputClass,
@@ -515,35 +516,10 @@ export default function PaymentsDashboard() {
 
     const currentPaid = Number(selectedInvoice.paid_amount || 0);
     const netAmount = Number(selectedInvoice.net_amount || 0);
-    const newPaidAmount = currentPaid + amount;
 
     setIsRecordingPayment(true);
 
     try {
-      // Determine new payment status
-      let newStatus = 'partial';
-      if (newPaidAmount >= netAmount) {
-        newStatus = 'completed';
-      }
-
-      // Update sales record with new paid_amount and status
-      const updateData: any = {
-        payment_status: newStatus,
-        paid_amount: newPaidAmount, // CRITICAL: Update paid_amount so balance calculations work correctly
-      };
-      
-      if (newStatus === 'completed') {
-        updateData.payment_date = format(paymentDate, 'yyyy-MM-dd');
-        updateData.payment_method = paymentMethod;
-      }
-
-      const { error: updateError } = await supabase
-        .from('sales')
-        .update(updateData)
-        .eq('id', selectedInvoice.id);
-
-      if (updateError) throw updateError;
-
       // Generate voucher number
       const { data: voucherNumber, error: voucherError } = await supabase
         .rpc('generate_voucher_number', {
@@ -581,6 +557,33 @@ export default function PaymentsDashboard() {
         });
 
       if (voucherEntryError) throw voucherEntryError;
+
+      // The receipt voucher is the source of truth. Derive paid_amount / status from the
+      // vouchers (DB compute_sale_settlement) instead of writing currentPaid + amount up front:
+      // a voucher failure used to leave the invoice marked paid with no receipt behind it.
+      let newPaidAmount = currentPaid + amount;
+      try {
+        const recomputed = await applyRecomputedSalePaymentState(
+          selectedInvoice.id,
+          currentOrganization!.id,
+        );
+        if (!recomputed.skipped) {
+          newPaidAmount = recomputed.paidAmount;
+          if (recomputed.paymentStatus === 'completed') {
+            await supabase
+              .from('sales')
+              .update({
+                payment_date: format(paymentDate, 'yyyy-MM-dd'),
+                payment_method: paymentMethod,
+              })
+              .eq('id', selectedInvoice.id)
+              .eq('organization_id', currentOrganization!.id);
+          }
+        }
+      } catch (recomputeError) {
+        // The DB trigger on voucher_entries has already synced the invoice from the receipt.
+        console.error('Invoice status recompute after receipt failed:', recomputeError);
+      }
 
       toast({
         title: "Payment Recorded",

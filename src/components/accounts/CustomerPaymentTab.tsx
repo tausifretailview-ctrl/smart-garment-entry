@@ -94,6 +94,8 @@ import {
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
+  maxSupportedPaid,
+  shouldPersistReconciledPaid,
   resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
   syncSalePaymentFromVouchers,
@@ -448,11 +450,18 @@ export function CustomerPaymentTab({
             rec.payment_status,
             effectiveStatus,
           );
-          return { sale, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
+          return {
+            sale,
+            normalizedPaid: rec.paid_amount,
+            normalizedStatus: rec.payment_status,
+            supportedPaid: maxSupportedPaid(sale, split),
+          };
         })
-        .filter(({ sale, normalizedPaid, normalizedStatus }) =>
-          Math.abs(Number(sale.paid_amount || 0) - normalizedPaid) > 0.009 ||
-          (sale.payment_status || "pending") !== normalizedStatus
+        .filter(({ sale, normalizedPaid, normalizedStatus, supportedPaid }) =>
+          (Math.abs(Number(sale.paid_amount || 0) - normalizedPaid) > 0.009 ||
+            (sale.payment_status || "pending") !== normalizedStatus) &&
+          // Never persist a higher paid amount that no receipt or counter tender supports.
+          shouldPersistReconciledPaid(Number(sale.paid_amount || 0), normalizedPaid, supportedPaid)
         );
 
       if (updates.length > 0) {

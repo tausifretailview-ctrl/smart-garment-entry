@@ -1071,6 +1071,41 @@ export function reconcileSaleInvoiceWithSplit(
   });
 }
 
+/**
+ * Most a bill's `paid_amount` can honestly be, from what is actually on record: receipt cash,
+ * settlement discount, advance, credit note above the bill's own S/R adjust, and the counter
+ * tender columns. Anything above this is paid with nothing behind it.
+ */
+export function maxSupportedPaid(
+  sale: {
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  split: SaleReceiptVoucherSplit | null | undefined,
+): number {
+  const s = split ?? emptySplit();
+  const net = Math.max(0, Number(sale.net_amount || 0));
+  const sra = Math.max(0, Number(sale.sale_return_adjust || 0));
+  const cnAboveSra = Math.max(0, s.cn - sra);
+  const supported = s.cash + s.adv + cnAboveSra + s.discount + salePaidAtSaleTender(sale);
+  return Math.min(net, supported);
+}
+
+/**
+ * Page-load syncs may lower a stored paid amount or keep it, and may raise it only up to what is
+ * supported by receipts / counter tender. They must never write a higher, unsupported paid amount.
+ */
+export function shouldPersistReconciledPaid(
+  storedPaid: number,
+  reconciledPaid: number,
+  supportedPaid: number,
+): boolean {
+  return reconciledPaid <= storedPaid + 0.009 || reconciledPaid <= supportedPaid + 0.5;
+}
+
 export type SaleRowForPaymentSync = {
   id: string;
   net_amount?: number | null;
