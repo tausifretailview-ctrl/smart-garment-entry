@@ -88,6 +88,7 @@ import {
   residualTenderBreakdown,
 } from "@/utils/customerAuditBundle";
 import {
+  advanceReductionFromAdjustmentDescription,
   computeInvoiceOutstandingFromReconciliation,
   computeRefundableCreditBalance,
   saleReturnCreditForReconciliation,
@@ -1335,6 +1336,46 @@ export function CustomerLedger({
     },
   });
 
+  // Warm a customer's ledger while the pointer rests on their row, so the click opens with
+  // rows instead of "Loading ledger…". Same key and the same retail call as the query above.
+  const ledgerPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ledgerPrefetchInFlightRef = useRef(false);
+  const cancelLedgerPrefetch = useCallback(() => {
+    if (ledgerPrefetchTimerRef.current) clearTimeout(ledgerPrefetchTimerRef.current);
+    ledgerPrefetchTimerRef.current = null;
+  }, []);
+  const scheduleLedgerPrefetch = useCallback(
+    (customer: Customer) => {
+      if (isSchool || !organizationId || !customer?.id) return;
+      cancelLedgerPrefetch();
+      ledgerPrefetchTimerRef.current = setTimeout(() => {
+        ledgerPrefetchTimerRef.current = null;
+        if (ledgerPrefetchInFlightRef.current) return;
+        const queryKey = ["customer-transactions", customer.id, startDate, endDate, isSchool, selectedAcademicYearId];
+        if (queryClient.getQueryState(queryKey)?.fetchStatus === "fetching") return;
+        ledgerPrefetchInFlightRef.current = true;
+        void queryClient
+          .prefetchQuery({
+            queryKey,
+            queryFn: () =>
+              fetchCustomerLedgerTransactions(
+                organizationId,
+                customer.id,
+                { startDate: startDate ?? null, endDate: endDate ?? null },
+                customer.opening_balance || 0,
+              ),
+            staleTime: STALE_DASHBOARD_TAB_RETURN,
+            gcTime: 30 * 60 * 1000,
+          })
+          .finally(() => {
+            ledgerPrefetchInFlightRef.current = false;
+          });
+      }, 150);
+    },
+    [isSchool, organizationId, startDate, endDate, selectedAcademicYearId, queryClient, cancelLedgerPrefetch],
+  );
+  useEffect(() => cancelLedgerPrefetch, [cancelLedgerPrefetch]);
+
   // Fetch payment history for selected customer
   const { data: paymentHistory } = useQuery({
     queryKey: ["customer-payment-history", selectedCustomer?.id, startDate, endDate],
@@ -1660,6 +1701,7 @@ export function CustomerLedger({
       advanceRefunded: 0,
       cnRefunded: 0,
       adjustments: 0,
+      advanceReduced: 0,
       finalBalance: 0,
       invoiceOutstanding: 0,
     };
@@ -1677,6 +1719,7 @@ export function CustomerLedger({
     let advanceRefunded = 0;
     let cnRefunded = 0;
     let adjustments = 0;
+    let advanceReduced = 0;
 
     for (const t of transactions) {
       if (t.id === "opening-balance") {
@@ -1710,7 +1753,11 @@ export function CustomerLedger({
         // Overpayment refund + CN cash refund both clear party credit.
         cnRefunded += t.debit || 0;
       } else if (t.type === "adjustment") {
-        adjustments += (t.debit || 0) - (t.credit || 0);
+        // The advance part of the debit removes unused advance (no longer spendable);
+        // it is not owed on invoices, so it stays out of Outstanding (shown as its own note).
+        const advancePart = advanceReductionFromAdjustmentDescription(t.description);
+        advanceReduced += advancePart;
+        adjustments += (t.debit || 0) - (t.credit || 0) - advancePart;
       }
     }
 
@@ -1756,6 +1803,7 @@ export function CustomerLedger({
       advanceRefunded,
       cnRefunded,
       adjustments,
+      advanceReduced,
       finalBalance,
       invoiceOutstanding,
     };
@@ -3639,8 +3687,11 @@ Please clear your dues at the earliest. Thank you!`;
                   rows={transactions || []}
                   checkBalance={accountCheck.state.netPosition}
                   checkLoading={accountCheck.isLoading || !transactions}
+                  unusedAdvance={accountCheck.state.unusedAdvance}
+                  pendingCn={accountCheck.state.unclaimedSaleReturn}
                   asOfDate={ledgerAsOfDate}
                   onCheckAccount={() => setLedgerAuditOpen(true)}
+                  loading={transactions === undefined}
                 />
               ) : (
               <div className={cn(
@@ -4525,6 +4576,12 @@ Please clear your dues at the earliest. Thank you!`;
                           Unclamped advance pool (received − applied − refunded) is
                           {" "}₹{poolUnclamped.toLocaleString("en-IN")} — a shortfall of
                           {" "}₹{Math.abs(unusedAdvance - poolUnclamped).toLocaleString("en-IN")} needs review.
+                        </div>
+                      )}
+                      {reconciliation.advanceReduced > 0 && (
+                        <div className="flex justify-between text-muted-foreground pt-1 text-xs">
+                          <span>Advance removed in Balance Adjustment (not in Outstanding)</span>
+                          <span className="font-medium">₹{Math.round(reconciliation.advanceReduced).toLocaleString("en-IN")}</span>
                         </div>
                       )}
                       {advanceRefunded > 0 && (
@@ -5656,6 +5713,8 @@ Please clear your dues at the earliest. Thank you!`;
                     key={customer.id}
                     className="cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => selectCustomer(customer)}
+                    onMouseEnter={() => scheduleLedgerPrefetch(customer)}
+                    onMouseLeave={cancelLedgerPrefetch}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-2">
@@ -5773,6 +5832,8 @@ Please clear your dues at the earliest. Thank you!`;
                         key={customer.id}
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => selectCustomer(customer)}
+                        onMouseEnter={() => scheduleLedgerPrefetch(customer)}
+                        onMouseLeave={cancelLedgerPrefetch}
                       >
                         <TableCell className="font-medium">
                           <button

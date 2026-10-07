@@ -86,6 +86,7 @@ import {
   filterSameProductIdentity,
   pickUnusedSameNameProduct,
   normalizeProductNameKey,
+  findProductNameMatch,
   type SameNameProductMatch,
 } from "@/utils/productNameDedupe";
 import {
@@ -783,11 +784,9 @@ export const ProductEntryDialog = ({
         barcode: String(v.barcode || "").trim(),
         barcode_source: v.barcode_source,
       }));
-    // Nothing new was created — do not restore this form as an unsaved draft.
-    skipUnsavedDraftPersistRef.current = true;
-    if (currentOrganization?.id) {
-      clearProductEntryUnsavedDraft(currentOrganization.id);
-    }
+    // Reuse does not insert a product, so the new-master save never runs.
+    // Still remember this form: press 1 opens the next window from it.
+    rememberAddedProductForNextEntry();
     onUseExistingProductSizes({ productId, rows });
   };
 
@@ -1493,6 +1492,17 @@ export const ProductEntryDialog = ({
         rememberRequiresImeiFormChoice(formData.requires_imei !== false, formData.category);
       }
     } catch {}
+  };
+
+  // Last-product memory for the next Add Product window (press 1).
+  // Written for a new master and for Add to Bill against an existing master.
+  // The unsaved draft is cleared so the next open uses this memory, not an older form.
+  const rememberAddedProductForNextEntry = () => {
+    saveLastProductDetails();
+    skipUnsavedDraftPersistRef.current = true;
+    if (currentOrganization?.id) {
+      clearProductEntryUnsavedDraft(currentOrganization.id);
+    }
   };
 
   // Debounced copy-from-existing search
@@ -2219,14 +2229,24 @@ export const ProductEntryDialog = ({
     if (!validateForm(variantsForSave)) return;
     if (!currentOrganization?.id) return;
 
+    // Same product name typed with other case / spaces / - _ . / → use the existing
+    // product's name exactly, so stock is not split across look-alike names.
+    // Only the name is snapped; brand / category / style / price checks below are unchanged.
+    let productName = cleanProductName(formData.product_name);
+    const nameMatch = await findProductNameMatch(currentOrganization.id, productName);
+    if (nameMatch && nameMatch.product_name !== productName) {
+      productName = nameMatch.product_name;
+      setFormData((prev) => ({ ...prev, product_name: nameMatch.product_name }));
+    }
+
     // Name-dupe gate: same normalized name + category already in the org →
     // confirm before inserting. Bypass ("Create anyway") is an explicit second
     // click recorded per name+category; the default path stops here.
-    const dupeKey = normalizeProductNameKey(formData.product_name, formData.category);
+    const dupeKey = normalizeProductNameKey(productName, formData.category);
     if (nameDupeConfirmedKey !== dupeKey) {
       const dupes = await findSameNameProductsInOrg(
         currentOrganization.id,
-        formData.product_name,
+        productName,
         formData.category,
       );
       if (dupes.length > 0) {
@@ -2362,6 +2382,7 @@ export const ProductEntryDialog = ({
               return;
             }
             if (onUseExistingProduct) {
+              rememberAddedProductForNextEntry();
               onUseExistingProduct(buildUseExistingProductPayload(first.barcode, variantsToCreate));
               return;
             }
@@ -2401,7 +2422,7 @@ export const ProductEntryDialog = ({
       
       const productPayload = {
         product_type: formData.product_type,
-        product_name: cleanProductName(formData.product_name),
+        product_name: productName,
         category: formData.category || null,
         brand: canonicalizeProductBrand(formData.brand) || null,
         style: formData.style || null,
@@ -2527,7 +2548,7 @@ export const ProductEntryDialog = ({
                 variant_id: v.id,
                 quantity: v.opening_qty,
                 movement_type: "reconciliation",
-                notes: `Opening stock for ${formData.product_name} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
+                notes: `Opening stock for ${productName} - ${v.color ? v.color + ' / ' : ''}${v.size}`,
                 organization_id: currentOrganization.id,
               }));
 
@@ -2539,17 +2560,13 @@ export const ProductEntryDialog = ({
 
       toast({
         title: "Success",
-        description: `Product "${formData.product_name}" created`,
+        description: `Product "${productName}" created`,
       });
 
       invalidateProductDashboardQueries(queryClient, currentOrganization.id);
 
       // Save last product details for quick entry next time
-      saveLastProductDetails();
-      skipUnsavedDraftPersistRef.current = true;
-      if (currentOrganization?.id) {
-        clearProductEntryUnsavedDraft(currentOrganization.id);
-      }
+      rememberAddedProductForNextEntry();
       commitProductFormSuggestions(formData);
 
       // Call the callback with product data — include purchase_qty from variants

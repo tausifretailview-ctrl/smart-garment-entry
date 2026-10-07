@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
-import { productNameMergeKey } from "@/utils/productNameMerge";
+import { cleanProductName, productNameMergeKey } from "@/utils/productNameMerge";
+import { compactProductToken } from "@/utils/productSearch";
 
 export type SameNameProductMatch = {
   id: string;
@@ -118,4 +119,88 @@ export function pickPreferredSameNameProduct(matches: SameNameProductMatch[]): s
     return String(a.created_at || "").localeCompare(String(b.created_at || ""));
   })[0];
   return best.id;
+}
+
+/**
+ * Product-name-only match key: the same product name whatever the case, spaces or
+ * symbols (- _ . /) the user typed. "ELN-DUP" = "eln dup" = "ELN.DUP " = "ELN_Dup".
+ * Same rule as compactProductNameKey and SQL normalize_product_name_key.
+ */
+export function productNameMatchKey(name: string | null | undefined): string {
+  return compactProductToken(cleanProductName(name));
+}
+
+/**
+ * ilike pattern that narrows the lookup: every letter of the key, in order, with
+ * anything between them — so "ELNDUP" still finds "ELN-DUP" and "eln dup" finds "ELN.DUP".
+ * Candidates are then matched exactly on productNameMatchKey.
+ */
+export function productNameIlikePattern(name: string | null | undefined): string | null {
+  const chars = Array.from(productNameMatchKey(name)).filter((c) => !/[%_,\\]/.test(c));
+  return chars.length ? `%${chars.join("%")}%` : null;
+}
+
+export type ProductNameMatchRow = {
+  id: string;
+  product_name: string;
+  total_stock?: number;
+  created_at?: string | null;
+};
+
+/**
+ * The existing product the typed name means, or null. Rows whose key differs are
+ * ignored (ilike also matches longer names); `excludeId` skips the product being
+ * renamed. Ties go to the one holding stock, then the oldest.
+ */
+export function pickCanonicalProductName<T extends ProductNameMatchRow>(
+  rows: T[],
+  typedName: string,
+  excludeId?: string | null,
+): T | null {
+  const want = productNameMatchKey(typedName);
+  if (!want) return null;
+  const same = rows.filter((r) => r.id !== excludeId && productNameMatchKey(r.product_name) === want);
+  if (same.length === 0) return null;
+  return [...same].sort((a, b) => {
+    const byStock = (Number(b.total_stock) || 0) - (Number(a.total_stock) || 0);
+    if (byStock !== 0) return byStock;
+    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  })[0];
+}
+
+/**
+ * Existing product with the same name (case / spaces / - _ . / ignored) in the org.
+ * Only the product name is compared; brand, category, style and price are not.
+ * A lookup error returns null so the caller carries on as before.
+ */
+export async function findProductNameMatch(
+  organizationId: string,
+  typedName: string,
+  excludeId?: string | null,
+): Promise<ProductNameMatchRow | null> {
+  const pattern = productNameIlikePattern(typedName);
+  if (!organizationId || !pattern) return null;
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, product_name, created_at, product_variants(stock_qty, deleted_at)")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .ilike("product_name", pattern)
+    .limit(50);
+  if (error || !data) return null;
+  const rows = (
+    data as Array<
+      ProductNameMatchRow & {
+        product_variants?: Array<{ stock_qty: number | null; deleted_at: string | null }> | null;
+      }
+    >
+  ).map(
+    ({ product_variants, ...p }) => ({
+      ...p,
+      total_stock: (product_variants || [])
+        .filter((v) => !v.deleted_at)
+        .reduce((sum, v) => sum + (Number(v.stock_qty) || 0), 0),
+    }),
+  );
+  return pickCanonicalProductName(rows, typedName, excludeId);
 }

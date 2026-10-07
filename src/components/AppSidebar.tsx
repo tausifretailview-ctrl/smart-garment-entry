@@ -84,6 +84,7 @@ import { BrandSocialIcons } from "@/components/sidebar/BrandSocialIcons";
 import { useDesktopViewActions, useForceDesktopView } from "@/hooks/useDesktopViewPreference";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { resolveMobileLandingPath } from "@/lib/menuPermissions";
+import { prefetchTabPage } from "@/lib/tabPageRegistry";
 import { toast } from "sonner";
 
 export function AppSidebar() {
@@ -669,7 +670,12 @@ export function AppSidebar() {
                         {(isAdminPermissions || hasMenuAccess("sales_invoice_dashboard")) && (
                           <SidebarMenuSubItem>
                             <SidebarMenuSubButton asChild isActive={isActive("/sales-invoice-dashboard")} className="text-sidebar-foreground hover:bg-sidebar-accent data-[active=true]:border-l-[3px] data-[active=true]:border-l-primary data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:font-bold">
-                              <NavLink to="/sales-invoice-dashboard" className="flex items-center gap-2 group">
+                              <NavLink
+                                to="/sales-invoice-dashboard"
+                                className="flex items-center gap-2 group"
+                                onPointerEnter={() => prefetchTabPage("sales-invoice-dashboard", { intent: true })}
+                                onFocus={() => prefetchTabPage("sales-invoice-dashboard", { intent: true })}
+                              >
                                 <BarChart3 className="h-4 w-4 sidebar-icon text-primary" />
                                 <span className="text-sidebar-foreground font-semibold group-hover:text-primary">Invoice Dashboard</span>
                               </NavLink>

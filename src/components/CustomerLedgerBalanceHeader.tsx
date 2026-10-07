@@ -7,6 +7,7 @@ import {
   ledgerThreeLineSummary,
   type LedgerHeadlineRow,
 } from "@/utils/customerLedgerHeadline";
+import { customerBalanceBreakdown } from "@/utils/customerAccountStateView";
 
 type Props = {
   /** The same rows the ledger table renders. */
@@ -14,9 +15,14 @@ type Props = {
   /** Account check (getCustomerAccountState net position). Lifetime figure. */
   checkBalance?: number | null;
   checkLoading?: boolean;
+  /** Same account state as the check: shown as the shared breakdown when advance or CN is pending. */
+  unusedAdvance?: number | null;
+  pendingCn?: number | null;
   /** Set when a date filter is on: the headline is the balance on that date. */
   asOfDate?: Date | null;
   onCheckAccount?: () => void;
+  /** Ledger rows not loaded yet: show "Loading…" instead of a ₹0.00 "Settled" balance. */
+  loading?: boolean;
   className?: string;
 };
 
@@ -31,16 +37,48 @@ export function CustomerLedgerBalanceHeader({
   rows,
   checkBalance,
   checkLoading,
+  unusedAdvance,
+  pendingCn,
   asOfDate,
   onCheckAccount,
+  loading,
   className,
 }: Props) {
+  if (loading) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border px-5 py-4 w-full sm:w-auto sm:min-w-[280px] bg-slate-50 border-slate-200 text-foreground dark:bg-slate-900 dark:border-slate-700",
+          className,
+        )}
+        data-testid="customer-ledger-balance-header"
+        aria-busy="true"
+      >
+        <div className="text-sm text-muted-foreground">
+          {asOfDate ? `Balance on ${asOfDate.toLocaleDateString("en-IN")}` : "Balance"}
+        </div>
+        <div className="mt-1 h-9 w-36 rounded-md bg-muted animate-pulse" data-testid="ledger-headline-loading" />
+        <div className="mt-2 text-sm text-muted-foreground">Loading…</div>
+      </div>
+    );
+  }
   const summary = ledgerThreeLineSummary(rows);
   const headline = ledgerHeadline(summary.balance);
   // The check covers the whole account, so it only applies to the unfiltered ledger.
   const check = asOfDate
     ? null
     : ledgerBalanceCheck({ tableBalance: summary.balance, checkBalance, checkLoading });
+  // Pending advance / CN, shown with the same breakdown as every other screen.
+  const breakdown =
+    check && !check.needsChecking && !checkLoading && checkBalance != null
+      ? customerBalanceBreakdown({
+          outstanding: 0,
+          unusedAdvance: Number(unusedAdvance) || 0,
+          unclaimedSaleReturn: Number(pendingCn) || 0,
+          netPosition: Number(checkBalance) || 0,
+        })
+      : null;
+  const showBreakdown = !!breakdown && (breakdown.unusedAdvance > 0 || breakdown.pendingCn > 0);
 
   const tone =
     headline.kind === "owes"
@@ -94,6 +132,34 @@ export function CustomerLedgerBalanceHeader({
           </dd>
         </div>
       </dl>
+
+      {showBreakdown && breakdown && (
+        <div className="mt-3 rounded-md border border-current/20 px-2 py-1.5 text-xs" data-testid="ledger-balance-breakdown">
+          <div className="text-muted-foreground mb-0.5">Still to adjust on bills</div>
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Bills due</span>
+            <span className="tabular-nums">{inr(breakdown.billsDue)}</span>
+          </div>
+          {breakdown.pendingCn > 0 && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Pending CN / return credit</span>
+              <span className="tabular-nums">− {inr(breakdown.pendingCn)}</span>
+            </div>
+          )}
+          {breakdown.unusedAdvance > 0 && (
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">Advance held</span>
+              <span className="tabular-nums">− {inr(breakdown.unusedAdvance)}</span>
+            </div>
+          )}
+          <div className="flex justify-between gap-4 font-semibold border-t border-current/20 pt-0.5">
+            <span>= Net balance</span>
+            <span className="tabular-nums">
+              {inr(breakdown.net)} {breakdown.net > 0.5 ? "Dr" : breakdown.net < -0.5 ? "Cr" : ""}
+            </span>
+          </div>
+        </div>
+      )}
 
       {check?.needsChecking && (
         <button

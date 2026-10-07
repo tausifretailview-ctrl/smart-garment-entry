@@ -231,19 +231,23 @@ export default function OrgAuth() {
 
       setMembershipChecked(true);
 
-      const { data: membership } = await supabase
+      const { data: membership, error: membershipError } = await supabase
         .from("organization_members")
         .select("id")
         .eq("user_id", user.id)
         .eq("organization_id", organization.id)
-        .single();
+        .maybeSingle();
 
       if (membership) {
         storeOrgSlug(organization.slug);
         navigate(`/${organization.slug}`);
+      } else if (membershipError) {
+        // Transient network/auth refresh failure — do NOT sign the user out.
+        // Allow the check to run again on the next render cycle.
+        setTimeout(() => setMembershipChecked(false), 3000);
       } else {
         setError("You are not a member of this organization. Please contact your administrator.");
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
       }
     };
 
@@ -352,7 +356,7 @@ export default function OrgAuth() {
         if (membershipQueryError) {
           console.error("Membership query failed:", membershipQueryError);
           setError("Unable to verify organization membership. Please try again.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
@@ -363,7 +367,7 @@ export default function OrgAuth() {
 
         if (!matchingMembership || !matchingMembership.organizations) {
           setError("You are not a member of this organization. Please contact your administrator.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }
@@ -380,7 +384,7 @@ export default function OrgAuth() {
 
         if (membershipError || !membership) {
           setError("You are not a member of this organization. Please contact your administrator.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           setLoading(false);
           return;
         }

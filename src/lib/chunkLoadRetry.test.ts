@@ -7,6 +7,7 @@ import {
   chunkUrlFromError,
   isChunkGoneFromServer,
   canAttemptSkewRecoveryReload,
+  attemptStaleChunkRecovery,
   resetSkewReloadCount,
   SKEW_RELOAD_COOLDOWN_MS,
   POST_LOGIN_PREFETCH_TAB_PATHS_WEB,
@@ -161,6 +162,77 @@ describe("skew recovery cooldown", () => {
   });
 });
 
+describe("stale POS chunk recovery", () => {
+  const store = new Map<string, string>();
+  const navigations: string[] = [];
+  const POS_CHUNK =
+    "Failed to fetch dynamically imported module: https://app.inventoryshop.in/assets/POSSales-CXOfqdw1.js";
+
+  beforeEach(() => {
+    store.clear();
+    navigations.length = 0;
+    vi.stubGlobal("sessionStorage", {
+      getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+      setItem: (k: string, v: string) => {
+        store.set(k, String(v));
+      },
+      removeItem: (k: string) => {
+        store.delete(k);
+      },
+      clear: () => store.clear(),
+    });
+    vi.stubGlobal("navigator", {});
+    vi.stubGlobal("location", {
+      origin: "https://app.inventoryshop.in",
+      href: "https://app.inventoryshop.in/rahmani-nx/pos-sales",
+    });
+    vi.stubGlobal("window", {
+      location: {
+        href: "https://app.inventoryshop.in/rahmani-nx/pos-sales",
+        reload: () => {
+          navigations.push("reload");
+        },
+        replace: (url: string) => {
+          navigations.push(url);
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    store.clear();
+  });
+
+  it("reloads once more when the build guard already blocked a dead POSSales file", async () => {
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    expect(canAttemptSkewRecoveryReload()).toBe(false);
+
+    expect(attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(true);
+    await Promise.resolve();
+
+    expect(navigations).toHaveLength(1);
+    expect(navigations[0]).toContain("/rahmani-nx/pos-sales");
+    expect(navigations[0]).toContain("__ezzy_chunk=");
+    expect(attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(true);
+    await Promise.resolve();
+    expect(navigations).toHaveLength(1);
+  });
+
+  it("does not auto-reload again when that same POS file is still missing", async () => {
+    sessionStorage.setItem("chunk_recovery_reloaded", "1");
+    sessionStorage.setItem(
+      "chunk_url_recovery",
+      "https://app.inventoryshop.in/assets/POSSales-CXOfqdw1.js",
+    );
+    vi.resetModules();
+    const fresh = await import("./chunkLoadRetry");
+    expect(fresh.attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(false);
+    await Promise.resolve();
+    expect(navigations).toHaveLength(0);
+  });
+});
+
 describe("idle / wake entry-chunk prefetch lists", () => {
   it("keeps post-login critical warm to dashboard + POS only", () => {
     expect([...POST_LOGIN_PREFETCH_TAB_PATHS_WEB]).toEqual(["", "pos-sales"]);
@@ -173,6 +245,7 @@ describe("idle / wake entry-chunk prefetch lists", () => {
       "purchase-entry",
       "sales-invoice",
       "products",
+      "sales-invoice-dashboard",
     ]);
     expect(POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS).toBe(500);
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS[0]).not.toBe("purchase-entry");
@@ -186,6 +259,7 @@ describe("idle / wake entry-chunk prefetch lists", () => {
       expect.arrayContaining([
         "settings",
         "user-rights",
+        "recycle-bin",
         "accounts",
         "accounts-payments",
         "customer-account-statement",

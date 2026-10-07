@@ -5,7 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./test/setup/vitest.setup.ts"],
-    include: ["src/**/*.test.ts", "test/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "test/**/*.test.ts"],
     exclude: ["node_modules", "dist", "release", "android", "src/smart-garment-entry/**"],
     testTimeout: 30_000,
     hookTimeout: 120_000,

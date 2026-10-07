@@ -5,6 +5,9 @@ import {
   normalizeProductNameKey,
   pickPreferredSameNameProduct,
   pickUnusedSameNameProduct,
+  pickCanonicalProductName,
+  productNameIlikePattern,
+  productNameMatchKey,
 } from "./productNameDedupe";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -142,5 +145,37 @@ describe("filterSameProductIdentity", () => {
   it("treats blank as blank, not as a wildcard", () => {
     const matches = [bra("blank", null, null), bra("styled", null, "C")];
     expect(filterSameProductIdentity(matches, { brand: "", style: "" }).map((m) => m.id)).toEqual(["blank"]);
+  });
+});
+
+describe("product name match (name field only)", () => {
+  it("case, spaces and - _ . / do not make a new name", () => {
+    const k = productNameMatchKey("ELN-DUP");
+    for (const typed of ["ELN-Dup", "eln dup", "ELN.DUP ", " ELN_DUP", "ELN  -  DUP", "ELNDUP", "eln/dup"]) {
+      expect(productNameMatchKey(typed), typed).toBe(k);
+    }
+  });
+
+  it("different words stay different names", () => {
+    expect(productNameMatchKey("ELN-DUP PANT")).not.toBe(productNameMatchKey("ELN-DUP"));
+    // & is a real character: ELN-Dup&Pant is not auto-matched to ELN-DUP PANT (merge suggests it)
+    expect(productNameMatchKey("ELN-Dup&Pant")).not.toBe(productNameMatchKey("ELN-DUP PANT"));
+  });
+
+  it("lookup pattern finds stored spellings with or without separators", () => {
+    expect(productNameIlikePattern("eln dup")).toBe("%e%l%n%d%u%p%");
+    expect(productNameIlikePattern("  ")).toBeNull();
+    expect(productNameIlikePattern("50%_off")).toBe("%5%0%o%f%f%");
+  });
+
+  it("picks the existing product: same key only, stock first, then oldest, skips self", () => {
+    const rows = [
+      { id: "a", product_name: "ELN-DUP PANT", total_stock: 50, created_at: "2026-01-01" },
+      { id: "b", product_name: "ELN-Dup", total_stock: 2, created_at: "2026-02-01" },
+      { id: "c", product_name: "ELN-DUP", total_stock: 12, created_at: "2026-03-01" },
+    ];
+    expect(pickCanonicalProductName(rows, "eln.dup")?.id).toBe("c");
+    expect(pickCanonicalProductName(rows, "eln.dup", "c")?.id).toBe("b");
+    expect(pickCanonicalProductName(rows, "ELN DUP SHIRT")).toBeNull();
   });
 });

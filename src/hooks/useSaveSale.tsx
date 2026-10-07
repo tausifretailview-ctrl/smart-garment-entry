@@ -9,8 +9,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
+ cursor/android-push-notifications-1.2.0
 import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
+=======
+import { resolveSaleCrmPointsPrint } from "@/utils/retailErpInvoicePrint";
+main
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
+import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
 import { generateAndUploadInvoicePDF, InvoicePdfData, generateInvoicePdfBase64 } from "@/utils/invoicePdfUploader";
@@ -20,7 +25,7 @@ import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngine
 import {
   applyCreditNoteFifoToSale,
   computeExchangeRefundDue,
-  derivePaidAndStatus,
+  derivePosPaidAndStatus,
   fetchLiveCreditNoteAdjustTotal,
   getAvailableCN,
   normalizeDiscountsAgainstGross,
@@ -64,6 +69,7 @@ import {
   softCancelEmptySaleHeader,
 } from "@/utils/saleEmptyHeaderRollback";
 import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
+import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
 
 interface CartItem {
   id: string;
@@ -191,7 +197,20 @@ function buildPosWhatsAppCaptureMeta(
   saleData: SaleData,
   finalPaymentMethod: string,
   paidAmt: number,
+  refundAmt = 0,
+  tender?: {
+    cashAmount?: number;
+    cardAmount?: number;
+    upiAmount?: number;
+    financeAmount?: number;
+  },
 ): PosWhatsAppPdfCaptureMeta {
+  const figures = posWhatsAppReceiptFigures({
+    netAmount: saleData.netAmount,
+    saleReturnAdjust: saleData.saleReturnAdjust,
+    paidAmount: paidAmt,
+    refundAmount: refundAmt,
+  });
   return {
     saleNumber,
     saleId,
@@ -207,10 +226,16 @@ function buildPosWhatsAppCaptureMeta(
       })),
       subTotal: saleData.grossAmount,
       discount: saleData.discountAmount + saleData.flatDiscountAmount,
-      saleReturnAdjust: saleData.saleReturnAdjust,
-      grandTotal: saleData.netAmount,
+      saleReturnAdjust: figures.saleReturnAdjust,
+      grandTotal: figures.grandTotal,
+      billNetAmount: saleData.netAmount,
       paymentMethod: finalPaymentMethod,
-      paidAmount: paidAmt,
+      paidAmount: figures.paidAmount,
+      cashAmount: Math.max(0, Number(tender?.cashAmount) || 0),
+      cardAmount: Math.max(0, Number(tender?.cardAmount) || 0),
+      upiAmount: Math.max(0, Number(tender?.upiAmount) || 0),
+      financeAmount: Math.max(0, Number(tender?.financeAmount) || 0),
+      refundCash: figures.refundCash,
       previousBalance: 0,
       roundOff: saleData.roundOff,
       salesman: saleData.salesman || "",
@@ -409,7 +434,8 @@ export const useSaveSale = () => {
         consumeSrAmount: roundMoney(computed.appliedSr + computed.refundDue),
       };
     }
-    const cashRefund = Math.min(Math.max(0, roundMoney(refundAmt || 0)), computed.refundDue);
+    const requestedRefund = Math.abs(roundMoney(refundAmt || 0));
+    const cashRefund = Math.min(requestedRefund, computed.refundDue);
     const roundOffRemainder = Math.max(0, roundMoney(computed.refundDue - cashRefund));
     return {
       isExchangeRefund: computed.isExchangeRefund && cashRefund > 0.005,
@@ -836,7 +862,7 @@ export const useSaveSale = () => {
     let cardAmt = 0;
     let upiAmt = 0;
     let paidAmt = 0;
-    let refundAmt = saleData.refundAmount || 0;
+    let refundAmt = Math.abs(roundMoney(saleData.refundAmount || 0));
     let financeAmt = 0;
     let finalPaymentMethod: string = paymentMethod;
     const payableBeforeAdvance = Math.max(
@@ -871,7 +897,7 @@ export const useSaveSale = () => {
       paidAmt = applied.totalApplied;
       // Finance sits inside card_amount; keep it apart for the bill (display only).
       financeAmt = Math.min(applied.card, Math.max(0, Number(paymentBreakdown.financeAmount) || 0));
-      refundAmt = paymentBreakdown.refundAmount;
+      refundAmt = Math.abs(roundMoney(paymentBreakdown.refundAmount || 0));
       finalPaymentMethod = 'multiple';
     } else if (options?.isUpdate) {
       if (paymentMethod === 'pay_later') {
@@ -921,7 +947,7 @@ export const useSaveSale = () => {
             ? 'pending'
             : 'pending';
 
-    const { paidAmount, paymentStatus } = derivePaidAndStatus({
+    const { paidAmount, paymentStatus } = derivePosPaidAndStatus({
       netAmount: saleData.netAmount,
       // Credit is not on the row until apply_pos_credit succeeds. Status stays
       // pending so a failed apply leaves a visible balance.
@@ -929,7 +955,7 @@ export const useSaveSale = () => {
       cashReceived,
       advanceApplied: 0,
       cnApplied: 0,
-      discountGiven: saleData.pointsRedeemedAmount || 0,
+      pointsRedeemedAmount: saleData.pointsRedeemedAmount || 0,
       paymentMethod,
     });
 
@@ -953,6 +979,73 @@ export const useSaveSale = () => {
       consumeSrAmount: exchange.consumeSrAmount,
     };
   };
+
+  /** Typed POS name/mobile becomes a Customer Master row before the bill is stored. */
+  async function attachSaleCustomerMasterId(
+    saleData: SaleData,
+    organizationId: string,
+  ): Promise<SaleData> {
+    if (saleData.customerId) return saleData;
+    try {
+      const customerId = await linkOrCreateCustomerFromSaleParty(supabase, {
+        organizationId,
+        customerName: saleData.customerName,
+        customerPhone: saleData.customerPhone,
+      });
+      if (!customerId) return saleData;
+      return { ...saleData, customerId };
+    } catch (err) {
+      console.error("Could not add the POS customer to Customer Master:", err);
+      return saleData;
+    }
+  }
+
+  /**
+   * WhatsApp Retail ERP reads pointsBalance off this object. A typed name/phone
+   * has no balance until the customer row is linked, so fill it here — before
+   * points are awarded — or the PDF Note stays empty.
+   */
+  async function attachMissingCrmPointsPrint(
+    saleData: SaleData,
+    paymentMethod: string,
+  ): Promise<SaleData> {
+    if (!currentOrganization?.id) return saleData;
+    if (typeof saleData.pointsBalance === "number" && Number.isFinite(saleData.pointsBalance)) {
+      return saleData;
+    }
+    if (!isPointsEnabled || !saleData.customerId) return saleData;
+    try {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("points_balance")
+        .eq("id", saleData.customerId)
+        .eq("organization_id", currentOrganization.id)
+        .maybeSingle();
+      if (error) {
+        console.error("CRM points balance read failed:", error);
+      }
+      const balanceBefore = error ? 0 : Number(data?.points_balance) || 0;
+      const redeemedOnBill =
+        (saleData.pointsRedeemedAmount || 0) > 0.005 || (saleData.pointsRedeemed || 0) > 0;
+      const snap = resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: saleData.customerId,
+        balanceBefore,
+        pointsToRedeem: saleData.pointsRedeemed,
+        pointsEarned: calculatePoints(saleData.netAmount),
+        suppressEarn: paymentMethod === "pay_later" || redeemedOnBill,
+      });
+      if (typeof snap.pointsBalance !== "number") return saleData;
+      return {
+        ...saleData,
+        pointsBalance: snap.pointsBalance,
+        pointsRedeemed: snap.pointsRedeemed,
+      };
+    } catch (err) {
+      console.error("CRM points print snapshot failed:", err);
+      return saleData;
+    }
+  }
 
   const saveSale = async (
     saleData: SaleData,
@@ -1061,10 +1154,11 @@ export const useSaveSale = () => {
     }
 
     const settleExcess =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({
@@ -1270,6 +1364,7 @@ export const useSaveSale = () => {
       }
 
       posSaveMark("recompute_state");
+      saleData = await attachMissingCrmPointsPrint(saleData, paymentMethod);
       let pointsAwarded = 0;
       // No points earn on bills that redeem points (pending stays 0).
       const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
@@ -1368,7 +1463,8 @@ export const useSaveSale = () => {
               customer_page_link: await createCustomerPageLinkForWhatsApp(currentOrganization.id, sale.id),
             };
 
-            const isWappConnect = whatsappSettings.send_provider === 'wappconnect';
+            const isWappConnect = whatsappSettings.send_provider === 'wappconnect'
+              || whatsappSettings.send_provider === 'builtin';
 
             if (isWappConnect) {
               try {
@@ -1423,6 +1519,13 @@ export const useSaveSale = () => {
                             saleData,
                             finalPaymentMethod,
                             paidAmt,
+                            refundAmt,
+                            {
+                              cashAmount: cashAmt,
+                              cardAmount: cardAmt,
+                              upiAmount: upiAmt,
+                              financeAmount: financeAmt,
+                            },
                           ),
                         )
                       : await generateInvoicePdfBase64(pdfData);
@@ -1558,6 +1661,13 @@ export const useSaveSale = () => {
                           saleData,
                           finalPaymentMethod,
                           paidAmt,
+                          refundAmt,
+                          {
+                            cashAmount: cashAmt,
+                            cardAmount: cardAmt,
+                            upiAmount: upiAmt,
+                            financeAmount: financeAmt,
+                          },
                         ),
                       )
                     : await generateInvoicePdfBase64(pdfData);
@@ -1657,7 +1767,13 @@ export const useSaveSale = () => {
         })();
       }
 
-      return { ...sale, pointsAwarded, ...creditResult };
+      return {
+        ...sale,
+        pointsAwarded,
+        ...creditResult,
+        pointsBalance: saleData.pointsBalance,
+        pointsRedeemed: saleData.pointsRedeemed,
+      };
     } catch (error: any) {
       if (insertedSaleIdForRollback) {
         const saleId = insertedSaleIdForRollback;
@@ -1807,10 +1923,11 @@ export const useSaveSale = () => {
     }
 
     const settleExcessUpdate =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessUpdate });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({
@@ -2376,10 +2493,11 @@ export const useSaveSale = () => {
     }
 
     const settleExcessResume =
-      (paymentBreakdown?.refundAmount || 0) > 0.005 ||
+      Math.abs(paymentBreakdown?.refundAmount || 0) > 0.005 ||
       !!paymentBreakdown?.issueCreditNote ||
-      (saleData.refundAmount || 0) > 0.005;
+      Math.abs(saleData.refundAmount || 0) > 0.005;
     saleData = applyBillCaps(saleData, { settleExcess: settleExcessResume });
+    saleData = await attachSaleCustomerMasterId(saleData, currentOrganization.id);
 
     try {
       preSaveInvariants({

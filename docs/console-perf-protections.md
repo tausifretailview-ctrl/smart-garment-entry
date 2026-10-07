@@ -40,6 +40,7 @@ In-memory dump (no flag, user types it):
 - `window.__ezzyColdOpen.print()`
 - `window.__ezzyNavPerf.printReport()`
 - `window.__ezzyCloudUsage.printReport()`
+- `window.__ezzyLedgerPerf.print()` (Customer Ledger load: wave 1, wave 2, total ms)
 
 ## Already quiet (must stay quiet)
 
@@ -56,6 +57,7 @@ and warnings stay allowed.
 - `src/utils/customerBalanceUtils.ts` / `customerBalanceCore.ts`
 - `src/utils/fetchAllRows.ts` (`console.error` on fetch failure only)
 - `src/lib/queryPersister.ts`
+- `src/utils/customerLedgerTransactions.ts` (timings go to `src/lib/ledgerLoadTiming.ts`, in memory)
 
 ## Protection layers
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, Search } from "lucide-react";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -76,11 +76,22 @@ function productLabel(row: { product_name: string; brand?: string | null }): str
   return brand ? `${row.product_name} (${brand})` : row.product_name;
 }
 
-export function StockHealthTab() {
+export function StockHealthTab({
+  initialSubTab = "low-stock",
+  focusKey,
+}: {
+  initialSubTab?: StockSubTab;
+  /** Changes when the dashboard opens Dead / Slow Moving, so a mounted tab follows that request. */
+  focusKey?: string;
+}) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
-  const [subTab, setSubTab] = useState<StockSubTab>("low-stock");
+  const [subTab, setSubTab] = useState<StockSubTab>(initialSubTab);
+
+  useEffect(() => {
+    setSubTab(initialSubTab);
+  }, [initialSubTab, focusKey]);
   const [stockThreshold, setStockThreshold] = useState(5);
   const [idleDays, setIdleDays] = useState<number>(60);
   const [slowProductFilter, setSlowProductFilter] = useState("");

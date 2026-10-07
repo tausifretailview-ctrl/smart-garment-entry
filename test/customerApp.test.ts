@@ -7,6 +7,7 @@ import {
   lineTax,
   maskPhone,
   phoneLast10,
+  shopProfileFromSettings,
   signSessionToken,
   verifySessionToken,
 } from "../supabase/functions/_shared/customerApp";
@@ -17,6 +18,31 @@ describe("customer-app helpers", () => {
     expect(phoneLast10("12345")).toBe("");
     expect(maskPhone("918860068772")).toBe("******8772");
     expect(maskPhone(null)).toBe("");
+  });
+
+  it("builds the public shop header from settings", () => {
+    expect(
+      shopProfileFromSettings("KS", {
+        business_name: " KS Footwear ",
+        address: "Shop 4,\n  Main Road",
+        mobile_number: "+91 98200 12345",
+        bill_barcode_settings: { logo_url: "https://cdn.example.com/logo.png" },
+      }),
+    ).toEqual({
+      name: "KS Footwear",
+      address: "Shop 4, Main Road",
+      phone: "+91 98200 12345",
+      whatsapp: "919820012345",
+      logo_url: "https://cdn.example.com/logo.png",
+    });
+    expect(shopProfileFromSettings("Org", { bill_barcode_settings: { logo_url: "javascript:alert(1)" } })).toEqual({
+      name: "Org",
+      address: null,
+      phone: null,
+      whatsapp: null,
+      logo_url: null,
+    });
+    expect(shopProfileFromSettings("Org", null).name).toBe("Org");
   });
 
   it("accepts only plain subdomain labels", () => {

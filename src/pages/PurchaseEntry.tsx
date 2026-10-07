@@ -101,6 +101,8 @@ import {
   barcodeTierLookupKey,
   makePurchaseImportProductKey,
 } from "@/utils/purchaseImportBarcodeTier";
+import { cleanProductName } from "@/utils/productNameMerge";
+import { productNameMatchKey } from "@/utils/productNameDedupe";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { invalidateStatusBarSummary } from "@/utils/invalidateDashboardQueries";
@@ -165,13 +167,18 @@ import {
   type UseExistingProductPayload,
   type UseExistingProductSizesPayload,
   typedExternalBarcode,
+  embeddedProductRecord,
+  existingProductSizesLoadMessage,
 } from "@/utils/purchaseUseExistingProduct";
 import { findPurchaseScanMergeIndex, findPurchaseScanSameUnitIndex } from "@/utils/purchaseScanMerge";
 import { getNetSoldQtyByVariantIds } from "@/utils/variantNetSoldQty";
 import {
   persistedPurchaseItemIdsForEdit,
+  persistedPurchaseItemIdsForProduct,
   purchaseItemDbPatchFromLineEdit,
+  purchaseItemBrandSyncRows,
   purchaseLineMatchesProductEdit,
+  resolvePurchaseLineBrand,
   type PurchaseProductEditMatch,
 } from "@/utils/purchaseLineProductEdit";
 import { IMEIScanDialog } from "@/components/IMEIScanDialog";
@@ -188,6 +195,7 @@ import { formatPurchaseBillSaveFailedCopy } from "@/utils/purchaseSaveFailedCopy
 import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAllRows";
 import { isPurchaseBillLoadIncomplete } from "@/utils/purchaseBillLoadIncomplete";
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
+import { resolveLabelPurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
@@ -445,6 +453,8 @@ async function fetchBarcodeDuplicateLookup(
         .select("id, barcode, size, color, created_at, products!inner(product_name)")
         .eq("organization_id", organizationId)
         .is("deleted_at", null)
+        // Products in the Recycle Bin keep live variants; their barcodes are free to reuse.
+        .is("products.deleted_at", null)
         .in("barcode", barcodeSubChunk);
 
       if (error) throw error;
@@ -773,6 +783,11 @@ const PurchaseEntry = () => {
   const purchaseSaveFinalizedRef = useRef(false);
   /** Last bill committed this session — used when a stale import draft is resumed. */
   const lastFinalizedPurchaseBillRef = useRef<{ billId: string; softwareBillNo: string } | null>(null);
+  /**
+   * Supplier bill date of the bill just saved. The form resets to today before
+   * Print Barcodes runs; labels must keep this invoice month/year.
+   */
+  const savedPurchaseInvoiceDateRef = useRef<string>("");
   const autoSaveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tabInstanceIdRef = useRef(getOrCreatePurchaseEntryTabInstanceId());
   const latestSnapshotRef = useRef<Record<string, unknown> | null>(
@@ -1141,6 +1156,7 @@ const PurchaseEntry = () => {
     setNavBillIndex(null);
     setSavedBillId(null);
     setSavedPurchaseItems([]);
+    savedPurchaseInvoiceDateRef.current = "";
     setNewlyAddedItems([]);
     setSearchQuery("");
     setSearchResults([]);
@@ -1433,7 +1449,8 @@ const PurchaseEntry = () => {
     [isDcPurchase],
   );
 
-  // Handle product edit panel updates — barcode / this row, not every line of the product.
+  // Barcode fields stay on the edited row. Brand is product-wide, so every size
+  // of this product on the bill takes the saved brand (LANGO, not the old SHINY).
   // A saved bill also writes the line (colour included) so the bill, its print,
   // and the purchase list match the variant that reports and POS already show.
   const handleProductUpdated = useCallback((tempId: string, updates: Partial<LineItem>, match?: PurchaseProductEditMatch) => {
@@ -1442,16 +1459,25 @@ const PurchaseEntry = () => {
       barcode: match?.barcode,
       skuId: match?.skuId,
     };
+    const brandChanged = Object.prototype.hasOwnProperty.call(updates, "brand");
     const touched = new Set<string>();
     const priceFieldsTouched = "pur_price" in updates || "sale_price" in updates;
-    setLineItems(prev => prev.map(item => {
-      const matches = purchaseLineMatchesProductEdit(item, edited);
-      if (!matches) return item;
-      touched.add(item.temp_id);
-      const merged = { ...item, ...updates };
-      const sub = computePurchaseLineSubTotal(merged);
-      return { ...merged, line_total: roundMoney(sub * (1 - item.discount_percent / 100)) };
-    }));
+    setLineItems(prev => {
+      const productId = prev.find((row) => row.temp_id === tempId)?.product_id;
+      return prev.map(item => {
+        const matches = purchaseLineMatchesProductEdit(item, edited);
+        const sameProductBrand =
+          brandChanged &&
+          !!productId &&
+          item.product_id === productId &&
+          (item.brand || "") !== (updates.brand || "");
+        if (!matches && !sameProductBrand) return item;
+        touched.add(item.temp_id);
+        const merged = matches ? { ...item, ...updates } : { ...item, brand: updates.brand };
+        const sub = computePurchaseLineSubTotal(merged);
+        return { ...merged, line_total: roundMoney(sub * (1 - item.discount_percent / 100)) };
+      });
+    });
     if (priceFieldsTouched) {
       touched.forEach((id) => scheduleVariantPriceSync(id));
     }
@@ -1464,18 +1490,26 @@ const PurchaseEntry = () => {
     const dbPatch = purchaseItemDbPatchFromLineEdit(updates);
     const billId = editingBillId;
     const orgId = currentOrganization?.id;
+    const persistedSet = new Set(originalLineItems.map((item) => item.temp_id));
     const persistedIds = persistedPurchaseItemIdsForEdit(
       lineItems,
       edited,
-      new Set(originalLineItems.map((item) => item.temp_id)),
+      persistedSet,
     );
-    if (!billId || !orgId || persistedIds.length === 0 || Object.keys(dbPatch).length === 0) return;
+    const productId = lineItems.find((row) => row.temp_id === tempId)?.product_id;
+    const siblingBrandIds = brandChanged
+      ? persistedPurchaseItemIdsForProduct(lineItems, productId, persistedSet).filter(
+          (id) => !persistedIds.includes(id),
+        )
+      : [];
+    if (!billId || !orgId || Object.keys(dbPatch).length === 0) return;
+    if (persistedIds.length === 0 && siblingBrandIds.length === 0) return;
 
     const priceTouched = "pur_price" in dbPatch || "sale_price" in dbPatch || "gst_per" in dbPatch;
     void (async () => {
       const rows = lineItems.filter((item) => persistedIds.includes(item.temp_id));
       let errorMessage = "";
-      if (!priceTouched) {
+      if (persistedIds.length > 0 && !priceTouched) {
         const { error } = await supabase
           .from("purchase_items")
           .update(dbPatch)
@@ -1483,7 +1517,7 @@ const PurchaseEntry = () => {
           .eq("bill_id", billId)
           .is("deleted_at", null);
         if (error) errorMessage = error.message;
-      } else {
+      } else if (persistedIds.length > 0) {
         for (const item of rows) {
           const merged = { ...item, ...updates };
           const sub = computePurchaseLineSubTotal(merged);
@@ -1502,6 +1536,15 @@ const PurchaseEntry = () => {
           }
         }
       }
+      if (!errorMessage && siblingBrandIds.length > 0 && "brand" in dbPatch) {
+        const { error } = await supabase
+          .from("purchase_items")
+          .update({ brand: typeof dbPatch.brand === "string" ? dbPatch.brand : null })
+          .in("id", siblingBrandIds)
+          .eq("bill_id", billId)
+          .is("deleted_at", null);
+        if (error) errorMessage = error.message;
+      }
       if (errorMessage) {
         console.error("Purchase line product edit sync failed:", errorMessage);
         toast({
@@ -1513,13 +1556,18 @@ const PurchaseEntry = () => {
       }
       setOriginalLineItems((prev) =>
         prev.map((item) => {
-          if (!persistedIds.includes(item.temp_id)) return item;
-          const merged = { ...item, ...updates };
-          const sub = computePurchaseLineSubTotal(merged);
-          return {
-            ...merged,
-            line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)),
-          };
+          if (persistedIds.includes(item.temp_id)) {
+            const merged = { ...item, ...updates };
+            const sub = computePurchaseLineSubTotal(merged);
+            return {
+              ...merged,
+              line_total: roundMoney(sub * (1 - (item.discount_percent || 0) / 100)),
+            };
+          }
+          if (siblingBrandIds.includes(item.temp_id) && "brand" in updates) {
+            return { ...item, brand: updates.brand };
+          }
+          return item;
         }),
       );
       void queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
@@ -2515,7 +2563,7 @@ const PurchaseEntry = () => {
           product_id: item.product_id,
           sku_id: item.sku_id || '',
           product_name: item.product_name || '',
-          brand: item.brand || productDetails?.brand || '',
+          brand: resolvePurchaseLineBrand(item.brand, productDetails?.brand),
           category: item.category || productDetails?.category || '',
           color: item.color || productDetails?.color || '',
           style: item.style || productDetails?.style || '',
@@ -2552,6 +2600,41 @@ const PurchaseEntry = () => {
       });
       setLineItems(loadedItems);
       setOriginalLineItems(loadedItems.map((item) => ({ ...item })));
+      const brandSyncRows = purchaseItemBrandSyncRows(
+        itemsData.map((item: { id?: string; brand?: string | null; product_id?: string | null }) => ({
+          id: item.id,
+          brand: item.brand,
+          product_id: item.product_id,
+        })),
+        new Map(
+          [...productDetailsMap.entries()].map(([id, details]) => [id, details.brand]),
+        ),
+      );
+      if (brandSyncRows.length > 0) {
+        const brandIds = new Map<string, string[]>();
+        for (const row of brandSyncRows) {
+          const ids = brandIds.get(row.brand) || [];
+          ids.push(row.id);
+          brandIds.set(row.brand, ids);
+        }
+        void (async () => {
+          for (const [brand, ids] of brandIds) {
+            for (let i = 0; i < ids.length; i += 200) {
+              const chunk = ids.slice(i, i + 200);
+              const { error } = await supabase
+                .from("purchase_items")
+                .update({ brand })
+                .in("id", chunk)
+                .eq("bill_id", billId)
+                .is("deleted_at", null);
+              if (error) {
+                console.error("Purchase line brand sync failed:", error.message);
+                return;
+              }
+            }
+          }
+        })();
+      }
       editSaveInsertedTempIdsRef.current = new Set();
       setVisibleItemCount(Math.min(loadedItems.length, 200));
       setIsEditMode(true);
@@ -4679,27 +4762,50 @@ const PurchaseEntry = () => {
       `)
       .eq("product_id", payload.productId)
       .eq("organization_id", currentOrganization.id)
-      .eq("active", true)
+      // Null active is still a live size. active = false is a deactivated SKU.
+      .or("active.eq.true,active.is.null")
       .is("deleted_at", null);
 
-    const product = (data?.[0]?.products as any) ?? null;
-    if (error || !data?.length || !product) {
+    if (error) {
       toast({
         title: "Could not add product",
-        description: "Could not load the existing product's sizes. Search it in the bill instead.",
+        description: existingProductSizesLoadMessage(error.message),
         variant: "destructive",
       });
       return;
     }
 
+    // A product header with no active sizes is still the existing product.
+    // The typed rows are added as new sizes below instead of blocking the bill.
+    const existingVariants = (data || []) as any[];
+    let product = embeddedProductRecord<any>(existingVariants[0]?.products);
+    if (!product) {
+      const { data: productRow, error: productError } = await supabase
+        .from("products")
+        .select(
+          "id, product_name, brand, category, color, style, hsn_code, gst_per, requires_imei, purchase_gst_percent, sale_gst_percent, default_pur_price, default_sale_price, purchase_discount_type, purchase_discount_value, uom",
+        )
+        .eq("id", payload.productId)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (productError || !productRow) {
+        toast({
+          title: "Could not add product",
+          description: existingProductSizesLoadMessage(productError?.message),
+          variant: "destructive",
+        });
+        return;
+      }
+      product = productRow;
+    }
+
     // Serialised (IMEI) product: every typed row is its own unit. Matching by
     // size/colour would put every unit on the first unit's variant — and its IMEI.
     if (productRequiresImei({ requires_imei: product.requires_imei }, mobileERPSettings)) {
-      await addSerializedUnitsFromUseExisting(product, data as any[], payload.rows);
+      await addSerializedUnitsFromUseExisting(product, existingVariants, payload.rows);
       return;
     }
-
-    const existingVariants = data as any[];
     const items = payload.rows.map((row, index) => {
       // A scanned universal barcode (e.g. Jockey EAN) must stay on the line: use the
       // variant that already has it, otherwise create one with it (not a series code).
@@ -6442,9 +6548,10 @@ const PurchaseEntry = () => {
         }
         const editItemsWithDetails = workingLineItems.map(item => {
           const pd = editProductMap.get(item.product_id) || { brand: "", color: "", style: "" };
-          return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
+          return { ...item, brand: resolvePurchaseLineBrand(item.brand, pd.brand), color: item.color || pd.color, style: item.style || pd.style };
         });
         setSavedPurchaseItems(editItemsWithDetails);
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setSavedBillId(editingBillId);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems(insertedNewItems);
@@ -6932,11 +7039,12 @@ const PurchaseEntry = () => {
         }
         const itemsWithDetails = saveLines.map(item => {
           const pd = productDetailsMap.get(item.product_id) || { brand: "", color: "", style: "" };
-          return { ...item, brand: item.brand || pd.brand, color: item.color || pd.color, style: item.style || pd.style };
+          return { ...item, brand: resolvePurchaseLineBrand(item.brand, pd.brand), color: item.color || pd.color, style: item.style || pd.style };
         });
 
         // Store items for barcode printing
         setSavedPurchaseItems(itemsWithDetails);
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setSavedBillId(billDataResult.id);
         setSavedSupplierId(billData.supplier_id || null);
         setNewlyAddedItems([]); // All items are new for a new bill
@@ -7003,6 +7111,7 @@ const PurchaseEntry = () => {
           supplier_invoice_no: nextSupplierInv,
         });
         bumpSupplierInvAutoFill();
+        savedPurchaseInvoiceDateRef.current = format(billDate, "yyyy-MM-dd");
         setBillDate(new Date());
         setBillEntryAt(null);
         setLineItems([]);
@@ -7196,7 +7305,12 @@ const PurchaseEntry = () => {
         barcode: item.barcode,
         qty: item.qty,
         bill_number: softwareBillNo || "",
-        bill_date: format(billDate, "yyyy-MM-dd"),
+        bill_date:
+          resolveLabelPurchaseBillDate({
+            savedInvoiceDate:
+              gate.itemSource === "just-saved-items" ? savedPurchaseInvoiceDateRef.current : null,
+            itemBillDate: format(billDate, "yyyy-MM-dd"),
+          }) ?? format(billDate, "yyyy-MM-dd"),
         supplier_code: supplierCode,
       }));
 
@@ -7459,6 +7573,8 @@ const PurchaseEntry = () => {
     // ── Phase 1: Load ALL org products (Supabase default cap is 1000 rows/page) ──
     reportImportProgress(0, validRows.length, "Loading product catalog...");
     const productMap = new Map<string, string>();
+    /** Product name spelling already in the catalog, by productNameMatchKey. */
+    const catalogNameByKey = new Map<string, string>();
     const PRODUCT_PAGE = 1000;
     let productOffset = 0;
     while (true) {
@@ -7474,6 +7590,8 @@ const PurchaseEntry = () => {
       }
       if (!page?.length) break;
       page.forEach((p) => {
+        const nameKey = productNameMatchKey(p.product_name);
+        if (nameKey && !catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, p.product_name);
         productMap.set(
           makePurchaseImportProductKey(
             { ...p, sale_price: p.default_sale_price, mrp: null },
@@ -7484,6 +7602,17 @@ const PurchaseEntry = () => {
       });
       if (page.length < PRODUCT_PAGE) break;
       productOffset += PRODUCT_PAGE;
+    }
+
+    // Same product name typed with other case / spaces / - _ . / → the catalog's spelling,
+    // so stock is not split across look-alike names. Only the name is snapped; brand,
+    // category, style, colour and price tier still decide the product as before.
+    for (const row of validRows) {
+      const typed = cleanProductName(row.product_name?.toString());
+      const nameKey = productNameMatchKey(typed);
+      if (!nameKey) continue;
+      if (!catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, typed);
+      row.product_name = catalogNameByKey.get(nameKey);
     }
 
     reportImportProgress(0, validRows.length, "Preparing barcodes...", { skippedCount });
@@ -7526,10 +7655,11 @@ const PurchaseEntry = () => {
       const chunk = [...new Set(excelBarcodes.slice(b, b + 500))];
       const { data: existingVariants } = await supabase
         .from('product_variants')
-        .select('id, barcode, mrp, sale_price')
+        .select('id, barcode, mrp, sale_price, products!inner(id)')
         .eq('organization_id', currentOrganization.id)
         .in('barcode', chunk)
-        .is('deleted_at', null);
+        .is('deleted_at', null)
+        .is('products.deleted_at', null);
       (existingVariants || []).forEach((v) => {
         if (!v.barcode) return;
         existingVariantByBarcodeTier.set(
@@ -9535,7 +9665,11 @@ const PurchaseEntry = () => {
                         barcode: item.barcode,
                         qty: item.qty,
                         bill_number: softwareBillNo || "",
-                        bill_date: format(billDate, "yyyy-MM-dd"),
+                        bill_date:
+                          resolveLabelPurchaseBillDate({
+                            savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
+                            itemBillDate: format(billDate, "yyyy-MM-dd"),
+                          }) ?? format(billDate, "yyyy-MM-dd"),
                         supplier_code: supplierCode,
                       }));
 
@@ -9613,7 +9747,11 @@ const PurchaseEntry = () => {
                           barcode: item.barcode,
                           qty: item.qty,
                           bill_number: softwareBillNo || "",
-                          bill_date: format(billDate, "yyyy-MM-dd"),
+                          bill_date:
+                            resolveLabelPurchaseBillDate({
+                              savedInvoiceDate: savedPurchaseInvoiceDateRef.current,
+                              itemBillDate: format(billDate, "yyyy-MM-dd"),
+                            }) ?? format(billDate, "yyyy-MM-dd"),
                           supplier_code: supplierCode,
                         }));
 

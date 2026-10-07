@@ -3,7 +3,7 @@ import { computePosBillTotals } from "./billTotals";
 import { buildPosSalePersistPayload } from "./buildSaleData";
 import { calculatePosCartLineNet } from "./lineMath";
 import type { PosCartItem } from "./types";
-import { derivePaidAndStatus } from "@/utils/saleSettlement";
+import { derivePaidAndStatus, derivePosPaidAndStatus, preSaveInvariants } from "@/utils/saleSettlement";
 import { posCreditChunkKey } from "@/utils/applyPosCredit";
 
 function line(partial: Partial<PosCartItem> & Pick<PosCartItem, "mrp" | "unitCost" | "quantity">): PosCartItem {
@@ -102,6 +102,52 @@ describe("Rule B POS bill totals", () => {
     });
     expect(totals.billAmount).toBe(250);
     expect(totals.payable).toBe(0);
+  });
+
+  it("redeemed points stay inside the net so paid does not exceed the payable", () => {
+    const items = [line({ mrp: 3987, unitCost: 3987, quantity: 1 })];
+    const totals = computePosBillTotals({
+      items,
+      taxType: "inclusive",
+      flatDiscountValue: 0,
+      flatDiscountMode: "amount",
+      roundOff: 0,
+      pointsToRedeem: 347,
+      calculateRedemptionValue: (points) => points,
+    });
+    const payload = buildPosSalePersistPayload({
+      customerName: "CUSTOMER",
+      items,
+      totals,
+      saleReturnAdjust: 0,
+      roundOff: 0,
+      creditApplied: 0,
+      taxType: "inclusive",
+    });
+    expect(payload.netAmount).toBe(3640);
+    expect(payload.pointsRedeemedAmount).toBe(347);
+    const settled = derivePosPaidAndStatus({
+      netAmount: payload.netAmount,
+      saleReturnAdjust: 0,
+      cashReceived: totals.finalAmount,
+      advanceApplied: 0,
+      cnApplied: 0,
+      pointsRedeemedAmount: payload.pointsRedeemedAmount,
+      paymentMethod: "cash",
+    });
+    expect(settled.paidAmount).toBe(3640);
+    expect(settled.paymentStatus).toBe("completed");
+    expect(() =>
+      preSaveInvariants({
+        netAmount: payload.netAmount,
+        items,
+        paidAmount: settled.paidAmount,
+        grossAmount: payload.grossAmount,
+        discountAmount: payload.discountAmount,
+        flatDiscountAmount: payload.flatDiscountAmount,
+        paymentMethod: "cash",
+      }),
+    ).not.toThrow();
   });
 
   it("S/R chevron uses the same bill and payable split", () => {

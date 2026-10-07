@@ -106,6 +106,7 @@ export function MobileSalePrintPreviewDialog({ saleId, open, onOpenChange, saleH
       items: sale.sale_items.map((item, index) => ({
         sr: index + 1,
         particulars: item.product_name,
+        productId: item.product_id,
         size: item.size || "",
         barcode: item.barcode || "",
         hsn: item.hsn_code || "",

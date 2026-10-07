@@ -7,6 +7,7 @@ import { useOrgQuery } from "@/hooks/useOrgQuery";
 import { supabase } from "@/integrations/supabase/client";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
+import { isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
 import {
   deleteJournalEntryByReference,
   recordCustomerAdvanceApplicationJournalEntry,
@@ -153,6 +154,7 @@ import {
   fetchInvoiceDashboardExportRows,
   formatInvoiceDashboardPaymentStatusLabel,
   getInvoiceDashboardDisplayStatus,
+  invoiceDashboardReconcileSourceKey,
   patchInvoiceDashboardDeliveryStatus,
   patchInvoiceDashboardPaymentFields,
   reconcileInvoiceDashboardRows,
@@ -162,6 +164,7 @@ import {
 } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { invalidateAfterCustomerPaymentMutation } from "@/utils/invalidateDashboardQueries";
+import { patchPosDashboardSalePayment } from "@/utils/posDashboardSales";
 import { invalidateSalesQueriesNow } from "@/utils/deferredSalesInvalidation";
 import { formatCnApplyError } from "@/utils/saleReturnCnBalance";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
@@ -227,7 +230,7 @@ const defaultColumnSettings: ColumnSettings = {
 
 export default function SalesInvoiceDashboard() {
   const { toast } = useToast();
-  const { orgNavigate: navigate } = useOrgNavigation();
+  const { orgNavigate: navigate, orgSlug } = useOrgNavigation();
   const { user, session } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
   const { accounts: bankAccounts } = useOrganizationBankAccounts(currentOrganization?.id ?? "");
@@ -940,7 +943,7 @@ export default function SalesInvoiceDashboard() {
   });
 
   const reconcileSourceKey = useMemo(
-    () => dashboardPage?.sourceRows?.map((row: any) => row.id).join(",") ?? "",
+    () => invoiceDashboardReconcileSourceKey(dashboardPage?.sourceRows),
     [dashboardPage?.sourceRows],
   );
 
@@ -966,12 +969,29 @@ export default function SalesInvoiceDashboard() {
     placeholderData: undefined,
   });
 
-  const isDashboardInitialLoad = isLoading && dashboardPage === undefined;
+  // A cache restored from disk has data but no queryFn. Refetching it stores
+  // "Missing queryFn: [invoice-dashboard-unified, …]" and this screen toasts
+  // that as "Sales dashboard load failed". Ignore it and load through the
+  // queryFn this page just subscribed.
+  const missingDashboardQueryFn = isMissingQueryFnError(invoicesError);
+  const dashboardInvoicesError = missingDashboardQueryFn ? null : invoicesError;
+  const isDashboardInitialLoad =
+    dashboardPage === undefined && (isLoading || missingDashboardQueryFn);
   // useIsFetching-based — app notifyOnChangeProps silences useQuery isFetching flips
   const isDashboardBackgroundRefresh = useQuietRefreshActive(dashboardQueryKey, dashboardQueryEnabled);
+  const missingQueryFnRetryRef = useRef(false);
 
   useEffect(() => {
-    if (!invoicesError) return;
+    if (!invoicesError) {
+      missingQueryFnRetryRef.current = false;
+      return;
+    }
+    if (isMissingQueryFnError(invoicesError)) {
+      if (missingQueryFnRetryRef.current) return;
+      missingQueryFnRetryRef.current = true;
+      void refetch();
+      return;
+    }
     if (isStatementTimeout(invoicesError)) {
       const { title, message } = statementTimeoutMessage();
       toast({ title, description: message, variant: "destructive" });
@@ -990,7 +1010,7 @@ export default function SalesInvoiceDashboard() {
       description: message || "Failed to load sales invoices",
       variant: "destructive",
     });
-  }, [invoicesError, toast]);
+  }, [invoicesError, refetch, toast]);
 
   const paginatedInvoices = useMemo(() => {
     const rows = resolveInvoiceDashboardDisplayRows({
@@ -1069,6 +1089,34 @@ export default function SalesInvoiceDashboard() {
   // Auto-download PDF when navigated from mobile with downloadPdf param
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const salesDashboardWasActiveRef = useRef(false);
+  const salesDashboardRouteActive = useMemo(() => {
+    const fullPath = location.pathname;
+    const segment =
+      orgSlug && fullPath.startsWith(`/${orgSlug}`)
+        ? fullPath.slice(orgSlug.length + 2).split("/")[0] || ""
+        : fullPath.replace(/^\//, "").split("/")[0] || "";
+    return segment === "sales-invoice-dashboard";
+  }, [location.pathname, orgSlug]);
+
+  // Window-tab return: refetchOnMount is off, and a shrunk/unmounted pane misses
+  // an active-only refetch. If a receipt invalidated this cache, load it now.
+  useEffect(() => {
+    if (!salesDashboardRouteActive || !currentOrganization?.id) {
+      salesDashboardWasActiveRef.current = false;
+      return;
+    }
+    const justActivated = !salesDashboardWasActiveRef.current;
+    salesDashboardWasActiveRef.current = true;
+    if (!justActivated) return;
+    const orgId = currentOrganization.id;
+    const cached = queryClient.getQueryCache().findAll({
+      queryKey: ["invoice-dashboard-unified", orgId],
+    });
+    if (cached.some((query) => query.state.isInvalidated)) {
+      void refetchInvoiceDashboardQueries(queryClient, orgId);
+    }
+  }, [salesDashboardRouteActive, currentOrganization?.id, queryClient]);
   const downloadPdfId = searchParams.get('downloadPdf');
   const downloadTriggeredRef = useRef<string | null>(null);
 
@@ -2158,6 +2206,7 @@ export default function SalesInvoiceDashboard() {
       (loadedItems[invoice.id] || invoice.sale_items || []).map((item: any, index: number) => ({
         sr: index + 1,
         particulars: item.product_name,
+        productId: item.product_id,
         size: item.size,
         barcode: item.barcode || "",
         hsn: item.hsn_code || "",
@@ -2933,6 +2982,18 @@ export default function SalesInvoiceDashboard() {
         outstanding: paymentOutstanding,
         sale_return_adjust: latestSRAdjust,
       });
+      const prevOutstanding = Math.max(
+        0,
+        Math.round(latestNet - saleSnapshot.paid_amount - saleSnapshot.sale_return_adjust),
+      );
+      patchPosDashboardSalePayment(queryClient, orgId, saleId, {
+        paid_amount: reconciledPaid,
+        payment_status: reconciledStatus,
+        payment_method: paymentMode,
+        prevPaymentStatus: saleSnapshot.payment_status,
+        netAmount: latestNet,
+        outstandingCleared: Math.max(0, prevOutstanding - paymentOutstanding),
+      });
 
       toast({
         title: "Payment Recorded",
@@ -3465,7 +3526,7 @@ export default function SalesInvoiceDashboard() {
         <div className="flex-1 px-4 space-y-2.5 pb-4">
           {isDashboardInitialLoad ? (
             <SkeletonMobileListRows count={6} />
-          ) : invoicesError ? (
+          ) : dashboardInvoicesError ? (
             <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
               <AlertTriangle className="h-12 w-12 text-destructive/70" />
               <p className="text-sm font-medium text-foreground">Could not load invoices</p>
@@ -3633,6 +3694,7 @@ export default function SalesInvoiceDashboard() {
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productId: item.product_id,
                 size: item.size,
                 barcode: item.barcode || "",
                 hsn: item.hsn_code || "",
@@ -4194,7 +4256,7 @@ export default function SalesInvoiceDashboard() {
                         count={8}
                         columns={SALES_INVOICE_TABLE_SKELETON_COLUMNS}
                       />
-                    ) : invoicesError ? (
+                    ) : dashboardInvoicesError ? (
                       <TableRow>
                         <TableCell colSpan={invoiceTableColumnCount} className="text-center py-10">
                           <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -5290,6 +5352,7 @@ export default function SalesInvoiceDashboard() {
               items={(loadedItems[invoiceToPrint.id] || invoiceToPrint.sale_items || []).map((item: any, index: number) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productId: item.product_id,
                 itemNotes: item.item_notes || "",
                 size: item.size,
                 barcode: item.barcode || "",

@@ -3,6 +3,7 @@ import {
   POS_DASHBOARD_SEARCH_HINT,
   POS_DASHBOARD_SEARCH_PLACEHOLDER,
   buildPosSaleHeaderSearchFilter,
+  isPosCustomerNameSearch,
   looksLikeInvoiceSequence,
   rankPosDashboardSearchResults,
   shouldUnionSaleItemsForPosSearch,
@@ -50,11 +51,17 @@ describe("shouldUnionSaleItemsForPosSearch", () => {
     expect(shouldUnionSaleItemsForPosSearch("1234567")).toBe(false);
   });
 
-  it("allows line-item union for product text of 4+ chars", () => {
-    expect(shouldUnionSaleItemsForPosSearch("silk")).toBe(true);
+  it("keeps a customer name on the sale header and does not union line items", () => {
+    expect(isPosCustomerNameSearch("saras")).toBe(true);
+    expect(isPosCustomerNameSearch("Anita Vaghamare")).toBe(true);
+    expect(isPosCustomerNameSearch("POS/26-27/1843")).toBe(true);
+    expect(shouldUnionSaleItemsForPosSearch("saras")).toBe(false);
+    expect(shouldUnionSaleItemsForPosSearch("silk")).toBe(false);
+    expect(shouldUnionSaleItemsForPosSearch("Anita")).toBe(false);
   });
 
-  it("skips short product text that would burn sale_items ILIKE per keystroke", () => {
+  it("skips short name stubs that are still header searches", () => {
+    expect(isPosCustomerNameSearch("ab")).toBe(true);
     expect(shouldUnionSaleItemsForPosSearch("ab")).toBe(false);
     expect(shouldUnionSaleItemsForPosSearch("abc")).toBe(false);
   });

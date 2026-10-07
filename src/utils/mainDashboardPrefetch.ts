@@ -1,7 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
-import { DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { DASHBOARD_MANUAL_REFRESH_OPTIONS, DASHBOARD_TAB_RETURN_QUERY_OPTIONS } from "@/lib/dashboardQueryOptions";
+import { fetchTotalCustomerCount } from "@/utils/salePartyCustomerMaster";
 
 /** Default monthly range — matches Index.tsx initial dateRange. */
 export function mainDashboardDefaultStatsQueryKey(organizationId: string) {
@@ -32,5 +33,11 @@ export function prefetchMainDashboardQueries(
     },
     staleTime: 30_000,
     ...DASHBOARD_TAB_RETURN_QUERY_OPTIONS,
+  });
+
+  void queryClient.prefetchQuery({
+    queryKey: ["dashboard-customer-total", organizationId],
+    queryFn: () => fetchTotalCustomerCount(organizationId),
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
   });
 }

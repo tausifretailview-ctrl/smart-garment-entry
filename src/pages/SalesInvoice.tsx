@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { flushSync } from "react-dom";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, CreditCard, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
+import { CalendarIcon, Home, Plus, X, Search, Eye, Check, Loader2, AlertCircle, Scan, Printer, ChevronLeft, ChevronRight, SkipBack, Lock, FileText, Coins, Trash2, Save, RefreshCw } from "lucide-react";
 import { Banknote, Smartphone, Wallet } from "lucide-react";
 import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
@@ -359,7 +360,14 @@ export default function SalesInvoice() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   
   // Customer balance hook
-  const { balance: customerBalance, openingBalance: customerOpeningBalance, isLoading: isBalanceLoading } = useCustomerBalance(
+  const {
+    balance: customerBalance,
+    grossOutstanding: customerGrossOutstanding,
+    unusedAdvanceTotal: customerUnusedAdvanceTotal,
+    cnAvailableTotal: customerPendingCn,
+    openingBalance: customerOpeningBalance,
+    isLoading: isBalanceLoading,
+  } = useCustomerBalance(
     selectedCustomerId || null,
     currentOrganization?.id || null
   );
@@ -4267,7 +4275,7 @@ Thank you for choosing us!`;
         <SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={sizeGridProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} showStock validateStock title="Enter Size-wise Qty" isLoading={sizeGridLoading} />
         <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
           {savedInvoiceData?.invoiceNumber && (savedInvoiceData?.filledItems?.length ?? 0) > 0 ? (
-            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
+            <InvoiceWrapper ref={printRef} template={effectiveInvoicePrintTemplate} billNo={savedInvoiceData.invoiceNumber} date={invoiceDate} dueDate={dueDate} customerName={savedInvoiceData?.customer?.customer_name || selectedCustomer?.customer_name || ""} customerAddress={savedInvoiceData?.customer?.address || ""} customerMobile={savedInvoiceData?.customer?.phone || ""} customerGSTIN={savedInvoiceData?.customer?.gst_number || ""} customerTransportDetails="" items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({ sr: index + 1, particulars: item.productName, productId: item.productId, size: item.size, barcode: item.barcode || "", hsn: item.hsnCode || "", sp: item.salePrice, mrp: item.mrp, qty: item.quantity, rate: item.salePrice, total: item.lineTotal, color: item.color || "", gstPercent: item.gstPercent || 0, discountPercent: item.discountPercent || 0 }))} subTotal={savedInvoiceData?.grossAmount ?? grossAmount} discount={savedInvoiceData?.totalDiscount ?? totalDiscount} grandTotal={savedInvoiceData?.netAmount ?? netAmount} notes={savedInvoiceData?.notes ?? notes} pointsBalance={savedInvoiceData?.pointsBalance} pointsRedeemed={savedInvoiceData?.pointsRedeemed} otherCharges={savedInvoiceData?.otherCharges ?? otherCharges} roundOff={roundOff} paymentMethod="Cash" taxType={taxType} financerDetails={financerDetails} />
           ) : <div ref={printRef} />}
         </div>
         {historyProduct && currentOrganization && <ProductHistoryDialog isOpen={!!historyProduct} onClose={() => setHistoryProduct(null)} productId={historyProduct.id} productName={historyProduct.name} organizationId={currentOrganization.id} />}
@@ -5450,28 +5458,14 @@ Thank you for choosing us!`;
               <span>Net <span className="text-emerald-300 font-black text-[16px]">₹{netAmount.toLocaleString('en-IN')}</span></span>
             </div>
             {selectedCustomerId && (
-              <div
-                className={cn(
-                  "h-9 px-3 flex items-center gap-1.5 rounded-sm border shrink-0 bg-white font-extrabold tabular-nums",
-                  isBalanceLoading && "border-slate-400 text-slate-400",
-                  !isBalanceLoading && customerBalance > 0 && "border-red-300 text-red-600",
-                  !isBalanceLoading && customerBalance < 0 && "border-emerald-300 text-emerald-600",
-                  !isBalanceLoading && customerBalance === 0 && "border-slate-300 text-slate-500"
-                )}
-                title={selectedCustomer?.customer_name ? `${selectedCustomer.customer_name} — ledger balance` : "Customer balance"}
-              >
-                {isBalanceLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                ) : (
-                  <>
-                    <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                    <span className="text-[13px] whitespace-nowrap">
-                      ₹{Math.abs(customerBalance).toLocaleString("en-IN")}
-                      {customerBalance > 0 ? " due" : customerBalance < 0 ? " credit" : " settled"}
-                    </span>
-                  </>
-                )}
-              </div>
+              <CustomerBalanceBadge
+                grossOutstanding={customerGrossOutstanding}
+                unusedAdvance={customerUnusedAdvanceTotal}
+                pendingCn={customerPendingCn}
+                netPosition={customerBalance}
+                isLoading={isBalanceLoading}
+                customerName={selectedCustomer?.customer_name}
+              />
             )}
           </div>
 
@@ -5806,6 +5800,7 @@ Thank you for choosing us!`;
             items={(savedInvoiceData.filledItems).map((item: any, index: number) => ({
               sr: index + 1,
               particulars: item.productName,
+              productId: item.productId,
               size: item.size,
               barcode: item.barcode || "",
               hsn: item.hsnCode || "",

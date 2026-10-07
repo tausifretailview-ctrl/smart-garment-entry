@@ -4,6 +4,7 @@ import { PaymentReceipt } from "@/components/PaymentReceipt";
 import { PaymentReceiptThermal80mm } from "@/components/PaymentReceiptThermal80mm";
 import type { PaymentReceiptData, PaymentReceiptSettingsSlice } from "@/components/PaymentReceiptThermal80mm";
 import {
+  paymentReceiptPrintRootClassName,
   resolvePaymentReceiptCompanyDetails,
   resolvePaymentReceiptPrintLayout,
   type OrgSettingsForPaymentReceipt,
@@ -64,10 +65,11 @@ export const PaymentReceiptPrint = forwardRef<HTMLDivElement, PaymentReceiptPrin
       <div
         ref={ref}
         className={cn(
-          "payment-receipt-print-root",
-          layout.isThermal ? "invoice-print-source-screen thermal-print-page" : "bg-white",
-          layout.isThermal && layout.thermalPaper === "58mm" ? "thermal-paper-58" : null,
-          preview && layout.isThermal ? "py-2" : null,
+          paymentReceiptPrintRootClassName({
+            preview,
+            isThermal: layout.isThermal,
+            thermalPaper: layout.thermalPaper,
+          }),
           className,
         )}
       >

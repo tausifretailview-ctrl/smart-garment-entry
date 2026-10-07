@@ -15,6 +15,7 @@ import {
   isDashboardMetricsQueryEnabled,
 } from "@/lib/dashboardQueryOptions";
 import { fetchCustomerSegmentCounts, type CustomerSegmentCounts } from "@/utils/customerSegments";
+import { fetchTotalCustomerCount } from "@/utils/salePartyCustomerMaster";
 import {
   NPA_NET_PROFIT_CAPTION,
   NET_PROFIT_KPI_QUERY_HEAD,
@@ -48,6 +49,7 @@ import {
   Layers,
   Percent,
   Building2,
+  Archive,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -55,6 +57,11 @@ import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
 import { DashboardMetricCard as AnimatedMetricCard } from "@/components/dashboard/DashboardMetricCard";
+import { useSlowMovingStock } from "@/hooks/useBusinessInsights";
+import {
+  DASHBOARD_SLOW_MOVING_IDLE_DAYS,
+  INSIGHTS_DEAD_SLOW_MOVING_STATE,
+} from "@/utils/dashboardStockHealth";
 import {
   Select,
   SelectContent,
@@ -354,6 +361,18 @@ const DesktopDashboard = () => {
     }
   };
 
+  // Master rows plus named bills that were never saved as customers. The stats
+  // RPC only counts the customers table, which under-reports the shop.
+  const { data: liveCustomerTotal, isFetching: customerTotalFetching, isError: customerTotalError } = useQuery({
+    queryKey: ["dashboard-customer-total", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return 0;
+      return fetchTotalCustomerCount(currentOrganization.id);
+    },
+    enabled: metricsQueryEnabled,
+    ...DASHBOARD_MANUAL_REFRESH_OPTIONS,
+  });
+
   // Single RPC call replaces 8-10 separate queries
   const { data: liveDashStats, isFetching: isLoading } = useQuery({
     queryKey: dashStatsQueryKey,
@@ -468,6 +487,19 @@ const DesktopDashboard = () => {
     },
   });
 
+  const {
+    data: slowMovingStock,
+    isLoading: slowMovingLoading,
+    isFetching: slowMovingFetching,
+    isError: slowMovingError,
+  } = useSlowMovingStock(
+    currentOrganization?.id,
+    DASHBOARD_SLOW_MOVING_IDLE_DAYS,
+    metricsQueryEnabled && auxiliaryMetricsEnabled,
+  );
+  const slowMovingCount = slowMovingStock?.length ?? 0;
+  const slowMovingPending = slowMovingStock === undefined && !slowMovingError;
+
   const displayedCustomerSegments = useMemo(
     () =>
       liveCustomerSegments ??
@@ -480,7 +512,11 @@ const DesktopDashboard = () => {
   // Extract metrics from single RPC result (live or persisted cache)
   const salesData = { total: displayedDashStats?.total_sales || 0, count: displayedDashStats?.invoice_count || 0, soldQty: displayedDashStats?.sold_qty || 0 };
   const purchaseData = { total: displayedDashStats?.total_purchase || 0, count: displayedDashStats?.purchase_count || 0, purchaseQty: displayedDashStats?.purchase_qty || 0 };
-  const customersCount = displayedDashStats?.customer_count || 0;
+  const customersCount =
+    liveCustomerTotal ??
+    (customerTotalError ? displayedDashStats?.customer_count || 0 : 0);
+  const customersCountPending =
+    metricsLoadRequested && liveCustomerTotal == null && !customerTotalError && customerTotalFetching;
   // product_count / total_stock_qty are get_erp_dashboard_stats aggregates
   // (one RPC), not N product rows painted on this page. A 500ms+ main-thread
   // task after Dashboard load is not explained by these two numbers.
@@ -491,7 +527,6 @@ const DesktopDashboard = () => {
   const profitData = displayedNpaKpis?.gross_profit ?? 0;
   const npaKpisReady = displayedNpaKpis != null;
   const profitLoading = metricsLoadRequested && npaKpisFetching && npaKpisReady;
-  const cashCollection = displayedDashStats?.cash_collection || 0;
   const receivablesData = { total: displayedDashStats?.total_receivables || 0 };
   const saleReturnData = { total: displayedDashStats?.sale_return_total || 0, count: displayedDashStats?.sale_return_count || 0, returnQty: displayedDashStats?.sale_return_qty || 0 };
   const purchaseReturnData = { total: displayedDashStats?.purchase_return_total || 0, count: displayedDashStats?.purchase_return_count || 0, returnQty: displayedDashStats?.purchase_return_qty || 0 };
@@ -977,9 +1012,9 @@ const DesktopDashboard = () => {
               accentColor="bg-pink-500"
               prefetchPath="customers"
               onClick={() => navigate("/customers")}
-              tooltip="Total registered customers. Click to manage customers."
-              placeholder={showPlaceholders}
-              loading={metricsLoading}
+              tooltip="Total customers, including names on bills. Walk-in bills are not counted. Click to manage customers."
+              placeholder={showPlaceholders || customersCountPending}
+              loading={metricsLoading || customersCountPending}
             />
           </div>
 
@@ -992,7 +1027,8 @@ const DesktopDashboard = () => {
               accentColor="bg-emerald-500"
               prefetchPath="purchase-bills"
               onClick={() => navigate("/purchase-bills")}
-              tooltip="Total amount spent on purchases. Click to view Purchase Dashboard."
+              tooltip="Purchase bill net: taxable amount plus GST, other charges, and round off. Click to view Purchase Dashboard."
+              caption="Incl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1026,7 +1062,8 @@ const DesktopDashboard = () => {
               accentColor="bg-amber-500"
               prefetchPath="purchase-return-dashboard"
               onClick={() => navigate("/purchase-return-dashboard")}
-              tooltip="Total purchase return amount. Click to view Purchase Returns."
+              tooltip="Purchase return net, including GST. Click to view Purchase Returns."
+              caption="Incl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1091,7 +1128,8 @@ const DesktopDashboard = () => {
               accentColor="bg-purple-500"
               prefetchPath="stock-report"
               onClick={() => navigate("/stock-report")}
-              tooltip="Total value of current inventory at purchase price. Click to view details."
+              tooltip="On-hand quantity times purchase rate. GST is not added. Click to view Stock Report."
+              caption="Excl. GST"
               isCurrency
               placeholder={showPlaceholders}
               loading={metricsLoading}
@@ -1124,16 +1162,15 @@ const DesktopDashboard = () => {
               loading={metricsLoading}
             />
             <AnimatedMetricCard
-              title="Cash Collection"
-              value={cashCollection || 0}
-              icon={DollarSign}
-              accentColor="bg-blue-600"
-              prefetchPath="daily-cashier-report"
-              onClick={() => navigate("/daily-cashier-report")}
-              tooltip="Total cash collected from sales. Click to view Cashier Report."
-              isCurrency
-              placeholder={showPlaceholders}
-              loading={metricsLoading}
+              title="Stock Health"
+              value={slowMovingError ? 0 : slowMovingCount}
+              icon={Archive}
+              accentColor="bg-amber-500"
+              onClick={() => navigate("/insights", { state: INSIGHTS_DEAD_SLOW_MOVING_STATE })}
+              tooltip="In-stock variants with no sale in 60 days. Click to open Dead / Slow Moving."
+              caption="Dead / Slow Moving"
+              placeholder={showPlaceholders || (slowMovingPending && (slowMovingLoading || !auxiliaryMetricsEnabled))}
+              loading={slowMovingFetching && slowMovingStock !== undefined}
             />
             </div>
           </div>

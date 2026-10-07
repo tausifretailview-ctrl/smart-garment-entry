@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOutstandingReminderInvoices,
   outstandingReminderBalance,
+  outstandingReminderBalanceLines,
 } from "./salesmanOutstandingReminder";
 
 const INV236 = {
@@ -88,5 +89,17 @@ describe("buildOutstandingReminderInvoices", () => {
     });
     expect(list.map((i) => i.sale_number)).toEqual(["INV/26-27/1489"]);
     expect(list[0]?.balance).toBe(10756);
+  });
+});
+
+describe("outstandingReminderBalanceLines", () => {
+  it("prints the invoice-line total and the ledger balance separately", () => {
+    // VAVIA SHOES: listed invoices 4218 + 6740 + 6094 = 17052, ledger 20454
+    expect(
+      outstandingReminderBalanceLines({
+        invoiceBalanceTotal: 4218 + 6740 + 6094,
+        ledgerBalance: 20454,
+      }),
+    ).toBe("*Invoice balance total: ₹17,052*\n*Ledger balance: ₹20,454.00*");
   });
 });

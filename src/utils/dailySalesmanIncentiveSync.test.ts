@@ -13,6 +13,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   fetchDailyIncentiveConfig,
   loadOrComputeDailyIncentiveDays,
+  saveDailyIncentiveSettings,
 } from "./dailySalesmanIncentiveSync";
 
 const ORG = "b230c582-4f0b-420f-b18b-bef26c2f5ce8";
@@ -24,6 +25,14 @@ function chainable(result: { data: unknown; error: unknown }) {
   chain.order = vi.fn(() => chain);
   chain.maybeSingle = vi.fn(() => Promise.resolve(result));
   return chain;
+}
+
+function slabChain(data: unknown[] = []) {
+  return {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockResolvedValue({ data, error: null }),
+  };
 }
 
 describe("dailySalesmanIncentiveSync", () => {
@@ -47,7 +56,8 @@ describe("dailySalesmanIncentiveSync", () => {
           ],
           error: null,
         }),
-      );
+      )
+      .mockReturnValueOnce(slabChain());
 
     rpcMock.mockResolvedValue({
       data: [
@@ -84,7 +94,7 @@ describe("dailySalesmanIncentiveSync", () => {
     expect(rows[0].total_qty).toBe(12);
   });
 
-  it("returns empty when config disabled", async () => {
+  it("returns empty when config is missing", async () => {
     fromMock.mockReturnValueOnce(
       chainable({
         data: null,
@@ -96,6 +106,27 @@ describe("dailySalesmanIncentiveSync", () => {
       organizationId: ORG,
       startYmd: "2026-09-01",
       endYmd: "2026-09-30",
+    });
+
+    expect(rows).toEqual([]);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("returns empty when incentive is turned off", async () => {
+    fromMock
+      .mockReturnValueOnce(
+        chainable({
+          data: { qty_threshold: 5, is_enabled: false },
+          error: null,
+        }),
+      )
+      .mockReturnValueOnce(slabChain())
+      .mockReturnValueOnce(slabChain());
+
+    const rows = await loadOrComputeDailyIncentiveDays({
+      organizationId: "e2e13e68-784e-42d1-a461-df2fd5beb963",
+      startYmd: "2026-10-05",
+      endYmd: "2026-10-05",
     });
 
     expect(rows).toEqual([]);
@@ -117,10 +148,27 @@ describe("dailySalesmanIncentiveSync", () => {
           data: [{ min_net_amount: 1000, max_net_amount: null, incentive_amount: 10, sort_order: 3 }],
           error: null,
         }),
-      });
+      })
+      .mockReturnValueOnce(
+        slabChain([{ min_bill_amount: 10000, incentive_amount: 100, sort_order: 1 }]),
+      );
 
     const config = await fetchDailyIncentiveConfig(ORG);
     expect(config?.qty_threshold).toBe(5);
     expect(config?.brackets).toHaveLength(1);
+    expect(config?.billSlabs).toHaveLength(1);
+  });
+
+  it("refuses to rewrite ADEEBAAREEBA incentive settings", async () => {
+    await expect(
+      saveDailyIncentiveSettings({
+        organizationId: ORG,
+        isEnabled: true,
+        qtyThreshold: 1,
+        perPieceAmount: 99,
+        billSlabs: [],
+      }),
+    ).rejects.toThrow(/ADEEBAAREEBA/);
+    expect(fromMock).not.toHaveBeenCalled();
   });
 });

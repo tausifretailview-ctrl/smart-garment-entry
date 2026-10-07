@@ -15,6 +15,18 @@ export const WHATSAPP_INBOUND_REPLY_TYPES = [
 export async function fetchConversationIdsWithCustomerReplies(
   organizationId: string,
 ): Promise<Set<string>> {
+  // DB-side DISTINCT when the RPC exists; falls back to the row query below if not applied yet.
+  const rpc = await (supabase.rpc as any)('get_whatsapp_reply_conversation_ids', {
+    p_organization_id: organizationId,
+  });
+  if (!rpc.error && Array.isArray(rpc.data)) {
+    return new Set(
+      (rpc.data as unknown[])
+        .map((row) => (typeof row === 'string' ? row : (row as { get_whatsapp_reply_conversation_ids?: string })?.get_whatsapp_reply_conversation_ids))
+        .filter((id): id is string => !!id),
+    );
+  }
+
   const { data, error } = await supabase
     .from('whatsapp_messages')
     .select('conversation_id')
@@ -66,6 +78,18 @@ export async function fetchActualUnreadMessageCount(organizationId: string): Pro
 export async function fetchUnreadCountByConversation(
   organizationId: string,
 ): Promise<Record<string, number>> {
+  // DB-side GROUP BY when the RPC exists; falls back to counting rows below if not applied yet.
+  const rpc = await (supabase.rpc as any)('get_whatsapp_unread_by_conversation', {
+    p_organization_id: organizationId,
+  });
+  if (!rpc.error && Array.isArray(rpc.data)) {
+    const grouped: Record<string, number> = {};
+    for (const row of rpc.data as { conversation_id: string | null; unread_count: number | string }[]) {
+      if (row.conversation_id) grouped[row.conversation_id] = Number(row.unread_count) || 0;
+    }
+    return grouped;
+  }
+
   const { data, error } = await supabase
     .from('whatsapp_messages')
     .select('conversation_id')

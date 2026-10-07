@@ -58,4 +58,19 @@ describe("mergeSizeColorVariantsForGrid across products", () => {
     const merged = mergeSizeColorVariantsForGrid(variantsFor("p-cml", null), { defaultColor: "CML" });
     expect(merged.every((v) => v.color === "CML")).toBe(true);
   });
+
+  it("keeps live stock on a quotation grid even when the cart already has that size", () => {
+    const merged = mergeSizeColorVariantsForGrid(variantsFor("p-cml", "CML"), {
+      cartQtyByVariant: new Map([["p-cml-7", 1]]),
+      holdLiveStock: true,
+    });
+    expect(merged.find((v) => v.size === "7")?.stock_qty).toBe(1);
+  });
+
+  it("subtracts cart qty from the grid stock figure when live stock is not held", () => {
+    const merged = mergeSizeColorVariantsForGrid(variantsFor("p-cml", "CML"), {
+      cartQtyByVariant: new Map([["p-cml-7", 1]]),
+    });
+    expect(merged.find((v) => v.size === "7")?.stock_qty).toBe(0);
+  });
 });

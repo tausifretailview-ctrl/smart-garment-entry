@@ -6,6 +6,7 @@ import { useSettings } from '@/hooks/useSettings';
 import QRCode from 'qrcode';
 import { resolveInvoiceUpiId } from '@/utils/companyUpi';
 import { formatThermalPosAmount } from '@/utils/thermalPosItemLayout';
+import { ThermalPartyLines } from '@/components/thermal/ThermalPartyLines';
 import { ThermalPosItemRows } from '@/components/thermal/ThermalPosItemRows';
 
 interface ThermalItem {
@@ -52,6 +53,8 @@ interface ModernThermalReceipt80mmProps {
   creditPaid?: number;
   paidAmount?: number;
   refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: 'invoice' | 'quotation' | 'sale-order' | 'pos';
   termsConditions?: string;
   notes?: string;
@@ -91,6 +94,7 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
       roundOff = 0, grandTotal,
       gstBreakdown, gstRateBreakdown, paymentMethod,
       cashPaid = 0, upiPaid = 0, cardPaid = 0, creditPaid = 0, paidAmount = 0, refundCash = 0,
+      previousBalance = 0, unusedAdvance = 0,
       documentType = 'invoice', termsConditions, notes, showYouSaved = true,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
       cashier, salesman, counter, isDcInvoice,
@@ -342,6 +346,11 @@ export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernT
             <span style={{ fontFamily: 'monospace', fontWeight: 900 }}>₹{fmtAmt(refundCash)}</span>
           </div>
         )}
+        <ThermalPartyLines
+          previousBalance={previousBalance}
+          unusedAdvance={unusedAdvance}
+          formatMoney={(n) => `₹${fmtAmt(n)}`}
+        />
 
         {/* ═══ YOU SAVED ═══ */}
         {showYouSaved && discount > 0 && (

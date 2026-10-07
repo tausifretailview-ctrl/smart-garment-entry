@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { localDayEndUtcIso, localDayStartUtcIso } from "@/lib/localDayBounds";
 import {
   buildPosSaleHeaderSearchFilter,
+  isPosCustomerNameSearch,
   looksLikeInvoiceSequence,
   rankPosDashboardSearchResults,
   shouldUnionSaleItemsForPosSearch,
@@ -336,6 +337,8 @@ export type PosDashboardFilters = {
   refundFilter: string;
   creditNoteFilter: string;
   userFilter: string;
+  /** Employee names stored on sales.salesman. Empty = every salesman. */
+  salesmanFilter?: string[];
   cancelFilter: string;
 };
 
@@ -473,7 +476,47 @@ export type PosDashboardRpcFilters = {
   refundFilter: string;
   creditNoteFilter: string;
   userFilter: string;
+  salesmanFilter: string[];
 };
+
+/** Enough for a shop's salesman list; keeps the PostgREST `.in()` URL small. */
+export const POS_SALESMAN_FILTER_CAP = 50;
+
+export function normalizePosSalesmanFilter(names: readonly string[] | null | undefined): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of names ?? []) {
+    const name = String(raw ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+    if (out.length >= POS_SALESMAN_FILTER_CAP) break;
+  }
+  return out;
+}
+
+export function posSalesmanFilterActive(names: readonly string[] | null | undefined): boolean {
+  return normalizePosSalesmanFilter(names).length > 0;
+}
+
+/** Button label for the merged user + salesman filter. */
+export function posDashboardPeopleFilterLabel(input: {
+  userFilter: string;
+  userLabel?: string | null;
+  salesmanNames: readonly string[] | null | undefined;
+}): string {
+  const names = normalizePosSalesmanFilter(input.salesmanNames);
+  const userOn = Boolean(input.userFilter) && input.userFilter !== "all" && input.userFilter !== "__pending__";
+  const userText = (input.userLabel || "User").trim() || "User";
+  if (!userOn && names.length === 0) return "All Users";
+  if (userOn && names.length === 0) return userText;
+  if (!userOn && names.length === 1) return names[0];
+  if (!userOn) return `${names.length} Salesman`;
+  if (names.length === 1) return `${userText} · ${names[0]}`;
+  return `${userText} · ${names.length} Salesman`;
+}
 
 export function buildPosDashboardRpcFilters(filters: PosDashboardFilters): PosDashboardRpcFilters {
   return {
@@ -484,6 +527,7 @@ export function buildPosDashboardRpcFilters(filters: PosDashboardFilters): PosDa
     refundFilter: filters.refundFilter,
     creditNoteFilter: filters.creditNoteFilter,
     userFilter: filters.userFilter,
+    salesmanFilter: normalizePosSalesmanFilter(filters.salesmanFilter),
   };
 }
 
@@ -557,6 +601,14 @@ async function fetchPosDashboardSummaryViaRpc(
     throw error;
   }
 
+  if (posSalesmanFilterActive(filters.salesmanFilter)) {
+    if (!posDashboardStatsRpcHonorsSalesmanFilter(data)) {
+      posStatsRpcSalesmanSupport = "no";
+      throw new PosStatsSalesmanUnsupportedError();
+    }
+    posStatsRpcSalesmanSupport = "yes";
+  }
+
   return parsePosDashboardStatsRow((data || {}) as Partial<PosDashboardSummaryStats>);
 }
 
@@ -594,6 +646,24 @@ function posSearchBypassesDateFilter(search: string): boolean {
 
 function shouldApplyPosUserFilter(userFilter: string): boolean {
   return Boolean(userFilter) && userFilter !== "all" && userFilter !== "__pending__";
+}
+
+/** Live get_pos_dashboard_stats ignores unknown JSON keys until the salesman migration is applied. */
+let posStatsRpcSalesmanSupport: "unknown" | "yes" | "no" = "unknown";
+
+class PosStatsSalesmanUnsupportedError extends Error {
+  constructor() {
+    super("POS dashboard stats RPC does not filter salesman");
+    this.name = "PosStatsSalesmanUnsupportedError";
+  }
+}
+
+export function posDashboardStatsRpcHonorsSalesmanFilter(payload: unknown): boolean {
+  return Boolean(
+    payload &&
+      typeof payload === "object" &&
+      (payload as { salesmanFilterApplied?: unknown }).salesmanFilterApplied === true,
+  );
 }
 
 /**
@@ -647,6 +717,13 @@ export function applyPosDashboardFilters(query: any, filters: PosDashboardFilter
 
   if (shouldApplyPosUserFilter(filters.userFilter)) {
     q = q.eq("created_by", filters.userFilter);
+  }
+
+  const salesmanNames = normalizePosSalesmanFilter(filters.salesmanFilter);
+  if (salesmanNames.length === 1) {
+    q = q.eq("salesman", salesmanNames[0]);
+  } else if (salesmanNames.length > 1) {
+    q = q.in("salesman", salesmanNames);
   }
 
   if (filters.customerId) {
@@ -828,8 +905,14 @@ async function resolvePosSearchUncached(
   if (!searchStr) return null;
 
   const saleTextFilter = buildPosSaleHeaderSearchFilter(searchStr);
+  // Name search uses the same header ILIKE as the KPI cards (dates bypassed
+  // while a search is active). Do not prefetch a 12-month id list and do not
+  // union line items — that list was a different customer's product hit.
+  if (isPosCustomerNameSearch(searchStr)) {
+    return { saleTextFilter, restrictToIds: null };
+  }
   // Invoice-serial lookups must reach old bills, so they stay date-unbounded.
-  // Name / phone searches stay inside the selected window (bounded to 12 months
+  // Phone and barcode lookups stay inside the selected window (bounded to 12 months
   // for "All Time") so they never scan the org's full history.
   const dateBounded = !looksLikeInvoiceSequence(searchStr);
   const bounded = resolvePosDashboardDateRange(filters.startDate, filters.endDate);
@@ -1409,7 +1492,9 @@ export async function fetchPosDashboardSummary(
   // still move Total Bills / Pending / Cash totals while the list stays filtered.
   const summaryFilters = buildPosDashboardSummaryScopeFilters(filters);
 
-  if (!isPosDashboardStatsRpcUnavailable()) {
+  const salesmanActive = posSalesmanFilterActive(summaryFilters.salesmanFilter);
+  const skipRpcForSalesman = salesmanActive && posStatsRpcSalesmanSupport === "no";
+  if (!isPosDashboardStatsRpcUnavailable() && !skipRpcForSalesman) {
     try {
       const rpcStats = await fetchPosDashboardSummaryViaRpc(client, summaryFilters);
       if (options?.correctModeTotals === false) {
@@ -1432,7 +1517,10 @@ export async function fetchPosDashboardSummary(
       );
       return reconcilePosDashboardUnpaidCounts(balanceCorrected);
     } catch (err) {
-      if (!isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })) {
+      if (
+        !(err instanceof PosStatsSalesmanUnsupportedError) &&
+        !isPosDashboardStatsRpcNotFoundError(err as { code?: string; message?: string; status?: number })
+      ) {
         console.warn("get_pos_dashboard_stats RPC threw, using client fallback:", err);
       }
     }

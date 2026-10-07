@@ -674,7 +674,9 @@ export default function DeliveryChallanEntry() {
     };
 
     void refreshLiveStock();
-    const timer = window.setInterval(refreshLiveStock, 20_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshLiveStock();
+    }, 20_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") void refreshLiveStock();
     };

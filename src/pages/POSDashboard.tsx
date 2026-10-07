@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { useNavPerfPage, useNavPerfQueryWatch } from "@/hooks/useNavigationPerf";
@@ -14,6 +15,8 @@ import {
   patchPosDashboardSaleDelete,
   type PosDashboardDeletedSaleFigures,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
+  normalizePosSalesmanFilter,
+  posDashboardPeopleFilterLabel,
   posDashboardSummaryLooksValid,
   reconcilePosDashboardRows,
   resolvePosDashboardQueryDates,
@@ -32,6 +35,7 @@ import { useToast, dismissToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { fetchInvoicePrintAccountFacets } from "@/utils/customerAccountStateView";
+import { saleRowThermalTender } from "@/utils/thermalReceiptSettlement";
 import { deleteLedgerEntries } from "@/lib/customerLedger";
 import { isStatementTimeout, statementTimeoutMessage } from "@/utils/statementTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -146,6 +150,7 @@ import {
 import { useVisibilityInvalidate } from "@/hooks/useVisibilityRefetch";
 import { usePosDashboardRealtimeRefresh } from "@/hooks/usePosDashboardRealtimeRefresh";
 import { getMoneyViewVisibilityQueryKeys } from "@/utils/moneyViewFreshnessInvalidation";
+import { patchInvoiceDashboardPaymentFields } from "@/utils/invoiceDashboardData";
 import { isSaleInvoiceCancelled } from "@/utils/saleInvoiceStatus";
 import { syncSalePaymentFromVouchers } from "@/utils/customerBalanceUtils";
 import { assertCustomerPaymentWithinOutstandingCap } from "@/utils/invoiceOverpaymentGuard";
@@ -164,8 +169,12 @@ import {
   isHoldLikePosSale,
   isPosSalePaidCompleted,
 } from "@/utils/posDashboardSettlement";
-import { saleBillFigures, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
-import { findLeftoverExchangeRefunds, leftoverExchangeRefundMessage } from "@/utils/exchangeRefundAfterDelete";
+import { saleBillFigures, saleInvoicePrintAccountOpts, saleRefundForPrint, saleRefundForReprint } from "@/utils/saleBillFigures";
+import {
+  findLeftoverExchangeRefunds,
+  leftoverExchangeRefundMessage,
+  type LeftoverExchangeRefund,
+} from "@/utils/exchangeRefundAfterDelete";
 import {
   resolvePosBillFormat,
   resolvePosInvoiceTemplate,
@@ -383,6 +392,7 @@ const POSDashboard = () => {
   const [refundFilter, setRefundFilter] = useState<string>("all");
   const [creditNoteFilter, setCreditNoteFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
+  const [salesmanFilter, setSalesmanFilter] = useState<string[]>([]);
   // Cancellation visibility filter — default hides cancelled invoices so reports stay accurate
   const [cancelFilter, setCancelFilter] = useState<string>("active"); // active | cancelled | all
   const [showSettleDialog, setShowSettleDialog] = useState(false);
@@ -411,6 +421,29 @@ const POSDashboard = () => {
     enabled: !!currentOrganization?.id && !!session?.access_token,
     staleTime: 300000,
   });
+
+  const { data: salesmanOptions = [] } = useQuery({
+    queryKey: ["pos-dashboard-salesmen", currentOrganization?.id],
+    queryFn: async () => {
+      if (!currentOrganization?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("employees")
+        .select("employee_name")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .eq("status", "active")
+        .order("employee_name");
+      if (error) throw error;
+      return normalizePosSalesmanFilter((data ?? []).map((row) => row.employee_name ?? ""));
+    },
+    enabled: !!currentOrganization?.id,
+    staleTime: 300000,
+  });
+
+  const salesmanChoices = useMemo(
+    () => normalizePosSalesmanFilter([...salesmanOptions, ...salesmanFilter]),
+    [salesmanOptions, salesmanFilter],
+  );
 
   // Default userFilter: admins see all users; non-admins default to themselves
   useEffect(() => {
@@ -485,6 +518,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter: userFilter === "__pending__" ? undefined : userFilter,
+      salesmanFilter,
       cancelFilter,
       currentPage,
       itemsPerPage,
@@ -500,6 +534,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter,
+      salesmanFilter,
       cancelFilter,
       currentPage,
       itemsPerPage,
@@ -524,7 +559,10 @@ const POSDashboard = () => {
           ["cancelFilter", setCancelFilter],
           ["userFilter", setUserFilter],
         ],
-        stringArrays: [["paymentStatusFilter", setPaymentStatusFilter]],
+        stringArrays: [
+          ["paymentStatusFilter", setPaymentStatusFilter],
+          ["salesmanFilter", setSalesmanFilter],
+        ],
         numbers: [
           ["currentPage", setCurrentPage],
           ["itemsPerPage", setItemsPerPage],
@@ -540,6 +578,7 @@ const POSDashboard = () => {
   const [previewHydrating, setPreviewHydrating] = useState(false);
   const [previewFinancerDetails, setPreviewFinancerDetails] = useState<any>(null);
   const [previewVoucherRefund, setPreviewVoucherRefund] = useState(0);
+  const [previewAccount, setPreviewAccount] = useState({ previousBalance: 0, unusedAdvance: 0 });
   const [previewCustomerData, setPreviewCustomerData] = useState<{ gst_number?: string; transport_details?: string; address?: string; points_balance?: number | null } | null>(null);
   const [posBillFormat, setPosBillFormat] = useState<string | null>(null);
   const [posInvoiceTemplate, setPosInvoiceTemplate] = useState<string>('professional');
@@ -593,7 +632,8 @@ const POSDashboard = () => {
     refundFilter !== "all" ||
     creditNoteFilter !== "all" ||
     cancelFilter !== "active" ||
-    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "");
+    (userFilter !== "__pending__" && userFilter !== "all" && userFilter !== "") ||
+    salesmanFilter.length > 0;
 
   const resetPosFilters = () => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
@@ -608,6 +648,7 @@ const POSDashboard = () => {
     setCreditNoteFilter("all");
     setCancelFilter("active");
     setUserFilter("all");
+    setSalesmanFilter([]);
     setCurrentPage(1);
     clearPersistedFilters();
   };
@@ -827,6 +868,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter: userFilter && userFilter !== "__pending__" ? userFilter : "all",
+      salesmanFilter: normalizePosSalesmanFilter(salesmanFilter),
       cancelFilter,
     }),
     [
@@ -840,6 +882,7 @@ const POSDashboard = () => {
       refundFilter,
       creditNoteFilter,
       userFilter,
+      salesmanFilter,
       cancelFilter,
     ],
   );
@@ -862,6 +905,7 @@ const POSDashboard = () => {
     refundFilter,
     creditNoteFilter,
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
+    normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
     currentPage,
     itemsPerPage,
@@ -948,6 +992,7 @@ const POSDashboard = () => {
     refundFilter,
     creditNoteFilter,
     userFilter && userFilter !== "__pending__" ? userFilter : "all",
+    normalizePosSalesmanFilter(salesmanFilter),
     cancelFilter,
   ] as const;
 
@@ -1392,9 +1437,13 @@ const POSDashboard = () => {
     setIsDeleting(true);
     try {
       let qtyRestored = 0;
+      let refundVouchersDeleted: LeftoverExchangeRefund[] = [];
       const success = await softDelete("sales", saleToDelete.id, {
         onSaleStockRestored: (info) => {
           qtyRestored = info.qtyRestored;
+        },
+        onExchangeRefundVouchersDeleted: (vouchers) => {
+          refundVouchersDeleted = vouchers;
         },
       });
       if (!success) throw new Error("Failed to delete sale");
@@ -1426,8 +1475,16 @@ const POSDashboard = () => {
             : `Sale ${saleToDelete.sale_number} moved to recycle bin.`,
       });
 
+      if (refundVouchersDeleted.length > 0) {
+        const total = refundVouchersDeleted.reduce((sum, v) => sum + v.total_amount, 0);
+        toast({
+          title: "Exchange refund removed too",
+          description: `${refundVouchersDeleted.map((v) => v.voucher_number).join(", ")} (₹${Math.round(total).toLocaleString("en-IN")}) moved to the Recycle Bin with ${saleToDelete.sale_number}.`,
+        });
+      }
+
       if (currentOrganization?.id) {
-        // The exchange refund voucher is not released with the bill; tell the user it is left.
+        // Only left if removing it with the bill failed; tell the user.
         const leftover = await findLeftoverExchangeRefunds(
           supabase,
           currentOrganization.id,
@@ -1915,11 +1972,7 @@ const POSDashboard = () => {
               supabase,
               currentOrganization.id,
               sale.customer_id,
-              {
-                billTotal: Number(sale.net_amount) || 0,
-                receivedToday: Number(sale.paid_amount) || 0,
-                accountIncludesThisBill: true,
-              },
+              saleInvoicePrintAccountOpts(sale),
             );
           } catch {
             return { previousBalance: 0, unusedAdvance: 0 };
@@ -1952,6 +2005,7 @@ const POSDashboard = () => {
         items: items.map((item, index) => ({
           sr: index + 1,
           particulars: item.product_name,
+          productId: item.product_id,
           itemNotes: item.item_notes || "",
           productNameOnly:
             (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
@@ -1972,15 +2026,13 @@ const POSDashboard = () => {
         grandTotal: saleBillFigures(sale).payable,
         billNetAmount: saleBillFigures(sale).billAmount,
         roundOff: sale.round_off || 0,
-        cashPaid: sale.payment_method === "cash" ? sale.net_amount : 0,
-        upiPaid: sale.payment_method === "upi" ? sale.net_amount : 0,
+        ...saleRowThermalTender(sale),
         paymentMethod: sale.payment_method,
         cashAmount: sale.cash_amount,
         cardAmount: sale.card_amount,
         upiAmount: sale.upi_amount,
         creditAmount: sale.credit_amount,
         financeAmount: Number(sale.finance_amount) || 0,
-        paidAmount: sale.paid_amount,
         // Exchange excess paid back to the customer; the original print showed this line.
         refundCash: saleRefundForReprint(sale, voucherRefund),
         previousBalance: accountFacets.previousBalance ?? 0,
@@ -2275,6 +2327,7 @@ const POSDashboard = () => {
     setPreviewFinancerDetails(null);
     setPreviewCustomerData(null);
     setPreviewVoucherRefund(0);
+    setPreviewAccount({ previousBalance: 0, unusedAdvance: 0 });
     setPreviewHydrating(true);
     setShowPreviewDialog(true);
     try {
@@ -2283,14 +2336,26 @@ const POSDashboard = () => {
       if (currentOrganization?.id) {
         financerQuery = financerQuery.eq('organization_id', currentOrganization.id);
       }
-      const [{ data: finData }, { data: custData }] = await Promise.all([
+      const [{ data: finData }, { data: custData }, accountFacets] = await Promise.all([
         financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details, address, points_balance').eq('id', sale.customer_id).maybeSingle()
           : Promise.resolve({ data: null }),
+        sale.customer_id && currentOrganization?.id
+          ? fetchInvoicePrintAccountFacets(
+              supabase,
+              currentOrganization.id,
+              sale.customer_id,
+              saleInvoicePrintAccountOpts(sale),
+            ).catch(() => ({ previousBalance: 0, unusedAdvance: 0 }))
+          : Promise.resolve({ previousBalance: 0, unusedAdvance: 0 }),
       ]);
       setPreviewFinancerDetails(mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>));
       setPreviewCustomerData(custData);
+      setPreviewAccount({
+        previousBalance: accountFacets.previousBalance ?? 0,
+        unusedAdvance: accountFacets.unusedAdvance ?? 0,
+      });
       if (saleRefundForPrint(sale) <= 0 && sale.customer_id && currentOrganization?.id) {
         const refunds = await findLeftoverExchangeRefunds(
           supabase,
@@ -2501,6 +2566,12 @@ const POSDashboard = () => {
         prevPaymentStatus: selectedSaleForPayment.payment_status,
         netAmount: latestNet,
         outstandingCleared: Math.max(0, prevOutstanding - currentBalance),
+      });
+      patchInvoiceDashboardPaymentFields(queryClient, orgId, saleId, {
+        paid_amount: recomputedPaid,
+        payment_status: recomputedStatus,
+        outstanding: currentBalance,
+        sale_return_adjust: latestSra,
       });
 
       toast({
@@ -2955,6 +3026,7 @@ const POSDashboard = () => {
     creditNoteFilter,
     saleTypeFilter,
     userFilter,
+    salesmanFilter,
     cancelFilter,
   ]);
 
@@ -3600,19 +3672,78 @@ const POSDashboard = () => {
               </Select>
               </div>
               <div className="flex-1 min-w-[88px]">
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
-                  <SelectValue placeholder="Users" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All Users</SelectItem>
-                  {orgUsers.map((user: any) => (
-                    <SelectItem key={user.id} value={user.id} title={user.email}>
-                      {user.email.split("@")[0]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between font-normal px-3"
+                    title="Filter by user or salesman"
+                  >
+                    <span className="truncate">
+                      {posDashboardPeopleFilterLabel({
+                        userFilter,
+                        userLabel: orgUsers.find((u: { id: string }) => u.id === userFilter)?.email?.split("@")[0],
+                        salesmanNames: salesmanFilter,
+                      })}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[240px] p-2" align="start">
+                  <div className="max-h-72 space-y-1 overflow-y-auto">
+                    <p className="px-2 pt-1 text-xs font-medium text-muted-foreground">Users</p>
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <Checkbox
+                        checked={userFilter === "all"}
+                        onCheckedChange={() => setUserFilter("all")}
+                      />
+                      All Users
+                    </label>
+                    {orgUsers.map((orgUser: { id: string; email: string }) => (
+                      <label key={orgUser.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm" title={orgUser.email}>
+                        <Checkbox
+                          checked={userFilter === orgUser.id}
+                          onCheckedChange={(checked) => setUserFilter(checked ? orgUser.id : "all")}
+                        />
+                        <span className="truncate">{orgUser.email.split("@")[0]}</span>
+                      </label>
+                    ))}
+                    <p className="px-2 pt-2 text-xs font-medium text-muted-foreground">Salesman</p>
+                    {salesmanChoices.length === 0 ? (
+                      <p className="px-2 py-1.5 text-sm text-muted-foreground">No salesman in Employee Master</p>
+                    ) : (
+                      salesmanChoices.map((name) => (
+                        <label key={name} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                          <Checkbox
+                            checked={salesmanFilter.some((picked) => picked.toLowerCase() === name.toLowerCase())}
+                            onCheckedChange={(checked) => {
+                              setSalesmanFilter((prev) =>
+                                normalizePosSalesmanFilter(
+                                  checked ? [...prev, name] : prev.filter((picked) => picked.toLowerCase() !== name.toLowerCase()),
+                                ),
+                              );
+                            }}
+                          />
+                          <span className="truncate">{name}</span>
+                        </label>
+                      ))
+                    )}
+                    {(userFilter !== "all" && userFilter !== "__pending__") || salesmanFilter.length > 0 ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full text-xs mt-1"
+                        onClick={() => {
+                          setUserFilter("all");
+                          setSalesmanFilter([]);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    ) : null}
+                  </div>
+                </PopoverContent>
+              </Popover>
               </div>
               {/* Column Settings Popover */}
               <Popover>
@@ -4575,6 +4706,7 @@ const POSDashboard = () => {
               items={(saleItems[previewSale.id] || []).map((item, index) => ({
                 sr: index + 1,
                 particulars: item.product_name,
+                productId: item.product_id,
                 itemNotes: item.item_notes || '',
                 productNameOnly:
                   (item.product_name || "").split("-")[0]?.trim() || item.product_name || "",
@@ -4596,8 +4728,12 @@ const POSDashboard = () => {
               billNetAmount={saleBillFigures(previewSale).billAmount}
               refundCash={saleRefundForReprint(previewSale, previewVoucherRefund)}
               roundOff={previewSale.round_off || 0}
-              cashPaid={previewSale.payment_method === 'cash' ? previewSale.net_amount : 0}
-              upiPaid={previewSale.payment_method === 'upi' ? previewSale.net_amount : 0}
+              cashPaid={saleRowThermalTender(previewSale).cashPaid}
+              upiPaid={saleRowThermalTender(previewSale).upiPaid}
+              cardPaid={saleRowThermalTender(previewSale).cardPaid}
+              creditPaid={saleRowThermalTender(previewSale).creditPaid}
+              previousBalance={previewAccount.previousBalance}
+              unusedAdvance={previewAccount.unusedAdvance}
               paymentMethod={previewSale.payment_method}
               cashAmount={previewSale.cash_amount}
               cardAmount={previewSale.card_amount}
@@ -4808,6 +4944,8 @@ const POSDashboard = () => {
             roundOff={printData.roundOff}
             cashPaid={printData.cashPaid}
             upiPaid={printData.upiPaid}
+            cardPaid={printData.cardPaid}
+            creditPaid={printData.creditPaid}
             paymentMethod={printData.paymentMethod}
             cashAmount={printData.cashAmount}
             cardAmount={printData.cardAmount}
@@ -4843,6 +4981,14 @@ const POSDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {selectedSaleForPayment?.customer_id && currentOrganization?.id && (
+              <CustomerAccountSummaryStrip
+                organizationId={currentOrganization.id}
+                customerId={selectedSaleForPayment.customer_id}
+                customerName={selectedSaleForPayment.customer_name}
+                compact
+              />
+            )}
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Customer:</span>

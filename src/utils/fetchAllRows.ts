@@ -92,6 +92,22 @@ export async function fetchCustomerPhonesByIds(
   return map;
 }
 
+/** Set once the database answers that get_customer_party_balances_all is not applied. */
+let partyBalancesAllRpcMissing = false;
+
+/** PostgREST / Postgres "function does not exist" (migration not applied yet). */
+export function isMissingRpcFunctionError(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null;
+  if (!e) return false;
+  if (e.code === "PGRST202" || e.code === "42883") return true;
+  return /could not find the function|function .* does not exist/i.test(String(e.message || ""));
+}
+
+/** Test hook: forget a previous "function missing" answer. */
+export function resetPartyBalancesAllRpcProbe(): void {
+  partyBalancesAllRpcMissing = false;
+}
+
 export async function fetchAllCustomerPartyBalances(
   organizationId: string,
   search?: string | null,
@@ -100,6 +116,21 @@ export async function fetchAllCustomerPartyBalances(
   let offset = 0;
   const pageSize = 1000;
   const trimmedSearch = search?.trim() || null;
+
+  // One call, one computation (20270107120000). Each 1000-row page below re-runs the
+  // whole balance query, so a 7,800-customer shop would compute it 8 times in a row.
+  if (!partyBalancesAllRpcMissing) {
+    const { data, error } = await (supabase.rpc as any)("get_customer_party_balances_all", {
+      p_organization_id: organizationId,
+      p_search: trimmedSearch,
+    });
+    if (!error) return (Array.isArray(data) ? data : []) as CustomerPartyBalanceRpcRow[];
+    if (!isMissingRpcFunctionError(error)) {
+      console.error("Error fetching customer party balances:", error);
+      throw error;
+    }
+    partyBalancesAllRpcMissing = true;
+  }
 
   while (true) {
     const { data, error } = await supabase
@@ -624,6 +655,7 @@ export async function fetchAllVouchers(organizationId: string) {
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     if (error) {
@@ -667,6 +699,7 @@ export async function fetchCustomerReceiptVouchers(organizationId: string) {
       .ilike("voucher_type", "receipt")
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(offset, offset + pageSize - 1);
 
     if (error) {
@@ -843,7 +876,7 @@ export async function fetchAllSaleItems(saleIds: string[]) {
       const { data, error } = await supabase
         .from("sale_items")
         .select(
-          "variant_id, quantity, line_total, unit_price, mrp, discount_percent, discount_share, round_off_share, net_after_discount, gst_percent, product_id, product_name, sale_id, hsn_code, is_dc_item, barcode, size, color"
+          "variant_id, quantity, line_total, unit_price, mrp, discount_percent, discount_share, round_off_share, net_after_discount, gst_percent, product_id, product_name, sale_id, hsn_code, is_dc_item, barcode, size, color, salesman"
         )
         .in("sale_id", batchIds)
         .is("deleted_at", null)

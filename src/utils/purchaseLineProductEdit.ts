@@ -50,6 +50,37 @@ export function normalizePurchaseBarcode(value?: string | null): string {
   return (value || "").trim();
 }
 
+/**
+ * Brand shown on a purchase line. The product master wins when it has a brand,
+ * so a bill opened after Edit Product shows LANGO instead of the old line brand.
+ * A blank master keeps the brand already stored on the line.
+ */
+export function resolvePurchaseLineBrand(lineBrand?: string | null, masterBrand?: string | null): string {
+  const master = (masterBrand || "").trim();
+  if (master) return master;
+  return (lineBrand || "").trim();
+}
+
+export type PurchaseBrandSyncRow = { id: string; brand: string };
+
+/** Saved purchase lines whose stored brand is not the current product master brand. */
+export function purchaseItemBrandSyncRows(
+  items: Array<{ id?: string | null; brand?: string | null; product_id?: string | null }>,
+  masterBrandByProductId: ReadonlyMap<string, string | null | undefined>,
+): PurchaseBrandSyncRow[] {
+  const rows: PurchaseBrandSyncRow[] = [];
+  for (const item of items) {
+    const id = (item.id || "").trim();
+    if (!id) continue;
+    const master = item.product_id ? masterBrandByProductId.get(item.product_id) : "";
+    const resolved = resolvePurchaseLineBrand(item.brand, master);
+    const stored = (item.brand || "").trim();
+    if (!resolved || resolved === stored) continue;
+    rows.push({ id, brand: resolved });
+  }
+  return rows;
+}
+
 function barcodesEqual(a?: string | null, b?: string | null): boolean {
   const left = normalizePurchaseBarcode(a);
   const right = normalizePurchaseBarcode(b);
@@ -88,7 +119,9 @@ export function purchaseLineMatchesProductEdit(
  * price save also refreshes the item description for this barcode.
  * Colour is copied whenever this barcode's saved colour differs from the bill
  * line, so the bill shows the same colour as reports and POS.
- * Brand, style, and rates change only when the user edited them.
+ * Brand is copied the same way: the product master brand wins when it is set,
+ * even if the user did not retype it. A blank master brand is left alone
+ * unless the user cleared the field. Style and rates change only when edited.
  */
 export function buildPurchaseLinePatchFromProductEdit(args: {
   form: ProductEditFormSnapshot;
@@ -108,12 +141,22 @@ export function buildPurchaseLinePatchFromProductEdit(args: {
     lineKey: keyof PurchaseLineEditFields;
     next: string;
   }> = [
-    { modifiedKey: "brand", lineKey: "brand", next: normText(form.brand) },
     { modifiedKey: "category", lineKey: "category", next: normText(form.category) },
     { modifiedKey: "style", lineKey: "style", next: normText(form.style) },
     { modifiedKey: "hsn_code", lineKey: "hsn_code", next: normText(form.hsn_code) },
     { modifiedKey: "uom", lineKey: "uom", next: normText(form.uom) },
   ];
+
+  // Brand lives on the product, not the barcode. The bill line keeps its own
+  // copy, so Save must replace SHINY with LANGO even when the field already
+  // showed the master brand and was not marked modified.
+  const formBrand = normText(form.brand);
+  const lineBrand = normText(line.brand);
+  if (modifiedFields.has("brand")) {
+    if (lineBrand !== formBrand) patch.brand = formBrand;
+  } else if (formBrand && lineBrand !== formBrand) {
+    patch.brand = formBrand;
+  }
 
   for (const field of textFields) {
     if (!modifiedFields.has(field.modifiedKey)) continue;
@@ -176,6 +219,22 @@ export function purchaseItemDbPatchFromLineEdit(
  * Saved purchase_items ids (temp_id on an edited bill) whose colour/name
  * should be rewritten. Unsaved rows are skipped — the bill save inserts them.
  */
+/**
+ * Saved purchase_items of the same product. Brand is product-wide, so a brand
+ * save updates every size on the bill, not only the barcode that was open.
+ */
+export function persistedPurchaseItemIdsForProduct(
+  lines: Array<PurchaseBillLineIdentity & { product_id?: string | null }>,
+  productId: string | null | undefined,
+  persistedIds: ReadonlySet<string>,
+): string[] {
+  const id = (productId || "").trim();
+  if (!id) return [];
+  return lines
+    .filter((line) => persistedIds.has(line.temp_id) && (line.product_id || "") === id)
+    .map((line) => line.temp_id);
+}
+
 export function persistedPurchaseItemIdsForEdit(
   lines: PurchaseBillLineIdentity[],
   edited: PurchaseProductEditMatch & { tempId: string },

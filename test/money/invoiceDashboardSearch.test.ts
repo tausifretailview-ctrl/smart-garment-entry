@@ -21,6 +21,35 @@ describe("resolveInvoiceDashboardDisplayRows", () => {
     ).toEqual([]);
   });
 
+  it("changes the reconcile key when the same bill's paid amount changes", async () => {
+    const { invoiceDashboardReconcileSourceKey } = await import(
+      "@/utils/invoiceDashboardData"
+    );
+    const before = invoiceDashboardReconcileSourceKey([
+      { id: "sale-1", payment_status: "pending", paid_amount: 0, sale_return_adjust: 0 },
+    ]);
+    const after = invoiceDashboardReconcileSourceKey([
+      { id: "sale-1", payment_status: "completed", paid_amount: 3300, sale_return_adjust: 0 },
+    ]);
+    expect(before).not.toBe(after);
+    expect(after).toContain("completed");
+    expect(after).toContain("3300");
+  });
+
+  it("shows the updated page row while the new reconcile query has no data yet", async () => {
+    const { resolveInvoiceDashboardDisplayRows } = await import(
+      "@/utils/invoiceDashboardData"
+    );
+    const quick = [{ id: "sale-1", payment_status: "completed", paid_amount: 3300 }];
+    expect(
+      resolveInvoiceDashboardDisplayRows({
+        dashboardPage: { invoices: quick, totalCount: 1, sourceRows: quick },
+        reconciledPageInvoices: undefined,
+        reconcileSourceKey: "sale-1:completed:3300:0",
+      }),
+    ).toEqual(quick);
+  });
+
   it("uses reconciled rows when source key matches current page", async () => {
     const { resolveInvoiceDashboardDisplayRows } = await import(
       "@/utils/invoiceDashboardData"

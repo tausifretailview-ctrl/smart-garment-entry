@@ -4,6 +4,7 @@ import { useSettings } from "@/hooks/useSettings";
 import type { PosThermalPaper } from "@/utils/invoicePrintFormat";
 import { instagramHandleFromLink } from "@/utils/kidsCampThermalReceipt";
 import { fitThermalHeaderFontPx, splitVastrakalaShopHeader } from "@/utils/vastrakalaThermalHeader";
+import { ThermalPartyLines } from "@/components/thermal/ThermalPartyLines";
 import {
   vastrakalaLineDiscount,
   vastrakalaParticularsLines,
@@ -39,6 +40,9 @@ interface VastrakalaThermalReceipt80mmProps {
   cardPaid?: number;
   creditPaid?: number;
   paidAmount?: number;
+  refundCash?: number;
+  previousBalance?: number;
+  unusedAdvance?: number;
   documentType?: "invoice" | "quotation" | "sale-order" | "pos";
   salesman?: string;
   settingsOverride?: Record<string, unknown>;
@@ -173,6 +177,9 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
+    refundCash = 0,
+    previousBalance = 0,
+    unusedAdvance = 0,
     documentType = "pos",
     salesman,
     thermalPaper = "80mm",
@@ -519,6 +526,12 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
           <div className="vk-net-amt" style={{ fontSize: layout.netFont }}>
             NET AMT. : {fmtDec(grandTotal)}
           </div>
+          {refundCash > 0 ? <div>REFUND : {fmtDec(refundCash)}</div> : null}
+          <ThermalPartyLines
+            previousBalance={previousBalance}
+            unusedAdvance={unusedAdvance}
+            formatMoney={(n) => fmtDec(n)}
+          />
         </div>
       </div>
 

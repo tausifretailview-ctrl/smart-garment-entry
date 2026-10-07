@@ -289,7 +289,7 @@ export function MixPaymentDialog({
                   min="0"
                   step="0.01"
                   value={refundAmount || ""}
-                  onChange={(e) => setRefundAmount(Number(e.target.value) || 0)}
+                  onChange={(e) => setRefundAmount(Math.abs(Number(e.target.value) || 0))}
                   placeholder="₹ 0.00"
                   className="text-right"
                 />

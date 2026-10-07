@@ -46,6 +46,7 @@ export function posDashboardDefaultQueryKey(organizationId: string) {
     "all",
     "all",
     "all",
+    [] as string[],
     "active",
     1,
     DEFAULT_PAGE_SIZE,
@@ -68,6 +69,7 @@ export function posDashboardDefaultSummaryQueryKey(organizationId: string) {
     "all",
     "all",
     "all",
+    [] as string[],
     "active",
   ] as const;
 }

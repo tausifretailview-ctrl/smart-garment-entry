@@ -94,12 +94,23 @@ import {
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
+  maxSupportedPaid,
+  shouldPersistReconciledPaid,
   resolveReceiptReprintBalances,
   splitSaleLinkedReceiptRows,
   syncSalePaymentFromVouchers,
   syncSalePaymentsFromVouchersBatch,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
+import {
+  collectSaleIdsForReceiptDelete,
+  creditNoteSaleForReceiptDelete,
+  customerIdForReceiptBalanceRefresh,
+  customerReceiptReversedAmount,
+  isAdvanceAdjustmentReceipt,
+  isCreditNoteAdjustmentReceipt,
+  loadSalesTouchedByReceipt,
+} from "@/utils/customerReceiptDeletePlan";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
 // Sentinel ID used to represent the customer's remaining Opening Balance
 // as a selectable row inside the invoice picker.
@@ -279,7 +290,9 @@ export function CustomerPaymentTab({
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [receiptToDelete, setReceiptToDelete] = useState<any>(null);
   const bulkDeleteSilentRef = useRef(false);
+  const receiptRowsRef = useRef<any[]>([]);
   const [customerPaymentsPage, setCustomerPaymentsPage] = useState(1);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string[]>([]);
@@ -437,11 +450,18 @@ export function CustomerPaymentTab({
             rec.payment_status,
             effectiveStatus,
           );
-          return { sale, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
+          return {
+            sale,
+            normalizedPaid: rec.paid_amount,
+            normalizedStatus: rec.payment_status,
+            supportedPaid: maxSupportedPaid(sale, split),
+          };
         })
-        .filter(({ sale, normalizedPaid, normalizedStatus }) =>
-          Math.abs(Number(sale.paid_amount || 0) - normalizedPaid) > 0.009 ||
-          (sale.payment_status || "pending") !== normalizedStatus
+        .filter(({ sale, normalizedPaid, normalizedStatus, supportedPaid }) =>
+          (Math.abs(Number(sale.paid_amount || 0) - normalizedPaid) > 0.009 ||
+            (sale.payment_status || "pending") !== normalizedStatus) &&
+          // Never persist a higher paid amount that no receipt or counter tender supports.
+          shouldPersistReconciledPaid(Number(sale.paid_amount || 0), normalizedPaid, supportedPaid)
         );
 
       if (updates.length > 0) {
@@ -1260,12 +1280,13 @@ export function CustomerPaymentTab({
   const deleteReceipt = useMutation({
     mutationFn: async (payment: any) => {
       const voucherId = payment.id;
-      const saleId = payment.reference_type === "sale" ? payment.reference_id : null;
-      const discRev = Number((payment as { discount_amount?: number }).discount_amount || 0);
-      const paymentAmount = Number(payment.total_amount) + discRev;
-      const pm = String(payment.payment_method || "").toLowerCase();
-      const isAdvanceApplication = pm === "advance_adjustment";
-      const isCreditNoteApplication = pm === "credit_note_adjustment";
+      const paymentAmount = customerReceiptReversedAmount(payment);
+      const isAdvanceApplication = isAdvanceAdjustmentReceipt(payment);
+      const isCreditNoteApplication = isCreditNoteAdjustmentReceipt(payment);
+      const touchedSales = await loadSalesTouchedByReceipt(supabase, organizationId, payment);
+      const saleIds = collectSaleIdsForReceiptDelete(payment, touchedSales);
+      const customerId = customerIdForReceiptBalanceRefresh(payment, touchedSales, saleIds);
+      const cnSale = creditNoteSaleForReceiptDelete(payment, touchedSales, saleIds);
       const { data: acctDel } = await supabase
         .from("settings")
         .select("accounting_engine_enabled")
@@ -1282,94 +1303,91 @@ export function CustomerPaymentTab({
             : "CustomerReceipt";
         await deleteJournalEntryByReference(organizationId, journalRef, voucherId, supabase);
       }
-      let saleCustomerId: string | null = null;
       // Written after the voucher is gone: the DB refuses lowering S/R adjust
       // while a credit-note voucher is still live on the bill.
       let cnSaleUpdate: { paid_amount: number; payment_status: string; sale_return_adjust: number } | null = null;
-      if (saleId) {
-        const { data: invoice } = await supabase
-          .from("sales")
-          .select("paid_amount, net_amount, cash_amount, card_amount, upi_amount, customer_id, sale_return_adjust")
-          .eq("id", saleId)
-          .maybeSingle();
-        if (invoice) {
-          saleCustomerId = (invoice.customer_id as string) || null;
-          const netAmount = Number(invoice.net_amount || 0);
-          const srAdjust = Number((invoice as { sale_return_adjust?: number }).sale_return_adjust || 0);
-          if (isCreditNoteApplication) {
-            const dualPaidAndSr = String(payment.description || "").includes("(Return");
-            const newSr = Math.max(0, srAdjust - paymentAmount);
-            let newPaid = Number(invoice.paid_amount || 0);
-            if (dualPaidAndSr) newPaid = Math.max(0, newPaid - paymentAmount);
-            const legacyCnStatus =
-              newPaid + newSr >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
-                ? "completed"
-                : newPaid > 0 || newSr > 0
-                  ? "partial"
-                  : "pending";
-            const { paymentStatus: newStatus } = derivePaidAndStatus({
-              netAmount,
-              saleReturnAdjust: newSr,
-              cashReceived: newPaid,
-              advanceApplied: 0,
-              cnApplied: newSr,
-              discountGiven: 0,
-            });
-            warnSettlementPathMismatch(
-              "CustomerPaymentTab.deleteReceipt.cn",
-              legacyCnStatus,
-              newStatus,
-            );
-            cnSaleUpdate = {
-              paid_amount: newPaid,
-              payment_status: newStatus,
-              sale_return_adjust: newSr,
-            };
-          }
-        }
+      if (cnSale) {
+        const netAmount = Number(cnSale.net_amount || 0);
+        const srAdjust = Number(cnSale.sale_return_adjust || 0);
+        const dualPaidAndSr = String(payment.description || "").includes("(Return");
+        const newSr = Math.max(0, srAdjust - paymentAmount);
+        let newPaid = Number(cnSale.paid_amount || 0);
+        if (dualPaidAndSr) newPaid = Math.max(0, newPaid - paymentAmount);
+        const legacyCnStatus =
+          newPaid + newSr >= netAmount - SETTLEMENT_TOLERANCE_RUPEE
+            ? "completed"
+            : newPaid > 0 || newSr > 0
+              ? "partial"
+              : "pending";
+        const { paymentStatus: newStatus } = derivePaidAndStatus({
+          netAmount,
+          saleReturnAdjust: newSr,
+          cashReceived: newPaid,
+          advanceApplied: 0,
+          cnApplied: newSr,
+          discountGiven: 0,
+        });
+        warnSettlementPathMismatch(
+          "CustomerPaymentTab.deleteReceipt.cn",
+          legacyCnStatus,
+          newStatus,
+        );
+        cnSaleUpdate = {
+          paid_amount: newPaid,
+          payment_status: newStatus,
+          sale_return_adjust: newSr,
+        };
       }
       await supabase.from("voucher_items").delete().eq("voucher_id", voucherId);
-      const { error } = await supabase.from("voucher_entries").delete().eq("id", voucherId);
+      const { data: removed, error } = await supabase
+        .from("voucher_entries")
+        .delete()
+        .eq("id", voucherId)
+        .eq("organization_id", organizationId)
+        .select("id");
       if (error) throw error;
-      if (saleId && cnSaleUpdate) {
+      if (!removed?.length) throw new Error("Receipt not found");
+      if (cnSale && cnSaleUpdate) {
         const { error: saleUpdErr } = await supabase
           .from("sales")
           .update(cnSaleUpdate)
-          .eq("id", saleId);
+          .eq("id", cnSale.id)
+          .eq("organization_id", organizationId);
         if (saleUpdErr) throw saleUpdErr;
       }
-      if (saleId && !isCreditNoteApplication) {
-        if (isAdvanceApplication && saleCustomerId) {
-          await reverseCustomerAdvanceFifo(
-            supabase,
-            organizationId,
-            saleCustomerId,
-            paymentAmount,
-          );
-        }
-        await syncSalePaymentFromVouchers(
-          saleId,
-          organizationId,
-          format(new Date(), "yyyy-MM-dd"),
+      const salesToResync = isCreditNoteApplication
+        ? []
+        : saleIds.filter((id) => id !== cnSale?.id);
+      if (isAdvanceApplication && customerId) {
+        await reverseCustomerAdvanceFifo(
           supabase,
+          organizationId,
+          customerId,
+          paymentAmount,
         );
       }
-      return { voucherId, paymentAmount, voucherNumber: payment.voucher_number };
+      const voucherDateYmd = format(new Date(), "yyyy-MM-dd");
+      try {
+        for (const saleId of salesToResync) {
+          await syncSalePaymentFromVouchers(
+            saleId,
+            organizationId,
+            voucherDateYmd,
+            supabase,
+          );
+        }
+      } catch (syncError) {
+        const message = syncError instanceof Error ? syncError.message : String(syncError);
+        throw new Error(`Receipt deleted, but the invoice balance was not updated: ${message}`);
+      }
+      return { voucherId, paymentAmount, voucherNumber: payment.voucher_number, customerId };
     },
     onSuccess: (data) => {
       if (data.voucherNumber && organizationId) {
         deleteLedgerEntries({ organizationId, voucherNo: data.voucherNumber, voucherTypes: ['RECEIPT'] });
       }
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
-      queryClient.invalidateQueries({ queryKey: ["sales"] });
-      invalidateAfterCustomerPaymentMutation(queryClient, organizationId);
-      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
-      invalidateCustomerFinancialSnapshot(queryClient, organizationId, referenceId);
+      setSelectedPaymentIds((prev) => prev.filter((id) => id !== data.voucherId));
+      setReceiptToDelete((current) => (current?.id === data.voucherId ? null : current));
       if (!bulkDeleteSilentRef.current) {
         toast.success(`Receipt deleted. ₹${Math.round(data.paymentAmount).toLocaleString('en-IN')} reversed.`);
       }
@@ -1379,11 +1397,28 @@ export function CustomerPaymentTab({
         toast.error(`Failed to delete receipt: ${error.message}`);
       }
     },
+    onSettled: (data) => {
+      const customerId = data?.customerId ?? null;
+      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-receipt-vouchers", organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["payment-reconciliation"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["customer-invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["customer-invoice-voucher-splits"] });
+      void queryClient.invalidateQueries({ queryKey: ["customers-with-balance"] });
+      invalidateAfterCustomerPaymentMutation(queryClient, organizationId, customerId);
+      queryClient.invalidateQueries({ queryKey: ["customer-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advance-balance"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-advances"] });
+      invalidateCustomerFinancialSnapshot(queryClient, organizationId, customerId);
+    },
   });
 
   const handleBulkDeleteReceipts = async () => {
     if (bulkDeleting) return;
-    const selected = vouchers?.filter((v) => selectedPaymentIds.includes(v.id)) || [];
+    const source = receiptRowsRef.current.length > 0 ? receiptRowsRef.current : vouchers;
+    const selected = source?.filter((v) => selectedPaymentIds.includes(v.id)) || [];
     if (selected.length === 0) return;
 
     setBulkDeleting(true);
@@ -1466,6 +1501,7 @@ export function CustomerPaymentTab({
   const historyVoucherSource = shell
     ? vouchers
     : customerReceiptHistory ?? [];
+  receiptRowsRef.current = historyVoucherSource ?? [];
   const historyPeriodBounds = useMemo(
     () => getAccountsHistoryPeriodBounds(historyPeriodFilter),
     [historyPeriodFilter],
@@ -2443,6 +2479,17 @@ export function CustomerPaymentTab({
                             <Printer className="h-3.5 w-3.5" />
                             Print
                           </button>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              title="Delete Receipt"
+                              onClick={() => setReceiptToDelete(voucher)}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-destructive active:bg-destructive/5 touch-manipulation"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                          )}
                         </>
                       }
                     />
@@ -2593,6 +2640,15 @@ export function CustomerPaymentTab({
                           }}>
                             <Printer className="h-4 w-4" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Delete Receipt"
+                            className="text-destructive"
+                            onClick={() => setReceiptToDelete(voucher)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     )}
@@ -2632,6 +2688,39 @@ export function CustomerPaymentTab({
           )}
       </AccountsHistoryPanel>
       )}
+
+      <AlertDialog
+        open={!!receiptToDelete}
+        onOpenChange={(open) => {
+          if (deleteReceipt.isPending && !open) return;
+          if (!open) setReceiptToDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this receipt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {receiptToDelete
+                ? `Delete ${receiptToDelete.voucher_number || "this receipt"}? ₹${Math.round(customerReceiptReversedAmount(receiptToDelete)).toLocaleString("en-IN")} will be reversed on the linked invoice and the customer balance will update.`
+                : "This receipt will be reversed and the customer balance will update."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteReceipt.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteReceipt.isPending || !receiptToDelete}
+              onClick={(e) => {
+                e.preventDefault();
+                if (!receiptToDelete || deleteReceipt.isPending) return;
+                void deleteReceipt.mutateAsync(receiptToDelete);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteReceipt.isPending ? "Deleting…" : "Delete & Reverse"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Reassign Payment Dialog */}
       {reassignPayment && (

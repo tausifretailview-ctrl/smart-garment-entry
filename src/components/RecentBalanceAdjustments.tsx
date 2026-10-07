@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { reverseBalanceAdjustmentVouchers } from "@/utils/applyAdjustmentToInvoices";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import { createCustomerAdvance } from "@/utils/createCustomerAdvance";
+import { deductCustomerAdvanceManually } from "@/utils/deductCustomerAdvanceManually";
 
 const PAGE_SIZE = 10;
 
@@ -51,30 +52,11 @@ async function applyAdvanceEffects(
       createdBy: userId,
     });
   } else if (advDiff < 0) {
-    const { data: activeAdvances } = await supabaseClient
-      .from("customer_advances")
-      .select("id, amount, used_amount")
-      .eq("customer_id", customerId)
-      .eq("organization_id", organizationId)
-      .in("status", ["active", "partially_used"])
-      .order("advance_date", { ascending: true });
-
-    let remaining = Math.abs(advDiff);
-    for (const adv of activeAdvances || []) {
-      if (remaining <= 0) break;
-      const available = (adv.amount || 0) - (adv.used_amount || 0);
-      const deduct = Math.min(available, remaining);
-      if (deduct > 0) {
-        const newUsed = (adv.used_amount || 0) + deduct;
-        await supabaseClient
-          .from("customer_advances")
-          .update({
-            used_amount: newUsed,
-            status: newUsed >= (adv.amount || 0) ? "fully_used" : "partially_used",
-          })
-          .eq("id", adv.id);
-        remaining -= deduct;
-      }
+    const notTaken = await deductCustomerAdvanceManually(supabaseClient, organizationId, customerId, advDiff);
+    if (notTaken > 0.5) {
+      toast.warning(
+        `Only ₹${(Math.abs(advDiff) - notTaken).toLocaleString("en-IN")} of advance could be removed; ₹${notTaken.toLocaleString("en-IN")} was not available. Check this customer's advance.`,
+      );
     }
   }
 }

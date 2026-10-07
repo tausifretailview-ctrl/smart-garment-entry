@@ -36,6 +36,7 @@ import { KidsThermalReceipt80mm } from './KidsThermalReceipt80mm';
 import { KidsCampThermalReceipt80mm } from './KidsCampThermalReceipt80mm';
 import { RetailPosThermalReceipt80mm } from './RetailPosThermalReceipt80mm';
 import { TrendzoPosThermalReceipt80mm } from './TrendzoPosThermalReceipt80mm';
+import { normalizeThermalReceiptMoney } from '@/utils/thermalReceiptSettlement';
 import { VastrakalaThermalReceipt80mm } from './VastrakalaThermalReceipt80mm';
 import { buildKidsCampGstRateBreakdown } from '@/utils/kidsCampThermalReceipt';
 import QRCode from 'qrcode';
@@ -61,12 +62,16 @@ import {
   pickDefaultReceivingBankAccount,
 } from '@/utils/organizationBankAccounts';
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
+import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
 
 interface InvoiceItem {
   sr: number;
   particulars: string;
   /** Short product name — Retail ERP WhatsApp PDF only. */
   productNameOnly?: string;
+  productId?: string;
+  /** Master product name, without category / brand joined on. */
+  productName?: string;
   size: string;
   barcode: string;
   hsn: string;
@@ -114,6 +119,9 @@ interface InvoiceWrapperProps {
   cashPaid?: number;
   refundCash?: number;
   upiPaid?: number;
+  /** Mode split when the columns are empty but the method still tells us where the money went. */
+  cardPaid?: number;
+  creditPaid?: number;
   paymentMethod?: string;
   cashAmount?: number;
   cardAmount?: number;
@@ -298,7 +306,44 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       }
     };
 
-    if (!settings) {
+    const saleSettingsForDescription = (settings?.sale_settings ?? {}) as {
+      invoice_description_sequence_enabled?: boolean;
+      invoice_description_sequence?: string;
+      invoice_template?: string;
+    };
+    const descriptionSequenceEnabled = saleSettingsForDescription.invoice_description_sequence_enabled === true;
+    const descriptionSequence: InvoiceDescriptionSequence =
+      saleSettingsForDescription.invoice_description_sequence === "product_first" ? "product_first" : "brand_first";
+    const descriptionTemplate = props.template || saleSettingsForDescription.invoice_template || "";
+    const descriptionProductIds = [
+      ...new Set(
+        (props.items || [])
+          .map((item) => item.productId)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ].sort();
+    const descriptionQueryEnabled =
+      !!settings &&
+      descriptionSequenceEnabled &&
+      descriptionTemplate === "tally-tax-invoice" &&
+      !!orgId &&
+      descriptionProductIds.length > 0;
+    const { data: descriptionProducts, isLoading: descriptionPartsLoading } = useQuery({
+      queryKey: ["invoice-description-parts", orgId, descriptionProductIds.join(",")],
+      enabled: descriptionQueryEnabled,
+      staleTime: STALE_SETTINGS,
+      queryFn: async () => {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, product_name, brand, category, style, color")
+          .eq("organization_id", orgId!)
+          .in("id", descriptionProductIds);
+        if (error) throw error;
+        return data ?? [];
+      },
+    });
+
+    if (!settings || (descriptionQueryEnabled && descriptionPartsLoading)) {
       return (
         <div ref={ref} data-invoice-loading="true" style={{ padding: '20px', textAlign: 'center' }}>
           Loading...
@@ -528,7 +573,26 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       customerGSTIN: props.customerGSTIN,
       customerTransportDetails: props.customerTransportDetails,
       
-      items: props.items,
+      items: props.items.map((item) => {
+        if (!descriptionSequenceEnabled || templateForFormat !== "tally-tax-invoice") return item;
+        const product = item.productId
+          ? (descriptionProducts ?? []).find((row) => row.id === item.productId)
+          : undefined;
+        return {
+          ...item,
+          particulars: formatInvoiceProductDescription(
+            {
+              particulars: item.particulars,
+              productName: product?.product_name || item.productName,
+              brand: product?.brand || item.brand,
+              category: product?.category || item.category,
+              style: product?.style || item.style,
+              color: item.color || product?.color,
+            },
+            { enabled: true, sequence: descriptionSequence },
+          ),
+        };
+      }),
       
       subtotal: props.subTotal,
       discount: props.discount,
@@ -627,6 +691,18 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
       sizeColumnHints,
     };
 
+    // Same rupees on every thermal (POS screen, POS dashboard, WhatsApp PDF).
+    const thermalMoney = normalizeThermalReceiptMoney({
+      grandTotal: props.grandTotal,
+      saleReturnAdjust: props.saleReturnAdjust,
+      paidAmount: props.paidAmount,
+      cashPaid: props.cashPaid || props.cashAmount,
+      upiPaid: props.upiPaid || props.upiAmount,
+      cardPaid: props.cardPaid || props.cardAmount,
+      creditPaid: props.creditPaid || props.creditAmount,
+      refundCash: props.refundCash,
+    });
+
     // Select template component based on settings
     const renderTemplate = () => {
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
@@ -649,13 +725,16 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               discount={props.discount}
               saleReturnAdjust={props.saleReturnAdjust}
               roundOff={props.roundOff}
-              grandTotal={props.grandTotal}
+              grandTotal={thermalMoney.grandTotal}
               paymentMethod={props.paymentMethod}
-              cashPaid={props.cashPaid || props.cashAmount}
-              upiPaid={props.upiPaid || props.upiAmount}
-              cardPaid={props.cardAmount}
-              creditPaid={props.creditAmount}
-              paidAmount={props.paidAmount}
+              cashPaid={thermalMoney.cashPaid}
+              upiPaid={thermalMoney.upiPaid}
+              cardPaid={thermalMoney.cardPaid}
+              creditPaid={thermalMoney.creditPaid}
+              paidAmount={thermalMoney.paidAmount}
+              refundCash={thermalMoney.refundCash}
+              previousBalance={props.previousBalance ?? 0}
+              unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
@@ -702,7 +781,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               discount={props.discount}
               saleReturnAdjust={props.saleReturnAdjust}
               roundOff={props.roundOff}
-              grandTotal={props.grandTotal}
+              grandTotal={thermalMoney.grandTotal}
               gstBreakdown={{
                 cgst: cgstAmount,
                 sgst: sgstAmount,
@@ -710,18 +789,20 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               }}
               gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
               paymentMethod={props.paymentMethod}
-              cashPaid={props.cashPaid || props.cashAmount}
-              upiPaid={props.upiPaid || props.upiAmount}
-              cardPaid={props.cardAmount}
-              creditPaid={props.creditAmount}
-              paidAmount={props.paidAmount}
+              cashPaid={thermalMoney.cashPaid}
+              upiPaid={thermalMoney.upiPaid}
+              cardPaid={thermalMoney.cardPaid}
+              creditPaid={thermalMoney.creditPaid}
+              paidAmount={thermalMoney.paidAmount}
               previousBalance={props.previousBalance ?? 0}
               unusedAdvance={props.unusedAdvance ?? 0}
-              refundCash={props.refundCash}
+              refundCash={thermalMoney.refundCash}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showYouSaved={showYouSaved}
+              documentTitle={documentTitle}
+              settingsOverride={settings}
             />
           );
         }
@@ -747,15 +828,17 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               discount={props.discount}
               saleReturnAdjust={props.saleReturnAdjust}
               roundOff={props.roundOff}
-              grandTotal={props.grandTotal}
+              grandTotal={thermalMoney.grandTotal}
               gstRateBreakdown={buildKidsCampGstRateBreakdown(props.items)}
               paymentMethod={props.paymentMethod}
-              cashPaid={props.cashPaid || props.cashAmount}
-              upiPaid={props.upiPaid || props.upiAmount}
-              cardPaid={props.cardAmount}
-              creditPaid={props.creditAmount}
-              paidAmount={props.paidAmount}
-              refundCash={props.refundCash}
+              cashPaid={thermalMoney.cashPaid}
+              upiPaid={thermalMoney.upiPaid}
+              cardPaid={thermalMoney.cardPaid}
+              creditPaid={thermalMoney.creditPaid}
+              paidAmount={thermalMoney.paidAmount}
+              refundCash={thermalMoney.refundCash}
+              previousBalance={props.previousBalance ?? 0}
+              unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
@@ -783,13 +866,16 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               discount={props.discount}
               saleReturnAdjust={props.saleReturnAdjust}
               roundOff={props.roundOff}
-              grandTotal={props.grandTotal}
+              grandTotal={thermalMoney.grandTotal}
               paymentMethod={props.paymentMethod}
-              cashPaid={props.cashPaid || props.cashAmount}
-              upiPaid={props.upiPaid || props.upiAmount}
-              cardPaid={props.cardAmount}
-              creditPaid={props.creditAmount}
-              paidAmount={props.paidAmount}
+              cashPaid={thermalMoney.cashPaid}
+              upiPaid={thermalMoney.upiPaid}
+              cardPaid={thermalMoney.cardPaid}
+              creditPaid={thermalMoney.creditPaid}
+              paidAmount={thermalMoney.paidAmount}
+              refundCash={thermalMoney.refundCash}
+              previousBalance={props.previousBalance ?? 0}
+              unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
@@ -819,14 +905,16 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               discount={props.discount}
               saleReturnAdjust={props.saleReturnAdjust}
               roundOff={props.roundOff}
-              grandTotal={props.grandTotal}
+              grandTotal={thermalMoney.grandTotal}
               paymentMethod={props.paymentMethod}
-              cashPaid={props.cashPaid || props.cashAmount}
-              upiPaid={props.upiPaid || props.upiAmount}
-              cardPaid={props.cardAmount}
-              creditPaid={props.creditAmount}
-              paidAmount={props.paidAmount}
-              refundCash={props.refundCash}
+              cashPaid={thermalMoney.cashPaid}
+              upiPaid={thermalMoney.upiPaid}
+              cardPaid={thermalMoney.cardPaid}
+              creditPaid={thermalMoney.creditPaid}
+              paidAmount={thermalMoney.paidAmount}
+              refundCash={thermalMoney.refundCash}
+              previousBalance={props.previousBalance ?? 0}
+              unusedAdvance={props.unusedAdvance ?? 0}
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
@@ -882,7 +970,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             discount={props.discount}
             saleReturnAdjust={props.saleReturnAdjust}
             roundOff={props.roundOff}
-            grandTotal={props.grandTotal}
+            grandTotal={thermalMoney.grandTotal}
             gstBreakdown={{
               cgst: cgstAmount,
               sgst: sgstAmount,
@@ -890,12 +978,14 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             }}
             gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
             paymentMethod={props.paymentMethod}
-            cashPaid={props.cashPaid || props.cashAmount}
-            upiPaid={props.upiPaid || props.upiAmount}
-            cardPaid={props.cardAmount}
-            creditPaid={props.creditAmount}
-            paidAmount={props.paidAmount}
-            refundCash={props.refundCash}
+            cashPaid={thermalMoney.cashPaid}
+            upiPaid={thermalMoney.upiPaid}
+            cardPaid={thermalMoney.cardPaid}
+            creditPaid={thermalMoney.creditPaid}
+            paidAmount={thermalMoney.paidAmount}
+            refundCash={thermalMoney.refundCash}
+            previousBalance={props.previousBalance ?? 0}
+            unusedAdvance={props.unusedAdvance ?? 0}
             documentType={props.documentType || 'invoice'}
             termsConditions={filteredTerms.join('\n')}
             notes={mergedNotes}

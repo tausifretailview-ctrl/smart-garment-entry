@@ -78,6 +78,36 @@ export function derivePaidAndStatus(params: {
   return { paidAmount, paymentStatus };
 }
 
+/**
+ * POS paid_amount / status.
+ *
+ * `netAmount` is `computePosBillTotals.billAmount`, which already subtracts
+ * loyalty points. Cash tender is that reduced payable. Adding the points
+ * value again as a settlement discount makes paid exceed the bill
+ * (₹3,987 paid vs ₹3,640 payable) and the save is rejected.
+ */
+export function derivePosPaidAndStatus(params: {
+  netAmount: number;
+  saleReturnAdjust: number;
+  cashReceived: number;
+  advanceApplied: number;
+  cnApplied: number;
+  paymentMethod?: string;
+  /** Already removed from netAmount. Kept so callers pass it explicitly. */
+  pointsRedeemedAmount?: number;
+}): { paidAmount: number; paymentStatus: SalePaymentStatus } {
+  void params.pointsRedeemedAmount;
+  return derivePaidAndStatus({
+    netAmount: params.netAmount,
+    saleReturnAdjust: params.saleReturnAdjust,
+    cashReceived: params.cashReceived,
+    advanceApplied: params.advanceApplied,
+    cnApplied: params.cnApplied,
+    discountGiven: 0,
+    paymentMethod: params.paymentMethod,
+  });
+}
+
 export type CreateReceiptVoucherParams = {
   organizationId: string;
   /** Sale id for invoice receipts; customer id for opening-balance receipts. */
@@ -957,7 +987,8 @@ export function computeExchangeRefundDue(params: {
 } {
   const sra = Math.max(0, roundMoney2(params.saleReturnAdjust));
   const net = roundMoney2(params.netAmount);
-  const explicit = Math.max(0, roundMoney2(params.explicitRefundAmount || 0));
+  // A minus typed in the refund box (−200) is the same cash paid back, not a charge.
+  const explicit = Math.abs(roundMoney2(params.explicitRefundAmount || 0));
   if (net < -SETTLEMENT_TOLERANCE) {
     const billAmount = Math.max(0, roundMoney2(net + sra));
     const refundDue = Math.max(explicit, roundMoney2(-net));

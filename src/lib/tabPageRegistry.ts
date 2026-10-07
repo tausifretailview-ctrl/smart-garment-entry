@@ -1,6 +1,6 @@
 import type { ComponentType, LazyExoticComponent } from "react";
 import {
-  attemptSkewRecoveryReload,
+  attemptStaleChunkRecovery,
   importWithRetry,
   isChunkLoadError,
   lazyWithRetry,
@@ -305,6 +305,13 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     layout: "layout",
     roles: ["admin", "manager"],
   },
+  // Admin-only. Must be registered: the sidebar already prefetches this path,
+  // and an unregistered lazy route suspends the app-wide boundary (blank shell).
+  "recycle-bin": {
+    loader: () => import("@/pages/RecycleBin"),
+    layout: "layout",
+    roles: ["admin"],
+  },
 };
 
 // URL-path aliases. App.tsx routes use shorter slugs (e.g. /products,
@@ -437,7 +444,7 @@ export function prefetchTabPage(path: string, options?: PrefetchTabPageOptions):
   void promise.catch((err) => {
     if (!isChunkLoadError(err)) return;
     if (intent) {
-      attemptSkewRecoveryReload();
+      attemptStaleChunkRecovery(err);
       return;
     }
     console.warn(

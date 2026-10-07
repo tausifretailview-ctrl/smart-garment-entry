@@ -12,6 +12,8 @@ import {
 import {
   fetchSaleReceiptSplitsForInvoices,
   reconcileSaleInvoiceWithSplit,
+  maxSupportedPaid,
+  shouldPersistReconciledPaid,
   type SaleReceiptVoucherSplit,
 } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
@@ -20,6 +22,7 @@ import {
   warnSettlementPathMismatch,
 } from "@/utils/saleSettlement";
 import { partyDebtorNetFromRpcRow } from "@/utils/customerAccountFacets";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 export const INVOICE_DASHBOARD_SALES_SELECT =
   "id, sale_number, sale_date, customer_id, customer_name, customer_phone, customer_email, customer_address, gross_amount, discount_amount, flat_discount_amount, flat_discount_percent, other_charges, round_off, net_amount, paid_amount, payment_method, payment_status, delivery_status, salesman, notes, total_qty, created_at, updated_at, created_by, irn, ack_no, einvoice_status, einvoice_error, einvoice_qr_code, sale_return_adjust, credit_applied, due_date, shipping_address, sale_type, is_cancelled, cancelled_at, cancelled_reason, shop_name, customers:customer_id (gst_number)";
@@ -1147,16 +1150,38 @@ export function resolveInvoiceDashboardDisplayRows(
 
 export const INVOICE_DASHBOARD_QUERY_KEY = "invoice-dashboard-unified" as const;
 
-/** Invalidate page, stats, and reconcile queries after a dashboard mutation. */
+/** Page identity plus payment fields, so a receipt changes the reconcile query. */
+export function invoiceDashboardReconcileSourceKey(
+  sourceRows:
+    | Array<{
+        id?: string;
+        paid_amount?: number | null;
+        payment_status?: string | null;
+        sale_return_adjust?: number | null;
+      }>
+    | null
+    | undefined,
+): string {
+  if (!sourceRows?.length) return "";
+  return sourceRows
+    .map((row) =>
+      [row.id ?? "", row.payment_status ?? "", row.paid_amount ?? "", row.sale_return_adjust ?? ""].join(
+        ":",
+      ),
+    )
+    .join(",");
+}
+
 export function invalidateInvoiceDashboardQueries(
   queryClient: QueryClient,
   organizationId?: string,
 ) {
-  queryClient.invalidateQueries({
-    queryKey: organizationId
+  invalidateAndRefetchWithQueryFn(
+    queryClient,
+    organizationId
       ? [INVOICE_DASHBOARD_QUERY_KEY, organizationId]
       : [INVOICE_DASHBOARD_QUERY_KEY],
-  });
+  );
 }
 
 function patchInvoiceDashboardCachedRows(
@@ -1396,12 +1421,19 @@ export async function syncStaleInvoicePaymentFields(
         rec.payment_status,
         derivedStatus,
       );
-      return { inv, normalizedPaid: rec.paid_amount, normalizedStatus: rec.payment_status };
+      return {
+        inv,
+        normalizedPaid: rec.paid_amount,
+        normalizedStatus: rec.payment_status,
+        supportedPaid: maxSupportedPaid(inv, split),
+      };
     })
     .filter(
-      ({ inv, normalizedPaid, normalizedStatus }) =>
-        Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
-        (inv.payment_status || "pending") !== normalizedStatus,
+      ({ inv, normalizedPaid, normalizedStatus, supportedPaid }) =>
+        (Math.abs(Number(inv.paid_amount || 0) - normalizedPaid) > 0.009 ||
+          (inv.payment_status || "pending") !== normalizedStatus) &&
+        // Never persist a higher paid amount that no receipt or counter tender supports.
+        shouldPersistReconciledPaid(Number(inv.paid_amount || 0), normalizedPaid, supportedPaid),
     );
 
   if (staleUpdates.length === 0) return false;

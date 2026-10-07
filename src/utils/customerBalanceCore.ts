@@ -1,6 +1,5 @@
 import { salePaidAtSaleTender } from "@/utils/customerAuditBundle";
 import { isPosExchangeRefundPaymentVoucher } from "@/utils/saleSettlement";
-import { isSaleReturnAdjustBakedIntoNet } from "@/utils/posDashboardSettlement";
 import { allocateCnAdjustmentsToSaleReturns } from "@/utils/customerLedgerSaleReturnBalance";
 
 /**
@@ -128,7 +127,7 @@ export type CustomerBalanceCoreParams = {
   customerId?: string;
   sales: CustomerBalanceCoreSale[];
   voucherEntries: CustomerBalanceCoreVoucher[];
-  customerAdvances: Array<{ amount?: number | null; used_amount?: number | null }>;
+  customerAdvances: Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>;
   advanceRefunds: Array<{ refund_amount?: number | null }>;
   adjustmentTotal?: number;
   saleReturns?: CustomerBalanceCoreSaleReturn[];
@@ -456,7 +455,16 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     const sra = Number(s.sale_return_adjust || 0);
     const itemsGross = Number(s.items_gross || 0);
     const preReturnByGross = itemsGross > 0 && sra > 0 && net + sra > itemsGross + 1;
-    const fullBillByHeader = sra > 0 && Number((s as any).gross_amount) > 0 && !isSaleReturnAdjustBakedIntoNet(s);
+    // CN applied AFTER billing: net_amount still equals the full bill by header
+    // (gross - discounts + round_off). A net that is merely lower than the full bill is already
+    // reduced by something else (POS credit/advance), so the CN must not be deducted again.
+    const headerGross = Number((s as any).gross_amount) || 0;
+    const headerDiscounts =
+      (Number((s as any).discount_amount) || 0) +
+      (Number((s as any).flat_discount_amount) || 0) +
+      (Number((s as any).points_redeemed_amount) || 0);
+    const headerFullBill = headerGross - headerDiscounts + (Number((s as any).round_off) || 0);
+    const fullBillByHeader = sra > 0 && headerGross > 0 && Math.abs(net - headerFullBill) <= 0.5;
     const preReturn = preReturnByGross || fullBillByHeader;
     return sum + net + (preReturn ? 0 : sra);
   }, 0);
@@ -507,8 +515,10 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
     (sum, a) => sum + Number(a.amount || 0),
     0,
   );
+  // Advance applied against bills. `manual_used_amount` (Balance Adjustment "advance removed")
+  // is part of used_amount but was never applied to a bill, so it stays out of this figure.
   const totalAdvanceUsed = params.customerAdvances.reduce(
-    (sum, a) => sum + Number(a.used_amount || 0),
+    (sum, a) => sum + Math.max(0, Number(a.used_amount || 0) - Number(a.manual_used_amount || 0)),
     0,
   );
   const advanceRefundedTotal = params.advanceRefunds.reduce(
@@ -598,7 +608,7 @@ export function computeCustomerBalanceCore(params: CustomerBalanceCoreParams): C
 export type OrgCustomerBalanceBatch = {
   salesByCustomerId: Map<string, CustomerBalanceCoreSale[]>;
   vouchersByCustomerId: Map<string, CustomerBalanceCoreVoucher[]>;
-  advancesByCustomerId: Map<string, Array<{ amount?: number | null; used_amount?: number | null }>>;
+  advancesByCustomerId: Map<string, Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>>;
   refundsByCustomerId: Map<string, Array<{ refund_amount?: number | null }>>;
   adjustmentsByCustomerId: Map<string, number>;
   saleReturnsByCustomerId: Map<string, CustomerBalanceCoreSaleReturn[]>;
@@ -621,7 +631,7 @@ export function resolveVoucherCustomerId(
 export function buildOrgCustomerBalanceBatch(params: {
   sales: Array<CustomerBalanceCoreSale & { id: string; customer_id: string }>;
   vouchers: CustomerBalanceCoreVoucher[];
-  advances: Array<{ customer_id: string; amount?: number | null; used_amount?: number | null }>;
+  advances: Array<{ customer_id: string; amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>;
   refunds: Array<{ customer_id: string; refund_amount?: number | null }>;
   adjustments: Array<{ customer_id: string; outstanding_difference?: number | null }>;
   saleReturns: Array<
@@ -652,7 +662,7 @@ export function buildOrgCustomerBalanceBatch(params: {
 
   const advancesByCustomerId = new Map<
     string,
-    Array<{ amount?: number | null; used_amount?: number | null }>
+    Array<{ amount?: number | null; used_amount?: number | null; manual_used_amount?: number | null }>
   >();
   for (const a of params.advances) {
     const list = advancesByCustomerId.get(a.customer_id) || [];

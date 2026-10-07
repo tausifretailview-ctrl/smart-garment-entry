@@ -268,7 +268,7 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   const A5_RETAIL_SN_ROWS = 8;
   /** Real Tast A4: enough empty SN lines so the bordered sheet fills 297mm (old print). */
   const REAL_TAST_SN_ROWS = 16;
-  /** Gurukrupa A5: 9 SN lines — extra footer row for Outstanding / Advance / Total Due. */
+  /** Gurukrupa A5: 9 SN lines. Account amounts stay on two footer rows so the extra strips do not eat the page. */
   const GURUKRUPA_SN_ROWS = 9;
   const a5SnRows = isGurukrupa ? GURUKRUPA_SN_ROWS : A5_RETAIL_SN_ROWS;
   const MAX_ITEMS_PER_PAGE = isA4 ? 20 : isPreprintedA5 ? 10 : isA5Retail ? a5SnRows : 12;
@@ -549,6 +549,9 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
       : paymentParts.length > 1
         ? paymentParts.join(" | ")
         : "";
+  const gurukrupaTenderLine =
+    (paymentParts.length > 0 ? paymentParts.join(" | ") : `Cash: ₹${fmt(0)}`) +
+    (changeDue > 0.001 ? ` | Change: ₹${fmt(changeDue)}` : "");
 
   const settledPaid = Number(paidAmount) || 0;
   // Credit (on-account) is unpaid — Received is cash + UPI + card only.
@@ -1661,61 +1664,33 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                   {!isRealTast && !isZaika && (
                   isGurukrupa ? (
                     <div style={{ borderBottom: B, fontSize: fsFooterBalance, fontWeight: 900, color: "#000" }}>
-                      <div style={{ display: "flex", borderBottom: B }}>
-                        <div
-                          style={{
-                            flex: 1,
-                            borderRight: B,
-                            padding: "3px 6px",
-                            textAlign: "center",
-                            lineHeight: 1.25,
-                          }}
-                        >
+                      <div data-gurukrupa-pay-row="received" style={{ display: "flex", borderBottom: B }}>
+                        <div style={{ flex: 1, borderRight: B, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
                           <strong>Received:</strong> ₹{fmt(receivedToday)}
                         </div>
-                        <div style={{ flex: 1, padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                        <div style={{ flex: 1, borderRight: B, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
+                          {gurukrupaTenderLine}
+                        </div>
+                        <div style={{ flex: 1, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
                           <strong>Balance:</strong>{" "}
                           <span style={{ color: billBalanceColor, fontWeight: 900 }}>
                             ₹{fmt(currentBalance)}
                           </span>
                         </div>
                       </div>
-                      {isGurukrupa && paymentParts.length > 0 && (
-                        <div
-                          style={{
-                            borderBottom: B,
-                            padding: "2px 6px",
-                            textAlign: "center",
-                            lineHeight: 1.25,
-                            fontSize: "11px",
-                            fontWeight: 800,
-                          }}
-                        >
-                          {paymentParts.join(" | ")}
-                          {changeDue > 0.001 ? ` | Change: ₹${fmt(changeDue)}` : ""}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", borderBottom: B }}>
-                        <div
-                          style={{
-                            flex: 1,
-                            borderRight: B,
-                            padding: "3px 6px",
-                            textAlign: "center",
-                            lineHeight: 1.25,
-                          }}
-                        >
+                      <div data-gurukrupa-pay-row="account" style={{ display: "flex" }}>
+                        <div style={{ flex: 1, borderRight: B, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
                           <strong>Outstanding:</strong> ₹{fmt(gurukrupaAccount?.outstanding ?? 0)}
                         </div>
-                        <div style={{ flex: 1, padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
+                        <div style={{ flex: 1, borderRight: B, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
                           <strong>Advance:</strong> ₹{fmt(gurukrupaAccount?.advance ?? 0)}
                         </div>
-                      </div>
-                      <div style={{ padding: "3px 6px", textAlign: "center", lineHeight: 1.25 }}>
-                        <strong>Total Due:</strong>{" "}
-                        <span style={{ color: accountDueColor, fontWeight: 900 }}>
-                          ₹{fmt(totalDue)}
-                        </span>
+                        <div style={{ flex: 1, padding: "2px 4px", textAlign: "center", lineHeight: 1.15 }}>
+                          <strong>Total Due:</strong>{" "}
+                          <span style={{ color: accountDueColor, fontWeight: 900 }}>
+                            ₹{fmt(totalDue)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ) : isA5Retail ? (

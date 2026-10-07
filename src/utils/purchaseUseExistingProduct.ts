@@ -164,3 +164,20 @@ export function typedExternalBarcode(row: {
   if ((row.barcode_source || "").trim().toLowerCase() === "generated") return "";
   return String(row.barcode ?? "").trim();
 }
+
+/** Shown when Use existing cannot read the product at all. */
+export const EXISTING_PRODUCT_SIZES_LOAD_FAILED =
+  "Could not load the existing product's sizes. Search it in the bill instead.";
+
+/** Prefer the database error so the shop can see why the size lookup failed. */
+export function existingProductSizesLoadMessage(errorMessage?: string | null): string {
+  const detail = String(errorMessage || "").trim();
+  return detail || EXISTING_PRODUCT_SIZES_LOAD_FAILED;
+}
+
+/** PostgREST may return a many-to-one embed as an object or a one-element array. */
+export function embeddedProductRecord<T>(value: T | T[] | null | undefined): T | null {
+  if (value == null) return null;
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value;
+}

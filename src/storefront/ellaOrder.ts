@@ -8,6 +8,7 @@
  * limit enforced by `validateEnquiryInput`.
  */
 
+import { appendBookedVariantMarks } from "@/lib/storefrontVariantSummary";
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import type { EllaCartLine } from "./ellaCart";
 
@@ -101,9 +102,11 @@ export function buildEllaOrderMessage(input: {
   ].filter(Boolean) as string[];
 
   const message = parts.join(" · ");
-  return message.length > ELLA_ORDER_MESSAGE_MAX
-    ? `${message.slice(0, ELLA_ORDER_MESSAGE_MAX - 1)}…`
-    : message;
+  return appendBookedVariantMarks(
+    message,
+    cart.map((line) => line.variantId),
+    ELLA_ORDER_MESSAGE_MAX,
+  );
 }
 
 export function validateEllaOrderDetails(

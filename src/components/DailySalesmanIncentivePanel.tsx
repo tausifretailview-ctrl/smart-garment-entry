@@ -32,7 +32,12 @@ import {
   INSIGHTS_TABLE_HEAD,
 } from "@/components/business-insights/insightsLayout";
 import { cn } from "@/lib/utils";
-import { isDailyIncentiveUiOrg } from "@/utils/dailySalesmanIncentive";
+import {
+  describeDailyIncentiveRules,
+  isAdeebaDailyIncentiveOrg,
+  isDailyIncentiveUiOrg,
+} from "@/utils/dailySalesmanIncentive";
+import { DailyIncentiveSettingsCard } from "@/components/DailyIncentiveSettingsCard";
 import {
   fetchDailyIncentiveConfig,
   loadOrComputeDailyIncentiveDays,
@@ -60,6 +65,8 @@ export function DailySalesmanIncentivePanel({
   const [filterSalesman, setFilterSalesman] = useState("all");
 
   const uiEnabled = isDailyIncentiveUiOrg(orgId);
+  const settingsLocked = isAdeebaDailyIncentiveOrg(orgId);
+  const canEditSettings = !settingsLocked && (isAdmin || isManager);
 
   const { data: linkedEmployeeName } = useQuery({
     queryKey: ["daily-incentive-linked-employee", orgId, user?.id],
@@ -163,38 +170,46 @@ export function DailySalesmanIncentivePanel({
     return <ListTableSkeleton rows={6} columns={6} />;
   }
 
-  if (!config) {
+  const settingsCard = canEditSettings ? (
+    <DailyIncentiveSettingsCard
+      key={JSON.stringify({
+        orgId,
+        enabled: config?.is_enabled ?? false,
+        qty: config?.qty_threshold ?? null,
+        brackets: config?.brackets ?? [],
+        slabs: config?.billSlabs ?? [],
+      })}
+      organizationId={orgId!}
+      isEnabled={config?.is_enabled ?? false}
+      qtyThreshold={config ? config.qty_threshold : null}
+      brackets={config?.brackets ?? []}
+      billSlabs={config?.billSlabs ?? []}
+      starterSlabs={!config}
+    />
+  ) : null;
+
+  if (!config?.is_enabled) {
     return (
-      <p className="text-sm text-muted-foreground py-8 text-center">
-        Daily incentive is not enabled for this organization.
-      </p>
+      <div className="flex flex-col gap-3">
+        {settingsCard}
+        <p className="text-sm text-muted-foreground py-8 text-center">
+          Daily incentive is not enabled for this organization.
+        </p>
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-3 flex-1 min-h-0">
+      {settingsCard}
       <p className="text-xs text-muted-foreground shrink-0">
-        Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}). Day qty ≥
-        {config.qty_threshold} required (sum across all lines that day). Per line: bracket on price per
-        piece (line net after discount ÷ qty), flat ₹ × line qty; day incentive = Σ lines. Brackets:{" "}
-        {config.brackets
-          .slice()
-          .sort(
-            (a, b) =>
-              (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.min_net_amount - b.min_net_amount,
-          )
-          .map((b) => {
-            const min = Number(b.min_net_amount);
-            const max = b.max_net_amount == null ? null : Number(b.max_net_amount);
-            const range =
-              max == null
-                ? `≥₹${min.toLocaleString("en-IN")}`
-                : `₹${min.toLocaleString("en-IN")}–${(max - 0.01).toLocaleString("en-IN")}`;
-            return `${range}→₹${Number(b.incentive_amount)}/unit`;
-          })
-          .join(" · ")}
-        . Past IST days lock after first compute (later returns do not reverse). Rows cleared
-        2026-09-15 under per-unit recalc migration; recomputed server-side on next sync.
+        Uses page date filter ({startYmd === endYmd ? startYmd : `${startYmd} → ${endYmd}`}).{" "}
+        {describeDailyIncentiveRules({
+          qtyThreshold: config.qty_threshold,
+          brackets: config.brackets,
+          billSlabs: config.billSlabs,
+        })}{" "}
+        Past IST days lock after first compute (later returns do not reverse).
       </p>
 
       <div className="flex flex-wrap items-end gap-2 shrink-0">

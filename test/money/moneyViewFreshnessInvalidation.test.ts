@@ -35,12 +35,14 @@ describe("moneyViewFreshnessInvalidation", () => {
     expect(MONEY_VIEW_FRESHNESS_DEBOUNCE_MS).toBeLessThanOrEqual(500);
   });
 
-  it("invalidates customer snapshot, POS dashboard, ledger, and org receivables", () => {
+  it("invalidates customer snapshot, POS dashboard, ledger, and org receivables", async () => {
     const invalidateQueries = vi.fn();
-    const queryClient = { invalidateQueries } as unknown as QueryClient;
+    const refetchQueries = vi.fn();
+    const queryClient = { invalidateQueries, refetchQueries } as unknown as QueryClient;
     const orgId = "org-abc";
 
     invalidateMoneyViewFreshness(queryClient, orgId);
+    await Promise.resolve();
 
     expect(invalidateCustomerFinancialSnapshot).toHaveBeenCalledWith(queryClient, orgId);
     expect(invalidateQueries).toHaveBeenCalledWith({
@@ -57,10 +59,24 @@ describe("moneyViewFreshnessInvalidation", () => {
     });
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["sales-invoice-dashboard"],
+      refetchType: "none",
     });
+    expect(refetchQueries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ["sales-invoice-dashboard"],
+        type: "active",
+      }),
+    );
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["invoice-dashboard-unified"],
+      refetchType: "none",
     });
+    expect(refetchQueries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: ["invoice-dashboard-unified"],
+        type: "active",
+      }),
+    );
     expect(invalidateQueries).toHaveBeenCalledWith({
       queryKey: ["payment-invoices"],
     });
@@ -71,7 +87,8 @@ describe("moneyViewFreshnessInvalidation", () => {
 
   it("after mutation broadcasts cross-tab and invalidates money views", () => {
     const invalidateQueries = vi.fn();
-    const queryClient = { invalidateQueries } as unknown as QueryClient;
+    const refetchQueries = vi.fn();
+    const queryClient = { invalidateQueries, refetchQueries } as unknown as QueryClient;
     const orgId = "org-abc";
     const customerId = "cust-1";
 

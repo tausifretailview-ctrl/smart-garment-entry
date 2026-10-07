@@ -4,7 +4,7 @@
  *
  * Each check loads one customer's full ledger, so the scan is user-started, limited to
  * likely candidates (returns, credit notes, POS exchange refunds, deleted bills that used
- * credit), runs two customers at a time and stops at a cap. Read-only.
+ * credit, advance refunds, Balance Adjustments), runs two customers at a time and stops at a cap. Read-only.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCustomerLedgerTransactionsWithClient } from "@/utils/customerLedgerTransactions";
@@ -83,7 +83,36 @@ export async function findBalanceCheckCandidates(
       "customer_id",
     ),
   ]);
-  return Array.from(new Set(lists.flat()));
+  // Advance refunds and Balance Adjustments change a customer's advance without a bill,
+  // so a mismatch there (Saniya Mahaldar: advance removed, balance still Cr) must be found too.
+  const adjustmentCustomers = await idsFrom(
+    client
+      .from("customer_balance_adjustments")
+      .select("customer_id")
+      .eq("organization_id", organizationId)
+      .not("advance_difference", "eq", 0)
+      .limit(CANDIDATE_QUERY_LIMIT),
+    "customer_id",
+  );
+  const refundCustomers = await advanceRefundCustomerIds(client, organizationId);
+  return Array.from(new Set([...lists.flat(), ...adjustmentCustomers, ...refundCustomers]));
+}
+
+async function advanceRefundCustomerIds(client: SupabaseClient, organizationId: string): Promise<string[]> {
+  try {
+    const { data, error } = await client
+      .from("advance_refunds")
+      .select("customer_advances(customer_id)")
+      .eq("organization_id", organizationId)
+      .limit(CANDIDATE_QUERY_LIMIT);
+    if (error || !Array.isArray(data)) return [];
+    return (data as Array<{ customer_advances?: { customer_id?: string | null } | { customer_id?: string | null }[] | null }>)
+      .flatMap((r) => (Array.isArray(r.customer_advances) ? r.customer_advances : [r.customer_advances]))
+      .map((a) => String(a?.customer_id || ""))
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 /** Check one customer the same way the Customer Ledger header does. */

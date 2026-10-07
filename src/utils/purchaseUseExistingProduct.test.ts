@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildUseExistingProductConfirmMessage,
+  embeddedProductRecord,
+  existingProductSizesLoadMessage,
+  EXISTING_PRODUCT_SIZES_LOAD_FAILED,
   matchExistingVariantForSizeRow,
   purchaseLinePricesDiffer,
   pickBarcodeVariantForTypedProduct,
   purchaseLinePricesFromUseExisting,
   typedExternalBarcode,
 } from "@/utils/purchaseUseExistingProduct";
+
+const here = dirname(fileURLToPath(import.meta.url));
 
 describe("purchaseUseExistingProduct", () => {
   it("detects meaningful sale/pur price drift vs stored variant", () => {
@@ -100,5 +108,36 @@ describe("pickBarcodeVariantForTypedProduct", () => {
 
   it("returns null for no variants", () => {
     expect(pickBarcodeVariantForTypedProduct([], { brand: "X" })).toBeNull();
+  });
+});
+
+describe("existing product size load", () => {
+  it("shows the database error, and the search hint only when there is none", () => {
+    expect(existingProductSizesLoadMessage("column products.uom does not exist")).toBe(
+      "column products.uom does not exist",
+    );
+    expect(existingProductSizesLoadMessage("")).toBe(EXISTING_PRODUCT_SIZES_LOAD_FAILED);
+    expect(existingProductSizesLoadMessage(null)).toBe(
+      "Could not load the existing product's sizes. Search it in the bill instead.",
+    );
+  });
+
+  it("reads the product from an object or a one-element embed", () => {
+    expect(embeddedProductRecord({ id: "p1" })?.id).toBe("p1");
+    expect(embeddedProductRecord([{ id: "p2" }])?.id).toBe("p2");
+    expect(embeddedProductRecord([])).toBeNull();
+    expect(embeddedProductRecord(null)).toBeNull();
+  });
+
+  it("loads the product itself when it has no active sizes, instead of stopping", () => {
+    const page = readFileSync(resolve(here, "../pages/PurchaseEntry.tsx"), "utf8");
+    const fn = page.slice(
+      page.indexOf("const handleUseExistingProductSizesFromDialog"),
+      page.indexOf("const items = payload.rows.map"),
+    );
+    expect(fn).toContain('.or("active.eq.true,active.is.null")');
+    expect(fn).toContain('.from("products")');
+    expect(fn).toContain("existingProductSizesLoadMessage");
+    expect(fn).not.toContain("!data?.length");
   });
 });

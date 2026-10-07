@@ -312,6 +312,10 @@ interface SaleSettings {
   show_item_barcode?: boolean;
   show_item_hsn?: boolean;
   show_item_mrp?: boolean;
+  /** Tally GST A4 only. Off prints the description saved on the line. */
+  invoice_description_sequence_enabled?: boolean;
+  /** brand_first = brand, then product name. product_first = product name, then brand. */
+  invoice_description_sequence?: "product_first" | "brand_first";
   /** Show -27% style discount under Rate on printed invoices (Retail ERP, etc.) */
   show_discount_on_rate?: boolean;
   // Invoice column settings
@@ -3464,6 +3468,54 @@ export default function Settings() {
                       </Label>
                     </div>
                   </div>
+
+                  <div className="space-y-2 rounded-md border border-border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">Invoice description sequence</p>
+                        <p className="text-xs text-muted-foreground">
+                          Tally GST A4 only. Off prints the description already on the bill. On lets you choose the order.
+                        </p>
+                      </div>
+                      <Switch
+                        id="invoice_description_sequence_enabled"
+                        checked={(settings.sale_settings as any)?.invoice_description_sequence_enabled === true}
+                        onCheckedChange={(checked) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_description_sequence_enabled: checked === true,
+                              invoice_description_sequence:
+                                (settings.sale_settings as any)?.invoice_description_sequence || "brand_first",
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                    {(settings.sale_settings as any)?.invoice_description_sequence_enabled === true ? (
+                      <Select
+                        value={(settings.sale_settings as any)?.invoice_description_sequence || "brand_first"}
+                        onValueChange={(value) =>
+                          setSettings({
+                            ...settings,
+                            sale_settings: {
+                              ...settings.sale_settings,
+                              invoice_description_sequence: value as "product_first" | "brand_first",
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger id="invoice_description_sequence">
+                          <SelectValue placeholder="Choose sequence" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="brand_first">Brand first, then product name</SelectItem>
+                          <SelectItem value="product_first">Product name first, then brand</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -3735,10 +3787,10 @@ export default function Settings() {
                           })
                         }
                         maxLength={80}
-                        placeholder="e.g. BILL OF SUPPLY, CATERING SERVICE, TAX INVOICE"
+                        placeholder="ESTIMATE, TAX INVOICE, BILL OF SUPPLY"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Real Tast A4: shown below your business name (blank → BILL OF SUPPLY). Letter-pad / preprinted: shown below the logo (blank → no title line). Examples: TAX INVOICE, CASH MEMO, BILL OF SUPPLY.
+                        Trendzo bill: heading under the shop name. Leave blank to print ESTIMATE. Type TAX INVOICE or BILL OF SUPPLY when that shop needs it. Real Tast A4: blank stays BILL OF SUPPLY. Letter-pad: blank hides the title.
                       </p>
                     </div>
 

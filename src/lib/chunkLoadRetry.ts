@@ -4,6 +4,13 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 const SKEW_RELOAD_KEY = "skew_reload_count";
 /** Epoch-ms of last skew recovery reload (sessionStorage). */
 const SKEW_RELOAD_AT_KEY = "skew_reload_at";
+/**
+ * Hashed chunk URL that already triggered a cache-busting reload.
+ * One extra reload per dead file: the once-per-build guard was leaving POS on
+ * "Something went wrong / Failed to fetch dynamically imported module" after
+ * the first refresh still had the old POSSales-*.js URL.
+ */
+const CHUNK_URL_RECOVERY_KEY = "chunk_url_recovery";
 /** Explicit one-shot flag — prevents reload loops after ChunkLoadError recovery. */
 const CHUNK_RECOVERY_RELOADED_KEY = "chunk_recovery_reloaded";
 /**
@@ -88,6 +95,9 @@ export const POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS = [
   "purchase-entry",
   "sales-invoice",
   "products",
+  // Sales Invoice Dashboard: data is prefetched at login, so the chunk must not wait in the
+  // deferred inventory queue or the first click shows a skeleton while it downloads.
+  "sales-invoice-dashboard",
 ] as const;
 
 /** Start the priority wave soon after login. The rest of the queue stays deferred. */
@@ -113,6 +123,7 @@ export const POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS = [
 export const POST_LOGIN_WEB_IDLE_ADMIN_PREFETCH_TAB_PATHS = [
   "settings",
   "user-rights",
+  "recycle-bin",
   "accounts",
   "accounts-payments",
   "customer-account-statement",
@@ -387,6 +398,74 @@ export function attemptSkewRecoveryReload(): boolean {
   }
 }
 
+/**
+ * Navigate to this same screen with a new query so the browser cannot reuse a
+ * year-long cached 404 for the previous hashed chunk.
+ */
+function reloadDocumentBypassingCache(): void {
+  const next = new URL(window.location.href);
+  next.searchParams.set("__ezzy_chunk", String(Date.now()));
+  window.location.replace(next.toString());
+}
+
+/** Manual Refresh on a chunk-miss screen. Always hits the network. */
+export function hardReloadAfterChunkMiss(): void {
+  void purgeStaleAppCaches().finally(() => {
+    try {
+      reloadDocumentBypassingCache();
+    } catch {
+      window.location.reload();
+    }
+  });
+}
+
+/** True after this page started a chunk reload. A fresh document resets it. */
+let chunkReloadStarted = false;
+
+/** Keep the "Updating…" splash if another handler already started the reload. */
+export function didStartChunkReload(): boolean {
+  return chunkReloadStarted;
+}
+
+/**
+ * Recover a stale dynamic import (POSSales-*.js 404 after deploy, or a dropped
+ * shop download). The once-per-build reload runs first. If that already ran and
+ * this exact file has not been retried, purge caches and load the document again.
+ * The same URL is never auto-reloaded twice, so a still-missing file cannot loop.
+ * Returns true when a reload was started (caller should keep the splash up).
+ */
+export function attemptStaleChunkRecovery(error: unknown): boolean {
+  if (chunkReloadStarted) return true;
+  const url = chunkUrlFromError(error);
+  if (attemptSkewRecoveryReload()) {
+    chunkReloadStarted = true;
+    if (url) {
+      try {
+        sessionStorage.setItem(CHUNK_URL_RECOVERY_KEY, url);
+      } catch {
+        // reload already started
+      }
+    }
+    return true;
+  }
+  if (!url) return false;
+  try {
+    if (sessionStorage.getItem(CHUNK_URL_RECOVERY_KEY) === url) return false;
+    sessionStorage.setItem(CHUNK_URL_RECOVERY_KEY, url);
+    chunkReloadStarted = true;
+    void purgeStaleAppCaches().finally(() => {
+      try {
+        reloadDocumentBypassingCache();
+      } catch {
+        window.location.reload();
+      }
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function importWithTimeout<T>(
   importFn: () => Promise<T>,
   timeoutMs = MODULE_LOAD_TIMEOUT_MS,
@@ -492,9 +571,9 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
     }
   }
 
-  // Stale deploy / HTML-for-JS: recover immediately (once per session) so the user
-  // never sits on a blank Suspense shell waiting for a manual refresh.
-  if (isChunkLoadError(lastError) && attemptSkewRecoveryReload()) {
+  // Stale deploy / HTML-for-JS: recover immediately so the user never sits on
+  // "Something went wrong" for a POSSales chunk the server no longer has.
+  if (isChunkLoadError(lastError) && attemptStaleChunkRecovery(lastError)) {
     return new Promise<T>(() => {});
   }
   throw lastError;

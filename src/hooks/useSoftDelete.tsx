@@ -6,7 +6,7 @@ import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProductProtection } from "@/hooks/useProductProtection";
 import { logError } from "@/lib/errorLogger";
-import { ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
+import { deleteLedgerEntries, ensureCustomerLedgerAfterSaleRestore } from "@/lib/customerLedger";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import {
   recordPurchaseJournalEntry,
@@ -17,6 +17,11 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { parsePurchaseBillDeleteResult } from "@/utils/purchaseBillDeleteResult";
+import {
+  restoreExchangeRefundsForSale,
+  softDeleteExchangeRefundsForSale,
+  type LeftoverExchangeRefund,
+} from "@/utils/exchangeRefundAfterDelete";
 import {
   formatSaleRestoreFindHint,
   friendlySaleNumberRestoreError,
@@ -63,6 +68,8 @@ export type SoftDeleteOptions = {
     saleNumber?: string;
     alreadyDeleted?: boolean;
   }) => void;
+  /** Called after sale soft-delete with the POS exchange refund vouchers deleted with the bill. */
+  onExchangeRefundVouchersDeleted?: (vouchers: LeftoverExchangeRefund[]) => void;
 };
 
 export interface BulkHardDeleteResult {
@@ -148,6 +155,24 @@ export function useSoftDelete() {
             saleNumber: result?.sale_number,
             alreadyDeleted: Boolean(result?.already_deleted),
           });
+          // The bill is gone, so its POS exchange cash refund is void too.
+          if (currentOrganization?.id) {
+            const { deleted } = await softDeleteExchangeRefundsForSale(
+              supabase,
+              currentOrganization.id,
+              result?.sale_number,
+              id,
+              user.id,
+            );
+            for (const v of deleted) {
+              await deleteLedgerEntries({
+                organizationId: currentOrganization.id,
+                voucherNo: v.voucher_number,
+                voucherTypes: ["PAYMENT"],
+              });
+            }
+            if (deleted.length > 0) options?.onExchangeRefundVouchersDeleted?.(deleted);
+          }
           break;
         }
 
@@ -300,6 +325,11 @@ export function useSoftDelete() {
         }
 
         case "sales": {
+          const { data: deletedSaleRow } = await supabase
+            .from("sales")
+            .select("organization_id, sale_number, deleted_at")
+            .eq("id", id)
+            .maybeSingle();
           try {
             restoreNote = await withSaleRestoreNumberResolution(id, async () => {
               const { error: saleRestErr } = await supabase.rpc("restore_sale", { p_sale_id: id });
@@ -324,6 +354,22 @@ export function useSoftDelete() {
             } catch (ledgerErr) {
               console.error("Rebuild customer statement after sale restore:", ledgerErr);
             }
+            // Bring back the exchange refund vouchers that were deleted with the bill.
+            const restoredRefunds = await restoreExchangeRefundsForSale(
+              supabase,
+              saleRow.organization_id,
+              deletedSaleRow?.sale_number ?? saleRow.sale_number,
+              id,
+              deletedSaleRow?.deleted_at,
+            );
+            for (const v of restoredRefunds) {
+              if (!v.id) continue;
+              try {
+                await repostJournalForRestoredVoucher(v.id, supabase);
+              } catch (glErr) {
+                console.error("Repost exchange refund journal after sale restore:", glErr);
+              }
+            }
             invalidateMoneyViewsAfterMutation(
               queryClient,
               saleRow.organization_id,
@@ -336,6 +382,9 @@ export function useSoftDelete() {
             restoreNote = restoreNote
               ? `${restoreNote} ${findHint}`
               : `${saleRow.sale_number || "Sale"} restored. Stock deducted again. ${findHint}`;
+            if (restoredRefunds.length > 0) {
+              restoreNote += ` Exchange refund ${restoredRefunds.map((v) => v.voucher_number).join(", ")} restored too.`;
+            }
             const { data: setS } = await supabase
               .from("settings")
               .select("accounting_engine_enabled")

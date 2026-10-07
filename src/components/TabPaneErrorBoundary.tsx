@@ -1,8 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isChunkLoadError, attemptSkewRecoveryReload } from "@/lib/chunkLoadRetry";
-import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { isChunkLoadError, attemptStaleChunkRecovery, didStartChunkReload, hardReloadAfterChunkMiss } from "@/lib/chunkLoadRetry";
 
 type Props = {
   children: ReactNode;
@@ -32,7 +31,7 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`[tab:${this.props.tabPath}]`, error, errorInfo);
     if (isChunkLoadError(error)) {
-      if (attemptSkewRecoveryReload()) {
+      if (attemptStaleChunkRecovery(error) || didStartChunkReload()) {
         return;
       }
       this.setState({ isRecovering: false });
@@ -46,7 +45,7 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
 
   private handleReload = () => {
     if (this.state.error && isChunkLoadError(this.state.error)) {
-      window.location.reload();
+      hardReloadAfterChunkMiss();
       return;
     }
     this.handleRetry();
@@ -98,7 +97,11 @@ export class TabPaneErrorBoundary extends Component<Props, State> {
               size="sm"
               variant={chunkError ? "default" : "outline"}
               onClick={() => {
-                void reloadAppWithUpdateCheck();
+                if (chunkError) {
+                  hardReloadAfterChunkMiss();
+                  return;
+                }
+                this.handleReload();
               }}
             >
               Refresh app

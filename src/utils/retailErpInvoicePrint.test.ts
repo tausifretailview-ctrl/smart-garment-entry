@@ -7,6 +7,9 @@ import {
   allocateByGrossWeight,
   retailErpDisplayDiscount,
   retailErpLetterpadNoteText,
+  coalesceCrmPointsPrint,
+  crmPointsFromSaveResult,
+  resolveSaleCrmPointsPrint,
   retailErpNoteWithCrmPoints,
   crmPointsPrintSnapshot,
   retailErpLineDisplayRate,
@@ -255,5 +258,107 @@ describe("Retail ERP Note CRM points", () => {
         pointsEarned: 8,
       }),
     ).toEqual({ pointsBalance: 15, pointsRedeemed: 5 });
+  });
+});
+
+describe("resolveSaleCrmPointsPrint", () => {
+  it("keeps a zero balance instead of dropping the Note line", () => {
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: "cust-1",
+        existingBalance: 0,
+        balanceBefore: 50,
+        pointsEarned: 5,
+      }),
+    ).toEqual({ pointsBalance: 0, pointsRedeemed: 0 });
+  });
+
+  it("keeps the balance the POS screen already computed", () => {
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: "cust-1",
+        existingBalance: 40,
+        existingRedeemed: 0,
+        balanceBefore: 10,
+        pointsEarned: 99,
+      }),
+    ).toEqual({ pointsBalance: 40, pointsRedeemed: 0 });
+  });
+
+  it("fills the WhatsApp snapshot when the customer is linked only at save", () => {
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: "cust-1",
+        balanceBefore: 12,
+        pointsEarned: 8,
+      }),
+    ).toEqual({ pointsBalance: 20, pointsRedeemed: 0 });
+  });
+
+  it("does not earn on pay-later or when points were redeemed", () => {
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: "cust-1",
+        balanceBefore: 12,
+        pointsToRedeem: 5,
+        pointsEarned: 8,
+        suppressEarn: true,
+      }),
+    ).toEqual({ pointsBalance: 7, pointsRedeemed: 5 });
+  });
+
+  it("stays empty for a walk-in or when CRM is off", () => {
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: true,
+        customerId: "",
+        balanceBefore: 12,
+        pointsEarned: 8,
+      }),
+    ).toEqual({});
+    expect(
+      resolveSaleCrmPointsPrint({
+        crmEnabled: false,
+        customerId: "cust-1",
+        balanceBefore: 12,
+        pointsEarned: 8,
+      }),
+    ).toEqual({});
+  });
+
+  it("reads points off a save result and ignores a plain sales row", () => {
+    expect(crmPointsFromSaveResult({ pointsBalance: 20, pointsRedeemed: 2, sale_number: "POS/1" })).toEqual({
+      pointsBalance: 20,
+      pointsRedeemed: 2,
+    });
+    expect(crmPointsFromSaveResult({ sale_number: "POS/1", net_amount: 100 })).toEqual({});
+    expect(crmPointsFromSaveResult(null)).toEqual({});
+  });
+
+  it("uses the save-time balance when the screen snapshot is empty", () => {
+    expect(coalesceCrmPointsPrint({}, { pointsBalance: 20, pointsRedeemed: 0 })).toEqual({
+      pointsBalance: 20,
+      pointsRedeemed: 0,
+    });
+    expect(
+      coalesceCrmPointsPrint({ pointsBalance: 4, pointsRedeemed: 1 }, { pointsBalance: 20, pointsRedeemed: 0 }),
+    ).toEqual({ pointsBalance: 4, pointsRedeemed: 1 });
+  });
+});
+
+describe("POS WhatsApp CRM points wiring", () => {
+  it("fills the balance before points are awarded and before the PDF snapshot", () => {
+    const src = readFileSync(resolve(here, "../hooks/useSaveSale.tsx"), "utf8");
+    const fillAt = src.indexOf("saleData = await attachMissingCrmPointsPrint");
+    expect(fillAt).toBeGreaterThan(0);
+    const afterFill = src.slice(fillAt);
+    const awardAt = afterFill.indexOf("void awardPoints");
+    const captureAt = afterFill.indexOf("buildPosWhatsAppCaptureMeta");
+    expect(awardAt).toBeGreaterThan(0);
+    expect(captureAt).toBeGreaterThan(awardAt);
   });
 });

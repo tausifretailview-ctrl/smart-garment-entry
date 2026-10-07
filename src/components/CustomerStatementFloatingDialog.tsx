@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Loader2, Scale, Search } from "lucide-react";
 
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -8,7 +8,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useUserPermissions } from "@/hooks/useUserPermissions";
 import { useCustomerBalances } from "@/hooks/useCustomerSearch";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
-import { fetchAllCustomers } from "@/utils/fetchAllRows";
+import { fetchOrgLedgerCustomersReference } from "@/hooks/useOrgLedgerReferenceData";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,6 +57,7 @@ function canAccessStatement(hasMenuAccess: (id: string) => boolean, permissions:
 
 export function CustomerStatementFloatingDialog({ open, onOpenChange }: CustomerStatementFloatingDialogProps) {
   const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const { isSchool } = useSchoolFeatures();
   const { orgNavigate } = useOrgNavigation();
   const { hasMenuAccess, permissions } = useUserPermissions();
@@ -79,7 +80,7 @@ export function CustomerStatementFloatingDialog({ open, onOpenChange }: Customer
     queryKey: ["customer-statement-floating-list", currentOrganization?.id],
     enabled: open && !!currentOrganization?.id && !isSchool && allowed,
     queryFn: async () => {
-      const rows = await fetchAllCustomers(currentOrganization!.id);
+      const rows = await fetchOrgLedgerCustomersReference(currentOrganization!.id, queryClient);
       return rows as CustomerRow[];
     },
     staleTime: 60 * 1000,

@@ -221,7 +221,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="bg-popover text-popover-foreground">
-                  <p>Save customer, salesman & notes changes</p>
+                  <p>Save customer, salesman, notes, and credit-note adjustment</p>
                 </TooltipContent>
               </Tooltip>
             )}

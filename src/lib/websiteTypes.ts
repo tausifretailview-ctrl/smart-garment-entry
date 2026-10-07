@@ -29,10 +29,22 @@ export type WebsiteProduct = {
 
 export type WebsiteEnquiryStatus = "new" | "contacted" | "converted" | "closed";
 
+export type WebsiteEnquiryBookedPiece = {
+  variant_id?: string | null;
+  product_id?: string | null;
+  size?: string | null;
+  barcode?: string | null;
+};
+
 export type WebsiteEnquiry = {
   id: string;
   organization_id: string;
   product_id: string | null;
+  /** Set once the storefront enquiry records the booked variant. */
+  variant_id?: string | null;
+  size?: string | null;
+  barcode?: string | null;
+  booked_pieces?: WebsiteEnquiryBookedPiece[] | null;
   customer_name: string;
   customer_phone: string;
   message: string | null;

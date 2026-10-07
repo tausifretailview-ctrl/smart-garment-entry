@@ -163,6 +163,37 @@ export function formatNetPositionLabel(netPosition: number): string {
 }
 
 /**
+ * The one customer balance breakdown every screen shows:
+ *   Bills due − Pending CN / return credit − Advance held = Net balance.
+ * `outstanding` already has pending sale-return credit taken off, so Bills due adds it back
+ * and the CN line takes it off once — never twice. Net equals `netPosition`.
+ */
+export type CustomerBalanceBreakdown = {
+  /** Unpaid bills + opening balance, before return credit and advance. */
+  billsDue: number;
+  /** Sale-return / credit-note credit not yet adjusted on a bill. */
+  pendingCn: number;
+  /** Advance paid and not yet used on a bill. */
+  unusedAdvance: number;
+  /** What the customer owes (> 0) or is owed (< 0). */
+  net: number;
+};
+
+export function customerBalanceBreakdown(
+  view: Pick<CustomerAccountStateView, "outstanding" | "unusedAdvance" | "unclaimedSaleReturn" | "netPosition">,
+): CustomerBalanceBreakdown {
+  const pendingCn = Math.max(0, roundRupee(view.unclaimedSaleReturn));
+  const unusedAdvance = Math.max(0, roundRupee(view.unusedAdvance));
+  const net = roundRupee(view.netPosition);
+  return {
+    billsDue: net + unusedAdvance + pendingCn,
+    pendingCn,
+    unusedAdvance,
+    net,
+  };
+}
+
+/**
  * Plain one-line arithmetic for PDF / copy-paste.
  * Unclaimed SR is listed separately (already reflected inside Outstanding) — not a third minus.
  */

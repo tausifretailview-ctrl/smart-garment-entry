@@ -9,6 +9,7 @@ import {
   fetchSaleReturnItemsByIds,
   fetchProductsByIds,
 } from "@/utils/fetchAllRows";
+import { resolveEffectiveLineSalesman } from "@/utils/dailySalesmanIncentive";
 
 export type NetProfitFieldDimension =
   | "brand"
@@ -312,6 +313,19 @@ function displayOrBlank(value: string | null | undefined): string {
   return trimmed || BLANK;
 }
 
+/**
+ * Same piece attribution as Daily incentive / salesman commission qty:
+ * the line's salesman, otherwise the bill header. A blank result stays null
+ * so the row groups under (Blank).
+ */
+export function profitSalesmanName(
+  lineSalesman: string | null | undefined,
+  headerSalesman: string | null | undefined,
+): string | null {
+  const name = resolveEffectiveLineSalesman(lineSalesman, headerSalesman);
+  return name || null;
+}
+
 function dayKey(iso: string | null | undefined): string {
   if (!iso) return BLANK;
   return iso.slice(0, 10);
@@ -537,7 +551,7 @@ export async function loadProfitDataset(
       saleDate: sale?.sale_date ?? null,
       customerId: sale?.customer_id ?? null,
       customerName: sale?.customer_name || "Walk-in",
-      salesman: sale?.salesman ?? null,
+      salesman: profitSalesmanName(item.salesman, sale?.salesman),
       paymentMethod: sale?.payment_method ?? null,
     });
   });

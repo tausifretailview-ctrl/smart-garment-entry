@@ -37,6 +37,8 @@ import {
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { cn, sortSearchResults } from "@/lib/utils";
 import { SalesmanSizeGridDialog } from "@/components/SalesmanSizeGridDialog";
+import { variantsForSalesmanSizeGrid, salesmanSizeBoxCount } from "@/utils/salesmanOrderSizeGrid";
+import type { MergedSizeGridVariant } from "@/utils/mergeSizeColorVariantsForGrid";
 import { useDraftSave } from "@/hooks/useDraftSave";
 import { DraftResumeDialog } from "@/components/DraftResumeDialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -84,6 +86,19 @@ interface OrderItem {
   isCustomSize?: boolean;
 }
 
+function asOrderVariants(cells: MergedSizeGridVariant[]): Variant[] {
+  return cells.map((cell) => ({
+    id: cell.id,
+    product_id: cell.product_id || "",
+    size: cell.size,
+    color: cell.color || null,
+    barcode: cell.barcode ?? null,
+    mrp: cell.mrp || 0,
+    sale_price: cell.sale_price || 0,
+    stock_qty: cell.stock_qty || 0,
+  }));
+}
+
 const SalesmanOrderEntry = () => {
   const [searchParams] = useSearchParams();
   const { navigate } = useOrgNavigation();
@@ -106,6 +121,7 @@ const SalesmanOrderEntry = () => {
   const [saving, setSaving] = useState(false);
   const savingLockRef = useRef(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sizeGridLoadRef = useRef(0);
   const [showDraftDialog, setShowDraftDialog] = useState(false);
 
   // Size Grid state
@@ -484,12 +500,86 @@ const SalesmanOrderEntry = () => {
   };
 
   const openSizeGrid = (product: Product, variants: Variant[]) => {
+    const loadId = ++sizeGridLoadRef.current;
     setSelectedProduct(product);
-    setSelectedProductVariants(variants);
+    setSelectedProductVariants(asOrderVariants(variantsForSalesmanSizeGrid(variants)));
     setShowSizeGrid(true);
     setProductSearch("");
     setProducts([]);
     setShowProductSearch(false);
+    void loadFullSizeGrid(product, loadId);
+  };
+
+  const loadFullSizeGrid = async (product: Product, loadId: number) => {
+    const orgId = currentOrganization?.id;
+    if (!orgId) return;
+    try {
+      const { data: siblings, error: siblingError } = await supabase
+        .from("products")
+        .select("id, product_name, color, size_group_id")
+        .eq("organization_id", orgId)
+        .eq("status", "active")
+        .is("deleted_at", null)
+        .eq("product_name", product.product_name);
+      if (siblingError) throw siblingError;
+
+      const productRows = siblings?.length
+        ? siblings
+        : [{ id: product.id, product_name: product.product_name, color: null, size_group_id: product.size_group_id ?? null }];
+      const productIds = [...new Set(productRows.map((row) => row.id).concat(product.id))];
+
+      const raw: Array<{
+        id: string;
+        size: string | null;
+        color: string | null;
+        barcode: string | null;
+        mrp: number | null;
+        sale_price: number | null;
+        pur_price: number | null;
+        stock_qty: number | null;
+        product_id: string;
+      }> = [];
+      const pageSize = 1000;
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("product_variants")
+          .select("id, size, color, barcode, mrp, sale_price, pur_price, stock_qty, product_id")
+          .eq("organization_id", orgId)
+          .in("product_id", productIds)
+          .eq("active", true)
+          .is("deleted_at", null)
+          .gt("stock_qty", 0)
+          .order("id")
+          .range(offset, offset + pageSize - 1);
+        if (error) throw error;
+        raw.push(...(data || []));
+        if (!data || data.length < pageSize) break;
+      }
+      if (sizeGridLoadRef.current !== loadId || raw.length === 0) return;
+
+      const cartQtyByVariant = new Map<string, number>();
+      for (const item of orderItems) {
+        if (!item.variant?.id || item.isCustomSize) continue;
+        cartQtyByVariant.set(item.variant.id, (cartQtyByVariant.get(item.variant.id) || 0) + item.quantity);
+      }
+      const sizeGroupId =
+        product.size_group_id ||
+        productRows.find((row) => row.size_group_id)?.size_group_id ||
+        null;
+      setSelectedProduct((current) =>
+        current?.id === product.id ? { ...current, size_group_id: sizeGroupId } : current,
+      );
+      setSelectedProductVariants(
+        asOrderVariants(
+          variantsForSalesmanSizeGrid(raw, {
+            cartQtyByVariant,
+            products: productRows,
+          }),
+        ),
+      );
+    } catch (error) {
+      console.error("Salesman size grid load failed", error);
+    }
   };
 
   const handleSizeGridConfirm = (items: Array<{ variant: Variant; qty: number }>) => {
@@ -499,13 +589,17 @@ const SalesmanOrderEntry = () => {
       // For custom sizes, variant already has isCustomSize flag
       const fullVariant: Variant = {
         ...variant,
-        product_id: selectedProduct.id,
+        product_id: variant.product_id || selectedProduct.id,
         mrp: variant.mrp || variant.sale_price || 0,
         sale_price: variant.sale_price || 0,
         stock_qty: variant.stock_qty || 0,
         isCustomSize: variant.isCustomSize || false,
       };
-      addItem(selectedProduct, fullVariant, qty);
+      addItem(
+        { ...selectedProduct, id: fullVariant.product_id || selectedProduct.id },
+        fullVariant,
+        qty,
+      );
     });
     
     setShowSizeGrid(false);
@@ -752,7 +846,7 @@ const SalesmanOrderEntry = () => {
                         <Badge variant="outline" className="text-xs px-1.5 py-0">{product.category}</Badge>
                       )}
                       <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-blue-100 text-blue-700">
-                        {variants.length} sizes
+                        {salesmanSizeBoxCount(variants)} sizes
                       </Badge>
                     </div>
                   </div>

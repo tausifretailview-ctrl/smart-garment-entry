@@ -80,6 +80,7 @@ import { SupplierPaymentTab } from "@/components/accounts/SupplierPaymentTab";
 import { EmployeeSalaryTab } from "@/components/accounts/EmployeeSalaryTab";
 import { ExpensesTab } from "@/components/accounts/ExpensesTab";
 import { VoucherEntryTab } from "@/components/accounts/VoucherEntryTab";
+import { accountsTabShowsAdminFooter, withSelectedAccountsTab } from "@/utils/accountsVisitedTabs";
 import { ReconciliationTab } from "@/components/accounts/ReconciliationTab";
 import { BankReconciliationTab } from "@/components/accounts/BankReconciliationTab";
 import { OutstandingDashboardTab } from "@/components/accounts/OutstandingDashboardTab";
@@ -299,6 +300,10 @@ export default function Accounts() {
       prev.has("customer-ledger") ? prev : new Set([...prev, "customer-ledger"]),
     );
   }, [selectedTab, heavyMoneyQueriesReady]);
+
+  useEffect(() => {
+    setVisitedTabs((prev) => withSelectedAccountsTab(prev, selectedTab));
+  }, [selectedTab]);
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.accounts,
@@ -782,7 +787,12 @@ export default function Accounts() {
     visitedTabs.has("employee-salary") ||
     visitedTabs.has("expenses") ||
     visitedTabs.has("voucher-entry");
-  const { data: vouchers } = useQuery({
+  const {
+    data: vouchers,
+    isLoading: vouchersLoading,
+    isError: vouchersError,
+    error: vouchersQueryError,
+  } = useQuery({
     queryKey: ["voucher-entries", currentOrganization?.id],
     queryFn: async () => {
       const allVouchers: any[] = [];
@@ -796,6 +806,7 @@ export default function Accounts() {
           .eq("organization_id", currentOrganization?.id)
           .is("deleted_at", null)
           .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
           .range(offset, offset + PAGE_SIZE - 1);
         if (error) throw error;
         if (data && data.length > 0) {
@@ -871,8 +882,7 @@ export default function Accounts() {
     />
   ) : null;
 
-  const showAccountsAdminFooter =
-    selectedTab !== "customer-payment" && selectedTab !== "supplier-payment";
+  const showAccountsAdminFooter = accountsTabShowsAdminFooter(selectedTab);
 
   const accountsManagementFooter = showAccountsAdminFooter ? (
     <div className="mt-8 pt-4 border-t border-dashed border-slate-300">
@@ -1154,7 +1164,17 @@ export default function Accounts() {
           )}
           {shouldMountTab("voucher-entry") && (
           <div className={cn(selectedTab !== "voucher-entry" && "hidden")} aria-hidden={selectedTab !== "voucher-entry"}>
-            <VoucherEntryTab vouchers={vouchers} sales={sales} customers={customers} />
+            <VoucherEntryTab
+              vouchers={vouchers}
+              sales={sales}
+              customers={customers}
+              isLoading={vouchersLoading}
+              errorMessage={
+                vouchersError
+                  ? (vouchersQueryError instanceof Error ? vouchersQueryError.message : "Could not load voucher entries")
+                  : null
+              }
+            />
           </div>
           )}
           {currentOrganization?.id && shouldMountTab("reconciliation") && (
@@ -1341,7 +1361,17 @@ export default function Accounts() {
 
         <TabsContent value="voucher-entry" forceMount={shouldMountTab("voucher-entry") ? true : undefined} className={STICKY_TAB_CONTENT_CLASS}>
           {shouldMountTab("voucher-entry") && (
-            <VoucherEntryTab vouchers={vouchers} sales={sales} customers={customers} />
+            <VoucherEntryTab
+              vouchers={vouchers}
+              sales={sales}
+              customers={customers}
+              isLoading={vouchersLoading}
+              errorMessage={
+                vouchersError
+                  ? (vouchersQueryError instanceof Error ? vouchersQueryError.message : "Could not load voucher entries")
+                  : null
+              }
+            />
           )}
         </TabsContent>
 

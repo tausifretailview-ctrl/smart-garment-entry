@@ -1,4 +1,5 @@
 import { posSaveBegin, posSaveMark } from "@/lib/posSaveTiming";
+import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
@@ -95,7 +96,7 @@ import { applyWebPosCompactScale } from "@/components/UIScaleSelector";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCreditNotes } from "@/hooks/useCreditNotes";
 import { fetchCustomerOpeningBalanceRemaining } from "@/utils/customerOpeningBalanceRemaining";
-import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot, grossOutstandingFromFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { invalidateCustomerFinancialSnapshot, fetchCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
 import {
   applyExistingAdvanceToSale,
   capPosAdvanceApplyAmount,
@@ -125,7 +126,7 @@ import {
   effectiveCartLineSalesman,
   withDefaultLineSalesman,
 } from "@/utils/posLineSalesman";
-import { findEmployeeBySalesmanName } from "@/utils/dailySalesmanIncentive";
+import { buildSalesmanCommissionRecords } from "@/utils/salesmanCommissionLineRepair";
 import { TabletPOSLayout } from "@/components/tablet/TabletPOSLayout";
 import { PosSchemeAppliedTag } from "@/components/pos/PosSchemeAppliedTag";
 import { WindowTabsBar } from "@/components/WindowTabsBar";
@@ -167,7 +168,7 @@ import {
   type PosBillFormat,
 } from "@/utils/invoicePrintFormat";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
-import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
+import { coalesceCrmPointsPrint, crmPointsFromSaveResult, crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
 import {
   getThermalReceiptPageStyleFragment,
   INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS,
@@ -183,6 +184,10 @@ import {
   notifyPosSalesChanged,
   POS_FOCUS_BARCODE_EVENT,
 } from "@/utils/posSalesRefresh";
+import {
+  persistPosEditCreditAdjust,
+  posEditCreditSaveMessage,
+} from "@/utils/posEditCreditSave";
 import {
   clearPosCartSnapshot,
   readPosCartSnapshot,
@@ -647,6 +652,7 @@ function mapPosPrintItem(item: any, index: number, taxType: GstTaxType = "inclus
   return {
     sr: index + 1,
     particulars: item.productName,
+    productId: item.productId,
     size: item.size,
     barcode: item.barcode || "",
     hsn: item.hsnCode || "",
@@ -765,7 +771,14 @@ export default function POSSales() {
   const [selectedProductType, setSelectedProductType] = useState<string>("all");
   
   // Invoice leftover for receipts and the customer search badge. Unused advance stays in Adv.
-  const { grossOutstanding: customerLedgerBalance, unusedAdvanceTotal: customerUnusedAdvance, openingBalance: customerOpeningBalance } = useCustomerBalance(
+  const {
+    grossOutstanding: customerLedgerBalance,
+    unusedAdvanceTotal: customerUnusedAdvance,
+    openingBalance: customerOpeningBalance,
+    netPosition: customerNetBalance,
+    cnAvailableTotal: customerPendingCn,
+    isLoading: isCustomerBalanceLoading,
+  } = useCustomerBalance(
     customerId || null,
     currentOrganization?.id || null
   );
@@ -2052,12 +2065,31 @@ export default function POSSales() {
     }
   }, [currentSaleId, setIsEditing]);
 
-  // Save metadata changes handler (customer, salesman, notes only)
+  // Save customer, salesman, notes, and a changed pending credit-note (S/R) adjust.
   const handleSaveMetadataChanges = useCallback(async () => {
     if (!currentSaleId || !currentOrganization?.id) return;
     
     setIsSavingChanges(true);
     try {
+      let creditDescription = "";
+      if (!isHeldSale) {
+        const credit = await persistPosEditCreditAdjust(supabase, {
+          organizationId: currentOrganization.id,
+          saleId: currentSaleId,
+          customerId: customerId || null,
+          requested: saleReturnAdjust,
+          adjustedBy: user?.id ?? null,
+          customerName,
+        });
+        if (credit.ok === false) {
+          toast.error("Save Failed", { description: (credit as { message?: string }).message });
+          return;
+        }
+        if (credit.changed) {
+          creditDescription = posEditCreditSaveMessage(credit);
+        }
+      }
+
       const { error } = await supabase
         .from('sales')
         .update({
@@ -2072,7 +2104,11 @@ export default function POSSales() {
 
       if (error) throw error;
 
-      toast.success("Changes Saved", { description: "Customer, salesman & notes updated successfully." });
+      toast.success("Changes Saved", {
+        description: creditDescription
+          ? `Customer, salesman and notes saved. ${creditDescription}`
+          : "Customer, salesman & notes updated successfully.",
+      });
 
       queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
       notifyPosSalesChanged({ organizationId: currentOrganization?.id });
@@ -2089,7 +2125,7 @@ export default function POSSales() {
     } finally {
       setIsSavingChanges(false);
     }
-  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, toast, queryClient, setIsSavingChanges]);
+  }, [currentSaleId, currentOrganization?.id, customerId, customerName, customerPhone, selectedSalesman, saleNotes, saleReturnAdjust, isHeldSale, user?.id, toast, queryClient, setIsSavingChanges]);
 
   // Register save changes handler
   useEffect(() => {
@@ -2234,7 +2270,8 @@ export default function POSSales() {
         .eq('sale_type', 'pos')
         .is('deleted_at', null)
         .or('payment_status.eq.hold,sale_number.like.Hold/%')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200);
       if (error) throw error;
       return (data || []).filter((sale: any) => isHoldLikeBill(sale));
     },
@@ -4150,6 +4187,7 @@ export default function POSSales() {
           items: lineItems.map((item, index) => ({
             sr: index + 1,
             particulars: item.productName,
+            productId: item.productId,
             productNameOnly:
               item.baseProductName || item.productName.split("-")[0] || item.productName,
             itemNotes: item.itemNotes || "",
@@ -4168,10 +4206,18 @@ export default function POSSales() {
           discount: snapDiscount,
           saleReturnAdjust: snapSaleReturnAdjust,
           grandTotal: snapGrandTotal,
-          cashPaid: snapPaymentMethod === "cash" ? snapGrandTotal : 0,
-          upiPaid: snapPaymentMethod === "upi" ? snapGrandTotal : 0,
+          billNetAmount: snap?.billNetAmount,
+          cashPaid:
+            snap?.cashAmount ?? (snapPaymentMethod === "cash" ? snapGrandTotal : 0),
+          upiPaid: snap?.upiAmount ?? (snapPaymentMethod === "upi" ? snapGrandTotal : 0),
+          cashAmount: snap?.cashAmount ?? 0,
+          cardAmount: snap?.cardAmount ?? 0,
+          upiAmount: snap?.upiAmount ?? 0,
+          cardPaid: snap?.cardAmount ?? 0,
+          financeAmount: snap?.financeAmount ?? 0,
           paymentMethod: snapPaymentMethod,
           paidAmount: snapPaidAmount,
+          refundCash: Number(snap?.refundCash) || 0,
           previousBalance: snapAccount.previousBalance,
           unusedAdvance: snapAccount.unusedAdvance,
           roundOff: snapRoundOff,
@@ -4665,76 +4711,44 @@ export default function POSSales() {
   const createCommissionRecords = async (
     saleId: string, saleNumber: string, saleDate: string, salesmanName: string, totalNetAmount: number
   ) => {
-    if (!salesmanName || !currentOrganization?.id) return;
+    if (!currentOrganization?.id) return;
     try {
-      const employee = findEmployeeBySalesmanName(employees || [], salesmanName);
-      if (!employee) return;
-      const defaultRate = (employee as any).commission_percent ?? 1.0;
-      const employeeRules = (commissionRules || []).filter((r: any) => r.employee_id === employee.id);
-
-      // Fetch saved sale_items for item-level detail (include discount fields)
       const { data: saleItems } = await supabase
-        .from('sale_items')
-        .select('product_id, product_name, quantity, line_total, size, discount_share, net_after_discount, discount_percent')
-        .eq('sale_id', saleId);
+        .from("sale_items")
+        .select("product_id, product_name, quantity, line_total, discount_share, net_after_discount, salesman")
+        .eq("sale_id", saleId)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null);
 
-      // Fetch product details for brand/category/style
-      const productIds = [...new Set((saleItems || []).map((i: any) => i.product_id).filter(Boolean))];
-      let productMap: Record<string, any> = {};
+      const productIds = [...new Set((saleItems || []).map((item) => item.product_id).filter(Boolean))];
+      const productMap: Record<string, { brand?: string | null; category?: string | null; style?: string | null }> = {};
       if (productIds.length > 0) {
-        const { data: prods } = await supabase.from('products').select('id, brand, category, style').in('id', productIds);
-        (prods || []).forEach((p: any) => { productMap[p.id] = p; });
-      }
-
-      const getRate = (item: any): { rate: number; ruleType: string } => {
-        const prod = productMap[item.product_id] || {};
-        const productRule = employeeRules.find((r: any) => r.rule_type === 'product' && r.rule_value === item.product_id);
-        if (productRule) return { rate: productRule.commission_percent, ruleType: 'product' };
-        const styleRule = employeeRules.find((r: any) => r.rule_type === 'style' && r.rule_value?.toLowerCase() === prod.style?.toLowerCase());
-        if (styleRule) return { rate: styleRule.commission_percent, ruleType: 'style' };
-        const brandRule = employeeRules.find((r: any) => r.rule_type === 'brand' && r.rule_value?.toLowerCase() === prod.brand?.toLowerCase());
-        if (brandRule) return { rate: brandRule.commission_percent, ruleType: 'brand' };
-        const catRule = employeeRules.find((r: any) => r.rule_type === 'category' && r.rule_value?.toLowerCase() === prod.category?.toLowerCase());
-        if (catRule) return { rate: catRule.commission_percent, ruleType: 'category' };
-        const defRule = employeeRules.find((r: any) => r.rule_type === 'default');
-        return { rate: defRule?.commission_percent ?? defaultRate, ruleType: 'default' };
-      };
-
-      if (saleItems && saleItems.length > 0) {
-        const records = saleItems.map((item: any) => {
-          const prod = productMap[item.product_id] || {};
-          const { rate, ruleType } = getRate(item);
-          // Commission on net after discount (not gross line_total).
-          const netSale =
-            Number(item.net_after_discount) > 0
-              ? Number(item.net_after_discount)
-              : Math.max(0, Number(item.line_total || 0) - Number(item.discount_share || 0));
-          const amount = Math.round((netSale * rate / 100) * 100) / 100;
-          return {
-            organization_id: currentOrganization.id,
-            employee_id: employee.id, employee_name: salesmanName,
-            sale_id: saleId, sale_number: saleNumber, sale_date: saleDate,
-            customer_name: customerName || 'Walk-in Customer',
-            product_id: item.product_id, product_name: item.product_name,
-            brand: prod.brand || null, category: prod.category || null, style: prod.style || null,
-            sale_amount: netSale, commission_percent: rate,
-            commission_amount: amount, rule_type: ruleType, payment_status: 'pending',
-          };
-        });
-        await (supabase.from('salesman_commissions' as any) as any).insert(records);
-      } else {
-        const { rate, ruleType } = getRate({});
-        const amount = Math.round((totalNetAmount * rate / 100) * 100) / 100;
-        await (supabase.from('salesman_commissions' as any) as any).insert({
-          organization_id: currentOrganization.id,
-          employee_id: employee.id, employee_name: salesmanName,
-          sale_id: saleId, sale_number: saleNumber, sale_date: saleDate,
-          customer_name: customerName || 'Walk-in Customer',
-          sale_amount: totalNetAmount, commission_percent: rate,
-          commission_amount: amount, rule_type: ruleType, payment_status: 'pending',
+        const { data: prods } = await supabase
+          .from("products")
+          .select("id, brand, category, style")
+          .eq("organization_id", currentOrganization.id)
+          .in("id", productIds);
+        (prods || []).forEach((product) => {
+          productMap[product.id] = product;
         });
       }
-    } catch (err) { console.error('Commission record failed (non-blocking):', err); }
+
+      const records = buildSalesmanCommissionRecords({
+        organizationId: currentOrganization.id,
+        saleId,
+        saleNumber,
+        saleDate,
+        customerName,
+        headerSalesman: salesmanName,
+        totalNetAmount,
+        items: saleItems || [],
+        productsById: productMap,
+        employees: employees || [],
+        rules: commissionRules || [],
+      });
+      if (records.length === 0) return;
+      await (supabase.from("salesman_commissions" as any) as any).insert(records);
+    } catch (err) { console.error("Commission record failed (non-blocking):", err); }
   };
 
   const handlePaymentMethodChange = (method: 'cash' | 'card' | 'upi') => {
@@ -4785,9 +4799,13 @@ export default function POSSales() {
       return;
     }
 
-    // Same-bill exchange / negative net: open Mix so cashier can Process Refund or Issue C/Note.
-    // Cash refund does not require a customer name.
-    if (finalAmount < -0.005 || exchangeRefundDue > 0.005) {
+    // Same-bill exchange: Cash pays the refund now (the net box used to show −200,
+    // and clicking Cash left that ₹200 on the customer). UPI / card / credit still open Mix.
+    const cashExchangeRefund =
+      method === "cash" && (finalAmount < -0.005 || exchangeRefundDue > 0.005)
+        ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue)
+        : 0;
+    if ((finalAmount < -0.005 || exchangeRefundDue > 0.005) && cashExchangeRefund <= 0.005) {
       paymentLockRef.current = false;
       handleMixPayment();
       return;
@@ -4835,20 +4853,35 @@ export default function POSSales() {
         notes: saleNotes || null,
         saleDate: buildPosSaleDate(),
       })),
+      refundAmount: cashExchangeRefund,
       ...posCrmPointsForPrint,
       financerDetails: financerDetails || null,
     };
+    const exchangeBreakdown =
+      cashExchangeRefund > 0.005
+        ? {
+            cashAmount: 0,
+            cardAmount: 0,
+            upiAmount: 0,
+            bankAmount: 0,
+            totalPaid: 0,
+            refundAmount: cashExchangeRefund,
+            issueCreditNote: false,
+            refundMode: "cash" as const,
+          }
+        : undefined;
+    const saveMethod = exchangeBreakdown ? "multiple" : method;
 
     // Use resumeHeldSale if this is a held sale, updateSale if editing, otherwise create new
     await attachSameBillReturnsToCustomer();
     posSaveMark("attach_returns");
     let result;
     if (isHeldSale && currentSaleId) {
-      result = await resumeHeldSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
+      result = await resumeHeldSale(currentSaleId, saleData, saveMethod, exchangeBreakdown, buildPosRuntimeOpts());
     } else if (currentSaleId) {
-      result = await updateSale(currentSaleId, saleData, method, undefined, buildPosRuntimeOpts());
+      result = await updateSale(currentSaleId, saleData, saveMethod, exchangeBreakdown, buildPosRuntimeOpts());
     } else {
-      result = await saveSale(saleData, method, undefined, 'pos', buildPosRuntimeOpts());
+      result = await saveSale(saleData, saveMethod, exchangeBreakdown, 'pos', buildPosRuntimeOpts());
     }
     posSaveMark("save_sale_total");
     
@@ -4891,8 +4924,8 @@ export default function POSSales() {
       const saveAccount = await resolvePosInvoiceAccountFacets({
         organizationId: currentOrganization?.id,
         customerId,
-        billTotal: finalAmount,
-        receivedToday: method === "pay_later" ? 0 : posTenderDue,
+        billTotal: cashExchangeRefund > 0.005 ? 0 : finalAmount,
+        receivedToday: cashExchangeRefund > 0.005 || method === "pay_later" ? 0 : posTenderDue,
         accountIncludesThisBill: true,
         fallback: customerBalance,
         fallbackUnusedAdvance: customerUnusedAdvance,
@@ -4906,9 +4939,10 @@ export default function POSSales() {
         totals: totals,
         flatDiscountAmount: flatDiscountAmount,
         saleReturnAdjust: saleReturnAdjust,
-        finalAmount: finalAmount,
+        finalAmount: cashExchangeRefund > 0.005 ? 0 : finalAmount,
+        refundCash: cashExchangeRefund,
         billNetAmount: totals.billAmount,
-        method: method,
+        method: cashExchangeRefund > 0.005 ? "multiple" : method,
         customerName: resolvePosCustomerName(customerName),
         customerPhone: customerPhone,
         customerId: customerId,
@@ -4919,17 +4953,20 @@ export default function POSSales() {
         creditApplied: creditApplied,
         creditAmount: creditApplied,
         notes: saleNotes || null,
-        paidAmount: method === 'pay_later' ? 0 : posTenderDue,
+        paidAmount: cashExchangeRefund > 0.005 ? 0 : method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: saveAccount.previousBalance,
         unusedAdvance: saveAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
-        ...crmPointsPrintSnapshot({
-          crmEnabled: isPointsEnabled,
-          customerId,
-          balanceBefore: customerPointsData?.balance || 0,
-          pointsToRedeem,
-          pointsEarned: calculatePoints(finalAmount),
-        }),
+        ...coalesceCrmPointsPrint(
+          crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(finalAmount),
+          }),
+          crmPointsFromSaveResult(result),
+        ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
@@ -5016,6 +5053,11 @@ export default function POSSales() {
     issueCreditNote?: boolean;
     refundMode?: 'cash' | 'upi' | 'bank_transfer';
   }) => {
+    // −200 in the refund box is ₹200 paid back to the customer, not a new charge.
+    paymentData = {
+      ...paymentData,
+      refundAmount: Math.abs(Number(paymentData.refundAmount) || 0),
+    };
     posSaveBegin("mix-path");
     // Customer name required only when mix payment leaves a credit balance on the bill
     const mixCreditAmount = Math.max(0, Number(paymentData.creditAmount) || 0);
@@ -5246,13 +5288,16 @@ export default function POSSales() {
         previousBalance: mixAccount.previousBalance,
         unusedAdvance: mixAccount.unusedAdvance,
         pointsRedemptionValue: pointsRedemptionValue,
-        ...crmPointsPrintSnapshot({
-          crmEnabled: isPointsEnabled,
-          customerId,
-          balanceBefore: customerPointsData?.balance || 0,
-          pointsToRedeem,
-          pointsEarned: calculatePoints(finalAmount),
-        }),
+        ...coalesceCrmPointsPrint(
+          crmPointsPrintSnapshot({
+            crmEnabled: isPointsEnabled,
+            customerId,
+            balanceBefore: customerPointsData?.balance || 0,
+            pointsToRedeem,
+            pointsEarned: calculatePoints(finalAmount),
+          }),
+          crmPointsFromSaveResult(result),
+        ),
         cashAmount: result.cash_amount || 0,
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
@@ -5674,10 +5719,26 @@ export default function POSSales() {
                 : totals.discount + flatDiscountAmount
             }
             saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
-            grandTotal={savedInvoiceData?.finalAmount || finalAmount}
+            grandTotal={savedInvoiceData ? savedInvoiceData.finalAmount : finalAmount}
             billNetAmount={savedInvoiceData?.billNetAmount ?? totals.billAmount}
-            cashPaid={savedInvoiceData?.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'cash' ? posTenderDue : 0}
-            upiPaid={savedInvoiceData?.method === 'upi' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : paymentMethod === 'upi' ? posTenderDue : 0}
+            cashPaid={
+              savedInvoiceData
+                ? savedInvoiceData.method === "cash"
+                  ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                  : savedInvoiceData.cashAmount || 0
+                : paymentMethod === "cash"
+                  ? posTenderDue
+                  : 0
+            }
+            upiPaid={
+              savedInvoiceData
+                ? savedInvoiceData.method === "upi"
+                  ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                  : savedInvoiceData.upiAmount || 0
+                : paymentMethod === "upi"
+                  ? posTenderDue
+                  : 0
+            }
             paymentMethod={savedInvoiceData?.method || paymentMethod}
             cashAmount={savedInvoiceData?.cashAmount || 0}
             upiAmount={savedInvoiceData?.upiAmount || 0}
@@ -5856,7 +5917,7 @@ export default function POSSales() {
             currentOrganization.id,
             custId,
           );
-          customerBalance = Math.round(Number(grossOutstandingFromFinancialSnapshot(snap)) || 0);
+          customerBalance = Math.round(Number(snap.outstandingDr) || 0);
         } catch {
           customerBalance = 0;
         }
@@ -7593,9 +7654,8 @@ export default function POSSales() {
                       <CommandGroup heading={`Customers (${customers?.length || 0})${hasMoreCustomers ? ' - refine search for more' : ''}`}>
                         {filteredCustomers.map((customer: any) => {
                           const snap = getCustomerSnapshot(customer.id);
-                          const balance = posFooterCustomerBalance(
-                            snap ? grossOutstandingFromFinancialSnapshot(snap) : 0,
-                          );
+                          // Net balance (after advance and pending CN), same as the balance badge.
+                          const balance = Math.round(Number(snap?.outstandingDr) || 0);
                           const advanceAmt = getCustomerAdvance(customer.id);
                           const creditNoteAmt = getCustomerCreditNote(customer.id);
                           return (
@@ -7771,13 +7831,15 @@ export default function POSSales() {
             </PopoverContent>
           </Popover>
 
-          {/* Invoice Number Display */}
-          <div className="relative w-40 shrink-0">
+          {/* Invoice number. Width is in ch of this field's own font (16px), not rem.
+              Compact desktop sets the root to 13px, so a rem width clips the last digit. */}
+          <div className="relative shrink-0">
             <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 block">Invoice No</Label>
             <Input
               value={currentInvoiceNumber || nextInvoicePreview || "NEW"}
               readOnly
-              className="h-10 text-sm font-semibold text-center bg-muted/50 border-border/80"
+              title={currentInvoiceNumber || nextInvoicePreview || "NEW"}
+              className="h-10 w-[20ch] min-w-[20ch] px-2 text-sm font-semibold text-center tabular-nums bg-muted/50 border-border/80"
               placeholder="Invoice #"
             />
           </div>
@@ -8354,6 +8416,19 @@ export default function POSSales() {
                 />
               </div>
             </div>
+            {customerId && (
+              // The one customer balance (same as Ledger / Payments / Settle): Net, with CN and advance beside it.
+              <div className="px-2 pt-2 flex justify-end" data-testid="pos-customer-balance">
+                <CustomerBalanceBadge
+                  grossOutstanding={customerLedgerBalance}
+                  unusedAdvance={customerUnusedAdvance}
+                  pendingCn={customerPendingCn}
+                  netPosition={customerNetBalance}
+                  isLoading={isCustomerBalanceLoading}
+                  customerName={customerName}
+                />
+              </div>
+            )}
             {customerId && (() => {
               const customer = customers?.find((c: any) => c.id === customerId);
               const customerMasterDiscount = customer?.discount_percent || 0;
@@ -8871,7 +8946,7 @@ export default function POSSales() {
               <Input
                 type="number"
                 className={`w-40 h-10 text-center text-lg font-semibold border-0 rounded-md bg-white tabular-nums ${finalAmount < 0 || exchangeRefundDue > 0.005 ? 'text-orange-600' : 'text-emerald-700'}`}
-                value={Math.round(finalAmount < 0 || exchangeRefundDue > 0.005 ? -Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue) : finalAmount)}
+                value={Math.round(finalAmount < 0 || exchangeRefundDue > 0.005 ? Math.max(Math.abs(Math.min(0, finalAmount)), exchangeRefundDue) : finalAmount)}
                 onChange={(e) => handleFinalAmountChange(parseFloat(e.target.value) || 0)}
                 step="1"
                 readOnly={finalAmount < -0.005 || exchangeRefundDue > 0.005}
@@ -9205,8 +9280,17 @@ export default function POSSales() {
                 saleReturnAdjust={savedInvoiceData.saleReturnAdjust || 0}
                 grandTotal={savedInvoiceData.finalAmount}
                 billNetAmount={savedInvoiceData.billNetAmount ?? totals.billAmount}
-                cashPaid={savedInvoiceData.method === 'cash' ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount) : 0}
-                upiPaid={savedInvoiceData.method === 'upi' ? savedInvoiceData.finalAmount : 0}
+                cashPaid={
+                  savedInvoiceData.method === "cash"
+                    ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                    : savedInvoiceData.cashAmount || 0
+                }
+                upiPaid={
+                  savedInvoiceData.method === "upi"
+                    ? (savedInvoiceData.paidAmount ?? savedInvoiceData.finalAmount)
+                    : savedInvoiceData.upiAmount || 0
+                }
+                cardPaid={savedInvoiceData.cardAmount || 0}
                 paymentMethod={savedInvoiceData.method}
                 cashAmount={savedInvoiceData.cashAmount || 0}
                 upiAmount={savedInvoiceData.upiAmount || 0}

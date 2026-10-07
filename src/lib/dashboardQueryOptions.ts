@@ -46,10 +46,12 @@ export function isDashboardMetricsQueryEnabled(
 /** Query key prefixes cleared by the desktop dashboard Refresh button */
 export const DASHBOARD_REFRESH_QUERY_KEYS = [
   "dashboard-stats",
+  "dashboard-customer-total",
   "net-profit-kpis",
   "sales-trend",
   "purchase-trend",
   "top-products",
   "customer-segment-counts",
   "organization-receivables",
+  "insights-slow-moving-stock",
 ] as const;
