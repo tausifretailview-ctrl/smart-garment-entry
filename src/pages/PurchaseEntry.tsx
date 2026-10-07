@@ -1539,7 +1539,7 @@ const PurchaseEntry = () => {
       if (!errorMessage && siblingBrandIds.length > 0 && "brand" in dbPatch) {
         const { error } = await supabase
           .from("purchase_items")
-          .update({ brand: dbPatch.brand })
+          .update({ brand: typeof dbPatch.brand === "string" ? dbPatch.brand : null })
           .in("id", siblingBrandIds)
           .eq("bill_id", billId)
           .is("deleted_at", null);

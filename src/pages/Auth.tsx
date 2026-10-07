@@ -149,7 +149,7 @@ const Auth = () => {
 
     if (roleError || !roleData) {
       // Not a platform admin - sign out and show error
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
       setLoading(false);
       toast({
         title: "Access Denied",
