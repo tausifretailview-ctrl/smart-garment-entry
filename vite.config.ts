@@ -7,6 +7,10 @@ import { VitePWA } from "vite-plugin-pwa";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 import { visualizer } from "rollup-plugin-visualizer";
 
+// Service-worker global used by the workbox plugin below (serialized into sw.js).
+// This file is typechecked without the DOM/WebWorker libs.
+declare const caches: { match(url: string, opts?: { ignoreSearch?: boolean }): Promise<Response | undefined> };
+
 const pkg = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"));
 /** Bust React Query persisted cache on each build/deploy (see queryPersister.ts). */
 const appBuildId =
