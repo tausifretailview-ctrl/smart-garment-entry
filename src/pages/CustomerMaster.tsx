@@ -9,6 +9,7 @@ import { STALE_LIVE } from "@/lib/queryStaleTimes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { Button } from "@/components/ui/button";
@@ -157,6 +158,16 @@ const segmentBadgeClass = (seg: CustomerSegment) => {
   }
 };
 
+function parseCustomerPointsInput(raw: string): number {
+  const trimmed = raw.trim();
+  if (!trimmed) return 0;
+  const n = Math.floor(Number(trimmed));
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error("Points must be a whole number of 0 or more");
+  }
+  return n;
+}
+
 const CustomerMaster = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [segmentFilter, setSegmentFilter] = useState<SegmentFilter>("all");
@@ -173,9 +184,11 @@ const CustomerMaster = () => {
     discount_percent: "",
     transport_details: "",
     portal_enabled: false,
+    points_balance: "",
   });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const { currentOrganization } = useOrganization();
   const { data: orgSettings, isLoading: settingsLoading } = useSettings();
   const enablePointsSystem = !!(orgSettings as { sale_settings?: { enable_points_system?: boolean } } | null)
@@ -578,6 +591,8 @@ const CustomerMaster = () => {
       });
       assertNoCustomerDuplicate(duplicateCheck);
       
+      const pointsBalance = enablePointsSystem ? parseCustomerPointsInput(data.points_balance) : 0;
+
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
         phone: normalizedPhone || null,
@@ -588,10 +603,28 @@ const CustomerMaster = () => {
         discount_percent: data.discount_percent ? parseFloat(data.discount_percent) : 0,
         transport_details: data.transport_details || null,
         portal_enabled: data.portal_enabled || false,
-        organization_id: currentOrganization.id
+        organization_id: currentOrganization.id,
       };
-      const { error } = await supabase.from("customers").insert([customerData]);
+      if (enablePointsSystem) {
+        customerData.points_balance = pointsBalance;
+      }
+      const { data: inserted, error } = await supabase
+        .from("customers")
+        .insert([customerData])
+        .select("id")
+        .single();
       if (error) throw error;
+      if (enablePointsSystem && pointsBalance > 0 && inserted?.id) {
+        const { error: historyError } = await supabase.from("customer_points_history").insert({
+          organization_id: currentOrganization.id,
+          customer_id: inserted.id,
+          transaction_type: "adjusted",
+          points: pointsBalance,
+          description: "Opening points balance (Customer Master)",
+          created_by: user?.id,
+        });
+        if (historyError) throw historyError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -624,6 +657,9 @@ const CustomerMaster = () => {
       );
       assertNoCustomerDuplicate(duplicateCheck);
       
+      const previousPoints = Number(editingCustomer?.points_balance ?? 0);
+      const nextPoints = enablePointsSystem ? parseCustomerPointsInput(data.points_balance) : previousPoints;
+
       const customerData: any = {
         customer_name: (data.customer_name.trim() || normalizedPhone || "WALK-IN").toUpperCase(),
         phone: normalizedPhone || null,
@@ -635,13 +671,34 @@ const CustomerMaster = () => {
         transport_details: data.transport_details || null,
         portal_enabled: data.portal_enabled || false,
       };
-      const { error } = await supabase.from("customers").update(customerData).eq("id", id);
+      if (enablePointsSystem) {
+        customerData.points_balance = nextPoints;
+      }
+      const { error } = await supabase
+        .from("customers")
+        .update(customerData)
+        .eq("id", id)
+        .eq("organization_id", currentOrganization.id);
       if (error) throw error;
+
+      const pointsDelta = nextPoints - previousPoints;
+      if (enablePointsSystem && pointsDelta !== 0) {
+        const { error: historyError } = await supabase.from("customer_points_history").insert({
+          organization_id: currentOrganization.id,
+          customer_id: id,
+          transaction_type: "adjusted",
+          points: pointsDelta,
+          description: `Manual points adjustment (Customer Master): ${previousPoints} → ${nextPoints}`,
+          created_by: user?.id,
+        });
+        if (historyError) throw historyError;
+      }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-points", variables.id] });
       toast({ title: "Customer updated successfully" });
       resetForm();
       setIsDialogOpen(false);
@@ -688,7 +745,18 @@ const CustomerMaster = () => {
   });
 
   const resetForm = () => {
-    setFormData({ customer_name: "", phone: "", email: "", address: "", gst_number: "", opening_balance: "", discount_percent: "", transport_details: "", portal_enabled: false });
+    setFormData({
+      customer_name: "",
+      phone: "",
+      email: "",
+      address: "",
+      gst_number: "",
+      opening_balance: "",
+      discount_percent: "",
+      transport_details: "",
+      portal_enabled: false,
+      points_balance: "",
+    });
     setEditingCustomer(null);
   };
 
@@ -716,6 +784,7 @@ const CustomerMaster = () => {
       discount_percent: customer.discount_percent?.toString() || "",
       transport_details: (customer as any).transport_details || "",
       portal_enabled: (customer as any).portal_enabled || false,
+      points_balance: String(Math.round(Number(customer.points_balance ?? 0))),
     });
     setIsDialogOpen(true);
   };
@@ -1527,6 +1596,21 @@ const CustomerMaster = () => {
               <div><Label htmlFor="m-address">Address</Label><Textarea id="m-address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} /></div>
               <div><Label htmlFor="m-gst">GST Number</Label><Input id="m-gst" value={formData.gst_number} onChange={(e) => setFormData({ ...formData, gst_number: e.target.value })} /></div>
               <div><Label htmlFor="m-bal">Opening Balance (₹)</Label><Input id="m-bal" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} /></div>
+              {enablePointsSystem && (
+                <div>
+                  <Label htmlFor="m-points">Reward Points</Label>
+                  <Input
+                    id="m-points"
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={formData.points_balance}
+                    onChange={(e) => setFormData({ ...formData, points_balance: e.target.value })}
+                    placeholder="0"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Set or correct balance for existing customers</p>
+                </div>
+              )}
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
                   <Label className="text-sm font-medium">Buyer Portal Access</Label>
@@ -1754,7 +1838,12 @@ const CustomerMaster = () => {
                       <Label htmlFor="address" className="text-xs">Address</Label>
                       <Textarea id="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="min-h-[60px]" />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div
+                      className={cn(
+                        "grid gap-3",
+                        enablePointsSystem ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3",
+                      )}
+                    >
                       <div>
                         <Label htmlFor="opening_balance" className="text-xs">Opening Balance (₹)</Label>
                         <Input id="opening_balance" type="number" step="0.01" value={formData.opening_balance} onChange={(e) => setFormData({ ...formData, opening_balance: e.target.value })} placeholder="Receivable" className="h-9" />
@@ -1769,6 +1858,22 @@ const CustomerMaster = () => {
                         <Label htmlFor="transport_details" className="text-xs">Transport</Label>
                         <Input id="transport_details" value={formData.transport_details} onChange={(e) => setFormData({ ...formData, transport_details: e.target.value })} placeholder="e.g., VRL" className="h-9" />
                       </div>
+                      {enablePointsSystem && (
+                        <div>
+                          <Label htmlFor="points_balance" className="text-xs">Reward Points</Label>
+                          <Input
+                            id="points_balance"
+                            type="number"
+                            min={0}
+                            step={1}
+                            value={formData.points_balance}
+                            onChange={(e) => setFormData({ ...formData, points_balance: e.target.value })}
+                            placeholder="0"
+                            className="h-9 tabular-nums"
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Manual balance for legacy customers</p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center justify-between rounded-lg border p-2.5">
                       <div>
