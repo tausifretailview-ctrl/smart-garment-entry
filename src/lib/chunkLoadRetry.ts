@@ -95,6 +95,9 @@ export const POST_LOGIN_WEB_IDLE_PRIORITY_PREFETCH_TAB_PATHS = [
   "purchase-entry",
   "sales-invoice",
   "products",
+  // Sales Invoice Dashboard: data is prefetched at login, so the chunk must not wait in the
+  // deferred inventory queue or the first click shows a skeleton while it downloads.
+  "sales-invoice-dashboard",
 ] as const;
 
 /** Start the priority wave soon after login. The rest of the queue stays deferred. */

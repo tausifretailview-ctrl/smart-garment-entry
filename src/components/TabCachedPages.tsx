@@ -36,6 +36,7 @@ import { PosDeliveryChallanLayout } from "@/components/PosDeliveryChallanLayout"
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
+import { SalesInvoiceDashboardLoadShell } from "@/components/skeletons/SalesInvoiceDashboardLoadShell";
 import { isIdleEvictableDashboardPath, READ_ONLY_IDLE_UNMOUNT_MS } from "@/lib/tabIdleEvict";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
 import { claimNewerBuildReload, newerServerEntryScript } from "@/lib/appBuildCheck";
@@ -221,7 +222,11 @@ function getMinKeepTabs(): number {
 function TabLoadShellView({ path }: { path: string }) {
   const shell = resolveTabLoadShell(path);
   const message = tabLoadMessage(path, shell);
-  if (shell === "dashboard") return <DashboardSkeleton />;
+  if (shell === "dashboard") {
+    return resolveTabCachePath(path) === "sales-invoice-dashboard"
+      ? <SalesInvoiceDashboardLoadShell />
+      : <DashboardSkeleton />;
+  }
   return (
     <div
       className="flex min-h-0 w-full flex-1 flex-col gap-3 p-4"
