@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { invalidateCustomerFinancialSnapshot } from "@/utils/customerFinancialSnapshot";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
 interface ReassignPaymentDialogProps {
   open: boolean;
@@ -72,20 +73,9 @@ export function ReassignPaymentDialog({
         throw new Error(`Payment ₹${paymentAmount} exceeds invoice outstanding ₹${Math.round(outstanding)}. Please split the payment first.`);
       }
 
-      const newPaidAmount = currentPaid + paymentAmount;
-      const newStatus = newPaidAmount >= invoice.net_amount ? "completed" : newPaidAmount > 0 ? "partial" : "pending";
-
-      // Update the invoice
-      const { error: saleErr } = await supabase
-        .from("sales")
-        .update({
-          paid_amount: newPaidAmount,
-          payment_status: newStatus,
-        })
-        .eq("id", selectedInvoiceId);
-      if (saleErr) throw saleErr;
-
-      // Update the voucher entry
+      // Re-point the receipt first; the voucher is what supports the invoice's paid amount.
+      // Writing paid_amount before this left the invoice marked paid with no receipt behind it
+      // whenever the voucher update failed.
       const { error: voucherErr } = await supabase
         .from("voucher_entries")
         .update({
@@ -95,6 +85,9 @@ export function ReassignPaymentDialog({
         })
         .eq("id", payment.id);
       if (voucherErr) throw voucherErr;
+
+      // paid_amount / status derived from the receipts (DB compute_sale_settlement).
+      await applyRecomputedSalePaymentState(selectedInvoiceId, organizationId);
 
       return { invoiceNumber: invoice.sale_number };
     },

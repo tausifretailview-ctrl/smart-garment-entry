@@ -73,6 +73,7 @@ import {
   reconcileSaleInvoiceWithSplit,
 } from "@/utils/customerBalanceUtils";
 import { fetchItemsGrossBySaleId } from "@/utils/fetchItemsGrossBySaleId";
+import { applyRecomputedSalePaymentState } from "@/utils/recomputeSalePaymentState";
 
 interface FloatingPaymentsProps {
   open: boolean;
@@ -577,20 +578,19 @@ function CustomerPaymentForm({
         }
 
         for (const pending of pendingSalesUpdates) {
-          const { error: saleUpdErr } = await supabase
-            .from("sales")
-            .update({
-              paid_amount: pending.newPaidAmount,
-              payment_status: pending.newStatus,
-              payment_date: format(voucherDate, "yyyy-MM-dd"),
-            })
-            .eq("id", pending.invoiceId);
-          if (saleUpdErr) throw saleUpdErr;
           saleRevert.push({
             id: pending.invoiceId,
             prevPaid: pending.prevPaid,
             prevStatus: pending.prevStatus,
           });
+          // paid_amount / status come from the receipt vouchers just inserted (DB
+          // compute_sale_settlement), never from client math on a possibly stale paid_amount.
+          await applyRecomputedSalePaymentState(pending.invoiceId, organizationId);
+          const { error: saleUpdErr } = await supabase
+            .from("sales")
+            .update({ payment_date: format(voucherDate, "yyyy-MM-dd") })
+            .eq("id", pending.invoiceId);
+          if (saleUpdErr) throw saleUpdErr;
         }
       } catch (e) {
         await rollbackFloatingReceipts();

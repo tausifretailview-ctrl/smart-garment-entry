@@ -918,7 +918,10 @@ export function reconcileSaleInvoiceDisplay(params: {
   const cnToPeelFromPaid = Math.max(0, cn - Math.max(0, sr));
   const advCnToPeel = adv + cnToPeelFromPaid;
   // At-sale tender (POS cash/card/UPI columns) plus follow-up receipt vouchers — not max().
-  let effectiveCash = Math.max(0, salePaid - advCnToPeel) + cash + discount;
+  // Settlement discount is NOT cash: it is counted once below (cappedNonCash / settledForStatus).
+  // Adding it here as well counted it twice, so a partly paid bill with a receipt discount showed
+  // up to the discount less outstanding than it really had (VAVIA SHOES: 3,021 owed read as 2,014).
+  let effectiveCash = Math.max(0, salePaid - advCnToPeel) + cash;
 
   const storedPaidCol =
     params.stored_paid_amount != null ? Number(params.stored_paid_amount) : salePaid;
@@ -1052,7 +1055,9 @@ export function reconcileSaleInvoiceWithSplit(
   split: SaleReceiptVoucherSplit | null | undefined,
 ) {
   const s = split ?? emptySplit();
-  const voucherBucketSum = s.cash + s.adv + s.cn;
+  // Include the receipt discount: `paid_amount` already carries it, and it is added back once in
+  // reconcileSaleInvoiceDisplay. Leaving it out turned the discount into phantom "at-sale" payment.
+  const voucherBucketSum = s.cash + s.adv + s.cn + s.discount;
   const atSaleTender = salePaidAtSaleTender(sale);
   const storedPaid = Number(sale.paid_amount || 0);
   const paidForReconcile = Math.max(atSaleTender, Math.max(0, storedPaid - voucherBucketSum));
@@ -1064,6 +1069,41 @@ export function reconcileSaleInvoiceWithSplit(
     split: s,
     items_gross: sale.items_gross != null ? Number(sale.items_gross) : null,
   });
+}
+
+/**
+ * Most a bill's `paid_amount` can honestly be, from what is actually on record: receipt cash,
+ * settlement discount, advance, credit note above the bill's own S/R adjust, and the counter
+ * tender columns. Anything above this is paid with nothing behind it.
+ */
+export function maxSupportedPaid(
+  sale: {
+    net_amount?: number | null;
+    sale_return_adjust?: number | null;
+    cash_amount?: number | null;
+    card_amount?: number | null;
+    upi_amount?: number | null;
+  },
+  split: SaleReceiptVoucherSplit | null | undefined,
+): number {
+  const s = split ?? emptySplit();
+  const net = Math.max(0, Number(sale.net_amount || 0));
+  const sra = Math.max(0, Number(sale.sale_return_adjust || 0));
+  const cnAboveSra = Math.max(0, s.cn - sra);
+  const supported = s.cash + s.adv + cnAboveSra + s.discount + salePaidAtSaleTender(sale);
+  return Math.min(net, supported);
+}
+
+/**
+ * Page-load syncs may lower a stored paid amount or keep it, and may raise it only up to what is
+ * supported by receipts / counter tender. They must never write a higher, unsupported paid amount.
+ */
+export function shouldPersistReconciledPaid(
+  storedPaid: number,
+  reconciledPaid: number,
+  supportedPaid: number,
+): boolean {
+  return reconciledPaid <= storedPaid + 0.009 || reconciledPaid <= supportedPaid + 0.5;
 }
 
 export type SaleRowForPaymentSync = {
