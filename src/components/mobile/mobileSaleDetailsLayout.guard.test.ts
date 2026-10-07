@@ -26,7 +26,8 @@ describe("mobile sale details + size-wise regressions", () => {
 
   it("customer/supplier balance reports use paginated fetchAll* utilities", () => {
     const src = readFileSync(join(here, "MobileOwnerBalanceReports.tsx"), "utf8");
-    expect(src).toContain("fetchAllCustomers");
+    // Customers load through the shared cached reference (which wraps fetchAllCustomers).
+    expect(src).toMatch(/fetchAllCustomers|fetchOrgLedgerCustomersReference/);
     expect(src).toContain("fetchAllSuppliers");
     expect(src).not.toMatch(/\.from\("customers"\)/);
     expect(src).not.toMatch(/\.from\("suppliers"\)/);
