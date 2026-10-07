@@ -245,6 +245,7 @@ describe("idle / wake entry-chunk prefetch lists", () => {
       "purchase-entry",
       "sales-invoice",
       "products",
+      "sales-invoice-dashboard",
     ]);
     expect(POST_LOGIN_WEB_IDLE_PRIORITY_DELAY_MS).toBe(500);
     expect(POST_LOGIN_WEB_IDLE_INVENTORY_PREFETCH_TAB_PATHS[0]).not.toBe("purchase-entry");
