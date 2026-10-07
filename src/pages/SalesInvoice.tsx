@@ -74,6 +74,7 @@ import type { WhatsAppSettings } from "@/hooks/useWhatsAppAPI";
 import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { getKrishnaA5HorizontalPrintPageStyle, resolveSaleInvoiceTemplate } from "@/utils/invoicePrintFormat";
 import { crmPointsPrintSnapshot } from "@/utils/retailErpInvoicePrint";
+import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
 import { INVOICE_PRINT_VISIBILITY_OVERRIDE_CSS } from "@/utils/thermalReceiptPrintDocument";
 import { resolveWappConnectPdfInvoiceTemplate } from "@/utils/resolveWappConnectPdfInvoiceTemplate";
 
@@ -3580,8 +3581,13 @@ Thank you for choosing us!`;
             saleData.id,
             pointsToRedeem,
             saleNumber
-          ).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          ).then((result) => {
+            if (result.success) {
+              invalidateCustomerPointsRelatedQueries(queryClient, {
+                organizationId: currentOrganization?.id,
+                customerId: selectedCustomerId,
+              });
+            }
           });
         }
 
@@ -3592,8 +3598,13 @@ Thank you for choosing us!`;
             saleData.id,
             netAmount,
             saleNumber
-          ).then(() => {
-            queryClient.invalidateQueries({ queryKey: ['customer-points', selectedCustomerId] });
+          ).then((result) => {
+            if (result.success) {
+              invalidateCustomerPointsRelatedQueries(queryClient, {
+                organizationId: currentOrganization?.id,
+                customerId: selectedCustomerId,
+              });
+            }
           });
         }
 

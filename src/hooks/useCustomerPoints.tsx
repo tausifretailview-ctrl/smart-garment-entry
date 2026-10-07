@@ -413,5 +413,7 @@ export function useCustomerPointsBalance(customerId: string | null) {
       };
     },
     enabled: !!customerId && !!currentOrganization?.id,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }

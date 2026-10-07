@@ -785,7 +785,7 @@ export default function POSSales() {
   const customerBalance = posFooterCustomerBalance(customerLedgerBalance);
   
   // Customer points hooks
-  const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, redeemPoints, pointsSettings } = useCustomerPoints();
+  const { calculatePoints, isPointsEnabled, isRedemptionEnabled, calculateMaxRedeemablePoints, calculateRedemptionValue, pointsSettings } = useCustomerPoints();
   const { data: customerPointsData } = useCustomerPointsBalance(customerId || null);
   const { getBrandDiscountForProduct, hasBrandDiscounts, brandDiscounts, isLoading: isBrandDiscountsLoading } = useCustomerBrandDiscounts(customerId || null);
 
@@ -5367,11 +5367,6 @@ export default function POSSales() {
       if (!isCreditNote && !isRefund) {
         await applyAdvanceAfterSave(result);
       }
-      if (!isCreditNote && pointsToRedeem > 0 && customerId) {
-        redeemPoints(customerId, result.id, pointsToRedeem, result.sale_number).then(() => {
-          queryClient.invalidateQueries({ queryKey: ['customer-points', customerId] });
-        });
-      }
     }
   };
 
@@ -5900,7 +5895,19 @@ export default function POSSales() {
         .eq('id', custId)
         .single();
 
-      const pointsBalance = customer?.points_balance || 0;
+      const pointsBalanceDb = Number(customer?.points_balance || 0);
+      const pointsBalanceForMessage =
+        pointsRedeemedAmt > 0
+          ? (savedInvoiceData?.pointsBalance ??
+            crmPointsPrintSnapshot({
+              crmEnabled: isPointsEnabled,
+              customerId: custId,
+              balanceBefore: useCurrentData ? (customerPointsData?.balance ?? pointsBalanceDb) : pointsBalanceDb,
+              pointsToRedeem: pointsRedeemedAmt,
+              pointsEarned: 0,
+            }).pointsBalance ??
+            Math.max(0, pointsBalanceDb - pointsRedeemedAmt))
+          : pointsBalanceDb;
 
       let customerBalance = 0;
       if (currentOrganization?.id) {
@@ -5923,9 +5930,9 @@ export default function POSSales() {
       // Add points info
       if (isPointsEnabled) {
         if (pointsRedeemedAmt > 0) {
-          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Redeemed: ${pointsRedeemedAmt} pts (₹${pointsRedemptionVal.toFixed(0)} discount)\nPoints Balance: ${pointsBalance} pts`;
-        } else if (pointsBalance > 0) {
-          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Balance: ${pointsBalance} pts`;
+          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Redeemed: ${pointsRedeemedAmt} pts (₹${pointsRedemptionVal.toFixed(0)} discount)\nPoints Balance: ${pointsBalanceForMessage} pts`;
+        } else if (pointsBalanceForMessage > 0) {
+          pointsText = `\n\n🎁 *Loyalty Points*\nPoints Balance: ${pointsBalanceForMessage} pts`;
         }
       }
     }

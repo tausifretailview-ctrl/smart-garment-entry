@@ -197,18 +197,29 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
     const pageCount = itemPages.length;
     const returnDateLabel = format(new Date(returnData.return_date), "dd/MM/yyyy");
 
+    const fmtDate = (iso?: string | null) =>
+      iso ? format(new Date(iso), "dd/MM/yyyy") : "";
+
     return (
-      <div ref={ref} className="pr-print-root bg-white text-black" style={{ width: "210mm", fontFamily: "Arial, sans-serif" }}>
+      <div
+        ref={ref}
+        className="pr-print-root bg-white text-black"
+        style={{ width: "210mm", fontFamily: "Arial, Helvetica, sans-serif" }}
+      >
         <style>
           {`
             @media print {
               @page {
                 size: A4 portrait;
-                margin: 5mm;
+                margin: 8mm;
               }
-              body {
+              html, body {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+                color: #000 !important;
+              }
+              .pr-print-root, .pr-print-root * {
+                color: #000 !important;
               }
               .pr-print-page {
                 page-break-after: always;
@@ -224,43 +235,80 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               }
               thead { display: table-header-group; }
             }
+            .pr-print-root {
+              color: #000;
+              font-size: 12px;
+              line-height: 1.35;
+              -webkit-font-smoothing: antialiased;
+            }
             .pr-print-page {
               box-sizing: border-box;
               width: 100%;
-              min-height: 287mm;
+              min-height: 281mm;
               padding: 0;
               display: flex;
               flex-direction: column;
             }
             .pr-border {
-              border: 1px solid #000;
+              border: 2px solid #000;
             }
-            .pr-border-t { border-top: 1px solid #000; }
-            .pr-border-b { border-bottom: 1px solid #000; }
-            .pr-border-l { border-left: 1px solid #000; }
-            .pr-border-r { border-right: 1px solid #000; }
+            .pr-border-t { border-top: 2px solid #000; }
+            .pr-border-b { border-bottom: 2px solid #000; }
+            .pr-border-l { border-left: 2px solid #000; }
+            .pr-border-r { border-right: 2px solid #000; }
             .pr-table {
               width: 100%;
               border-collapse: collapse;
-              font-size: 11px;
+              font-size: 12px;
             }
             .pr-table th, .pr-table td {
-              border: 1px solid #000;
-              padding: 2px 4px;
+              border: 1.5px solid #000;
+              padding: 3px 5px;
+              color: #000;
             }
             .pr-table th {
-              background-color: #f5f5f5;
-              font-weight: 600;
+              background-color: #dcdcdc;
+              font-weight: 700;
               text-align: center;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.02em;
+            }
+            .pr-table tbody td {
+              font-weight: 500;
             }
             .pr-cell {
               font-size: 12px;
-              padding: 2px 4px;
+              padding: 3px 5px;
+              color: #000;
             }
             .pr-label {
-              font-weight: 600;
-              min-width: 70px;
+              font-weight: 700;
+              min-width: 78px;
               display: inline-block;
+              color: #000;
+            }
+            .pr-value-emphasis {
+              font-weight: 700;
+            }
+            .pr-section-title {
+              font-weight: 700;
+              font-size: 12px;
+              background-color: #e8e8e8 !important;
+              border-bottom: 1.5px solid #000;
+            }
+            .pr-doc-title {
+              font-weight: 800;
+              letter-spacing: 0.04em;
+            }
+            .pr-header-name {
+              font-weight: 800;
+              font-size: 17px;
+              color: #000;
+            }
+            .pr-total-highlight {
+              font-weight: 800;
+              font-size: 13px;
             }
           `}
         </style>
@@ -281,13 +329,16 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             
             {/* Center - Business Name & Address */}
             <div style={{ flex: 2 }} className="text-center">
-              <h1 className="text-lg font-bold mb-0.5">{businessDetails?.business_name || "Company Name"}</h1>
-              <p className="text-xs leading-snug">{businessDetails?.address || ""}</p>
-              <p className="text-sm">
+              <h1 className="pr-header-name mb-0.5">{businessDetails?.business_name || "Company Name"}</h1>
+              <p className="text-xs leading-snug font-medium">{businessDetails?.address || ""}</p>
+              <p className="text-sm font-semibold">
                 {businessDetails?.mobile_number && `Phone: ${businessDetails.mobile_number}`}
                 {businessDetails?.email_id && ` | Email: ${businessDetails.email_id}`}
               </p>
-              <p className="text-sm font-semibold">GSTIN: {businessDetails?.gst_number || ""}</p>
+              <p className="text-sm">
+                <span className="pr-label">GSTIN</span>:{" "}
+                <span className="pr-value-emphasis">{businessDetails?.gst_number || ""}</span>
+              </p>
             </div>
             
             {/* Right - Logo */}
@@ -301,8 +352,8 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           </div>
 
           {/* Title */}
-          <div className="text-center pr-border-b py-1" style={{ backgroundColor: "#f5f5f5" }}>
-            <h2 className="text-base font-bold">
+          <div className="text-center pr-border-b py-1.5" style={{ backgroundColor: "#e8e8e8" }}>
+            <h2 className="text-base pr-doc-title">
               PURCHASE RETURN ({isDC ? "DELIVERY CHALLAN" : "DEBIT NOTE"})
             </h2>
           </div>
@@ -310,19 +361,28 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           {/* Billed To / Shipped To Section */}
           <div className="flex pr-border-b">
             <div className="w-1/2 pr-border-r p-1">
-              <p className="text-sm font-bold mb-1 bg-gray-100 px-1">Details Of Supplier (Billed To)</p>
+              <p className="pr-section-title mb-1 px-1 py-0.5">Details Of Supplier (Billed To)</p>
               <div className="pr-cell">
-                <p><span className="pr-label">Name</span>: {returnData.supplier_name}</p>
+                <p>
+                  <span className="pr-label">Name</span>:{" "}
+                  <span className="pr-value-emphasis">{returnData.supplier_name}</span>
+                </p>
                 <p><span className="pr-label">Address</span>: {returnData.supplier_address || ""}</p>
                 <p><span className="pr-label">City</span>: {supplierCity}</p>
                 <p><span className="pr-label">State</span>: {supplierStateLabel}</p>
-                <p><span className="pr-label">GSTIN No</span>: {returnData.supplier_gst || ""}</p>
+                <p>
+                  <span className="pr-label">GSTIN No</span>:{" "}
+                  <span className="pr-value-emphasis">{returnData.supplier_gst || ""}</span>
+                </p>
               </div>
             </div>
             <div className="w-1/2 p-1">
-              <p className="text-sm font-bold mb-1 bg-gray-100 px-1">Details Of Consignee (Shipped To)</p>
+              <p className="pr-section-title mb-1 px-1 py-0.5">Details Of Consignee (Shipped To)</p>
               <div className="pr-cell">
-                <p><span className="pr-label">Name</span>: {businessDetails?.business_name || ""}</p>
+                <p>
+                  <span className="pr-label">Name</span>:{" "}
+                  <span className="pr-value-emphasis">{businessDetails?.business_name || ""}</span>
+                </p>
                 <p><span className="pr-label">Address</span>: {businessDetails?.address || ""}</p>
                 <p><span className="pr-label">City</span>: {orgCity}</p>
                 <p><span className="pr-label">State</span>: {orgStateLabel}</p>
@@ -343,14 +403,28 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             <div className="w-1/2 p-1">
               <div className="flex">
                 <div className="w-1/2 pr-cell">
-                  <p><span className="pr-label">Return No</span>: {returnData.return_number || ""}</p>
-                  <p><span className="pr-label">Return Dt</span>: {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
+                  <p>
+                    <span className="pr-label">Return No</span>:{" "}
+                    <span className="pr-value-emphasis">{returnData.return_number || ""}</span>
+                  </p>
+                  <p>
+                    <span className="pr-label">Return Dt</span>:{" "}
+                    <span className="pr-value-emphasis">{returnDateLabel}</span>
+                  </p>
                   <p><span className="pr-label">Party DebitNote No.</span>:</p>
-                  <p><span className="pr-label">Party DebitNote Date:</span> {format(new Date(returnData.return_date), "dd/MM/yyyy")}</p>
+                  <p>
+                    <span className="pr-label">Party DebitNote Date:</span> {returnDateLabel}
+                  </p>
                 </div>
                 <div className="w-1/2 pr-cell">
-                  <p><span className="pr-label">S Bill No.</span>: {returnData.original_bill_number || ""}</p>
-                  <p><span className="pr-label">S Bill Date.</span>: {returnData.original_bill_date ? format(new Date(returnData.original_bill_date), "dd/MM/yyyy") : ""}</p>
+                  <p>
+                    <span className="pr-label">S Bill No.</span>:{" "}
+                    <span className="pr-value-emphasis">{returnData.original_bill_number || ""}</span>
+                  </p>
+                  <p>
+                    <span className="pr-label">S Bill Date.</span>:{" "}
+                    <span className="pr-value-emphasis">{fmtDate(returnData.original_bill_date)}</span>
+                  </p>
                   <p><span className="pr-label">Agst Bill No.</span>:</p>
                   <p><span className="pr-label">Agst Bill Date.</span>:</p>
                 </div>
@@ -390,7 +464,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               {pageItems.map((item, index) => (
                 <tr key={item.id}>
                   <td className="text-center">{srStart + index + 1}</td>
-                  <td>{item.product_name || "-"}</td>
+                  <td className="font-semibold">{item.product_name || "-"}</td>
                   <td className="text-center">{item.color || "-"}</td>
                   <td className="text-center">{isDC ? "" : (item.hsn_code || "")}</td>
                   <td className="text-center">{item.qty}</td>
@@ -402,7 +476,7 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
               ))}
               {padRows > 0 &&
                 Array.from({ length: padRows }).map((_, index) => (
-                <tr key={`empty-${index}`} style={{ height: "14px" }}>
+                <tr key={`empty-${index}`} style={{ height: "18px" }}>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
                   <td>&nbsp;</td>
@@ -426,11 +500,11 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
             <div className="pr-border-r p-1 font-bold" style={{ width: "22%", fontSize: "12px" }}>Total</div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
-            <div className="pr-border-r p-1 text-center font-bold" style={{ width: "7%", fontSize: "12px" }}>{totalQty}</div>
+            <div className="pr-border-r p-1 text-center pr-value-emphasis" style={{ width: "7%", fontSize: "13px" }}>{totalQty}</div>
             <div className="pr-border-r p-1" style={{ width: "11%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1" style={{ width: "8%", fontSize: "12px" }}></div>
             <div className="pr-border-r p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{items.reduce((sum, item) => sum + (item.discount_amount || 0), 0).toFixed(2)}</div>
-            <div className="p-1 text-right font-bold" style={{ width: "11%", fontSize: "12px" }}>{grossWithoutDiscount.toFixed(2)}</div>
+            <div className="p-1 text-right pr-total-highlight" style={{ width: "11%" }}>{grossWithoutDiscount.toFixed(2)}</div>
           </div>
 
           {/* Remark & Discount Row */}
@@ -451,7 +525,10 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
           <div className="flex pr-border-t">
             <div className="w-1/2 pr-border-r">
               <div className="p-1">
-                <p className="text-sm"><span className="font-bold">In Words :</span> {amountInWords(totalAfterTax)}</p>
+                <p className="text-sm">
+                  <span className="pr-label">In Words :</span>{" "}
+                  <span className="pr-value-emphasis">{amountInWords(totalAfterTax)}</span>
+                </p>
               </div>
               
               {/* Bank Details */}
@@ -500,9 +577,9 @@ export const PurchaseReturnPrint = forwardRef<HTMLDivElement, PurchaseReturnPrin
                       </div>
                     </>
                   )}
-                  <div className="flex pr-border-b">
-                    <div className="w-2/3 pr-border-r p-1 text-sm font-bold">Total Amount After Tax</div>
-                    <div className="w-1/3 p-1 text-right text-sm font-bold">{totalAfterTax.toFixed(2)}</div>
+                  <div className="flex pr-border-b" style={{ backgroundColor: "#f0f0f0" }}>
+                    <div className="w-2/3 pr-border-r p-1 text-sm pr-total-highlight">Total Amount After Tax</div>
+                    <div className="w-1/3 p-1 text-right pr-total-highlight">{totalAfterTax.toFixed(2)}</div>
                   </div>
                 </>
               )}
