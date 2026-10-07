@@ -51,7 +51,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
       setQr(res.qr ?? null);
       setNumber(res.connectedNumber ?? null);
       if (res.status === "connected") {
-        queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
+        void queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
       }
     },
     [queryClient],
@@ -95,7 +95,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         setQr(null);
         setNumber(null);
         setPolling(false);
-        queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
+        void queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
         toast.success("WhatsApp disconnected");
       } else {
         apply(res);

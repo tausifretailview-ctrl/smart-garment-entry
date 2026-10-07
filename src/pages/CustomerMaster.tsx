@@ -728,7 +728,7 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-points", variables.id] });
+      void queryClient.invalidateQueries({ queryKey: ["customer-points", variables.id] });
       toast({ title: "Customer updated successfully" });
       resetForm();
       setIsDialogOpen(false);

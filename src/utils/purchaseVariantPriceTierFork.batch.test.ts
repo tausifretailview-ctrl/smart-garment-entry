@@ -638,4 +638,124 @@ describe("resolveVariantsForIncomingPriceTiers", () => {
     expect(insertMock).not.toHaveBeenCalled();
     expect(rpcMock).not.toHaveBeenCalled();
   });
+  describe("Mobile ERP: same product, different IMEI, new price on the bill", () => {
+    const imeiUnit: VariantRow = {
+      id: "sku-imei-2",
+      product_id: "prod-phone",
+      size: "None",
+      color: "BLACK",
+      barcode: "356938035643809",
+      barcode_source: "external",
+      pur_price: 12000,
+      sale_price: 14000,
+      mrp: 15000,
+    };
+    const phoneProduct = {
+      id: "prod-phone",
+      product_name: "REDMI 13 5G",
+      brand: "XIAOMI",
+      category: "MOBILE",
+      color: null,
+      style: null,
+      hsn_code: "8517",
+      gst_per: 18,
+      purchase_gst_percent: 18,
+      sale_gst_percent: 18,
+      uom: "NOS",
+      requires_imei: true,
+      default_pur_price: 13000,
+      default_sale_price: 16000,
+    };
+
+    it("keeps the IMEI unit instead of inserting a duplicate on the same product", async () => {
+      fromMock.mockImplementation((table: string) => {
+        if (table === "product_variants") {
+          return {
+            ...chainSelect([imeiUnit]),
+            insert: (...args: unknown[]) => {
+              insertMock(...args);
+              throw new Error("must not insert a duplicate product/color/size/barcode row");
+            },
+          };
+        }
+        if (table === "products") return chainSelect([phoneProduct]);
+        throw new Error(`unexpected table ${table}`);
+      });
+
+      const [result] = await resolveVariantsForIncomingPriceTiers([
+        {
+          organizationId: "org-1",
+          variantId: "sku-imei-2",
+          barcode: "356938035643809",
+          size: "None",
+          incomingPurPrice: 13000,
+          incomingSalePrice: 16000,
+        },
+      ]);
+
+      expect(insertMock).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        variantId: "sku-imei-2",
+        productId: "prod-phone",
+        forked: false,
+        barcode: "356938035643809",
+      });
+    });
+
+    it("attaches to the live row when the fork insert hits the unique index (23505)", async () => {
+      const tierProduct = { ...phoneProduct, id: "prod-phone-16000" };
+      const liveOnTierProduct: VariantRow = {
+        ...imeiUnit,
+        id: "sku-imei-2-tier",
+        product_id: "prod-phone-16000",
+      };
+      let inserted = false;
+      fromMock.mockImplementation((table: string) => {
+        if (table === "product_variants") {
+          return {
+            ...chainSelect(inserted ? [liveOnTierProduct] : [imeiUnit]),
+            insert: (...args: unknown[]) => {
+              insertMock(...args);
+              inserted = true;
+              return {
+                select: () => ({
+                  single: () =>
+                    Promise.resolve({
+                      data: null,
+                      error: {
+                        code: "23505",
+                        message:
+                          'duplicate key value violates unique constraint "product_variants_active_product_color_size_barcode_idx"',
+                      },
+                    }),
+                }),
+              };
+            },
+          };
+        }
+        if (table === "products") {
+          return chainSelect([{ ...phoneProduct, default_sale_price: 14000 }, tierProduct]);
+        }
+        throw new Error(`unexpected table ${table}`);
+      });
+
+      const [result] = await resolveVariantsForIncomingPriceTiers([
+        {
+          organizationId: "org-1",
+          variantId: "sku-imei-2",
+          size: "None",
+          incomingPurPrice: 13000,
+          incomingSalePrice: 16000,
+        },
+      ]);
+
+      expect(insertMock).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        variantId: "sku-imei-2-tier",
+        productId: "prod-phone-16000",
+        forked: true,
+        barcode: "356938035643809",
+      });
+    });
+  });
 });
