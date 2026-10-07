@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { insertProductsPreferringPurchaseFlag } from "@/utils/productCreatedInPurchaseColumn";
-import { insertGeneratedProductVariant } from "@/utils/barcodeCollisionGuard";
+import { insertGeneratedProductVariant, isBarcodeCollisionError } from "@/utils/barcodeCollisionGuard";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { effectiveBarcodePriceTier, barcodePriceTierKey } from "@/utils/barcodeValidation";
 import {
@@ -576,6 +576,64 @@ function resolveWithoutFork(
   };
 }
 
+/** Same key as product_variants_active_product_color_size_barcode_idx. */
+function occupiesVariantKey(
+  row: Pick<VariantPriceRow, "product_id" | "size" | "color" | "barcode">,
+  productId: string,
+  sourceVariant: VariantPriceRow,
+  barcode: string,
+): boolean {
+  return (
+    row.product_id === productId &&
+    (row.size || "") === (sourceVariant.size || "") &&
+    (row.color || "") === (sourceVariant.color || "") &&
+    (row.barcode || "") === barcode
+  );
+}
+
+function findLiveVariantInContext(
+  ctx: TierResolutionContext,
+  productId: string,
+  sourceVariant: VariantPriceRow,
+  barcode: string,
+): VariantPriceRow | null {
+  const candidates = [sourceVariant, ...(ctx.variantsByBarcode.get(barcode) ?? [])];
+  return candidates.find((row) => occupiesVariantKey(row, productId, sourceVariant, barcode)) ?? null;
+}
+
+async function fetchLiveVariantForKey(
+  organizationId: string,
+  productId: string,
+  sourceVariant: VariantPriceRow,
+  barcode: string,
+): Promise<VariantPriceRow | null> {
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select(VARIANT_PRICE_SELECT)
+    .eq("organization_id", organizationId)
+    .eq("product_id", productId)
+    .eq("barcode", barcode)
+    .is("deleted_at", null);
+  if (error) throw error;
+  return (
+    ((data as VariantPriceRow[]) ?? []).find((row) =>
+      occupiesVariantKey(row, productId, sourceVariant, barcode),
+    ) ?? null
+  );
+}
+
+function resolvedToExistingVariant(
+  row: VariantPriceRow,
+  sourceVariant: VariantPriceRow,
+): ResolveVariantForIncomingPriceTierResult {
+  return {
+    variantId: row.id,
+    productId: row.product_id,
+    forked: row.id !== sourceVariant.id,
+    barcode: row.barcode,
+  };
+}
+
 async function forkProductAndVariantForTier(args: {
   organizationId: string;
   sourceVariant: VariantPriceRow;
@@ -679,6 +737,14 @@ async function forkProductAndVariantForTier(args: {
 
   let createdRow: VariantPriceRow;
   if (reuseBarcode && sourceBarcode) {
+    // Unique index: one live row per (product, color, size, barcode). When the tier
+    // product is the source product itself (its default sale price matches the bill
+    // but this SKU's price does not, e.g. a Mobile ERP IMEI unit), that row already
+    // exists — stock it instead of inserting a duplicate (23505).
+    const occupied = findLiveVariantInContext(ctx, productId, sourceVariant, sourceBarcode);
+    if (occupied) {
+      return resolvedToExistingVariant(occupied, sourceVariant);
+    }
     variantInsert.barcode = sourceBarcode;
     variantInsert.barcode_source = "external";
     const { data: createdVariant, error: variantError } = await supabase
@@ -686,7 +752,18 @@ async function forkProductAndVariantForTier(args: {
       .insert(variantInsert as never)
       .select(VARIANT_PRICE_SELECT)
       .single();
-    if (variantError) throw variantError;
+    if (variantError) {
+      if (isBarcodeCollisionError(variantError)) {
+        const live = await fetchLiveVariantForKey(
+          organizationId,
+          productId,
+          sourceVariant,
+          sourceBarcode,
+        );
+        if (live) return resolvedToExistingVariant(live, sourceVariant);
+      }
+      throw variantError;
+    }
     createdRow = createdVariant as VariantPriceRow;
   } else {
     const { data: createdVariant } = await insertGeneratedProductVariant<VariantPriceRow>(
