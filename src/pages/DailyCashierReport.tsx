@@ -39,6 +39,7 @@ import {
   getSaleReportNetAmount,
   getSaleReportRoundOff,
 } from "@/utils/cashierReportUtils";
+import { cashierCashRefundOut } from "@/utils/cashierRefundOutflows";
 import { saleBillFigures } from "@/utils/saleBillFigures";
 import {
   buildCashierReceiptModeMap,
@@ -915,6 +916,24 @@ const DailyCashierReport = () => {
 
   const totals = calculateTotals();
 
+  const cashRefundOut = useMemo(
+    () =>
+      cashierCashRefundOut({
+        totalRefund: totals.totalRefund,
+        cashRefundTotal: totals.cashRefundTotal,
+        customerRefundUpi: totals.customerRefundUpi,
+        customerRefundCard: totals.customerRefundCard,
+        customerRefundOther: totals.customerRefundOther,
+      }),
+    [
+      totals.totalRefund,
+      totals.cashRefundTotal,
+      totals.customerRefundUpi,
+      totals.customerRefundCard,
+      totals.customerRefundOther,
+    ],
+  );
+
   // Expected cash in drawer — same identity as FloatingCashTally (do not reimplement).
   const drawerOpeningCash = useMemo(() => {
     if (period !== "daily") return 0;
@@ -940,7 +959,7 @@ const DailyCashierReport = () => {
   );
 
   // Payment In (Dr) / Payment Out (Cr) — side-by-side ledger for quick reconcile.
-  // In uses gross collections (before expense/refund deduct); Out lists those deducts so totals do not double-count.
+  // In = money received (cash/card/UPI/RCP/fees). S/R Adjust is bill credit only (sales section above).
   const paymentInRows = useMemo(() => {
     const cashIn =
       (Number(totals.cashSale) || 0) +
@@ -962,9 +981,6 @@ const DailyCashierReport = () => {
     if ((Number(totals.rcpOtherCollection) || 0) > 0) {
       rows.push({ label: "RCP Other (Cheque/Bank)", amount: totals.rcpOtherCollection, tone: "text-violet-800" });
     }
-    if ((Number(totals.totalSRAdjusted) || 0) > 0) {
-      rows.push({ label: "S/R Adjust (return/CN credit)", amount: totals.totalSRAdjusted, tone: "text-teal-700" });
-    }
     if ((Number(totals.feeTotalCollection) || 0) > 0) {
       rows.push({
         label: `Fee Collection (${totals.feeCount})`,
@@ -984,17 +1000,25 @@ const DailyCashierReport = () => {
     totals.advanceUpi,
     totals.rcpUpiCollection,
     totals.rcpOtherCollection,
-    totals.totalSRAdjusted,
     totals.feeTotalCollection,
     totals.feeCount,
   ]);
 
   const paymentOutRows = useMemo(() => {
     const rows: { label: string; amount: number; tone?: string }[] = [];
-    if (totals.cashRefundTotal > 0) {
+    if (cashRefundOut > 0) {
       rows.push({
-        label: `Cash Refunds S/R + Customer (${totals.cashRefundCount})`,
-        amount: totals.cashRefundTotal,
+        label:
+          totals.cashRefundTotal > 0
+            ? `Cash Refunds S/R + Customer (${totals.cashRefundCount})`
+            : "Refunds — Cash (sales)",
+        amount: cashRefundOut,
+        tone: "text-red-600",
+      });
+    } else if ((Number(totals.totalRefund) || 0) > 0) {
+      rows.push({
+        label: "Refunds (sales)",
+        amount: totals.totalRefund,
         tone: "text-red-600",
       });
     }
@@ -1036,6 +1060,8 @@ const DailyCashierReport = () => {
     }
     return rows;
   }, [
+    cashRefundOut,
+    totals.totalRefund,
     totals.cashRefundTotal,
     totals.cashRefundCount,
     totals.customerRefundUpi,
@@ -1067,7 +1093,7 @@ const DailyCashierReport = () => {
       (Number(totals.cashSale) || 0) +
       (Number(totals.advanceCash) || 0) +
       (Number(totals.rcpCashCollection) || 0) -
-      (Number(totals.cashRefundTotal) || 0) -
+      cashRefundOut -
       (Number(totals.expenseCash) || 0);
     const card =
       (Number(totals.cardSale) || 0) +
@@ -1086,7 +1112,7 @@ const DailyCashierReport = () => {
     totals.cashSale,
     totals.advanceCash,
     totals.rcpCashCollection,
-    totals.cashRefundTotal,
+    cashRefundOut,
     totals.expenseCash,
     totals.cardSale,
     totals.advanceCard,
@@ -1126,7 +1152,12 @@ const DailyCashierReport = () => {
     const grandCashCollection = totals.cashSale + totals.rcpCashCollection + (totals.advanceCash || 0) - (totals.expenseCash || 0);
     const grandCardCollection = totals.cardSale + totals.rcpCardCollection + (totals.advanceCard || 0) - (totals.expenseCard || 0);
     const grandUpiCollection = totals.upiSale + totals.rcpUpiCollection + (totals.advanceUpi || 0) - (totals.expenseUpi || 0);
-    const grandTotalCollection = totals.cashSale + totals.cardSale + totals.upiSale + totals.totalSRAdjusted + totals.rcpTotalCollection + (totals.advanceReceived || 0);
+    const grandTotalCollection =
+      totals.cashSale +
+      totals.cardSale +
+      totals.upiSale +
+      totals.rcpTotalCollection +
+      (totals.advanceReceived || 0);
     
     const data = [
       ["Cashier Report - " + getPeriodLabel()],
@@ -1172,8 +1203,7 @@ const DailyCashierReport = () => {
       ["Cash (Sales + RCP + Advance)", grandCashCollection],
       ["Card (Sales + RCP)", grandCardCollection],
       ["UPI (Sales + RCP)", grandUpiCollection],
-      ["S/R Adjust (return/CN credit)", totals.totalSRAdjusted],
-      ["Total Collection", grandTotalCollection],
+      ["Total Collection (tender + RCP + advance)", grandTotalCollection],
       ["Refund (already in Cash)", totals.totalRefund],
       ["Less: Cash Refunds (S/R + Customer cash)", totals.cashRefundTotal],
       ["Customer Refund Cash", totals.customerRefundCash],
@@ -2228,14 +2258,18 @@ const DailyCashierReport = () => {
                     <span className="text-muted-foreground">UPI Collection</span>
                     <span className="tabular-nums">{formatCurrency(totals.upiSale)}</span>
                   </div>
-                  <div className="flex justify-between text-teal-700">
-                    <span className="text-muted-foreground">S/R Adjust (return/CN credit)</span>
-                    <span className="tabular-nums">{formatCurrency(totals.totalSRAdjusted)}</span>
-                  </div>
-                  <div className="flex justify-between text-red-600">
-                    <span className="text-muted-foreground">Less: Refund</span>
-                    <span className="tabular-nums">- {formatCurrency(totals.totalRefund)}</span>
-                  </div>
+                  {(Number(totals.totalRefund) || 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span className="text-muted-foreground">Less: Refunds (sales)</span>
+                      <span className="tabular-nums">- {formatCurrency(totals.totalRefund)}</span>
+                    </div>
+                  )}
+                  {cashRefundOut > 0 && totals.cashRefundTotal === 0 && (
+                    <div className="flex justify-between text-red-600 text-xs pl-2">
+                      <span className="text-muted-foreground">↳ Cash portion (drawer)</span>
+                      <span className="tabular-nums">- {formatCurrency(cashRefundOut)}</span>
+                    </div>
+                  )}
                   {totals.cashRefundTotal > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-muted-foreground">Less: Cash Refunds ({totals.cashRefundCount})</span>
@@ -2281,12 +2315,10 @@ const DailyCashierReport = () => {
                       totals.cashSale +
                         totals.cardSale +
                         totals.upiSale +
-                        totals.totalSRAdjusted +
                         totals.rcpTotalCollection +
                         (totals.advanceReceived || 0) +
                         totals.feeTotalCollection -
                         totals.totalRefund -
-                        totals.cashRefundTotal -
                         (totals.customerRefundUpi || 0) -
                         (totals.customerRefundCard || 0) -
                         (totals.customerRefundOther || 0) -
