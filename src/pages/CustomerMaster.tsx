@@ -734,14 +734,10 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
- cursor/android-push-notifications-1.2.0
       invalidateCustomerPointsRelatedQueries(queryClient, {
         organizationId: currentOrganization?.id,
         customerId: variables.id,
       });
-=======
-      void queryClient.invalidateQueries({ queryKey: ["customer-points", variables.id] });
- main
       toast({ title: "Customer updated successfully" });
       resetForm();
       setIsDialogOpen(false);

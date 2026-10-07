@@ -9,11 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
- cursor/android-push-notifications-1.2.0
 import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
-=======
 import { resolveSaleCrmPointsPrint } from "@/utils/retailErpInvoicePrint";
-main
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { posWhatsAppReceiptFigures } from "@/utils/trendzoThermalPayment";
 import { useShopName } from "@/hooks/useShopName";
