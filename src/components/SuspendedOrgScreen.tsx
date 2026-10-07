@@ -17,7 +17,7 @@ export const SuspendedOrgScreen = ({ orgName, reason }: Props) => {
   useEffect(() => {
     // Auto sign-out after 8 seconds so no stale session lingers
     const t = setTimeout(() => {
-      void supabase.auth.signOut().then(() => {
+      void supabase.auth.signOut({ scope: "local" }).then(() => {
         window.location.href = resolveOrgLoginPath();
       });
     }, 8000);
@@ -25,7 +25,7 @@ export const SuspendedOrgScreen = ({ orgName, reason }: Props) => {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     window.location.href = resolveOrgLoginPath();
   };
 

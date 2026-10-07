@@ -121,7 +121,7 @@ export default function FieldSalesAuth() {
           navigate(`/${organization.slug}/salesman`);
         } else {
           setError("You don't have Field Sales access. Please contact your administrator.");
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
         }
       }
     };
@@ -209,7 +209,7 @@ export default function FieldSalesAuth() {
 
       if (membershipError || !membership) {
         setError("You are not a member of this organization.");
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         setLoading(false);
         return;
       }
@@ -226,7 +226,7 @@ export default function FieldSalesAuth() {
 
       if (!fieldSalesEmployee) {
         setError("You don't have Field Sales access. Please contact your administrator.");
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: "local" });
         setLoading(false);
         return;
       }
