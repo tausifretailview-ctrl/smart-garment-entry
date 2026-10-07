@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => ({
     VitePWA({
       injectRegister: false,
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'robots.txt'],
+      includeAssets: ['favicon.ico', 'robots.txt', 'offline.html'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB
         // Never precache index.html (stale HTML + hashed chunk 404 after deploy).
@@ -65,6 +65,17 @@ export default defineConfig(({ mode }) => ({
             handler: 'NetworkOnly',
             options: {
               cacheName: 'html-navigations',
+              plugins: [
+                {
+                  // Only runs when the page request itself fails (no signal, DNS,
+                  // dropped 4G). Without it Chrome shows its bare "This site can't
+                  // be reached … ERR_FAILED" page with no way back (KS Footwear
+                  // Field Sales, 2026-10-07). Show our page with a Retry button.
+                  handlerDidError: async () =>
+                    (await caches.match('/offline.html', { ignoreSearch: true })) ||
+                    Response.error(),
+                },
+              ],
             },
           },
           {
