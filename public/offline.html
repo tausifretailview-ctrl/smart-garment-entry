@@ -61,7 +61,8 @@
               await Promise.all(names.map(function (name) { return caches.delete(name); }));
             }
           } catch (e) {}
-          location.replace(location.origin + "/");
+          // Reopen the same address (keeps ?app=fieldsales for the Field Sales app).
+          location.replace(location.href);
         };
       </script>
     </div>
