@@ -882,6 +882,18 @@ export function reconcileSaleInvoiceDisplay(params: {
    * credits the applied return for genuine pre-return invoices.
    */
   items_gross?: number | null;
+  /**
+   * Bill header (optional). Used only when `items_gross` is unknown: net still equal to
+   * gross_amount - discounts + round_off means the return was applied on top of a full bill
+   * (e.g. a manual old S/R amount on POS). POS Dashboard rows carry these but not items_gross.
+   */
+  header?: {
+    gross_amount?: number | null;
+    discount_amount?: number | null;
+    flat_discount_amount?: number | null;
+    points_redeemed_amount?: number | null;
+    round_off?: number | null;
+  } | null;
 }): {
   paid_amount: number;
   payment_status: "pending" | "partial" | "completed";
@@ -912,7 +924,19 @@ export function reconcileSaleInvoiceDisplay(params: {
     sr > INVOICE_RECON_TOL &&
     cn > INVOICE_RECON_TOL &&
     Math.abs(cn - sr) <= DUPLICATE_CN_PAID_MATCH_TOL;
-  const srAppliedOnTop = srAppliedOnTopByGross || cnBackedSraOnTop;
+  const headerGross = Number(params.header?.gross_amount || 0);
+  const headerFullBill =
+    headerGross -
+    (Number(params.header?.discount_amount || 0) +
+      Number(params.header?.flat_discount_amount || 0) +
+      Number(params.header?.points_redeemed_amount || 0)) +
+    Number(params.header?.round_off || 0);
+  const srAppliedOnTopByHeader =
+    !grossKnown &&
+    sr > INVOICE_RECON_TOL &&
+    headerGross > 0 &&
+    Math.abs(net - headerFullBill) <= 0.5;
+  const srAppliedOnTop = srAppliedOnTopByGross || cnBackedSraOnTop || srAppliedOnTopByHeader;
   // Only peel CN that is NOT already represented in sale_return_adjust (Option A Adjust CN
   // writes CN voucher + SRA; paid_amount stays cash-like and must not be zeroed by CN).
   const cnToPeelFromPaid = Math.max(0, cn - Math.max(0, sr));
@@ -1051,6 +1075,12 @@ export function reconcileSaleInvoiceWithSplit(
     upi_amount?: number | null;
     /** Optional Σ(mrp × qty); enables the pre-return S/R subtraction guard. */
     items_gross?: number | null;
+    /** Optional bill header; fallback pre-return test when items_gross is unknown. */
+    gross_amount?: number | null;
+    discount_amount?: number | null;
+    flat_discount_amount?: number | null;
+    points_redeemed_amount?: number | null;
+    round_off?: number | null;
   },
   split: SaleReceiptVoucherSplit | null | undefined,
 ) {
@@ -1068,6 +1098,13 @@ export function reconcileSaleInvoiceWithSplit(
     stored_paid_amount: storedPaid,
     split: s,
     items_gross: sale.items_gross != null ? Number(sale.items_gross) : null,
+    header: {
+      gross_amount: sale.gross_amount,
+      discount_amount: sale.discount_amount,
+      flat_discount_amount: sale.flat_discount_amount,
+      points_redeemed_amount: sale.points_redeemed_amount,
+      round_off: sale.round_off,
+    },
   });
 }
 
