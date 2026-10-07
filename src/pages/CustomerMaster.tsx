@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
 import { useSettings } from "@/hooks/useSettings";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { Button } from "@/components/ui/button";
@@ -626,11 +627,16 @@ const CustomerMaster = () => {
         if (historyError) throw historyError;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
       invalidateCustomers(currentOrganization?.id);
+      if (enablePointsSystem && parseCustomerPointsInput(variables.points_balance) > 0) {
+        invalidateCustomerPointsRelatedQueries(queryClient, {
+          organizationId: currentOrganization?.id,
+        });
+      }
       toast({ title: "Customer created successfully" });
       resetForm();
       setIsDialogOpen(false);
@@ -698,7 +704,10 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
-      queryClient.invalidateQueries({ queryKey: ["customer-points", variables.id] });
+      invalidateCustomerPointsRelatedQueries(queryClient, {
+        organizationId: currentOrganization?.id,
+        customerId: variables.id,
+      });
       toast({ title: "Customer updated successfully" });
       resetForm();
       setIsDialogOpen(false);

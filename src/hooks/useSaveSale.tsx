@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCustomerPoints } from "@/hooks/useCustomerPoints";
+import { invalidateCustomerPointsRelatedQueries } from "@/utils/customerPointsQueryInvalidation";
 import type { SaveSaleRuntimeOptions, PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { useShopName } from "@/hooks/useShopName";
 import { useSettings } from "@/hooks/useSettings";
@@ -231,7 +232,7 @@ export const useSaveSale = () => {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves
-  const { awardPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
+  const { awardPoints, redeemPoints, isPointsEnabled, calculatePoints } = useCustomerPoints();
   const queryClient = useQueryClient();
 
   const applyPostSaleInvalidation = (
@@ -1272,6 +1273,7 @@ export const useSaveSale = () => {
       let pointsAwarded = 0;
       // No points earn on bills that redeem points (pending stays 0).
       const redeemedOnBill = (saleData.pointsRedeemedAmount || 0) > 0;
+      const pointsRedeemCount = Math.max(0, Math.round(Number(saleData.pointsRedeemed) || 0));
       if (
         isPointsEnabled &&
         saleData.customerId &&
@@ -1279,9 +1281,33 @@ export const useSaveSale = () => {
         !redeemedOnBill
       ) {
         pointsAwarded = calculatePoints(saleData.netAmount);
-        void awardPoints(saleData.customerId, sale.id, saleData.netAmount, saleNumber).catch((err) =>
-          console.error("Award points failed (non-blocking):", err),
-        );
+        void awardPoints(saleData.customerId, sale.id, saleData.netAmount, saleNumber)
+          .then((result) => {
+            if (result.success) {
+              invalidateCustomerPointsRelatedQueries(queryClient, {
+                organizationId: currentOrganization?.id,
+                customerId: saleData.customerId,
+              });
+            }
+          })
+          .catch((err) => console.error("Award points failed (non-blocking):", err));
+      }
+      if (
+        isPointsEnabled &&
+        saleData.customerId &&
+        paymentMethod !== "pay_later" &&
+        pointsRedeemCount > 0
+      ) {
+        void redeemPoints(saleData.customerId, sale.id, pointsRedeemCount, saleNumber)
+          .then((result) => {
+            if (result.success) {
+              invalidateCustomerPointsRelatedQueries(queryClient, {
+                organizationId: currentOrganization?.id,
+                customerId: saleData.customerId,
+              });
+            }
+          })
+          .catch((err) => console.error("Redeem points failed (non-blocking):", err));
       }
 
       // Auto-send WhatsApp invoice notification - FIRE AND FORGET (non-blocking)
