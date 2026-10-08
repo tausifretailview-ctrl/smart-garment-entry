@@ -32,6 +32,7 @@ interface Product {
   // For grouped multi-color products
   productIds: string[];
   allColors: string[];
+  allSizeGroups: string[];
 }
 
 // Helper to format product description like Purchase/Sale entry
@@ -164,6 +165,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             sale_price: v.sale_price,
             productIds: [v.products.id],
             allColors: v.products.color ? [v.products.color] : [],
+            allSizeGroups: [],
           });
         }
       });
@@ -201,6 +203,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                 sale_price: firstVariant?.sale_price || 0,
                 productIds: [p.id],
                 allColors: p.color ? [p.color] : [],
+                allSizeGroups: [],
               });
             }
           });
@@ -261,6 +264,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
             sale_price: variant?.sale_price || null,
             productIds: [p.id],
             allColors: p.color ? [p.color] : [],
+            allSizeGroups: [],
           });
         }
       });
@@ -270,7 +274,12 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       Array.from(allProducts.values()).forEach((p) => {
         const key = `${(p.product_name || '').trim().toLowerCase()}||${(p.brand || '').trim().toLowerCase()}||${(p.category || '').trim().toLowerCase()}||${(p.style || '').trim().toLowerCase()}`;
         if (!grouped.has(key)) {
-          grouped.set(key, { ...p, productIds: [p.id], allColors: p.color ? [p.color] : [] });
+          grouped.set(key, {
+            ...p,
+            productIds: [p.id],
+            allColors: p.color ? [p.color] : [],
+            allSizeGroups: p.size_group_name ? [p.size_group_name] : [],
+          });
         } else {
           const existing = grouped.get(key)!;
           if (!existing.productIds.includes(p.id)) {
@@ -278,6 +287,9 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           }
           if (p.color && !existing.allColors.includes(p.color)) {
             existing.allColors.push(p.color);
+          }
+          if (p.size_group_name && !existing.allSizeGroups.includes(p.size_group_name)) {
+            existing.allSizeGroups.push(p.size_group_name);
           }
         }
       });
@@ -664,16 +676,16 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                               )}
                             />
                             <div className="flex flex-col flex-1 gap-0.5">
-                              {/* Line 1: Product description (without color) + size group badge */}
+                              {/* Line 1: Product description (without color) + size group badges */}
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs font-medium">
                                   {description}
                                 </span>
-                                {product.size_group_name && (
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold shrink-0">
-                                    {product.size_group_name}
+                                {product.allSizeGroups.map(sg => (
+                                  <span key={sg} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold shrink-0">
+                                    {sg}
                                   </span>
-                                )}
+                                ))}
                               </div>
 
                               {/* Line 2: Colors as badges */}
@@ -687,28 +699,6 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
                                   ))}
                                 </div>
                               )}
-                              
-                              {/* Line 3: Barcode and prices */}
-                              <div className="flex items-center gap-3 text-[11px] text-foreground font-semibold flex-wrap">
-                                {product.barcode && (
-                                  <span className="font-bold">Barcode: {product.barcode}</span>
-                                )}
-                                {product.pur_price != null && (
-                                  <span className="text-primary font-bold">
-                                    Pur: ₹{product.pur_price.toFixed(2)}
-                                  </span>
-                                )}
-                                {product.sale_price != null && (
-                                  <span className="text-green-700 dark:text-green-400 font-bold">
-                                    Sale: ₹{product.sale_price.toFixed(2)}
-                                  </span>
-                                )}
-                                {product.mrp != null && (
-                                  <span className="text-amber-700 dark:text-amber-400 font-bold">
-                                    MRP: ₹{product.mrp.toFixed(2)}
-                                  </span>
-                                )}
-                              </div>
                             </div>
                           </CommandItem>
                         );
