@@ -263,7 +263,10 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
   // carry their MRP with the column hidden, so total against it the same way as MRP-on.
   const mrpBased = showMrp || totalMrpAmt > 0;
   const totalAmt = mrpBased ? totalMrpAmt : subTotal;
-  const mrpDiscount = mrpBased ? Math.max(0, totalMrpAmt - grandTotal) : discount;
+  // grandTotal is after S/R; the CN prints on its own S/R line, not inside DISCOUNT.
+  const mrpDiscount = mrpBased
+    ? Math.max(0, totalMrpAmt - grandTotal - Math.max(0, Number(saleReturnAdjust) || 0))
+    : discount;
   const totalQty = items.reduce((s, i) => s + i.qty, 0);
 
   const breakdownPaid = cashPaid + upiPaid + cardPaid + creditPaid;

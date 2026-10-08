@@ -2115,6 +2115,8 @@ const POSDashboard = () => {
         net_amount: sale.net_amount,
         gross_amount: sale.gross_amount,
         discount_amount: sale.discount_amount,
+        paid_amount: getEffectivePaidAmountForDashboard(sale),
+        sale_return_adjust: Number(sale.sale_return_adjust || 0),
         payment_status: sale.payment_status,
         items_count: totalQty,
         salesman: sale.salesman,
@@ -2252,6 +2254,7 @@ const POSDashboard = () => {
       card_amount: sale.card_amount,
       upi_amount: sale.upi_amount,
       paid_amount: sale.paid_amount,
+      sale_return_adjust: Number(sale.sale_return_adjust || 0),
       customer_id: sale.customer_id,
       organization_id: currentOrganization?.id,
     }, `${itemsList}\n\n📄 View Invoice Online:\n${invoiceUrl}`, customerBalance);

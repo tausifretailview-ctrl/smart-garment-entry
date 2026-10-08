@@ -5871,7 +5871,9 @@ export default function POSSales() {
     const discountAmount = useCurrentData ? (totals.discount + flatDiscountAmount) : ((savedInvoiceData?.totals?.discount || 0) + (savedInvoiceData?.flatDiscountAmount || 0));
     const grossAmount = useCurrentData ? totals.mrp : (savedInvoiceData?.totals?.mrp || 0);
     const method = useCurrentData ? paymentMethod : savedInvoiceData?.method;
-    const srAdjust = useCurrentData ? saleReturnAdjust : (savedInvoiceData?.saleReturnAdjust || 0);
+    const srAdjust = useCurrentData
+      ? posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied)
+      : (savedInvoiceData?.saleReturnAdjust || 0);
     const roundOffAmount = useCurrentData ? roundOff : (savedInvoiceData?.roundOff || 0);
     const custId = useCurrentData ? customerId : savedInvoiceData?.customerId;
     

@@ -52,6 +52,8 @@ interface TallyTaxInvoiceTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -292,6 +294,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount: _taxableAmountProp,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -395,6 +398,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
 
   if (showGSTBreakdown && !isNoGst && (totalCgst > 0 || totalSgst > 0 || totalIgst > 0)) contentRows += 1;
   if (roundOff !== 0) contentRows++;
+  if (saleReturnAdjust > 0) contentRows++;
   const blankRowsNeeded = Math.max(0, MIN_ITEM_ROWS - contentRows);
 
   const b = "1px solid #000";
@@ -734,6 +738,22 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                   <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
                     {roundOff >= 0 ? "" : "(-)"}
                     {fmt(Math.abs(roundOff))}
+                  </td>
+                </tr>
+              )}
+
+              {saleReturnAdjust > 0 && (
+                <tr>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px", fontStyle: "italic" }}>
+                    Less: S/R Adjust
+                  </td>
+                  {showHSN && <td style={cellNoRowBorder}></td>}
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={cellNoRowBorder}></td>
+                  <td style={{ ...cellNoRowBorder, textAlign: "right", fontSize: "10px" }}>
+                    (-){fmt(saleReturnAdjust)}
                   </td>
                 </tr>
               )}

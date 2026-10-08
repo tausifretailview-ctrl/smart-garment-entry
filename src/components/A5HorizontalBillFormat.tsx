@@ -19,6 +19,8 @@ interface BillData {
   subtotal: number;
   tax: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   grandTotal: number;
   paymentMethod?: string;
   cashAmount?: number;
@@ -500,6 +502,12 @@ export const A5HorizontalBillFormat = ({ data }: { data: BillData }) => {
               <div className="a5h-total-row discount">
                 <span>Discount:</span>
                 <span>- ₹{data.discount.toFixed(2)}</span>
+              </div>
+            )}
+            {(data.saleReturnAdjust ?? 0) > 0 && (
+              <div className="a5h-total-row discount">
+                <span>S/R Adjust:</span>
+                <span>- ₹{(data.saleReturnAdjust ?? 0).toFixed(2)}</span>
               </div>
             )}
             {data.tax > 0 && (

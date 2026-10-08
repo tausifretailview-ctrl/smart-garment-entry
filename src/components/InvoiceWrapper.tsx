@@ -1026,6 +1026,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
           subtotal: props.subTotal,
           tax: totalTax,
           discount: props.discount,
+          saleReturnAdjust: props.saleReturnAdjust || 0,
           grandTotal: props.grandTotal,
           paymentMethod: paymentMethodLabel,
           cashAmount: props.cashAmount,

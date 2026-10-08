@@ -51,6 +51,8 @@ interface ModernWholesaleTemplateProps {
   items: WholesaleItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount?: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -110,6 +112,7 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -586,6 +589,12 @@ export const ModernWholesaleTemplate: React.FC<ModernWholesaleTemplateProps> = (
                 <tr>
                   <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>SGST:</td>
                   <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>{formatCurrencyWithRs(sgstAmount)}</td>
+                </tr>
+              )}
+              {saleReturnAdjust > 0 && (
+                <tr>
+                  <td style={{ padding: isA5 ? "1px 2px 1px 0" : "4px 4px 4px 0", whiteSpace: "nowrap" }}>S/R Adjust:</td>
+                  <td style={{ textAlign: "right", padding: isA5 ? "1px 4px 1px 2px" : "4px 4px 4px 4px" }}>-{formatCurrencyWithRs(saleReturnAdjust)}</td>
                 </tr>
               )}
               <tr style={{ fontSize: isA5 ? "7.5pt" : "11pt", color: colors.primary }}>

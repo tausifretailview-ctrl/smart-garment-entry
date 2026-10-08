@@ -47,6 +47,8 @@ interface CompactTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   grandTotal: number;
   totalSavings?: number;
   showMRP?: boolean;
@@ -87,6 +89,7 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   grandTotal,
   totalSavings = 0,
   showMRP = false,
@@ -321,6 +324,12 @@ export const CompactTemplate: React.FC<CompactTemplateProps> = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
             <span>Discount:</span>
             <span>- {formatCurrency(discount)}</span>
+          </div>
+        )}
+        {saleReturnAdjust > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+            <span>S/R Adjust:</span>
+            <span>- {formatCurrency(saleReturnAdjust)}</span>
           </div>
         )}
         <div style={{ 

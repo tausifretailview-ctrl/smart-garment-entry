@@ -46,6 +46,8 @@ export interface GiftTallyInvoiceTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -184,6 +186,7 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
   items,
   subtotal: _subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount: _taxableAmountProp,
   cgstAmount: cgstAmountProp = 0,
   sgstAmount: sgstAmountProp = 0,
@@ -622,6 +625,12 @@ export const GiftTallyInvoiceTemplate: React.FC<GiftTallyInvoiceTemplateProps> =
                         {roundOff >= 0 ? "" : "(-)"}
                         {fmt(Math.abs(roundOff))}
                       </td>
+                    </tr>
+                  )}
+                  {saleReturnAdjust > 0 && (
+                    <tr>
+                      <td style={labelCell}>Less: S/R Adjust:</td>
+                      <td style={{ ...cell, textAlign: "right" }}>(-){fmt(saleReturnAdjust)}</td>
                     </tr>
                   )}
                   <tr style={{ backgroundColor: "#f0f0f0" }}>

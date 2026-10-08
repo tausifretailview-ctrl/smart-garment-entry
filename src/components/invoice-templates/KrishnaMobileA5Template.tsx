@@ -42,6 +42,8 @@ export interface KrishnaMobileA5TemplateProps {
   igstAmount?: number;
   totalTax: number;
   grandTotal: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   paymentMethod?: string;
   cashAmount?: number;
   cardAmount?: number;
@@ -151,6 +153,7 @@ export const KrishnaMobileA5Template: React.FC<KrishnaMobileA5TemplateProps> = (
     igstAmount = 0,
     totalTax,
     grandTotal,
+    saleReturnAdjust = 0,
     qrCodeUrl,
     upiId,
     termsConditions,
@@ -620,6 +623,7 @@ export const KrishnaMobileA5Template: React.FC<KrishnaMobileA5TemplateProps> = (
                     </>
                   )
                 : summaryRow("GST (Rs)", fmt(gstTotal))}
+            {saleReturnAdjust > 0 ? summaryRow("S/R Adjust", `- ${fmt(saleReturnAdjust)}`) : null}
             <div
               style={{
                 marginTop: "auto",
