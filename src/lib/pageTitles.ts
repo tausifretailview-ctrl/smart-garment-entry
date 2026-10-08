@@ -92,7 +92,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   website: { label: "Website", icon: "Store" },
   backup: { label: "Backup", icon: "Database" },
   profile: { label: "Profile", icon: "UserCheck" },
-  "audit-log": { label: "Audit Log", icon: "History" },
+  "audit-log": { label: "Activity Log", icon: "History" },
   "user-rights": { label: "User Rights", icon: "UserCheck" },
   "recycle-bin": { label: "Recycle Bin", icon: "History" },
 };

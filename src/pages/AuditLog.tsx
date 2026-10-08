@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useDashboardFilterPersistence } from "@/hooks/useDashboardFilterPersistence";
 import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilterPersistence";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,14 +13,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BackToDashboard } from "@/components/BackToDashboard";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AlertCircle, FileText, CalendarIcon, Filter, RefreshCw } from "lucide-react";
-import { format } from "date-fns";
+import { CalendarIcon, Download, FileText, RefreshCw } from "lucide-react";
+import { addDays, format, startOfDay, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -26,47 +26,70 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ACTIVITY_CATEGORIES,
+  activityAmount,
+  activityChangeSummary,
+  activityDocumentNumber,
+  activityParty,
+  activityRowsToCsv,
+  describeActivity,
+  diffActivityValues,
+  getActivityCategory,
+  matchesActivityCategory,
+  type ActivityCategoryId,
+  type ActivityLogRow,
+  type ActivityTone,
+} from "@/utils/activityLog";
 
-interface AuditLog {
-  id: string;
-  created_at: string;
-  user_email: string;
-  action: string;
-  entity_type: string;
-  entity_id: string | null;
-  old_values: any;
-  new_values: any;
-  metadata: any;
+const PAGE_SIZE = 200;
+const ALL_OPERATORS = "all";
+
+const TONE_BADGE: Record<ActivityTone, "default" | "secondary" | "destructive" | "outline" | "success"> = {
+  create: "success",
+  edit: "secondary",
+  delete: "destructive",
+  neutral: "outline",
+};
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : (error as { message?: string })?.message || fallback;
+}
+
+function fmtMoney(n: number): string {
+  return `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export default function AuditLog() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const { session } = useAuth();
+  const orgId = currentOrganization?.id;
+
+  const [category, setCategory] = useState<string>("all");
+  const [operatorId, setOperatorId] = useState<string>(ALL_OPERATORS);
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState<Date>(() => startOfDay(subDays(new Date(), 6)));
+  const [dateTo, setDateTo] = useState<Date>(() => startOfDay(new Date()));
+
+  const [logs, setLogs] = useState<ActivityLogRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterAction, setFilterAction] = useState<string>("all");
-  const [filterEntityType, setFilterEntityType] = useState<string>("all");
-  const [filterUser, setFilterUser] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState<Date | undefined>();
-  const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<ActivityLogRow | null>(null);
+  const requestRef = useRef(0);
 
   const { clearPersistedFilters } = useDashboardFilterPersistence(
     WINDOW_FILTER_IDS.auditLog,
-    currentOrganization?.id,
-    useMemo(
-      () => ({ filterAction, filterEntityType, filterUser, dateFrom, dateTo }),
-      [filterAction, filterEntityType, filterUser, dateFrom, dateTo],
-    ),
+    orgId,
+    useMemo(() => ({ category, operatorId, dateFrom, dateTo }), [category, operatorId, dateFrom, dateTo]),
     (saved) => {
       restoreDashboardFilters(saved, {
         strings: [
-          ["filterAction", setFilterAction],
-          ["filterEntityType", setFilterEntityType],
-          ["filterUser", setFilterUser],
+          ["category", setCategory],
+          ["operatorId", setOperatorId],
         ],
-        optionalDates: [
+        requiredDates: [
           ["dateFrom", setDateFrom],
           ["dateTo", setDateTo],
         ],
@@ -74,164 +97,229 @@ export default function AuditLog() {
     },
   );
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
+  // Operator names: org members' emails (same source as the invoice dashboard's user filter).
+  const { data: operators = [] } = useQuery({
+    queryKey: ["activity-log-operators", orgId],
+    queryFn: async () => {
+      if (!orgId || !session?.access_token) return [] as Array<{ id: string; email: string }>;
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id")
+        .eq("organization_id", orgId);
+      const memberIds = new Set((members || []).map((m: { user_id: string }) => m.user_id));
+      if (memberIds.size === 0) return [];
+      const { data: result } = await supabase.functions.invoke("get-users", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const allUsers: Array<{ id: string; email: string }> = result?.users || [];
+      return allUsers
+        .filter((u) => memberIds.has(u.id) && u.email)
+        .map((u) => ({ id: u.id, email: u.email }))
+        .sort((a, b) => a.email.localeCompare(b.email));
+    },
+    enabled: !!orgId && !!session?.access_token,
+    staleTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
+  const fetchPage = useCallback(
+    async (offset: number) => {
+      if (!orgId) return { rows: [] as ActivityLogRow[], more: false };
+      const cat = getActivityCategory(category);
       let query = supabase
         .from("audit_logs")
-        .select("*")
+        .select("id, created_at, user_id, user_email, action, entity_type, entity_id, old_values, new_values, metadata")
+        .eq("organization_id", orgId)
+        .gte("created_at", startOfDay(dateFrom).toISOString())
+        .lt("created_at", addDays(startOfDay(dateTo), 1).toISOString())
         .order("created_at", { ascending: false })
-        .limit(500);
-
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (operatorId !== ALL_OPERATORS) query = query.eq("user_id", operatorId);
+      if (cat.actions) query = query.in("action", cat.actions);
       const { data, error } = await query;
-
       if (error) throw error;
+      const rows = (data || []) as unknown as ActivityLogRow[];
+      return { rows, more: rows.length === PAGE_SIZE };
+    },
+    [orgId, category, operatorId, dateFrom, dateTo],
+  );
 
-      setLogs(data || []);
-    } catch (error: any) {
+  const loadFirstPage = useCallback(async () => {
+    const req = ++requestRef.current;
+    setLoading(true);
+    try {
+      const { rows, more } = await fetchPage(0);
+      if (req !== requestRef.current) return;
+      setLogs(rows);
+      setHasMore(more);
+    } catch (error: unknown) {
+      if (req !== requestRef.current) return;
+      setLogs([]);
+      setHasMore(false);
       toast({
         title: "Error",
-        description: error.message || "Failed to load audit logs",
+        description: errorMessage(error, "Failed to load activity log"),
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      if (req === requestRef.current) setLoading(false);
+    }
+  }, [fetchPage, toast]);
+
+  useEffect(() => {
+    void loadFirstPage();
+  }, [loadFirstPage]);
+
+  const loadMore = async () => {
+    const req = requestRef.current;
+    setLoadingMore(true);
+    try {
+      const { rows, more } = await fetchPage(logs.length);
+      if (req !== requestRef.current) return;
+      setLogs((prev) => [...prev, ...rows]);
+      setHasMore(more);
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: errorMessage(error, "Failed to load more"),
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingMore(false);
     }
   };
 
-  const getActionBadgeVariant = (action: string) => {
-    if (action === "PURCHASE_CREATED" || action === "SALE_CREATED") return "success";
-    if (action === "PURCHASE_DELETED" || action === "SALE_DELETED") return "destructive";
-    if (action.includes("CREATE") || action.includes("ASSIGNED")) return "default";
-    if (action.includes("UPDATE")) return "secondary";
-    if (action.includes("DELETE") || action.includes("REMOVED")) return "destructive";
-    return "secondary";
-  };
-
-  const getEntityTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      product: "Product",
-      sale: "Sale",
-      purchase_bill: "Purchase",
-      stock_movement: "Stock Movement",
-      user_role: "User Role",
-    };
-    return labels[type] || type;
-  };
-
-  const filteredLogs = logs.filter((log) => {
-    if (filterAction !== "all" && log.action !== filterAction) return false;
-    if (filterEntityType !== "all" && log.entity_type !== filterEntityType) return false;
-    if (filterUser && !log.user_email?.toLowerCase().includes(filterUser.toLowerCase())) return false;
-    if (dateFrom && new Date(log.created_at) < dateFrom) return false;
-    if (dateTo && new Date(log.created_at) > dateTo) return false;
-    return true;
-  });
-
-  const uniqueActions = Array.from(new Set(logs.map((l) => l.action))).sort();
-  const uniqueEntityTypes = Array.from(new Set(logs.map((l) => l.entity_type))).sort();
-
-  const handleViewDetails = (log: AuditLog) => {
-    setSelectedLog(log);
-    setShowDetailsDialog(true);
-  };
+  const visibleLogs = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return logs.filter((log) => {
+      if (!matchesActivityCategory(log, category as ActivityCategoryId)) return false;
+      if (!term) return true;
+      const hay = [activityDocumentNumber(log), activityParty(log), log.user_email]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(term);
+    });
+  }, [logs, category, search]);
 
   const handleClearFilters = () => {
-    setFilterAction("all");
-    setFilterEntityType("all");
-    setFilterUser("");
-    setDateFrom(undefined);
-    setDateTo(undefined);
+    setCategory("all");
+    setOperatorId(ALL_OPERATORS);
+    setSearch("");
+    setDateFrom(startOfDay(subDays(new Date(), 6)));
+    setDateTo(startOfDay(new Date()));
     clearPersistedFilters();
   };
+
+  const handleExport = () => {
+    const csv = activityRowsToCsv(visibleLogs, (iso) => format(new Date(iso), "dd/MM/yyyy HH:mm:ss"));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `activity-log-${format(dateFrom, "yyyyMMdd")}-${format(dateTo, "yyyyMMdd")}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const selectedDiff = selectedLog ? diffActivityValues(selectedLog.old_values, selectedLog.new_values) : [];
 
   return (
     <div className="min-h-screen bg-background px-6 py-6">
       <div className="w-full">
         <BackToDashboard />
-        
-        <div className="mb-6 flex items-center justify-between">
+
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <FileText className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">Audit Logs</h1>
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Activity Log</h1>
+              <p className="text-sm text-muted-foreground">
+                Who edited or deleted invoices, gave discounts, recorded payments or changed credit notes, and when.
+              </p>
+            </div>
           </div>
-          <Button onClick={fetchLogs} variant="outline" size="sm">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleExport} variant="outline" size="sm" disabled={visibleLogs.length === 0}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button onClick={() => void loadFirstPage()} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        {/* Quick filter chips */}
+        {/* Activity chips */}
         <div className="mb-4 flex flex-wrap gap-2">
-          <Button
-            variant={filterEntityType === "all" && filterAction === "all" ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setFilterEntityType("all"); setFilterAction("all"); }}
-          >
-            All Events
-          </Button>
-          <Button
-            variant={filterEntityType === "purchase_bill" ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setFilterEntityType("purchase_bill"); setFilterAction("all"); }}
-          >
-            Purchase Bills
-          </Button>
-          <Button
-            variant={filterEntityType === "sale" ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setFilterEntityType("sale"); setFilterAction("all"); }}
-          >
-            Sales
-          </Button>
-          <Button
-            variant={filterAction === "PRICE_CHANGE" ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setFilterAction("PRICE_CHANGE"); setFilterEntityType("all"); }}
-          >
-            Price Changes
-          </Button>
-          <Button
-            variant={filterEntityType === "product" ? "default" : "outline"}
-            size="sm"
-            onClick={() => { setFilterEntityType("product"); setFilterAction("all"); }}
-          >
-            Products
-          </Button>
+          {ACTIVITY_CATEGORIES.map((c) => (
+            <Button
+              key={c.id}
+              variant={category === c.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCategory(c.id)}
+            >
+              {c.label}
+            </Button>
+          ))}
         </div>
-
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Tracks sales, purchases, product changes, price history, and user role changes for accountability and fraud detection. Stock movements are tracked separately in the Stock module.
-          </AlertDescription>
-        </Alert>
 
         {/* Filters */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="mb-4">
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <div>
-                <Label>Action</Label>
-                <Select value={filterAction} onValueChange={setFilterAction}>
+                <Label>From</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateFrom, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={dateFrom}
+                      onSelect={(d) => d && setDateFrom(startOfDay(d))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <Label>To</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {format(dateTo, "dd MMM yyyy")}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={dateTo}
+                      onSelect={(d) => d && setDateTo(startOfDay(d))}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div>
+                <Label>Operator</Label>
+                <Select value={operatorId} onValueChange={setOperatorId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All Actions" />
+                    <SelectValue placeholder="All operators" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Actions</SelectItem>
-                    {uniqueActions.map((action) => (
-                      <SelectItem key={action} value={action}>
-                        {action}
+                    <SelectItem value={ALL_OPERATORS}>All operators</SelectItem>
+                    {operators.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -239,16 +327,15 @@ export default function AuditLog() {
               </div>
 
               <div>
-                <Label>Entity Type</Label>
-                <Select value={filterEntityType} onValueChange={setFilterEntityType}>
+                <Label>Activity</Label>
+                <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger>
-                    <SelectValue placeholder="All Types" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {uniqueEntityTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {getEntityTypeLabel(type)}
+                    {ACTIVITY_CATEGORIES.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -256,205 +343,132 @@ export default function AuditLog() {
               </div>
 
               <div>
-                <Label>User Email</Label>
+                <Label>Search</Label>
                 <Input
-                  placeholder="Search by user..."
-                  value={filterUser}
-                  onChange={(e) => setFilterUser(e.target.value)}
+                  placeholder="Bill no., customer, operator"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
-              </div>
-
-              <div>
-                <Label>Date From</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dateFrom && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFrom ? format(dateFrom, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div>
-                <Label>Date To</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dateTo && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateTo ? format(dateTo, "PPP") : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus />
-                  </PopoverContent>
-                </Popover>
               </div>
             </div>
 
-            <div className="mt-4">
+            <div className="mt-3">
               <Button onClick={handleClearFilters} variant="ghost" size="sm">
-                Clear All Filters
+                Clear filters
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Logs Table */}
         <Card>
           <CardHeader>
             <CardTitle>
-              Activity Log ({filteredLogs.length} {filteredLogs.length === 1 ? "entry" : "entries"})
+              {visibleLogs.length} {visibleLogs.length === 1 ? "entry" : "entries"}
+              {hasMore ? " (more available)" : ""}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading logs...</div>
-            ) : filteredLogs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">No audit logs found</div>
+              <div className="text-center py-8 text-muted-foreground">Loading activity…</div>
+            ) : visibleLogs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">No activity for these filters</div>
             ) : (
-              <ScrollArea className="h-[600px]">
+              <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>User</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Entity Type</TableHead>
-                      <TableHead>Details</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="whitespace-nowrap">Date & time</TableHead>
+                      <TableHead>Operator</TableHead>
+                      <TableHead>Activity</TableHead>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Party</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>What changed</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {format(new Date(log.created_at), "PPp")}
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{log.user_email || "System"}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getActionBadgeVariant(log.action)}>{log.action}</Badge>
-                        </TableCell>
-                        <TableCell>{getEntityTypeLabel(log.entity_type)}</TableCell>
-                        <TableCell className="max-w-md">
-                          {(() => {
-                            // For DELETE actions, read from old_values; otherwise new_values
-                            const isDelete = log.action.includes("DELETE") || log.action.includes("REMOVED");
-                            const values = isDelete ? log.old_values : (log.new_values || log.old_values);
-                            if (!values) return null;
-                            const parts: string[] = [];
-                            if (values.software_bill_no) parts.push(`Bill: ${values.software_bill_no}`);
-                            if (values.sale_number) parts.push(`Sale: ${values.sale_number}`);
-                            if (values.supplier_name) parts.push(`Supplier: ${values.supplier_name}`);
-                            if (values.customer_name) parts.push(`Customer: ${values.customer_name}`);
-                            if (values.net_amount !== undefined) parts.push(`₹${values.net_amount}`);
-                            if (values.product_name) parts.push(`Product: ${values.product_name}`);
-                            if (values.product_info?.product_name) parts.push(`Product: ${values.product_info.product_name}`);
-                            return parts.length > 0 ? (
-                              <div className="text-sm text-muted-foreground truncate">
-                                {parts.join(" · ")}
-                              </div>
-                            ) : null;
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetails(log)}
-                          >
-                            View Details
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {visibleLogs.map((log) => {
+                      const { label, tone } = describeActivity(log);
+                      const amount = activityAmount(log);
+                      return (
+                        <TableRow
+                          key={log.id}
+                          className="cursor-pointer"
+                          onClick={() => setSelectedLog(log)}
+                        >
+                          <TableCell className="whitespace-nowrap text-sm">
+                            {format(new Date(log.created_at), "dd MMM yyyy, hh:mm:ss a")}
+                          </TableCell>
+                          <TableCell className="text-sm">{log.user_email || "System"}</TableCell>
+                          <TableCell>
+                            <Badge variant={TONE_BADGE[tone]} className="whitespace-nowrap">
+                              {label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {activityDocumentNumber(log) ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-sm max-w-[200px] truncate">
+                            {activityParty(log) ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-right whitespace-nowrap">
+                            {amount == null ? "—" : fmtMoney(amount)}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-md truncate">
+                            {activityChangeSummary(log)}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
-              </ScrollArea>
+              </div>
+            )}
+
+            {!loading && hasMore && (
+              <div className="mt-4 flex justify-center">
+                <Button variant="outline" size="sm" onClick={() => void loadMore()} disabled={loadingMore}>
+                  {loadingMore ? "Loading…" : "Load more"}
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Details Dialog */}
-        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
           <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Audit Log Details</DialogTitle>
+              <DialogTitle>{selectedLog ? describeActivity(selectedLog).label : ""}</DialogTitle>
               <DialogDescription>
-                Complete information about this audit log entry
+                {selectedLog &&
+                  `${selectedLog.user_email || "System"} · ${format(new Date(selectedLog.created_at), "dd MMM yyyy, hh:mm:ss a")}`}
               </DialogDescription>
             </DialogHeader>
             {selectedLog && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Timestamp</Label>
-                    <p className="text-sm font-medium">
-                      {format(new Date(selectedLog.created_at), "PPpp")}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">User</Label>
-                    <p className="text-sm font-medium">{selectedLog.user_email || "System"}</p>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Action</Label>
-                    <div className="mt-1">
-                      <Badge variant={getActionBadgeVariant(selectedLog.action)}>
-                        {selectedLog.action}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Entity Type</Label>
-                    <p className="text-sm font-medium">
-                      {getEntityTypeLabel(selectedLog.entity_type)}
-                    </p>
-                  </div>
-                </div>
-
-                {selectedLog.old_values && (
-                  <div>
-                    <Label className="text-muted-foreground">Old Values</Label>
-                    <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
-                      {JSON.stringify(selectedLog.old_values, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedLog.new_values && (
-                  <div>
-                    <Label className="text-muted-foreground">New Values</Label>
-                    <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
-                      {JSON.stringify(selectedLog.new_values, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedLog.metadata && (
-                  <div>
-                    <Label className="text-muted-foreground">Metadata</Label>
-                    <pre className="mt-1 p-3 bg-muted rounded-md text-xs overflow-x-auto">
-                      {JSON.stringify(selectedLog.metadata, null, 2)}
-                    </pre>
-                  </div>
+                {selectedDiff.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Field</TableHead>
+                        <TableHead>Before</TableHead>
+                        <TableHead>After</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedDiff.map((d) => (
+                        <TableRow key={d.key} className={cn(d.changed && "bg-amber-50 dark:bg-amber-950/30")}>
+                          <TableCell className="text-sm font-medium">{d.label}</TableCell>
+                          <TableCell className={cn("text-sm", d.changed && "line-through text-muted-foreground")}>
+                            {d.before}
+                          </TableCell>
+                          <TableCell className={cn("text-sm", d.changed && "font-semibold")}>{d.after}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No field values were recorded for this entry.</p>
                 )}
               </div>
             )}
