@@ -8,6 +8,13 @@
  * - a tab that lost the race adopts the rotated session instead of replaying
  *   the old refresh token (replay revokes every browser)
  * - 429 / 502 / 503 / 504 are retried so a rate limit does not sign the user out
+ *
+ * The stored rotation remembers which refresh token it replaced. It is adopted
+ * only by a tab still holding that exact token. Without that check, a fresh
+ * login on the same browser was swapped back to the previous login's session
+ * at its first refresh; that refresh then failed and every request went out
+ * without a user (KS Footwear: "permission denied for function
+ * search_invoice_sale_ids"), until the browser data was cleared.
  */
 
 export const PROACTIVE_REFRESH_WITHIN_SEC = 120;
@@ -23,6 +30,8 @@ export type AuthTokenBody = {
   expires_at?: number;
   token_type?: string;
   user?: unknown;
+  /** The refresh token this rotation replaced (guard bookkeeping only). */
+  rotated_from?: string;
 };
 
 export function isAuthRateLimitError(
@@ -73,8 +82,9 @@ export function tokenBodyForClient(body: AuthTokenBody, nowSec = Math.floor(Date
       : typeof body.expires_at === "number"
         ? Math.max(1, body.expires_at - nowSec)
         : 3600;
+  const { rotated_from: _rotatedFrom, ...clientBody } = body;
   return {
-    ...body,
+    ...clientBody,
     expires_in: expiresIn,
     token_type: body.token_type || "bearer",
   };
@@ -87,13 +97,21 @@ export function tokenBodyForClient(body: AuthTokenBody, nowSec = Math.floor(Date
 export function decideAuthRefresh(input: {
   requestRefreshToken?: string;
   latest?: AuthTokenBody | null;
+  nowSec?: number;
 }): { adopt: AuthTokenBody } | { fetch: true } {
   const latestToken = input.latest?.refresh_token;
   const requestToken = input.requestRefreshToken;
+  const nowSec = input.nowSec ?? Math.floor(Date.now() / 1000);
+  const expiresAt = input.latest?.expires_at;
+  const stillValid = typeof expiresAt !== "number" || expiresAt - nowSec > 30;
   if (
     latestToken &&
     requestToken &&
     latestToken !== requestToken &&
+    // Only the direct successor of this tab's token; anything else is another
+    // login's session (or an entry from before this check) and must not be adopted.
+    input.latest?.rotated_from === requestToken &&
+    stillValid &&
     typeof input.latest?.access_token === "string"
   ) {
     return { adopt: tokenBodyForClient(input.latest) };
@@ -199,7 +217,7 @@ export function installAuthRefreshGuard(): void {
       if (response.ok) {
         try {
           const body = parseAuthTokenBody(await response.clone().text());
-          if (body) writeLatest(body);
+          if (body) writeLatest({ ...body, rotated_from: requestToken });
         } catch {
           // keep the original response either way
         }
