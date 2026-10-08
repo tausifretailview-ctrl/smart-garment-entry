@@ -81,7 +81,7 @@ export function StorefrontEnquiryNotifier() {
                   cancel: {
                     label: "Turn on alerts",
                     onClick: () => {
-                      Notification.requestPermission().catch(() => {});
+                      void Notification.requestPermission().catch(() => {});
                     },
                   },
                 }
@@ -96,7 +96,7 @@ export function StorefrontEnquiryNotifier() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [canNotify, orgId, queryClient]);
 
