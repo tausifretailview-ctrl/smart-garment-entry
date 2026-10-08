@@ -60,6 +60,7 @@ import { usePosBilling } from "@/hooks/usePosBilling";
 import { useCategoryTierPricingRules } from "@/hooks/useCategoryTierPricingRules";
 import { isCategoryTierAutoCalculateEnabled, isCategoryTierPricingEnabled } from "@/lib/posBilling/categoryTierPricing";
 import { POS_APPLY_CREDIT_BANNER_ENABLED } from "@/lib/posBilling/creditBannerFlag";
+import { posPrintSaleReturnAdjust, posPrintTotals } from "@/lib/posBilling/printFigures";
 import { saleBillFigures, saleRefundForPrint } from "@/utils/saleBillFigures";
 import {
   isPosGoodsAskQtyDialogEnabled,
@@ -4175,9 +4176,10 @@ export default function POSSales() {
         const snapTaxType = normalizeGstTaxType(snap?.taxType ?? invoiceTaxType);
         const snapPaymentMethod = snap?.paymentMethod ?? paymentMethod;
         const snapGrandTotal = snap?.grandTotal ?? finalAmount;
-        const snapSubTotal = snap?.subTotal ?? totals.subtotal;
+        const snapSubTotal = snap?.subTotal ?? totals.mrp;
         const snapDiscount = snap?.discount ?? totals.discount + flatDiscountAmount;
-        const snapSaleReturnAdjust = snap?.saleReturnAdjust ?? saleReturnAdjust;
+        const snapSaleReturnAdjust =
+          snap?.saleReturnAdjust ?? posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied);
         const snapPaidAmount =
           snap?.paidAmount ?? (paymentMethod === "pay_later" ? 0 : finalAmount);
         const snapAccount = await resolvePosInvoiceAccountFacets({
@@ -4283,6 +4285,7 @@ export default function POSSales() {
       totals,
       flatDiscountAmount,
       saleReturnAdjust,
+      creditApplied,
       finalAmount,
       paymentMethod,
       customerBalance,
@@ -4407,9 +4410,9 @@ export default function POSSales() {
       invoiceNumber: estimateNumber,
       saleId: null,
       items: items,
-      totals: totals,
+      totals: posPrintTotals(totals),
       flatDiscountAmount: flatDiscountAmount,
-      saleReturnAdjust: saleReturnAdjust,
+      saleReturnAdjust: posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied),
       finalAmount: finalAmount,
       method: 'estimate',
       customerName: customerName || "Walk-in Customer",
@@ -4959,9 +4962,9 @@ export default function POSSales() {
         invoiceNumber: result.sale_number,
         saleId: result.id,
         items: items,
-        totals: totals,
+        totals: posPrintTotals(totals),
         flatDiscountAmount: flatDiscountAmount,
-        saleReturnAdjust: saleReturnAdjust,
+        saleReturnAdjust: posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied),
         finalAmount: cashExchangeRefund > 0.005 ? 0 : finalAmount,
         refundCash: cashExchangeRefund,
         billNetAmount: totals.billAmount,
@@ -4974,7 +4977,8 @@ export default function POSSales() {
         customerTransportDetails: (customers.find(c => c.id === customerId) as any)?.transport_details || "",
         roundOff: roundOff,
         creditApplied: creditApplied,
-        creditAmount: creditApplied,
+        // Credit-note redemption prints on the S/R line above, not as Credit tender.
+        creditAmount: 0,
         notes: saleNotes || null,
         paidAmount: cashExchangeRefund > 0.005 ? 0 : method === 'pay_later' ? 0 : posTenderDue,
         previousBalance: saveAccount.previousBalance,
@@ -5289,9 +5293,9 @@ export default function POSSales() {
         invoiceNumber: result.sale_number,
         saleId: result.id,
         items: items,
-        totals: totals,
+        totals: posPrintTotals(totals),
         flatDiscountAmount: flatDiscountAmount,
-        saleReturnAdjust: saleReturnAdjust,
+        saleReturnAdjust: posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied),
         finalAmount: isRefund ? 0 : finalAmount,
         billNetAmount: totals.billAmount,
         method: isRefund ? `refund_${paymentData.refundMode || 'cash'}` : 'multiple',
@@ -5325,7 +5329,8 @@ export default function POSSales() {
         upiAmount: result.upi_amount || 0,
         cardAmount: result.card_amount || 0,
         financeAmount: Number((result as any).finance_amount) || Math.min(Number(result.card_amount) || 0, Number(paymentData.financeAmount) || 0),
-        creditAmount: (paymentData.creditAmount || 0) + (creditApplied || 0),
+        // Credit-note redemption prints on the S/R line above, not as Credit tender.
+        creditAmount: paymentData.creditAmount || 0,
         salesman: salesmanForPrint || null,
         taxType,
         financerDetails: financerDetails || null,
@@ -5735,13 +5740,16 @@ export default function POSSales() {
                   )
                 : items.map((item, index) => mapPosPrintItem(item, index, invoiceTaxType))
             }
-            subTotal={savedInvoiceData?.totals.subtotal || totals.subtotal}
+            subTotal={savedInvoiceData?.totals.subtotal || totals.mrp}
             discount={
               savedInvoiceData
                 ? savedInvoiceData.totals.discount + savedInvoiceData.flatDiscountAmount
                 : totals.discount + flatDiscountAmount
             }
-            saleReturnAdjust={savedInvoiceData?.saleReturnAdjust || saleReturnAdjust || 0}
+            saleReturnAdjust={
+              savedInvoiceData?.saleReturnAdjust ||
+              posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied)
+            }
             grandTotal={savedInvoiceData ? savedInvoiceData.finalAmount : finalAmount}
             billNetAmount={savedInvoiceData?.billNetAmount ?? totals.billAmount}
             cashPaid={
@@ -9118,9 +9126,9 @@ export default function POSSales() {
                 items={items.map((item, index) =>
                   mapPosPrintItem(item, index, invoiceTaxType),
                 )}
-                subTotal={totals.subtotal}
+                subTotal={totals.mrp}
                 discount={totals.discount + flatDiscountAmount}
-                saleReturnAdjust={saleReturnAdjust}
+                saleReturnAdjust={posPrintSaleReturnAdjust(saleReturnAdjust, creditApplied)}
                 grandTotal={finalAmount}
                 billNetAmount={totals.billAmount}
                 cashPaid={paymentMethod === 'cash' ? finalAmount : 0}

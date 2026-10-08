@@ -204,7 +204,8 @@ function buildPosWhatsAppCaptureMeta(
 ): PosWhatsAppPdfCaptureMeta {
   const figures = posWhatsAppReceiptFigures({
     netAmount: saleData.netAmount,
-    saleReturnAdjust: saleData.saleReturnAdjust,
+    // Cr-box credit notes are saved into sale_return_adjust too; print them on that line.
+    saleReturnAdjust: (saleData.saleReturnAdjust || 0) + (saleData.creditApplied || 0),
     paidAmount: paidAmt,
     refundAmount: refundAmt,
   });
