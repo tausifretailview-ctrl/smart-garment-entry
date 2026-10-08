@@ -10577,6 +10577,15 @@ export type Database = {
       }
       dispatch_nightly_backups: { Args: never; Returns: number }
       dispatch_owner_alerts: { Args: never; Returns: number }
+      find_products_by_name_key: {
+        Args: { p_name: string; p_organization_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          product_name: string
+          total_stock: number
+        }[]
+      }
       fix_missing_mrp_for_org: { Args: { p_org_id: string }; Returns: number }
       fix_stock_discrepancies: {
         Args: { p_organization_id: string }
