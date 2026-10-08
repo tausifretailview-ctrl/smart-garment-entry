@@ -1288,6 +1288,14 @@ export const useSaveSale = () => {
       posSaveMark("sale_insert");
       insertedSaleIdForRollback = sale.id;
 
+      // Insert sale items with proportional bill discount + round-off distribution
+      const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
+      const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
+
+      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
+      posSaveMark("items_insert");
+
+      // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
       if (accountingEngineOn) {
         postSaleJournalInBackground(
           sale.id,
@@ -1299,13 +1307,6 @@ export const useSaveSale = () => {
           supabase,
         );
       }
-
-      // Insert sale items with proportional bill discount + round-off distribution
-      const perLineSalesman = isPerLineSalesmanEnabled(orgSettings);
-      const saleItems = buildSaleItemInsertRows(sale.id, saleData, perLineSalesman);
-
-      const lineInsert = await insertSaleItemsResilient(supabase, saleItems);
-      posSaveMark("items_insert");
       if (lineInsert.salesmanColumnMissing) {
         toast({
           title: "Bill saved — per-line salesman not stored yet",
