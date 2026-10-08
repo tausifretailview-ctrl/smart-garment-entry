@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  encodePosLinePurchaseCode,
   encodePurchasePrice,
   encodePurchasePriceForLabel,
   getEffectivePurchasePrice,
   normalizePurchaseBillDate,
   normalizePurchaseCodeAlphabet,
   resolveLabelPurchaseBillDate,
+  resolvePosPurchaseCodeEnabled,
   resolvePurchaseCodeAlphabet,
   resolvePurchaseCodeIncludeDate,
   validatePurchaseCodeAlphabet,
@@ -164,5 +166,43 @@ describe("purchase invoice date on the barcode code", () => {
       }),
     ).toBe("2026-09-30");
     expect(resolveLabelPurchaseBillDate({ savedInvoiceDate: "  ", itemBillDate: "" })).toBeUndefined();
+  });
+});
+
+describe("POS cart purchase code", () => {
+  it("is off unless the org enables it", () => {
+    expect(resolvePosPurchaseCodeEnabled(undefined)).toBe(false);
+    expect(resolvePosPurchaseCodeEnabled({ show_purchase_code: true } as never)).toBe(false);
+    expect(resolvePosPurchaseCodeEnabled({ show_purchase_code_on_pos: true })).toBe(true);
+  });
+
+  it("shows letters only, without the month/year wrap", () => {
+    expect(
+      encodePosLinePurchaseCode({ purPrice: 3190 }, { purchase_code_alphabet: RAHMANI_ALPHABET }),
+    ).toBe("SEWN");
+  });
+
+  it("follows the label GST and extra % options", () => {
+    expect(
+      encodePosLinePurchaseCode(
+        { purPrice: 500, purchaseGstPer: 5 },
+        { purchase_code_alphabet: "ABCDEFGHIK", purchase_code_include_gst: true },
+      ),
+    ).toBe("FCF");
+    expect(
+      encodePosLinePurchaseCode(
+        { purPrice: 500 },
+        {
+          purchase_code_alphabet: "ABCDEFGHIK",
+          purchase_code_extra_percent_enabled: true,
+          purchase_code_extra_percent: 10,
+        },
+      ),
+    ).toBe("FFA");
+  });
+
+  it("is blank when the line has no purchase price", () => {
+    expect(encodePosLinePurchaseCode({ purPrice: 0 }, {})).toBe("");
+    expect(encodePosLinePurchaseCode({}, {})).toBe("");
   });
 });

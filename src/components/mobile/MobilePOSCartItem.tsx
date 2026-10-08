@@ -36,6 +36,8 @@ interface MobilePOSCartItemProps {
   onPriceEdit?: (index: number, price: number) => void;
   /** Display gate from POS `enable_mrp` — omit struck MRP when false. */
   enableMrp?: boolean;
+  /** Letters-only purchase code (Settings → Purchase, default off). */
+  purchaseCode?: string;
 }
 
 export const MobilePOSCartItem = ({ 
@@ -44,6 +46,7 @@ export const MobilePOSCartItem = ({
   onQuantityChange, 
   onRemove,
   enableMrp = true,
+  purchaseCode,
 }: MobilePOSCartItemProps) => {
   const minQty = minQtyForUom(item.uom);
 
@@ -56,6 +59,11 @@ export const MobilePOSCartItem = ({
             <PosSchemeAppliedTag applied={item.categoryTierApplied} />
           </h4>
           <p className="text-xs text-muted-foreground mt-0.5">
+            {purchaseCode && (
+              <span className="mr-1.5 rounded bg-violet-100 px-1 py-0.5 font-mono font-semibold tracking-wide text-violet-700 dark:bg-violet-950/50 dark:text-violet-300">
+                {purchaseCode}
+              </span>
+            )}
             {item.size}
             {item.color && ` • ${item.color}`}
             {item.discountPercent > 0 && (

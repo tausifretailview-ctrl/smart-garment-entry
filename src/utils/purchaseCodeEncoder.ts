@@ -183,3 +183,36 @@ export const validatePurchaseCodeAlphabet = (alphabet: string): boolean => {
   if (!/^[A-Z0-9]{10}$/.test(normalized)) return false;
   return new Set(normalized.split("")).size === 10;
 };
+
+export type PosPurchaseCodeSettings = {
+  show_purchase_code_on_pos?: boolean | null;
+  purchase_code_alphabet?: string | null;
+  purchase_code_include_gst?: boolean | null;
+  purchase_code_extra_percent_enabled?: boolean | null;
+  purchase_code_extra_percent?: number | null;
+};
+
+/** POS cart purchase-code column. Default off: cost is only shown when the org opts in. */
+export function resolvePosPurchaseCodeEnabled(
+  purchaseSettings?: PosPurchaseCodeSettings | null,
+): boolean {
+  return purchaseSettings?.show_purchase_code_on_pos === true;
+}
+
+/**
+ * Letters-only purchase code for a POS cart line (no month/year wrap — POS
+ * doesn't know the purchase bill date). Uses the same alphabet and GST /
+ * extra % options as barcode labels so the letters match the printed tag.
+ */
+export function encodePosLinePurchaseCode(
+  line: { purPrice?: number | null; purchaseGstPer?: number | null },
+  purchaseSettings?: PosPurchaseCodeSettings | null,
+): string {
+  return encodePurchasePriceForLabel(line.purPrice, purchaseSettings?.purchase_code_alphabet ?? undefined, {
+    includeDate: false,
+    gstPer: Number(line.purchaseGstPer) || 0,
+    includeGst: purchaseSettings?.purchase_code_include_gst === true,
+    extraPercentEnabled: purchaseSettings?.purchase_code_extra_percent_enabled === true,
+    extraPercent: Number(purchaseSettings?.purchase_code_extra_percent) || 0,
+  });
+}
