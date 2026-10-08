@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { MetricCardSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -351,8 +351,8 @@ const STOCK_NEUTRAL_TH =
 const STOCK_TABLE_SCROLL =
   "flex-1 min-h-0 overflow-auto overscroll-contain min-w-0";
 const STOCK_TABLE_FOOTER =
-  "sticky bottom-0 z-20 border-t-2 border-slate-400 dark:border-slate-500 bg-slate-200 dark:bg-slate-700 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.12)] [&>tr]:border-0 [&>tr]:hover:bg-transparent";
-const STOCK_FOOTER_CELL = "py-1 px-2 align-middle text-sm font-bold tabular-nums whitespace-nowrap";
+  "sticky bottom-0 z-20 border-t-2 border-amber-500 dark:border-amber-400 bg-amber-100 dark:bg-amber-950 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.15)] [&>tr]:border-0 [&>tr]:hover:bg-transparent";
+const STOCK_FOOTER_CELL = "py-1.5 px-2 align-middle text-[15px] font-extrabold tabular-nums whitespace-nowrap";
 const STOCK_DATA_CELL = "py-1 px-2 align-middle text-sm whitespace-nowrap tabular-nums text-foreground";
 const STOCK_DATA_CELL_CENTER = "py-1 px-2 align-middle text-sm text-center tabular-nums";
 const STOCK_PRODUCT_NAME_CELL =
@@ -2215,11 +2215,21 @@ export default function StockReport() {
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search name, brand, category, style or barcode..."
-            className="flex-1"
+            className="flex-1 min-w-0 max-w-xl"
           />
           <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0 && !allowUnfilteredLoad)} className="h-10 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Search
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setFiltersOpen((open) => !open)}
+            className="h-10 px-3 text-sm gap-1.5 shrink-0"
+            aria-expanded={filtersOpen}
+          >
+            <Filter className="h-4 w-4" />
+            More Filters
+            {filtersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </Button>
           {(hasActiveFilters || pinnedProducts.length > 0) && (
             <Button variant="ghost" onClick={() => { clearFilters(); setPinnedProducts([]); }} className="h-8 text-sm px-2">
@@ -2329,14 +2339,7 @@ export default function StockReport() {
 
         {/* Additional filters in collapsible */}
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Filter className="h-3 w-3" />
-              More Filters
-              {filtersOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="pt-3">
+          <CollapsibleContent className="pt-1">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 min-w-0">
               <div className="space-y-1 min-w-0">
                 <label className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Supplier</label>
@@ -2403,7 +2406,7 @@ export default function StockReport() {
           </div>
         ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 min-h-0 flex flex-col print:block">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 border-b border-slate-100 bg-white shrink-0">
             <TabsList className="h-9 bg-slate-100 p-0.5 rounded-md">
               <TabsTrigger value="all" className="rounded text-sm font-semibold px-3 data-[state=active]:bg-white data-[state=active]:text-blue-700">
                 All Stock
@@ -2414,6 +2417,50 @@ export default function StockReport() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 flex-wrap">
+              {activeTab === "all" && hasSearched && serverTotalRows > ITEMS_PER_PAGE && (
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-slate-500 tabular-nums mr-1 whitespace-nowrap">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setCurrentPage(1)} disabled={currentPage === 1}>
+                    First
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))} disabled={currentPage === 1}>
+                    <ChevronLeft className="h-4 w-4" />
+                    Prev
+                  </Button>
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? "default" : "outline"}
+                        size="sm"
+                        className="h-8 w-8 px-0"
+                        onClick={() => setCurrentPage(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                  <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages}>
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-8 px-2" onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}>
+                    Last
+                  </Button>
+                </div>
+              )}
               <span className="text-sm text-muted-foreground tabular-nums">
                 {activeTab === "all"
                   ? `${matchingVariantCount.toLocaleString("en-IN")} matching`
@@ -2584,116 +2631,44 @@ export default function StockReport() {
                     {filteredStockItems.length > 0 && (
                       <TableFooter className={STOCK_TABLE_FOOTER}>
                         <TableRow>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-200 dark:bg-slate-700")} colSpan={allStockLabelColSpan}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-center bg-slate-800 text-white dark:bg-slate-900 tracking-wide")} colSpan={allStockLabelColSpan}>
                             {footerIsPageTotal ? "PAGE TOTAL" : "GRAND TOTAL"}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-100 dark:bg-blue-900/60 text-blue-900 dark:text-blue-100")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-blue-200 dark:bg-blue-900 text-blue-900 dark:text-blue-100")}>
                             {allStockTotals.opening.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-green-200 dark:bg-green-900 text-green-800 dark:text-green-400")}>
                             +{allStockTotals.purchase.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-orange-200 dark:bg-orange-900 text-orange-800 dark:text-orange-400")}>
                             -{allStockTotals.purchaseReturn.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-red-200 dark:bg-red-900 text-red-800 dark:text-red-400")}>
                             -{allStockTotals.sales.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-emerald-200 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-400")}>
                             +{allStockTotals.saleReturn.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-violet-50 dark:bg-violet-950 text-violet-800 dark:text-violet-300")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-violet-300 dark:bg-violet-900 text-violet-950 dark:text-violet-300")}>
                             {allStockTotals.currentStock.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>—</TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-primary bg-slate-200 dark:bg-slate-700")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-amber-100 dark:bg-amber-950")}>—</TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-amber-950 dark:text-amber-100 bg-amber-200 dark:bg-amber-900")}>
                             ₹{allStockTotals.stockValue.toLocaleString('en-IN')}
                           </TableCell>
                           {showMrp && (
-                            <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>—</TableCell>
+                            <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-amber-100 dark:bg-amber-950")}>—</TableCell>
                           )}
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right bg-slate-200 dark:bg-slate-700")}>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "text-right text-amber-950 dark:text-amber-100 bg-amber-200 dark:bg-amber-900")}>
                             ₹{allStockTotals.saleValue.toLocaleString('en-IN')}
                           </TableCell>
-                          <TableCell className={cn(STOCK_FOOTER_CELL, "bg-slate-200 dark:bg-slate-700")}>—</TableCell>
+                          <TableCell className={cn(STOCK_FOOTER_CELL, "bg-amber-100 dark:bg-amber-950")}>—</TableCell>
                         </TableRow>
                       </TableFooter>
                     )}
                   </Table>
                 </div>
 
-                  {/* Pagination Controls — server-side pages via get_stock_report */}
-                  {hasSearched && serverTotalRows > ITEMS_PER_PAGE && (
-                    <div className="flex items-center justify-between px-3 py-2.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/80 shrink-0">
-                      <div className="text-xs text-slate-500">
-                        Page {currentPage} of {totalPages} · {matchingVariantCount.toLocaleString("en-IN")} variants
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(1)}
-                          disabled={currentPage === 1}
-                        >
-                          First
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                          disabled={currentPage === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          Prev
-                        </Button>
-                        
-                        {/* Page number buttons */}
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNum;
-                            if (totalPages <= 5) {
-                              pageNum = i + 1;
-                            } else if (currentPage <= 3) {
-                              pageNum = i + 1;
-                            } else if (currentPage >= totalPages - 2) {
-                              pageNum = totalPages - 4 + i;
-                            } else {
-                              pageNum = currentPage - 2 + i;
-                            }
-                            return (
-                              <Button
-                                key={pageNum}
-                                variant={currentPage === pageNum ? "default" : "outline"}
-                                size="sm"
-                                className="w-9"
-                                onClick={() => setCurrentPage(pageNum)}
-                              >
-                                {pageNum}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                          disabled={currentPage === totalPages}
-                        >
-                          Next
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setCurrentPage(totalPages)}
-                          disabled={currentPage === totalPages}
-                        >
-                          Last
-                        </Button>
-                      </div>
-                    </div>
-                  )}
               </CardContent>
             </TabsContent>
 
