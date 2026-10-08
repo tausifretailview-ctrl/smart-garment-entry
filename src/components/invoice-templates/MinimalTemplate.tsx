@@ -31,6 +31,8 @@ interface MinimalTemplateProps {
   }>;
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   totalTax: number;
   grandTotal: number;
   totalSavings?: number;
@@ -88,6 +90,7 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   totalTax,
   grandTotal,
   totalSavings = 0,
@@ -345,6 +348,12 @@ export const MinimalTemplate: React.FC<MinimalTemplateProps> = ({
             <span>Tax</span>
             <span>₹{totalTax.toFixed(2)}</span>
           </div>
+          {saleReturnAdjust > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+              <span>S/R Adjust</span>
+              <span>-₹{saleReturnAdjust.toFixed(2)}</span>
+            </div>
+          )}
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 

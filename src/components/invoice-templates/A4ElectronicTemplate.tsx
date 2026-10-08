@@ -49,6 +49,8 @@ interface A4ElectronicTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -186,6 +188,7 @@ export const A4ElectronicTemplate: React.FC<A4ElectronicTemplateProps> = ({
   igstAmount = 0,
   totalTax,
   grandTotal,
+  saleReturnAdjust = 0,
   amountPaid,
   balanceDue,
   cashAmount = 0,
@@ -517,6 +520,12 @@ export const A4ElectronicTemplate: React.FC<A4ElectronicTemplateProps> = ({
               <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
                 <span>Total Tax</span>
                 <span>₹{fmt(totalTax)}</span>
+              </div>
+            ) : null}
+            {saleReturnAdjust > 0 ? (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
+                <span>S/R Adjust</span>
+                <span>-₹{fmt(saleReturnAdjust)}</span>
               </div>
             ) : null}
             <div

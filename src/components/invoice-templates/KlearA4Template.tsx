@@ -46,6 +46,8 @@ export interface KlearA4TemplateProps {
   taxType?: GstTaxType | string;
   items: InvoiceItem[];
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   cgstAmount?: number;
   sgstAmount?: number;
   igstAmount?: number;
@@ -137,6 +139,7 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
   igstAmount = 0,
   roundOff,
   grandTotal,
+  saleReturnAdjust = 0,
   termsConditions,
   customFooterText,
   bankDetails,
@@ -783,6 +786,12 @@ export const KlearA4Template: React.FC<KlearA4TemplateProps> = ({
                         {roundOff < 0 ? "−" : ""}
                         {fmt(Math.abs(roundOff))}
                       </td>
+                    </tr>
+                  ) : null}
+                  {saleReturnAdjust > 0 ? (
+                    <tr>
+                      <td style={sumLabel}>S/R ADJUST</td>
+                      <td style={sumValue}>−₹{fmt(saleReturnAdjust)}</td>
                     </tr>
                   ) : null}
                 </tbody>

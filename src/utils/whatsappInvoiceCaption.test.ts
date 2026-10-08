@@ -77,3 +77,22 @@ describe("sales invoice WhatsApp caption", () => {
     ).toBe("A | 1");
   });
 });
+
+describe("credit note redeemed on the bill", () => {
+  const cnSale = { customer_name: "SHAHEENA KHAN", net_amount: 4300, paid_amount: 700, sale_return_adjust: 3600 };
+
+  it("adds a CN Adjusted line under Amount and nets it out of pending", () => {
+    const text = applyWhatsAppTemplatePlaceholders(
+      "Amount: {amount}\nPending: {pending_amount}",
+      cnSale,
+      "Shop",
+    );
+    expect(text).toBe("Amount: ₹4,300\n🔁 *CN Adjusted:* ₹3,600\nPending: ₹0");
+  });
+
+  it("fills {cn_adjusted} where the shop put it, and drops that line when there is no CN", () => {
+    const template = "Hi\nCN: {cn_adjusted}\nAmount: {amount}";
+    expect(applyWhatsAppTemplatePlaceholders(template, cnSale, "Shop")).toBe("Hi\nCN: ₹3,600\nAmount: ₹4,300");
+    expect(applyWhatsAppTemplatePlaceholders(template, { net_amount: 500 }, "Shop")).toBe("Hi\nAmount: ₹500");
+  });
+});

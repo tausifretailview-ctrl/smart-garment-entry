@@ -968,6 +968,12 @@ export const WholesaleGstA4Template: React.FC<WholesaleGstA4TemplateProps> = ({
                       </td>
                     </tr>
                   ) : null}
+                  {saleReturnAdjust > 0 ? (
+                    <tr>
+                      <td style={sumLabel}>Less: S/R Adjust</td>
+                      <td style={sumValue}>-{fmt(saleReturnAdjust)}</td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
               <div

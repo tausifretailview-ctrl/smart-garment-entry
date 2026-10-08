@@ -46,6 +46,8 @@ export interface A4GstClassicInvoiceTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -161,6 +163,7 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
   taxType: taxTypeProp = "inclusive",
   items,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -734,6 +737,12 @@ export const A4GstClassicInvoiceTemplate: React.FC<A4GstClassicInvoiceTemplatePr
                     {roundOff >= 0 ? "Add" : "Less"}: Rounded Off
                   </div>
                   <div style={totVal}>{fmt(Math.abs(roundOff))}</div>
+                </div>
+              )}
+              {saleReturnAdjust > 0 && (
+                <div style={{ display: "flex", borderBottom: b }}>
+                  <div style={totLabel}>Less: S/R Adjust</div>
+                  <div style={totVal}>{fmt(saleReturnAdjust)}</div>
                 </div>
               )}
               <div style={{ display: "flex", backgroundColor: "#e8e8e8" }}>

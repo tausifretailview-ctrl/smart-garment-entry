@@ -16,6 +16,8 @@ interface Invoice {
   cash_amount?: number;
   card_amount?: number;
   upi_amount?: number;
+  /** Credit note / S/R redeemed on this bill (not paid, not pending). */
+  sale_return_adjust?: number;
   customer_id?: string;
   organization_id?: string;
   // Points information
@@ -132,7 +134,7 @@ export const useWhatsAppTemplates = () => {
 
     // Calculate pending amount for payment reminders
     const paidAmount = invoice.paid_amount || 0;
-    const pendingAmount = invoice.net_amount - paidAmount;
+    const pendingAmount = Math.max(0, invoice.net_amount - paidAmount - (Number(invoice.sale_return_adjust) || 0));
 
     // Build social links text
     const socialLinksText = buildSocialLinksText();
@@ -164,6 +166,7 @@ export const useWhatsAppTemplates = () => {
       .replace(/{website_link}/g, settings?.website_link || "")
       .replace(/{google_review_link}/g, settings?.google_review_link || "")
       .replace(/{payment_breakdown}/g, paymentBreakdown)
+      .replace(/{cn_adjusted}/g, `₹${Math.round(Number(invoice.sale_return_adjust) || 0).toLocaleString("en-IN")}`)
       .replace(/{outstanding_amount}/g, `₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}`)
       .replace(/{points_earned}/g, invoice.points_earned?.toString() || "0")
       .replace(/{points_redeemed}/g, invoice.points_redeemed?.toString() || "0")
@@ -185,6 +188,9 @@ export const useWhatsAppTemplates = () => {
     if (invoice.upi_amount && invoice.upi_amount > 0) {
       parts.push(`UPI: ₹${Number(invoice.upi_amount).toLocaleString("en-IN")}`);
     }
+    if (invoice.sale_return_adjust && invoice.sale_return_adjust > 0.005) {
+      parts.push(`CN Adjusted: ₹${Number(invoice.sale_return_adjust).toLocaleString("en-IN")}`);
+    }
     return parts.length > 0 ? parts.join(" | ") : "";
   };
 
@@ -201,7 +207,7 @@ export const useWhatsAppTemplates = () => {
 ${orgName ? `🏢 ${orgName} has generated the following invoice for your order.\n` : ""}🔢 Invoice No: ${invoice.sale_number}
 📅 Date: ${format(new Date(invoice.sale_date), "dd MMM yyyy")}
 💰 Invoice Amount: ₹${Number(invoice.net_amount).toLocaleString("en-IN")}
-⏳ Payment Status: ${invoice.payment_status}
+${(invoice.sale_return_adjust || 0) > 0.005 ? `🔁 CN Adjusted: ₹${Number(invoice.sale_return_adjust).toLocaleString("en-IN")}\n` : ""}⏳ Payment Status: ${invoice.payment_status}
 📊 Outstanding Balance: ₹${Math.round(Number(outstandingAmount)).toLocaleString("en-IN")}
 ${invoiceLink ? `\n🔗 View / Download Invoice:\n${invoiceLink}\n` : ""}
 💳 Kindly arrange payment at your convenience.

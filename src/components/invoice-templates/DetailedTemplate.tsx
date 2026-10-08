@@ -48,6 +48,8 @@ interface DetailedTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   totalTax: number;
   grandTotal: number;
@@ -92,6 +94,7 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   totalTax,
   grandTotal,
@@ -363,6 +366,12 @@ export const DetailedTemplate: React.FC<DetailedTemplateProps> = ({
             <span>Tax (GST):</span>
             <span>{formatCurrency(totalTax)}</span>
           </div>
+          {saleReturnAdjust > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', borderBottom: '1px solid #dee2e6', color: '#dc2626' }}>
+              <span>S/R Adjust:</span>
+              <span>- {formatCurrency(saleReturnAdjust)}</span>
+            </div>
+          )}
           <div style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 

@@ -29,6 +29,8 @@ export interface InvoicePdfData {
   discountAmount: number;
   taxAmount: number;
   netAmount: number;
+  /** Credit note / S/R redeemed on this bill; printed under Net Amount with the payable. */
+  saleReturnAdjust?: number;
   paymentMethod?: string;
   paidAmount?: number;
   // Business info
@@ -183,7 +185,20 @@ export async function generateInvoicePdfBlob(data: InvoicePdfData): Promise<Blob
   pdf.setFont('helvetica', 'bold');
   pdf.text('Net Amount:', totalsX, yPos);
   pdf.text(`₹${data.netAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-  yPos += 8;
+  yPos += 5;
+
+  const cnAdjusted = Math.max(0, Number(data.saleReturnAdjust) || 0);
+  if (cnAdjusted > 0.005) {
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('CN Adjusted:', totalsX, yPos);
+    pdf.text(`-₹${cnAdjusted.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Payable:', totalsX, yPos);
+    pdf.text(`₹${Math.max(0, data.netAmount - cnAdjusted).toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 5;
+  }
+  yPos += 3;
 
   // Payment info
   if (data.paymentMethod) {
@@ -346,7 +361,20 @@ export async function generateInvoicePdfBase64(data: InvoicePdfData): Promise<st
   pdf.setFont('helvetica', 'bold');
   pdf.text('Net Amount:', totalsX, yPos);
   pdf.text(`₹${data.netAmount.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-  yPos += 8;
+  yPos += 5;
+
+  const cnAdjusted = Math.max(0, Number(data.saleReturnAdjust) || 0);
+  if (cnAdjusted > 0.005) {
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('CN Adjusted:', totalsX, yPos);
+    pdf.text(`-₹${cnAdjusted.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 5;
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Payable:', totalsX, yPos);
+    pdf.text(`₹${Math.max(0, data.netAmount - cnAdjusted).toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
+    yPos += 5;
+  }
+  yPos += 3;
 
   // Payment info
   if (data.paymentMethod) {

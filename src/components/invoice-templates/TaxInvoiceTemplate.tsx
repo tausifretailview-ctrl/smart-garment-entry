@@ -49,6 +49,8 @@ interface TaxInvoiceTemplateProps {
   items: InvoiceItem[];
   subtotal: number;
   discount: number;
+  /** Credit note / S/R redeemed on this bill. */
+  saleReturnAdjust?: number;
   taxableAmount: number;
   cgstAmount?: number;
   sgstAmount?: number;
@@ -101,6 +103,7 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
   items,
   subtotal,
   discount,
+  saleReturnAdjust = 0,
   taxableAmount,
   cgstAmount = 0,
   sgstAmount = 0,
@@ -231,7 +234,11 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
 
   const groupedItems = groupItems(items);
   const displaySubTotal = items.reduce((sum, item) => sum + getDisplayBaseRate(item) * (Number(item.qty) || 0), 0);
-  const computedDiscountFromLines = Math.max(0, displaySubTotal - Number(grandTotal || 0));
+  // grandTotal is after the CN / S/R adjust; that is not a discount.
+  const computedDiscountFromLines = Math.max(
+    0,
+    displaySubTotal - Number(grandTotal || 0) - Math.max(0, Number(saleReturnAdjust) || 0),
+  );
   const displayDiscount = computedDiscountFromLines > 0 ? computedDiscountFromLines : Math.max(0, Number(discount || 0));
 
   return (
@@ -464,6 +471,12 @@ export const TaxInvoiceTemplate: React.FC<TaxInvoiceTemplateProps> = ({
             <span>Total Discount:</span>
             <span>- {formatCurrency(displayDiscount)}</span>
           </div>
+          {saleReturnAdjust > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
+              <span>S/R Adjust:</span>
+              <span>- {formatCurrency(saleReturnAdjust)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', borderBottom: '1px dotted #ccc' }}>
             <span>Taxable Amt:</span>
             <span>{formatCurrency(taxableAmount)}</span>

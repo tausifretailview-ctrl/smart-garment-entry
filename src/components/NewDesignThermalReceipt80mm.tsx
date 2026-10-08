@@ -160,7 +160,6 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
   }
 
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
-  const netSubTotal = subTotal - discount;
   const salesPerson = salesman || cashier || '—';
   const displayCustomer =
     customerName && customerName !== 'Walk-in Customer' ? customerName : '____________________';
@@ -297,7 +296,7 @@ export const NewDesignThermalReceipt80mm = React.forwardRef<
       >
         <span>Total Qty: {totalQty}</span>
         <span style={{ textAlign: 'center' }}>Sub Total</span>
-        <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtDec(netSubTotal)}</span>
+        <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtDec(subTotal)}</span>
       </div>
 
       {discount > 0 && (

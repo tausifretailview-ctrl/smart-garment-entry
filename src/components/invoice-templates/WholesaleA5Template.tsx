@@ -377,6 +377,12 @@ export const WholesaleA5Template: React.FC<WholesaleA5TemplateProps> = ({
                     <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>OTHER CHARGE</td>
                     <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>0.00</td>
                   </tr>
+                  {(saleReturnAdjust ?? 0) > 0 && (
+                    <tr>
+                      <td style={{ border: cellBorder, padding: '1mm 2mm', fontWeight: 700 }}>S/R ADJUST</td>
+                      <td style={{ border: cellBorder, padding: '1mm 2mm', textAlign: 'right' }}>-{fmt(saleReturnAdjust ?? 0, amountWithDecimal)}</td>
+                    </tr>
+                  )}
                   <tr style={{ background: '#e8e8e8' }}>
                     <td style={{ border: cellBorder, padding: '1.5mm 2mm', fontWeight: 900, fontSize: '9pt' }}>GRAND TOTAL</td>
                     <td style={{ border: cellBorder, padding: '1.5mm 2mm', textAlign: 'right', fontWeight: 900, fontSize: '9pt' }}>{fmt(grandTotal, amountWithDecimal)}</td>

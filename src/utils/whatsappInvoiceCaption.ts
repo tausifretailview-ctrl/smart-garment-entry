@@ -56,7 +56,21 @@ function oneLine(value: unknown): string {
 }
 
 /** Placeholders that sit on their own line; the whole line is removed when empty. */
-const OPTIONAL_LINE_PLACEHOLDERS = ["organization_address", "organization_phone"] as const;
+const OPTIONAL_LINE_PLACEHOLDERS = ["organization_address", "organization_phone", "cn_adjusted"] as const;
+
+/**
+ * A bill that redeemed a credit note says so under the Amount line, even in a
+ * shop's own template that has no {cn_adjusted}: otherwise the customer reads
+ * the full bill amount with no sign of the ₹3,600 CN taken off it.
+ */
+function withCnAdjustedLine(templateText: string, cnAdjusted: string): string {
+  if (!cnAdjusted || /\{cn_adjusted\}/i.test(templateText)) return templateText;
+  const lines = templateText.split("\n");
+  const amountLine = lines.findIndex((line) => /\{amount\}/i.test(line));
+  if (amountLine < 0) return templateText;
+  lines.splice(amountLine + 1, 0, "🔁 *CN Adjusted:* {cn_adjusted}");
+  return lines.join("\n");
+}
 
 function dropEmptyPlaceholderLines(message: string, values: Record<string, string>): string {
   let out = message;
@@ -80,7 +94,10 @@ export function applyWhatsAppTemplatePlaceholders(
 ): string {
   const netAmount = Number(saleData.net_amount ?? saleData.amount ?? 0);
   const paidAmount = Number(saleData.paid_amount ?? 0);
-  const outstanding = Number(saleData.outstanding_amount ?? saleData.balance ?? netAmount - paidAmount);
+  // Credit note / S/R redeemed on this bill: not paid, but not pending either.
+  const cnAdjusted = Math.max(0, Number(saleData.sale_return_adjust ?? 0) || 0);
+  const pending = Math.max(0, netAmount - paidAmount - cnAdjusted);
+  const outstanding = Number(saleData.outstanding_amount ?? saleData.balance ?? pending);
 
   const placeholders: Record<string, string> = {
     customer_name: String(saleData.customer_name || "Customer"),
@@ -93,13 +110,17 @@ export function applyWhatsAppTemplatePlaceholders(
     organization_phone: oneLine(saleData.organization_phone),
     outstanding_amount: formatInr(outstanding),
     paid_amount: formatInr(paidAmount),
-    pending_amount: formatInr(netAmount - paidAmount),
+    pending_amount: formatInr(pending),
+    cn_adjusted: cnAdjusted > 0.005 ? formatInr(cnAdjusted) : "",
     invoice_link: String(saleData.invoice_link || ""),
     invoice_items: String(saleData.invoice_items || ""),
     customer_page_link: String(saleData.customer_page_link || ""),
   };
 
-  let message = dropEmptyPlaceholderLines(templateText, placeholders);
+  let message = dropEmptyPlaceholderLines(
+    withCnAdjustedLine(templateText, placeholders.cn_adjusted),
+    placeholders,
+  );
   for (const [key, value] of Object.entries(placeholders)) {
     message = replacePlaceholder(message, key, value);
   }
