@@ -31,6 +31,9 @@ const LazyFloatingWhatsAppInbox = lazy(() =>
 const LazyWhatsAppMessageNotifier = lazy(() =>
   import("@/components/WhatsAppMessageNotifier").then((m) => ({ default: m.WhatsAppMessageNotifier })),
 );
+const LazyStorefrontEnquiryNotifier = lazy(() =>
+  import("@/components/StorefrontEnquiryNotifier").then((m) => ({ default: m.StorefrontEnquiryNotifier })),
+);
 const LazyPOSFloatingChat = lazy(() => import("@/components/POSFloatingChat"));
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
@@ -407,6 +410,7 @@ const POSLayoutContent = ({ children }: POSLayoutProps) => {
         <PwaInstallBanner />
         <Suspense fallback={null}>
           <LazyWhatsAppMessageNotifier />
+          <LazyStorefrontEnquiryNotifier />
         </Suspense>
         <div className="hidden lg:contents">
           <Suspense fallback={null}>

@@ -53,24 +53,35 @@ const PROMISES: { title: string; body: string; Icon: () => JSX.Element }[] = [
   { title: "Easy shopping", body: "UPI · 7-day exchange*.", Icon: PromiseShieldIcon },
 ];
 
+const IMG = "/ella-noor/";
+
 const HERO_COPY = [
   {
-    kicker: "In studio now",
-    title: "Everyday chikankari,",
-    titleEm: "festive formals.",
-    body: "Hand-finished in our atelier. In stock now.",
-    cta: "Shop ready to wear",
-    target: "ready",
-    photo: "/ella-noor/formal-stripe.jpg",
+    kicker: "Bridal couture 2026",
+    title: "Heirloom ivory,",
+    titleEm: "hand-worked in gold.",
+    body: "Zardozi and pearl work, finished by hand in our atelier.",
+    cta: "Explore bridal",
+    target: "bridal",
+    photo: `${IMG}ella-bridal-ivory.jpg`,
   },
   {
-    kicker: "Festive 2026",
-    title: "Organza, pearl work,",
-    titleEm: "and a little shine.",
-    body: "Hand-finished occasion wear. Ships in 48 hours.",
+    kicker: "The festive edit",
+    title: "Blush tulle,",
+    titleEm: "and candlelight.",
+    body: "Occasion wear in soft florals and antique gold.",
     cta: "Explore formals",
     target: "formals",
-    photo: "/ella-noor/formal-ivory.jpg",
+    photo: `${IMG}ella-bridal-blush.jpg`,
+  },
+  {
+    kicker: "In studio now",
+    title: "Silk and sequin,",
+    titleEm: "ready this week.",
+    body: "Hand-finished pieces in stock. Dispatch in 48 hours.",
+    cta: "Shop ready to wear",
+    target: "ready",
+    photo: `${IMG}ella-festive-blue.jpg`,
   },
   {
     kicker: "Made for you",
@@ -79,17 +90,49 @@ const HERO_COPY = [
     body: "Cut to your fit. A 30% advance reserves your slot.",
     cta: "Start your order",
     target: "made-to-order",
-    photo: "/ella-noor/formal-floral.jpg",
+    photo: `${IMG}ella-bridal-midnight.jpg`,
+  },
+  {
+    kicker: "Occasion wear",
+    title: "A twirl of",
+    titleEm: "rose and gold.",
+    body: "Flared silhouettes for mehendi, sangeet and every night after.",
+    cta: "Explore formals",
+    target: "formals",
+    photo: `${IMG}ella-bridal-mauve.jpg`,
   },
 ];
 
-const SLIDE_MS = 5200;
+const SLIDE_MS = 6000;
 
 const CATEGORY_TILES = [
-  { id: "ready", label: "Ready to wear", photo: "/ella-noor/ready-blue.jpg" },
-  { id: "formals", label: "Formals", photo: "/ella-noor/formal-print.jpg" },
-  { id: "bridal", label: "Bridal", photo: "/ella-noor/bridal-red.jpg" },
-  { id: "made-to-order", label: "Made to order", photo: "/ella-noor/atelier-rose.jpg" },
+  { id: "ready", label: "Ready to wear", photo: `${IMG}ella-festive-mint.jpg` },
+  { id: "formals", label: "Formals", photo: `${IMG}ella-festive-noir.jpg` },
+  { id: "bridal", label: "Bridal", photo: `${IMG}ella-bridal-teal.jpg` },
+  { id: "made-to-order", label: "Made to order", photo: `${IMG}ella-bridal-gold.jpg` },
+];
+
+/** Editorial rail under the categories: every campaign photo, each one a way into the shop. */
+const LOOKBOOK = [
+  { photo: `${IMG}ella-bridal-gold.jpg`, title: "Antique gold", note: "Bridal", target: "bridal" },
+  { photo: `${IMG}ella-festive-noir.jpg`, title: "Noir florals", note: "Festive", target: "formals" },
+  { photo: `${IMG}ella-bridal-teal.jpg`, title: "Sea-glass jaal", note: "Bridal", target: "bridal" },
+  { photo: `${IMG}ella-lawn-print.jpg`, title: "Garden print", note: "Ready to wear", target: "ready" },
+  { photo: `${IMG}ella-bridal-midnight.jpg`, title: "Midnight zardozi", note: "Made to order", target: "made-to-order" },
+  { photo: `${IMG}ella-festive-mint.jpg`, title: "Mint silk", note: "Ready to wear", target: "ready" },
+  { photo: `${IMG}ella-bridal-blush.jpg`, title: "Blush tulle", note: "Festive", target: "formals" },
+  { photo: `${IMG}ella-bridal-mauve.jpg`, title: "Rose twirl", note: "Festive", target: "formals" },
+  { photo: `${IMG}ella-festive-blue.jpg`, title: "Dusk blue", note: "Ready to wear", target: "ready" },
+  { photo: `${IMG}ella-bridal-ivory.jpg`, title: "Heirloom ivory", note: "Bridal", target: "bridal" },
+];
+
+const MARQUEE = [
+  "Hand-worked zardozi",
+  "Made to your measurements",
+  "Free shipping across India",
+  "Pay securely by UPI",
+  "Studio visits by appointment",
+  "Seven-day exchange",
 ];
 
 const STEPS = [
@@ -193,26 +236,69 @@ function PromiseShieldIcon() {
 function ProductCard({
   product,
   onOpen,
+  reveal = true,
 }: {
   product: EllaStorefrontProduct;
   onOpen: (p: EllaStorefrontProduct) => void;
+  /** Scroll-reveal; off in the search overlay, which the reveal observer does not watch. */
+  reveal?: boolean;
 }) {
   const image = product.images[0];
+  const alt = product.images[1];
   return (
-    <button type="button" className="en-card" onClick={() => onOpen(product)}>
-      <span className="en-card-media">
+    <button type="button" className="en-card" data-reveal={reveal ? "" : undefined} onClick={() => onOpen(product)}>
+      <span className={`en-card-media${alt ? " en-card-media-alt" : ""}`}>
         {image ? (
-          <img src={image} alt={product.name} loading="lazy" />
+          <img src={image} alt={product.name} loading="lazy" decoding="async" />
         ) : (
           <span className="en-empty">Photo coming soon</span>
         )}
+        {alt ? <img className="en-card-alt" src={alt} alt="" loading="lazy" decoding="async" aria-hidden="true" /> : null}
         {product.madeToOrder ? <span className="en-flag">Made to order</span> : null}
+        <span className="en-card-quick" aria-hidden="true">
+          View piece
+        </span>
       </span>
       <span className="en-card-code">{product.code}</span>
       <span className="en-card-name">{product.name}</span>
       <span className="en-card-price">{product.priceLabel}</span>
     </button>
   );
+}
+
+/**
+ * Fade-and-rise on scroll for anything marked data-reveal. Elements that are
+ * already on screen (or every element, when motion is reduced or the browser
+ * lacks IntersectionObserver) are shown at once, so nothing can stay hidden.
+ */
+function useEllaReveal(rootRef: React.RefObject<HTMLElement>, deps: unknown[]) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]:not([data-in])"));
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || typeof IntersectionObserver === "undefined") {
+      nodes.forEach((n) => n.setAttribute("data-in", ""));
+      return;
+    }
+    root.classList.add("en-motion");
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.setAttribute("data-in", "");
+          io.unobserve(entry.target);
+        });
+      },
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 },
+    );
+    nodes.forEach((n, i) => {
+      n.style.setProperty("--en-delay", `${(i % 4) * 70}ms`);
+      io.observe(n);
+    });
+    return () => io.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
 }
 
 export function EllaStorefrontHome({
@@ -238,6 +324,8 @@ export function EllaStorefrontHome({
   const [query, setQuery] = useState("");
   const [slide, setSlide] = useState(0);
   const gridRef = useRef<HTMLDivElement | null>(null);
+  const homeRef = useRef<HTMLDivElement | null>(null);
+  const [scrolled, setScrolled] = useState(false);
   const heldRef = useRef(false);
   const touchXRef = useRef(0);
 
@@ -254,6 +342,13 @@ export function EllaStorefrontHome({
 
   const onHome = isEllaHomeNav(active);
 
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   const visible = useMemo(() => {
     const base: EllaFilterState = {
       ...filters,
@@ -264,6 +359,8 @@ export function EllaStorefrontHome({
     const list = applyEllaFilters(products, base);
     return active.availability === "made-to-order" ? list.filter((p) => p.madeToOrder) : list;
   }, [products, filters, active, onHome]);
+
+  useEllaReveal(homeRef, [onHome, active.id, visible]);
 
   const searchResults = useMemo(() => {
     const q = query.trim();
@@ -317,13 +414,13 @@ export function EllaStorefrontHome({
   }));
 
   return (
-    <div className="en-home">
+    <div className="en-home" ref={homeRef}>
       <div className="en-announce">
         <i />
         <span>Live studio inventory · dispatch in 48 hours</span>
       </div>
 
-      <header className="en-header">
+      <header className={`en-header${scrolled ? " en-header-scrolled" : ""}`}>
         <div className="en-header-row">
           <button type="button" className="en-icon en-burger" aria-label="Menu" onClick={() => setMenuOpen(true)}>
             <span />
@@ -446,6 +543,7 @@ export function EllaStorefrontHome({
                 <ProductCard
                   key={p.id}
                   product={p}
+                  reveal={false}
                   onOpen={(product) => {
                     setSearchOpen(false);
                     onOpenProduct(product);
@@ -459,7 +557,15 @@ export function EllaStorefrontHome({
 
       {onHome ? (
         <>
-          <section className="en-slider">
+          <section
+            className="en-slider"
+            onMouseEnter={() => {
+              heldRef.current = true;
+            }}
+            onMouseLeave={() => {
+              heldRef.current = false;
+            }}
+          >
             <div
               className="en-slider-track"
               style={{ transform: `translate3d(${-100 * slide}%, 0, 0)` }}
@@ -467,8 +573,22 @@ export function EllaStorefrontHome({
               onTouchEnd={onTouchEnd}
             >
               {heroSlides.map((s, i) => (
-                <div className="en-slide" key={s.kicker}>
-                  {s.photo ? <img src={s.photo} alt="" loading={i === 0 ? "eager" : "lazy"} /> : null}
+                <div
+                  className={`en-slide${i === slide ? " is-active" : ""}`}
+                  key={s.kicker}
+                  aria-hidden={i !== slide}
+                >
+                  {s.photo ? (
+                    <>
+                      <img className="en-slide-bg" src={s.photo} alt="" aria-hidden="true" loading={i === 0 ? "eager" : "lazy"} />
+                      <img
+                        className="en-slide-photo"
+                        src={s.photo}
+                        alt={`${s.title} ${s.titleEm}`}
+                        loading={i === 0 ? "eager" : "lazy"}
+                      />
+                    </>
+                  ) : null}
                   <span className="en-slide-scrim" />
                   <div className="en-slide-copy">
                     <span className="en-slide-kicker">{s.kicker}</span>
@@ -478,8 +598,9 @@ export function EllaStorefrontHome({
                       <em>{s.titleEm}</em>
                     </h1>
                     <p>{s.body}</p>
-                    <button type="button" className="en-btn en-btn-hero" onClick={s.go}>
+                    <button type="button" className="en-btn en-btn-hero" onClick={s.go} tabIndex={i === slide ? 0 : -1}>
                       {s.cta}
+                      <ArrowIcon />
                     </button>
                   </div>
                 </div>
@@ -495,7 +616,9 @@ export function EllaStorefrontHome({
                   aria-label={`Slide ${i + 1}`}
                   aria-current={i === slide}
                   onClick={() => setSlide(i)}
-                />
+                >
+                  {i === slide ? <span className="en-dot-fill" style={{ animationDuration: `${SLIDE_MS}ms` }} /> : null}
+                </button>
               ))}
             </div>
 
@@ -520,10 +643,25 @@ export function EllaStorefrontHome({
             </button>
           </section>
 
+          <div className="en-marquee" aria-hidden="true">
+            <div className="en-marquee-track">
+              {[0, 1].map((copy) => (
+                <span className="en-marquee-group" key={copy}>
+                  {MARQUEE.map((item) => (
+                    <span key={item}>
+                      {item}
+                      <i>✦</i>
+                    </span>
+                  ))}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <section className="en-wrap">
             <div className="en-promises">
               {PROMISES.map(({ title, body, Icon }) => (
-                <div className="en-promise" key={title}>
+                <div className="en-promise" key={title} data-reveal="">
                   <span className="en-promise-icon" aria-hidden="true">
                     <Icon />
                   </span>
@@ -535,8 +673,11 @@ export function EllaStorefrontHome({
           </section>
 
           <section className="en-wrap en-section">
-            <div className="en-section-head">
-              <h2>Shop by category</h2>
+            <div className="en-section-head" data-reveal="">
+              <div>
+                <span className="en-eyebrow">The collections</span>
+                <h2>Shop by category</h2>
+              </div>
             </div>
             <div className="en-tiles">
               {CATEGORY_TILES.map((tile) => {
@@ -546,6 +687,7 @@ export function EllaStorefrontHome({
                     key={tile.id}
                     type="button"
                     className="en-tile"
+                    data-reveal=""
                     onClick={() => (tile.id === "made-to-order" ? onOpenGeneralEnquire() : select(byId(tile.id)))}
                   >
                     {photo ? <img src={photo} alt="" loading="lazy" /> : <span className="en-empty">Photo</span>}
@@ -559,12 +701,41 @@ export function EllaStorefrontHome({
               })}
             </div>
           </section>
+
+          <section className="en-section en-lookbook">
+            <div className="en-wrap en-section-head" data-reveal="">
+              <div>
+                <span className="en-eyebrow">Lookbook</span>
+                <h2>The festive &amp; bridal edit</h2>
+              </div>
+              <span className="en-lookbook-hint">Swipe to explore</span>
+            </div>
+            <div className="en-lookbook-rail">
+              {LOOKBOOK.map((look) => (
+                <button
+                  key={look.photo}
+                  type="button"
+                  className="en-look"
+                  onClick={() => (look.target === "made-to-order" ? onOpenGeneralEnquire() : select(byId(look.target)))}
+                >
+                  <span className="en-look-media">
+                    <img src={look.photo} alt={look.title} loading="lazy" decoding="async" />
+                  </span>
+                  <span className="en-look-note">{look.note}</span>
+                  <span className="en-look-title">{look.title}</span>
+                </button>
+              ))}
+            </div>
+          </section>
         </>
       ) : null}
 
       <section className="en-wrap en-section" ref={gridRef}>
-        <div className="en-section-head">
-          <h2>{onHome ? "New in" : active.title}</h2>
+        <div className="en-section-head" data-reveal="">
+          <div>
+            {onHome ? <span className="en-eyebrow">Fresh from the atelier</span> : null}
+            <h2>{onHome ? "New in" : active.title}</h2>
+          </div>
           {onHome ? (
             <button type="button" className="en-linkbtn" onClick={() => select(byId("new-in"))}>
               View all pieces
@@ -620,9 +791,9 @@ export function EllaStorefrontHome({
         <>
           <section className="en-wrap en-section">
             <div className="en-cols">
-              <div className="en-col">
+              <div className="en-col" data-reveal="">
                 <div className="en-figure">
-                  <img src="/ella-noor/ready-blue.jpg" alt="Ready to wear" />
+                  <img src={`${IMG}ella-festive-blue.jpg`} alt="Ready to wear" loading="lazy" decoding="async" />
                 </div>
                 <h3>Ready to wear</h3>
                 <p>Made beautifully. Ready to go.</p>
@@ -630,9 +801,9 @@ export function EllaStorefrontHome({
                   Shop ready to wear
                 </button>
               </div>
-              <div className="en-col">
+              <div className="en-col" data-reveal="">
                 <div className="en-figure">
-                  <img src="/ella-noor/formal-print.jpg" alt="Formals" />
+                  <img src={`${IMG}ella-lawn-print.jpg`} alt="Formals" loading="lazy" decoding="async" />
                 </div>
                 <h3>Formals</h3>
                 <p>Statement silhouettes for special occasions.</p>
@@ -640,9 +811,9 @@ export function EllaStorefrontHome({
                   Explore formals
                 </button>
               </div>
-              <div className="en-col">
+              <div className="en-col" data-reveal="">
                 <div className="en-figure">
-                  <img src="/ella-noor/atelier-rose.jpg" alt="Made to order" />
+                  <img src={`${IMG}ella-bridal-mauve.jpg`} alt="Made to order" loading="lazy" decoding="async" />
                 </div>
                 <h3>Made to order</h3>
                 <p>Your measurements. Our craftsmanship.</p>
@@ -653,8 +824,28 @@ export function EllaStorefrontHome({
             </div>
           </section>
 
+          <section className="en-section">
+            <div className="en-banner" data-reveal="">
+              <img src={`${IMG}ella-bridal-teal.jpg`} alt="" aria-hidden="true" loading="lazy" decoding="async" className="en-banner-bg" />
+              <img src={`${IMG}ella-bridal-teal.jpg`} alt="Bridal couture" loading="lazy" decoding="async" className="en-banner-photo" />
+              <div className="en-banner-copy">
+                <span className="en-eyebrow">Bridal appointments</span>
+                <h2>
+                  Your wedding look,
+                  <br />
+                  <em>made by hand.</em>
+                </h2>
+                <p>Book a private studio visit. We sketch, measure and fit with you, from the first swatch to the final trial.</p>
+                <button type="button" className="en-btn en-btn-hero" onClick={onOpenGeneralEnquire}>
+                  Book a studio visit
+                  <ArrowIcon />
+                </button>
+              </div>
+            </div>
+          </section>
+
           <section className="en-wrap en-section">
-            <div className="en-split">
+            <div className="en-split" data-reveal="">
               <div className="en-hero-copy" style={{ padding: 0, gap: 14 }}>
                 <span className="en-eyebrow">Made for you</span>
                 <h2 style={{ margin: 0, fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 600, lineHeight: 1.08 }}>

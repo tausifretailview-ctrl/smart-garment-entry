@@ -9,6 +9,7 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
+import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
@@ -70,6 +71,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
             </div>
 
             <WhatsAppMessageNotifier />
+            <StorefrontEnquiryNotifier />
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />
