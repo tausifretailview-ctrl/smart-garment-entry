@@ -277,7 +277,9 @@ export async function runHistoricalAccountingBackfill(
       try {
         const net = Number(row.net_amount ?? 0);
         const refundType = String(row.refund_type ?? "credit_note");
-        if (net <= 0 || refundType.toLowerCase().trim() === "exchange") {
+        // Exchange returns go through the builder too: it journals those created after the
+        // return-credit cutover and skips older ones (their bill's S/R adjust carried them).
+        if (net <= 0) {
           await client
             .from("sale_returns")
             .update({ journal_status: "posted", journal_error: null })

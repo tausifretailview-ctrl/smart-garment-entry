@@ -7,6 +7,7 @@ import {
 } from "@/utils/accounting/accountingTypes";
 import { mergeJournalLines } from "@/utils/accounting/journalLineUtils";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { isOnOrAfterReturnCreditCutover } from "@/utils/accounting/saleJournalMath";
 import { seedDefaultAccounts, type SeededAccount } from "@/utils/accounting/seedDefaultAccounts";
 import {
   buildPurchaseJournalV2,
@@ -637,7 +638,12 @@ export async function recordCustomerAdvanceRefundJournalEntry(
 }
 
 /**
- * Credit note applied to reduce invoice/customer balance (`payment_method` credit_note_adjustment): DR Sales Returns, CR AR.
+ * Credit note applied to reduce invoice/customer balance (`payment_method` credit_note_adjustment).
+ *
+ * The return that issued the credit note already posted DR Sales Returns, CR Receivable, so
+ * applying it to a bill only matches the customer's credit against the bill and needs no
+ * journal. Vouchers created before the cutover keep the old DR Sales Returns, CR Receivable
+ * entry so a restore or backfill reproduces what was posted then.
  */
 export async function recordCustomerCreditNoteApplicationJournalEntry(
   voucherEntryId: string,
@@ -652,6 +658,16 @@ export async function recordCustomerCreditNoteApplicationJournalEntry(
 
   const net = round2(amount);
   if (net <= 0) return null;
+
+  const { data: voucher, error: voucherErr } = await client
+    .from("voucher_entries")
+    .select("created_at")
+    .eq("id", voucherEntryId)
+    .maybeSingle();
+  if (voucherErr) throw voucherErr;
+  if (isOnOrAfterReturnCreditCutover((voucher as { created_at?: string | null } | null)?.created_at)) {
+    return null;
+  }
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const returnsAccount = getAccountByCode(systemAccounts, "4050");
@@ -809,6 +825,8 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   }
 
   if (vt === "receipt" && (rt === "customer" || rt === "sale")) {
+    // The bill's counter tender written as a voucher: the Sale journal already booked that cash.
+    if (rt === "sale" && /^counter payment received for sale/i.test(desc.trim())) return;
     if (pm === "advance_adjustment") {
       await recordCustomerAdvanceApplicationJournalEntry(voucherId, orgId, amt, vDate, desc, client);
       return;
