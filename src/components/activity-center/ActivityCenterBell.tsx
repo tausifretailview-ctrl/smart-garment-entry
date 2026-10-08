@@ -1,21 +1,14 @@
-import { lazy, Suspense } from "react";
 import { Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useActivityCenter } from "@/contexts/ActivityCenterContext";
+// Bundled with the header, not lazy: a lazy chunk that never finished loading
+// (stale PWA cache after a deploy, flaky network) left the panel on "Loading…"
+// with no retry. The panel is small and its data still loads on first open.
+import { ActivityCenterPanel } from "@/components/activity-center/ActivityCenterPanel";
 
-const ActivityCenterPanel = lazy(() =>
-  import("@/components/activity-center/ActivityCenterPanel").then((m) => ({
-    default: m.ActivityCenterPanel,
-  })),
-);
-
-const prefetchActivityCenterPanel = () => {
-  void import("@/components/activity-center/ActivityCenterPanel");
-};
-
-/** Bell trigger in the header; panel chunk loads on first open. */
+/** Bell trigger in the header; panel mounts (and fetches) on first open. */
 export function ActivityCenterBell() {
   const {
     open,
@@ -30,10 +23,7 @@ export function ActivityCenterBell() {
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next) {
-          prefetchActivityCenterPanel();
-          requestPanelMount();
-        }
+        if (next) requestPanelMount();
         setOpen(next);
       }}
     >
@@ -42,8 +32,6 @@ export function ActivityCenterBell() {
           ref={triggerRef}
           variant="ghost"
           size="icon"
-          onMouseEnter={prefetchActivityCenterPanel}
-          onFocus={prefetchActivityCenterPanel}
           className={cn(
             "erp-no-drag relative h-8 w-8 text-[var(--erp-chrome-ink-dim)] hover:text-white hover:bg-white/10",
             open && "bg-white/12 text-white",
@@ -67,15 +55,7 @@ export function ActivityCenterBell() {
         className="w-[min(480px,calc(100vw-1.5rem))] p-0 shadow-xl z-[95]"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        {panelMounted ? (
-          <Suspense
-            fallback={
-              <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
-            }
-          >
-            <ActivityCenterPanel />
-          </Suspense>
-        ) : null}
+        {panelMounted ? <ActivityCenterPanel /> : null}
       </PopoverContent>
     </Popover>
   );
