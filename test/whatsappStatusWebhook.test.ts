@@ -60,3 +60,26 @@ describe("parseProviderStatusWebhook", () => {
     ).toBe(true);
   });
 });
+
+describe("rejected delivery statuses", () => {
+  it("maps WappConnect 'rejected' to failed with a readable reason", () => {
+    expect(
+      parseProviderStatusWebhook({
+        event: "message.status",
+        data: { message_id: "vcuzesp7e", status: "rejected" },
+      }),
+    ).toEqual({ messageId: "vcuzesp7e", status: "failed", timestampIso: undefined, errorMessage: "Message rejected" });
+  });
+
+  it("maps flat 'message rejected' status and keeps provider error text", () => {
+    expect(
+      parseProviderStatusWebhook({ message_id: "h74vs2i30", status: "Message Rejected", error: "number not on WhatsApp" }),
+    ).toEqual({ messageId: "h74vs2i30", status: "failed", errorMessage: "number not on WhatsApp" });
+  });
+
+  it("maps BSP status-only 'rejected' to failed", () => {
+    expect(
+      parseProviderStatusWebhook({ messaging_channel: "whatsapp", message: { queue_id: "Q1", message_status: "rejected" } }),
+    ).toEqual({ messageId: "Q1", status: "failed", errorMessage: "Message rejected" });
+  });
+});
