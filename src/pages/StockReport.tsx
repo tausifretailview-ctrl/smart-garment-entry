@@ -896,11 +896,15 @@ export default function StockReport() {
   const stockReportHasFilters =
     !!searchTerm.trim() || hasDropdownOrPinFilters;
 
+  /** All Stock tab browses the whole catalogue one server page at a time even with no
+   *  filters ("All Products"). Size-wise fetches the full match set, so it still needs a filter. */
+  const allowUnfilteredLoad = activeTab === "all";
+
   const fetchStockReportPage = useCallback(
     async (page: number, searchForFetch?: string) => {
       if (!currentOrganization?.id) return;
       const activeSearch = (searchForFetch ?? appliedSearchTerm).trim();
-      const canFetch = !!activeSearch || hasDropdownOrPinFilters;
+      const canFetch = !!activeSearch || hasDropdownOrPinFilters || allowUnfilteredLoad;
       if (!canFetch) return;
 
       const requestId = ++searchRequestIdRef.current;
@@ -1101,6 +1105,7 @@ export default function StockReport() {
     [
       currentOrganization?.id,
       hasDropdownOrPinFilters,
+      allowUnfilteredLoad,
       activeTab,
       appliedSearchTerm,
       productNameFilter,
@@ -1122,12 +1127,12 @@ export default function StockReport() {
   const handleSearch = useCallback(async () => {
     const nextApplied = searchTerm.trim();
     setAppliedSearchTerm(nextApplied);
-    const canFetch = !!nextApplied || hasDropdownOrPinFilters;
+    const canFetch = !!nextApplied || hasDropdownOrPinFilters || allowUnfilteredLoad;
     if (!canFetch) return;
     setHasSearched(true);
     setCurrentPage(1);
     await fetchStockReportPage(1, nextApplied);
-  }, [searchTerm, hasDropdownOrPinFilters, fetchStockReportPage]);
+  }, [searchTerm, hasDropdownOrPinFilters, allowUnfilteredLoad, fetchStockReportPage]);
 
   const autoSearchTrigger = useMemo(
     () =>
@@ -1245,16 +1250,18 @@ export default function StockReport() {
   });
 
   // Auto-load when dropdown / pinned filters change (text/barcode search uses Search or Enter).
+  // With no filters the All Stock tab loads page 1 of the whole catalogue.
   useEffect(() => {
     if (!filtersReady || !currentOrganization?.id) return;
 
     if (!hasDropdownOrPinFilters) {
-      if (!appliedSearchTerm.trim()) {
+      if (appliedSearchTerm.trim()) return;
+      if (!allowUnfilteredLoad) {
         setHasSearched(false);
         setStockItems([]);
         setServerTotalRows(0);
+        return;
       }
-      return;
     }
 
     setHasSearched(true);
@@ -1265,6 +1272,7 @@ export default function StockReport() {
     currentOrganization?.id,
     autoSearchTrigger,
     hasDropdownOrPinFilters,
+    allowUnfilteredLoad,
     appliedSearchTerm,
     fetchStockReportPage,
   ]);
@@ -1426,6 +1434,9 @@ export default function StockReport() {
 
   const footerIsPageTotal = hasSearched && serverTotalRows > ITEMS_PER_PAGE;
 
+  /** Browsing all stock (no filter/search): summary cards keep the org-wide totals. */
+  const showFilteredKpis = hasSearched && stockReportFetchHasFilters;
+
   const filteredKpiTotals = useMemo(() => {
     if (!hasSearched) return null;
     if (hasClientOnlyFilters) {
@@ -1449,7 +1460,7 @@ export default function StockReport() {
   ]);
 
   const filteredKpiLoading =
-    hasSearched &&
+    showFilteredKpis &&
     !hasClientOnlyFilters &&
     (filteredTotalsLoading || filteredTotalsFetching) &&
     !filteredTotals;
@@ -1869,26 +1880,26 @@ export default function StockReport() {
   const isMobile = useIsMobile();
 
   const stockKpiItems = useMemo((): ReportKpiItem[] => {
-    const qty = hasSearched
+    const qty = showFilteredKpis
       ? (filteredKpiTotals?.totalStock ?? totalStock)
       : globalTotals.totalStock;
-    const variants = hasSearched ? matchingVariantCount : globalTotals.variantCount;
+    const variants = showFilteredKpis ? matchingVariantCount : globalTotals.variantCount;
     const costVal = Math.round(
-      hasSearched
+      showFilteredKpis
         ? (filteredKpiTotals?.stockValue ?? totalStockValue)
         : globalTotals.stockValue,
     );
     const saleVal = Math.round(
-      hasSearched
+      showFilteredKpis
         ? (filteredKpiTotals?.saleValue ?? totalSaleValue)
         : globalTotals.saleValue,
     );
     const loading =
-      (globalTotals.isLoading && !hasSearched) || filteredKpiLoading;
+      (globalTotals.isLoading && !showFilteredKpis) || filteredKpiLoading;
 
     return [
       {
-        label: hasSearched ? "Filtered Stock" : "Total Stock",
+        label: showFilteredKpis ? "Filtered Stock" : "Total Stock",
         value: loading ? "…" : qty.toLocaleString("en-IN"),
         sub: `${variants} variants`,
         gradient: "bg-gradient-to-br from-blue-500 to-blue-600",
@@ -1910,7 +1921,7 @@ export default function StockReport() {
       },
     ];
   }, [
-    hasSearched,
+    showFilteredKpis,
     totalStock,
     globalTotals,
     matchingVariantCount,
@@ -1921,7 +1932,7 @@ export default function StockReport() {
   ]);
 
   const kpiStripLoading =
-    (globalTotals.isLoading && !hasSearched) || (hasSearched && filteredKpiLoading);
+    (globalTotals.isLoading && !showFilteredKpis) || (showFilteredKpis && filteredKpiLoading);
 
   const compactStockKpiStrip = kpiStripLoading ? (
     <SkeletonGradientKpiStrip count={3} />
@@ -1961,13 +1972,13 @@ export default function StockReport() {
         </div>
 
         <MobileStatStrip stats={[
-          { label: "Stock Value", value: (filteredKpiLoading || (globalTotals.isLoading && !hasSearched)) ? "…" : `₹${((hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue) >= 100000 ? ((hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(hasSearched ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue).toLocaleString("en-IN"))}`, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Total Qty", value: (filteredKpiLoading || (globalTotals.isLoading && !hasSearched)) ? "…" : (hasSearched ? (filteredKpiTotals?.totalStock ?? totalStock) : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Variants", value: (globalTotals.isLoading && !hasSearched) ? "…" : (hasSearched ? `${matchingVariantCount}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
+          { label: "Stock Value", value: (filteredKpiLoading || (globalTotals.isLoading && !showFilteredKpis)) ? "…" : `₹${((showFilteredKpis ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue) >= 100000 ? ((showFilteredKpis ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue)/100000).toFixed(1)+"L" : Math.round(showFilteredKpis ? (filteredKpiTotals?.stockValue ?? totalStockValue) : globalTotals.stockValue).toLocaleString("en-IN"))}`, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "Total Qty", value: (filteredKpiLoading || (globalTotals.isLoading && !showFilteredKpis)) ? "…" : (showFilteredKpis ? (filteredKpiTotals?.totalStock ?? totalStock) : globalTotals.totalStock).toLocaleString("en-IN"), color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Variants", value: (globalTotals.isLoading && !showFilteredKpis) ? "…" : (showFilteredKpis ? `${matchingVariantCount}` : `${globalTotals.variantCount}`), color: "text-purple-600", bg: "bg-purple-50" },
         ]} />
 
         <div className="flex-1 px-4 py-2 space-y-2">
-          {!hasSearched ? (
+          {!hasSearched && !allowUnfilteredLoad ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
               <Search className="h-12 w-12 mb-3 opacity-30" />
               <p className="text-sm font-medium">{searchTerm.length > 0 ? 'Tap Search to view results' : 'Search to view stock items'}</p>
@@ -1976,7 +1987,7 @@ export default function StockReport() {
                 <Search className="h-4 w-4 mr-2" /> {searchTerm.length > 0 ? 'Search' : 'Search All Stock'}
               </Button>
             </div>
-          ) : loading ? (
+          ) : loading || !hasSearched ? (
             <SkeletonMobileListRows count={6} />
           ) : filteredStockItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
@@ -2015,6 +2026,31 @@ export default function StockReport() {
               </div>
             </div>
           ))}
+          {hasSearched && !loading && activeTab === "all" && serverTotalRows > ITEMS_PER_PAGE && (
+            <div className="flex items-center justify-between gap-2 pt-1 pb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Prev
+              </Button>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                Page {currentPage} of {totalPages} · {serverTotalRows.toLocaleString("en-IN")} variants
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         <MobileBottomNav />
@@ -2146,7 +2182,7 @@ export default function StockReport() {
               size="sm"
               className="h-9 text-sm border-slate-200 gap-1.5"
               onClick={() => {
-                if (hasSearched && filteredStockItems.length > 0) {
+                if (showFilteredKpis && filteredStockItems.length > 0) {
                   activeTab === "sizewise" ? exportSizeWiseToExcel() : exportAllStockToExcel();
                 } else {
                   exportFullStockToExcel();
@@ -2181,7 +2217,7 @@ export default function StockReport() {
             placeholder="Search name, brand, category, style or barcode..."
             className="flex-1"
           />
-          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0)} className="h-10 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
+          <Button onClick={handleSearch} disabled={loading || (!hasActiveFilters && pinnedProducts.length === 0 && !allowUnfilteredLoad)} className="h-10 px-4 text-sm font-semibold bg-blue-600 hover:bg-blue-700 shadow-sm gap-1.5">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Search
           </Button>
@@ -2317,14 +2353,14 @@ export default function StockReport() {
       </Card>
 
       <Card className="rounded-lg border border-slate-200 shadow-sm overflow-hidden p-0 flex-1 min-h-0 flex flex-col print:block">
-        {!hasSearched ? (
+        {!hasSearched && !allowUnfilteredLoad ? (
           <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 p-6 text-center print:hidden">
             <Search className="h-10 w-10 text-muted-foreground/35" />
             <p className="text-base text-muted-foreground max-w-md">
-              Select a <strong>product</strong> or filter above to load stock, or type in the search box and press <strong>Search</strong>.
+              Select a <strong>product</strong> or filter above to load size-wise stock, or type in the search box and press <strong>Search</strong>.
             </p>
           </div>
-        ) : loading ? (
+        ) : loading || !hasSearched ? (
           <div className="flex-1 min-h-0 flex flex-col print:hidden">
             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-slate-100 bg-white shrink-0">
               <div className="flex gap-2">
