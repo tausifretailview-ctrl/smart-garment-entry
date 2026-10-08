@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
-import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
+import { parseStorefrontPath, storefrontHomePath, storefrontHomeUrl, storefrontProductPath } from "@/lib/storefrontPath";
+import { storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import type { PublicStorefrontSection } from "@/lib/websiteSections";
 import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
@@ -83,7 +83,7 @@ export function EllaStorefront({
 
   const cartCount = ellaCartCount(cart);
   const shopName = shop.display_name || shop.name;
-  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const shareUrl = storefrontHomeUrl(orgSlug);
   const studioWa = shop.whatsapp_number
     ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shop.whatsapp_number)
     : null;
