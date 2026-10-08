@@ -490,7 +490,7 @@ export function HeaderMenubar({
             )}
             {hasSpecialPermission("audit_logs") && (
               <MenubarItem {...tabPrefetchProps("audit-log")} onClick={() => orgNavigate("/audit-log")}>
-                Audit Log
+                Activity Log (Audit)
               </MenubarItem>
             )}
             {can("whatsapp_inbox") && (
