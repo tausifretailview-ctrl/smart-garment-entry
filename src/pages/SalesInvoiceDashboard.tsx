@@ -2691,8 +2691,11 @@ export default function SalesInvoiceDashboard() {
     const liveAdvancePromise =
       paymentMode === "advance" && customerIdForChecks
         ? getAvailableAdvanceBalance(customerIdForChecks).then(
-            (balance) => ({ ok: true as const, balance }),
-            (error: unknown) => ({ ok: false as const, error }),
+            (balance): { balance: number; error: unknown } => ({ balance, error: null }),
+            (error: unknown): { balance: number; error: unknown } => ({
+              balance: 0,
+              error: error ?? new Error("advance check failed"),
+            }),
           )
         : null;
     const liveCnPromise =
@@ -2700,8 +2703,11 @@ export default function SalesInvoiceDashboard() {
         ? getAvailableCN(supabase, customerIdForChecks, orgIdForChecks, {
             includeUnlinkedAdjusted: true,
           }).then(
-            (cn) => ({ ok: true as const, cn }),
-            (error: unknown) => ({ ok: false as const, error }),
+            (cn): { cn: Awaited<ReturnType<typeof getAvailableCN>> | null; error: unknown } => ({ cn, error: null }),
+            (error: unknown): { cn: Awaited<ReturnType<typeof getAvailableCN>> | null; error: unknown } => ({
+              cn: null,
+              error: error ?? new Error("CN check failed"),
+            }),
           )
         : null;
 
@@ -2714,7 +2720,7 @@ export default function SalesInvoiceDashboard() {
     // Hard guard: re-verify available advance balance from customer_advances at write time.
     if (liveAdvancePromise) {
       const liveAdvance = await liveAdvancePromise;
-      if (!liveAdvance.ok) {
+      if (liveAdvance.error) {
         console.error("Advance balance check failed:", liveAdvance.error);
         toast({
           title: "Error",
@@ -2737,7 +2743,7 @@ export default function SalesInvoiceDashboard() {
     let liveCnReturns: Awaited<ReturnType<typeof getAvailableCN>>["returns"] = [];
     if (liveCnPromise) {
       const liveCn = await liveCnPromise;
-      if (!liveCn.ok) {
+      if (liveCn.error || !liveCn.cn) {
         console.error("CN balance check failed:", liveCn.error);
         toast({
           title: "Error",
