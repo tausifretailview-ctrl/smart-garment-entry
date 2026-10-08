@@ -183,21 +183,44 @@ export function useSupplierPerformance(
   });
 }
 
+export const slowMovingStockQueryKey = (orgId: string | undefined, daysThreshold: number) =>
+  ["insights-slow-moving-stock", orgId, daysThreshold] as const;
+
+export async function fetchSlowMovingStock(
+  orgId: string,
+  daysThreshold: number,
+): Promise<SlowMovingStockRow[]> {
+  const { data, error } = await supabase.rpc("get_slow_moving_stock", {
+    p_org_id: orgId,
+    p_days_threshold: daysThreshold,
+  });
+  if (error) throw error;
+  return (data ?? []) as SlowMovingStockRow[];
+}
+
+export const lowStockAlertsQueryKey = (orgId: string | undefined, threshold: number) =>
+  ["insights-low-stock-alerts", orgId, threshold] as const;
+
+export async function fetchLowStockAlerts(
+  orgId: string,
+  threshold: number,
+): Promise<LowStockAlertRow[]> {
+  const { data, error } = await supabase.rpc("get_low_stock_alerts", {
+    p_org_id: orgId,
+    p_threshold: threshold,
+  });
+  if (error) throw error;
+  return (data ?? []) as LowStockAlertRow[];
+}
+
 export function useSlowMovingStock(
   orgId: string | undefined,
   daysThreshold: number,
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ["insights-slow-moving-stock", orgId, daysThreshold],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_slow_moving_stock", {
-        p_org_id: orgId!,
-        p_days_threshold: daysThreshold,
-      });
-      if (error) throw error;
-      return (data ?? []) as SlowMovingStockRow[];
-    },
+    queryKey: slowMovingStockQueryKey(orgId, daysThreshold),
+    queryFn: () => fetchSlowMovingStock(orgId!, daysThreshold),
     staleTime: INSIGHTS_STALE_TIME,
     enabled: !!orgId && enabled,
   });
@@ -209,15 +232,8 @@ export function useLowStockAlerts(
   enabled = true,
 ) {
   return useQuery({
-    queryKey: ["insights-low-stock-alerts", orgId, threshold],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_low_stock_alerts", {
-        p_org_id: orgId!,
-        p_threshold: threshold,
-      });
-      if (error) throw error;
-      return (data ?? []) as LowStockAlertRow[];
-    },
+    queryKey: lowStockAlertsQueryKey(orgId, threshold),
+    queryFn: () => fetchLowStockAlerts(orgId!, threshold),
     staleTime: INSIGHTS_STALE_TIME,
     enabled: !!orgId && enabled,
   });

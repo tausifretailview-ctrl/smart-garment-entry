@@ -10,6 +10,7 @@ import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
+import { AlertPopupHost } from "@/components/alert-popups/AlertPopupHost";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
 import { StatusBar } from "@/components/StatusBar";
@@ -72,6 +73,9 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
 
             <WhatsAppMessageNotifier />
             <StorefrontEnquiryNotifier />
+            <IdleMount>
+              <AlertPopupHost />
+            </IdleMount>
             <IdleMount>
               <div className="hidden lg:contents">
                 <FloatingWhatsAppInbox />

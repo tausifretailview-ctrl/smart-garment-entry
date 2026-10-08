@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
@@ -7,7 +7,18 @@ import {
   DollarSign,
   Loader2,
   MessageCircle,
+  Settings2,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  ALERT_POPUP_KINDS,
+  ALERT_POPUP_LABELS,
+  loadAlertPopupPrefs,
+  onAlertPopupPrefsChange,
+  saveAlertPopupPrefs,
+  type AlertPopupPrefs,
+} from "@/lib/alertPopups";
 import { cn } from "@/lib/utils";
 import { useActivityCenter } from "@/contexts/ActivityCenterContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -100,12 +111,50 @@ function ActivityRow({
   );
 }
 
+/** Per-device on/off switches for the small alert pop-ups. */
+function AlertPopupSwitches({ orgId, userId }: { orgId: string; userId: string }) {
+  const [prefs, setPrefs] = useState<AlertPopupPrefs>(() => loadAlertPopupPrefs(orgId, userId));
+
+  useEffect(() => {
+    setPrefs(loadAlertPopupPrefs(orgId, userId));
+    return onAlertPopupPrefsChange(() => setPrefs(loadAlertPopupPrefs(orgId, userId)));
+  }, [orgId, userId]);
+
+  return (
+    <div className="p-3 space-y-1">
+      <p className="text-[12px] text-muted-foreground px-1 pb-2">
+        Small pop-ups at the bottom right (top on phones). Each shows at most once a day and never
+        on POS or billing screens.
+      </p>
+      {ALERT_POPUP_KINDS.map((kind) => (
+        <label
+          key={kind}
+          className="flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-muted/60 cursor-pointer"
+        >
+          <span className="text-[13px] font-medium">{ALERT_POPUP_LABELS[kind]}</span>
+          <Switch
+            checked={prefs[kind]}
+            onCheckedChange={(checked) => {
+              const next = { ...prefs, [kind]: checked };
+              setPrefs(next);
+              saveAlertPopupPrefs(orgId, userId, next);
+            }}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function ActivityCenterPanel() {
   const { readState, markAllRead, markCategoryRead, setOpen } = useActivityCenter();
   const { currentOrganization } = useOrganization();
   const { openWindow } = useWindowTabs();
   const { orgNavigate } = useOrgNavigation();
   const [activeTab, setActiveTab] = useState<ActivityTab>("all");
+  const [showPopupSettings, setShowPopupSettings] = useState(false);
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const { notifications, tabCounts, isLoading } = useActivityNotifications(readState, true);
 
@@ -154,14 +203,40 @@ export function ActivityCenterPanel() {
       <div className="flex items-center gap-2 px-4 py-3.5 border-b border-border shrink-0">
         <span className="font-bold text-base">Activity</span>
         <span className="flex-1" />
-        <button
-          type="button"
-          onClick={markAllRead}
-          className="text-[11px] font-semibold text-primary hover:underline"
-        >
-          Mark all read
-        </button>
+        {!showPopupSettings && (
+          <button
+            type="button"
+            onClick={markAllRead}
+            className="text-[11px] font-semibold text-primary hover:underline"
+          >
+            Mark all read
+          </button>
+        )}
+        {currentOrganization?.id && userId && (
+          <button
+            type="button"
+            onClick={() => setShowPopupSettings((v) => !v)}
+            aria-pressed={showPopupSettings}
+            title="Pop-up alerts"
+            className={cn(
+              "ml-1 h-7 px-2 rounded-md flex items-center gap-1 text-[11px] font-semibold",
+              showPopupSettings
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            {showPopupSettings ? "Done" : "Pop-ups"}
+          </button>
+        )}
       </div>
+
+      {showPopupSettings && currentOrganization?.id && userId ? (
+        <div className="overflow-y-auto flex-1 min-h-0">
+          <AlertPopupSwitches orgId={currentOrganization.id} userId={userId} />
+        </div>
+      ) : (
+      <>
 
       <div
         className="flex gap-0.5 px-3 pt-2 border-b border-border shrink-0 overflow-x-auto"
@@ -232,6 +307,8 @@ export function ActivityCenterPanel() {
             : "View all activity →"}
         </button>
       </div>
+      </>
+      )}
     </div>
   );
 }

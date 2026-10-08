@@ -142,7 +142,8 @@ export function useActivityNotifications(
         navigateState: { stockStatusFilter: "low" },
         timestamp,
         unread: isCategoryUnread("stock", timestamp, readState),
-        badgeContribution: count,
+        // One alert, not one per product: 300 low-stock SKUs read as "99+".
+        badgeContribution: 1,
       });
     }
 
@@ -162,7 +163,7 @@ export function useActivityNotifications(
         navigateState: { paymentStatusFilter: ["pending", "partial"] },
         timestamp: p.updatedAt,
         unread: isCategoryUnread("payments", p.updatedAt, readState),
-        badgeContribution: p.overdueCount > 0 ? p.overdueCount : p.invoiceCount,
+        badgeContribution: 1,
       });
     }
 
