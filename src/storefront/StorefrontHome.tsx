@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { formatStorefrontPrice, storefrontStockLabel } from "@/lib/storefrontStock";
 import { summarizeVariantSizeColor } from "@/lib/storefrontVariantSummary";
-import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
-import { storefrontProductPath } from "@/lib/storefrontPath";
+import { storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
+import { storefrontHomeUrl, storefrontProductPath } from "@/lib/storefrontPath";
 import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { StorefrontShell } from "./StorefrontChrome";
 
@@ -57,7 +57,7 @@ export function StorefrontHome({
     return matchesCat && matchesSearch;
   });
 
-  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const shareUrl = storefrontHomeUrl(orgSlug);
   const categoryEyebrow =
     categories.length > 0 ? categories.slice(0, 3).join(" · ") : "Curated catalogue";
 
