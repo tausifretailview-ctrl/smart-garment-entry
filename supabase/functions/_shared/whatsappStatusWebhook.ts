@@ -8,8 +8,23 @@ export const WHATSAPP_STATUS_RANK: Record<string, number> = {
   read: 3,
 };
 
+/** Provider words for a send WhatsApp refused (WappConnect reports "message rejected"). */
+const FAILED_STATUS_ALIASES = new Set([
+  "failed",
+  "fail",
+  "failure",
+  "error",
+  "rejected",
+  "message rejected",
+  "undelivered",
+  "undeliverable",
+  "not_sent",
+  "not sent",
+]);
+
 export function normalizeWhatsAppDeliveryStatus(raw: string): string {
   const status = String(raw || "").trim().toLowerCase();
+  if (FAILED_STATUS_ALIASES.has(status)) return "failed";
   if (status === "queued") return "sent";
   if (status === "seen") return "read";
   if (status === "played") return "read";
@@ -226,6 +241,16 @@ export async function applyWhatsappLogStatusUpdate(
   }
 }
 
+/** Provider error text, else the raw status itself (e.g. "rejected" → "Message rejected"). */
+function failureReason(source: Record<string, unknown>, rawStatus: string): string {
+  const fromBody = extractWhatsAppDeliveryError(source)
+    || String(source.reason ?? source.status_message ?? source.description ?? "").trim();
+  if (fromBody) return fromBody;
+  const raw = String(rawStatus || "").trim().toLowerCase();
+  if (raw.includes("reject")) return "Message rejected";
+  return "Delivery failed";
+}
+
 /** WappConnect instance API + generic provider status callbacks (non-Meta `entry` format). */
 export function parseProviderStatusWebhook(
   body: Record<string, unknown>,
@@ -235,9 +260,17 @@ export function parseProviderStatusWebhook(
   if (event === "message.status" || event === "message_status") {
     const data = body.data as Record<string, unknown> | undefined;
     const messageId = String(data?.message_id || data?.messageId || data?.id || "").trim();
-    const status = normalizeWhatsAppDeliveryStatus(String(data?.status || ""));
+    const rawStatus = String(data?.status || "");
+    const status = normalizeWhatsAppDeliveryStatus(rawStatus);
     const ts = data?.timestamp ? new Date(String(data.timestamp)).toISOString() : undefined;
-    if (messageId && status) return { messageId, status, timestampIso: ts };
+    if (messageId && status) {
+      return {
+        messageId,
+        status,
+        timestampIso: ts,
+        errorMessage: status === "failed" ? failureReason(data ?? {}, rawStatus) : undefined,
+      };
+    }
   }
 
   if (event === "message.ack" || event === "message_ack" || event === "ack") {
@@ -259,30 +292,35 @@ export function parseProviderStatusWebhook(
   }
 
   const flatId = String(body.message_id || body.messageId || body.msgId || "").trim();
-  const flatStatus = normalizeWhatsAppDeliveryStatus(
-    String(body.status || body.message_status || body.delivery_status || ""),
-  );
+  const flatRawStatus = String(body.status || body.message_status || body.delivery_status || "");
+  const flatStatus = normalizeWhatsAppDeliveryStatus(flatRawStatus);
   if (flatId && flatStatus && WHATSAPP_STATUS_RANK[flatStatus] !== undefined) {
-    return { messageId: flatId, status: flatStatus };
+    return flatStatus === "failed"
+      ? { messageId: flatId, status: flatStatus, errorMessage: failureReason(body, flatRawStatus) }
+      : { messageId: flatId, status: flatStatus };
   }
 
   const msg = body.message as Record<string, unknown> | undefined;
   if (msg && !(body.response as Record<string, unknown> | undefined)?.messages) {
     const messageId = String(msg.queue_id || msg.id || msg.message_id || msg.messageId || "").trim();
-    const status = normalizeWhatsAppDeliveryStatus(
-      String(msg.message_status || msg.status || ""),
-    );
+    const rawStatus = String(msg.message_status || msg.status || "");
+    const status = normalizeWhatsAppDeliveryStatus(rawStatus);
     if (messageId && WHATSAPP_STATUS_RANK[status] !== undefined) {
-      return { messageId, status };
+      return status === "failed"
+        ? { messageId, status, errorMessage: failureReason(body, rawStatus) }
+        : { messageId, status };
     }
   }
 
   const data = body.data as Record<string, unknown> | undefined;
   if (data && !event) {
     const messageId = String(data.message_id || data.messageId || data.id || "").trim();
-    const status = normalizeWhatsAppDeliveryStatus(String(data.status || ""));
+    const rawStatus = String(data.status || "");
+    const status = normalizeWhatsAppDeliveryStatus(rawStatus);
     if (messageId && status && WHATSAPP_STATUS_RANK[status] !== undefined) {
-      return { messageId, status };
+      return status === "failed"
+        ? { messageId, status, errorMessage: failureReason(data, rawStatus) }
+        : { messageId, status };
     }
   }
 

@@ -112,6 +112,15 @@ export function getWhatsAppErrorHint(
           "Open the WappConnect dashboard → confirm the instance shows Connected/Online → scan QR if needed → retry. If it persists after reconnecting, try a shorter invoice message template in Settings → WhatsApp → Message Templates.",
       };
     }
+    if (raw.includes("message rejected") || /"rejected"/.test(raw)) {
+      return {
+        title: "WhatsApp refused the message",
+        reason:
+          "WappConnect queued the send, but WhatsApp would not deliver it to this number. The message text and PDF are not the cause. Usually the number is not on WhatsApp, the customer blocked or reported the shop number, or WhatsApp is limiting this instance for messaging unsaved numbers.",
+        action:
+          "Check the number is on WhatsApp. Open the WappConnect dashboard and confirm the instance is Connected and other customers are receiving messages. If only this customer fails, ask them to save the shop number or send \"Hi\" first, then resend.",
+      };
+    }
     if (isTextOnlySend && raw.includes("invalid message")) {
       return {
         title: "Message rejected by WhatsApp",

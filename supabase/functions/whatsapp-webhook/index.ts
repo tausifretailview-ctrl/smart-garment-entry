@@ -994,7 +994,8 @@ Deno.serve(async (req) => {
             ?? (realWamid ? await findWhatsappLogForStatusUpdate(supabase, realWamid) : null);
 
           if (existing && shouldApplyWhatsAppStatus(existing.status, normStatus)) {
-            const deliveryError = extractWhatsAppDeliveryError(body as Record<string, unknown>);
+            const deliveryError = extractWhatsAppDeliveryError(body as Record<string, unknown>)
+              || (bspStatusOnly.includes('reject') ? 'Message rejected' : '');
             const updatePayload = buildWhatsAppStatusUpdate(
               normStatus,
               nowIso,
