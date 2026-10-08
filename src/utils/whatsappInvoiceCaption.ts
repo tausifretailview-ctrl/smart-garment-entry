@@ -20,7 +20,9 @@ Thank you for shopping with us! Your invoice is attached below.
 💳 *Payment:* {payment_status}
 
 🙏 Thank you for your business!
-_Please visit again._`;
+_Please visit again._
+
+👉 Reply *OK* to save our number and get your bill updates.`;
 
 function formatInr(value: unknown): string {
   const num = Number(value ?? 0);
