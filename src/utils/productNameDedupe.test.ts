@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   filterSameProductIdentity,
+  findProductNameMatch,
   findSameNameProductsInOrg,
   normalizeProductNameKey,
   pickPreferredSameNameProduct,
@@ -8,11 +9,12 @@ import {
   pickCanonicalProductName,
   productNameIlikePattern,
   productNameMatchKey,
+  resetProductNameKeyRpcProbe,
 } from "./productNameDedupe";
 import { supabase } from "@/integrations/supabase/client";
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: vi.fn() },
+  supabase: { from: vi.fn(), rpc: vi.fn() },
 }));
 
 describe("normalizeProductNameKey", () => {
@@ -177,5 +179,73 @@ describe("product name match (name field only)", () => {
     expect(pickCanonicalProductName(rows, "eln.dup")?.id).toBe("c");
     expect(pickCanonicalProductName(rows, "eln.dup", "c")?.id).toBe("b");
     expect(pickCanonicalProductName(rows, "ELN DUP SHIRT")).toBeNull();
+  });
+});
+
+describe("findProductNameMatch — indexed name-key RPC with fallback", () => {
+  beforeEach(() => {
+    vi.mocked(supabase.from).mockReset();
+    vi.mocked(supabase.rpc).mockReset();
+    resetProductNameKeyRpcProbe();
+  });
+
+  function mockIlikeFallback(rows: Array<Record<string, unknown>>) {
+    const limit = vi.fn().mockResolvedValue({ data: rows, error: null });
+    const ilike = vi.fn().mockReturnValue({ limit });
+    const is = vi.fn().mockReturnValue({ ilike });
+    const eq = vi.fn().mockReturnValue({ is });
+    const select = vi.fn().mockReturnValue({ eq });
+    vi.mocked(supabase.from).mockReturnValue({ select } as never);
+    return { ilike };
+  }
+
+  it("uses the RPC result and never runs the full-catalog ilike", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [
+        { id: "a", product_name: "ELN-DUP", created_at: "2026-01-01", total_stock: 0 },
+        { id: "b", product_name: "ELN DUP", created_at: "2026-02-01", total_stock: 7 },
+      ],
+      error: null,
+    } as never);
+    const match = await findProductNameMatch("org-1", "eln.dup");
+    expect(match?.id).toBe("b");
+    expect(supabase.rpc).toHaveBeenCalledWith("find_products_by_name_key", {
+      p_organization_id: "org-1",
+      p_name: "eln.dup",
+    });
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
+  it("skips the product being renamed", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [{ id: "self", product_name: "SHIRT", created_at: "2026-01-01", total_stock: 3 }],
+      error: null,
+    } as never);
+    expect(await findProductNameMatch("org-1", "shirt", "self")).toBeNull();
+  });
+
+  it("falls back to the ilike lookup when the function is not applied, and stops asking", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: { code: "PGRST202", message: "Could not find the function" },
+    } as never);
+    const { ilike } = mockIlikeFallback([
+      { id: "x", product_name: "ELN-DUP", created_at: "2026-01-01", product_variants: [{ stock_qty: 2, deleted_at: null }] },
+    ]);
+    expect((await findProductNameMatch("org-1", "ELN DUP"))?.id).toBe("x");
+    expect(ilike).toHaveBeenCalledWith("product_name", "%e%l%n%d%u%p%");
+    await findProductNameMatch("org-1", "ELN DUP");
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back on other RPC errors but tries the RPC again next time", async () => {
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: null,
+      error: { code: "57014", message: "canceling statement due to statement timeout" },
+    } as never);
+    mockIlikeFallback([]);
+    expect(await findProductNameMatch("org-1", "SHIRT")).toBeNull();
+    await findProductNameMatch("org-1", "SHIRT");
+    expect(supabase.rpc).toHaveBeenCalledTimes(2);
   });
 });

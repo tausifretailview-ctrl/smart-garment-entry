@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { cleanProductName, productNameMergeKey } from "@/utils/productNameMerge";
 import { compactProductToken } from "@/utils/productSearch";
+import { isMissingRpcFunctionError } from "@/utils/fetchAllRows";
 
 export type SameNameProductMatch = {
   id: string;
@@ -168,6 +169,14 @@ export function pickCanonicalProductName<T extends ProductNameMatchRow>(
   })[0];
 }
 
+/** Set once the database answers that find_products_by_name_key is not applied. */
+let productNameKeyRpcMissing = false;
+
+/** Test hook: forget a previous "function missing" answer. */
+export function resetProductNameKeyRpcProbe(): void {
+  productNameKeyRpcMissing = false;
+}
+
 /**
  * Existing product with the same name (case / spaces / - _ . / ignored) in the org.
  * Only the product name is compared; brand, category, style and price are not.
@@ -180,6 +189,20 @@ export async function findProductNameMatch(
 ): Promise<ProductNameMatchRow | null> {
   const pattern = productNameIlikePattern(typedName);
   if (!organizationId || !pattern) return null;
+
+  // Indexed equality lookup on the name key. The %a%b%c% fallback below reads every
+  // product of the shop and took up to 3 s on Save.
+  if (!productNameKeyRpcMissing) {
+    const { data, error } = await (supabase.rpc as any)("find_products_by_name_key", {
+      p_organization_id: organizationId,
+      p_name: cleanProductName(typedName),
+    });
+    if (!error && Array.isArray(data)) {
+      return pickCanonicalProductName(data as ProductNameMatchRow[], typedName, excludeId);
+    }
+    if (isMissingRpcFunctionError(error)) productNameKeyRpcMissing = true;
+  }
+
   const { data, error } = await supabase
     .from("products")
     .select("id, product_name, created_at, product_variants(stock_qty, deleted_at)")
