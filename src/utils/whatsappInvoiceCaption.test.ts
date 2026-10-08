@@ -46,6 +46,7 @@ describe("sales invoice WhatsApp caption", () => {
     expect(text).toContain("💰 *Amount:* ₹10");
     expect(text).toContain("💳 *Payment:* Completed");
     expect(text.indexOf("📍")).toBeLessThan(text.indexOf("🧾"));
+    expect(text.endsWith("👉 Reply *OK* to save our number and get your bill updates.")).toBe(true);
   });
 
   it("drops the address and phone lines when the shop has not set them", async () => {
