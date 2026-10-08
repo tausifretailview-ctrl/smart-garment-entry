@@ -203,6 +203,8 @@ interface PurchaseSettings {
   purchase_code_include_date?: boolean;
   purchase_code_extra_percent_enabled?: boolean;
   purchase_code_extra_percent?: number;
+  /** POS cart: show the letters-only purchase code before Size. Default off. */
+  show_purchase_code_on_pos?: boolean;
   show_mrp?: boolean;
   product_entry_discount_enabled?: boolean;
   barcode_mode?: 'auto' | 'scan';
@@ -2395,6 +2397,30 @@ export default function Settings() {
                     placeholder="10"
                   />
                 </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox
+                    id="show_purchase_code_on_pos"
+                    checked={settings.purchase_settings?.show_purchase_code_on_pos === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        purchase_settings: {
+                          ...settings.purchase_settings,
+                          show_purchase_code_on_pos: checked === true,
+                        },
+                      })
+                    }
+                  />
+                  <Label htmlFor="show_purchase_code_on_pos" className="font-normal cursor-pointer">
+                    Show Purchase Code on POS product rows
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  Adds a P.Code column before Size on the POS screen with the alphabet code only
+                  (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
+                  options above. Not printed on the invoice. Default is off.
+                </p>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Checkbox

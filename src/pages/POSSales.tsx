@@ -5,6 +5,11 @@ import { createPortal, flushSync } from "react-dom";
 import { logError } from "@/lib/errorLogger";
 import { cn } from "@/lib/utils";
 import { mobileNumberError } from "@/utils/mobileNumberValidation";
+import {
+  encodePosLinePurchaseCode,
+  resolvePosPurchaseCodeEnabled,
+  type PosPurchaseCodeSettings,
+} from "@/utils/purchaseCodeEncoder";
 import { getUOMLabel } from "@/constants/uom";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useMobileERP, usePosEmiOption, validateIMEI } from "@/hooks/useMobileERP";
@@ -324,11 +329,13 @@ function posCartGridColumns(
   barcodeColPx: number,
   showMrpColumn: boolean,
   showSalesmanColumn: boolean,
+  showPurchaseCodeColumn = false,
 ): string {
-  // Sr | Barcode | Product | Size | Color | [Salesman] | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
+  // Sr | Barcode | Product | [P.Code] | Size | Color | [Salesman] | Qty | [MRP] | Tax% | Disc% | Disc Rs | Unit | Net
   const mrpCol = showMrpColumn ? " 96px" : "";
   const salesmanCol = showSalesmanColumn ? " minmax(112px, 148px)" : "";
-  return `36px ${barcodeColPx}px minmax(120px, 1fr) 52px 64px${salesmanCol} 56px${mrpCol} 68px 72px 96px 110px 118px`;
+  const purchaseCodeCol = showPurchaseCodeColumn ? " 68px" : "";
+  return `36px ${barcodeColPx}px minmax(120px, 1fr)${purchaseCodeCol} 52px 64px${salesmanCol} 56px${mrpCol} 68px 72px 96px 110px 118px`;
 }
 
 /** Default POS service price from variant master (MRP, else sale price from product entry). */
@@ -1645,9 +1652,25 @@ export default function POSSales() {
 
   // Display gate only — computations (mrpTotal / savings / discount cap) stay unconditional.
   const enableMrp = posRuntimeSettings?.enable_mrp === true;
+  // Purchase code column (Settings → Purchase). Display only — never sent to the invoice.
+  const posPurchaseCodeSettings = (settingsData as any)?.purchase_settings as
+    | PosPurchaseCodeSettings
+    | undefined;
+  const showPosPurchaseCode = resolvePosPurchaseCodeEnabled(posPurchaseCodeSettings);
+  const posPurchaseCodeFor = useCallback(
+    (line: { purPrice?: number | null; purchaseGstPer?: number | null }) =>
+      encodePosLinePurchaseCode(line, posPurchaseCodeSettings),
+    [posPurchaseCodeSettings],
+  );
   const posCartGridCols = useMemo(
-    () => posCartGridColumns(posCartBarcodeColumnWidth(items), enableMrp, posPerLineSalesman),
-    [items, enableMrp, posPerLineSalesman],
+    () =>
+      posCartGridColumns(
+        posCartBarcodeColumnWidth(items),
+        enableMrp,
+        posPerLineSalesman,
+        showPosPurchaseCode,
+      ),
+    [items, enableMrp, posPerLineSalesman, showPosPurchaseCode],
   );
 
   // Optional POS invoice-date override (admin-gated). When OFF, POS silently uses today.
@@ -6812,6 +6835,7 @@ export default function POSSales() {
           onStockReport={() => setShowFloatingStockReport(true)}
           onAddNewCustomer={() => openAddCustomerDialog()}
           enableMrp={enableMrp}
+          purchaseCodeFor={showPosPurchaseCode ? posPurchaseCodeFor : undefined}
           posPerLineSalesman={posPerLineSalesman}
           onLineSalesmanChange={updateLineSalesman}
         />
@@ -6939,6 +6963,7 @@ export default function POSSales() {
           onProductSelect={handlePosProductPick}
           openProductSearch={openProductSearch}
           enableMrp={enableMrp}
+          purchaseCodeFor={showPosPurchaseCode ? posPurchaseCodeFor : undefined}
           fastBillingEnabled={posRuntimeSettings?.pos_quick_price_code === true}
         />
 
@@ -7965,6 +7990,7 @@ export default function POSSales() {
                 <div className="text-center">Sr No</div>
                 <div>Barcode</div>
                 <div>Product</div>
+                {showPosPurchaseCode && <div className="text-center">P.Code</div>}
                 <div className="text-center">Size</div>
                 <div className="text-center">Color</div>
                 {posPerLineSalesman && <div className="text-center">Salesman</div>}
@@ -8078,6 +8104,9 @@ export default function POSSales() {
                       <div className="flex items-center justify-center text-muted-foreground/30 font-medium">{items.length + idx + 1}</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
                       <div className="flex items-center text-muted-foreground/20">—</div>
+                      {showPosPurchaseCode && (
+                        <div className="flex items-center justify-center text-muted-foreground/20">—</div>
+                      )}
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       <div className="flex items-center justify-center text-muted-foreground/20">—</div>
                       {posPerLineSalesman && (
@@ -8169,6 +8198,17 @@ export default function POSSales() {
                               <span className="px-1 py-0.5 text-[9px] font-bold bg-orange-100 text-orange-700 border border-orange-300 rounded flex-shrink-0">DC</span>
                             )}
                           </div>
+                          {showPosPurchaseCode && (() => {
+                            const purchaseCode = posPurchaseCodeFor(item);
+                            return (
+                              <div
+                                className="flex items-center justify-center font-mono text-sm font-semibold tracking-wide text-violet-700 dark:text-violet-300 truncate min-w-0"
+                                title={purchaseCode ? `Purchase code ${purchaseCode}` : undefined}
+                              >
+                                <span className="truncate">{purchaseCode || '-'}</span>
+                              </div>
+                            );
+                          })()}
                           <div className="flex items-center justify-center text-sm font-medium truncate min-w-0" title={item.size}>
                             {item.size}
                           </div>

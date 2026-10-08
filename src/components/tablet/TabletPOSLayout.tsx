@@ -66,6 +66,8 @@ interface TabletPOSLayoutProps {
   onAddNewCustomer?: () => void;
   /** Display gate from POS `enable_mrp` — omit MRP chrome when false. */
   enableMrp?: boolean;
+  /** Letters-only purchase code per line (Settings → Purchase, default off). */
+  purchaseCodeFor?: (item: { purPrice?: number | null; purchaseGstPer?: number | null }) => string;
   /** Per-line salesperson column (org-gated). */
   posPerLineSalesman?: boolean;
   onLineSalesmanChange?: (index: number, salesmanName: string) => void;
@@ -85,6 +87,7 @@ export function TabletPOSLayout({
   selectedProductType, onProductTypeChange, hasMoreCustomers,
   onCashierReport, onEstimatePrint, onStockReport, onAddNewCustomer,
   enableMrp = true,
+  purchaseCodeFor,
   posPerLineSalesman = false,
   onLineSalesmanChange,
   fastBillingEnabled = false,
@@ -324,7 +327,11 @@ export function TabletPOSLayout({
                         <PosSchemeAppliedTag applied={item.categoryTierApplied} />
                       </div>
                       <p className="text-[11px] text-muted-foreground truncate" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        {item.barcode} · {item.size}{item.color ? ` · ${item.color}` : ""}
+                        {item.barcode}
+                        {purchaseCodeFor && purchaseCodeFor(item) ? (
+                          <span className="font-semibold text-violet-700 dark:text-violet-300"> · {purchaseCodeFor(item)}</span>
+                        ) : null}
+                        {" · "}{item.size}{item.color ? ` · ${item.color}` : ""}
                       </p>
                       {item.itemNotes?.trim() ? (
                         <p className="text-[11px] text-muted-foreground truncate" title={item.itemNotes}>

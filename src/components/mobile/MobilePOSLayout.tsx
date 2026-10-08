@@ -26,6 +26,8 @@ interface CartItem {
   hsnCode?: string;
   productType?: string;
   uom?: string;
+  purPrice?: number;
+  purchaseGstPer?: number;
 }
 
 interface MobilePOSLayoutProps {
@@ -93,6 +95,8 @@ interface MobilePOSLayoutProps {
   openProductSearch?: boolean;
   /** Display gate from POS `enable_mrp` — omit struck MRP when false. */
   enableMrp?: boolean;
+  /** Letters-only purchase code per line (Settings → Purchase, default off). */
+  purchaseCodeFor?: (item: { purPrice?: number | null; purchaseGstPer?: number | null }) => string;
   /** Fast-billing quick price code mode (POS setting) — enables shorthand code entry hints. */
   fastBillingEnabled?: boolean;
 }
@@ -138,6 +142,7 @@ export const MobilePOSLayout = ({
   onProductSelect,
   openProductSearch,
   enableMrp = true,
+  purchaseCodeFor,
 }: MobilePOSLayoutProps) => {
   const { isOnline, isSyncing, pendingActions } = useOfflineSync();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -208,6 +213,7 @@ export const MobilePOSLayout = ({
                 }}
                 onRemove={removeItem}
                 enableMrp={enableMrp}
+                purchaseCode={purchaseCodeFor?.(item)}
               />
             ))}
           </div>
