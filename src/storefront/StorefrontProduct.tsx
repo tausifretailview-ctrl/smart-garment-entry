@@ -3,10 +3,9 @@ import { formatStorefrontPrice, storefrontStockLabel } from "@/lib/storefrontSto
 import { summarizeVariantSizeColor } from "@/lib/storefrontVariantSummary";
 import {
   productEnquiryWhatsAppText,
-  publicStorefrontProductUrl,
   whatsappShareUrl,
 } from "@/lib/storefrontShare";
-import { storefrontHomePath } from "@/lib/storefrontPath";
+import { storefrontHomePath, storefrontProductUrl } from "@/lib/storefrontPath";
 import type { PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import { StorefrontShell } from "./StorefrontChrome";
 import { EnquiryForm } from "./EnquiryForm";
@@ -23,7 +22,7 @@ export function StorefrontProduct({
   const [photoIndex, setPhotoIndex] = useState(0);
   const photos = product.photo_urls.length > 0 ? product.photo_urls : [];
   const photo = photos[photoIndex] || photos[0];
-  const productUrl = publicStorefrontProductUrl(window.location.origin, orgSlug, product.product_id);
+  const productUrl = storefrontProductUrl(orgSlug, product.product_id);
   const waText = productEnquiryWhatsAppText(shop.display_name || shop.name, product.name, productUrl);
   const badgeClass =
     product.stock_status === "out_of_stock"
