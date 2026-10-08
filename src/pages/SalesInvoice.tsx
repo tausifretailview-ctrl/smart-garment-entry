@@ -82,7 +82,7 @@ import { useReactToPrint } from "@/hooks/useGuardedReactToPrint";
 import { useDirectPrint } from "@/hooks/useDirectPrint";
 import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { waitForPrintReady } from "@/utils/printReady";
-import { postSaleJournalInBackground } from "@/utils/accounting/journalService";
+import { deleteJournalEntryByReference, postSaleJournalInBackground } from "@/utils/accounting/journalService";
 import { generateOrgSaleNumber, minSequenceFromSeriesStart, saleFormatToLikePattern, autoCorrectFY } from "@/utils/saleNumber";
 import { buildPublicInvoiceViewUrl } from "@/utils/publicInvoiceLink";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
@@ -3395,7 +3395,7 @@ Thank you for choosing us!`;
         // Recalculate payment_status if net_amount changed
         const { data: updatedSale } = await supabase
           .from('sales')
-          .select('paid_amount, net_amount, sale_return_adjust')
+          .select('paid_amount, net_amount, sale_return_adjust, payment_method')
           .eq('id', editingInvoiceId)
           .single();
 
@@ -3416,6 +3416,29 @@ Thank you for choosing us!`;
             .from('sales')
             .update({ payment_status: correctStatus })
             .eq('id', editingInvoiceId);
+        }
+
+        // Re-post the ledger from the saved bill, as a POS edit does, so edited totals, GST and
+        // COGS reach the accounts. Items and header are both saved at this point.
+        if (accountingEngineOn) {
+          const orgId = currentOrganization!.id;
+          const saleId = editingInvoiceId;
+          void (async () => {
+            try {
+              await deleteJournalEntryByReference(orgId, "Sale", saleId, supabase);
+              postSaleJournalInBackground(
+                saleId,
+                orgId,
+                Number(netAmount || 0),
+                Number(updatedSale?.paid_amount || 0),
+                String(updatedSale?.payment_method || "pay_later"),
+                format(invoiceDate, "yyyy-MM-dd"),
+                supabase,
+              );
+            } catch (journalErr) {
+              console.error("Auto-journal (invoice update) failed:", journalErr);
+            }
+          })();
         }
 
         toast({

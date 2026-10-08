@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { saleBillFigures, saleReceivableAfterTender } from "@/utils/saleBillFigures";
+import { saleBillFigures } from "@/utils/saleBillFigures";
+import { isCreditNoteAdjustmentReceipt } from "@/utils/customerReceiptDeletePlan";
 import type { Database } from "@/integrations/supabase/types";
 import type { PostJournalLineInput } from "@/utils/accounting/accountingTypes";
 import type { JournalReferenceType } from "@/utils/accounting/accountingTypes";
@@ -18,6 +19,11 @@ import {
   pushLine,
   type PartyLineContext,
 } from "@/utils/accounting/journalLineUtils";
+import {
+  computeSaleRevenueBreakdown,
+  counterTenderInSaleJournal,
+  isOnOrAfterReturnCreditCutover,
+} from "@/utils/accounting/saleJournalMath";
 import {
   fetchPurchaseReturnStockAmount,
   fetchSaleCogsAmount,
@@ -126,6 +132,69 @@ function sumLineDiscountFromSaleItems(
   );
 }
 
+/**
+ * Money already settled against this sale by vouchers that carry their own journal
+ * (customer receipts, advance applications), read as the Receivable credit of those journals
+ * while they are live. An advance spread over several vouchers posts one journal on the last
+ * one, so the journal lines are the reliable figure, not the voucher amounts.
+ * Credit-note adjustment vouchers are returned separately: the return already credited the
+ * customer, so the sale journal must not book them as cash either.
+ */
+async function fetchSaleSettledOutsideJournal(
+  saleId: string,
+  organizationId: string,
+  arAccountId: string,
+  client: SupabaseClient<Database>
+): Promise<{ journaledReceiptTotal: number; creditNoteVoucherTotal: number }> {
+  const { data: vouchers, error } = await client
+    .from("voucher_entries")
+    .select("id, total_amount, discount_amount, payment_method")
+    .eq("organization_id", organizationId)
+    .eq("reference_id", saleId)
+    .eq("voucher_type", "receipt")
+    .is("deleted_at", null);
+  if (error) throw error;
+  const rows = (vouchers ?? []) as Array<{
+    id: string;
+    total_amount: number | null;
+    discount_amount: number | null;
+    payment_method: string | null;
+  }>;
+  const isCn = (v: (typeof rows)[number]) => isCreditNoteAdjustmentReceipt(v);
+
+  const creditNoteVoucherTotal = round2(
+    rows.filter(isCn).reduce((s, v) => s + Number(v.total_amount ?? 0) + Number(v.discount_amount ?? 0), 0)
+  );
+  const moneyVoucherIds = rows.filter((v) => !isCn(v)).map((v) => v.id);
+  if (moneyVoucherIds.length === 0) return { journaledReceiptTotal: 0, creditNoteVoucherTotal };
+
+  const { data: journals, error: jErr } = await client
+    .from("journal_entries")
+    .select("id, reversed_journal_id")
+    .eq("organization_id", organizationId)
+    .in("reference_type", ["CustomerReceipt", "CustomerAdvanceApplication"])
+    .in("reference_id", moneyVoucherIds);
+  if (jErr) throw jErr;
+  const entries = (journals ?? []) as Array<{ id: string; reversed_journal_id: string | null }>;
+  const reversedIds = new Set(entries.map((j) => j.reversed_journal_id).filter(Boolean) as string[]);
+  const liveJournalIds = entries.filter((j) => !j.reversed_journal_id && !reversedIds.has(j.id)).map((j) => j.id);
+  if (liveJournalIds.length === 0) return { journaledReceiptTotal: 0, creditNoteVoucherTotal };
+
+  const { data: lines, error: lErr } = await client
+    .from("journal_lines")
+    .select("credit_amount, debit_amount")
+    .in("journal_entry_id", liveJournalIds)
+    .eq("account_id", arAccountId);
+  if (lErr) throw lErr;
+  const journaledReceiptTotal = round2(
+    ((lines ?? []) as Array<{ credit_amount: number | null; debit_amount: number | null }>).reduce(
+      (s, l) => s + Number(l.credit_amount ?? 0) - Number(l.debit_amount ?? 0),
+      0
+    )
+  );
+  return { journaledReceiptTotal: Math.max(0, journaledReceiptTotal), creditNoteVoucherTotal };
+}
+
 export async function buildSaleJournalV2(
   saleId: string,
   organizationId: string,
@@ -135,7 +204,7 @@ export async function buildSaleJournalV2(
   const { data: sale, error: saleErr } = await client
     .from("sales")
     .select(
-      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied, tax_type"
+      "id, net_amount, paid_amount, payment_method, sale_date, gross_amount, discount_amount, flat_discount_amount, other_charges, points_redeemed_amount, round_off, customer_id, customer_name, sale_return_adjust, credit_applied, tax_type, sale_type, created_at"
     )
     .eq("id", saleId)
     .eq("organization_id", organizationId)
@@ -145,8 +214,6 @@ export async function buildSaleJournalV2(
 
   const net = round2(Number(sale.net_amount ?? 0));
   const bill = saleBillFigures(sale);
-  const paid = round2(Math.max(0, Math.min(Number(sale.paid_amount ?? 0), Math.max(net, bill.billAmount))));
-  const receivable = saleReceivableAfterTender(sale);
   if (net <= 0) return null;
 
   const { data: items, error: itemsErr } = await client
@@ -163,10 +230,17 @@ export async function buildSaleJournalV2(
   const taxType = String((sale as { tax_type?: string | null }).tax_type || "inclusive").toLowerCase();
   const headerGross = Number(sale.gross_amount ?? net);
   const emptyItemsGstBase = taxType === "exclusive" ? net : headerGross;
-  const gst =
-    items && items.length > 0
-      ? aggregateInclusiveLines(items)
-      : breakdownFromGrossAndGst(emptyItemsGstBase, 0);
+  const hasItems = Boolean(items && items.length > 0);
+  // With items, revenue is booked before the flat discount and the discount's taxable
+  // value is debited to Trade Discount; GST is on the discounted value.
+  const revenue = hasItems
+    ? computeSaleRevenueBreakdown(items ?? [], {
+        taxType,
+        saleType: (sale as { sale_type?: string | null }).sale_type,
+        flatDiscount: Number(sale.flat_discount_amount ?? 0),
+      })
+    : null;
+  const gst = revenue ? revenue.gst : breakdownFromGrossAndGst(emptyItemsGstBase, 0);
 
   const systemAccounts = await seedDefaultAccounts(organizationId, client);
   const salesRevenue = getAccountByCode(systemAccounts, "4000");
@@ -178,6 +252,17 @@ export async function buildSaleJournalV2(
     throw new Error("Missing Tally v2 chart accounts (4000/1200/1300/5000)");
   }
 
+  // Cash/bank on the bill is only the counter tender. paid_amount also carries later receipts
+  // and credit notes, which post (or were posted) by their own journals; using it in full on
+  // a re-post would book that money twice.
+  const counterPaid = counterTenderInSaleJournal({
+    paidAmount: Number(sale.paid_amount ?? 0),
+    ...(await fetchSaleSettledOutsideJournal(saleId, organizationId, arAccount.id, client)),
+    saleReturnAdjust: bill.saleReturnAdjust,
+  });
+  const paid = round2(Math.min(counterPaid, bill.payable));
+  const receivable = round2(Math.max(0, bill.payable - paid));
+
   const party = customerParty(sale);
   const lines: PostJournalLineInput[] = [];
   const receiptAccount = resolveCashOrBankLedgerAccount(systemAccounts, sale.payment_method);
@@ -185,12 +270,16 @@ export async function buildSaleJournalV2(
   if (paid > 0) pushLine(lines, receiptAccount.id, paid, 0, party);
   if (receivable > 0) pushLine(lines, arAccount.id, receivable, 0, party);
 
-  // Sale-return credit-note applied to this sale: DR Sales Returns contra to
-  // offset the credit note previously issued (originally credited Sales Returns).
+  // S/R adjust settles part of this bill with return credit. The return's own journal
+  // debited Sales Returns and credited the customer (Receivable), so the bill consumes that
+  // credit: DR Receivable. Bills created before the cutover keep DR Sales Returns, because
+  // old exchange returns never posted a journal of their own.
   const saleReturnAdjust = round2(Number((sale as any).sale_return_adjust ?? 0));
   if (saleReturnAdjust > 0.01) {
-    const salesReturns = getAccountByCode(systemAccounts, "4050");
-    if (salesReturns) pushLine(lines, salesReturns.id, saleReturnAdjust, 0, party);
+    const srAccount = isOnOrAfterReturnCreditCutover((sale as { created_at?: string | null }).created_at)
+      ? arAccount
+      : getAccountByCode(systemAccounts, "4050");
+    if (srAccount) pushLine(lines, srAccount.id, saleReturnAdjust, 0, party);
   }
 
   // Customer advance applied to this sale: DR Customer Advances liability.
@@ -200,7 +289,7 @@ export async function buildSaleJournalV2(
     if (customerAdvances) pushLine(lines, customerAdvances.id, creditApplied, 0, party);
   }
 
-  const revenueCredit = round2(Math.max(0, gst.taxableAmount));
+  const revenueCredit = round2(Math.max(0, revenue ? revenue.grossTaxable : gst.taxableAmount));
   if (revenueCredit > 0) pushLine(lines, salesRevenue.id, 0, revenueCredit, party);
   appendOutputGstCredits(lines, systemAccounts, gst, party);
 
@@ -212,10 +301,9 @@ export async function buildSaleJournalV2(
   const lineDiscountInLines = sumLineDiscountFromSaleItems(items ?? []);
   const headerDiscount = round2(Number(sale.discount_amount ?? 0));
   const orphanHeaderDiscount = round2(Math.max(0, headerDiscount - lineDiscountInLines));
+  const flatDiscountDr = revenue ? revenue.flatDiscountTaxable : Number(sale.flat_discount_amount ?? 0);
   const tradeDiscountDr = round2(
-    Number(sale.flat_discount_amount ?? 0) +
-      Number(sale.points_redeemed_amount ?? 0) +
-      orphanHeaderDiscount
+    flatDiscountDr + Number(sale.points_redeemed_amount ?? 0) + orphanHeaderDiscount
   );
   if (tradeDiscountDr > 0.01 && tradeDiscount) {
     pushLine(lines, tradeDiscount.id, tradeDiscountDr, 0, party);
@@ -314,7 +402,7 @@ export async function buildSaleReturnJournalV2(
   const { data: sr, error: srErr } = await client
     .from("sale_returns")
     .select(
-      "id, net_amount, refund_type, return_date, payment_method, gross_amount, gst_amount, customer_id, customer_name"
+      "id, net_amount, refund_type, return_date, payment_method, gross_amount, gst_amount, customer_id, customer_name, created_at"
     )
     .eq("id", saleReturnId)
     .eq("organization_id", organizationId)
@@ -325,7 +413,13 @@ export async function buildSaleReturnJournalV2(
   const net = round2(Number(sr.net_amount ?? 0));
   if (net <= 0) return null;
   const rt = (sr.refund_type || "").toLowerCase().trim();
-  if (rt === "exchange") return null;
+  // Exchange returns credit the customer like a credit note; the new bill's S/R adjust then
+  // consumes that credit (see buildSaleJournalV2). Older exchange returns posted nothing and
+  // their bill debited Sales Returns instead, so they stay without a journal.
+  const isExchange = rt === "exchange";
+  if (isExchange && !isOnOrAfterReturnCreditCutover((sr as { created_at?: string | null }).created_at)) {
+    return null;
+  }
 
   const { data: items } = await client
     .from("sale_return_items")
@@ -347,8 +441,9 @@ export async function buildSaleReturnJournalV2(
   }
 
   const party = customerParty(sr);
-  const effectivePm =
-    paymentMethod != null && String(paymentMethod).trim() !== ""
+  const effectivePm = isExchange
+    ? null
+    : paymentMethod != null && String(paymentMethod).trim() !== ""
       ? paymentMethod
       : sr.payment_method != null && String(sr.payment_method).trim() !== ""
         ? sr.payment_method
