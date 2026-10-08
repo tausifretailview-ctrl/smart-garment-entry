@@ -927,7 +927,7 @@ export default function SalesInvoice() {
   });
 
   // Fetch settings (centralized, cached 5min)
-  const { data: settingsData } = useSettings();
+  const { data: settingsData, isFetched: settingsFetched } = useSettings();
   const saleInvoicePrintTemplate = useMemo(
     () =>
       resolveSaleInvoiceTemplate(
@@ -1086,6 +1086,9 @@ export default function SalesInvoice() {
   useEffect(() => {
     const previewNextInvoice = async () => {
       if (!currentOrganization?.id || editingInvoiceId) return;
+      // Wait for settings: running before they arrive looked up the default INV
+      // series first and then the shop's own series again.
+      if (settingsData === undefined && !settingsFetched) return;
       
       try {
         const settings = settingsData?.sale_settings as any;
@@ -1191,7 +1194,7 @@ export default function SalesInvoice() {
     };
     
     previewNextInvoice();
-  }, [currentOrganization?.id, editingInvoiceId, settingsData]);
+  }, [currentOrganization?.id, editingInvoiceId, settingsData, settingsFetched]);
 
   // Pre-populate form if editing existing invoice
   // IMPORTANT: Using useEffect instead of useState callback to ensure this runs
@@ -2429,31 +2432,34 @@ export default function SalesInvoice() {
         .single();
       if (error || !invoiceData) throw error || new Error('Invoice not found');
 
-      let customerMeta: any = null;
-      if (invoiceData.customer_id) {
-        const { data: customerRow } = await supabase
-          .from('customers')
-          .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
-          .eq('id', invoiceData.customer_id)
-          .maybeSingle();
-        customerMeta = customerRow || null;
-      }
-
-      // Fetch product UOM + brand for MTR multiplier and brand-wise discounts on edit
+      // Customer and product lookups are independent: run them together.
       const productIds = [...new Set((invoiceData.sale_items || []).map((it: any) => it.product_id).filter(Boolean))];
+      const [customerRes, productsRes] = await Promise.all([
+        invoiceData.customer_id
+          ? supabase
+              .from('customers')
+              .select('gst_number, transport_details, address, phone, email, customer_name, points_balance')
+              .eq('id', invoiceData.customer_id)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        // Product UOM + brand for MTR multiplier and brand-wise discounts on edit
+        productIds.length > 0
+          ? supabase
+              .from('products')
+              .select('id, uom, brand')
+              .in('id', productIds as string[])
+          : Promise.resolve({ data: null }),
+      ]);
+      const customerMeta: any = customerRes.data || null;
+
       const productUomMap = new Map<string, string>();
       const productBrandMap = new Map<string, string>();
-      if (productIds.length > 0) {
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('id, uom, brand')
-          .in('id', productIds as string[]);
-        if (productsData) {
-          productsData.forEach((p: any) => {
-            productUomMap.set(p.id, p.uom || 'NOS');
-            if (p.brand) productBrandMap.set(p.id, p.brand);
-          });
-        }
+      const productsData = productsRes.data as any[] | null;
+      if (productsData) {
+        productsData.forEach((p: any) => {
+          productUomMap.set(p.id, p.uom || 'NOS');
+          if (p.brand) productBrandMap.set(p.id, p.brand);
+        });
       }
 
       setEditingInvoiceId(invoiceData.id);

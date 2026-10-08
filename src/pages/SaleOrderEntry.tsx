@@ -161,7 +161,6 @@ export default function SaleOrderEntry() {
   const tableEndRef = useRef<HTMLDivElement>(null);
   const barcodeInputRef = useRef<HTMLInputElement>(null);
   const productSearchInputRef = useRef<HTMLInputElement>(null);
-  const skipDraftSaveOnUnmountRef = useRef(false);
   const savingLockRef = useRef(false);
   const [showNotesSection, setShowNotesSection] = useState(false);
   const [salesman, setSalesman] = useState<string>("");
@@ -274,34 +273,19 @@ export default function SaleOrderEntry() {
     }
   }, [orderDate, expectedDelivery, lineItems, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, editingOrderId, updateCurrentData]);
 
-  // Start auto-save when not in edit mode
+  // Start auto-save when not in edit mode.
+  // The draft is saved on unmount by useDraftSave from the latest updateCurrentData
+  // value. This effect used to depend on every form field and call saveDraft in its
+  // cleanup, which wrote to the drafts table on each change while typing and kept
+  // restarting the auto-save timer.
   useEffect(() => {
     if (!editingOrderId && !location.state?.editOrderId) {
       startAutoSave();
     }
     return () => {
-      // Save draft immediately when component unmounts (tab switch, navigation)
-      const filledItems = lineItems.filter(item => item.productId !== '');
-      if (!skipDraftSaveOnUnmountRef.current && !editingOrderId && filledItems.length > 0) {
-        saveDraft({
-          orderDate: orderDate.toISOString(),
-          expectedDelivery: expectedDelivery.toISOString(),
-          lineItems,
-          selectedCustomerId,
-          selectedCustomer,
-          termsConditions,
-          notes,
-          shippingAddress,
-          taxType,
-          salesman,
-          flatDiscountPercent,
-          flatDiscountAmount,
-          roundOff,
-        }, false);
-      }
       stopAutoSave();
     };
-  }, [editingOrderId, startAutoSave, stopAutoSave, location.state?.editOrderId, lineItems, orderDate, expectedDelivery, selectedCustomerId, selectedCustomer, termsConditions, notes, shippingAddress, taxType, salesman, flatDiscountPercent, flatDiscountAmount, roundOff, saveDraft]);
+  }, [editingOrderId, startAutoSave, stopAutoSave, location.state?.editOrderId]);
 
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
@@ -331,6 +315,9 @@ export default function SaleOrderEntry() {
   useEffect(() => {
     const generateOrderNumber = async () => {
       if (!currentOrganization?.id || editingOrderId) return;
+      // Opening an order for edit: its own number is set from the order. A peek here
+      // was a wasted call that could land late and overwrite that number.
+      if (location.state?.orderData) return;
       try {
         const { data, error } = await supabase.rpc('peek_sale_order_number', {
           p_organization_id: currentOrganization.id
@@ -351,7 +338,7 @@ export default function SaleOrderEntry() {
       }
     };
     generateOrderNumber();
-  }, [currentOrganization?.id, editingOrderId]);
+  }, [currentOrganization?.id, editingOrderId, location.state?.orderData]);
 
   // Server-side customer search (replaces fetch-all loop)
   const [customerSearchInput, setCustomerSearchInput] = useState("");
@@ -364,13 +351,18 @@ export default function SaleOrderEntry() {
   const fetchVariantInfoForLines = async (variantIds: string[]) => {
     const ids = [...new Set(variantIds.filter(Boolean))];
     const map = new Map<string, any>();
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await supabase
-        .from('product_variants')
-        .select('id, stock_qty, color, products(color, uom)')
-        .in('id', ids.slice(i, i + 200));
-      (data || []).forEach((v: any) => map.set(v.id, v));
-    }
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200));
+    // Chunks are independent: fetch them together instead of one after another.
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        supabase
+          .from('product_variants')
+          .select('id, stock_qty, color, products(color, uom)')
+          .in('id', chunk),
+      ),
+    );
+    results.forEach(({ data }) => (data || []).forEach((v: any) => map.set(v.id, v)));
     return map;
   };
 
@@ -398,6 +390,7 @@ export default function SaleOrderEntry() {
       return data || [];
     },
     enabled: !!currentOrganization?.id,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Load from quotation or edit
@@ -1432,7 +1425,6 @@ export default function SaleOrderEntry() {
       }
 
       // Prevent auto-save cleanup from re-creating a draft after successful save
-      skipDraftSaveOnUnmountRef.current = true;
       updateCurrentData(null);
       stopAutoSave();
       await deleteDraft();
