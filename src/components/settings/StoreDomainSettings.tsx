@@ -69,7 +69,7 @@ export function StoreDomainSettings() {
       return;
     }
     setDomain(value || "");
-    queryClient.invalidateQueries({ queryKey: ["store-domain-settings", orgId] });
+    void queryClient.invalidateQueries({ queryKey: ["store-domain-settings", orgId] });
     toast.success(value ? "Domain saved" : "Domain removed");
   };
 
