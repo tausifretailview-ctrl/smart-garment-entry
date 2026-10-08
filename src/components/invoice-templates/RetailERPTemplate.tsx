@@ -429,8 +429,13 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
   );
 
   const explicitOtherCharges = Math.max(0, Number(otherCharges || 0));
+  // GST is added on top only when the bill exceeds the Rate-column subtotal by it
+  // (or it was stored as other charges). When there is no such gap the tax is
+  // already inside the rates (inclusive bill): adding it here forced an equal
+  // negative Round Off (Sub Total + GST − GST = Bill Total).
+  const gstAddedOnTop = residualTaxGap > 0.5 || otherChargesAsGst > 0.005;
   // GST (inclusive extract or exclusive add-on) must never print as "Other Charges".
-  const taxInGrandTotal = billLevelTax;
+  const taxInGrandTotal = gstAddedOnTop ? billLevelTax : 0;
   const derivedOtherCharges = Math.max(
     0,
     billNet -
@@ -1604,8 +1609,11 @@ export const RetailERPTemplate: React.FC<RetailERPTemplateProps> = ({
                         <div style={{ ...totalsRowBase, fontSize: isA4 ? "14px" : "11px", fontWeight: 900 }}>
                           <span style={totalsLabelStyle}>
                             {isInterState ? "IGST Amount" : "GST Amount"}
+                            {gstAddedOnTop ? "" : " (Incl.)"}
                           </span>
-                          <span style={totalsAmountStyle}>+ ₹{fmt(gstTotalsAmount)}</span>
+                          <span style={totalsAmountStyle}>
+                            {gstAddedOnTop ? "+ " : ""}₹{fmt(gstTotalsAmount)}
+                          </span>
                         </div>
                       )}
                       {!isGurukrupa && displayOtherCharges > 0 && (
