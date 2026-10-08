@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { storefrontHomePath } from "@/lib/storefrontPath";
-import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
+import { storefrontHomePath, storefrontHomeUrl } from "@/lib/storefrontPath";
+import { storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontShop } from "@/lib/websiteTypes";
 import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
 import { storefrontLocationLine } from "./storefrontTheme";
@@ -42,7 +42,7 @@ export function StorefrontShell({
 }) {
   const displayName = shop.display_name || shop.name;
   const location = storefrontLocationLine(shop.address);
-  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const shareUrl = storefrontHomeUrl(orgSlug);
   const waHref = shop.whatsapp_number
     ? whatsappShareUrl(
         storefrontWhatsAppShareText(displayName, shareUrl),

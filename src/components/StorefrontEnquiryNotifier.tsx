@@ -15,7 +15,7 @@ const OPEN_MESSAGE = "ezzy-open-path";
  * Website orders, bookings and enquiries pop up in the ERP / installed PWA as
  * they arrive: an in-app toast, plus a phone/desktop notification when the app
  * is in the background. Needs `website_enquiries` in the supabase_realtime
- * publication (migration 20270110120000).
+ * publication (migration 20270110140000).
  */
 export function StorefrontEnquiryNotifier() {
   const { currentOrganization } = useOrganization();

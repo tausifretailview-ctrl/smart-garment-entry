@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { parseStorefrontPath, storefrontHomePath, storefrontProductPath } from "@/lib/storefrontPath";
-import { publicStorefrontUrl, storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
+import { parseStorefrontPath, storefrontHomePath, storefrontHomeUrl, storefrontProductPath } from "@/lib/storefrontPath";
+import { storefrontWhatsAppShareText, whatsappShareUrl } from "@/lib/storefrontShare";
 import type { PublicStorefrontMenu, PublicStorefrontProduct, PublicStorefrontShop } from "@/lib/websiteTypes";
 import type { PublicStorefrontSection } from "@/lib/websiteSections";
 import { StorefrontFloatingSocial } from "./StorefrontFloatingSocial";
@@ -84,7 +84,7 @@ export function EllaStorefront({
 
   const cartCount = ellaCartCount(cart);
   const shopName = shop.display_name || shop.name;
-  const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
+  const shareUrl = storefrontHomeUrl(orgSlug);
   // Shops often save a bare 10-digit mobile; wa.me needs the 91 prefix.
   const shopWa = ellaWhatsAppNumber(shop.whatsapp_number) || null;
   const studioWa = shopWa ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shopWa) : null;
