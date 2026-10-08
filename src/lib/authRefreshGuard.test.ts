@@ -27,10 +27,12 @@ describe("auth refresh guard", () => {
   it("adopts the rotated session instead of replaying a used refresh token", () => {
     const decision = decideAuthRefresh({
       requestRefreshToken: "old-token",
+      nowSec: 1_799_999_000,
       latest: {
         access_token: "new-access",
         refresh_token: "new-token",
         expires_at: 1_800_000_000,
+        rotated_from: "old-token",
         user: { id: "4ba2ad0a-2e5b-4f6d-a703-a3e40b5073e4" },
       },
     });
@@ -38,7 +40,50 @@ describe("auth refresh guard", () => {
     if ("adopt" in decision) {
       expect(decision.adopt.refresh_token).toBe("new-token");
       expect(decision.adopt.expires_in).toBeGreaterThan(0);
+      expect(decision.adopt.rotated_from).toBeUndefined();
     }
+  });
+
+  it("does not swap a fresh login back to the previous login's session", () => {
+    // KS Footwear: after logging in again, the first refresh adopted the old
+    // login's stored rotation, which then failed and left every call anonymous.
+    expect(
+      decideAuthRefresh({
+        requestRefreshToken: "new-login-token",
+        nowSec: 1_799_999_000,
+        latest: {
+          access_token: "old-access",
+          refresh_token: "old-login-token",
+          expires_at: 1_800_000_000,
+          rotated_from: "older-login-token",
+        },
+      }),
+    ).toEqual({ fetch: true });
+  });
+
+  it("ignores a stored rotation written before the guard recorded its parent", () => {
+    expect(
+      decideAuthRefresh({
+        requestRefreshToken: "new-login-token",
+        nowSec: 1_799_999_000,
+        latest: { access_token: "old-access", refresh_token: "old-login-token", expires_at: 1_800_000_000 },
+      }),
+    ).toEqual({ fetch: true });
+  });
+
+  it("does not adopt an expired rotation", () => {
+    expect(
+      decideAuthRefresh({
+        requestRefreshToken: "old-token",
+        nowSec: 1_800_000_000,
+        latest: {
+          access_token: "a",
+          refresh_token: "new-token",
+          expires_at: 1_800_000_010,
+          rotated_from: "old-token",
+        },
+      }),
+    ).toEqual({ fetch: true });
   });
 
   it("still refreshes when this tab holds the current refresh token", () => {
