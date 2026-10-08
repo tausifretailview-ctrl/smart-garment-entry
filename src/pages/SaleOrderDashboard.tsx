@@ -289,15 +289,24 @@ export default function SaleOrderDashboard() {
   // Fetch settings for print (centralized, cached 5min)
   const { data: settings } = useSettings();
 
+  // Wait until typing pauses before querying: each keystroke used to run a new
+  // list fetch with an exact row count.
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
+  useEffect(() => {
+    if (searchQuery === debouncedSearchQuery) return;
+    const timer = window.setTimeout(() => setDebouncedSearchQuery(searchQuery), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, debouncedSearchQuery]);
+
   const listFilters = useMemo<SaleOrderListFilters>(
     () => ({
-      searchQuery,
+      searchQuery: debouncedSearchQuery,
       statusFilter,
       customerFilter,
       fromDate,
       toDate,
     }),
-    [searchQuery, statusFilter, customerFilter, fromDate, toDate],
+    [debouncedSearchQuery, statusFilter, customerFilter, fromDate, toDate],
   );
 
   useEffect(() => {

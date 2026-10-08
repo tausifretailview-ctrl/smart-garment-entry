@@ -277,15 +277,34 @@ export default function SalesInvoiceDashboard() {
   const [shopFilter, setShopFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("__pending__");
 
-  // Fetch org users for billing user filter
-  const { data: orgUsers = [], isFetched: orgUsersFetched } = useQuery({
+  // Org members (one quick table read). Enough to pick the default billing-user
+  // filter, so the invoice list does not wait on the slower get-users call.
+  const fetchOrgMembers = useCallback(async () => {
+    if (!currentOrganization?.id) return [] as Array<{ user_id: string; role: string | null }>;
+    const { data: members } = await supabase
+      .from("organization_members")
+      .select("user_id, role")
+      .eq("organization_id", currentOrganization.id);
+    return (members || []) as Array<{ user_id: string; role: string | null }>;
+  }, [currentOrganization?.id]);
+  const { data: orgMembers, isFetched: orgMembersFetched } = useQuery({
+    queryKey: ["org-members-filter", currentOrganization?.id],
+    queryFn: fetchOrgMembers,
+    enabled: !!currentOrganization?.id,
+    staleTime: STALE_SETTINGS,
+    refetchOnWindowFocus: false,
+  });
+
+  // Fetch org users (emails) for billing user filter labels
+  const { data: orgUsers = [] } = useQuery({
     queryKey: ["org-users-filter", currentOrganization?.id],
     queryFn: async () => {
       if (!currentOrganization?.id) return [];
-      const { data: members } = await supabase
-        .from("organization_members")
-        .select("user_id, role")
-        .eq("organization_id", currentOrganization.id);
+      const members = await queryClient.fetchQuery({
+        queryKey: ["org-members-filter", currentOrganization.id],
+        queryFn: fetchOrgMembers,
+        staleTime: STALE_SETTINGS,
+      });
       if (!members?.length) return [];
       if (!session?.access_token) return [];
       const { data: result } = await supabase.functions.invoke("get-users", {
@@ -315,21 +334,27 @@ export default function SalesInvoiceDashboard() {
     [orgUsers],
   );
 
-  // Default userFilter: admins (and mobile) see all users; non-admins default to themselves
+  // Default userFilter: admins (and mobile) see all users; non-admins default to themselves.
+  // Decided from organization_members, not get-users, so the list loads once with the
+  // right filter instead of loading "all" first and reloading when get-users returns.
   useEffect(() => {
     const pending = !userFilter || userFilter === "__pending__";
     if (!pending) return;
-    if (orgUsers.length > 0 && user?.id) {
-      if (orgUsers.length === 1 || isMobile || organizationRole === "admin") {
+    if (isMobile || organizationRole === "admin") {
+      setUserFilter("all");
+      return;
+    }
+    if (orgMembers && orgMembers.length > 0 && user?.id) {
+      const me = orgMembers.find((m) => m.user_id === user.id);
+      if (orgMembers.length === 1 || !me || me.role === "admin") {
         setUserFilter("all");
       } else {
-        const isOrgMember = orgUsers.some((u: any) => u.id === user.id);
-        setUserFilter(isOrgMember ? user.id : "all");
+        setUserFilter(user.id);
       }
-    } else if (orgUsersFetched) {
+    } else if (orgMembersFetched) {
       setUserFilter("all");
     }
-  }, [userFilter, orgUsers, orgUsersFetched, user?.id, isMobile, organizationRole]);
+  }, [userFilter, orgMembers, orgMembersFetched, user?.id, isMobile, organizationRole]);
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -849,7 +874,9 @@ export default function SalesInvoiceDashboard() {
     ],
   );
 
-  const dashboardQueryEnabled = !!currentOrganization?.id;
+  // Wait for the default billing-user filter (one quick members read) so the
+  // page is not fetched twice: once as "all", then again filtered to this user.
+  const dashboardQueryEnabled = !!currentOrganization?.id && userFilter !== "__pending__";
 
   const dashboardQueryKey = [
     "invoice-dashboard-unified",
@@ -2625,36 +2652,10 @@ export default function SalesInvoiceDashboard() {
 
     const currentPaid = selectedInvoiceForPayment.paid_amount || 0;
     const currentCNAdjust = selectedInvoiceForPayment.sale_return_adjust || 0;
+    const orgIdForChecks = currentOrganization!.id;
+    const customerIdForChecks = selectedInvoiceForPayment.customer_id;
 
-    await assertCustomerPaymentWithinOutstandingCap(supabase, {
-      organizationId: currentOrganization!.id,
-      saleIds: [selectedInvoiceForPayment.id],
-      proposedSettlement: amount,
-    });
-
-    // Hard guard: re-verify available advance balance from customer_advances at write time.
-    if (paymentMode === "advance" && selectedInvoiceForPayment.customer_id) {
-      try {
-        const liveAdvanceBalance = await getAvailableAdvanceBalance(selectedInvoiceForPayment.customer_id);
-        if (amount > liveAdvanceBalance + 0.01) {
-          toast({
-            title: "Insufficient Advance Balance",
-            description: `Customer has only ₹${liveAdvanceBalance.toFixed(2)} unused advance. Cannot adjust ₹${amount.toFixed(2)}.`,
-            variant: "destructive",
-          });
-          return;
-        }
-      } catch (advErr) {
-        console.error("Advance balance check failed:", advErr);
-        toast({
-          title: "Error",
-          description: "Could not verify advance balance. Please retry.",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
+    // Local checks first, so a missing bank / customer never waits on the network.
     const bankValidation = validateReceivingBankForSave(
       paymentMode,
       bankAccounts,
@@ -2670,32 +2671,74 @@ export default function SalesInvoiceDashboard() {
     }
     const resolvedReceivingBankAccountId = bankValidation.bankAccountId;
 
-    if (paymentMode === "credit_note") {
-      if (!selectedInvoiceForPayment.customer_id) {
+    if (paymentMode === "credit_note" && !customerIdForChecks) {
+      toast({
+        title: "Customer Required",
+        description: "Credit note payment requires a customer on this invoice.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Independent pre-write reads run together (one wait instead of three or four):
+    // outstanding cap, live advance / CN balance for the chosen mode, and the GL flag.
+    const acctGlPromise = supabase
+      .from("settings")
+      .select("accounting_engine_enabled")
+      .eq("organization_id", orgIdForChecks)
+      .maybeSingle()
+      .then((res) => res);
+    const liveAdvancePromise =
+      paymentMode === "advance" && customerIdForChecks
+        ? getAvailableAdvanceBalance(customerIdForChecks).then(
+            (balance) => ({ ok: true as const, balance }),
+            (error: unknown) => ({ ok: false as const, error }),
+          )
+        : null;
+    const liveCnPromise =
+      paymentMode === "credit_note" && customerIdForChecks
+        ? getAvailableCN(supabase, customerIdForChecks, orgIdForChecks, {
+            includeUnlinkedAdjusted: true,
+          }).then(
+            (cn) => ({ ok: true as const, cn }),
+            (error: unknown) => ({ ok: false as const, error }),
+          )
+        : null;
+
+    await assertCustomerPaymentWithinOutstandingCap(supabase, {
+      organizationId: orgIdForChecks,
+      saleIds: [selectedInvoiceForPayment.id],
+      proposedSettlement: amount,
+    });
+
+    // Hard guard: re-verify available advance balance from customer_advances at write time.
+    if (liveAdvancePromise) {
+      const liveAdvance = await liveAdvancePromise;
+      if (!liveAdvance.ok) {
+        console.error("Advance balance check failed:", liveAdvance.error);
         toast({
-          title: "Customer Required",
-          description: "Credit note payment requires a customer on this invoice.",
+          title: "Error",
+          description: "Could not verify advance balance. Please retry.",
           variant: "destructive",
         });
         return;
       }
-      try {
-        const { total: liveCn } = await getAvailableCN(
-          supabase,
-          selectedInvoiceForPayment.customer_id,
-          currentOrganization!.id,
-          { includeUnlinkedAdjusted: true },
-        );
-        if (amount > liveCn + 0.01) {
-          toast({
-            title: "Insufficient CN Balance",
-            description: `Customer has only ₹${liveCn.toFixed(2)} unused credit note balance. Cannot apply ₹${amount.toFixed(2)}.`,
-            variant: "destructive",
-          });
-          return;
-        }
-      } catch (cnErr) {
-        console.error("CN balance check failed:", cnErr);
+      if (amount > liveAdvance.balance + 0.01) {
+        toast({
+          title: "Insufficient Advance Balance",
+          description: `Customer has only ₹${liveAdvance.balance.toFixed(2)} unused advance. Cannot adjust ₹${amount.toFixed(2)}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    // Live CN pool, read once: checks the balance here and feeds the FIFO apply below.
+    let liveCnReturns: Awaited<ReturnType<typeof getAvailableCN>>["returns"] = [];
+    if (liveCnPromise) {
+      const liveCn = await liveCnPromise;
+      if (!liveCn.ok) {
+        console.error("CN balance check failed:", liveCn.error);
         toast({
           title: "Error",
           description: "Could not verify credit note balance. Please retry.",
@@ -2703,6 +2746,15 @@ export default function SalesInvoiceDashboard() {
         });
         return;
       }
+      if (amount > liveCn.cn.total + 0.01) {
+        toast({
+          title: "Insufficient CN Balance",
+          description: `Customer has only ₹${liveCn.cn.total.toFixed(2)} unused credit note balance. Cannot apply ₹${amount.toFixed(2)}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      liveCnReturns = liveCn.cn.returns;
     }
 
       const saleSnapshot = {
@@ -2713,11 +2765,7 @@ export default function SalesInvoiceDashboard() {
         sale_return_adjust: Number(selectedInvoiceForPayment.sale_return_adjust || 0),
       };
 
-      const { data: acctGlRow } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", currentOrganization!.id)
-        .maybeSingle();
+      const { data: acctGlRow } = await acctGlPromise;
       const postLedgerSi = isAccountingEngineEnabled(
         acctGlRow as { accounting_engine_enabled?: boolean } | null
       );
@@ -2740,13 +2788,7 @@ export default function SalesInvoiceDashboard() {
       let effectiveCNAdjust = currentCNAdjust;
 
       if (isCreditNoteMode) {
-        const { returns: cnReturns } = await getAvailableCN(
-          supabase,
-          selectedInvoiceForPayment.customer_id!,
-          currentOrganization!.id,
-          { includeUnlinkedAdjusted: true },
-        );
-        const cnPool = cnReturns
+        const cnPool = liveCnReturns
           .filter((r) => r.available > 0.005)
           .map((r) => ({ ...r }));
 
@@ -2943,22 +2985,30 @@ export default function SalesInvoiceDashboard() {
         supabase,
       );
 
-      const { error: metaUpdErr } = await supabase
+      // Write payment date/method and read back the settled figures in one round trip.
+      const refreshedSaleCols = "paid_amount, net_amount, sale_return_adjust, payment_status";
+      const { data: updatedSale, error: metaUpdErr } = await supabase
         .from("sales")
         .update({
           payment_date: payYmdFinal,
           payment_method: paymentMode,
         })
         .eq("id", selectedInvoiceForPayment.id)
-        .eq("organization_id", currentOrganization!.id);
+        .eq("organization_id", currentOrganization!.id)
+        .select(refreshedSaleCols)
+        .maybeSingle();
       if (metaUpdErr) throw metaUpdErr;
-
-      const { data: refreshedSale, error: refreshedSaleError } = await supabase
-        .from("sales")
-        .select("paid_amount, net_amount, sale_return_adjust, payment_status")
-        .eq("id", selectedInvoiceForPayment.id)
-        .single();
-      if (refreshedSaleError) throw refreshedSaleError;
+      let refreshedSale = updatedSale;
+      if (!refreshedSale) {
+        // Update matched no row (should not happen): read it back as before.
+        const { data: readBack, error: refreshedSaleError } = await supabase
+          .from("sales")
+          .select(refreshedSaleCols)
+          .eq("id", selectedInvoiceForPayment.id)
+          .single();
+        if (refreshedSaleError) throw refreshedSaleError;
+        refreshedSale = readBack;
+      }
 
       const reconciledPaid = recomputed.skipped
         ? Number(refreshedSale?.paid_amount || 0)
@@ -3025,8 +3075,10 @@ export default function SalesInvoiceDashboard() {
         orgId,
         selectedInvoiceForPayment.customer_id,
       );
-      await refetchInvoiceDashboardQueries(queryClient, orgId);
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
+      // Row is already patched in cache, and the invalidation above refreshes the
+      // list in the background. No awaited second reload: Save used to sit on
+      // "Saving..." until the whole dashboard page had been fetched again.
+      void queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
     } catch (error: unknown) {
       toast({
         title: "Error",

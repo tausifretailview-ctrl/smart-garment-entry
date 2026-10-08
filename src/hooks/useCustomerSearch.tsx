@@ -246,7 +246,13 @@ export const useCustomerBalances = (options?: UseCustomerBalancesOptions) => {
       }
       return merged;
     },
-    enabled: !!currentOrganization?.id && queryEnabled,
+    // A caller that scopes by ids but has none yet (search still loading, or no
+    // matches) needs no balances. Without this the key fell back to "all": every
+    // customer was paged in and balanced 10 at a time on each sale screen open.
+    enabled:
+      !!currentOrganization?.id &&
+      queryEnabled &&
+      (scopedIds === undefined || (visibleIds?.length ?? 0) > 0),
     staleTime: 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
