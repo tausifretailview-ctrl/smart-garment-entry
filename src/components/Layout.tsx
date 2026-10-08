@@ -10,6 +10,7 @@ import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
+import { AlertPopupHost } from "@/components/alert-popups/AlertPopupHost";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileAppHeader } from "@/components/mobile/MobileAppHeader";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
@@ -140,6 +141,9 @@ export const Layout = ({ children }: LayoutProps) => {
             <KeyboardShortcutsModal open={isOpen} onOpenChange={setIsOpen} context="general" />
             <WhatsAppMessageNotifier />
             <StorefrontEnquiryNotifier />
+            <IdleMount>
+              <AlertPopupHost />
+            </IdleMount>
             <OrgMoneyRealtimeInvalidation />
             <IdleMount>
               <div className="hidden lg:contents">
