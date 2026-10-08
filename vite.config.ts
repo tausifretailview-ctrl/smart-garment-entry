@@ -55,6 +55,8 @@ export default defineConfig(({ mode }) => ({
         // JS is cached on first use by the /assets/*.js rule below instead.
         globPatterns: ['**/*.{css,ico,png,svg,woff2}'],
         cleanupOutdatedCaches: true,
+        // Tap handler for website order / enquiry notifications (StorefrontEnquiryNotifier).
+        importScripts: ['/sw-notify.js'],
         navigateFallback: null,
         // Take over immediately so clients stuck on the bad offline fallback
         // get this SW without waiting for React UpdatePrompt (which never loads).

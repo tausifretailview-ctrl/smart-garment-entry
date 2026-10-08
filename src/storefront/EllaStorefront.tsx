@@ -13,6 +13,7 @@ import { EllaProductSheet } from "./EllaProductSheet";
 import { EllaCartSheet } from "./EllaCartSheet";
 import { ellaCartCount, type EllaCartLine } from "./ellaCart";
 import { useLockBodyScroll } from "./ellaLockBody";
+import { ellaWhatsAppNumber } from "./ellaWhatsApp";
 import "./ella-storefront.css";
 
 export function EllaStorefront({
@@ -84,16 +85,16 @@ export function EllaStorefront({
   const cartCount = ellaCartCount(cart);
   const shopName = shop.display_name || shop.name;
   const shareUrl = publicStorefrontUrl(window.location.origin, orgSlug);
-  const studioWa = shop.whatsapp_number
-    ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shop.whatsapp_number)
-    : null;
+  // Shops often save a bare 10-digit mobile; wa.me needs the 91 prefix.
+  const shopWa = ellaWhatsAppNumber(shop.whatsapp_number) || null;
+  const studioWa = shopWa ? whatsappShareUrl(storefrontWhatsAppShareText(shopName, shareUrl), shopWa) : null;
 
   return (
     <div className="ella-store">
       <EllaStorefrontHome
         shopName={shopName}
         orgSlug={orgSlug}
-        whatsapp={shop.whatsapp_number}
+        whatsapp={shopWa}
         logoUrl={shop.logo_url}
         address={shop.address}
         instagramUrl={shop.instagram_url}
@@ -130,7 +131,7 @@ export function EllaStorefront({
       {selected && !isEllaProductPurchasable(selected.stock) ? (
         <EllaEnquirySheet
           slug={orgSlug}
-          shopWhatsApp={shop.whatsapp_number}
+          shopWhatsApp={shopWa}
           product={selected}
           upiId={shop.upi_id}
           upiBusinessName={shop.upi_business_name || shopName}
@@ -141,7 +142,8 @@ export function EllaStorefront({
       {generalOpen && !selected && !cartOpen ? (
         <GeneralEnquireSheet
           slug={orgSlug}
-          shopWhatsApp={shop.whatsapp_number}
+          shopName={shopName}
+          shopWhatsApp={shopWa}
           upiId={shop.upi_id}
           upiBusinessName={shop.upi_business_name || shopName}
           onClose={closeSheet}
@@ -152,6 +154,7 @@ export function EllaStorefront({
         <EllaCartSheet
           slug={orgSlug}
           shopName={shopName}
+          shopWhatsApp={shopWa}
           upiId={shop.upi_id}
           upiBusinessName={shop.upi_business_name || shopName}
           cart={cart}
@@ -171,12 +174,14 @@ export function EllaStorefront({
 
 function GeneralEnquireSheet({
   slug,
+  shopName,
   shopWhatsApp,
   upiId,
   upiBusinessName,
   onClose,
 }: {
   slug: string;
+  shopName: string;
   shopWhatsApp?: string | null;
   upiId?: string | null;
   upiBusinessName?: string | null;
@@ -212,6 +217,8 @@ function GeneralEnquireSheet({
             slug={slug}
             product={null}
             whatsAppHref={whatsappShareUrl("Hi, I would like to book a studio visit.", shopWhatsApp)}
+            shopName={shopName}
+            shopWhatsApp={shopWhatsApp}
             upiId={upiId}
             upiBusinessName={upiBusinessName}
           />

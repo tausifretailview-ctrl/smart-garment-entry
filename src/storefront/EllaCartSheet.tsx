@@ -24,12 +24,14 @@ import {
   type EllaPaymentMethod,
 } from "./ellaOrder";
 import { useLockBodyScroll } from "./ellaLockBody";
+import { buildEllaOrderWhatsAppText, ellaShopWhatsAppUrl, openEllaWhatsApp } from "./ellaWhatsApp";
 
 type Step = "bag" | "details" | "payment" | "done";
 
 export function EllaCartSheet({
   slug,
   shopName,
+  shopWhatsApp,
   upiId,
   upiBusinessName,
   cart,
@@ -38,6 +40,7 @@ export function EllaCartSheet({
 }: {
   slug: string;
   shopName: string;
+  shopWhatsApp?: string | null;
   upiId?: string | null;
   upiBusinessName?: string | null;
   cart: EllaCartLine[];
@@ -55,6 +58,7 @@ export function EllaCartSheet({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderRef, setOrderRef] = useState("");
+  const [orderWaHref, setOrderWaHref] = useState<string | null>(null);
 
   const total = useMemo(() => ellaCartTotal(cart), [cart]);
   const count = ellaCartCount(cart);
@@ -140,8 +144,15 @@ export function EllaCartSheet({
         );
         return;
       }
-      setOrderRef(`EN-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(2, "0")}`);
+      const ref = `EN-${new Date().toISOString().slice(2, 10).replace(/-/g, "")}-${String(count).padStart(2, "0")}`;
+      const waHref = ellaShopWhatsAppUrl(
+        buildEllaOrderWhatsAppText({ shopName, orderRef: ref, cart, total, method, customer, upiReference }),
+        shopWhatsApp,
+      );
+      setOrderRef(ref);
+      setOrderWaHref(waHref);
       setStep("done");
+      openEllaWhatsApp(waHref);
     } catch {
       setError("Could not place the order. Please try again.");
     } finally {
@@ -417,10 +428,19 @@ export function EllaCartSheet({
                   </div>
                 ))}
               </div>
+              {orderWaHref ? (
+                <div className="ella-wa-confirm">
+                  <p>Send your order details to the studio on WhatsApp so we can confirm it faster.</p>
+                  <a className="ella-btn ella-btn-wa" href={orderWaHref} target="_blank" rel="noreferrer">
+                    <WhatsAppMark />
+                    Send order on WhatsApp
+                  </a>
+                </div>
+              ) : null}
               <div className="ella-form-actions">
                 <button
                   type="button"
-                  className="ella-btn"
+                  className={orderWaHref ? "ella-btn ella-btn-outline" : "ella-btn"}
                   onClick={() => {
                     onCartChange([]);
                     onClose();
@@ -472,5 +492,13 @@ function PayOption({
         <span className="ella-pay-body">{body}</span>
       </span>
     </button>
+  );
+}
+
+export function WhatsAppMark() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12.04 2c-5.46 0-9.9 4.44-9.9 9.9 0 1.75.46 3.45 1.32 4.95L2 22l5.3-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.9-4.44 9.9-9.9S17.5 2 12.04 2Zm5.8 14.1c-.25.7-1.43 1.33-1.98 1.38-.53.05-1.02.24-3.45-.72-2.9-1.14-4.74-4.1-4.88-4.29-.14-.19-1.16-1.54-1.16-2.94s.73-2.09.99-2.37c.26-.29.57-.36.76-.36l.54.01c.17 0 .41-.07.64.49.24.57.8 1.97.87 2.11.07.14.12.31.02.5-.1.19-.14.31-.29.48-.14.17-.3.37-.43.5-.14.14-.29.29-.12.57.17.29.74 1.22 1.59 1.98 1.09.97 2.01 1.27 2.3 1.41.29.14.45.12.62-.07.17-.19.72-.84.91-1.13.19-.29.38-.24.64-.14.26.09 1.66.78 1.94.93.29.14.48.21.55.33.07.12.07.69-.18 1.39Z" />
+    </svg>
   );
 }

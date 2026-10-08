@@ -5,15 +5,21 @@ import { submitStorefrontEnquiry } from "./storefrontClient";
 import { EllaUpiPayBlock } from "./EllaUpiPayBlock";
 import { ellaCopy } from "./storefrontTheme";
 import type { EllaStorefrontProduct } from "./ellaProduct";
+import { buildEllaEnquiryWhatsAppText, ellaShopWhatsAppUrl, openEllaWhatsApp } from "./ellaWhatsApp";
+import { WhatsAppMark } from "./EllaCartSheet";
 
 export function EllaEnquiryForm({
   slug,
   product,
   whatsAppHref,
+  shopName,
+  shopWhatsApp,
   upiId,
   upiBusinessName,
 }: {
   slug: string;
+  shopName?: string;
+  shopWhatsApp?: string | null;
   product: EllaStorefrontProduct | null;
   whatsAppHref?: string | null;
   upiId?: string | null;
@@ -24,12 +30,25 @@ export function EllaEnquiryForm({
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [doneWaHref, setDoneWaHref] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   if (done) {
     return (
       <div className="ella-success" role="status">
-        Thank you. The studio has your enquiry for {product?.name || "this visit"} and will be in touch.
+        <div className="ella-display ella-success-title">Thank you</div>
+        <p>
+          The studio has your {upiId ? "booking" : "enquiry"} for {product?.name || "this visit"} and will be in touch.
+        </p>
+        {doneWaHref ? (
+          <div className="ella-wa-confirm">
+            <p>Send the details to the studio on WhatsApp for a faster reply.</p>
+            <a className="ella-btn ella-btn-wa" href={doneWaHref} target="_blank" rel="noreferrer">
+              <WhatsAppMark />
+              Send on WhatsApp
+            </a>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -67,7 +86,20 @@ export function EllaEnquiryForm({
         setError(result.status === 429 ? "Too many enquiries. Please try again later." : result.error || "Could not send");
         return;
       }
+      const waHref = ellaShopWhatsAppUrl(
+        buildEllaEnquiryWhatsAppText({
+          shopName: shopName || upiBusinessName || "",
+          customerName: checked.value.customerName,
+          customerPhone: checked.value.customerPhone,
+          product: product ? { name: product.name, code: product.code, priceLabel: product.priceLabel } : null,
+          message,
+          paid: Boolean(upiId),
+        }),
+        shopWhatsApp,
+      );
+      setDoneWaHref(waHref);
       setDone(true);
+      openEllaWhatsApp(waHref);
     } catch {
       setError("Could not send enquiry. Please try again.");
     } finally {

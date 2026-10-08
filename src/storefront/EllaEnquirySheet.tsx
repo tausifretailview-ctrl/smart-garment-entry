@@ -86,6 +86,7 @@ export function EllaEnquirySheet({
             slug={slug}
             product={product}
             whatsAppHref={waHref}
+            shopWhatsApp={shopWhatsApp}
             upiId={upiId}
             upiBusinessName={upiBusinessName}
           />
