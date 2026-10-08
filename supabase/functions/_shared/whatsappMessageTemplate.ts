@@ -52,6 +52,27 @@ function formatDateIn(value: unknown): string {
   }
 }
 
+/** Settings address can be multi-line; WhatsApp header reads better on one line. */
+function oneLine(value: unknown): string {
+  return String(value ?? "")
+    .split(/\r?\n/)
+    .map((part) => part.trim().replace(/,$/, ""))
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** Placeholders that sit on their own line; the whole line is removed when empty. */
+const OPTIONAL_LINE_PLACEHOLDERS = ["organization_address", "organization_phone"] as const;
+
+function dropEmptyPlaceholderLines(message: string, values: Record<string, string>): string {
+  let out = message;
+  for (const key of OPTIONAL_LINE_PLACEHOLDERS) {
+    if (values[key]) continue;
+    out = out.replace(new RegExp(`^.*\\{${key}\\}.*(?:\\r?\\n|$)`, "gim"), "");
+  }
+  return out;
+}
+
 function replacePlaceholder(message: string, key: string, value: string): string {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return message.replace(new RegExp(`\\{${escaped}\\}`, "gi"), value);
@@ -98,6 +119,8 @@ function buildPlaceholderMap(
     amount: formatInr(netAmount),
     payment_status: String(saleData.payment_status || "Pending"),
     organization_name: String(saleData.organization_name || orgName || ""),
+    organization_address: oneLine(saleData.organization_address),
+    organization_phone: oneLine(saleData.organization_phone),
     outstanding_amount: formatInr(outstanding),
     paid_amount: formatInr(paidAmount),
     pending_amount: formatInr(pendingAmount),
@@ -127,8 +150,8 @@ export function applyWhatsAppTemplatePlaceholders(
   saleData: Record<string, unknown>,
   orgName: string,
 ): string {
-  let message = templateText;
   const placeholders = buildPlaceholderMap(saleData, orgName);
+  let message = dropEmptyPlaceholderLines(templateText, placeholders);
   for (const [key, value] of Object.entries(placeholders)) {
     message = replacePlaceholder(message, key, value);
   }
