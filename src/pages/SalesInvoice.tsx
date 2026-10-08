@@ -3513,18 +3513,6 @@ Thank you for choosing us!`;
         if (saleError) throw saleError;
         newSaleIdForRollback = saleData.id;
 
-        if (accountingEngineOn) {
-          postSaleJournalInBackground(
-            saleData.id,
-            currentOrganization!.id,
-            Number(netAmount || 0),
-            Number(paymentOverride?.totalPaid || 0),
-            String(paymentOverride?.method || "pay_later"),
-            format(invoiceDate, "yyyy-MM-dd"),
-            supabase,
-          );
-        }
-
         const saleItems = filledItems.map(item => {
           const itemGross = item.lineTotal;
           const discountShare = persistedGrossAmount > 0
@@ -3561,6 +3549,19 @@ Thank you for choosing us!`;
 
         await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
+
+        // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
+        if (accountingEngineOn) {
+          postSaleJournalInBackground(
+            saleData.id,
+            currentOrganization!.id,
+            Number(netAmount || 0),
+            Number(paymentOverride?.totalPaid || 0),
+            String(paymentOverride?.method || "pay_later"),
+            format(invoiceDate, "yyyy-MM-dd"),
+            supabase,
+          );
+        }
 
         // Save financer details if provided
         if (financerDetails?.financer_name) {

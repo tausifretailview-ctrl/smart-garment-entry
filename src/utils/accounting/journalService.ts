@@ -689,7 +689,7 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
   const { data: v, error: fetchErr } = await client
     .from("voucher_entries")
     .select(
-      "id, organization_id, voucher_type, reference_type, payment_method, total_amount, discount_amount, description, category, voucher_date"
+      "id, organization_id, voucher_type, reference_type, reference_id, payment_method, total_amount, discount_amount, description, category, voucher_date"
     )
     .eq("id", voucherId)
     .maybeSingle();
@@ -817,7 +817,8 @@ export async function repostJournalForRestoredVoucher(voucherId: string, client:
       await recordCustomerCreditNoteApplicationJournalEntry(voucherId, orgId, amt, vDate, desc, client);
       return;
     }
-    await recordCustomerReceiptJournalEntry(voucherId, orgId, amt, disc, pm || "cash", vDate, desc, client);
+    // total_amount is the cash received; the AR credit is cash + settlement discount (same as CustomerPaymentTab).
+    await recordCustomerReceiptJournalEntry(voucherId, orgId, amt + disc, disc, pm || "cash", vDate, desc, client);
     return;
   }
 
