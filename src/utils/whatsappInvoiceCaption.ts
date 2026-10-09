@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { appendCustomerPageLinkLine } from "@/utils/customerPageLink";
+import { appendCustomerPageLinkLine, appendGoogleReviewLine } from "@/utils/customerPageLink";
 
 /**
  * WhatsApp's own markup (*bold*, _italic_) and a few common emojis. Sent as plain
@@ -156,8 +156,9 @@ export async function buildSalesInvoiceWhatsAppCaption(
 
   const templateText = row?.message_template?.trim() || DEFAULT_SALES_INVOICE;
   const formatted = applyWhatsAppTemplatePlaceholders(templateText, withShop, orgName);
-  return appendCustomerPageLinkLine(
-    formatted || applyWhatsAppTemplatePlaceholders(DEFAULT_SALES_INVOICE, withShop, orgName),
-    String(saleData.customer_page_link || ""),
-  );
+  const message = formatted || applyWhatsAppTemplatePlaceholders(DEFAULT_SALES_INVOICE, withShop, orgName);
+  const billLink = String(saleData.customer_page_link || "");
+  return billLink
+    ? appendCustomerPageLinkLine(message, billLink)
+    : appendGoogleReviewLine(message, String(saleData.google_review_link || ""));
 }

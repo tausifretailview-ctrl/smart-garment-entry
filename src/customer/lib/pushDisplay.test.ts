@@ -54,7 +54,7 @@ describe("buildPushDisplay", () => {
     const opts = notificationOptions(d);
     expect(opts).toMatchObject({ image: "https://cdn.example/banner.jpg", tag: "m8", renotify: true });
   });
-  it("invoice: no picture, falls back to app icon and 'All my bills' without a shop number", () => {
+  it("invoice: no picture, falls back to app icon, and a Rate shopping button", () => {
     const sale = "0b0c2f3e-1111-4222-8333-944455556666";
     const d = buildPushDisplay({
       data: { message_id: "m9", sale_id: sale, image: "https://cdn.example/x.jpg", icon: "http://insecure/logo.png" },
@@ -62,7 +62,8 @@ describe("buildPushDisplay", () => {
     expect(d.kind).toBe("invoice");
     expect(d.image).toBeUndefined();
     expect(d.icon).toBe(APP_ICON);
-    expect(d.actions.map((a) => a.action)).toEqual(["open", "bills"]);
+    expect(d.actions.map((a) => a.action)).toEqual(["open", "rate"]);
+    expect(clickTarget(d, "rate")).toBe(`${d.url}#rate`);
     expect(clickTarget(d, "bills")).toBe("/bills");
     expect(notificationOptions(d)).not.toHaveProperty("image");
   });

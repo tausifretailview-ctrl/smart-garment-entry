@@ -38,7 +38,8 @@ export function StorefrontEnquiryNotifier() {
     if (!canNotify || typeof navigator === "undefined" || !navigator.serviceWorker) return;
     const onMessage = (event: MessageEvent) => {
       const data = event.data as { type?: string; path?: string } | null;
-      if (data?.type === OPEN_MESSAGE && data.path) navigateRef.current(data.path);
+      // Review alerts route themselves (CustomerReviewNotifier).
+      if (data?.type === OPEN_MESSAGE && data.path?.startsWith("/website")) navigateRef.current(data.path);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
@@ -107,7 +108,14 @@ export function StorefrontEnquiryNotifier() {
  * Installed PWAs on Android only show notifications through the service
  * worker (`new Notification` throws there); desktop browsers accept either.
  */
-async function showSystemNotification(title: string, body: string, tag: string, url: string, onOpen: () => void) {
+export async function showSystemNotification(
+  title: string,
+  body: string,
+  tag: string,
+  url: string,
+  onOpen: () => void,
+  route: { path: string; source: string } = { path: "/website", source: "ezzy-website-enquiry" },
+) {
   if (typeof window === "undefined" || !("Notification" in window) || Notification.permission !== "granted") return;
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
@@ -119,7 +127,7 @@ async function showSystemNotification(title: string, body: string, tag: string, 
         badge: "/icon-192.png",
         // sw-notify.js focuses the open app and posts the in-app path back,
         // or opens `url` when the app is closed.
-        data: { source: "ezzy-website-enquiry", path: "/website", url },
+        data: { source: route.source, path: route.path, url },
       });
       return;
     }

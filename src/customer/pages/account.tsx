@@ -5,6 +5,7 @@ import { useCountUp } from "../lib/useCountUp";
 import InvoiceCard from "../components/InvoiceCard";
 import LoginCard from "../components/LoginCard";
 import InstallAppCard from "../components/InstallApp";
+import RateCard, { StarsText } from "../components/RateCard";
 import {
   AccountError,
   accountErrorMessage,
@@ -13,6 +14,7 @@ import {
   fetchOffers,
   fetchPoints,
   fetchReturns,
+  fetchReviews,
   fetchSummary,
   fetchTransactions,
   getSessionToken,
@@ -21,10 +23,11 @@ import {
   writeCache,
   type AccountSummary,
   type BillListRow,
-  type BillSale,
   type OfferRow,
   type PointsData,
   type ReturnRow,
+  type ReviewRow,
+  type UnratedBill,
   type TxnRow,
 } from "../lib/account";
 import { formatDate, formatINR } from "../lib/format";
@@ -276,6 +279,14 @@ export function AccountPage() {
             </Link>
           </div>
 
+          <Link to="/reviews" className="c-card c-review-link">
+            <span>
+              <b>⭐ My reviews</b>
+              <span className="c-muted">Rate your shopping and see your stars</span>
+            </span>
+            <span aria-hidden="true">›</span>
+          </Link>
+
           <div className="c-card">
             <div className="c-section">Balance</div>
             <div className="c-totals">
@@ -365,13 +376,15 @@ function downloadPdf(): void {
 
 /** Full bill for a logged-in customer (also used when a notification is tapped). */
 export function BillView({ saleId }: { saleId: string }) {
-  const { data, error, needLogin, reload } = useAccountData<{ sale: BillSale }>(() => fetchBill(saleId), [saleId]);
+  const { data, error, needLogin, reload } = useAccountData(() => fetchBill(saleId), [saleId]);
   if (needLogin) return <LoginCard title="Log in to see your full bill" onDone={reload} />;
   if (error) return <div className="c-err">{error}</div>;
   if (!data) return <Skeleton rows={5} />;
   return (
     <>
       <InvoiceCard sale={data.sale} />
+      {/* Older customer-app deploys send no review field and cannot save one: no card then. */}
+      {"review" in data ? <RateCard saleId={data.sale.id} review={data.review ?? null} /> : null}
       <div className="c-row2 no-print">
         <button type="button" className="c-btn" onClick={downloadPdf}>
           Download PDF
@@ -598,6 +611,66 @@ export function RewardsPage() {
           </div>
         </>
       ) : null}
+    </Shell>
+  );
+}
+
+/** The customer's own reviews and stars, and recent bills still waiting for a rating. */
+export function ReviewsPage() {
+  const { data, error, needLogin, reload } = useAccountData<{ reviews: ReviewRow[]; unrated: UnratedBill[] }>(
+    fetchReviews,
+    [],
+    "reviews",
+  );
+  const reviews = data?.reviews ?? [];
+  const avg = reviews.length ? reviews.reduce((t, r) => t + r.rating, 0) / reviews.length : 0;
+  return (
+    <Shell title="My reviews" state={{ error, needLogin, reload, loading: !data }}>
+      {reviews.length ? (
+        <div className="c-card c-center">
+          <div className="c-review-avg">{avg.toFixed(1)}</div>
+          <StarsText rating={avg} />
+          <p className="c-muted">
+            {reviews.length} review{reviews.length === 1 ? "" : "s"} given. Thank you!
+          </p>
+        </div>
+      ) : null}
+
+      {data?.unrated.length ? (
+        <div className="c-card c-list">
+          <div className="c-section">Rate your recent shopping</div>
+          {data.unrated.map((b) => (
+            <Link key={b.id} to={`/bills/${b.id}`}>
+              <span>
+                <b>{b.sale_number}</b>
+                <div className="c-muted">
+                  {formatDate(b.sale_date)} · {formatINR(b.net_amount)}
+                </div>
+              </span>
+              <span className="c-rate-cta">Rate ★</span>
+            </Link>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="c-card c-list c-stagger">
+        {data && reviews.length === 0 ? (
+          <p className="c-muted">No reviews yet. Open a bill and tap the stars to rate your shopping.</p>
+        ) : null}
+        {reviews.map((r) => (
+          <Link key={r.id} to={`/bills/${r.sale_id}`} className="c-review-row">
+            <span>
+              <StarsText rating={r.rating} />
+              <div className="c-muted">
+                Bill {r.sale_number ?? ""} · {formatDate(r.sale_date ?? r.created_at)}
+              </div>
+              {r.tags.length ? <div className="c-review-tags">{r.tags.join(" · ")}</div> : null}
+              {r.comment ? <div className="c-review-comment">“{r.comment}”</div> : null}
+            </span>
+            <span aria-hidden="true">›</span>
+          </Link>
+        ))}
+      </div>
     </Shell>
   );
 }

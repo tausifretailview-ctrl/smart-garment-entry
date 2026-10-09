@@ -11,6 +11,7 @@ import {
   lowStockMessage,
   shouldSendInvoiceAlert,
   type OwnerAlertSettings,
+  reviewMessage,
 } from "../supabase/functions/_shared/ownerAlertSchedule";
 
 const base: OwnerAlertSettings = {
@@ -108,5 +109,19 @@ describe("message text", () => {
     expect(
       invoiceMessage({ sale_number: "POS/26-27/947", net_amount: 24500, customer_name: "Santosh Kumar", payment_method: "multiple" }),
     ).toEqual({ title: "New bill POS/26-27/947", body: "₹24,500 · Santosh Kumar · multiple" });
+  });
+});
+
+describe("reviewMessage", () => {
+  it("shows stars, customer, comment, bill and source", () => {
+    expect(
+      reviewMessage({ rating: 4, comment: "Nice  shop", source: "customer_app", sale_number: "S/1", customer_name: "Riya" }),
+    ).toEqual({ title: "★★★★☆ review · Riya", body: "“Nice shop” · Bill S/1 · Bill & Offers app" });
+  });
+  it("flags unhappy reviews and uses tags without a comment", () => {
+    expect(reviewMessage({ rating: 1, tags: ["Prices"], source: "whatsapp" })).toEqual({
+      title: "⚠️ ★☆☆☆☆ review · A customer",
+      body: "Prices · WhatsApp",
+    });
   });
 });

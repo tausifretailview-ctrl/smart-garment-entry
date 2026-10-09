@@ -18,12 +18,14 @@ import {
   istClock,
   istDayStartUtc,
   lowStockMessage,
+  REVIEW_LOOKBACK_MIN,
+  reviewMessage,
   shouldSendInvoiceAlert,
   slotMinutes,
 } from "../_shared/ownerAlertSchedule.ts";
 
 // owner-alerts: phone notifications for shop owners (Android app, FCM).
-//   { type: "scheduled" }              pg_cron every 15 min (one-time ticket) → cashier / low stock / day-end
+//   { type: "scheduled" }              pg_cron every 15 min (one-time ticket) → cashier / low stock / day-end / new reviews
 //   { type: "invoice", organizationId, saleId }   app, after a bill is saved (logged-in member)
 //   { type: "test", organizationId }               Settings → "Send test alert" (logged-in member)
 // verify_jwt = false (config.toml); every path authenticates itself.
@@ -128,6 +130,30 @@ async function todayTotals(db: Db, organizationId: string, now: Date): Promise<C
   };
 }
 
+/** New customer reviews since the last runs, each sent once (owner_push_log kind "review"). */
+async function sendNewReviews(db: Db, sa: ServiceAccount, org: string, now: Date, out: Record<string, unknown>[]) {
+  const since = new Date(now.getTime() - REVIEW_LOOKBACK_MIN * 60_000).toISOString();
+  const { data: reviews } = await db
+    .from("customer_feedback")
+    .select("id, sale_id, rating, comment, tags, source")
+    .eq("organization_id", org)
+    .gte("created_at", since)
+    .order("created_at", { ascending: true })
+    .limit(10);
+  for (const r of reviews ?? []) {
+    const logId = await claim(db, org, "review", r.id);
+    if (!logId) continue;
+    const { data: sale } = await db
+      .from("sales")
+      .select("sale_number, customer_name")
+      .eq("organization_id", org)
+      .eq("id", r.sale_id)
+      .maybeSingle();
+    const msg = reviewMessage({ ...r, sale_number: sale?.sale_number, customer_name: sale?.customer_name });
+    out.push({ org, kind: "review", ...(await sendToOwners(db, sa, org, logId, msg, { route: "/customer-reviews" })) });
+  }
+}
+
 async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
   const { data: rows } = await db.from("owner_alert_settings").select("*").eq("enabled", true);
   const out: Record<string, unknown>[] = [];
@@ -159,6 +185,7 @@ async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
           out.push({ org, kind: "day_end", ...(await sendToOwners(db, sa, org, logId, msg, { route: "/pos-dashboard" })) });
         }
       }
+      await sendNewReviews(db, sa, org, now, out);
     } catch (e) {
       console.error("owner-alerts org failed", org, e instanceof Error ? e.message : e);
     }

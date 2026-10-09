@@ -23,6 +23,7 @@ import {
 import InvoiceCard from "../components/InvoiceCard";
 import { ShopNowCard, SuccessTick, useShop } from "../components/AppChrome";
 import InstallAppCard from "../components/InstallApp";
+import { useScrollToRate } from "../components/RateCard";
 import { PushBlockedHelp } from "./account";
 import { formatINR } from "../lib/format";
 
@@ -72,6 +73,7 @@ export default function TokenPage() {
   const [ratingMsg, setRatingMsg] = useState<string | null>(null);
   const loggedOpen = useRef(false);
   const shop = useShop();
+  const rateRef = useScrollToRate(!!data);
 
   useEffect(() => {
     if (!subdomain) {
@@ -266,7 +268,7 @@ export default function TokenPage() {
       ) : null}
 
       {engage ? (
-        <div className="c-card no-print" style={{ marginTop: 12 }}>
+        <div className="c-card no-print" id="rate" ref={rateRef} style={{ marginTop: 12 }}>
           {ratingDone || data.feedback ? (
             <div className="c-center">
               <SuccessTick size={40} />

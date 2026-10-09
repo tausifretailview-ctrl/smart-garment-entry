@@ -1,7 +1,16 @@
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import TokenPage from "./pages/TokenPage";
 import MessagePage from "./pages/MessagePage";
-import { AccountPage, BillPage, BillsPage, OffersPage, ReturnsPage, RewardsPage, TransactionsPage } from "./pages/account";
+import {
+  AccountPage,
+  BillPage,
+  BillsPage,
+  OffersPage,
+  ReturnsPage,
+  ReviewsPage,
+  RewardsPage,
+  TransactionsPage,
+} from "./pages/account";
 import LoginCard from "./components/LoginCard";
 import { PoweredBy, ShopHeader, ShopNowCard, useShop } from "./components/AppChrome";
 import InstallAppCard from "./components/InstallApp";
@@ -43,6 +52,7 @@ export default function CustomerApp() {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/offers" element={<OffersPage />} />
         <Route path="/rewards" element={<RewardsPage />} />
+        <Route path="/reviews" element={<ReviewsPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </BrowserRouter>

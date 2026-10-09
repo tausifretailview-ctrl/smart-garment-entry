@@ -278,3 +278,44 @@ export function pointsRulesFromSaleSettings(saleSettings: unknown): CustomerPoin
     expiryDays: num(s.points_expiry_days, 0),
   };
 }
+
+// ── Reviews ────────────────────────────────────────────────────────────────
+
+/** Star rating a customer can leave on their own bill from the app. */
+export type CustomerReviewInput = { rating: number; tags: string[]; comment: string | null };
+
+/** How long after billing a bill can still be rated, and an app rating changed. */
+export const REVIEW_WINDOW_DAYS = 90;
+export const REVIEW_EDIT_DAYS = 7;
+
+/** Cleans a rating request; null when the rating is not 1 to 5. */
+export function reviewInputFromBody(body: unknown): CustomerReviewInput | null {
+  const b = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  const rating = Number(b.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return null;
+  const tags = Array.isArray(b.tags)
+    ? Array.from(new Set(b.tags.map((t) => String(t ?? "").trim().slice(0, 30)).filter(Boolean))).slice(0, 8)
+    : [];
+  const comment = String(b.comment ?? "").trim().slice(0, 500);
+  return { rating, tags, comment: comment || null };
+}
+
+/**
+ * Why this bill cannot be rated (or re-rated) from the app now, or null when it can. A rating
+ * given on WhatsApp stays as given; an app / bill-page rating can be changed for a week.
+ */
+export function reviewBlockReason(
+  saleDate: string | null | undefined,
+  existing: { source?: string | null; created_at?: string | null } | null,
+  now: Date = new Date(),
+): "whatsapp_rating_locked" | "rating_window_expired" | null {
+  const days = (iso: string | null | undefined) => {
+    const t = Date.parse(String(iso ?? ""));
+    return Number.isFinite(t) ? (now.getTime() - t) / 86_400_000 : 0;
+  };
+  if (existing) {
+    if (String(existing.source ?? "").toLowerCase().startsWith("whatsapp")) return "whatsapp_rating_locked";
+    return days(existing.created_at) > REVIEW_EDIT_DAYS ? "rating_window_expired" : null;
+  }
+  return days(saleDate) > REVIEW_WINDOW_DAYS ? "rating_window_expired" : null;
+}

@@ -8,6 +8,8 @@ import {
   maskPhone,
   phoneLast10,
   pointsRulesFromSaleSettings,
+  reviewBlockReason,
+  reviewInputFromBody,
   shopProfileFromSettings,
   storefrontUrlFor,
   signSessionToken,
@@ -134,5 +136,34 @@ describe("customer-app points rules", () => {
     });
     expect(pointsRulesFromSaleSettings(null)).toMatchObject({ enabled: false, earnPerAmount: 100, earnPoints: 1, pointValue: 1 });
     expect(pointsRulesFromSaleSettings({ points_ratio_amount: 0 }).earnPerAmount).toBe(100);
+  });
+});
+
+describe("customer reviews from the app", () => {
+  it("cleans a rating request", () => {
+    expect(reviewInputFromBody({ rating: 4, tags: [" Staff ", "Staff", "", "Prices"], comment: "  Nice  " })).toEqual({
+      rating: 4,
+      tags: ["Staff", "Prices"],
+      comment: "Nice",
+    });
+    expect(reviewInputFromBody({ rating: 5 })).toEqual({ rating: 5, tags: [], comment: null });
+    expect(reviewInputFromBody({ rating: 0 })).toBeNull();
+    expect(reviewInputFromBody({ rating: 4.5 })).toBeNull();
+    expect(reviewInputFromBody({ rating: "6" })).toBeNull();
+    expect(reviewInputFromBody(null)).toBeNull();
+    expect(reviewInputFromBody({ rating: 3, comment: "x".repeat(900) })?.comment).toHaveLength(500);
+  });
+
+  it("locks WhatsApp ratings and old bills", () => {
+    const now = new Date("2026-10-09T10:00:00Z");
+    expect(reviewBlockReason("2026-10-01", null, now)).toBeNull();
+    expect(reviewBlockReason("2026-05-01", null, now)).toBe("rating_window_expired");
+    expect(reviewBlockReason("2026-10-01", { source: "whatsapp", created_at: "2026-10-08T00:00:00Z" }, now)).toBe(
+      "whatsapp_rating_locked",
+    );
+    expect(reviewBlockReason("2026-10-01", { source: "customer_app", created_at: "2026-10-05T00:00:00Z" }, now)).toBeNull();
+    expect(reviewBlockReason("2026-09-01", { source: "customer_page", created_at: "2026-09-01T00:00:00Z" }, now)).toBe(
+      "rating_window_expired",
+    );
   });
 });

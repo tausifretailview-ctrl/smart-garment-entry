@@ -10,6 +10,7 @@ import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { FloatingWhatsAppInbox } from "@/components/FloatingWhatsAppInbox";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
+import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
 import { AlertPopupHost } from "@/components/alert-popups/AlertPopupHost";
 import { OfflineIndicator } from "@/components/mobile/OfflineIndicator";
 import { MobileScanProvider } from "@/contexts/MobileScanContext";
@@ -73,6 +74,7 @@ export function DesktopAppShell({ children, className }: DesktopAppShellProps) {
 
             <WhatsAppMessageNotifier />
             <StorefrontEnquiryNotifier />
+            <CustomerReviewNotifier />
             <IdleMount>
               <AlertPopupHost />
             </IdleMount>
