@@ -11,6 +11,7 @@ import {
   ImagePlus,
   Loader2,
   MessageCircle,
+  Pencil,
   Phone,
   Search,
   Store,
@@ -67,6 +68,11 @@ import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
 import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel";
 import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
+import {
+  WebsiteProductDetailsDialog,
+  type WebsiteProductDetailsValues,
+} from "@/components/website/WebsiteProductDetailsDialog";
+import { isMissingWebsiteDetailsColumns, type WebsiteProductDetails } from "@/lib/websiteProductDetails";
 import { useWebsiteSections } from "@/hooks/useWebsiteSections";
 import { activeWebsiteSections, isNewArrivalSlug } from "@/lib/websiteSections";
 import { isMissingWebsiteSectionsSchema, sectionIdForProduct } from "@/lib/websiteSectionStore";
@@ -524,6 +530,8 @@ function AddProducts({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [websitePrices, setWebsitePrices] = useState<Record<string, string>>({});
   const [rowSections, setRowSections] = useState<Record<string, string>>({});
+  const [rowDetails, setRowDetails] = useState<Record<string, WebsiteProductDetails>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [publishSectionId, setPublishSectionId] = useState("");
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
@@ -712,6 +720,7 @@ function AddProducts({
             ? parsed
             : product?.default_sale_price ?? null;
         const section_id = rowSections[product_id] || publishSectionId || null;
+        const details = rowDetails[product_id];
         return {
           organization_id: orgId,
           product_id,
@@ -719,6 +728,8 @@ function AddProducts({
           display_price,
           display_order: maxOrder + i + 1,
           is_active: true,
+          ...(details?.display_name ? { display_name: details.display_name } : {}),
+          ...(details?.description ? { description: details.description } : {}),
           ...(sectionStorage === "table" && section_id ? { section_id } : {}),
           assignedSectionId: section_id,
         };
@@ -728,19 +739,32 @@ function AddProducts({
         void _assigned;
         return rest;
       });
-      const { error } = await websiteFrom("website_products").insert(rowsForInsert);
-      if (error) {
-        if (isMissingWebsiteSectionsSchema(error.message)) {
-          const retry = rowsForInsert.map((row) => {
-            const { section_id: _sid, ...rest } = row as typeof row & { section_id?: string };
+      // Older databases may lack section_id or display_name/description:
+      // drop whichever columns the error names and insert again.
+      let pending: Record<string, unknown>[] = rowsForInsert;
+      let detailsDropped = false;
+      for (let attempt = 0; ; attempt++) {
+        const { error } = await websiteFrom("website_products").insert(pending);
+        if (!error) break;
+        if (attempt < 2 && isMissingWebsiteDetailsColumns(error.message) && !detailsDropped) {
+          detailsDropped = true;
+          pending = pending.map(({ display_name: _n, description: _d, ...rest }) => {
+            void _n;
+            void _d;
+            return rest;
+          });
+        } else if (attempt < 2 && isMissingWebsiteSectionsSchema(error.message) && pending.some((r) => "section_id" in r)) {
+          pending = pending.map(({ section_id: _sid, ...rest }) => {
             void _sid;
             return rest;
           });
-          const retried = await websiteFrom("website_products").insert(retry);
-          if (retried.error) throw retried.error;
         } else {
           throw error;
         }
+      }
+      const hadDetails = rowsForInsert.some((r) => "display_name" in r || "description" in r);
+      if (detailsDropped && hadDetails) {
+        toast.warning("Published, but website name/description were not saved: the database update is not applied yet");
       }
       for (const row of rowsToInsert) {
         const section = sections.find((s) => s.id === row.assignedSectionId);
@@ -752,6 +776,7 @@ function AddProducts({
       setSelected(new Set());
       setWebsitePrices({});
       setRowSections({});
+      setRowDetails({});
       onChanged();
     },
     onError: (err: Error) => toast.error(err.message || "Could not publish"),
@@ -761,12 +786,13 @@ function AddProducts({
     if (websitePrices[p.id] != null) return websitePrices[p.id];
     return p.default_sale_price != null ? String(p.default_sale_price) : "";
   };
+  const editingProduct = editingId ? rows.find((p) => p.id === editingId) ?? null : null;
 
   return (
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Add products to store"
-        subtitle="Only products with stock on hand are listed — search, pick a store section, set a website price if needed, and publish"
+        subtitle="Only products with stock on hand are listed — search, pick a store section, use Edit to set a website name, price or description, and publish"
         className="flex-1 min-h-0"
         toolbar={
           <div className="flex flex-wrap items-center gap-2 ml-auto">
@@ -910,8 +936,27 @@ function AddProducts({
                     }}
                   />
                 </TableCell>
-                <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900")}>
-                  {p.product_name}
+                <TableCell className={INSIGHTS_BODY_CELL}>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-slate-900">{p.product_name}</div>
+                      {rowDetails[p.id]?.display_name || rowDetails[p.id]?.description ? (
+                        <div className="max-w-[16rem] truncate text-xs text-emerald-700">
+                          {rowDetails[p.id]?.display_name || "Description added"}
+                        </div>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs shrink-0"
+                      onClick={() => setEditingId(p.id)}
+                    >
+                      <Pencil className="mr-1 h-3 w-3" />
+                      Edit
+                    </Button>
+                  </div>
                 </TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.category || "—"}</TableCell>
                 <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{p.brand || "—"}</TableCell>
@@ -970,6 +1015,32 @@ function AddProducts({
           </TableBody>
         </Table>
       </InsightsPanel>
+      {editingProduct ? (
+        <WebsiteProductDetailsDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingId(null);
+          }}
+          erpName={editingProduct.product_name}
+          erpPriceLabel={formatStorefrontPrice(editingProduct.default_sale_price) || undefined}
+          initial={{
+            display_name: rowDetails[editingProduct.id]?.display_name ?? null,
+            description: rowDetails[editingProduct.id]?.description ?? null,
+            price: defaultWebsitePrice(editingProduct),
+          }}
+          onSave={(values) => {
+            const id = editingProduct.id;
+            setRowDetails((prev) => ({
+              ...prev,
+              [id]: { display_name: values.display_name, description: values.description },
+            }));
+            setWebsitePrices((prev) => ({ ...prev, [id]: values.price }));
+            setSelected((prev) => new Set(prev).add(id));
+            setEditingId(null);
+            toast.success("Details saved — they go live when you publish");
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -1105,7 +1176,7 @@ function PublishedCatalogue({
     <div className={INSIGHTS_TAB_SHELL}>
       <InsightsPanel
         title="Published catalogue"
-        subtitle="Drag rows to reorder · assign a section · edit display price · toggle visibility"
+        subtitle="Drag rows to reorder · assign a section · edit name, price and description · toggle visibility"
         className="flex-1 min-h-0"
         footer={
           <div className="flex w-full items-center justify-between gap-2">
@@ -1159,6 +1230,7 @@ function PublishedCatalogue({
                 <InsightsStaticTh label="Section" className="w-40" />
                 <InsightsStaticTh label="Stock" />
                 <InsightsStaticTh label="Display price" className="text-right" />
+                <InsightsStaticTh label="Details" className="w-20" />
                 <InsightsStaticTh label="Upload" className="w-24" />
                 <InsightsStaticTh label="Active" className="w-20" />
                 <InsightsStaticTh label="" className="w-12" />
@@ -1241,6 +1313,37 @@ function SortableListingRow({
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: listing.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [price, setPrice] = useState(listing.display_price != null ? String(listing.display_price) : "");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+
+  useEffect(() => {
+    setPrice(listing.display_price != null ? String(listing.display_price) : "");
+  }, [listing.display_price]);
+
+  const saveDetails = async (values: WebsiteProductDetailsValues) => {
+    const parsed = values.price === "" ? null : Number(values.price);
+    if (parsed != null && !Number.isFinite(parsed)) {
+      toast.error("Enter a valid price");
+      return;
+    }
+    setSavingDetails(true);
+    const { error } = await websiteFrom("website_products")
+      .update({ display_name: values.display_name, description: values.description, display_price: parsed })
+      .eq("id", listing.id)
+      .eq("organization_id", orgId);
+    setSavingDetails(false);
+    if (error) {
+      toast.error(
+        isMissingWebsiteDetailsColumns(error.message)
+          ? "Website name and description need a database update first. Ask your admin to run the website details SQL."
+          : error.message,
+      );
+      return;
+    }
+    toast.success("Website details saved");
+    setDetailsOpen(false);
+    onChanged();
+  };
 
   const savePrice = async () => {
     const parsed = price.trim() === "" ? null : Number(price);
@@ -1345,8 +1448,13 @@ function SortableListingRow({
           {thumbUrl ? <img src={thumbUrl} alt="" className="h-full w-full object-cover" /> : null}
         </div>
       </TableCell>
-      <TableCell className={cn(INSIGHTS_BODY_CELL, "font-semibold text-slate-900 min-w-[10rem]")}>
-        {product?.product_name || listing.product_id}
+      <TableCell className={cn(INSIGHTS_BODY_CELL, "min-w-[10rem]")}>
+        <div className="font-semibold text-slate-900">{product?.product_name || listing.product_id}</div>
+        {listing.display_name || listing.description ? (
+          <div className="max-w-[16rem] truncate text-xs text-emerald-700">
+            {listing.display_name || "Description added"}
+          </div>
+        ) : null}
       </TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{categoryLabel}</TableCell>
       <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-600")}>{product?.brand || "—"}</TableCell>
@@ -1375,6 +1483,33 @@ function SortableListingRow({
           placeholder={salePrice != null ? String(salePrice) : "Price"}
           className="h-9 w-28 font-mono text-sm tabular-nums border-slate-200 bg-white ml-auto"
         />
+      </TableCell>
+      <TableCell className={INSIGHTS_BODY_CELL}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={() => setDetailsOpen(true)}
+        >
+          <Pencil className="mr-1 h-3.5 w-3.5" />
+          Edit
+        </Button>
+        {detailsOpen ? (
+          <WebsiteProductDetailsDialog
+            open
+            onOpenChange={setDetailsOpen}
+            erpName={product?.product_name || "Product"}
+            erpPriceLabel={formatStorefrontPrice(product?.default_sale_price ?? null) || undefined}
+            initial={{
+              display_name: listing.display_name ?? null,
+              description: listing.description ?? null,
+              price: listing.display_price != null ? String(listing.display_price) : "",
+            }}
+            saving={savingDetails}
+            onSave={(values) => void saveDetails(values)}
+          />
+        ) : null}
       </TableCell>
       <TableCell className={INSIGHTS_BODY_CELL}>
         <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 px-2 py-1.5 text-xs font-medium hover:bg-slate-50">

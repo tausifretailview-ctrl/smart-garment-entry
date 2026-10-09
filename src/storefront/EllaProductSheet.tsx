@@ -138,6 +138,8 @@ export function EllaProductSheet({
                 <span className="ella-tax-note">Inclusive of all taxes</span>
               </div>
 
+              {product.description ? <p className="ella-pdp-desc">{product.description}</p> : null}
+
               <div className="ella-size-head">
                 <span className="ella-eyebrow">Select size</span>
                 <button

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
 import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
+import { applyWebsiteProductDetails } from "@/lib/websiteProductDetails";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
 
 const storefrontClient = createClient(
@@ -31,7 +32,37 @@ export async function loadPublicStorefront(slug: string): Promise<PublicStorefro
     payload.shop = enrichPublicStorefrontShop(payload.shop, orgInfo);
   }
 
+  if (orgInfo?.id && payload.products?.length) {
+    payload.products = applyWebsiteProductDetails(
+      payload.products,
+      await loadWebsiteProductDetails(orgInfo.id),
+    );
+  }
+
   return attachSectionsToPublicPayload(payload, orgInfo?.settings);
+}
+
+/**
+ * Website name + description per listing. Read straight from website_products
+ * (anon can select active rows of published stores) so get_public_storefront
+ * does not need to change. Any error, including the columns not existing yet,
+ * leaves the store on ERP names with no description.
+ */
+async function loadWebsiteProductDetails(
+  orgId: string,
+): Promise<Array<{ id: string; display_name: string | null; description: string | null }>> {
+  try {
+    const { data, error } = await storefrontClient
+      .from("website_products" as never)
+      .select("id, display_name, description")
+      .eq("organization_id", orgId)
+      .eq("is_active", true)
+      .or("display_name.not.is.null,description.not.is.null");
+    if (error || !Array.isArray(data)) return [];
+    return data as Array<{ id: string; display_name: string | null; description: string | null }>;
+  } catch {
+    return [];
+  }
 }
 
 export async function submitStorefrontEnquiry(payload: {

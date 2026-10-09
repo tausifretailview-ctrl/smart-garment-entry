@@ -518,7 +518,7 @@
 
 /* ==========================================================================
    Premium polish layer
-   Warm ivory + ink + antique gold, Cormorant display over Jost text, slow
+   Warm ivory + ink + antique gold, Playfair Display headings over Mulish text, slow
    editorial motion. Everything below overrides the base rules above, so the
    layout skeleton and the tests that pin it stay put.
    ========================================================================== */
@@ -535,8 +535,8 @@
   --en-accent: #a8844d;
   --en-accent-deep: #7a5c2e;
   --en-accent-2: #7a1f2b;
-  --en-display: "Cormorant Garamond", "Playfair Display", Georgia, serif;
-  --en-sans: Jost, "Helvetica Neue", Arial, sans-serif;
+  --en-display: "Playfair Display", Georgia, serif;
+  --en-sans: Mulish, "Helvetica Neue", Arial, sans-serif;
   --en-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   font-family: var(--en-sans);
   -webkit-font-smoothing: antialiased;
@@ -878,9 +878,9 @@
    The base sheet rules live in ella-storefront.css; these only restyle.
    ========================================================================== */
 
-.ella-store { font-family: Jost, "Helvetica Neue", Arial, sans-serif; }
+.ella-store { font-family: Mulish, "Helvetica Neue", Arial, sans-serif; }
 .ella-store .ella-display {
-  font-family: "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  font-family: "Playfair Display", Georgia, serif;
   font-weight: 500; letter-spacing: 0.01em; text-transform: none;
 }
 .ella-store .ella-sheet-name { font-size: clamp(28px, 3vw, 38px); line-height: 1.05; letter-spacing: 0; }
@@ -922,7 +922,7 @@
 .ella-store button.ella-btn,
 .ella-store a.ella-btn,
 .ella-store .ella-btn {
-  font-family: Jost, "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.22em;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 500; letter-spacing: 0.22em;
   background: #a8844d; border-color: #a8844d; color: #fff;
   transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.2s ease;
 }
@@ -964,8 +964,8 @@
 
 /* ==========================================================================
    Typography scale (fonts are loaded by ellaFonts.ts)
-   Display: Cormorant Garamond — 500 for large headings, 600 below ~26px so
-   the thin strokes stay readable on phones. Text: Jost 400; labels Jost 500.
+   Display: Playfair Display — 500 for large headings, 600 below ~26px.
+   Text: Mulish 400; labels and prices Mulish 600.
    ========================================================================== */
 
 .en-home,
@@ -981,20 +981,22 @@
 .ella-store select,
 .en-home input { font-family: inherit; }
 
-/* large display */
-.en-slide-copy h1 { font-weight: 500; letter-spacing: -0.005em; }
+/* large display — Playfair runs larger than Cormorant did, so step sizes down */
+.en-slide-copy h1 { font-weight: 500; letter-spacing: -0.01em; font-size: clamp(28px, 5.8vw, 54px); }
+.en-section-head h2 { font-size: clamp(28px, 3.6vw, 44px); line-height: 1.1; }
+.ella-store .ella-sheet-name { font-size: clamp(24px, 2.6vw, 32px); line-height: 1.15; }
 .en-section-head h2,
 .en-banner-copy h2,
 .en-split h2 { font-family: var(--en-display); font-weight: 500; letter-spacing: -0.005em; }
 .en-col h3 { font-weight: 600; letter-spacing: 0; line-height: 1.1; }
 
-/* small display: heavier so the serif holds up */
+/* small display: Playfair 500 already holds up at card size */
 .en-card-name,
 .en-look-title,
 .en-tile-label b,
-.en-menu-link,
+.en-menu-link { font-weight: 500; }
 .en-brand b { font-weight: 600; }
-.en-card-name { letter-spacing: 0.005em; }
+.en-card-name { letter-spacing: 0; font-size: clamp(15px, 1.4vw, 17px); }
 
 /* text + labels */
 .en-slide-copy p,
@@ -1012,8 +1014,8 @@
 .en-linkbtn,
 .en-btn,
 .en-btn-text,
-.en-announce { font-family: var(--en-sans); font-weight: 500; }
-.en-card-price { font-family: var(--en-sans); font-weight: 500; font-variant-numeric: tabular-nums; }
+.en-announce { font-family: var(--en-sans); font-weight: 600; }
+.en-card-price { font-family: var(--en-sans); font-weight: 600; font-variant-numeric: tabular-nums; }
 .en-search-input,
 .en-searchbar-btn span,
 .en-chip,
@@ -1025,10 +1027,18 @@
 .ella-store .ella-eyebrow,
 .ella-store .ella-size-guide-head,
 .ella-store .ella-assure-label,
-.ella-store .ella-step { font-family: Jost, "Helvetica Neue", Arial, sans-serif; font-weight: 500; }
-.ella-store .ella-price { font-family: Jost, "Helvetica Neue", Arial, sans-serif; font-weight: 500; font-variant-numeric: tabular-nums; }
+.ella-store .ella-step { font-family: Mulish, "Helvetica Neue", Arial, sans-serif; font-weight: 600; }
+.ella-store .ella-price { font-family: Mulish, "Helvetica Neue", Arial, sans-serif; font-weight: 600; font-variant-numeric: tabular-nums; }
 .ella-store .ella-panel-title,
 .ella-store .ella-cart-name,
 .ella-store .ella-pay-title,
-.ella-store .ella-track-title { font-weight: 600; }
-.ella-store .ella-size-btn { font-family: Jost, "Helvetica Neue", Arial, sans-serif; font-weight: 500; }
+.ella-store .ella-track-title { font-weight: 500; }
+.ella-store .ella-size-btn { font-family: Mulish, "Helvetica Neue", Arial, sans-serif; font-weight: 500; }
+.en-marquee-group > span { font-size: clamp(15px, 1.7vw, 19px); }
+@media (max-width: 640px) {
+  .en-slide-copy h1 { font-size: clamp(28px, 8vw, 36px); line-height: 1.08; }
+  .en-section-head h2 { font-size: 28px; }
+  .en-tile-label b { font-size: 17px; }
+  .en-card-name { font-size: 15px; }
+  .en-menu-link { font-size: 22px; }
+}

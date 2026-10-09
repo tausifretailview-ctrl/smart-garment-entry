@@ -23,6 +23,10 @@ export type WebsiteProduct = {
   display_order: number;
   is_active: boolean;
   section_id?: string | null;
+  /** Website-only name; null shows the ERP product name. */
+  display_name?: string | null;
+  /** Shown on the store's product page. */
+  description?: string | null;
   created_at?: string;
   updated_at?: string;
 };
@@ -81,6 +85,9 @@ export type PublicStorefrontProduct = {
   id: string;
   product_id: string;
   name: string;
+  /** ERP product name when a website name replaced `name`. */
+  erp_name?: string | null;
+  description?: string | null;
   brand: string | null;
   category: string | null;
   display_order: number;

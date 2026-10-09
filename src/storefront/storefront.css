@@ -17,7 +17,7 @@
   min-height: 100vh;
   background: var(--store-paper);
   color: var(--store-charcoal);
-  font-family: "Inter", system-ui, sans-serif;
+  font-family: Mulish, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -614,6 +614,14 @@
   font-weight: 500;
   margin: 16px 0 8px;
   line-height: 1.15;
+}
+
+.storefront-product-desc {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--store-ink-soft);
+  white-space: pre-line;
 }
 
 .storefront-product-specs {

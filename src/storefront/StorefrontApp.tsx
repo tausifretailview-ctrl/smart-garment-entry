@@ -8,7 +8,7 @@ import { StorefrontHome } from "./StorefrontHome";
 import { StorefrontProduct } from "./StorefrontProduct";
 import { EllaStorefront } from "./EllaStorefront";
 import { EllaStorefrontSkeleton } from "./EllaStorefrontHome";
-import { ensureEllaFonts } from "./ellaFonts";
+import { ensureEllaFonts, ensureStoreFonts } from "./ellaFonts";
 import "./ella-storefront.css";
 
 export function StorefrontApp() {
@@ -20,7 +20,10 @@ export function StorefrontApp() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!ella) return;
+    if (!ella) {
+      ensureStoreFonts();
+      return;
+    }
     ensureEllaFonts();
     document.documentElement.classList.add("ella-root");
     document.body.classList.add("ella-root");
