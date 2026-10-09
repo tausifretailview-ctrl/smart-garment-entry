@@ -19,6 +19,15 @@ import {
   WHATSAPP_REVIEW_BILL_DAYS,
   whatsappReviewWrite,
 } from "../_shared/whatsappReviewShopping.ts";
+import {
+  buildWappConnectReviewPrompt,
+  isOkReply,
+  parseWappConnectInbound,
+  ratingFromReplyText,
+  WAPPCONNECT_REVIEW_PROMPT_HOURS,
+  type WappConnectInboundMessage,
+} from "../_shared/wappConnectInbound.ts";
+import { sendViaWappConnect } from "../_shared/wappConnectSend.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -838,6 +847,161 @@ async function sendWhatsAppDocument(
   }
 }
 
+/**
+ * WappConnect customer reply. "OK" (to the bill's "Reply OK to save our number") gets the
+ * star menu; a 1–5 reply after that menu is saved to Customer Reviews and thanked.
+ * Only phones this shop billed over WappConnect in the last WHATSAPP_REVIEW_BILL_DAYS
+ * get an answer, so an unsigned forged payload cannot make us message strangers.
+ */
+async function handleWappConnectInbound(
+  supabase: any,
+  inbound: WappConnectInboundMessage,
+): Promise<void> {
+  const cleanPhone = inbound.from.slice(-10);
+  if (cleanPhone.length !== 10) return;
+  const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
+
+  let instanceOrgId = '';
+  if (inbound.instanceId) {
+    const { data: secret } = await supabase
+      .from('whatsapp_wappconnect_secrets')
+      .select('organization_id')
+      .eq('instance_id', inbound.instanceId)
+      .maybeSingle();
+    instanceOrgId = secret?.organization_id || '';
+  }
+
+  let billQuery = supabase
+    .from('whatsapp_logs')
+    .select('organization_id, message, created_at')
+    .eq('provider', 'wappconnect')
+    .in('template_type', ['sales_invoice', 'sales_invoice_pdf', 'invoice_pdf', 'invoice'])
+    .in('status', ['sent', 'delivered', 'read'])
+    .ilike('phone_number', `%${cleanPhone}`)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (instanceOrgId) billQuery = billQuery.eq('organization_id', instanceOrgId);
+  const { data: billLogs } = await billQuery;
+  const billLog = billLogs?.[0];
+  if (!billLog?.organization_id) {
+    console.log(`[wappconnect-inbound] no recent WappConnect bill for ...${cleanPhone.slice(-4)}; not replying`);
+    return;
+  }
+  const organizationId = billLog.organization_id as string;
+
+  const { data: secretRow } = await supabase
+    .from('whatsapp_wappconnect_secrets')
+    .select('instance_id')
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  const instanceId = String(secretRow?.instance_id || '').trim();
+  if (!instanceId) return;
+
+  const { data: settings } = await supabase
+    .from('whatsapp_api_settings')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .maybeSingle();
+  if (!settings?.is_active) return;
+
+  const conversation = await getOrCreateConversation(
+    supabase,
+    organizationId,
+    inbound.from,
+    inbound.senderName || undefined,
+  ).catch(() => null);
+  if (conversation) {
+    await supabase.from('whatsapp_messages').insert({
+      organization_id: organizationId,
+      conversation_id: conversation.id,
+      wamid: inbound.messageId || null,
+      direction: 'inbound',
+      message_type: 'text',
+      message_text: inbound.text,
+      status: 'received',
+      sent_at: new Date().toISOString(),
+    });
+    await supabase
+      .from('whatsapp_conversations')
+      .update({
+        last_message_at: new Date().toISOString(),
+        unread_count: (conversation.unread_count ?? 0) + 1,
+        customer_name: inbound.senderName || conversation.customer_name,
+      })
+      .eq('id', conversation.id);
+  }
+
+  const { data: promptLogs } = await supabase
+    .from('whatsapp_logs')
+    .select('created_at')
+    .eq('organization_id', organizationId)
+    .eq('template_type', 'review_shopping')
+    .ilike('phone_number', `%${cleanPhone}`)
+    .gte('created_at', billLog.created_at)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  const lastPromptAt = promptLogs?.[0]?.created_at ? new Date(promptLogs[0].created_at).getTime() : 0;
+
+  const send = async (text: string) => {
+    const result = await sendViaWappConnect(instanceId, inbound.from, { message: text });
+    if (!result.success) {
+      console.error('[wappconnect-inbound] reply failed:', result.error);
+      return;
+    }
+    const wamid = result.messageId || null;
+    const nowIso = new Date().toISOString();
+    if (conversation) {
+      await supabase.from('whatsapp_messages').insert({
+        organization_id: organizationId,
+        conversation_id: conversation.id,
+        wamid,
+        direction: 'outbound',
+        message_type: 'text',
+        message_text: text,
+        status: 'sent',
+        sent_at: nowIso,
+      });
+    }
+    // Also marks "star menu sent" for the next reply's rating check.
+    await supabase.from('whatsapp_logs').insert({
+      organization_id: organizationId,
+      phone_number: inbound.from,
+      message: text,
+      template_type: 'review_shopping',
+      status: 'sent',
+      wamid,
+      sent_at: nowIso,
+      provider: 'wappconnect',
+    });
+  };
+
+  const rating = ratingFromReplyText(inbound.text);
+  if (rating && lastPromptAt) {
+    await saveWhatsAppRating(supabase, organizationId, cleanPhone, `review_${rating}`);
+    const googleReviewLink = await resolveGoogleReviewLink(supabase, organizationId, settings, cleanPhone);
+    await send(reviewShoppingThankYou(`review_${rating}`, googleReviewLink));
+    return;
+  }
+
+  if (isOkReply(inbound.text)) {
+    const recentlyAsked = lastPromptAt > Date.now() - WAPPCONNECT_REVIEW_PROMPT_HOURS * 3_600_000;
+    if (recentlyAsked) return;
+    const billLink = String(billLog.message || '').match(/https?:\/\/\S+\/t\/[^\s#]+/)?.[0] || '';
+    const { data: company } = await supabase
+      .from('settings')
+      .select('business_name')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    await send(
+      buildWappConnectReviewPrompt({
+        shopName: company?.business_name || settings.business_name || '',
+        billLink,
+      }),
+    );
+  }
+}
+
 // Check if message contains handoff keywords
 function shouldHandoff(message: string, keywords: string[]): boolean {
   const lowerMessage = message.toLowerCase();
@@ -1142,6 +1306,20 @@ Deno.serve(async (req) => {
           console.error('Provider ack handling error:', e);
         }
 
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      // ─── WappConnect customer reply (OK → star menu, 1–5 → Customer Reviews) ─
+      const wappConnectInbound = parseWappConnectInbound(body as Record<string, unknown>);
+      if (wappConnectInbound) {
+        try {
+          await handleWappConnectInbound(supabase, wappConnectInbound);
+        } catch (e) {
+          console.error('WappConnect inbound handling error:', e);
+        }
         return new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
