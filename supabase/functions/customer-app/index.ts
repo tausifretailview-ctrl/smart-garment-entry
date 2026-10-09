@@ -223,6 +223,31 @@ const handler = async (req: Request): Promise<Response> => {
       return json(200, { ok: true, shop: shopProfileFromSettings(org.name, settings) });
     }
 
+    // ─── OFFER: one offer by id, no session (a notification tap opens it) ──
+    // Offers are what the shop sends to everyone who turned on notifications, so this
+    // is public like the shop header. Scoped to this shop; drafts are never returned.
+    if (action === "offer") {
+      const campaignId = String(body.campaignId ?? "");
+      if (!UUID.test(campaignId)) return json(400, { error: "offer_not_found" });
+      const [{ data: offer, error }, { data: settings }] = await Promise.all([
+        supabase
+          .from("push_campaigns")
+          .select("id, title, body, image_url, offer_code, valid_till, created_at")
+          .eq("id", campaignId)
+          .eq("organization_id", org.id)
+          .in("status", ["sending", "done"])
+          .maybeSingle(),
+        supabase
+          .from("settings")
+          .select("business_name, address, mobile_number, bill_barcode_settings")
+          .eq("organization_id", org.id)
+          .maybeSingle(),
+      ]);
+      if (error) throw error;
+      if (!offer) return json(404, { error: "offer_not_found" });
+      return json(200, { ok: true, offer, shop: shopProfileFromSettings(org.name, settings) });
+    }
+
     // ─── LOGIN: mobile number ──────────────────────────────────────────────
     if (action === "login") {
       const last10 = phoneLast10(body.mobile);

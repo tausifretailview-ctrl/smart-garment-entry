@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureFreshSupabaseSession } from "@/lib/jwtRetry";
 import { compressImageFile } from "@/lib/compressImage";
+import { OfferNotificationPreview } from "@/components/OfferNotificationPreview";
 import { getEdgeFunctionErrorMessage } from "@/utils/edgeFunctionError";
 import { isHttpsOfferImage } from "../../supabase/functions/_shared/offerAudience";
 import {
@@ -356,6 +357,7 @@ export default function SendOfferDialog({
                 </Button>
               )}
             </div>
+            <OfferNotificationPreview title={title} body={body} offerCode={offerCode} imageUrl={imageUrl} />
             <div className="space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <Label>Contacts</Label>

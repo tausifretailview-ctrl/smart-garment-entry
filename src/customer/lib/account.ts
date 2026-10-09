@@ -113,7 +113,15 @@ function setSessionToken(token: string | null, subdomain = resolveSubdomain()): 
   }
 }
 
-async function call<T>(action: string, args: Record<string, unknown> = {}): Promise<T> {
+/**
+ * keepSession: a public action never logs the customer out. Until the customer-app function
+ * with that action is deployed, the old one answers session_expired for it.
+ */
+async function call<T>(
+  action: string,
+  args: Record<string, unknown> = {},
+  opts: { keepSession?: boolean } = {},
+): Promise<T> {
   const subdomain = resolveSubdomain();
   const base = import.meta.env.VITE_SUPABASE_URL as string;
   const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
@@ -129,7 +137,7 @@ async function call<T>(action: string, args: Record<string, unknown> = {}): Prom
   }
   const data = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok || data.error) {
-    if (data.error === "session_expired") {
+    if (data.error === "session_expired" && !opts.keepSession) {
       clearCustomerCache(subdomain);
       setSessionToken(null, subdomain);
     }
@@ -211,6 +219,9 @@ export function logout(): void {
 /** Public shop header (no login needed). */
 export const fetchShop = () => call<{ shop: ShopInfo }>("shop");
 
+/** One offer by id (public: opened from a notification, works before login). */
+export const fetchOffer = (campaignId: string) => call<{ offer: OfferRow; shop: ShopInfo }>("offer", { campaignId }, { keepSession: true });
+
 export const fetchSummary = () => call<AccountSummary>("summary");
 export const fetchBills = (page: number) => call<{ bills: BillListRow[]; hasMore: boolean }>("bills", { page });
 export const fetchBill = (saleId: string) => call<{ sale: BillSale; shop: string }>("bill", { saleId });
@@ -235,6 +246,8 @@ export function accountErrorMessage(err: unknown): string {
       return "This shop's page is not available right now.";
     case "session_expired":
       return "Please log in again.";
+    case "offer_not_found":
+      return "This offer has ended or is no longer available.";
     case "bill_not_found":
       return "This bill is not on your account.";
     case "network":

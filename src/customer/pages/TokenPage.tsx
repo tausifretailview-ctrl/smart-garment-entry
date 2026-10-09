@@ -14,13 +14,16 @@ import {
   isFirebaseConfigured,
   isIos,
   isIosStandalone,
+  isPushOn,
   isPushSupportedBrowser,
   markPushOptOut,
+  pushPermission,
   repairPushRegistration,
-  wasPushOptedIn,
 } from "../lib/notify";
 import InvoiceCard from "../components/InvoiceCard";
 import { SuccessTick } from "../components/AppChrome";
+import InstallAppCard from "../components/InstallApp";
+import { PushBlockedHelp } from "./account";
 import { formatINR } from "../lib/format";
 
 const RATING_TAGS = ["Quality", "Prices", "Staff", "Variety", "Billing speed"];
@@ -59,7 +62,7 @@ export default function TokenPage() {
   const [data, setData] = useState<CustomerPageGet | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pushState, setPushState] = useState<"idle" | "working" | "done" | "off">(
-    wasPushOptedIn() ? "done" : "idle",
+    isPushOn() ? "done" : "idle",
   );
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
@@ -225,12 +228,22 @@ export default function TokenPage() {
         My account · all bills, returns & offers
       </Link>
 
+      <InstallAppCard shopName={org?.business_name || org?.name || undefined} compact />
+
       {showPushCard ? (
-        <div className="c-card no-print" style={{ marginTop: 12 }}>
-          <b>Get new arrival alerts</b>
-          <p className="c-muted" style={{ margin: "6px 0 0" }}>
-            Be the first to know about new stock and offers from {org?.business_name || org?.name}.
-          </p>
+        <div className="c-card c-push no-print" style={{ marginTop: 12 }}>
+          <div className="c-push-row">
+            <span className="c-push-bell" aria-hidden="true">
+              🔔
+            </span>
+            <div>
+              <b>Don't miss offers &amp; new arrivals</b>
+              <span>
+                Get your bill on this phone after every visit, plus sale alerts from {org?.business_name || org?.name}.
+              </span>
+            </div>
+          </div>
+          {!showIosHint && pushPermission() === "denied" ? <PushBlockedHelp /> : null}
           {showIosHint ? (
             <p className="c-hint">
               On iPhone: tap <b>Share → Add to Home Screen</b>, open the app from your home screen, then turn on
@@ -239,7 +252,7 @@ export default function TokenPage() {
           ) : (
             <>
               <button type="button" className="c-btn" disabled={pushState === "working"} onClick={() => void onEnablePush()}>
-                {pushState === "working" ? "Turning on…" : "Turn on notifications"}
+                {pushState === "working" ? "Turning on…" : "🔔 Turn on notifications"}
               </button>
               <button type="button" className="c-btn c-btn-ghost" onClick={onNotNow}>
                 Not now

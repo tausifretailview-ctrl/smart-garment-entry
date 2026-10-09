@@ -3,11 +3,13 @@ import TokenPage from "./pages/TokenPage";
 import MessagePage from "./pages/MessagePage";
 import { AccountPage, BillPage, BillsPage, OffersPage, ReturnsPage, TransactionsPage } from "./pages/account";
 import LoginCard from "./components/LoginCard";
-import { PoweredBy, ShopHeader } from "./components/AppChrome";
+import { PoweredBy, ShopHeader, useShop } from "./components/AppChrome";
+import InstallAppCard from "./components/InstallApp";
 import { getSessionToken } from "./lib/account";
 
 function HomePage() {
   const navigate = useNavigate();
+  const shop = useShop();
   if (getSessionToken()) return <Navigate to="/account" replace />;
   return (
     <>
@@ -18,6 +20,7 @@ function HomePage() {
           <p>See every bill, return and balance, and get the latest offers from the shop.</p>
         </div>
         <LoginCard title="Log in with your mobile number" onDone={() => navigate("/account", { replace: true })} />
+        <InstallAppCard shopName={shop?.name} />
         <PoweredBy />
       </div>
     </>
