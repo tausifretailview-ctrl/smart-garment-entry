@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { gatewayRequest, getGatewayConfig } from "../_shared/builtinGatewaySend.ts";
 
 const corsHeaders = {
@@ -78,7 +78,7 @@ serve(async (req) => {
 });
 
 async function handleControl(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient,
   action: string,
   organizationId: string,
 ): Promise<Response> {
