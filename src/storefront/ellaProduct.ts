@@ -19,6 +19,8 @@ export type EllaStorefrontProduct = {
   productId: string;
   code: string;
   name: string;
+  /** Website-only description from Website → Edit details. */
+  description?: string | null;
   category: EllaCategory;
   /** Raw ERP / website category — used when Website → Menus sets category_filter. */
   sourceCategory: string | null;
@@ -54,7 +56,7 @@ function looksLikeStyleCode(value: string): boolean {
 export function mapEllaStyleCode(product: PublicStorefrontProduct): string {
   const brand = String(product.brand || "").trim();
   if (brand && looksLikeStyleCode(brand)) return brand.toUpperCase();
-  const name = String(product.name || "").trim();
+  const name = String(product.erp_name || product.name || "").trim();
   if (looksLikeStyleCode(name)) return name.toUpperCase();
   const compact = String(product.product_id || product.id || "").replace(/-/g, "").slice(0, 6);
   return compact ? `EN-${compact.toUpperCase()}` : "EN-STYLE";
@@ -102,6 +104,7 @@ export function toEllaStorefrontProduct(product: PublicStorefrontProduct): EllaS
     productId: product.product_id,
     code: mapEllaStyleCode(product),
     name: product.name,
+    description: product.description?.trim() || null,
     category: mapEllaCategory(product.category),
     sourceCategory: (product.category || "").trim() || null,
     sectionSlug: product.section_slug || null,

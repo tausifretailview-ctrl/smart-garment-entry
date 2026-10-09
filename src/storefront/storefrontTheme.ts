@@ -4,6 +4,7 @@ import { normalizeInstagramUrl } from "@/lib/storefrontShare";
 import { resolveCompanyUpiId } from "@/utils/companyUpi";
 
 export type OrgPublicInfoSlice = {
+  id?: string;
   name?: string;
   business_name?: string | null;
   settings?: Record<string, unknown> | null;

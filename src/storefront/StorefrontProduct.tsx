@@ -71,6 +71,7 @@ export function StorefrontProduct({
           {[product.category, product.brand].filter(Boolean).join(" · ") || "Product details"}
         </p>
         <h1 className="storefront-product-title">{product.name}</h1>
+        {product.description ? <p className="storefront-product-desc">{product.description}</p> : null}
 
         <dl className="storefront-product-specs">
           {product.category ? (
