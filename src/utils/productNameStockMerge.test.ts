@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { canMergeProducts, groupProductsByNameKey, type NameMergeProduct } from "./productNameStockMerge";
+import {
+  canMergeProducts,
+  groupProductsByNameKey,
+  nameScanErrorMessage,
+  type NameMergeProduct,
+} from "./productNameStockMerge";
 
 const p = (over: Partial<NameMergeProduct> & { id: string; productName: string }): NameMergeProduct => ({
   brand: null,
@@ -81,5 +86,21 @@ describe("one product per name — every create / rename path checks it", () => 
   it("Stock Report merge moves stock with merge_products", () => {
     expect(read("src/utils/productNameStockMerge.ts")).toContain('rpc("merge_products"');
     expect(read("src/components/MergeDuplicateProductNamesDialog.tsx")).toContain("mergeProductsIntoKeep(");
+  });
+});
+
+describe("nameScanErrorMessage — the scan error says what went wrong", () => {
+  it("timeout gets a plain retry message", () => {
+    expect(nameScanErrorMessage({ code: "57014", message: "canceling statement due to statement timeout" })).toMatch(
+      /took too long/,
+    );
+  });
+  it("a Supabase error object shows its message instead of the generic text", () => {
+    expect(nameScanErrorMessage({ code: "42501", message: "permission denied" })).toBe(
+      "Failed to scan product names: permission denied",
+    );
+  });
+  it("falls back to the generic text", () => {
+    expect(nameScanErrorMessage(null)).toBe("Failed to scan product names");
   });
 });

@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
+import { isStatementTimeout } from "@/utils/statementTimeout";
 
 /** One product in a look-alike name group (ELN-DUP / ELN-Dup / ELN.DUP). */
 export type NameMergeProduct = {
@@ -69,43 +70,104 @@ export function groupProductsByNameKey(products: NameMergeProduct[]): NameMergeG
 }
 
 const PAGE = 1000;
+const VARIANT_CHUNK = 100;
 
-/** Live products of the org with stock and size counts (paged past the 1000-row cap). */
-export async function fetchProductsForNameMerge(organizationId: string): Promise<NameMergeProduct[]> {
-  const out: NameMergeProduct[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
+type ProductRow = {
+  id: string;
+  product_name: string | null;
+  brand: string | null;
+  style: string | null;
+  category: string | null;
+  created_at: string | null;
+};
+
+/**
+ * Live products of the org (names only, keyset-paged past the 1000-row cap). Sizes
+ * are not embedded here: on big catalogs (KS Footwear) the products + every size
+ * read per page hit the statement timeout and the scan failed.
+ */
+async function fetchLiveProductRows(organizationId: string): Promise<ProductRow[]> {
+  const out: ProductRow[] = [];
+  let afterId: string | null = null;
+  for (;;) {
+    let q = supabase
       .from("products")
-      .select("id, product_name, brand, style, category, created_at, product_variants(stock_qty, deleted_at)")
+      .select("id, product_name, brand, style, category, created_at")
       .eq("organization_id", organizationId)
-      .is("deleted_at", null)
-      .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
+      .is("deleted_at", null);
+    if (afterId) q = q.gt("id", afterId);
+    const { data, error } = await q.order("id", { ascending: true }).limit(PAGE);
     if (error) throw error;
-    for (const row of (data ?? []) as Array<{
-      id: string;
-      product_name: string | null;
-      brand: string | null;
-      style: string | null;
-      category: string | null;
-      created_at: string | null;
-      product_variants?: Array<{ stock_qty: number | null; deleted_at: string | null }> | null;
-    }>) {
-      const live = (row.product_variants || []).filter((v) => !v.deleted_at);
-      out.push({
-        id: row.id,
-        productName: row.product_name ?? "",
-        brand: row.brand,
-        style: row.style,
-        category: row.category,
-        createdAt: row.created_at,
-        stock: live.reduce((s, v) => s + (Number(v.stock_qty) || 0), 0),
-        variantCount: live.length,
-      });
-    }
-    if (!data || data.length < PAGE) break;
+    const rows = (data ?? []) as ProductRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+    afterId = rows[rows.length - 1].id;
   }
   return out;
+}
+
+/** Stock and live size count per product, read in small id chunks. */
+async function fetchVariantTotals(
+  productIds: string[],
+): Promise<Map<string, { stock: number; variantCount: number }>> {
+  const totals = new Map<string, { stock: number; variantCount: number }>();
+  for (let i = 0; i < productIds.length; i += VARIANT_CHUNK) {
+    const chunk = productIds.slice(i, i + VARIANT_CHUNK);
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select("id, product_id, stock_qty")
+        .in("product_id", chunk)
+        .is("deleted_at", null)
+        .order("id", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      for (const v of (data ?? []) as Array<{ product_id: string; stock_qty: number | null }>) {
+        const t = totals.get(v.product_id) ?? { stock: 0, variantCount: 0 };
+        t.stock += Number(v.stock_qty) || 0;
+        t.variantCount += 1;
+        totals.set(v.product_id, t);
+      }
+      if (!data || data.length < PAGE) break;
+    }
+  }
+  return totals;
+}
+
+/**
+ * Live products that share a look-alike name with at least one other product, with
+ * stock and size counts. Sizes are read only for those few products, not the whole catalog.
+ */
+export async function fetchProductsForNameMerge(organizationId: string): Promise<NameMergeProduct[]> {
+  const rows = await fetchLiveProductRows(organizationId);
+  const keyCount = new Map<string, number>();
+  for (const r of rows) {
+    const key = productNameMatchKey(r.product_name);
+    if (key) keyCount.set(key, (keyCount.get(key) ?? 0) + 1);
+  }
+  const candidates = rows.filter((r) => (keyCount.get(productNameMatchKey(r.product_name)) ?? 0) >= 2);
+  const totals = await fetchVariantTotals(candidates.map((r) => r.id));
+  return candidates.map((r) => ({
+    id: r.id,
+    productName: r.product_name ?? "",
+    brand: r.brand,
+    style: r.style,
+    category: r.category,
+    createdAt: r.created_at,
+    stock: totals.get(r.id)?.stock ?? 0,
+    variantCount: totals.get(r.id)?.variantCount ?? 0,
+  }));
+}
+
+/** Readable message for a failed scan (Supabase errors are plain objects, not Error). */
+export function nameScanErrorMessage(err: unknown): string {
+  if (isStatementTimeout(err)) {
+    return "Scanning product names took too long. Please try again in a moment.";
+  }
+  if (err instanceof Error && err.message) return err.message;
+  const msg = (err as { message?: unknown } | null)?.message;
+  if (typeof msg === "string" && msg.trim()) return `Failed to scan product names: ${msg}`;
+  return "Failed to scan product names";
 }
 
 export async function findNameMergeGroups(organizationId: string): Promise<NameMergeGroup[]> {
