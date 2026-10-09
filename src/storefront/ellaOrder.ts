@@ -11,6 +11,7 @@
 import { appendBookedVariantMarks } from "@/lib/storefrontVariantSummary";
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import type { EllaCartLine } from "./ellaCart";
+import { ellaSavingsLines, type EllaOrderSavings } from "./ellaPerks";
 
 export type EllaPaymentMethod = "upi" | "cod" | "advance";
 
@@ -84,14 +85,17 @@ export function buildEllaOrderMessage(input: {
   method: EllaPaymentMethod;
   customer: EllaCustomerDetails;
   upiReference?: string;
+  /** Offer code / reward points the shopper used; `total` is already after them. */
+  savings?: EllaOrderSavings;
 }): string {
-  const { cart, total, method, customer, upiReference } = input;
+  const { cart, total, method, customer, upiReference, savings } = input;
   const payNow = ellaPayableNow(total, method);
   const later = ellaOrderDueLater(total, method);
 
   const parts = [
     "STORE ORDER",
     ellaOrderLinesText(cart),
+    ...ellaSavingsLines(savings, "short"),
     `Total ${formatStorefrontPrice(total)}`,
     `Pay ${ellaPaymentMethodLabel(method)}`,
     payNow > 0 ? `Paid now ${formatStorefrontPrice(payNow)}` : null,

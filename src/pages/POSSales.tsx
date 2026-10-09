@@ -87,6 +87,8 @@ import {
 import { displaySaleStockQty } from "@/utils/productStockDisplay";
 import { useLocation, useSearchParams } from "react-router-dom";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { POS_WEBSITE_ENQUIRY_PARAM, websiteEnquiryBillPrefill } from "@/lib/websiteEnquiryBill";
+import { websiteFrom } from "@/lib/websiteDb";
 import { supabase } from "@/integrations/supabase/client";
 import { assignSameBillReturnsToCustomer } from "@/utils/assignSameBillReturnsToCustomer";
 import { isJwtExpiredError, withJwtRetry } from "@/lib/jwtRetry";
@@ -1334,6 +1336,57 @@ export default function POSSales() {
         }, { replace: true });
       });
     }
+  }, [searchParams, currentOrganization?.id]);
+
+  // Website order → new bill: Website → Enquiries → "Make bill" opens /pos-sales?websiteEnquiry=<id>.
+  // Fills the shopper's name + mobile (POS links the customer with that mobile, or creates one on
+  // save, so the bill shows in their app and earns points), the booked pieces and the order note.
+  const websiteEnquiryLoadRef = useRef<string | null>(null);
+  useEffect(() => {
+    const enquiryId = searchParams.get(POS_WEBSITE_ENQUIRY_PARAM);
+    const orgId = currentOrganization?.id;
+    if (!enquiryId || !orgId || websiteEnquiryLoadRef.current === enquiryId) return;
+    websiteEnquiryLoadRef.current = enquiryId;
+    const clearParam = () => {
+      websiteEnquiryLoadRef.current = null;
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete(POS_WEBSITE_ENQUIRY_PARAM);
+        return next;
+      }, { replace: true });
+    };
+    if (currentSaleId || itemsRef.current.length > 0 || (readPosCartSnapshot(orgId)?.items?.length ?? 0) > 0) {
+      toast.error("Finish or clear the current bill first, then press Make bill again.");
+      clearParam();
+      return;
+    }
+    void (async () => {
+      try {
+        const { data, error } = await websiteFrom("website_enquiries")
+          .select("customer_name, customer_phone, message, barcode, booked_pieces")
+          .eq("id", enquiryId)
+          .eq("organization_id", orgId)
+          .maybeSingle();
+        if (error || !data) {
+          toast.error("Could not open this website order");
+          return;
+        }
+        const prefill = websiteEnquiryBillPrefill(data as unknown as Parameters<typeof websiteEnquiryBillPrefill>[0]);
+        setCustomerId("");
+        setCustomerName(prefill.customerName);
+        setCustomerPhone(prefill.customerPhone);
+        setSaleNotes(prefill.notes);
+        for (const barcode of prefill.barcodes) {
+          await searchAndAddProduct(barcode);
+        }
+        toast.success("Website order loaded", {
+          description: "Check quantities, then apply the offer code and reward points shown in the note before saving.",
+        });
+      } finally {
+        clearParam();
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, currentOrganization?.id]);
 
   // Auto-reset POS to a fresh new sale when the POS tab re-activates while an old invoice is still loaded.

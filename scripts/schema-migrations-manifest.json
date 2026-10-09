@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-09",
-  "count": 840,
-  "fileCount": 858,
+  "count": 841,
+  "fileCount": 859,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -843,7 +843,8 @@
     "20270112130000",
     "20270113120000",
     "20270114120000",
-    "20270115120000"
+    "20270115120000",
+    "20270116120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1703,7 +1704,8 @@
     "20270112130000_reverse_third_party_voucher_journal.sql",
     "20270113120000_operator_activity_log.sql",
     "20270114120000_customer_review_alerts.sql",
-    "20270115120000_website_product_details.sql"
+    "20270115120000_website_product_details.sql",
+    "20270116120000_website_customer_perks.sql"
   ],
   "duplicateVersions": [
     {

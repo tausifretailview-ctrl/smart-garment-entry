@@ -13,6 +13,7 @@ import {
   MessageCircle,
   Pencil,
   Phone,
+  Receipt,
   Search,
   Store,
   Trash2,
@@ -41,6 +42,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
+import { POS_WEBSITE_ENQUIRY_PARAM } from "@/lib/websiteEnquiryBill";
 import { compressImageFile } from "@/lib/compressImage";
 import { STALE_FREQUENT, STALE_LIVE, STALE_REFERENCE, STALE_SETTINGS } from "@/lib/queryStaleTimes";
 import {
@@ -1580,6 +1582,7 @@ function SortableListingRow({
 
 function EnquiryInbox({ orgId }: { orgId?: string }) {
   const queryClient = useQueryClient();
+  const { orgNavigate } = useOrgNavigation();
   const [statusFilter, setStatusFilter] = useState<WebsiteEnquiryStatus | "all">("all");
 
   const enquiriesQuery = useQuery({
@@ -1735,6 +1738,17 @@ function EnquiryInbox({ orgId }: { orgId?: string }) {
                           WhatsApp
                         </a>
                       </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 h-7 px-2 text-xs"
+                        title="Open POS with this customer and the booked pieces, so the bill shows in their app and earns points"
+                        onClick={() => orgNavigate(`/pos-sales?${POS_WEBSITE_ENQUIRY_PARAM}=${row.id}`)}
+                      >
+                        <Receipt className="mr-1 h-3 w-3" />
+                        Make bill
+                      </Button>
                     </TableCell>
                     <TableCell className={cn(INSIGHTS_BODY_CELL, "text-slate-700")}>
                       {(row.product_id && lookupMap<string>(namesQuery.data, row.product_id)) || "—"}
