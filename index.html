@@ -28,6 +28,155 @@
         }
       })();
     </script>
+    <script>
+      // Boot guard for a dead entry bundle. If /assets/index-*.js (or a CSS /
+      // modulepreload file the entry needs) fails before React mounts, none of the
+      // app's own chunk recovery runs: the page sits on the splash, then "taking
+      // longer than expected". Plain reload does not help when the browser kept a
+      // 404 for that file: /assets/* is served with a 1-year immutable header, so
+      // Chrome reuses the cached 404 from disk until the cache is cleared by hand
+      // (SM Hair / dua by saleem, 2026-10-09: index-BI_rm-r4.js 404 "(disk cache)").
+      // Recovery: drop the service worker and Cache Storage, re-download the page's
+      // own assets with cache: "reload" (overwrites the cached 404), then reload.
+      // Only before the app has rendered, at most twice in 2 minutes per tab.
+      (function () {
+        var KEY = "ezzy_boot_asset_recovery";
+        var WINDOW_MS = 2 * 60 * 1000;
+        var MAX_AUTO = 2;
+        var running = false;
+
+        function appAssetUrl(raw) {
+          try {
+            var u = new URL(raw, location.href);
+            return u.origin === location.origin && u.pathname.indexOf("/assets/") === 0 ? u.href : "";
+          } catch (e) {
+            return "";
+          }
+        }
+
+        function pageAssetUrls(extra) {
+          var out = [];
+          var seen = {};
+          function add(raw) {
+            var u = raw && appAssetUrl(raw);
+            if (u && !seen[u]) {
+              seen[u] = 1;
+              out.push(u);
+            }
+          }
+          add(extra);
+          var nodes = document.querySelectorAll(
+            'script[src], link[rel="modulepreload"][href], link[rel="stylesheet"][href]'
+          );
+          for (var i = 0; i < nodes.length; i++) add(nodes[i].src || nodes[i].href);
+          return out;
+        }
+
+        function appRendered() {
+          var root = document.getElementById("root");
+          return !!(root && root.childNodes.length > 0);
+        }
+
+        function recentAttempts() {
+          try {
+            var list = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+            var now = Date.now();
+            return Array.isArray(list)
+              ? list.filter(function (t) { return typeof t === "number" && now - t < WINDOW_MS; })
+              : [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function withTimeout(p, ms) {
+          return Promise.race([
+            p,
+            new Promise(function (resolve) { setTimeout(resolve, ms); }),
+          ]);
+        }
+
+        function purge() {
+          var jobs = [];
+          try {
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+              jobs.push(
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                })
+              );
+            }
+          } catch (e) {}
+          try {
+            if (window.caches && caches.keys) {
+              jobs.push(
+                caches.keys().then(function (names) {
+                  return Promise.all(names.map(function (n) { return caches.delete(n); }));
+                })
+              );
+            }
+          } catch (e) {}
+          return Promise.all(jobs).catch(function () {});
+        }
+
+        function refetch(urls) {
+          if (!window.fetch) return Promise.resolve();
+          return Promise.all(
+            urls.map(function (u) {
+              return fetch(u, { cache: "reload", credentials: "same-origin" }).catch(function () {});
+            })
+          );
+        }
+
+        // manual = the user pressed Reload on the "taking longer" screen.
+        function recover(failedUrl, manual) {
+          if (running) return;
+          if (!manual) {
+            if (appRendered()) return;
+            if (navigator.onLine === false) return;
+            var attempts = recentAttempts();
+            if (attempts.length >= MAX_AUTO) return;
+            attempts.push(Date.now());
+            try {
+              sessionStorage.setItem(KEY, JSON.stringify(attempts));
+            } catch (e) {
+              return;
+            }
+          }
+          running = true;
+          var urls = pageAssetUrls(failedUrl);
+          withTimeout(
+            purge().then(function () {
+              return Promise.all([
+                refetch(urls),
+                fetch(location.href, { cache: "reload", credentials: "same-origin" }).catch(function () {}),
+              ]);
+            }),
+            8000
+          ).then(function () {
+            location.reload();
+          });
+        }
+
+        window.__ezzyBootRecover = function () {
+          recover("", true);
+        };
+
+        window.addEventListener(
+          "error",
+          function (event) {
+            var el = event && event.target;
+            if (!el || el === window || !el.tagName) return;
+            var tag = el.tagName.toUpperCase();
+            var raw = tag === "SCRIPT" ? el.src : tag === "LINK" ? el.href : "";
+            if (tag === "LINK" && !/^(modulepreload|stylesheet)$/i.test(el.rel || "")) return;
+            var url = raw && appAssetUrl(raw);
+            if (url) recover(url, false);
+          },
+          true
+        );
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>EzzyERP - Easy Billing, Smart Business</title>
     <meta name="description" content="EzzyERP - Easy Billing, Smart Business" />
@@ -166,7 +315,7 @@
             '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;text-align:center;font-family:system-ui,sans-serif;">' +
             '<div style="font-size:22px;font-weight:700;color:#1e293b;margin-bottom:8px;">EzzyERP</div>' +
             '<p style="color:#64748b;font-size:14px;max-width:320px;margin-bottom:20px;">The app is taking longer than expected to load. This can happen after an update or a brief network issue.</p>' +
-            '<button type="button" onclick="location.reload()" style="padding:10px 24px;font-size:14px;font-weight:600;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">Reload</button>' +
+            '<button type="button" onclick="window.__ezzyBootRecover ? window.__ezzyBootRecover() : location.reload()" style="padding:10px 24px;font-size:14px;font-weight:600;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">Reload</button>' +
             '</div>';
           splash.style.display = 'flex';
           splash.style.opacity = '1';

@@ -335,7 +335,8 @@ export function resetSkewReloadCount(): void {
  * Drop the service worker + Cache Storage so the reload cannot be served the same
  * stale index.html (which is what makes a hashed chunk 404 into text/html forever).
  */
-async function purgeStaleAppCaches(): Promise<void> {
+async function purgeStaleAppCaches(chunkUrl?: string | null): Promise<void> {
+  if (chunkUrl) await refreshChunkHttpCache(chunkUrl);
   try {
     if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
       const registrations = await navigator.serviceWorker.getRegistrations();
@@ -381,7 +382,7 @@ export function canAttemptSkewRecoveryReload(
  * same build stay on the current page (error UI / Update banner) instead of looping.
  * Returns true if reload was initiated (caller should show a brief splash).
  */
-export function attemptSkewRecoveryReload(): boolean {
+export function attemptSkewRecoveryReload(chunkUrl?: string | null): boolean {
   try {
     if (!canAttemptSkewRecoveryReload()) return false;
     sessionStorage.setItem(SKEW_RELOAD_BUILD_KEY, currentAppBuildId());
@@ -389,7 +390,7 @@ export function attemptSkewRecoveryReload(): boolean {
     sessionStorage.setItem(CHUNK_RECOVERY_RELOADED_KEY, "1");
     // Keep legacy key in sync for older diagnostics / mid-rollout tabs.
     sessionStorage.setItem(SKEW_RELOAD_KEY, "1");
-    void purgeStaleAppCaches().finally(() => {
+    void purgeStaleAppCaches(chunkUrl).finally(() => {
       window.location.reload();
     });
     return true;
@@ -437,7 +438,7 @@ export function didStartChunkReload(): boolean {
 export function attemptStaleChunkRecovery(error: unknown): boolean {
   if (chunkReloadStarted) return true;
   const url = chunkUrlFromError(error);
-  if (attemptSkewRecoveryReload()) {
+  if (attemptSkewRecoveryReload(url)) {
     chunkReloadStarted = true;
     if (url) {
       try {
@@ -453,7 +454,7 @@ export function attemptStaleChunkRecovery(error: unknown): boolean {
     if (sessionStorage.getItem(CHUNK_URL_RECOVERY_KEY) === url) return false;
     sessionStorage.setItem(CHUNK_URL_RECOVERY_KEY, url);
     chunkReloadStarted = true;
-    void purgeStaleAppCaches().finally(() => {
+    void purgeStaleAppCaches(url).finally(() => {
       try {
         reloadDocumentBypassingCache();
       } catch {
@@ -545,6 +546,31 @@ export async function isChunkGoneFromServer(
 }
 
 /**
+ * Re-download one chunk past the browser's HTTP cache. /assets/* is served with a
+ * 1-year immutable header, so a 404 caught during a deploy stays in the disk cache
+ * and every retry or plain reload reuses it. cache: "reload" replaces that entry.
+ */
+export async function refreshChunkHttpCache(
+  url: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = CHUNK_GONE_CHECK_TIMEOUT_MS,
+): Promise<void> {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    await fetchImpl(url, {
+      cache: "reload",
+      credentials: "same-origin",
+      signal: controller?.signal,
+    });
+  } catch {
+    // offline / aborted — the normal retries and reload still run
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
  * Retries transient chunk/network failures before a single guarded full reload.
  * Used by React.lazy and tab prefetch loaders (Windows WebView / PWA cold start).
  * When the first failure is a chunk the server no longer has (deploy skew), skip
@@ -563,7 +589,11 @@ export async function importWithRetry<T>(importFn: () => Promise<T>): Promise<T>
       }
       if (attempt === 0) {
         const url = chunkUrlFromError(error);
-        if (url && (await isChunkGoneFromServer(url))) break;
+        if (url) {
+          if (await isChunkGoneFromServer(url)) break;
+          // Server has the file: the failure may be a cached 404 from a deploy window.
+          await refreshChunkHttpCache(url);
+        }
       }
       await new Promise((resolve) =>
         setTimeout(resolve, RETRY_BASE_MS * (attempt + 1)),
