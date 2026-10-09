@@ -6,6 +6,7 @@ import {
   isChunkLoadError,
   chunkUrlFromError,
   isChunkGoneFromServer,
+  refreshChunkHttpCache,
   canAttemptSkewRecoveryReload,
   attemptStaleChunkRecovery,
   resetSkewReloadCount,
@@ -165,6 +166,8 @@ describe("skew recovery cooldown", () => {
 describe("stale POS chunk recovery", () => {
   const store = new Map<string, string>();
   const navigations: string[] = [];
+  const refetch = vi.fn(async () => ({ status: 200 }));
+  const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
   const POS_CHUNK =
     "Failed to fetch dynamically imported module: https://app.inventoryshop.in/assets/POSSales-CXOfqdw1.js";
 
@@ -182,6 +185,8 @@ describe("stale POS chunk recovery", () => {
       clear: () => store.clear(),
     });
     vi.stubGlobal("navigator", {});
+    vi.stubGlobal("fetch", refetch);
+    refetch.mockClear();
     vi.stubGlobal("location", {
       origin: "https://app.inventoryshop.in",
       href: "https://app.inventoryshop.in/rahmani-nx/pos-sales",
@@ -209,13 +214,19 @@ describe("stale POS chunk recovery", () => {
     expect(canAttemptSkewRecoveryReload()).toBe(false);
 
     expect(attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(true);
-    await Promise.resolve();
+    await flush();
 
     expect(navigations).toHaveLength(1);
     expect(navigations[0]).toContain("/rahmani-nx/pos-sales");
     expect(navigations[0]).toContain("__ezzy_chunk=");
+    // The dead file is re-downloaded past the HTTP cache first (a cached 404 would
+    // otherwise survive the reload: /assets/* is immutable for a year).
+    expect(refetch).toHaveBeenCalledWith(
+      "https://app.inventoryshop.in/assets/POSSales-CXOfqdw1.js",
+      expect.objectContaining({ cache: "reload" }),
+    );
     expect(attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(true);
-    await Promise.resolve();
+    await flush();
     expect(navigations).toHaveLength(1);
   });
 
@@ -228,7 +239,7 @@ describe("stale POS chunk recovery", () => {
     vi.resetModules();
     const fresh = await import("./chunkLoadRetry");
     expect(fresh.attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(false);
-    await Promise.resolve();
+    await flush();
     expect(navigations).toHaveLength(0);
   });
 });
@@ -398,5 +409,25 @@ describe("deploy-skew fast path", () => {
         }),
     ) as unknown as typeof fetch;
     await expect(isChunkGoneFromServer("https://app.example/assets/a.js", hang, 10)).resolves.toBe(false);
+  });
+});
+
+describe("refreshChunkHttpCache", () => {
+  it("re-downloads the chunk past the HTTP cache so a cached 404 is replaced", async () => {
+    const f = vi.fn(async () => ({ status: 200 })) as unknown as typeof fetch;
+    await refreshChunkHttpCache("https://app.example/assets/index-abc.js", f);
+    expect(f).toHaveBeenCalledWith(
+      "https://app.example/assets/index-abc.js",
+      expect.objectContaining({ cache: "reload", credentials: "same-origin" }),
+    );
+  });
+
+  it("never throws when offline", async () => {
+    const offline = vi.fn(async () => {
+      throw new TypeError("Failed to fetch");
+    }) as unknown as typeof fetch;
+    await expect(
+      refreshChunkHttpCache("https://app.example/assets/a.js", offline),
+    ).resolves.toBeUndefined();
   });
 });
