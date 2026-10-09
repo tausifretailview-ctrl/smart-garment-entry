@@ -186,6 +186,11 @@ interface LineItem {
   /** Product brand captured at add time so brand-wise customer discounts can be
    * reconciled without re-looking it up from productsData (which can miss). */
   brand?: string;
+  /** True when the line was added without a customer brand rate (brand rates
+   * still loading, or customer picked after the item), so its discount is the
+   * app's fallback (0% or product sale discount), not an operator choice. The
+   * brand rate replaces it once it resolves; any manual discount edit clears it. */
+  brandRatePending?: boolean;
 }
 
 const SALE_BILL_MIN_DISPLAY_ROWS = 7;
@@ -1384,9 +1389,6 @@ export default function SalesInvoice() {
   // and only when no brand-discount rows exist).
   useEffect(() => {
     if (isInitializingEditRef.current) return;
-    // Saved invoice lines keep their persisted discounts. New lines get brand %
-    // at add-time; auto-stamping here would wipe rupee line discounts (percent=0).
-    if (editingInvoiceId) return;
     if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
 
     let applied = false;
@@ -1395,17 +1397,26 @@ export default function SalesInvoice() {
 
       let hasChanges = false;
       const updatedItems = prev.map((item) => {
-        if (!item.productId || item.discountPercent !== 0) return item;
+        if (!item.productId) return item;
+        // Lines added before the brand rate was known (product sale discount or
+        // 0% fallback) take the brand rate. Saved invoice lines keep their
+        // persisted discounts, so in edit mode only those pending lines change;
+        // auto-stamping 0% lines there would wipe rupee line discounts.
+        const pending = item.brandRatePending === true;
+        if (!pending && (editingInvoiceId || item.discountPercent !== 0)) return item;
 
         const brand = item.brand || productBrandById.get(item.productId);
         const brandDiscount = getBrandDiscountForProduct(brand, item.productName);
         if (brandDiscount <= 0) return item;
+        if (item.discountPercent === brandDiscount) return item;
 
         hasChanges = true;
         return calculateLineTotal({
           ...item,
           brand: brand || item.brand,
           discountPercent: brandDiscount,
+          discountAmount: 0,
+          brandRatePending: false,
         });
       });
 
@@ -1845,6 +1856,7 @@ export default function SalesInvoice() {
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
           brand: product.brand || '',
+          brandRatePending: brandDiscount <= 0,
         });
         
         if (emptyRowIndex >= 0) {
@@ -2371,6 +2383,7 @@ export default function SalesInvoice() {
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
           brand: product.brand || '',
+          brandRatePending: brandDiscount <= 0,
         };
         
         const emptyRowIndex = prev.findIndex(item => item.productId === '');
@@ -2749,7 +2762,7 @@ export default function SalesInvoice() {
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
-          ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0 })
+          ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0, brandRatePending: false })
           : item,
       ),
     );
@@ -2759,7 +2772,7 @@ export default function SalesInvoice() {
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
-          ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0 })
+          ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0, brandRatePending: false })
           : item,
       ),
     );
@@ -2899,10 +2912,10 @@ export default function SalesInvoice() {
           if (colKey === "mrp") return calculateLineTotal({ ...li, mrp: Number(previousValue) || 0 });
           if (colKey === "price") return calculateLineTotal({ ...li, salePrice: Number(previousValue) || 0 });
           if (colKey === "disc_percent") {
-            return calculateLineTotal({ ...li, discountPercent: Number(previousValue) || 0, discountAmount: 0 });
+            return calculateLineTotal({ ...li, discountPercent: Number(previousValue) || 0, discountAmount: 0, brandRatePending: false });
           }
           if (colKey === "disc_amount") {
-            return calculateLineTotal({ ...li, discountAmount: Number(previousValue) || 0, discountPercent: 0 });
+            return calculateLineTotal({ ...li, discountAmount: Number(previousValue) || 0, discountPercent: 0, brandRatePending: false });
           }
           return li;
         }),
