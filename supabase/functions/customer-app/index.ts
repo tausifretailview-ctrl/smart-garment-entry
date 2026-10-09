@@ -7,7 +7,9 @@ import {
   lineTax,
   maskPhone,
   phoneLast10,
+  pointsRulesFromSaleSettings,
   shopProfileFromSettings,
+  storefrontUrlFor,
   signSessionToken,
   verifySessionToken,
 } from "../_shared/customerApp.ts";
@@ -202,6 +204,23 @@ function saleBillQuery(supabase: SupabaseClient, session: Session) {
     .eq("is_cancelled", false);
 }
 
+/** Public shop header: name, logo, address, phone, and the shop's website link when it has one. */
+async function shopHeader(supabase: SupabaseClient, org: Org) {
+  const [{ data: settings }, { data: website }] = await Promise.all([
+    supabase
+      .from("settings")
+      .select("business_name, address, mobile_number, bill_barcode_settings")
+      .eq("organization_id", org.id)
+      .maybeSingle(),
+    supabase
+      .from("website_settings")
+      .select("slug, custom_domain, is_published")
+      .eq("organization_id", org.id)
+      .maybeSingle(),
+  ]);
+  return { ...shopProfileFromSettings(org.name, settings), store_url: storefrontUrlFor(website) };
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
@@ -215,12 +234,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // ─── SHOP: public header (name, logo, address, phone), no session ─────
     if (action === "shop") {
-      const { data: settings } = await supabase
-        .from("settings")
-        .select("business_name, address, mobile_number, bill_barcode_settings")
-        .eq("organization_id", org.id)
-        .maybeSingle();
-      return json(200, { ok: true, shop: shopProfileFromSettings(org.name, settings) });
+      return json(200, { ok: true, shop: await shopHeader(supabase, org) });
     }
 
     // ─── OFFER: one offer by id, no session (a notification tap opens it) ──
@@ -229,7 +243,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (action === "offer") {
       const campaignId = String(body.campaignId ?? "");
       if (!UUID.test(campaignId)) return json(400, { error: "offer_not_found" });
-      const [{ data: offer, error }, { data: settings }] = await Promise.all([
+      const [{ data: offer, error }, shop] = await Promise.all([
         supabase
           .from("push_campaigns")
           .select("id, title, body, image_url, offer_code, valid_till, created_at")
@@ -237,15 +251,11 @@ const handler = async (req: Request): Promise<Response> => {
           .eq("organization_id", org.id)
           .in("status", ["sending", "done"])
           .maybeSingle(),
-        supabase
-          .from("settings")
-          .select("business_name, address, mobile_number, bill_barcode_settings")
-          .eq("organization_id", org.id)
-          .maybeSingle(),
+        shopHeader(supabase, org),
       ]);
       if (error) throw error;
       if (!offer) return json(404, { error: "offer_not_found" });
-      return json(200, { ok: true, offer, shop: shopProfileFromSettings(org.name, settings) });
+      return json(200, { ok: true, offer, shop });
     }
 
     // ─── LOGIN: mobile number ──────────────────────────────────────────────
@@ -278,7 +288,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (action === "summary") {
       const profile = await customerProfile(supabase, session);
       if (!profile) return json(401, { error: "session_expired" });
-      const [{ data: snap }, { data: sales }, { data: returns }] = await Promise.all([
+      const [{ data: snap }, { data: sales }, { data: returns }, { data: saleSettingsRow }] = await Promise.all([
         supabase.rpc("get_customer_financial_snapshot", {
           p_customer_id: session.customerId,
           p_organization_id: session.organizationId,
@@ -290,7 +300,9 @@ const handler = async (req: Request): Promise<Response> => {
           .eq("organization_id", session.organizationId)
           .eq("customer_id", session.customerId)
           .is("deleted_at", null),
+        supabase.from("settings").select("sale_settings").eq("organization_id", session.organizationId).maybeSingle(),
       ]);
+      const pointsRules = pointsRulesFromSaleSettings(saleSettingsRow?.sale_settings);
       const s = (Array.isArray(snap) ? snap[0] : snap) as
         | { outstanding_dr?: number; advance_available?: number; cn_available_total?: number }
         | null;
@@ -303,6 +315,7 @@ const handler = async (req: Request): Promise<Response> => {
           phone: maskPhone(profile.phone),
           points: Number(profile.points_balance) || 0,
         },
+        rewards: { enabled: pointsRules.enabled, pointValue: pointsRules.redemptionEnabled ? pointsRules.pointValue : 0 },
         totals: {
           bills: billRows.length,
           shopping: Math.round(billRows.reduce((t, r) => t + (Number(r.net_amount) || 0), 0)),
@@ -458,6 +471,47 @@ const handler = async (req: Request): Promise<Response> => {
       return json(200, {
         ok: true,
         transactions: buildCustomerTransactions(saleRows, receipts, returns.data ?? []).slice(0, 500),
+      });
+    }
+
+    // ─── POINTS: reward points balance, the shop's rules, gifts and history ──
+    if (action === "points") {
+      const today = new Date().toISOString().slice(0, 10);
+      const [{ data: profile }, { data: settings }, { data: history }, { data: gifts }] = await Promise.all([
+        supabase
+          .from("customers")
+          .select("points_balance, total_points_earned, points_redeemed")
+          .eq("id", session.customerId)
+          .eq("organization_id", session.organizationId)
+          .maybeSingle(),
+        supabase.from("settings").select("sale_settings").eq("organization_id", session.organizationId).maybeSingle(),
+        supabase
+          .from("customer_points_history")
+          .select("id, transaction_type, points, invoice_amount, description, created_at")
+          .eq("organization_id", session.organizationId)
+          .eq("customer_id", session.customerId)
+          .order("created_at", { ascending: false })
+          .limit(50),
+        supabase
+          .from("gift_rewards")
+          .select("id, gift_name, description, points_required, valid_until")
+          .eq("organization_id", session.organizationId)
+          .eq("is_active", true)
+          .gt("stock_qty", 0)
+          .lte("valid_from", today)
+          .or(`valid_until.is.null,valid_until.gte.${today}`)
+          .order("points_required", { ascending: true })
+          .limit(20),
+      ]);
+      if (!profile) return json(401, { error: "session_expired" });
+      return json(200, {
+        ok: true,
+        balance: Math.max(0, Number(profile.points_balance) || 0),
+        earned: Math.max(0, Number(profile.total_points_earned) || 0),
+        redeemed: Math.max(0, Number(profile.points_redeemed) || 0),
+        rules: pointsRulesFromSaleSettings(settings?.sale_settings),
+        gifts: gifts ?? [],
+        history: history ?? [],
       });
     }
 

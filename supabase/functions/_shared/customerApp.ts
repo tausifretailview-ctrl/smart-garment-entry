@@ -220,3 +220,61 @@ export async function verifySessionToken(
     return null;
   }
 }
+
+// ── Shop website ("Shop now") ──────────────────────────────────────────────
+
+/** Where the shop's own website (EzzyERP storefront) lives; ERP's public storefront host. */
+export const STOREFRONT_APP_ORIGIN = "https://app.inventoryshop.in";
+
+/**
+ * Public storefront link for the "Shop now" button, or null when the shop has no published
+ * website. A connected custom domain wins; otherwise the store page on the app host.
+ */
+export function storefrontUrlFor(
+  website: { slug?: string | null; custom_domain?: string | null; is_published?: boolean | null } | null,
+  appOrigin: string = STOREFRONT_APP_ORIGIN,
+): string | null {
+  if (!website?.is_published) return null;
+  const domain = String(website.custom_domain ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(domain)) return `https://${domain}/`;
+  const slug = String(website.slug ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9-]{1,63}$/.test(slug)) return null;
+  return `${appOrigin.replace(/\/+$/, "")}/${slug}/store`;
+}
+
+// ── Reward points ──────────────────────────────────────────────────────────
+
+export type CustomerPointsRules = {
+  enabled: boolean;
+  /** "Every ₹{earnPerAmount} spent earns {earnPoints} points". */
+  earnPerAmount: number;
+  earnPoints: number;
+  minPurchaseForPoints: number;
+  redemptionEnabled: boolean;
+  /** ₹ value of one point at billing. */
+  pointValue: number;
+  minPointsToRedeem: number;
+  maxRedeemPercent: number;
+  expiryDays: number;
+};
+
+const num = (v: unknown, fallback: number, min = 0): number => {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= min ? n : fallback;
+};
+
+/** The shop's points rules from settings.sale_settings, with the ERP's own defaults. */
+export function pointsRulesFromSaleSettings(saleSettings: unknown): CustomerPointsRules {
+  const s = (saleSettings && typeof saleSettings === "object" ? saleSettings : {}) as Record<string, unknown>;
+  return {
+    enabled: s.enable_points_system === true,
+    earnPerAmount: num(s.points_ratio_amount, 100, 0.01),
+    earnPoints: num(s.points_per_ratio, 1),
+    minPurchaseForPoints: num(s.min_purchase_for_points, 0),
+    redemptionEnabled: s.enable_points_redemption === true,
+    pointValue: num(s.points_redemption_value, 1),
+    minPointsToRedeem: num(s.min_points_for_redemption, 1),
+    maxRedeemPercent: num(s.max_redemption_percent, 50),
+    expiryDays: num(s.points_expiry_days, 0),
+  };
+}

@@ -1,9 +1,9 @@
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import TokenPage from "./pages/TokenPage";
 import MessagePage from "./pages/MessagePage";
-import { AccountPage, BillPage, BillsPage, OffersPage, ReturnsPage, TransactionsPage } from "./pages/account";
+import { AccountPage, BillPage, BillsPage, OffersPage, ReturnsPage, RewardsPage, TransactionsPage } from "./pages/account";
 import LoginCard from "./components/LoginCard";
-import { PoweredBy, ShopHeader, useShop } from "./components/AppChrome";
+import { PoweredBy, ShopHeader, ShopNowCard, useShop } from "./components/AppChrome";
 import InstallAppCard from "./components/InstallApp";
 import { getSessionToken } from "./lib/account";
 
@@ -20,6 +20,7 @@ function HomePage() {
           <p>See every bill, return and balance, and get the latest offers from the shop.</p>
         </div>
         <LoginCard title="Log in with your mobile number" onDone={() => navigate("/account", { replace: true })} />
+        <ShopNowCard shop={shop} />
         <InstallAppCard shopName={shop?.name} />
         <PoweredBy />
       </div>
@@ -41,6 +42,7 @@ export default function CustomerApp() {
         <Route path="/returns" element={<ReturnsPage />} />
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/offers" element={<OffersPage />} />
+        <Route path="/rewards" element={<RewardsPage />} />
         <Route path="*" element={<HomePage />} />
       </Routes>
     </BrowserRouter>

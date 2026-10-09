@@ -36,6 +36,8 @@ export type BillSale = {
 export type AccountSummary = {
   shop: string;
   customer: { name: string; phone: string; points: number };
+  /** Missing on older customer-app deploys. pointValue is 0 when points can't be used at billing. */
+  rewards?: { enabled: boolean; pointValue: number };
   totals: { bills: number; shopping: number; items: number; returns: number; returnAmount: number };
   balance: { outstanding: number; advance: number; creditNotes: number };
 };
@@ -86,6 +88,36 @@ export type ShopInfo = {
   phone: string | null;
   whatsapp: string | null;
   logo_url: string | null;
+  /** The shop's own website (EzzyERP storefront), when it has a published one. */
+  store_url?: string | null;
+};
+
+export type PointsRules = {
+  enabled: boolean;
+  earnPerAmount: number;
+  earnPoints: number;
+  minPurchaseForPoints: number;
+  redemptionEnabled: boolean;
+  pointValue: number;
+  minPointsToRedeem: number;
+  maxRedeemPercent: number;
+  expiryDays: number;
+};
+
+export type PointsData = {
+  balance: number;
+  earned: number;
+  redeemed: number;
+  rules: PointsRules;
+  gifts: Array<{ id: string; gift_name: string; description: string | null; points_required: number; valid_until: string | null }>;
+  history: Array<{
+    id: string;
+    transaction_type: string;
+    points: number;
+    invoice_amount: number | null;
+    description: string | null;
+    created_at: string;
+  }>;
 };
 
 export class AccountError extends Error {
@@ -227,6 +259,7 @@ export const fetchBills = (page: number) => call<{ bills: BillListRow[]; hasMore
 export const fetchBill = (saleId: string) => call<{ sale: BillSale; shop: string }>("bill", { saleId });
 export const fetchReturns = () => call<{ returns: ReturnRow[] }>("returns");
 export const fetchTransactions = () => call<{ transactions: TxnRow[] }>("transactions");
+export const fetchPoints = () => call<PointsData>("points");
 export const fetchOffers = () => call<{ offers: OfferRow[] }>("offers");
 export const registerAccountPush = (fcmToken: string, platform: string) =>
   call<{ ok: boolean }>("register_push", { fcmToken, platform });

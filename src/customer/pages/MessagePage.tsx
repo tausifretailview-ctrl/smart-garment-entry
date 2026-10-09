@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { BillView } from "./account";
-import { BottomNav, PoweredBy, ShopHeader, useShop } from "../components/AppChrome";
+import { BottomNav, PoweredBy, ShopHeader, ShopNowCard, useShop } from "../components/AppChrome";
 import InstallAppCard from "../components/InstallApp";
 import { fetchOffer, getSessionToken, type OfferRow, type ShopInfo } from "../lib/account";
 import { formatDate, offerValidity } from "../lib/format";
@@ -109,6 +109,7 @@ function OfferView({
           Visit {contact?.name ?? "the shop"}{offer?.offer_code ? " and show this code at billing" : " to grab this offer"}.
         </p>
       ) : null}
+      <ShopNowCard shop={contact} />
       <ShopContactButtons shop={contact} />
       <Link className="c-btn c-btn-ghost" to="/offers">
         See all offers
