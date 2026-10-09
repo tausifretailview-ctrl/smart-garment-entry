@@ -186,11 +186,15 @@ interface LineItem {
   /** Product brand captured at add time so brand-wise customer discounts can be
    * reconciled without re-looking it up from productsData (which can miss). */
   brand?: string;
-  /** True when the line was added without a customer brand rate (brand rates
-   * still loading, or customer picked after the item), so its discount is the
-   * app's fallback (0% or product sale discount), not an operator choice. The
-   * brand rate replaces it once it resolves; any manual discount edit clears it. */
-  brandRatePending?: boolean;
+  /** True while the line's discount is the app's choice, not the operator's:
+   * the customer's brand rate, or the fallback below when no rate applies.
+   * It follows the current customer (rates still loading, customer picked
+   * after the item, or customer switched mid-bill); any manual discount edit
+   * clears it. */
+  autoDiscount?: boolean;
+  /** Discount an auto line falls back to when the customer has no brand rate
+   * for it (product sale discount %, else 0). */
+  autoDiscountFallback?: number;
 }
 
 const SALE_BILL_MIN_DISPLAY_ROWS = 7;
@@ -1389,7 +1393,7 @@ export default function SalesInvoice() {
   // and only when no brand-discount rows exist).
   useEffect(() => {
     if (isInitializingEditRef.current) return;
-    if (isBrandDiscountsLoading || !hasBrandDiscounts || brandDiscounts.length === 0) return;
+    if (isBrandDiscountsLoading) return;
 
     let applied = false;
     setLineItems((prev) => {
@@ -1398,25 +1402,34 @@ export default function SalesInvoice() {
       let hasChanges = false;
       const updatedItems = prev.map((item) => {
         if (!item.productId) return item;
-        // Lines added before the brand rate was known (product sale discount or
-        // 0% fallback) take the brand rate. Saved invoice lines keep their
-        // persisted discounts, so in edit mode only those pending lines change;
-        // auto-stamping 0% lines there would wipe rupee line discounts.
-        const pending = item.brandRatePending === true;
-        if (!pending && (editingInvoiceId || item.discountPercent !== 0)) return item;
+        // Auto lines follow the current customer's brand rate (or their fallback
+        // when it has none), so a rate that loaded late or a customer switched
+        // mid-bill never leaves the previous discount behind. Saved invoice lines
+        // and operator-edited discounts are never touched; plain 0% lines in a
+        // new bill still pick up a brand rate as before.
+        const auto = item.autoDiscount === true;
+        if (!auto && (editingInvoiceId || item.discountPercent !== 0 || item.discountAmount > 0)) {
+          return item;
+        }
 
         const brand = item.brand || productBrandById.get(item.productId);
-        const brandDiscount = getBrandDiscountForProduct(brand, item.productName);
-        if (brandDiscount <= 0) return item;
-        if (item.discountPercent === brandDiscount) return item;
+        const brandDiscount = hasBrandDiscounts
+          ? getBrandDiscountForProduct(brand, item.productName)
+          : 0;
+        const target = brandDiscount > 0
+          ? brandDiscount
+          : auto
+            ? Math.max(0, Number(item.autoDiscountFallback) || 0)
+            : 0;
+        if (Math.abs(item.discountPercent - target) < 0.001) return item;
+        if (!auto && target <= 0) return item;
 
         hasChanges = true;
         return calculateLineTotal({
           ...item,
           brand: brand || item.brand,
-          discountPercent: brandDiscount,
+          discountPercent: target,
           discountAmount: 0,
-          brandRatePending: false,
         });
       });
 
@@ -1427,8 +1440,8 @@ export default function SalesInvoice() {
 
     if (applied) {
       toast({
-        title: "Brand discounts applied",
-        description: "Discounts have been updated for matching products",
+        title: "Line discounts updated",
+        description: "Matched to this customer's brand discount rates",
       });
     }
   }, [
@@ -1856,7 +1869,8 @@ export default function SalesInvoice() {
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
           brand: product.brand || '',
-          brandRatePending: brandDiscount <= 0,
+          autoDiscount: true,
+          autoDiscountFallback: 0,
         });
         
         if (emptyRowIndex >= 0) {
@@ -2383,7 +2397,8 @@ export default function SalesInvoice() {
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
           brand: product.brand || '',
-          brandRatePending: brandDiscount <= 0,
+          autoDiscount: true,
+          autoDiscountFallback: productSaleDiscount > 0 ? productSaleDiscount : 0,
         };
         
         const emptyRowIndex = prev.findIndex(item => item.productId === '');
@@ -2762,7 +2777,7 @@ export default function SalesInvoice() {
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
-          ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0, brandRatePending: false })
+          ? calculateLineTotal({ ...item, discountPercent, discountAmount: 0, autoDiscount: false })
           : item,
       ),
     );
@@ -2772,7 +2787,7 @@ export default function SalesInvoice() {
     setLineItems((prev) =>
       prev.map((item) =>
         item.id === id
-          ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0, brandRatePending: false })
+          ? calculateLineTotal({ ...item, discountAmount, discountPercent: 0, autoDiscount: false })
           : item,
       ),
     );
@@ -2912,10 +2927,10 @@ export default function SalesInvoice() {
           if (colKey === "mrp") return calculateLineTotal({ ...li, mrp: Number(previousValue) || 0 });
           if (colKey === "price") return calculateLineTotal({ ...li, salePrice: Number(previousValue) || 0 });
           if (colKey === "disc_percent") {
-            return calculateLineTotal({ ...li, discountPercent: Number(previousValue) || 0, discountAmount: 0, brandRatePending: false });
+            return calculateLineTotal({ ...li, discountPercent: Number(previousValue) || 0, discountAmount: 0, autoDiscount: false });
           }
           if (colKey === "disc_amount") {
-            return calculateLineTotal({ ...li, discountAmount: Number(previousValue) || 0, discountPercent: 0, brandRatePending: false });
+            return calculateLineTotal({ ...li, discountAmount: Number(previousValue) || 0, discountPercent: 0, autoDiscount: false });
           }
           return li;
         }),
