@@ -108,6 +108,7 @@ const EXPLICIT_PROTECTED_TAB_PATHS = new Set([
   "customer-ledger-report",
   "customer-points-report",
   "customer-balance-activity",
+  "website",
 ]);
 
 /** Persist scroll positions per window tab when panes are hidden. */
@@ -195,6 +196,8 @@ const ELECTRON_WORKFLOW_DASHBOARD_PATHS = new Set([
   "bulk-product-update",
   "stock-settlement",
   "settings",
+  // Website: Add products search / selections must survive a tab or window switch.
+  "website",
 ]);
 
 function isProtectedTabPath(path: string): boolean {
