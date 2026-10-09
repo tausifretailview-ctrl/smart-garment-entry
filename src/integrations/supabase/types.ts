@@ -5760,6 +5760,9 @@ export type Database = {
           target: Json
           title: string
           valid_till: string | null
+          website_discount_flat: number | null
+          website_discount_percent: number | null
+          website_min_order: number | null
         }
         Insert: {
           body: string
@@ -5777,6 +5780,9 @@ export type Database = {
           target?: Json
           title: string
           valid_till?: string | null
+          website_discount_flat?: number | null
+          website_discount_percent?: number | null
+          website_min_order?: number | null
         }
         Update: {
           body?: string
@@ -5794,6 +5800,9 @@ export type Database = {
           target?: Json
           title?: string
           valid_till?: string | null
+          website_discount_flat?: number | null
+          website_discount_percent?: number | null
+          website_min_order?: number | null
         }
         Relationships: [
           {
@@ -8866,6 +8875,8 @@ export type Database = {
       website_products: {
         Row: {
           created_at: string
+          description: string | null
+          display_name: string | null
           display_order: number
           display_price: number | null
           id: string
@@ -8878,6 +8889,8 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
+          display_name?: string | null
           display_order?: number
           display_price?: number | null
           id?: string
@@ -8890,6 +8903,8 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
+          display_name?: string | null
           display_order?: number
           display_price?: number | null
           id?: string
@@ -10400,6 +10415,10 @@ export type Database = {
           variant_id: string
         }[]
       }
+      check_public_storefront_offer_code: {
+        Args: { p_code: string; p_slug: string }
+        Returns: Json
+      }
       check_purchase_stock_dependencies: {
         Args: { p_bill_id: string }
         Returns: {
@@ -11239,6 +11258,10 @@ export type Database = {
         }[]
       }
       get_public_storefront: { Args: { p_slug: string }; Returns: Json }
+      get_public_storefront_customer_perks: {
+        Args: { p_phone: string; p_slug: string }
+        Returns: Json
+      }
       get_purchase_bill_dashboard_stats: {
         Args: {
           p_dc_filter?: string
@@ -12008,6 +12031,15 @@ export type Database = {
       soft_delete_voucher: {
         Args: { p_user_id: string; p_voucher_id: string }
         Returns: undefined
+      }
+      storefront_public_lookup_rate_ok: {
+        Args: {
+          p_fallback: string
+          p_kind: string
+          p_max: number
+          p_org: string
+        }
+        Returns: boolean
       }
       submit_public_storefront_enquiry: {
         Args: {
