@@ -1,8 +1,8 @@
 /**
  * Shop custom domains for the public storefront.
  *
- * A shop owner saves e.g. `ellanoor.in` in Settings → WhatsApp → Store website
- * domain (stored in `website_settings.custom_domain`). Once that domain points
+ * A shop owner saves e.g. `ellanoor.in` in Settings → Website → Domain
+ * (stored in `website_settings.custom_domain`). Once that domain points
  * at this app, main.tsx looks the visiting host up here and, when it belongs to
  * a published store, boots the storefront at `/` instead of the ERP.
  */

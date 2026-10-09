@@ -12,7 +12,7 @@ import { normalizeStoreDomain } from "@/lib/storefrontDomain";
 
 type DomainRow = { custom_domain: string | null; is_published: boolean; slug: string } | null;
 
-/** Settings → WhatsApp → Store website domain (website_settings.custom_domain). */
+/** Settings → Website → Domain (website_settings.custom_domain). */
 export function StoreDomainSettings() {
   const { currentOrganization, organizationRole } = useOrganization();
   const orgId = currentOrganization?.id;
@@ -43,7 +43,7 @@ export function StoreDomainSettings() {
   const save = async (next: string | null) => {
     if (!orgId || saving) return;
     if (!data) {
-      toast.error("Set up your store in Settings → Website first, then add the domain.");
+      toast.error("Set up your store in Store profile first, then add the domain.");
       return;
     }
     let value: string | null = null;
@@ -87,7 +87,7 @@ export function StoreDomainSettings() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Your store website is not set up yet. Add products and publish it from Settings → Website first.
+            Your store website is not set up yet. Turn it on in the Store profile tab first.
           </AlertDescription>
         </Alert>
       )}

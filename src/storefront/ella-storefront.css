@@ -32,7 +32,7 @@ body.ella-root {
   --ella-chrome-h: 118px;
   background: #ffffff;
   color: var(--ella-paper);
-  font-family: Barlow, system-ui, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   font-weight: 400;
   line-height: 1.55;
@@ -78,7 +78,7 @@ body.ella-root {
 }
 
 .ella-display {
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.05;
@@ -208,7 +208,7 @@ body.ella-root {
 
 .ella-site-wordmark {
   color: #12100e;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 26px;
   font-weight: 600;
   letter-spacing: 0.18em;
@@ -218,7 +218,7 @@ body.ella-root {
 .ella-site-tagline {
   color: rgba(201, 162, 39, 0.95);
   display: block;
-  font-family: Barlow, system-ui, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.28em;
@@ -252,7 +252,7 @@ body.ella-root {
 .ella-nav-link {
   border-bottom: 2px solid transparent;
   color: #9a8454;
-  font-family: Barlow, system-ui, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px;
   font-weight: 500;
   height: 40px;
@@ -427,7 +427,7 @@ body.ella-root {
   background: #12100e;
   color: #f4f1ea;
   display: inline-flex;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   gap: 8px;
@@ -674,7 +674,7 @@ body.ella-root {
 .ella-view-all {
   border-bottom: 1px solid var(--ella-gold);
   color: #12100e;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -778,7 +778,7 @@ body.ella-root {
 
 .ella-mto-n {
   color: var(--ella-gold);
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 15px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -1372,7 +1372,7 @@ body.ella-root {
 .ella-newsletter button {
   background: var(--ella-gold);
   color: #12100e;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   height: 48px;
@@ -1456,7 +1456,7 @@ body.ella-root {
   color: var(--ella-ink);
   display: inline-flex;
   flex: 1;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   font-weight: 600;
   gap: 8px;
@@ -1770,7 +1770,7 @@ body.ella-root {
   align-items: center;
   border-bottom: 1px solid var(--ella-hairline);
   display: flex;
-  font-family: "Barlow Condensed", Barlow, sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   justify-content: space-between;
@@ -1903,6 +1903,7 @@ body.ella-root {
   border-bottom: 1px solid var(--ella-hairline);
 }
 
+.ella-store button.ella-panel-head,
 .ella-panel-head {
   align-items: center;
   display: flex;

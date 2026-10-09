@@ -16,10 +16,6 @@
 const STORE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Mulish:wght@400;500;600;700&display=swap";
 
-/** The Ella'Noor sheets still use Barlow for a few base rules. */
-const ELLA_EXTRA_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap";
-
 function addLink(id: string, attrs: Record<string, string>): void {
   if (document.getElementById(id)) return;
   const link = document.createElement("link");
@@ -39,8 +35,7 @@ export function ensureStoreFonts(): void {
   addLink("store-fonts", { rel: "stylesheet", href: STORE_FONTS_HREF });
 }
 
+/** Ella'Noor uses the same pairing; kept as its own entry point for StorefrontApp. */
 export function ensureEllaFonts(): void {
-  if (typeof document === "undefined") return;
   ensureStoreFonts();
-  addLink("ella-fonts", { rel: "stylesheet", href: ELLA_EXTRA_FONTS_HREF });
 }

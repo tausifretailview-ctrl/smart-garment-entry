@@ -380,11 +380,11 @@
 }
 .en-footer-col {
   display: flex; flex-direction: column; gap: 12px;
-  font-family: Barlow, "Segoe UI", sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 17px; line-height: 1.55;
 }
 .en-footer-col b {
-  font-family: Barlow, "Segoe UI", sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 13px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase;
   color: var(--en-muted); margin-bottom: 4px;
 }
@@ -396,7 +396,7 @@
 .en-footer-note { max-width: 32ch; font-size: 17px; line-height: 1.55; }
 .en-footer-col button,
 .en-footer-col a {
-  font-family: Barlow, "Segoe UI", sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   text-align: left; background: none; border: 0; padding: 0;
   font-size: 17px; color: var(--en-ink); cursor: pointer; letter-spacing: 0.01em;
 }
@@ -406,7 +406,7 @@
 .en-footer-social { display: inline-flex; align-self: flex-start; align-items: center; gap: 12px; min-height: 28px; }
 .en-footer-social-icon { width: 22px; height: 22px; flex: 0 0 auto; }
 .en-colophon {
-  font-family: Barlow, "Segoe UI", sans-serif;
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px; letter-spacing: 0.03em; color: var(--en-faint);
   padding-top: 18px; border-top: 1px solid var(--en-line);
   padding-bottom: clamp(36px, 5vw, 56px);
@@ -1042,3 +1042,10 @@
   .en-card-name { font-size: 15px; }
   .en-menu-link { font-size: 22px; }
 }
+
+/* product sheet: accordion titles as clean labels, not small serif */
+.ella-store .ella-panel-title {
+  font-family: Mulish, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+}
+.ella-store .ella-panel-body { font-size: 15px; line-height: 1.65; }
