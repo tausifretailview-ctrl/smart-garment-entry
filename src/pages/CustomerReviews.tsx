@@ -16,6 +16,7 @@ import {
   type CustomerReviewRow,
   type RatingFilter,
 } from "@/utils/customerReviewStats";
+import { reviewSourceLabel } from "@/lib/customerReviewAlert";
 
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
@@ -95,7 +96,7 @@ export default function CustomerReviews() {
 
   const exportExcel = async () => {
     const XLSX = await loadXlsx();
-    const header = ["Date", "Bill No", "Customer", "Phone", "Rating", "Tags", "Comment", "Salesman"];
+    const header = ["Date", "Bill No", "Customer", "Phone", "Rating", "Tags", "Comment", "Salesman", "From"];
     const body = filtered.map((r) => [
       format(new Date(r.created_at), "dd-MM-yyyy HH:mm"),
       r.sale_number ?? "",
@@ -105,6 +106,7 @@ export default function CustomerReviews() {
       (r.tags ?? []).join(", "),
       r.comment ?? "",
       r.salesman ?? "",
+      reviewSourceLabel(r.source),
     ]);
     const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
     const wb = XLSX.utils.book_new();
@@ -205,13 +207,13 @@ export default function CustomerReviews() {
           <p className="p-4 text-sm text-muted-foreground">Loading reviews…</p>
         ) : filtered.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">
-            No reviews in this period. Customers can rate their bill on the bill page link (WhatsApp / notification).
+            No reviews in this period. Customers rate their bill from the bill link, the Bill & Offers app, or WhatsApp.
           </p>
         ) : (
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-slate-800">
               <TableRow>
-                {["Date", "Bill No", "Customer", "Phone", "Rating", "Tags", "Comment", "Salesman"].map((h) => (
+                {["Date", "Bill No", "Customer", "Phone", "Rating", "Tags", "Comment", "Salesman", "From"].map((h) => (
                   <TableHead key={h} className="font-bold text-white">
                     {h}
                   </TableHead>
@@ -231,6 +233,7 @@ export default function CustomerReviews() {
                   <TableCell>{(r.tags ?? []).join(", ") || "–"}</TableCell>
                   <TableCell className="max-w-[360px] whitespace-pre-wrap">{r.comment || "–"}</TableCell>
                   <TableCell>{r.salesman ?? "–"}</TableCell>
+                  <TableCell className="whitespace-nowrap">{reviewSourceLabel(r.source)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

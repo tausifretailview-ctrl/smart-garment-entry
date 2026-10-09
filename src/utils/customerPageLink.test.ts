@@ -12,6 +12,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 import {
   appendCustomerPageLinkLine,
+  appendGoogleReviewLine,
   buildCustomerPageUrl,
   createCustomerPageLinkForSale,
   createCustomerPageLinkForWhatsApp,
@@ -47,8 +48,24 @@ describe("customer page link helpers", () => {
 
   it("appends the link once, only when present", () => {
     expect(appendCustomerPageLinkLine("Hi\n", "")).toBe("Hi\n");
-    expect(appendCustomerPageLinkLine("Hi\n", "https://x/t/1")).toBe("Hi\n\nView your bill: https://x/t/1");
-    expect(appendCustomerPageLinkLine("See https://x/t/1", "https://x/t/1")).toBe("See https://x/t/1");
+    expect(appendCustomerPageLinkLine("Hi\n", "https://x/t/1")).toBe(
+      "Hi\n\n🧾 View your bill: https://x/t/1\n⭐ Review your shopping: https://x/t/1#rate",
+    );
+    // A template that already shows the bill link still gets the review line, once.
+    expect(appendCustomerPageLinkLine("See https://x/t/1", "https://x/t/1")).toBe(
+      "See https://x/t/1\n\n⭐ Review your shopping: https://x/t/1#rate",
+    );
+    const once = appendCustomerPageLinkLine("Hi", "https://x/t/1");
+    expect(appendCustomerPageLinkLine(once, "https://x/t/1")).toBe(once);
+  });
+
+  it("falls back to the Google review link without a bill link", () => {
+    expect(appendGoogleReviewLine("Hi", "https://g.page/r/abc/review")).toBe(
+      "Hi\n\n⭐ Review your shopping: https://g.page/r/abc/review",
+    );
+    expect(appendGoogleReviewLine("Hi", "")).toBe("Hi");
+    expect(appendGoogleReviewLine("Hi", "not a link")).toBe("Hi");
+    expect(appendGoogleReviewLine("Rate https://g.page/r/abc", "https://g.page/r/abc")).toBe("Rate https://g.page/r/abc");
   });
 
   it("fills {customer_page_link} in templates", () => {

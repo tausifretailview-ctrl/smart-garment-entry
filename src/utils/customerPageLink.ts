@@ -113,11 +113,32 @@ export function customerPageLinkFailureMessage(result: Extract<CustomerPageLinkR
   }
 }
 
+/** The bill page opened at its star rating (TokenPage scrolls to #rate). */
+export function customerPageReviewUrl(link: string): string {
+  return link ? `${link.split("#")[0]}#rate` : "";
+}
+
 /**
  * Caption text: fill {customer_page_link}; when the shop's template has no such
  * placeholder, add the link as a last line so turning the switch on is enough.
+ * Every bill message also asks for a review: WappConnect sends plain text (no
+ * buttons), so the "Review shopping" button is a link to the bill's stars.
  */
 export function appendCustomerPageLinkLine(message: string, link: string): string {
-  if (!link || message.includes(link)) return message;
-  return `${message.trimEnd()}\n\nView your bill: ${link}`;
+  if (!link) return message;
+  const reviewUrl = customerPageReviewUrl(link);
+  const lines: string[] = [];
+  if (!message.includes(link)) lines.push(`🧾 View your bill: ${link}`);
+  if (!message.includes(reviewUrl)) lines.push(`⭐ Review your shopping: ${reviewUrl}`);
+  return lines.length ? `${message.trimEnd()}\n\n${lines.join("\n")}` : message;
+}
+
+/**
+ * No bill link (Customer page off): ask for a review on the shop's Google page instead,
+ * when it has one and the message does not already carry it.
+ */
+export function appendGoogleReviewLine(message: string, googleReviewLink: string): string {
+  const link = googleReviewLink.trim();
+  if (!/^https?:\/\//i.test(link) || message.includes(link)) return message;
+  return `${message.trimEnd()}\n\n⭐ Review your shopping: ${link}`;
 }

@@ -120,6 +120,23 @@ export type PointsData = {
   }>;
 };
 
+export type BillReview = {
+  rating: number;
+  tags: string[];
+  comment: string | null;
+  source: string;
+  created_at: string;
+};
+
+export type ReviewRow = BillReview & {
+  id: string;
+  sale_id: string;
+  sale_number: string | null;
+  sale_date: string | null;
+};
+
+export type UnratedBill = { id: string; sale_number: string; sale_date: string; net_amount: number };
+
 export class AccountError extends Error {
   constructor(public code: string) {
     super(code);
@@ -256,11 +273,15 @@ export const fetchOffer = (campaignId: string) => call<{ offer: OfferRow; shop: 
 
 export const fetchSummary = () => call<AccountSummary>("summary");
 export const fetchBills = (page: number) => call<{ bills: BillListRow[]; hasMore: boolean }>("bills", { page });
-export const fetchBill = (saleId: string) => call<{ sale: BillSale; shop: string }>("bill", { saleId });
+export const fetchBill = (saleId: string) =>
+  call<{ sale: BillSale; shop: string; review?: BillReview | null }>("bill", { saleId });
 export const fetchReturns = () => call<{ returns: ReturnRow[] }>("returns");
 export const fetchTransactions = () => call<{ transactions: TxnRow[] }>("transactions");
 export const fetchPoints = () => call<PointsData>("points");
 export const fetchOffers = () => call<{ offers: OfferRow[] }>("offers");
+export const fetchReviews = () => call<{ reviews: ReviewRow[]; unrated: UnratedBill[] }>("reviews");
+export const rateBill = (saleId: string, rating: number, tags: string[], comment: string) =>
+  call<{ ok: boolean }>("rate", { saleId, rating, tags, comment });
 export const registerAccountPush = (fcmToken: string, platform: string) =>
   call<{ ok: boolean }>("register_push", { fcmToken, platform });
 
@@ -281,6 +302,14 @@ export function accountErrorMessage(err: unknown): string {
       return "Please log in again.";
     case "offer_not_found":
       return "This offer has ended or is no longer available.";
+    case "invalid_rating":
+      return "Please tap a star first.";
+    case "whatsapp_rating_locked":
+      return "You already rated this bill on WhatsApp. Thank you!";
+    case "rating_window_expired":
+      return "This bill can no longer be rated.";
+    case "unknown_action":
+      return "Ratings will be available here soon.";
     case "bill_not_found":
       return "This bill is not on your account.";
     case "network":

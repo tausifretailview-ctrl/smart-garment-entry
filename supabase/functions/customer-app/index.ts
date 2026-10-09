@@ -8,6 +8,8 @@ import {
   maskPhone,
   phoneLast10,
   pointsRulesFromSaleSettings,
+  reviewBlockReason,
+  reviewInputFromBody,
   shopProfileFromSettings,
   storefrontUrlFor,
   signSessionToken,
@@ -360,12 +362,20 @@ const handler = async (req: Request): Promise<Response> => {
       const { data: saleRow } = await saleBillQuery(supabase, session).eq("id", saleId).maybeSingle();
       if (!saleRow) return json(404, { error: "bill_not_found" });
       const sale = saleRow as unknown as Record<string, unknown>;
-      const { data: items } = await supabase
-        .from("sale_items")
-        .select("product_name, size, color, quantity, unit_price, mrp, discount_percent, gst_percent, line_total")
-        .eq("sale_id", saleId)
-        .is("deleted_at", null)
-        .order("created_at", { ascending: true });
+      const [{ data: items }, { data: review }] = await Promise.all([
+        supabase
+          .from("sale_items")
+          .select("product_name, size, color, quantity, unit_price, mrp, discount_percent, gst_percent, line_total")
+          .eq("sale_id", saleId)
+          .is("deleted_at", null)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("customer_feedback")
+          .select("rating, tags, comment, source, created_at")
+          .eq("organization_id", session.organizationId)
+          .eq("sale_id", saleId)
+          .maybeSingle(),
+      ]);
       const lines = (items ?? []).map((it) => {
         const amount = Number(it.line_total) || 0;
         const { taxable, tax } = lineTax(amount, Number(it.gst_percent) || 0, sale.tax_type as string);
@@ -404,7 +414,85 @@ const handler = async (req: Request): Promise<Response> => {
           payment_status: sale.payment_status,
           salesman: sale.salesman ?? null,
         },
+        review: review ?? null,
       });
+    }
+
+    // ─── REVIEWS: the stars this customer gave, newest first ──────────────
+    if (action === "reviews") {
+      const { data: bills } = await supabase
+        .from("sales")
+        .select("id, sale_number, sale_date, net_amount")
+        .eq("organization_id", session.organizationId)
+        .eq("customer_id", session.customerId)
+        .is("deleted_at", null)
+        .eq("is_cancelled", false)
+        .order("sale_date", { ascending: false })
+        .limit(200);
+      const byId = new Map((bills ?? []).map((b) => [b.id as string, b]));
+      const { data: rows, error } = byId.size
+        ? await supabase
+          .from("customer_feedback")
+          .select("id, sale_id, rating, tags, comment, source, created_at")
+          .eq("organization_id", session.organizationId)
+          .in("sale_id", [...byId.keys()])
+          .order("created_at", { ascending: false })
+        : { data: [], error: null };
+      if (error) throw error;
+      const reviews = (rows ?? []).map((r) => {
+        const b = byId.get(r.sale_id as string);
+        return { ...r, sale_number: b?.sale_number ?? null, sale_date: b?.sale_date ?? null };
+      });
+      const rated = new Set(reviews.map((r) => r.sale_id));
+      // Recent bills still waiting for stars, so the page can ask for them.
+      const unrated = (bills ?? [])
+        .filter((b) => !rated.has(b.id) && !reviewBlockReason(b.sale_date as string, null))
+        .slice(0, 5)
+        .map((b) => ({ id: b.id, sale_number: b.sale_number, sale_date: b.sale_date, net_amount: Number(b.net_amount) || 0 }));
+      return json(200, { ok: true, reviews, unrated });
+    }
+
+    // ─── RATE: stars + tags + comment on one of this customer's bills ─────
+    if (action === "rate") {
+      const saleId = String(body.saleId ?? "");
+      if (!UUID.test(saleId)) return json(400, { error: "invalid_bill" });
+      const input = reviewInputFromBody(body);
+      if (!input) return json(400, { error: "invalid_rating" });
+      const { data: sale } = await supabase
+        .from("sales")
+        .select("id, sale_date, salesman")
+        .eq("organization_id", session.organizationId)
+        .eq("customer_id", session.customerId)
+        .eq("id", saleId)
+        .is("deleted_at", null)
+        .eq("is_cancelled", false)
+        .maybeSingle();
+      if (!sale) return json(404, { error: "bill_not_found" });
+      const { data: existing } = await supabase
+        .from("customer_feedback")
+        .select("id, source, created_at")
+        .eq("sale_id", saleId)
+        .maybeSingle();
+      const blocked = reviewBlockReason(sale.sale_date as string, existing);
+      if (blocked) return json(409, { error: blocked });
+      const now = new Date().toISOString();
+      const { error } = existing
+        ? await supabase
+          .from("customer_feedback")
+          .update({ ...input, updated_at: now })
+          .eq("id", existing.id)
+        : await supabase.from("customer_feedback").insert({
+          ...input,
+          organization_id: session.organizationId,
+          sale_id: saleId,
+          salesman: sale.salesman ?? null,
+          source: "customer_app",
+        });
+      if (error) {
+        console.error("customer-app rate failed", error);
+        return json(400, { error: "rate_failed" });
+      }
+      return json(200, { ok: true });
     }
 
     if (action === "returns") {

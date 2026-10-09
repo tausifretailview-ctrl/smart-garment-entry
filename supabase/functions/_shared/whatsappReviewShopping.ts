@@ -123,3 +123,22 @@ export function reviewShoppingThankYou(ratingId: string, googleReviewLink?: stri
   }
   return "Sorry we missed the mark. We will use your feedback to do better. 🙏";
 }
+
+/** Stars from a rating list reply id ("review_4" → 4), else null. */
+export function reviewRatingFromReplyId(buttonId: string): number | null {
+  return isReviewShoppingRatingReply(buttonId) ? Number(String(buttonId).trim().slice(-1)) : null;
+}
+
+/** How far back a WhatsApp rating is matched to the customer's bill. */
+export const WHATSAPP_REVIEW_BILL_DAYS = 14;
+
+/**
+ * What a WhatsApp rating does to the customer's latest bill: a new review, a changed
+ * WhatsApp review, or nothing when the bill was already rated on its bill page / in the app.
+ */
+export function whatsappReviewWrite(
+  existing: { source?: string | null } | null,
+): "insert" | "update" | null {
+  if (!existing) return "insert";
+  return String(existing.source ?? "").toLowerCase().startsWith("whatsapp") ? "update" : null;
+}

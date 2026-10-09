@@ -1,10 +1,11 @@
 /* Loaded into the Workbox service worker (vite.config.ts → workbox.importScripts).
-   Handles taps on website order / enquiry notifications: focus the open app and
-   ask it to route in-app, or open the Website page when no window is open.
-   Other notifications are left alone. */
+   Handles taps on website order / enquiry and customer review notifications:
+   focus the open app and ask it to route in-app, or open the page when no
+   window is open. Other notifications are left alone. */
+const EZZY_ALERT_SOURCES = ["ezzy-website-enquiry", "ezzy-customer-review"];
 self.addEventListener("notificationclick", (event) => {
   const data = (event.notification && event.notification.data) || {};
-  if (data.source !== "ezzy-website-enquiry") return;
+  if (EZZY_ALERT_SOURCES.indexOf(data.source) < 0) return;
   event.notification.close();
   event.waitUntil(
     (async () => {

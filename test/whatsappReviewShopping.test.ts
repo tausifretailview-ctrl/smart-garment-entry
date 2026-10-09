@@ -10,6 +10,8 @@ import {
   isInvoiceTemplateCta,
   isReviewShoppingCta,
   isReviewShoppingInbound,
+  reviewRatingFromReplyId,
+  whatsappReviewWrite,
   isReviewShoppingRatingReply,
   reviewShoppingThankYou,
 } from "../supabase/functions/_shared/whatsappReviewShopping.ts";
@@ -99,5 +101,15 @@ describe("whatsapp-webhook Review Shopping wiring", () => {
     const ownerCallIdx = src.lastIndexOf("await handleOwnerCommand(");
     expect(ctaIdx).toBeGreaterThan(0);
     expect(ownerCallIdx).toBeGreaterThan(ctaIdx);
+  });
+
+  it("turns a rating reply into stars and decides how to save it", () => {
+    expect(reviewRatingFromReplyId("review_4")).toBe(4);
+    expect(reviewRatingFromReplyId("REVIEW_1")).toBe(1);
+    expect(reviewRatingFromReplyId("review_6")).toBeNull();
+    expect(reviewRatingFromReplyId("order_details")).toBeNull();
+    expect(whatsappReviewWrite(null)).toBe("insert");
+    expect(whatsappReviewWrite({ source: "whatsapp" })).toBe("update");
+    expect(whatsappReviewWrite({ source: "customer_app" })).toBeNull();
   });
 });

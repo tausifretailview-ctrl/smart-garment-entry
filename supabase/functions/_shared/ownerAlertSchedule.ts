@@ -169,3 +169,31 @@ export function invoiceMessage(sale: {
 export function slotMinutes(key: string): number {
   return parseHm(key.split("@")[1] ?? "") ?? 0;
 }
+
+/** How far back each 15-minute run looks for new reviews (overlap; the log sends each once). */
+export const REVIEW_LOOKBACK_MIN = 45;
+
+/** "★★★★☆ review · Riya" with the comment, bill number and where it was given. */
+export function reviewMessage(review: {
+  rating: number;
+  comment?: string | null;
+  tags?: string[] | null;
+  source?: string | null;
+  sale_number?: string | null;
+  customer_name?: string | null;
+}): { title: string; body: string } {
+  const n = Math.max(1, Math.min(5, Math.round(Number(review.rating) || 0)));
+  const who = review.customer_name?.trim() || "A customer";
+  const title = `${n <= 2 ? "⚠️ " : ""}${"★".repeat(n)}${"☆".repeat(5 - n)} review · ${who}`;
+  const comment = String(review.comment ?? "").replace(/\s+/g, " ").trim();
+  const src = String(review.source ?? "").toLowerCase();
+  const from = src.startsWith("whatsapp") ? "WhatsApp" : src === "customer_app" ? "Bill & Offers app" : "Bill link";
+  const body = [
+    comment ? `“${comment.slice(0, 120)}${comment.length > 120 ? "…" : ""}”` : (review.tags ?? []).filter(Boolean).join(", "),
+    review.sale_number ? `Bill ${review.sale_number}` : "",
+    from,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return { title, body };
+}

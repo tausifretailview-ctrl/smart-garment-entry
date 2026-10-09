@@ -14,7 +14,7 @@ export interface PushPayloadLike {
 export type PushKind = "invoice" | "offer" | "message";
 
 export interface PushAction {
-  action: "open" | "wa" | "offers" | "bills";
+  action: "open" | "wa" | "offers" | "bills" | "rate";
   title: string;
 }
 
@@ -92,7 +92,8 @@ export function buildPushDisplay(payload: PushPayloadLike, origin?: string): Pus
     kind === "invoice"
       ? [
           { action: "open", title: "🧾 View bill" },
-          whatsappUrl ? { action: "wa", title: "💬 WhatsApp shop" } : { action: "bills", title: "All my bills" },
+          // The bill page (and the logged-in bill) scroll to the stars on #rate.
+          { action: "rate", title: "⭐ Rate shopping" },
         ]
       : kind === "offer"
         ? [
@@ -120,6 +121,7 @@ export function clickTarget(d: Pick<PushDisplay, "url" | "whatsappUrl">, action:
   if (action === "wa" && d.whatsappUrl) return d.whatsappUrl;
   if (action === "offers") return "/offers";
   if (action === "bills") return "/bills";
+  if (action === "rate") return `${d.url.split("#")[0]}#rate`;
   return d.url;
 }
 

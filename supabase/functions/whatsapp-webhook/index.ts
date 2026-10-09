@@ -14,7 +14,10 @@ import {
   isInvoiceTemplateCta,
   isReviewShoppingInbound,
   isReviewShoppingRatingReply,
+  reviewRatingFromReplyId,
   reviewShoppingThankYou,
+  WHATSAPP_REVIEW_BILL_DAYS,
+  whatsappReviewWrite,
 } from "../_shared/whatsappReviewShopping.ts";
 
 const corsHeaders = {
@@ -707,6 +710,59 @@ async function resolveGoogleReviewLink(
   return fromFollowup || fromSettings;
 }
 
+/**
+ * Stores a WhatsApp list rating (review_1..5) on the customer's latest bill, so it shows in
+ * Reports → Customer Reviews and alerts the shop. Never blocks the thank-you reply.
+ */
+async function saveWhatsAppRating(
+  supabase: any,
+  organizationId: string,
+  cleanPhone: string,
+  buttonId: string,
+): Promise<void> {
+  const rating = reviewRatingFromReplyId(buttonId);
+  if (!rating || cleanPhone.length !== 10) return;
+  try {
+    const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
+    const { data: sale } = await supabase
+      .from('sales')
+      .select('id, salesman')
+      .eq('organization_id', organizationId)
+      .ilike('customer_phone', `%${cleanPhone}`)
+      .is('deleted_at', null)
+      .eq('is_cancelled', false)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!sale?.id) return;
+    const { data: existing } = await supabase
+      .from('customer_feedback')
+      .select('id, source')
+      .eq('sale_id', sale.id)
+      .maybeSingle();
+    const write = whatsappReviewWrite(existing);
+    if (write === 'update') {
+      await supabase
+        .from('customer_feedback')
+        .update({ rating, updated_at: new Date().toISOString() })
+        .eq('id', existing.id);
+    } else if (write === 'insert') {
+      const { error } = await supabase.from('customer_feedback').insert({
+        organization_id: organizationId,
+        sale_id: sale.id,
+        rating,
+        tags: [],
+        salesman: sale.salesman ?? null,
+        source: 'whatsapp',
+      });
+      if (error) console.error('Could not save WhatsApp rating:', error.message);
+    }
+  } catch (err) {
+    console.error('Could not save WhatsApp rating:', err);
+  }
+}
+
 async function logOutboundText(
   supabase: any,
   organizationId: string,
@@ -1335,6 +1391,7 @@ Deno.serve(async (req) => {
                       settings,
                       cleanPhone,
                     );
+                    await saveWhatsAppRating(supabase, organizationId, cleanPhone, buttonId);
                     const thanks = reviewShoppingThankYou(buttonId, googleReviewLink);
                     const wamidThanks = await sendWhatsAppMessage(settings, senderPhone, thanks);
                     if (wamidThanks) {

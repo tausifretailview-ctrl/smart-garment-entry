@@ -8,6 +8,7 @@ import { ChatProvider } from "@/contexts/ChatContext";
 import { LazyFloatingChatButton } from "@/components/lazyFloatingWidgets";
 import { WhatsAppMessageNotifier } from "@/components/WhatsAppMessageNotifier";
 import { StorefrontEnquiryNotifier } from "@/components/StorefrontEnquiryNotifier";
+import { CustomerReviewNotifier } from "@/components/CustomerReviewNotifier";
 import { OwnerBottomNav } from "@/components/mobile/OwnerBottomNav";
 import { MobileAppHeader } from "@/components/mobile/MobileAppHeader";
 import { PwaInstallBanner } from "@/components/mobile/PwaInstallBanner";
@@ -147,6 +148,7 @@ export const FullScreenLayout = ({ children }: FullScreenLayoutProps) => {
 
             <WhatsAppMessageNotifier />
             <StorefrontEnquiryNotifier />
+            <CustomerReviewNotifier />
             <OrgMoneyRealtimeInvalidation />
             <IdleMount>
               <div className="hidden lg:contents">
