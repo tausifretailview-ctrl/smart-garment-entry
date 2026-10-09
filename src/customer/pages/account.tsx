@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { BottomNav, PoweredBy, ShopHeader, Skeleton, SuccessTick } from "../components/AppChrome";
+import { BottomNav, PoweredBy, ShopHeader, ShopNowCard, Skeleton, SuccessTick, useShop } from "../components/AppChrome";
 import { useCountUp } from "../lib/useCountUp";
 import InvoiceCard from "../components/InvoiceCard";
 import LoginCard from "../components/LoginCard";
@@ -11,6 +11,7 @@ import {
   fetchBill,
   fetchBills,
   fetchOffers,
+  fetchPoints,
   fetchReturns,
   fetchSummary,
   fetchTransactions,
@@ -22,6 +23,7 @@ import {
   type BillListRow,
   type BillSale,
   type OfferRow,
+  type PointsData,
   type ReturnRow,
   type TxnRow,
 } from "../lib/account";
@@ -224,6 +226,7 @@ export function AccountPage() {
     if (getSessionToken()) prefetchTabs();
   }, [needLogin]);
   const firstName = (data?.customer.name || "").trim().split(/\s+/)[0] || "Customer";
+  const shop = useShop();
   const shownDue = useCountUp(Math.abs(due));
   return (
     <Shell state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton hero rows={3} />}>
@@ -236,10 +239,19 @@ export function AccountPage() {
               <span>{due > 0 ? "Amount due" : due < 0 ? "Your advance" : "All paid up"}</span>
               <b>{formatINR(shownDue)}</b>
             </div>
-            {data.customer.points > 0 ? <div className="c-hero-pts">★ {data.customer.points} reward points</div> : null}
+            {data.customer.points > 0 || data.rewards?.enabled ? (
+              <Link to="/rewards" className="c-hero-pts">
+                ★ {data.customer.points} reward points
+                {data.rewards?.pointValue && data.customer.points > 0
+                  ? ` · worth ${formatINR(data.customer.points * data.rewards.pointValue)}`
+                  : ""}{" "}
+                ›
+              </Link>
+            ) : null}
           </div>
 
           <PushCard shopName={data.shop} />
+          <ShopNowCard shop={shop} />
           <InstallAppCard shopName={data.shop} compact />
 
           <div className="c-stats c-stagger">
@@ -458,9 +470,11 @@ export function TransactionsPage() {
 }
 
 export function OffersPage() {
+  const shop = useShop();
   const { data, error, needLogin, reload } = useAccountData<{ offers: OfferRow[] }>(fetchOffers, [], "offers");
   return (
     <Shell title="Offers" state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton rows={2} />}>
+      <ShopNowCard shop={shop} compact />
       {data && data.offers.length === 0 ? (
         <div className="c-card c-center c-muted">No offers right now. We'll notify you about new ones.</div>
       ) : null}
@@ -478,6 +492,112 @@ export function OffersPage() {
           </div>
         </div>
       ))}
+    </Shell>
+  );
+}
+
+const POINTS_LABEL: Record<string, string> = {
+  earned: "Earned",
+  redeemed: "Used at billing",
+  adjusted: "Adjusted by shop",
+  expired: "Expired",
+  gift_redeemed: "Gift",
+};
+
+/** Reward points: balance and its ₹ value, how to earn and use them, gifts, and history. */
+export function RewardsPage() {
+  const { data, error, needLogin, reload } = useAccountData<PointsData>(fetchPoints, [], "points");
+  const shownPoints = useCountUp(data?.balance ?? 0);
+  const rules = data?.rules;
+  const worth = rules?.redemptionEnabled ? (data?.balance ?? 0) * rules.pointValue : 0;
+  return (
+    <Shell title="Reward points" state={{ error, needLogin, reload, loading: !data }} skeleton={<Skeleton hero rows={3} />}>
+      {data && rules ? (
+        <>
+          <div className="c-hero c-hero-gold">
+            <div className="c-hero-hi">Your reward points</div>
+            <div className="c-hero-amt">
+              <span>{worth > 0 ? `Worth ${formatINR(worth)} on your next bill` : "Points balance"}</span>
+              <b>★ {Math.round(shownPoints)}</b>
+            </div>
+            <div className="c-hero-phone">
+              Earned {data.earned} · Used {data.redeemed}
+            </div>
+          </div>
+
+          {rules.enabled ? (
+            <div className="c-card">
+              <div className="c-section">How it works</div>
+              <ul className="c-rules">
+                <li>
+                  🛍️ Every {formatINR(rules.earnPerAmount)} you spend earns <b>{rules.earnPoints} point{rules.earnPoints === 1 ? "" : "s"}</b>
+                  {rules.minPurchaseForPoints > 0 ? ` (on bills over ${formatINR(rules.minPurchaseForPoints)})` : ""}.
+                </li>
+                {rules.redemptionEnabled ? (
+                  <li>
+                    💰 1 point = <b>{formatINR(rules.pointValue)}</b> off at billing
+                    {rules.minPointsToRedeem > 1 ? ` once you have ${rules.minPointsToRedeem} points` : ""}, up to{" "}
+                    {rules.maxRedeemPercent}% of a bill. Just tell the cashier.
+                  </li>
+                ) : null}
+                {rules.expiryDays > 0 ? <li>⏳ Points expire {rules.expiryDays} days after you earn them.</li> : null}
+              </ul>
+            </div>
+          ) : (
+            <div className="c-card c-muted">The shop is not giving new points right now. Your balance is safe.</div>
+          )}
+
+          {data.gifts.length > 0 ? (
+            <div className="c-card">
+              <div className="c-section">Gifts you can get</div>
+              <div className="c-gifts">
+                {data.gifts.map((g) => {
+                  const pct = Math.min(100, Math.round((data.balance / Math.max(1, g.points_required)) * 100));
+                  const ready = data.balance >= g.points_required;
+                  return (
+                    <div className="c-gift" key={g.id}>
+                      <div className="c-gift-row">
+                        <b>🎁 {g.gift_name}</b>
+                        <span className={ready ? "c-chip" : "c-chip c-chip-soft"}>
+                          {ready ? "You can claim it!" : `${g.points_required - data.balance} more`}
+                        </span>
+                      </div>
+                      {g.description ? <div className="c-muted">{g.description}</div> : null}
+                      <div className="c-progress" aria-label={`${pct}%`}>
+                        <span style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="c-muted">
+                        {g.points_required} points{g.valid_until ? ` · till ${formatDate(g.valid_until)}` : ""}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="c-hint">Ask at the counter to claim a gift with your points.</p>
+            </div>
+          ) : null}
+
+          <div className="c-card c-list c-stagger">
+            <div className="c-section">History</div>
+            {data.history.length === 0 ? <p className="c-muted">No points yet. Shop to start earning.</p> : null}
+            {data.history.map((h) => (
+              <div className="c-li" key={h.id}>
+                <span>
+                  <b>{POINTS_LABEL[h.transaction_type] ?? h.transaction_type}</b>
+                  <div className="c-muted">
+                    {formatDate(h.created_at)}
+                    {h.description ? ` · ${h.description}` : ""}
+                  </div>
+                </span>
+                <b style={{ color: h.points > 0 ? "var(--accent)" : "var(--ink)", whiteSpace: "nowrap" }}>
+                  {h.points > 0 ? "+" : h.points < 0 ? "−" : ""}
+                  {Math.abs(h.points)}
+                </b>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
     </Shell>
   );
 }

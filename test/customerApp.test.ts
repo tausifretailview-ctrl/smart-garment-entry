@@ -7,7 +7,9 @@ import {
   lineTax,
   maskPhone,
   phoneLast10,
+  pointsRulesFromSaleSettings,
   shopProfileFromSettings,
+  storefrontUrlFor,
   signSessionToken,
   verifySessionToken,
 } from "../supabase/functions/_shared/customerApp";
@@ -95,5 +97,42 @@ describe("customer-app helpers", () => {
     expect(await verifySessionToken(`ca1.${payload}.${sig.slice(0, -2)}xx`, secret, org, now)).toBeNull();
     // A B2B portal_sessions token (uuid-uuid) is never a customer-app session.
     expect(await verifySessionToken(`${crypto.randomUUID()}-${crypto.randomUUID()}`, secret, org, now)).toBeNull();
+  });
+});
+
+describe("customer-app Shop now link", () => {
+  it("uses the connected domain, else the store page, and only when published", () => {
+    expect(storefrontUrlFor({ slug: "ella-noor", custom_domain: "EllaNoor.in", is_published: true })).toBe("https://ellanoor.in/");
+    expect(storefrontUrlFor({ slug: "ella-noor", custom_domain: null, is_published: true })).toBe(
+      "https://app.inventoryshop.in/ella-noor/store",
+    );
+    expect(storefrontUrlFor({ slug: "ella-noor", custom_domain: "x.in", is_published: false })).toBeNull();
+    expect(storefrontUrlFor(null)).toBeNull();
+    expect(storefrontUrlFor({ slug: "bad slug", is_published: true })).toBeNull();
+  });
+});
+
+describe("customer-app points rules", () => {
+  it("reads the shop's sale settings with ERP defaults", () => {
+    expect(
+      pointsRulesFromSaleSettings({
+        enable_points_system: true,
+        points_ratio_amount: 200,
+        points_per_ratio: 5,
+        enable_points_redemption: true,
+        points_redemption_value: 0.5,
+        min_points_for_redemption: 100,
+      }),
+    ).toMatchObject({
+      enabled: true,
+      earnPerAmount: 200,
+      earnPoints: 5,
+      redemptionEnabled: true,
+      pointValue: 0.5,
+      minPointsToRedeem: 100,
+      maxRedeemPercent: 50,
+    });
+    expect(pointsRulesFromSaleSettings(null)).toMatchObject({ enabled: false, earnPerAmount: 100, earnPoints: 1, pointValue: 1 });
+    expect(pointsRulesFromSaleSettings({ points_ratio_amount: 0 }).earnPerAmount).toBe(100);
   });
 });

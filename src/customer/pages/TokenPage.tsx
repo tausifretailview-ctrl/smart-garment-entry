@@ -21,7 +21,7 @@ import {
   repairPushRegistration,
 } from "../lib/notify";
 import InvoiceCard from "../components/InvoiceCard";
-import { SuccessTick } from "../components/AppChrome";
+import { ShopNowCard, SuccessTick, useShop } from "../components/AppChrome";
 import InstallAppCard from "../components/InstallApp";
 import { PushBlockedHelp } from "./account";
 import { formatINR } from "../lib/format";
@@ -71,6 +71,7 @@ export default function TokenPage() {
   const [ratingDone, setRatingDone] = useState(false);
   const [ratingMsg, setRatingMsg] = useState<string | null>(null);
   const loggedOpen = useRef(false);
+  const shop = useShop();
 
   useEffect(() => {
     if (!subdomain) {
@@ -228,6 +229,7 @@ export default function TokenPage() {
         My account · all bills, returns & offers
       </Link>
 
+      <ShopNowCard shop={shop} />
       <InstallAppCard shopName={org?.business_name || org?.name || undefined} compact />
 
       {showPushCard ? (

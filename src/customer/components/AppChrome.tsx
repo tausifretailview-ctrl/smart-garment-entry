@@ -36,6 +36,11 @@ const Icon = {
   bills: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12a1 1 0 0 1 1 1v19l-3-2-2 2-2-2-2 2-2-2-3 2V3a1 1 0 0 1 1-1Zm3 5v2h6V7H9Zm0 4v2h6v-2H9Z" /></svg>,
   returns: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4V1L7 5l5 4V6a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8Z" /></svg>,
   history: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.95 10h2.02A7 7 0 1 0 7 7.1V10H2V5l1.6 1.6A9 9 0 0 1 12 3Zm-1 4h2v5.6l3.7 2.2-1 1.7L11 13.7V7Z" /></svg>,
+  bag: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 7V6a5 5 0 0 1 10 0v1h3a1 1 0 0 1 1 1l-1 12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2L3 8a1 1 0 0 1 1-1h3Zm2 0h6V6a3 3 0 0 0-6 0v1Zm-1 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" />
+    </svg>
+  ),
   offers: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.4 11.6 12.4 2.6A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7c0 .55.22 1.05.59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.82ZM6.5 8A1.5 1.5 0 1 1 6.5 5a1.5 1.5 0 0 1 0 3Z" /></svg>,
 };
 
@@ -55,6 +60,17 @@ export function ShopHeader() {
           <b>{shop?.name ?? " "}</b>
           <span>{shop?.address ?? "Your bills & offers"}</span>
         </div>
+        {shop?.store_url ? (
+          <a
+            className="c-top-btn c-top-shop"
+            href={shop.store_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Shop online"
+          >
+            {Icon.bag}
+          </a>
+        ) : null}
         {shop?.phone ? (
           <a className="c-top-btn" href={`tel:${shop.phone.replace(/[^\d+]/g, "")}`} aria-label="Call shop">
             {Icon.phone}
@@ -129,5 +145,30 @@ export function SuccessTick({ size = 44 }: { size?: number }) {
       <circle className="c-tick-circle" cx="26" cy="26" r="24" />
       <path className="c-tick-check" d="M15 27l7 7 15-16" />
     </svg>
+  );
+}
+
+/**
+ * "Shop now": opens the shop's own website (EzzyERP storefront) when it has a published one.
+ * Renders nothing for shops without a website.
+ */
+export function ShopNowCard({ shop, compact = false }: { shop: ShopInfo | null; compact?: boolean }) {
+  if (!shop?.store_url) return null;
+  return (
+    <a
+      className={compact ? "c-shopnow c-shopnow-compact no-print" : "c-shopnow no-print"}
+      href={shop.store_url}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <span className="c-shopnow-icon" aria-hidden="true">
+        {Icon.bag}
+      </span>
+      <span className="c-shopnow-text">
+        <b>Shop online</b>
+        <span>See {shop.name ? `${shop.name}'s` : "the shop's"} latest collection on your phone</span>
+      </span>
+      <span className="c-shopnow-cta">Shop now →</span>
+    </a>
   );
 }
