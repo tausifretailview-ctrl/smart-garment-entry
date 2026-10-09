@@ -68,6 +68,7 @@ import { websiteFrom } from "@/lib/websiteDb";
 import { WebsiteMenusPanel } from "@/components/website/WebsiteMenusPanel";
 import { WebsiteSectionsPanel } from "@/components/website/WebsiteSectionsPanel";
 import { WebsiteSectionSelect } from "@/components/website/WebsiteSectionSelect";
+import { StoreDomainSettings } from "@/components/settings/StoreDomainSettings";
 import {
   WebsiteProductDetailsDialog,
   type WebsiteProductDetailsValues,
@@ -100,7 +101,7 @@ type VariantRow = {
   barcode?: string | null;
 };
 
-type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "enquiries";
+type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "domain" | "enquiries";
 
 const ENQUIRY_STATUSES: WebsiteEnquiryStatus[] = ["new", "contacted", "converted", "closed"];
 
@@ -178,7 +179,7 @@ export default function WebsiteSettingsPage() {
                 Website
               </h1>
               <p className="text-sm text-muted-foreground mt-1 truncate">
-                Catalogue · Add products · Sections · Menus · Store profile · Enquiries
+                Catalogue · Add products · Sections · Menus · Store profile · Domain · Enquiries
               </p>
             </div>
           </div>
@@ -215,6 +216,9 @@ export default function WebsiteSettingsPage() {
             </TabsTrigger>
             <TabsTrigger value="profile" className={WEBSITE_TAB_TRIGGER}>
               Store profile
+            </TabsTrigger>
+            <TabsTrigger value="domain" className={WEBSITE_TAB_TRIGGER}>
+              Domain
             </TabsTrigger>
             <TabsTrigger value="enquiries" className={WEBSITE_TAB_TRIGGER}>
               Enquiries
@@ -271,6 +275,22 @@ export default function WebsiteSettingsPage() {
                   queryClient.invalidateQueries({ queryKey: ["website_profile_bill_settings", orgId] });
                 }}
               />
+            ) : null}
+          </TabsContent>
+
+          <TabsContent value="domain" className="flex-1 min-h-0 flex flex-col mt-0 data-[state=inactive]:hidden">
+            {shouldMountTab("domain") ? (
+              <div className={INSIGHTS_TAB_SHELL}>
+                <InsightsPanel
+                  title="Store website domain"
+                  subtitle="Open your store on your own domain, like yourshop.in"
+                  className="flex-1 min-h-0"
+                >
+                  <div className="max-w-2xl p-4">
+                    <StoreDomainSettings />
+                  </div>
+                </InsightsPanel>
+              </div>
             ) : null}
           </TabsContent>
 

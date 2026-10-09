@@ -91,15 +91,10 @@ const { Panel: CustomerPagePanel, preload: preloadCustomerPagePanel } = createSe
   import("@/components/settings/CustomerPageSettings").then((m) => ({ default: m.CustomerPageSettings })),
 );
 
-const { Panel: StoreDomainPanel, preload: preloadStoreDomainPanel } = createSettingsPanel(() =>
-  import("@/components/settings/StoreDomainSettings").then((m) => ({ default: m.StoreDomainSettings })),
-);
-
 function preloadWhatsAppTab() {
   preloadWhatsAppAPIPanel();
   preloadWhatsAppTemplatePanel();
   preloadCustomerPagePanel();
-  preloadStoreDomainPanel();
 }
 const LazyStockReconciliation = lazyWithRetry(() =>
   import("@/components/StockReconciliation").then((m) => ({ default: m.StockReconciliation })),
@@ -6333,11 +6328,6 @@ export default function Settings() {
                 <SettingsSection title="Customer page & notifications">
                   <div className="px-3 py-2.5">
                     <CustomerPagePanel />
-                  </div>
-                </SettingsSection>
-                <SettingsSection title="Store website domain">
-                  <div className="px-3 py-2.5">
-                    <StoreDomainPanel />
                   </div>
                 </SettingsSection>
               </CardContent>
