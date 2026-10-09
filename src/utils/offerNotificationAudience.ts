@@ -29,6 +29,33 @@ export interface OfferCampaignPayload {
   validTill: string | null;
   imageUrl: string | null;
   phones?: string[];
+  /** Discount the offer code gives at website checkout. Omitted = applied by the shop at billing. */
+  websiteDiscount?: OfferWebsiteDiscount;
+}
+
+export interface OfferWebsiteDiscount {
+  percent: number | null;
+  flat: number | null;
+  minOrder: number | null;
+}
+
+/**
+ * Website discount from the dialog's fields: "10%" style percent (1–90) or rupees off,
+ * with an optional minimum order. Null when nothing usable was entered.
+ */
+export function parseOfferWebsiteDiscount(input: {
+  kind: "percent" | "flat";
+  amount: string;
+  minOrder: string;
+}): OfferWebsiteDiscount | null {
+  const amount = Number(String(input.amount ?? "").replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const min = Number(String(input.minOrder ?? "").replace(/[^\d.]/g, ""));
+  const minOrder = Number.isFinite(min) && min > 0 ? Math.round(min) : null;
+  if (input.kind === "percent") {
+    return { percent: Math.min(90, Math.round(amount * 100) / 100), flat: null, minOrder };
+  }
+  return { percent: null, flat: Math.round(amount), minOrder };
 }
 
 /** One row per confirmed phone. Names come from the linked customer, then from the same phone. */
@@ -109,6 +136,7 @@ export function offerSendBody(input: {
   validTill: string | null;
   imageUrl: string | null;
   phones: string[] | null;
+  websiteDiscount?: OfferWebsiteDiscount | null;
 }): { newCampaign: OfferCampaignPayload } | { error: string } {
   const parsed = parseOfferPhones(input.phones);
   // `=== false` narrows the union with strictNullChecks off (tsconfig); `!parsed.ok` does not.
@@ -122,5 +150,6 @@ export function offerSendBody(input: {
     imageUrl: isHttpsOfferImage(image) ? image.slice(0, 500) : null,
   };
   if (parsed.phones) newCampaign.phones = parsed.phones;
+  if (input.offerCode && input.websiteDiscount) newCampaign.websiteDiscount = input.websiteDiscount;
   return { newCampaign };
 }

@@ -9,6 +9,7 @@ import {
 import {
   filterOfferContacts,
   offerContactsFromSubscriptions,
+  parseOfferWebsiteDiscount,
   offerProbeAuthRejected,
   offerSendBody,
   offerSendFailureMessage,
@@ -98,6 +99,23 @@ describe("offer contacts", () => {
   });
 });
 
+describe("parseOfferWebsiteDiscount", () => {
+  it("reads percent or rupees off with an optional minimum order", () => {
+    expect(parseOfferWebsiteDiscount({ kind: "percent", amount: "10", minOrder: "" })).toEqual({
+      percent: 10,
+      flat: null,
+      minOrder: null,
+    });
+    expect(parseOfferWebsiteDiscount({ kind: "percent", amount: "95", minOrder: "999" })?.percent).toBe(90);
+    expect(parseOfferWebsiteDiscount({ kind: "flat", amount: "₹200", minOrder: "1,500" })).toEqual({
+      percent: null,
+      flat: 200,
+      minOrder: 1500,
+    });
+    expect(parseOfferWebsiteDiscount({ kind: "flat", amount: "", minOrder: "100" })).toBeNull();
+  });
+});
+
 describe("offerSendBody", () => {
   const base = {
     title: " Diwali ",
@@ -136,6 +154,16 @@ describe("offerSendBody", () => {
       },
     });
     expect("phones" in (built as { newCampaign: { phones?: string[] } }).newCampaign).toBe(true);
+  });
+
+  it("sends a website discount only with an offer code", () => {
+    const websiteDiscount = { percent: 10, flat: null, minOrder: null };
+    const withCode = offerSendBody({ ...base, phones: null, websiteDiscount });
+    expect((withCode as { newCampaign: { websiteDiscount?: unknown } }).newCampaign.websiteDiscount).toEqual(
+      websiteDiscount,
+    );
+    const noCode = offerSendBody({ ...base, offerCode: null, phones: null, websiteDiscount });
+    expect("websiteDiscount" in (noCode as { newCampaign: object }).newCampaign).toBe(false);
   });
 
   it("does not build a send-all body from a bad selection", () => {

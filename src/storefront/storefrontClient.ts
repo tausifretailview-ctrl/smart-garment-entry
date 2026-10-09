@@ -3,6 +3,7 @@ import type { PublicStorefrontPayload } from "@/lib/websiteTypes";
 import { attachSectionsToPublicPayload } from "@/lib/websiteSectionStore";
 import { applyWebsiteProductDetails } from "@/lib/websiteProductDetails";
 import { enrichPublicStorefrontShop, type OrgPublicInfoSlice } from "./storefrontTheme";
+import { offerFromRpc, perksFromRpc, type StorefrontOffer, type StorefrontPerks } from "./ellaPerks";
 
 const storefrontClient = createClient(
   import.meta.env.VITE_SUPABASE_URL,
@@ -93,4 +94,39 @@ export async function submitStorefrontEnquiry(payload: {
     };
   }
   return { ok: true };
+}
+
+/** Reward points on this mobile at this shop. Null when the lookup is unavailable (SQL not applied, throttled). */
+export async function loadShopperPerks(slug: string, phone: string): Promise<StorefrontPerks | null> {
+  try {
+    const { data, error } = await storefrontClient.rpc("get_public_storefront_customer_perks" as never, {
+      p_slug: slug,
+      p_phone: phone,
+    } as never);
+    if (error) return null;
+    return perksFromRpc(data);
+  } catch {
+    return null;
+  }
+}
+
+export type OfferCodeCheck =
+  | { status: "valid"; offer: StorefrontOffer }
+  | { status: "invalid" }
+  | { status: "unavailable" };
+
+export async function checkShopOfferCode(slug: string, code: string): Promise<OfferCodeCheck> {
+  try {
+    const { data, error } = await storefrontClient.rpc("check_public_storefront_offer_code" as never, {
+      p_slug: slug,
+      p_code: code,
+    } as never);
+    if (error || !data || typeof data !== "object") return { status: "unavailable" };
+    const d = data as { ok?: boolean; error?: string };
+    if (d.ok !== true) return d.error === "invalid_code" ? { status: "invalid" } : { status: "unavailable" };
+    const offer = offerFromRpc(data);
+    return offer ? { status: "valid", offer } : { status: "invalid" };
+  } catch {
+    return { status: "unavailable" };
+  }
 }

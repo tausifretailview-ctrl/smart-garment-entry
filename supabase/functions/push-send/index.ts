@@ -34,6 +34,8 @@ interface PushSendRequest {
     imageUrl?: string | null;
     offerCode?: string | null;
     validTill?: string | null;
+    /** Discount the offer code gives at website checkout (needs migration 20270116120000). */
+    websiteDiscount?: { percent?: number | null; flat?: number | null; minOrder?: number | null } | null;
     /** Last-10 phones. Omitted or empty = every confirmed subscriber. */
     phones?: string[] | null;
   };
@@ -124,6 +126,24 @@ function last10(phone: string | null | undefined): string {
 // a timed-out invocation followed by a retry would double-notify everyone.
 const MARKETING_SEND_CAP = 100;
 
+/** push_campaigns website discount columns from the dialog, or null when none was set. */
+function websiteDiscountColumns(
+  d: { percent?: number | null; flat?: number | null; minOrder?: number | null } | null | undefined,
+): Record<string, number | null> | null {
+  if (!d) return null;
+  const percent = Number(d.percent);
+  const flat = Number(d.flat);
+  const min = Number(d.minOrder);
+  const minOrder = Number.isFinite(min) && min > 0 ? Math.round(min) : null;
+  if (Number.isFinite(percent) && percent > 0) {
+    return { website_discount_percent: Math.min(90, Math.round(percent * 100) / 100), website_discount_flat: null, website_min_order: minOrder };
+  }
+  if (Number.isFinite(flat) && flat > 0) {
+    return { website_discount_percent: null, website_discount_flat: Math.round(flat), website_min_order: minOrder };
+  }
+  return null;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -201,22 +221,32 @@ const handler = async (req: Request): Promise<Response> => {
       const validTill = String(newCampaign.validTill ?? "").trim();
       const phoneParse = parseOfferPhones(newCampaign.phones);
       if (!phoneParse.ok) return json(400, { error: phoneParse.error });
-      const { data: created, error: createError } = await supabase
+      const campaignRow: Record<string, unknown> = {
+        organization_id: organizationId,
+        kind: "offer",
+        title: cTitle,
+        body: cBody,
+        image_url: isHttpsOfferImage(imageUrl) ? imageUrl.slice(0, 500) : null,
+        offer_code: String(newCampaign.offerCode ?? "").trim().slice(0, 40) || null,
+        valid_till: /^\d{4}-\d{2}-\d{2}$/.test(validTill) ? validTill : null,
+        status: "sending",
+        target: phoneParse.phones ? { phones: phoneParse.phones } : {},
+        created_by: user.id,
+      };
+      const discount = campaignRow.offer_code ? websiteDiscountColumns(newCampaign.websiteDiscount) : null;
+      let { data: created, error: createError } = await supabase
         .from("push_campaigns")
-        .insert({
-          organization_id: organizationId,
-          kind: "offer",
-          title: cTitle,
-          body: cBody,
-          image_url: isHttpsOfferImage(imageUrl) ? imageUrl.slice(0, 500) : null,
-          offer_code: String(newCampaign.offerCode ?? "").trim().slice(0, 40) || null,
-          valid_till: /^\d{4}-\d{2}-\d{2}$/.test(validTill) ? validTill : null,
-          status: "sending",
-          target: phoneParse.phones ? { phones: phoneParse.phones } : {},
-          created_by: user.id,
-        })
+        .insert(discount ? { ...campaignRow, ...discount } : campaignRow)
         .select("id")
         .single();
+      if (createError && discount && /website_(discount|min_order)/.test(createError.message ?? "")) {
+        // Website discount columns not migrated yet: still send the offer.
+        ({ data: created, error: createError } = await supabase
+          .from("push_campaigns")
+          .insert(campaignRow)
+          .select("id")
+          .single());
+      }
       if (createError || !created) {
         console.error("push-send: could not create campaign", createError);
         return json(400, { error: `Could not create offer: ${createError?.message ?? "unknown"}` });

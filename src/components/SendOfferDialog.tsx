@@ -12,6 +12,7 @@ import {
   offerContactsFromSubscriptions,
   offerProbeAuthRejected,
   offerSendBody,
+  parseOfferWebsiteDiscount,
   offerSendFailureMessage,
   type OfferContact,
   type OfferCustomerRow,
@@ -106,6 +107,9 @@ export default function SendOfferDialog({
   const [body, setBody] = useState("");
   const [offerCode, setOfferCode] = useState("");
   const [validTill, setValidTill] = useState("");
+  const [discountKind, setDiscountKind] = useState<"percent" | "flat">("percent");
+  const [discountAmount, setDiscountAmount] = useState("");
+  const [discountMinOrder, setDiscountMinOrder] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [sending, setSending] = useState(false);
@@ -232,6 +236,8 @@ export default function SendOfferDialog({
     setBody("");
     setOfferCode("");
     setValidTill("");
+    setDiscountAmount("");
+    setDiscountMinOrder("");
     setImageUrl("");
     setContactQuery("");
     setSelected(new Set());
@@ -249,6 +255,11 @@ export default function SendOfferDialog({
       validTill: validTill || null,
       imageUrl: imageUrl.trim() || null,
       phones: mode === "selected" ? [...selected] : null,
+      websiteDiscount: parseOfferWebsiteDiscount({
+        kind: discountKind,
+        amount: discountAmount,
+        minOrder: discountMinOrder,
+      }),
     });
     if ("error" in built) {
       toast.error(built.error);
@@ -328,6 +339,39 @@ export default function SendOfferDialog({
                 <Input type="date" value={validTill} onChange={(e) => setValidTill(e.target.value)} />
               </div>
             </div>
+            {offerCode.trim() ? (
+              <div className="space-y-1">
+                <Label>Discount when this code is used on your website (optional)</Label>
+                <div className="grid grid-cols-[auto_1fr_1fr] gap-2">
+                  <select
+                    className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                    value={discountKind}
+                    onChange={(e) => setDiscountKind(e.target.value === "flat" ? "flat" : "percent")}
+                    aria-label="Discount type"
+                  >
+                    <option value="percent">% off</option>
+                    <option value="flat">₹ off</option>
+                  </select>
+                  <Input
+                    inputMode="decimal"
+                    value={discountAmount}
+                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    placeholder={discountKind === "percent" ? "10" : "200"}
+                    aria-label="Discount amount"
+                  />
+                  <Input
+                    inputMode="numeric"
+                    value={discountMinOrder}
+                    onChange={(e) => setDiscountMinOrder(e.target.value)}
+                    placeholder="Min order ₹"
+                    aria-label="Minimum order"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to apply the offer yourself when you make the bill.
+                </p>
+              </div>
+            ) : null}
             <div className="space-y-1">
               <Label>Photo (optional)</Label>
               <input

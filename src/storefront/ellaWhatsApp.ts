@@ -6,6 +6,7 @@
 
 import { formatStorefrontPrice } from "@/lib/storefrontStock";
 import type { EllaCartLine } from "./ellaCart";
+import { ellaSavingsLines, type EllaOrderSavings } from "./ellaPerks";
 import {
   ellaOrderDueLater,
   ellaPayableNow,
@@ -41,8 +42,9 @@ export function buildEllaOrderWhatsAppText(input: {
   method: EllaPaymentMethod;
   customer: EllaCustomerDetails;
   upiReference?: string;
+  savings?: EllaOrderSavings;
 }): string {
-  const { shopName, orderRef, cart, total, method, customer, upiReference } = input;
+  const { shopName, orderRef, cart, total, method, customer, upiReference, savings } = input;
   const payNow = ellaPayableNow(total, method);
   const later = ellaOrderDueLater(total, method);
   const lines = cart.map((line, i) => {
@@ -57,6 +59,7 @@ export function buildEllaOrderWhatsAppText(input: {
     `*Order ${orderRef}*`,
     ...lines,
     "",
+    ...ellaSavingsLines(savings, "long"),
     `Total: ${formatStorefrontPrice(total)}`,
     `Payment: ${ellaPaymentMethodLabel(method)}`,
     payNow > 0 ? `Paid now: ${formatStorefrontPrice(payNow)}` : null,
