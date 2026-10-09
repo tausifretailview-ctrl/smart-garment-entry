@@ -16,6 +16,7 @@ import {
   canMergeProducts,
   findNameMergeGroups,
   mergeProductsIntoKeep,
+  nameScanErrorMessage,
   type NameMergeGroup,
 } from "@/utils/productNameStockMerge";
 import { useOrganization } from "@/contexts/OrganizationContext";
@@ -65,7 +66,7 @@ export function MergeDuplicateProductNamesDialog({
       })
       .catch((err: unknown) => {
         console.error(err);
-        toast.error(err instanceof Error ? err.message : "Failed to scan product names");
+        toast.error(nameScanErrorMessage(err));
         if (!cancelled) setGroups([]);
       })
       .finally(() => {
