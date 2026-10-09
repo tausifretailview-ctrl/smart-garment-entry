@@ -93,6 +93,8 @@ export interface WhatsAppSettings {
   builtin_status?: string | null;
   wappconnect_connected_number: string | null;
   wappconnect_pdf_invoice_template: string | null;
+  /** Missing until the 20270117120000 migration runs. */
+  wappconnect_single_message?: boolean;
   created_at: string;
   updated_at: string;
 }

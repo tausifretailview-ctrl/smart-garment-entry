@@ -239,6 +239,7 @@ export const WhatsAppAPISettings = () => {
     send_invoice_pdf: false,
     invoice_pdf_template: "professional",
     wappconnect_pdf_invoice_template: "",
+    wappconnect_single_message: false,
     // Document header template (PDF embedded in template - bypasses 24h window)
     use_document_header_template: false,
     invoice_document_template_name: "",
@@ -317,6 +318,7 @@ export const WhatsAppAPISettings = () => {
         invoice_pdf_template: (settings as any).invoice_pdf_template || "professional",
         wappconnect_pdf_invoice_template:
           (settings as any).wappconnect_pdf_invoice_template?.trim() || "",
+        wappconnect_single_message: (settings as any).wappconnect_single_message === true,
         // Document header template
         use_document_header_template: (settings as any).use_document_header_template || false,
         invoice_document_template_name: (settings as any).invoice_document_template_name || "",
@@ -456,6 +458,10 @@ export const WhatsAppAPISettings = () => {
       const payload = { ...rest, api_provider: "third_party" as const };
       if (!payload.wappconnect_pdf_invoice_template?.trim()) {
         payload.wappconnect_pdf_invoice_template = null;
+      }
+      // Column arrives with the 20270117120000 migration; never send it before that.
+      if (!settings || !("wappconnect_single_message" in settings)) {
+        delete (payload as { wappconnect_single_message?: boolean }).wappconnect_single_message;
       }
       const businessId = payload.business_id?.trim();
       const wabaId = payload.waba_id?.trim();
@@ -1460,7 +1466,7 @@ export const WhatsAppAPISettings = () => {
           </CardTitle>
           <CardDescription>
             {isWappConnect
-              ? "Attach invoice PDF via WappConnect (text + file in one send — no Meta 24-hour window)"
+              ? "Attach invoice PDF via WappConnect (no Meta 24-hour window)"
               : "Send invoice PDF document along with the WhatsApp template message"}
           </CardDescription>
         </CardHeader>
@@ -1521,10 +1527,31 @@ export const WhatsAppAPISettings = () => {
                   </AlertTitle>
                   <AlertDescription className="text-sm text-emerald-800 dark:text-emerald-200">
                     Invoice text comes from <strong>Message Templates → Sales Invoice / POS Billing Message</strong>.
-                    PDF is sent with that caption in one message. WappConnect is unofficial — there is{" "}
-                    <strong>no Meta 24-hour reply window</strong>.
+                    WappConnect is unofficial — there is <strong>no Meta 24-hour reply window</strong>.
                   </AlertDescription>
                 </Alert>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="wappconnect_single_message">Bill text with the PDF (1 message)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Off: customers get 2 messages, the bill text and then the PDF. On: the bill text
+                      is the PDF's caption, so it counts as 1 message. Very long texts (over 1024
+                      characters) still go as 2 messages. Test on your own number first.
+                    </p>
+                    {settings && !("wappconnect_single_message" in settings) && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        Needs the latest database update before it can be turned on.
+                      </p>
+                    )}
+                  </div>
+                  <Switch
+                    id="wappconnect_single_message"
+                    checked={formData.wappconnect_single_message}
+                    onCheckedChange={(checked) => handleInputChange("wappconnect_single_message", checked)}
+                    disabled={!formData.is_active || !settings || !("wappconnect_single_message" in settings)}
+                  />
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="wappconnect_pdf_invoice_template">WhatsApp PDF template</Label>

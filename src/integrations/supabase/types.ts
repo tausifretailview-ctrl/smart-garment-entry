@@ -9053,6 +9053,7 @@ export type Database = {
           waba_id: string | null
           wappconnect_connected_number: string | null
           wappconnect_pdf_invoice_template: string | null
+          wappconnect_single_message: boolean
           webhook_verify_token: string | null
         }
         Insert: {
@@ -9122,6 +9123,7 @@ export type Database = {
           waba_id?: string | null
           wappconnect_connected_number?: string | null
           wappconnect_pdf_invoice_template?: string | null
+          wappconnect_single_message?: boolean
           webhook_verify_token?: string | null
         }
         Update: {
@@ -9191,6 +9193,7 @@ export type Database = {
           waba_id?: string | null
           wappconnect_connected_number?: string | null
           wappconnect_pdf_invoice_template?: string | null
+          wappconnect_single_message?: boolean
           webhook_verify_token?: string | null
         }
         Relationships: [

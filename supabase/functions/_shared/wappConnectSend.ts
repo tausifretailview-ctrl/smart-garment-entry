@@ -40,6 +40,12 @@ export interface WappConnectSendInput {
   message?: string;
   fileUrl?: string;
   filename?: string;
+  /**
+   * One WhatsApp message per bill: the invoice text rides on the PDF as its caption
+   * (whatsapp_api_settings.wappconnect_single_message). Falls back to text + PDF when
+   * the caption is too long or the single send fails.
+   */
+  singleMessage?: boolean;
 }
 
 export interface WappConnectSendResult {
@@ -60,6 +66,8 @@ export type WappConnectSendStep = {
   endpoint: "/api/sendFileWithCaption" | "/api/sendText";
   role: WappConnectSendStepRole;
   message: string;
+  /** Single-message mode: the full invoice text is this PDF's caption. */
+  fullCaption?: boolean;
 };
 
 /** Trim to WappConnect's 2000-byte text limit without splitting a UTF-8 code point. */
@@ -85,11 +93,32 @@ export const WAPPCONNECT_PDF_PLACEHOLDER_CAPTION = "Invoice attached.";
 export const WAPPCONNECT_STEP_GAP_MS = 400;
 const WAPPCONNECT_GET_MESSAGE_MAX_ENCODED = 900;
 
+/**
+ * WhatsApp shows at most 1024 characters under a document. WappConnect reads the file
+ * caption from the query string (Sep 2026: moving it into the multipart body made
+ * captions disappear; very long query strings 500), so the encoded text is capped too.
+ */
+export const WAPPCONNECT_CAPTION_MAX_CHARS = 1024;
+export const WAPPCONNECT_CAPTION_MAX_ENCODED = 1800;
+
+export function fitsWappConnectPdfCaption(message: string): boolean {
+  const text = String(message ?? "").trim();
+  return (
+    text.length > 0 &&
+    Array.from(text).length <= WAPPCONNECT_CAPTION_MAX_CHARS &&
+    encodedQueryLength(text) <= WAPPCONNECT_CAPTION_MAX_ENCODED
+  );
+}
+
 export function planWappConnectSendSteps(opts: {
   hasFile: boolean;
   message: string;
+  singleMessage?: boolean;
 }): WappConnectSendStep[] {
   const message = truncateWappConnectMessage(String(opts.message ?? "").trim());
+  if (opts.hasFile && opts.singleMessage && fitsWappConnectPdfCaption(message)) {
+    return [{ endpoint: "/api/sendFileWithCaption", role: "file", message, fullCaption: true }];
+  }
   if (opts.hasFile) {
     const steps: WappConnectSendStep[] = [];
     if (message) {
@@ -330,9 +359,10 @@ export async function sendViaWappConnect(
     }
   }
 
-  const steps = planWappConnectSendSteps({
+  let steps = planWappConnectSendSteps({
     hasFile: Boolean(cleanFileUrl),
     message,
+    singleMessage: input.singleMessage === true,
   });
   if (steps.length === 0) {
     return {
@@ -381,6 +411,7 @@ export async function sendViaWappConnect(
     const isFile = step.role === "file";
     const url = new URL(endpoint, WAPPCONNECT_API_ORIGIN);
     applyParams(url, isFile ? "multipart" : "text", step.message);
+    if (step.fullCaption) url.searchParams.set("message", step.message);
 
     let requestUrlRedacted = redactWappConnectInstanceId(
       redactApiKeyInUrl(url.toString()),
@@ -519,9 +550,23 @@ export async function sendViaWappConnect(
   };
 
   const stepRuns: StepRun[] = [];
-  for (const step of steps) {
-    if (stepRuns.length > 0) await waitWappConnectStepGap();
-    stepRuns.push(await runStep(step));
+  let singleFallback: StepRun | null = null;
+  if (steps.length === 1 && steps[0].fullCaption) {
+    const single = await runStep(steps[0]);
+    if (single.success) {
+      stepRuns.push(single);
+    } else {
+      // Caption send refused (e.g. 500 on a long query): deliver it the proven way.
+      singleFallback = single;
+      steps = planWappConnectSendSteps({ hasFile: true, message });
+      await waitWappConnectStepGap();
+    }
+  }
+  if (stepRuns.length === 0) {
+    for (const step of steps) {
+      if (stepRuns.length > 0) await waitWappConnectStepGap();
+      stepRuns.push(await runStep(step));
+    }
   }
 
   const textStep = steps.find((step) => step.role === "text");
@@ -538,6 +583,9 @@ export async function sendViaWappConnect(
   const fileRun = stepRuns.find((run) => run.role === "file");
   const messageId = textRun?.messageId || fileRun?.messageId || stepRuns[stepRuns.length - 1]?.messageId;
   const combinedResponse = {
+    ...(singleFallback
+      ? { singleMessageFallback: { error: singleFallback.error, response: singleFallback.responseObject } }
+      : {}),
     steps: stepRuns.map((run) => ({
       role: run.role,
       endpoint: run.endpoint,
