@@ -13,7 +13,7 @@ describe("customer push is data-only (one notification, tap opens the bill)", ()
   it("puts title and body in data, with high urgency", () => {
     expect(body).toContain('title: String(title ?? "")');
     expect(body).toContain('body: String(body ?? "")');
-    expect(body).toContain('webpush: { headers: { Urgency: "high" } }');
+    expect(body).toContain('webpush: { headers: { Urgency: "high", TTL: ttl } }');
   });
   it("service worker still reads title/body from data", () => {
     const sw = read("src/customer/sw.ts");

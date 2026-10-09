@@ -4,6 +4,7 @@ import { BottomNav, PoweredBy, ShopHeader, Skeleton, SuccessTick } from "../comp
 import { useCountUp } from "../lib/useCountUp";
 import InvoiceCard from "../components/InvoiceCard";
 import LoginCard from "../components/LoginCard";
+import InstallAppCard from "../components/InstallApp";
 import {
   AccountError,
   accountErrorMessage,
@@ -30,9 +31,10 @@ import {
   isFirebaseConfigured,
   isIos,
   isIosStandalone,
+  isPushOn,
   isPushSupportedBrowser,
+  pushPermission,
   repairAccountPush,
-  wasPushOptedIn,
 } from "../lib/notify";
 import { pushFailureMessage } from "../lib/pushFailureMessage";
 
@@ -130,8 +132,26 @@ function Shell({
   );
 }
 
-function PushCard() {
-  const [state, setState] = useState<"idle" | "working" | "done" | "just-done">(wasPushOptedIn() ? "done" : "idle");
+/** Shown when the browser has blocked notifications for this shop's site. */
+export function PushBlockedHelp() {
+  return (
+    <ol className="c-steps">
+      <li>
+        Tap the <b>🔒 lock</b> (or <b>ⓘ</b>) next to the address bar.
+      </li>
+      <li>
+        Open <b>Permissions → Notifications</b> and choose <b>Allow</b>.
+      </li>
+      <li>Come back here and tap the button again.</li>
+      <li className="c-muted">
+        Using the installed app? Long-press its icon → <b>App info → Notifications</b> → turn on.
+      </li>
+    </ol>
+  );
+}
+
+function PushCard({ shopName }: { shopName?: string }) {
+  const [state, setState] = useState<"idle" | "working" | "done" | "just-done">(isPushOn() ? "done" : "idle");
   const [msg, setMsg] = useState<string | null>(null);
   useEffect(() => {
     void repairAccountPush();
@@ -150,30 +170,46 @@ function PushCard() {
   if (state === "done" || !isFirebaseConfigured()) return null;
   const iosHint = isIos() && !isIosStandalone();
   if (!iosHint && !isPushSupportedBrowser()) return null;
+  const blocked = !iosHint && pushPermission() === "denied";
   return (
-    <div className="c-card no-print">
-      <b>Get bill & offer notifications</b>
+    <div className="c-card c-push no-print">
+      <div className="c-push-row">
+        <span className="c-push-bell" aria-hidden="true">
+          🔔
+        </span>
+        <div>
+          <b>{blocked ? "Notifications are blocked" : "Don't miss offers & new arrivals"}</b>
+          <span>
+            {blocked
+              ? "Allow notifications to get your bills and offers instantly."
+              : `Get your bill on this phone after every visit, plus sale alerts${shopName ? ` from ${shopName}` : ""}.`}
+          </span>
+        </div>
+      </div>
       {iosHint ? (
         <p className="c-hint">
           On iPhone: tap <b>Share → Add to Home Screen</b>, open the app from your home screen, then turn on
           notifications here.
         </p>
       ) : (
-        <button
-          type="button"
-          className="c-btn"
-          disabled={state === "working"}
-          onClick={() => {
-            setState("working");
-            setMsg(null);
-            void enableAccountPush().then((res) => {
-              setState(res.ok ? "just-done" : "idle");
-              if (!res.ok) setMsg(pushFailureMessage(res.reason));
-            });
-          }}
-        >
-          {state === "working" ? "Turning on…" : "Turn on notifications"}
-        </button>
+        <>
+          {blocked ? <PushBlockedHelp /> : null}
+          <button
+            type="button"
+            className="c-btn"
+            disabled={state === "working"}
+            onClick={() => {
+              setState("working");
+              setMsg(null);
+              void enableAccountPush().then((res) => {
+                setState(res.ok ? "just-done" : "idle");
+                if (!res.ok) setMsg(pushFailureMessage(res.reason));
+              });
+            }}
+          >
+            {state === "working" ? "Turning on…" : "🔔 Turn on notifications"}
+          </button>
+        </>
       )}
       {msg ? <p className="c-hint">{msg}</p> : null}
     </div>
@@ -202,6 +238,9 @@ export function AccountPage() {
             </div>
             {data.customer.points > 0 ? <div className="c-hero-pts">★ {data.customer.points} reward points</div> : null}
           </div>
+
+          <PushCard shopName={data.shop} />
+          <InstallAppCard shopName={data.shop} compact />
 
           <div className="c-stats c-stagger">
             <Link to="/bills" className="c-stat">
@@ -244,7 +283,6 @@ export function AccountPage() {
               ) : null}
             </div>
           </div>
-          <PushCard />
           <button
             type="button"
             className="c-btn c-btn-ghost no-print"

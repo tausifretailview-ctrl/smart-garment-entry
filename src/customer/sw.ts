@@ -5,12 +5,13 @@
 //
 // Telemetry mapping (push_messages.id arrives as FCM data.message_id):
 //   notification shown (showNotification resolved) -> push_track 'delivered'
-//   notificationclick        -> push_track 'opened', then open /m/:id
+//   notificationclick        -> push_track 'opened', then open the bill / offer page
+//                               (or WhatsApp, from the notification's WhatsApp button)
 //   notificationclose        -> push_track 'dismissed'
 
 import { initializeApp } from "firebase/app";
 import { getMessaging, onBackgroundMessage } from "firebase/messaging/sw";
-import { buildPushDisplay } from "./lib/pushDisplay";
+import { buildPushDisplay, clickTarget, notificationOptions } from "./lib/pushDisplay";
 
 declare const self: ServiceWorkerGlobalScope;
 
@@ -46,29 +47,38 @@ const app = initializeApp({
 const messaging = getMessaging(app);
 
 onBackgroundMessage(messaging, (payload) => {
-  const { title, body: bodyText, url, messageId, tag } = buildPushDisplay(payload, self.location.origin);
+  const display = buildPushDisplay(payload, self.location.origin);
+  const { title, messageId } = display;
+  const options = notificationOptions(display);
 
   // 'delivered' means the phone accepted the notification, not just that the worker woke up.
   // If display is refused (notifications blocked for the site/app, permission revoked) the
   // message stays 'sent' instead of being reported as delivered. Returning the promise keeps
-  // the worker alive until the telemetry call is made.
+  // the worker alive until the telemetry call is made. A picture or logo that will not load
+  // must never cost the notification itself, so a refused rich notification is retried plain.
   return self.registration
-    .showNotification(title, {
-      body: bodyText,
-      icon: "/icon.svg",
-      badge: "/icon.svg",
-      data: { url, messageId },
-      tag,
-    })
+    .showNotification(title, options)
+    .catch(() =>
+      self.registration.showNotification(title, {
+        body: display.body,
+        icon: "/icon-192.png",
+        badge: "/badge-96.png",
+        data: options.data,
+        tag: display.tag,
+      }),
+    )
     .then(() => track(messageId, "delivered"))
     .catch(() => undefined);
 });
 
 self.addEventListener("notificationclick", (event) => {
   const notif = event.notification as Notification & {
-    data?: { url?: string; messageId?: string };
+    data?: { url?: string; messageId?: string; whatsappUrl?: string };
   };
-  const url: string = notif.data?.url ?? "/";
+  const url = clickTarget(
+    { url: notif.data?.url ?? "/", whatsappUrl: notif.data?.whatsappUrl },
+    (event as NotificationEvent & { action?: string }).action || undefined,
+  );
   const messageId = notif.data?.messageId;
   notif.close();
   event.waitUntil(
@@ -76,6 +86,11 @@ self.addEventListener("notificationclick", (event) => {
       await track(messageId, "opened");
       const origin = self.location.origin;
       const target = new URL(url, origin).href;
+      // WhatsApp (another site) always opens on its own.
+      if (!target.startsWith(origin)) {
+        await self.clients.openWindow(target);
+        return;
+      }
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const client of windows) {
         const c = client as WindowClient;

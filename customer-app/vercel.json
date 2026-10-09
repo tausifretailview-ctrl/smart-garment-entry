@@ -6,7 +6,7 @@
   "framework": null,
   "rewrites": [
     {
-      "source": "/((?!assets/|manifest\\.webmanifest|icon\\.svg|apple-touch-icon\\.png|firebase-messaging-sw\\.js).*)",
+      "source": "/((?!assets/|manifest\\.webmanifest|icon\\.svg|icon-[a-z0-9-]+\\.png|badge-96\\.png|apple-touch-icon\\.png|firebase-messaging-sw\\.js).*)",
       "destination": "/index.html"
     }
   ],

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPushDisplay } from "./pushDisplay";
+import { APP_ICON, buildPushDisplay, clickTarget, notificationOptions } from "./pushDisplay";
 
 describe("buildPushDisplay", () => {
   it("reads a data-only payload", () => {
@@ -27,5 +27,46 @@ describe("buildPushDisplay", () => {
     expect(c.url).toMatch(new RegExp(`&campaign=${sale}$`));
     // Junk ids are dropped, never injected into the URL.
     expect(buildPushDisplay({ data: { message_id: "m7", sale_id: "x&y=1" } }).url).not.toContain("sale=");
+  });
+  it("builds a rich offer: shop logo, big picture, code and two buttons", () => {
+    const campaign = "0b0c2f3e-1111-4222-8333-944455556666";
+    const d = buildPushDisplay({
+      data: {
+        message_id: "m8",
+        title: "Diwali sale",
+        body: "Flat 30% off",
+        campaign_id: campaign,
+        icon: "https://cdn.example/logo.png",
+        image: "https://cdn.example/banner.jpg",
+        code: "DIWALI30",
+        wa: "919876543210",
+      },
+    });
+    expect(d.kind).toBe("offer");
+    expect(d.icon).toBe("https://cdn.example/logo.png");
+    expect(d.image).toBe("https://cdn.example/banner.jpg");
+    expect(d.body).toBe("Flat 30% off\n🏷️ Code: DIWALI30");
+    expect(d.actions.map((a) => a.action)).toEqual(["open", "wa"]);
+    expect(clickTarget(d, "wa")).toBe("https://wa.me/919876543210");
+    expect(clickTarget(d, undefined)).toBe(d.url);
+    // The message page link keeps the shop's own text, without the code line.
+    expect(d.url).toContain("body=Flat%2030%25%20off&");
+    const opts = notificationOptions(d);
+    expect(opts).toMatchObject({ image: "https://cdn.example/banner.jpg", tag: "m8", renotify: true });
+  });
+  it("invoice: no picture, falls back to app icon and 'All my bills' without a shop number", () => {
+    const sale = "0b0c2f3e-1111-4222-8333-944455556666";
+    const d = buildPushDisplay({
+      data: { message_id: "m9", sale_id: sale, image: "https://cdn.example/x.jpg", icon: "http://insecure/logo.png" },
+    });
+    expect(d.kind).toBe("invoice");
+    expect(d.image).toBeUndefined();
+    expect(d.icon).toBe(APP_ICON);
+    expect(d.actions.map((a) => a.action)).toEqual(["open", "bills"]);
+    expect(clickTarget(d, "bills")).toBe("/bills");
+    expect(notificationOptions(d)).not.toHaveProperty("image");
+  });
+  it("plain message has no buttons", () => {
+    expect(buildPushDisplay({ data: { message_id: "m10", title: "Hi" } }).actions).toEqual([]);
   });
 });

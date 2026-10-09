@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildCustomerBillUrl } from "../_shared/customerBillLink.ts";
 import { campaignPhonesFromTarget, isHttpsOfferImage, parseOfferPhones } from "../_shared/offerAudience.ts";
+import { shopProfileFromSettings } from "../_shared/customerApp.ts";
+import { invoicePushText, pushTtlSeconds, richPushData, type CustomerPushShop } from "../_shared/customerPushPayload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -222,8 +224,31 @@ const handler = async (req: Request): Promise<Response> => {
       campaignId = created.id;
     }
 
+    // Shop name, logo and WhatsApp number for the notification (icon + WhatsApp button).
+    const loadShop = async (): Promise<CustomerPushShop | null> => {
+      try {
+        const [{ data: orgRow }, { data: settings }] = await Promise.all([
+          supabase.from("organizations").select("name").eq("id", organizationId).maybeSingle(),
+          supabase
+            .from("settings")
+            .select("business_name, address, mobile_number, bill_barcode_settings")
+            .eq("organization_id", organizationId)
+            .maybeSingle(),
+        ]);
+        return shopProfileFromSettings(orgRow?.name ?? "", settings);
+      } catch (shopError) {
+        console.error("push-send: shop profile failed", shopError);
+        return null;
+      }
+    };
+
     let title = "";
     let body = "";
+    let pushKind: "invoice" | "offer" = "invoice";
+    let shop: CustomerPushShop | null = null;
+    let offerImage: string | null = null;
+    let offerCode: string | null = null;
+    let offerValidTill: string | null = null;
     let targetSaleId: string | null = null;
     let targetCampaignId: string | null = null;
     let billUrl = "";
@@ -236,7 +261,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (saleId) {
       const { data: sale, error: saleError } = await supabase
         .from("sales")
-        .select("id, sale_number, net_amount, customer_phone, organization_id")
+        .select("id, sale_number, net_amount, total_qty, customer_phone, organization_id")
         .eq("id", saleId)
         .eq("organization_id", organizationId)
         .maybeSingle();
@@ -260,6 +285,13 @@ const handler = async (req: Request): Promise<Response> => {
       const domain = Deno.env.get("CUSTOMER_PAGE_DOMAIN") || customerPageDomain || "";
       if (domain) {
         try {
+          // The signed-in staff member's own client: create_customer_link checks org access with
+          // auth.uid(), which is empty for the service role. (This client was referenced but never
+          // created, so every invoice push went out without its bill link.)
+          const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+            global: { headers: { Authorization: `Bearer ${token}` } },
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
           const [{ data: org }, { data: linkData }] = await Promise.all([
             supabase.from("organizations").select("public_subdomain").eq("id", organizationId).maybeSingle(),
             supabaseAuth.rpc("create_customer_link", { p_sale_id: sale.id }),
@@ -282,14 +314,18 @@ const handler = async (req: Request): Promise<Response> => {
         console.error("push-send: CUSTOMER_PAGE_DOMAIN not set; push has no bill link");
       }
 
-      const amount = Number(sale.net_amount ?? 0).toLocaleString("en-IN");
-      title = `Invoice ${sale.sale_number}`;
-      body = `₹${amount} — tap to view your bill and offers.`;
+      shop = await loadShop();
+      ({ title, body } = invoicePushText({
+        shopName: shop?.name ?? "",
+        saleNumber: sale.sale_number,
+        netAmount: sale.net_amount,
+        totalQty: sale.total_qty,
+      }));
       targetSaleId = sale.id;
     } else {
       const { data: campaign, error: campaignError } = await supabase
         .from("push_campaigns")
-        .select("id, title, body, status, target, last_sent_offset")
+        .select("id, title, body, status, target, last_sent_offset, image_url, offer_code, valid_till")
         .eq("id", campaignId)
         .eq("organization_id", organizationId)
         .maybeSingle();
@@ -357,7 +393,15 @@ const handler = async (req: Request): Promise<Response> => {
       title = campaign.title;
       body = campaign.body;
       targetCampaignId = campaign.id;
+      pushKind = "offer";
+      shop = await loadShop();
+      offerImage = campaign.image_url ?? null;
+      offerCode = campaign.offer_code ?? null;
+      offerValidTill = campaign.valid_till ?? null;
     }
+
+    const richData = richPushData({ kind: pushKind, shop, imageUrl: offerImage, offerCode });
+    const ttl = String(pushTtlSeconds(pushKind, offerValidTill));
 
     const sa = JSON.parse(saRaw) as ServiceAccount;
     const accessToken = await getAccessToken(sa);
@@ -398,6 +442,7 @@ const handler = async (req: Request): Promise<Response> => {
                 // notification. A `notification` block made the Firebase SDK show a second
                 // copy without our data, so tapping it skipped the bill page and telemetry.
                 data: {
+                  ...richData,
                   title: String(title ?? ""),
                   body: String(body ?? ""),
                   message_id: msg.id,
@@ -405,7 +450,7 @@ const handler = async (req: Request): Promise<Response> => {
                   ...(targetSaleId ? { sale_id: targetSaleId } : {}),
                   ...(targetCampaignId ? { campaign_id: targetCampaignId } : {}),
                 },
-                webpush: { headers: { Urgency: "high" } },
+                webpush: { headers: { Urgency: "high", TTL: ttl } },
               },
             }),
           });

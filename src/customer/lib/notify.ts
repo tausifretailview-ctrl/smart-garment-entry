@@ -7,7 +7,7 @@ import { registerPush, trackMessage } from "./client";
 import { registerAccountPush } from "./account";
 import { cleanVapidKey, describeVapidKeyProblem } from "./vapidKey";
 import { withTimeout } from "./withTimeout";
-import { buildPushDisplay } from "./pushDisplay";
+import { buildPushDisplay, notificationOptions } from "./pushDisplay";
 
 // Each setup step can stall without failing (worker never activates, push service
 // unreachable, slow network). Give each a limit so the button reports where it stuck.
@@ -126,15 +126,7 @@ function showWhileOpen(
   onMessage(messaging, (payload) => {
     const d = buildPushDisplay(payload as Parameters<typeof buildPushDisplay>[0], window.location.origin);
     if (d.messageId) void trackMessage(d.messageId, "delivered");
-    void reg
-      .showNotification(d.title, {
-        body: d.body,
-        icon: "/icon.svg",
-        badge: "/icon.svg",
-        data: { url: d.url, messageId: d.messageId },
-        tag: d.tag,
-      })
-      .catch(() => undefined);
+    void reg.showNotification(d.title, notificationOptions(d)).catch(() => undefined);
   });
 }
 
@@ -227,4 +219,19 @@ export function markPushOptOut(): void {
   } catch {
     /* ignore */
   }
+}
+
+/** Browser notification permission right now, or "unsupported". */
+export function pushPermission(): NotificationPermission | "unsupported" {
+  if (typeof Notification === "undefined") return "unsupported";
+  return Notification.permission;
+}
+
+/**
+ * Notifications really are on for this phone: turned on here before AND still allowed.
+ * The saved flag alone stayed "on" after a customer blocked notifications or reset the
+ * site, which hid the "Turn on notifications" card from exactly the people who needed it.
+ */
+export function isPushOn(): boolean {
+  return wasPushOptedIn() && pushPermission() === "granted";
 }
