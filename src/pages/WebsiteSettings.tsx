@@ -103,6 +103,19 @@ type VariantRow = {
 
 type WebsiteTabId = "catalogue" | "add" | "sections" | "menus" | "profile" | "domain" | "enquiries";
 
+const WEBSITE_TAB_IDS: WebsiteTabId[] = ["catalogue", "add", "sections", "menus", "profile", "domain", "enquiries"];
+const WEBSITE_TAB_STORAGE_KEY = "ezzy:website-tab";
+
+function readStoredWebsiteTab(): WebsiteTabId {
+  try {
+    const stored = sessionStorage.getItem(WEBSITE_TAB_STORAGE_KEY);
+    if (stored && (WEBSITE_TAB_IDS as string[]).includes(stored)) return stored as WebsiteTabId;
+  } catch {
+    /* storage blocked */
+  }
+  return "catalogue";
+}
+
 const ENQUIRY_STATUSES: WebsiteEnquiryStatus[] = ["new", "contacted", "converted", "closed"];
 
 const WEBSITE_TAB_TRIGGER = cn(
@@ -116,13 +129,19 @@ export default function WebsiteSettingsPage() {
   const orgId = currentOrganization?.id;
   const orgSlug = currentOrganization?.slug || "";
   const queryClient = useQueryClient();
-  const [selectedTab, setSelectedTab] = useState<WebsiteTabId>("catalogue");
-  const [visitedTabs, setVisitedTabs] = useState<Set<WebsiteTabId>>(() => new Set(["catalogue"]));
+  // If the pane is ever remounted (memory eviction), reopen the sub-tab the user was on.
+  const [selectedTab, setSelectedTab] = useState<WebsiteTabId>(readStoredWebsiteTab);
+  const [visitedTabs, setVisitedTabs] = useState<Set<WebsiteTabId>>(() => new Set([selectedTab]));
 
   const handleTabChange = useCallback((tab: string) => {
     const id = tab as WebsiteTabId;
     setSelectedTab(id);
     setVisitedTabs((prev) => (prev.has(id) ? prev : new Set([...prev, id])));
+    try {
+      sessionStorage.setItem(WEBSITE_TAB_STORAGE_KEY, id);
+    } catch {
+      /* storage blocked — tab just resets on remount */
+    }
   }, []);
 
   const shouldMountTab = useCallback((tab: WebsiteTabId) => visitedTabs.has(tab), [visitedTabs]);
