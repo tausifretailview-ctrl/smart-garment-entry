@@ -11594,6 +11594,17 @@ export type Database = {
         }
         Returns: string
       }
+      log_audit_safe: {
+        Args: {
+          p_action: string
+          p_entity_id: string
+          p_entity_type: string
+          p_metadata: Json
+          p_new_values: Json
+          p_old_values: Json
+        }
+        Returns: undefined
+      }
       log_security_event: {
         Args: {
           p_details: Json
