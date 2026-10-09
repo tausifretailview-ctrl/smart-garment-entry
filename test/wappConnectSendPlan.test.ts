@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   applyWappConnectCaptionFields,
+  fitsWappConnectPdfCaption,
   planWappConnectSendSteps,
   sendViaWappConnect,
   truncateWappConnectMessage,
@@ -46,6 +47,36 @@ describe("planWappConnectSendSteps", () => {
     expect(steps).toEqual([
       { endpoint: "/api/sendText", role: "text", message: "Pay reminder" },
     ]);
+  });
+});
+
+describe("single-message mode (bill text as PDF caption)", () => {
+  it("sends one captioned PDF when the text fits", () => {
+    const steps = planWappConnectSendSteps({
+      hasFile: true,
+      message: "Hello ARIYA,\nYour invoice POS/26-27/8 is attached.",
+      singleMessage: true,
+    });
+    expect(steps).toEqual([
+      {
+        endpoint: "/api/sendFileWithCaption",
+        role: "file",
+        message: "Hello ARIYA,\nYour invoice POS/26-27/8 is attached.",
+        fullCaption: true,
+      },
+    ]);
+  });
+
+  it("keeps text + PDF when the caption is too long for WhatsApp", () => {
+    const long = "Thank you for shopping with us. ".repeat(40);
+    expect(fitsWappConnectPdfCaption(long)).toBe(false);
+    const steps = planWappConnectSendSteps({ hasFile: true, message: long, singleMessage: true });
+    expect(steps.map((s) => s.endpoint)).toEqual(["/api/sendText", "/api/sendFileWithCaption"]);
+  });
+
+  it("is ignored for text-only sends", () => {
+    const steps = planWappConnectSendSteps({ hasFile: false, message: "Hi", singleMessage: true });
+    expect(steps).toEqual([{ endpoint: "/api/sendText", role: "text", message: "Hi" }]);
   });
 });
 
@@ -141,6 +172,97 @@ describe("sendViaWappConnect PDF + description", () => {
     expect(result.success).toBe(true);
     expect(result.endpoint).toBe("/api/sendText+/api/sendFileWithCaption");
     expect(result.messageId).toBe("text-1");
+  });
+});
+
+describe("sendViaWappConnect single message", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const pdfFetch = (url: string, method: string) => {
+    if (url.includes("example.com/invoice.pdf") && method === "HEAD") {
+      return new Response(null, { status: 200, headers: { "content-type": "application/pdf" } });
+    }
+    if (url.includes("example.com/invoice.pdf") && method === "GET") {
+      return new Response(new Uint8Array([37, 80, 68, 70]), {
+        status: 200,
+        headers: { "content-type": "application/pdf" },
+      });
+    }
+    return null;
+  };
+  const ok = (id: string) =>
+    new Response(JSON.stringify({ status: "success", data: { connStatus: true, messageIDs: [id] } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+
+  it("sends only the PDF, with the bill text in the query string and body", async () => {
+    const calls: string[] = [];
+    let queryMessage: string | null = null;
+    let bodyCaption = "";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = String(init?.method || "GET").toUpperCase();
+      const pdf = pdfFetch(url, method);
+      if (pdf) return pdf;
+      calls.push(`${method} ${new URL(url).pathname}`);
+      if (url.includes("/api/sendFileWithCaption") && method === "POST") {
+        queryMessage = new URL(url).searchParams.get("message");
+        bodyCaption = String((init?.body as FormData).get("caption") ?? "");
+        return ok("file-1");
+      }
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    });
+
+    const result = await sendViaWappConnect("inst1234", "9876543210", {
+      message: "Hello ARIYA,\n*Bill:* POS/26-27/8",
+      fileUrl: "https://example.com/invoice.pdf",
+      filename: "Invoice.pdf",
+      singleMessage: true,
+    });
+
+    expect(calls).toEqual(["POST /api/sendFileWithCaption"]);
+    expect(queryMessage).toBe("Hello ARIYA,\n*Bill:* POS/26-27/8");
+    expect(bodyCaption).toBe("Hello ARIYA,\n*Bill:* POS/26-27/8");
+    expect(result.success).toBe(true);
+    expect(result.endpoint).toBe("/api/sendFileWithCaption");
+    expect(result.messageId).toBe("file-1");
+  });
+
+  it("falls back to text + PDF when the captioned send is refused", async () => {
+    const calls: string[] = [];
+    let captionedTries = 0;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = String(init?.method || "GET").toUpperCase();
+      const pdf = pdfFetch(url, method);
+      if (pdf) return pdf;
+      calls.push(`${method} ${new URL(url).pathname}`);
+      if (url.includes("/api/sendFileWithCaption") && new URL(url).searchParams.get("message")) {
+        captionedTries++;
+        return new Response(JSON.stringify({ status: "error", message: "Internal server error" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url.includes("/api/sendText")) return ok("text-1");
+      if (url.includes("/api/sendFileWithCaption")) return ok("file-1");
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    });
+
+    const result = await sendViaWappConnect("inst1234", "9876543210", {
+      message: "Hello ARIYA",
+      fileUrl: "https://example.com/invoice.pdf",
+      filename: "Invoice.pdf",
+      singleMessage: true,
+    });
+
+    expect(captionedTries).toBe(1);
+    expect(calls.slice(1)).toEqual(["POST /api/sendText", "POST /api/sendFileWithCaption"]);
+    expect(result.success).toBe(true);
+    expect(result.endpoint).toBe("/api/sendText+/api/sendFileWithCaption");
   });
 });
 

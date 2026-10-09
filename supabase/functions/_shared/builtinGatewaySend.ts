@@ -9,6 +9,8 @@ export interface BuiltinSendInput {
   message?: string;
   fileUrl?: string;
   filename?: string;
+  /** Invoice text as the PDF caption, one message (falls back to text + PDF when too long). */
+  singleMessage?: boolean;
 }
 
 export interface BuiltinSendResult {
@@ -60,7 +62,7 @@ export async function gatewayRequest(
   }
 }
 
-/** Same step plan as WappConnect: description text first, then the PDF with a short caption. */
+/** Same step plan as WappConnect: text then PDF, or one captioned PDF in single-message mode. */
 export async function sendViaBuiltinGateway(
   organizationId: string,
   phone: string,
@@ -75,6 +77,7 @@ export async function sendViaBuiltinGateway(
   const steps = planWappConnectSendSteps({
     hasFile: Boolean(fileUrl),
     message: String(input.message ?? ""),
+    singleMessage: input.singleMessage === true,
   });
   if (steps.length === 0) {
     return { success: false, error: "Send requires a message and/or file URL" };

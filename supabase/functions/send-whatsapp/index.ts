@@ -858,12 +858,15 @@ serve(async (req) => {
         console.error('Error creating WappConnect log entry:', logError);
       }
 
+      // Bill text as the PDF caption (1 message per customer) when the shop turned it on.
+      const wantsSingleMessage = orgSettings?.wappconnect_single_message === true;
       const wappConnectResult = isBuiltin
         ? {
             ...(await sendViaBuiltinGateway(organizationId, formattedPhone, {
               message: resolvedMessage || undefined,
               fileUrl: resolvedFileUrl || undefined,
               filename: documentFilename || 'Invoice.pdf',
+              singleMessage: wantsSingleMessage,
             })),
             endpoint: 'wa-gateway',
             requestUrlRedacted: 'wa-gateway',
@@ -872,6 +875,7 @@ serve(async (req) => {
             message: resolvedMessage || undefined,
             fileUrl: resolvedFileUrl || undefined,
             filename: documentFilename || 'Invoice.pdf',
+            singleMessage: wantsSingleMessage,
           });
 
       const redactedResponse = redactWappConnectInstanceId(
