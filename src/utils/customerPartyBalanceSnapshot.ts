@@ -312,8 +312,8 @@ export async function fetchCustomerPartyBalanceOrgWindow(
 /** Max rows to recompute via audit bundle when SQL party RPC drifts (partial CN). */
 export const PARTY_BALANCE_CANONICAL_ENRICH_MAX = 100;
 
-/** Concurrent enrich requests per batch when `allowBeyondCap` is set (exports). */
-export const PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE = 20;
+/** Concurrent enrich requests per batch (list pages and exports). */
+export const PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE = 10;
 
 export type EnrichPartyRowsOptions = {
   /**
@@ -374,10 +374,8 @@ export async function enrichPartyRowsWithCanonicalBalance(
     }
   };
 
-  if (rows.length <= PARTY_BALANCE_CANONICAL_ENRICH_MAX) {
-    return Promise.all(rows.map(enrichOne));
-  }
-
+  // Always in small batches: each enrich is ~11 PostgREST queries, so 100 rows in one
+  // Promise.all queued ~1,100 requests and the late ones hit statement / gateway timeouts.
   const results: CustomerPartyBalanceAlignedRow[] = [];
   for (let i = 0; i < rows.length; i += PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE) {
     const batch = rows.slice(i, i + PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE);
