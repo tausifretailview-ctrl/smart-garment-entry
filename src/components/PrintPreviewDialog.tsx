@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Printer, X, Download } from 'lucide-react';
+import { Printer, X, Download, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { thermalReceiptBrowserPageSize } from '@/utils/invoicePrintFormat';
 import {
@@ -358,7 +358,10 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
     return 'a4';
   };
 
-  const handleSaveOrSharePdf = async () => {
+  // Share sheet (WhatsApp etc.) where the browser / WebView exposes it; Download stays the default.
+  const canSharePdf = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+  const handleSaveOrSharePdf = async (mode: 'download' | 'share' = 'download') => {
     if (!printRef.current || isLoading || isSavingPdf) return;
     setIsSavingPdf(true);
     const wrap = scaleWrapRef.current;
@@ -374,7 +377,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
         mobileOptimized: compactLayout || isNative || window.innerWidth < 768,
       });
       const fileName = `Invoice_${format(new Date(), 'ddMMyyyy_HHmm')}.pdf`;
-      const result = await deliverPdfBlob(blob, fileName, { preferDownload: true });
+      const result = await deliverPdfBlob(blob, fileName, { preferDownload: mode === 'download' });
       if (result === 'shared') {
         toast.success('Invoice shared');
       } else {
@@ -542,13 +545,35 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
           {compactLayout ? (
             <>
               <Button
-                onClick={handleSaveOrSharePdf}
+                onClick={() => void handleSaveOrSharePdf('download')}
                 disabled={isLoading || isSavingPdf}
                 className="no-print h-11 w-full"
               >
                 <Download className="mr-2 h-4 w-4" />
                 {isSavingPdf ? 'Preparing…' : 'Download PDF'}
               </Button>
+              {canSharePdf ? (
+                <Button
+                  variant="outline"
+                  onClick={() => void handleSaveOrSharePdf('share')}
+                  disabled={isLoading || isSavingPdf}
+                  className="no-print h-11 w-full"
+                >
+                  <Share2 className="mr-2 h-4 w-4" />
+                  Share PDF
+                </Button>
+              ) : null}
+              {!isNative ? (
+                <Button
+                  variant="outline"
+                  onClick={handlePrint}
+                  disabled={isLoading}
+                  className="no-print h-11 w-full"
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  {isLoading ? 'Loading...' : 'Print'}
+                </Button>
+              ) : null}
               <Button variant="outline" onClick={() => onOpenChange(false)} className="no-print h-11 w-full">
                 <X className="mr-2 h-4 w-4" />
                 Cancel
@@ -562,7 +587,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
               </Button>
               {isNative ? (
                 <Button
-                  onClick={handleSaveOrSharePdf}
+                  onClick={() => void handleSaveOrSharePdf('download')}
                   disabled={isLoading || isSavingPdf}
                   className="no-print"
                 >
@@ -573,7 +598,7 @@ export const PrintPreviewDialog: React.FC<PrintPreviewDialogProps> = ({
                 <>
                   <Button
                     variant="outline"
-                    onClick={handleSaveOrSharePdf}
+                    onClick={() => void handleSaveOrSharePdf('download')}
                     disabled={isLoading || isSavingPdf}
                     className="no-print"
                   >
