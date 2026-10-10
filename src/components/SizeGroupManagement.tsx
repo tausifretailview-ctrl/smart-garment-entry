@@ -16,16 +16,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SizeGroupDeleteDialog } from "@/components/SizeGroupDeleteDialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  findDuplicateSizeGroup,
+  friendlySizeGroupError,
+  normalizeSizeGroupName,
+} from "@/lib/sizeGroupActions";
 
 interface SizeGroup {
   id: string;
@@ -39,8 +35,7 @@ export function SizeGroupManagement() {
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deletingGroup, setDeletingGroup] = useState<SizeGroup | null>(null);
   const [newGroup, setNewGroup] = useState({ group_name: "", sizes: "" });
   const [editGroup, setEditGroup] = useState({ group_name: "", sizes: "" });
 
@@ -118,6 +113,16 @@ export function SizeGroupManagement() {
       return;
     }
 
+    const duplicate = findDuplicateSizeGroup(sizeGroups, newGroup.group_name);
+    if (duplicate) {
+      toast({
+        title: "Name already used",
+        description: `Size group "${duplicate.group_name}" already exists. Please use a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const sizesArray = newGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
@@ -126,7 +131,7 @@ export function SizeGroupManagement() {
         supabase
           .from("size_groups")
           .insert({
-            group_name: newGroup.group_name,
+            group_name: normalizeSizeGroupName(newGroup.group_name),
             sizes: sizesArray,
             organization_id: currentOrganization.id,
           })
@@ -146,7 +151,7 @@ export function SizeGroupManagement() {
       fetchSizeGroups();
     } catch (error: any) {
       console.error("Error adding size group:", error);
-      const errorMessage = error?.message || "Failed to add size group";
+      const errorMessage = friendlySizeGroupError(error, "Failed to add size group");
       toast({
         title: "Error",
         description: errorMessage,
@@ -168,15 +173,33 @@ export function SizeGroupManagement() {
   const handleSaveEdit = async () => {
     if (!editingId) return;
 
+    const sizesArray = editGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
+    if (!normalizeSizeGroupName(editGroup.group_name) || sizesArray.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter group name and sizes",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const duplicate = findDuplicateSizeGroup(sizeGroups, editGroup.group_name, editingId);
+    if (duplicate) {
+      toast({
+        title: "Name already used",
+        description: `Size group "${duplicate.group_name}" already exists. Please use a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
-      const sizesArray = editGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
-      
       const { error } = await withJwtRetry(() =>
         supabase
           .from("size_groups")
           .update({
-            group_name: editGroup.group_name,
+            group_name: normalizeSizeGroupName(editGroup.group_name),
             sizes: sizesArray,
           })
           .eq("id", editingId)
@@ -195,7 +218,7 @@ export function SizeGroupManagement() {
       console.error("Error updating size group:", error);
       toast({
         title: "Error",
-        description: "Failed to update size group",
+        description: friendlySizeGroupError(error, "Failed to update size group"),
         variant: "destructive",
       });
     } finally {
@@ -206,40 +229,6 @@ export function SizeGroupManagement() {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditGroup({ group_name: "", sizes: "" });
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-
-    setLoading(true);
-    try {
-      const { error } = await withJwtRetry(() =>
-        supabase
-          .from("size_groups")
-          .delete()
-          .eq("id", deleteId)
-      );
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Size group deleted successfully",
-      });
-
-      setDeleteDialogOpen(false);
-      setDeleteId(null);
-      fetchSizeGroups();
-    } catch (error) {
-      console.error("Error deleting size group:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete size group",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
@@ -370,10 +359,7 @@ export function SizeGroupManagement() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
-                                setDeleteId(group.id);
-                                setDeleteDialogOpen(true);
-                              }}
+                              onClick={() => setDeletingGroup(group)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -389,25 +375,14 @@ export function SizeGroupManagement() {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this size group. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteId(null)}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={loading}>
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Delete (moves products off the group first when in use) */}
+      <SizeGroupDeleteDialog
+        organizationId={currentOrganization?.id}
+        group={deletingGroup}
+        allGroups={sizeGroups}
+        onClose={() => setDeletingGroup(null)}
+        onDeleted={() => fetchSizeGroups()}
+      />
     </>
   );
 }
