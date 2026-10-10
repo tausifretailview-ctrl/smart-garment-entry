@@ -6,6 +6,7 @@ const {
   SUPPORT_WHATSAPP_URL,
   openExternalSafely,
   registerOpenExternalIpc,
+  restrictPermissionsToAppHosts,
 } = require('./security.cjs');
 const {
   getMainWindow,
@@ -22,7 +23,10 @@ const {
 const { parseOrgSlugFromHref, writeSavedOrgSlug } = require('./startupUrl.cjs');
 const {
   bindGetMainWindow: bindUpdaterMainWindow,
+  bindOnUpdateReady,
   initAutoUpdater,
+  isUpdateReady,
+  promptRestartToUpdate,
   checkForUpdatesManually,
   registerUpdaterIpc,
 } = require('./updater.cjs');
@@ -44,6 +48,10 @@ let tray;
 
 bindGetTray(() => tray);
 bindUpdaterMainWindow(getMainWindow);
+bindOnUpdateReady(() => {
+  refreshTrayMenu();
+  if (tray) tray.setToolTip('EzzyERP — update ready (right-click to install)');
+});
 bindPrintingWindows({ getMainWindow, getTargetWindow: targetWindow });
 registerOpenExternalIpc();
 registerUpdaterIpc();
@@ -85,7 +93,16 @@ if (!gotTheLock) {
     }
   });
 
+  // Windows notifications (update ready) need the same id the installer registers.
+  if (process.platform === 'win32') {
+    try { app.setAppUserModelId('com.ezzyerp.desktop'); } catch {}
+  }
+
   app.whenReady().then(() => {
+    try {
+      const { session } = require('electron');
+      restrictPermissionsToAppHosts(session.defaultSession, { isDev });
+    } catch {}
     // Warm TLS sockets to the website + backend so the first request is faster.
     try {
       const { session } = require('electron');
@@ -110,7 +127,21 @@ function createTray() {
   }
 
   tray = new Tray(icon.image);
+  refreshTrayMenu();
+  tray.setToolTip('EzzyERP — Smart Inventory & Billing');
+  tray.on('double-click', () => {
+    if (getMainWindow()) {
+      getMainWindow().show();
+      getMainWindow().focus();
+      notifyRendererLayoutSync();
+    }
+  });
+}
 
+
+
+function refreshTrayMenu() {
+  if (!tray) return;
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Open EzzyERP',
@@ -126,6 +157,12 @@ function createTray() {
       label: 'Refresh App',
       click: () => manualReloadMainWindow('tray-menu'),
     },
+    ...(isUpdateReady()
+      ? [
+          { type: 'separator' },
+          { label: 'Restart to install update…', click: () => { void promptRestartToUpdate(); } },
+        ]
+      : []),
     { type: 'separator' },
     {
       label: 'Quit',
@@ -135,19 +172,8 @@ function createTray() {
       },
     },
   ]);
-
-  tray.setToolTip('EzzyERP — Smart Inventory & Billing');
   tray.setContextMenu(contextMenu);
-  tray.on('double-click', () => {
-    if (getMainWindow()) {
-      getMainWindow().show();
-      getMainWindow().focus();
-      notifyRendererLayoutSync();
-    }
-  });
 }
-
-
 
 function sendNavigateShortcut(path) {
   if (!getMainWindow() || getMainWindow().isDestroyed()) return;

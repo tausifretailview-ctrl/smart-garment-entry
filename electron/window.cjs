@@ -249,6 +249,8 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs'),
+      // Sandboxed preload cannot call app.getVersion(); hand it the version here.
+      additionalArguments: [`--ezzy-app-version=${app.getVersion()}`],
       zoomFactor: 1.0, // 100% — 0.8 left empty margins / “half screen”; density via ui-scale in app
       backgroundThrottling: false,
     },
@@ -299,20 +301,32 @@ function createWindow() {
     }
   });
 
+  // Heavy reports can briefly hang the page. The dialog is async (printing and
+  // other IPC keep working) and defaults to Wait: a barcode scan ends with Enter,
+  // and an Enter that pressed "Reload now" would throw away the open bill.
+  let unresponsiveDialogOpen = false;
   mainWindow.webContents.on('unresponsive', () => {
     console.warn('[EzzyERP] window unresponsive');
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'warning',
-      buttons: ['Wait', 'Reload now'],
-      defaultId: 1,
-      cancelId: 0,
-      title: 'EzzyERP is not responding',
-      message: 'The application stopped responding.',
-      detail: 'Reload to recover. Unsaved work on the current screen may be lost.',
-    });
-    if (choice === 1) {
-      manualReloadMainWindow('unresponsive-dialog');
-    }
+    if (unresponsiveDialogOpen || !mainWindow || mainWindow.isDestroyed()) return;
+    unresponsiveDialogOpen = true;
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'warning',
+        buttons: ['Wait', 'Reload now'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+        title: 'EzzyERP is not responding',
+        message: 'The application stopped responding.',
+        detail: 'Wait a few seconds first. Reload only if it stays stuck: unsaved work on the current screen will be lost.',
+      })
+      .then(({ response }) => {
+        if (response === 1) manualReloadMainWindow('unresponsive-dialog');
+      })
+      .catch(() => {})
+      .finally(() => {
+        unresponsiveDialogOpen = false;
+      });
   });
 
   // Ctrl+R — reload the app even when focus is in a form.
