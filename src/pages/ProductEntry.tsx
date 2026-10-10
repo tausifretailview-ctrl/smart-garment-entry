@@ -63,16 +63,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SizeGroupDeleteDialog } from "@/components/SizeGroupDeleteDialog";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+  findDuplicateSizeGroup,
+  friendlySizeGroupError,
+  normalizeSizeGroupName,
+} from "@/lib/sizeGroupActions";
 
 type ProductType = 'goods' | 'service' | 'combo';
 
@@ -149,9 +145,8 @@ const ProductEntry = () => {
   const [editingSizeGroup, setEditingSizeGroup] = useState<SizeGroup | null>(null);
   const [editSizeGroupData, setEditSizeGroupData] = useState({ group_name: "", sizes: "" });
   const [updatingSizeGroup, setUpdatingSizeGroup] = useState(false);
-  const [showDeleteSizeGroup, setShowDeleteSizeGroup] = useState(false);
   const [deletingSizeGroup, setDeletingSizeGroup] = useState<SizeGroup | null>(null);
-  const [deletingSizeGroupLoading, setDeletingSizeGroupLoading] = useState(false);
+  const [sizeGroupSelectOpen, setSizeGroupSelectOpen] = useState(false);
   
   // Identity freeze when units are already sold (not any transaction — sales only)
   const { checkVariantHasTransactions } = useProductProtection();
@@ -585,6 +580,16 @@ const ProductEntry = () => {
       return;
     }
 
+    const duplicate = findDuplicateSizeGroup(sizeGroups, newSizeGroup.group_name);
+    if (duplicate) {
+      toast({
+        title: "Name already used",
+        description: `Size group "${duplicate.group_name}" already exists. Please use a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setCreatingSizeGroup(true);
     try {
       const sizesArray = newSizeGroup.sizes.split(",").map(s => s.trim()).filter(s => s);
@@ -592,7 +597,7 @@ const ProductEntry = () => {
       const { data, error } = await supabase
         .from("size_groups")
         .insert({
-          group_name: newSizeGroup.group_name,
+          group_name: normalizeSizeGroupName(newSizeGroup.group_name),
           sizes: sizesArray,
           organization_id: currentOrganization.id,
         })
@@ -621,7 +626,7 @@ const ProductEntry = () => {
       console.error("Error creating size group:", error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to create size group",
+        description: friendlySizeGroupError(error, "Failed to create size group"),
         variant: "destructive",
       });
     } finally {
@@ -632,6 +637,8 @@ const ProductEntry = () => {
   const handleEditSizeGroup = (group: SizeGroup, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // Close the dropdown first: it sits above dialogs and would cover the edit form.
+    setSizeGroupSelectOpen(false);
     setEditingSizeGroup(group);
     setEditSizeGroupData({
       group_name: group.group_name,
@@ -650,14 +657,25 @@ const ProductEntry = () => {
       return;
     }
 
+    const duplicate = findDuplicateSizeGroup(sizeGroups, editSizeGroupData.group_name, editingSizeGroup.id);
+    if (duplicate) {
+      toast({
+        title: "Name already used",
+        description: `Size group "${duplicate.group_name}" already exists. Please use a different name.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setUpdatingSizeGroup(true);
     try {
       const sizesArray = editSizeGroupData.sizes.split(",").map(s => s.trim()).filter(s => s);
+      const groupName = normalizeSizeGroupName(editSizeGroupData.group_name);
       
       const { error } = await supabase
         .from("size_groups")
         .update({
-          group_name: editSizeGroupData.group_name,
+          group_name: groupName,
           sizes: sizesArray,
         })
         .eq("id", editingSizeGroup.id);
@@ -672,7 +690,7 @@ const ProductEntry = () => {
       // Update local state
       setSizeGroups(prev => prev.map(g => 
         g.id === editingSizeGroup.id 
-          ? { ...g, group_name: editSizeGroupData.group_name, sizes: sizesArray }
+          ? { ...g, group_name: groupName, sizes: sizesArray }
           : g
       ));
       
@@ -682,7 +700,7 @@ const ProductEntry = () => {
       console.error("Error updating size group:", error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to update size group",
+        description: friendlySizeGroupError(error, "Failed to update size group"),
         variant: "destructive",
       });
     } finally {
@@ -693,46 +711,15 @@ const ProductEntry = () => {
   const handleDeleteSizeGroupClick = (group: SizeGroup, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setSizeGroupSelectOpen(false);
     setDeletingSizeGroup(group);
-    setShowDeleteSizeGroup(true);
   };
 
-  const handleDeleteSizeGroup = async () => {
-    if (!deletingSizeGroup) return;
-
-    setDeletingSizeGroupLoading(true);
-    try {
-      const { error } = await supabase
-        .from("size_groups")
-        .delete()
-        .eq("id", deletingSizeGroup.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Size group deleted successfully",
-      });
-
-      // Update local state
-      setSizeGroups(prev => prev.filter(g => g.id !== deletingSizeGroup.id));
-      
-      // Clear selection if deleted group was selected
-      if (formData.size_group_id === deletingSizeGroup.id) {
-        setFormData(prev => ({ ...prev, size_group_id: "" }));
-      }
-      
-      setShowDeleteSizeGroup(false);
-      setDeletingSizeGroup(null);
-    } catch (error: any) {
-      console.error("Error deleting size group:", error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to delete size group",
-        variant: "destructive",
-      });
-    } finally {
-      setDeletingSizeGroupLoading(false);
+  const handleSizeGroupDeleted = (deletedId: string, movedToId: string | null) => {
+    setSizeGroups(prev => prev.filter(g => g.id !== deletedId));
+    // Keep the form pointing at a group that still exists
+    if (formData.size_group_id === deletedId) {
+      setFormData(prev => ({ ...prev, size_group_id: movedToId ?? "" }));
     }
   };
 
@@ -2448,6 +2435,8 @@ const ProductEntry = () => {
                 <div className="space-y-2">
                   <Label htmlFor="size_group">Size Group</Label>
                   <Select
+                    open={sizeGroupSelectOpen}
+                    onOpenChange={setSizeGroupSelectOpen}
                     value={formData.size_group_id}
                     onValueChange={(value) => {
                       if (value === "__create_new__") {
@@ -3374,34 +3363,14 @@ const ProductEntry = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Delete Size Group Confirmation */}
-        <AlertDialog open={showDeleteSizeGroup} onOpenChange={setShowDeleteSizeGroup}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete Size Group</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete "{deletingSizeGroup?.group_name}"? This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={handleDeleteSizeGroup}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                disabled={deletingSizeGroupLoading}
-              >
-                {deletingSizeGroupLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Deleting...
-                  </>
-                ) : (
-                  "Delete"
-                )}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Delete Size Group (moves products off it first when in use) */}
+        <SizeGroupDeleteDialog
+          organizationId={currentOrganization?.id}
+          group={deletingSizeGroup}
+          allGroups={sizeGroups}
+          onClose={() => setDeletingSizeGroup(null)}
+          onDeleted={handleSizeGroupDeleted}
+        />
 
         {/* Excel Import Dialog */}
         <ExcelImportDialog
