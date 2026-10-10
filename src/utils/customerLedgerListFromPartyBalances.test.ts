@@ -80,6 +80,7 @@ describe("partyLedgerListMoneyFields", () => {
     );
     expect(money.totalSales).toBe(0);
     expect(money.totalPaid).toBe(0);
+    expect(money.salesPaidKnown).toBe(false);
     expect(money.balance).toBe(8000);
     expect(money.unusedAdvanceTotal).toBe(0);
   });
@@ -125,6 +126,7 @@ describe("partyLedgerListMoneyFields", () => {
     expect(withLifetime.totalSales).toBe(420_000);
     expect(withLifetime.totalPaid).toBe(261_300);
     expect(withLifetime.totalCashPaid).toBe(261_300);
+    expect(withLifetime.salesPaidKnown).toBe(true);
     expect(withLifetime.balance).toBe(158_700);
   });
 });
