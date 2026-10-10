@@ -537,7 +537,9 @@ export const ProductEntryDialog = ({
   /** Name-dupe gate: same normalized name + category already in the org. Bypass is an explicit second click. */
   const [showNameDupeDialog, setShowNameDupeDialog] = useState(false);
   const [nameDupeMatches, setNameDupeMatches] = useState<SameNameProductMatch[]>([]);
-  const [nameDupeConfirmedKey, setNameDupeConfirmedKey] = useState<string | null>(null);
+  // Ref, not state: "Create anyway" re-runs handleSave in the same render, and
+  // state would still hold the old key there, so the warning reopened forever.
+  const nameDupeConfirmedKeyRef = useRef<string | null>(null);
   const initialBarcodeAppliedRef = useRef(false);
   const productFieldSettings = useProductFieldSettings();
   const [showMrp, setShowMrp] = useState(false);
@@ -2268,7 +2270,7 @@ export const ProductEntryDialog = ({
     // confirm before inserting. Bypass ("Create anyway") is an explicit second
     // click recorded per name+category; the default path stops here.
     const dupeKey = normalizeProductNameKey(productName, formData.category);
-    if (nameDupeConfirmedKey !== dupeKey) {
+    if (nameDupeConfirmedKeyRef.current !== dupeKey) {
       const dupes = await findSameNameProductsInOrg(
         currentOrganization.id,
         productName,
@@ -4877,7 +4879,7 @@ export const ProductEntryDialog = ({
             )}
             <AlertDialogAction
               onClick={() => {
-                setNameDupeConfirmedKey(normalizeProductNameKey(formData.product_name, formData.category));
+                nameDupeConfirmedKeyRef.current = normalizeProductNameKey(formData.product_name, formData.category);
                 setShowNameDupeDialog(false);
                 void handleSave();
               }}
