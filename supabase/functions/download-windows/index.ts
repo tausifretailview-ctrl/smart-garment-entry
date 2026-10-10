@@ -16,6 +16,8 @@ const ALLOWED_FILES = new Set([
   DEFAULT_FILE,
   `EzzyERP-Portable-${CURRENT_VERSION}.exe`,
   // prior releases (old share links)
+  "EzzyERP-Setup-1.2.0.exe",
+  "EzzyERP-Portable-1.2.0.exe",
   "EzzyERP-Setup-1.1.0.exe",
   "EzzyERP-Portable-1.1.0.exe",
 ]);

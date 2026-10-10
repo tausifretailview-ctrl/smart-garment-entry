@@ -104,6 +104,28 @@ async function chooseDefaultPrinter(kind) {
 
 
 
+/**
+ * A pinned printer that was renamed, removed or reinstalled under a new name
+ * makes Windows drop the job or answer with an unclear driver error. Check the
+ * name first so the cashier sees exactly what to fix (and the web app falls back
+ * to the print dialog). Lookup failures never block printing.
+ */
+async function missingPrinterError(webContents, printerName) {
+  if (!printerName) return null;
+  try {
+    const printers =
+      typeof webContents.getPrintersAsync === 'function'
+        ? await webContents.getPrintersAsync()
+        : webContents.getPrinters();
+    if (!Array.isArray(printers) || printers.length === 0) return null;
+    const found = printers.some((p) => p.name === printerName || p.displayName === printerName);
+    if (found) return null;
+    return `Printer "${printerName}" is not connected or was renamed. Switch it on, or pick it again in Settings → Desktop Print Settings.`;
+  } catch {
+    return null;
+  }
+}
+
 // ═══ PRINTER IPC ═══
 // Silent/direct printing so the desktop app prints like Tally/Vyapar (no dialog).
 // All handlers degrade gracefully and never throw across the IPC boundary.
@@ -133,6 +155,9 @@ ipcMain.handle('get-printers', async () => {
 ipcMain.handle('silent-print', async (_event, options = {}) => {
   const win = getTargetWindow();
   if (!win) return { success: false, error: 'No window' };
+
+  const missing = await missingPrinterError(win.webContents, options.printerName);
+  if (missing) return { success: false, error: missing };
 
   return new Promise((resolve) => {
     try {
@@ -189,6 +214,11 @@ ipcMain.handle('print-html', async (_event, payload = {}) => {
   if (!html) return { success: false, error: 'No HTML provided' };
 
   const printSilent = silent !== false;
+  const lookupWin = getMainWindow() || getTargetWindow();
+  if (printSilent && lookupWin && !lookupWin.isDestroyed()) {
+    const missing = await missingPrinterError(lookupWin.webContents, printerName);
+    if (missing) return { success: false, error: missing };
+  }
   const isReceipt =
     printKind === 'receipt' ||
     (typeof pageSize === 'object' &&

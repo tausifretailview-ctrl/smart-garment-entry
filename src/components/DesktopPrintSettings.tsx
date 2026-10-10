@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useElectronPrint, type PrinterInfo } from "@/hooks/useElectronPrint";
-import { appPrint, PRINT_PREF_KEYS } from "@/utils/appPrint";
+import { appPrint, PRINT_PREF_KEYS, type AppPrintOptions } from "@/utils/appPrint";
 import { useToast } from "@/hooks/use-toast";
 
 const NONE_VALUE = "__default__";
@@ -62,6 +62,23 @@ export function DesktopPrintSettings() {
 
   const persist = (key: string, value: string) => localStorage.setItem(key, value);
 
+  const runTestPrint = async (label: string, options: AppPrintOptions) => {
+    const result = await appPrint(options);
+    if (result.success) {
+      toast({ title: `${label} sent`, description: "Check the printer for the test page." });
+    } else {
+      toast({
+        title: `${label} failed`,
+        description: result.error || "The printer did not accept the job.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // A saved printer that Windows no longer lists (renamed, removed, other PC).
+  const isMissingPrinter = (value: string) =>
+    !!value && printers.length > 0 && !printers.some((p) => p.name === value);
+
   const nativePrinterSelect = (
     label: string,
     value: string,
@@ -80,6 +97,7 @@ export function DesktopPrintSettings() {
         }}
       >
         <option value={NONE_VALUE}>System default printer</option>
+        {isMissingPrinter(value) && <option value={value}>{value} (not connected)</option>}
         {printers.map((p) => (
           <option key={p.name} value={p.name}>
             {p.displayName}
@@ -87,6 +105,11 @@ export function DesktopPrintSettings() {
           </option>
         ))}
       </select>
+      {isMissingPrinter(value) && (
+        <p className="text-xs text-destructive">
+          This printer is not connected to this PC. Switch it on or pick another one.
+        </p>
+      )}
     </div>
   );
 
@@ -176,8 +199,9 @@ export function DesktopPrintSettings() {
             variant="secondary"
             size="sm"
             onClick={() =>
-              appPrint({
+              void runTestPrint("Test invoice", {
                 type: "invoice",
+                copies: 1,
                 html: `<html><body style="font-family:Arial;padding:24px"><h2>EzzyERP — Test Invoice</h2><p>This is a test A4 invoice print.</p><p>Printer: ${invoicePrinter || "System default"}</p></body></html>`,
               })
             }
@@ -189,14 +213,31 @@ export function DesktopPrintSettings() {
             variant="secondary"
             size="sm"
             onClick={() =>
-              appPrint({
+              void runTestPrint("Test receipt", {
                 type: "receipt",
+                copies: 1,
                 html: `<html><body style="font-family:monospace;width:72mm;padding:4px"><div style="text-align:center"><b>EzzyERP</b><br/>Test Receipt</div><hr/><div>Thermal print OK</div></body></html>`,
               })
             }
           >
             <Printer className="h-4 w-4 mr-2" />
             Test Print Receipt
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!barcodePrinter}
+            title={barcodePrinter ? undefined : "Pick a barcode printer first"}
+            onClick={() =>
+              void runTestPrint("Test label", {
+                type: "barcode",
+                pageSize: { width: 50000, height: 25000 },
+                html: `<!DOCTYPE html><html><head><meta charset="utf-8"><style>@page{size:50mm 25mm;margin:0}*{margin:0;padding:0;box-sizing:border-box}html,body{width:50mm;height:25mm}body{font-family:Arial;display:flex;flex-direction:column;align-items:center;justify-content:center;border:0.3mm dashed #000}</style></head><body><b style="font-size:10pt">EzzyERP</b><span style="font-size:8pt">Test label 50 x 25 mm</span></body></html>`,
+              })
+            }
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Test Print Label
           </Button>
         </div>
       </CardContent>

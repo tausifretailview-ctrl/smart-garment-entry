@@ -123,7 +123,11 @@ export async function appPrint(options: AppPrintOptions): Promise<AppPrintResult
     options.pageSize ??
     pageSizeForType(options.type, options.type === "receipt" ? thermalPaper : undefined);
   const margins = options.margins ?? marginsForType(options.type);
-  const copies = options.copies || Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
+  // "Default Copies" is for bills. Label sheets already carry the label quantity,
+  // so applying it to barcodes would print every label twice (or more).
+  const defaultCopies =
+    options.type === "barcode" ? 1 : Number(localStorage.getItem(PRINT_PREF_KEYS.copies)) || 1;
+  const copies = options.copies || defaultCopies;
   const silent = options.silent !== false;
 
   const isReceipt = options.type === "receipt";

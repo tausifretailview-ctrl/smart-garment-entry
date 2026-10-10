@@ -71,6 +71,32 @@ function attachShellNavigation(webContents, { isDev }) {
   });
 }
 
+function isAppHostUrl(url, isDev) {
+  try {
+    const host = new URL(url).hostname;
+    return ALLOWED_NAV_HOSTS.includes(host) && (host !== 'localhost' || isDev);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Electron grants every permission (camera, mic, location, notifications…) by
+ * default. Keep them for EzzyERP's own pages (camera barcode scan, clipboard,
+ * notifications) and deny anything requested from any other origin.
+ * @param {Electron.Session} ses
+ * @param {{ isDev: boolean }} opts
+ */
+function restrictPermissionsToAppHosts(ses, { isDev }) {
+  ses.setPermissionRequestHandler((webContents, _permission, callback, details) => {
+    const url = (details && details.requestingUrl) || (webContents && webContents.getURL()) || '';
+    callback(isAppHostUrl(url, isDev));
+  });
+  ses.setPermissionCheckHandler((_webContents, _permission, requestingOrigin) =>
+    isAppHostUrl(requestingOrigin || '', isDev),
+  );
+}
+
 function registerOpenExternalIpc() {
   ipcMain.handle('open-external', async (_event, url) => {
     await openExternalSafely(url);
@@ -86,4 +112,5 @@ module.exports = {
   openExternalSafely,
   attachShellNavigation,
   registerOpenExternalIpc,
+  restrictPermissionsToAppHosts,
 };
