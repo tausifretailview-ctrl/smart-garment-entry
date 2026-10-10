@@ -5035,7 +5035,7 @@ Thank you for choosing us!`;
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-10 rounded-tl-lg">#</th>
                 <th className="col-product text-left text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3">PRODUCT</th>
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">SIZE</th>
-                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">{colorColLabel}</th>}
+                {showCol.color && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-36">{colorColLabel}</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-24">BARCODE</th>
                 {showCol.hsn && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-3 w-20">{hsnColLabel}</th>}
                 <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-qty">QTY</th>
@@ -5044,7 +5044,7 @@ Thank you for choosing us!`;
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-price">PRICE</th>
                 {showCol.disc_percent && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-20">DISC%</th>}
                 {showCol.disc_amount && <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-24">DISC ₹</th>}
-                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-[4.5rem]">GST%</th>}
+                {showCol.gst && <th className="text-center text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 w-[5.5rem]">GST%</th>}
                 <th className="text-right text-[14px] uppercase tracking-[.06em] font-bold h-12 text-white px-2 sale-col-total bg-blue-700 rounded-tr-lg">TOTAL</th>
                 <th className="col-action h-10 bg-slate-800" aria-hidden="true" />
               </tr>
@@ -5103,7 +5103,8 @@ Thank you for choosing us!`;
                         >
                           {item.productName}
                         </button>
-                        {item.color && (
+                        {/* Colour has its own column when enabled; only repeat it here when that column is hidden. */}
+                        {item.color && !showCol.color && (
                           <div className="text-xs text-muted-foreground mt-0.5">{item.color}</div>
                         )}
                       </td>
@@ -5121,8 +5122,12 @@ Thank you for choosing us!`;
                         ) : <span className="text-slate-300">—</span>}
                       </td>
                       {showCol.color && (
-                        <td {...lineGrid.getCellProps(displayIndex, "color", { baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-3 py-2.5" })}>
-                          {item.color || <span className="text-slate-300">—</span>}
+                        <td {...lineGrid.getCellProps(displayIndex, "color", { baseClassName: "text-center text-[15px] font-semibold text-slate-900 dark:text-slate-100 px-2 py-2.5" })}>
+                          {item.color ? (
+                            <span className="block line-clamp-2 break-words leading-tight text-[13px]" title={item.color}>
+                              {item.color}
+                            </span>
+                          ) : <span className="text-slate-300">—</span>}
                         </td>
                       )}
                       <td {...lineGrid.getCellProps(displayIndex, "barcode", { baseClassName: "text-center px-3 py-2" })}>
@@ -5308,7 +5313,7 @@ Thank you for choosing us!`;
                             onValueChange={(v) => updateGSTPercent(item.id, parseFloat(v) || 0)}
                           >
                             <SelectTrigger
-                              className="h-9 w-full min-w-[3.5rem] max-w-[4.5rem] mx-auto text-[13px] font-semibold tabular-nums bg-white border border-slate-200 shadow-none focus:ring-1"
+                              className="h-9 w-full min-w-[4.5rem] mx-auto px-2 gap-1 text-[13px] font-semibold tabular-nums bg-white border border-slate-200 shadow-none focus:ring-1"
                               onPointerDown={(e) => e.stopPropagation()}
                               onClick={(e) => e.stopPropagation()}
                               onKeyDown={(e) => e.stopPropagation()}
