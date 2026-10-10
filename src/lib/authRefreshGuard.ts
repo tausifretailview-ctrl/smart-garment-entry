@@ -191,6 +191,15 @@ function writeLatest(body: AuthTokenBody): void {
   }
 }
 
+/** Drop the saved refresh rotation on sign-out so no old login's tokens stay on the device. */
+export function clearAuthRefreshLatest(): void {
+  try {
+    localStorage.removeItem(LATEST_REFRESH_KEY);
+  } catch {
+    // private mode
+  }
+}
+
 /** Install once. Import this module before the Supabase client is created. */
 export function installAuthRefreshGuard(): void {
   if (installed || typeof window === "undefined" || typeof window.fetch !== "function") return;

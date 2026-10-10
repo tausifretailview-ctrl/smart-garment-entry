@@ -5,7 +5,7 @@ import { storeOrgSlug } from "@/lib/orgSlug";
 import { hideAppBootSplash } from "@/lib/appBootSplash";
 import { isElectronShell } from "@/lib/electronShell";
 import { toast } from "sonner";
-import { isAuthRateLimitError, PROACTIVE_REFRESH_WITHIN_SEC } from "@/lib/authRefreshGuard";
+import { clearAuthRefreshLatest, isAuthRateLimitError, PROACTIVE_REFRESH_WITHIN_SEC } from "@/lib/authRefreshGuard";
 
 // Global constants for cross-tab refresh coordination
 const REFRESH_LOCK_KEY = 'auth_refresh_lock';
@@ -235,6 +235,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Handle SIGNED_OUT triggered by refresh_token_not_found in Chrome
         // Preserve org slug so user lands on the correct org login page
         if (event === 'SIGNED_OUT') {
+          clearAuthRefreshLatest();
           const orgSlug = localStorage.getItem("selectedOrgSlug");
           if (orgSlug) {
             storeOrgSlug(orgSlug); // persist to all layers including cookie
