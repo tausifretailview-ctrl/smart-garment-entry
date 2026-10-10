@@ -2551,6 +2551,10 @@ export function CustomerLedger({
     const showOpeningInMsg = !isSchool || (selectedCustomer as any).hasStructures !== false;
     const feesLabel = isSchool ? ((selectedCustomer as any).hasStructures === false ? 'Opening Balance' : 'Total Fees') : 'Total Sales';
     const paidLabel = isSchool ? 'Fees Paid' : 'Total Paid';
+    // The list row is not enriched with lifetime totals (it stays ₹0), so use the same
+    // ledger-derived figures as the detail cards; school keeps its snapshot totals.
+    const msgTotalSales = !isSchool && ledgerDerivedStats ? ledgerDerivedStats.totalSales : selectedCustomer.totalSales || 0;
+    const msgTotalPaid = !isSchool && ledgerDerivedStats ? ledgerDerivedStats.cashPaid : selectedCustomer.totalPaid || 0;
 
     const balanceBreakdown = openingBalance > 0
       ? `\n📋 Bill-wise Pending: ₹${Math.round(billWisePending).toLocaleString("en-IN")}\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}`
@@ -2560,15 +2564,15 @@ export function CustomerLedger({
 
 👤 *${selectedCustomer.customer_name}*${dateRange}
 ${showOpeningInMsg ? `\n💰 Opening Balance: ₹${Math.round(openingBalance).toLocaleString("en-IN")}` : ''}
-📈 ${feesLabel}: ₹${Math.round(selectedCustomer.totalSales).toLocaleString("en-IN")}
-✅ ${paidLabel}: ₹${Math.round(selectedCustomer.totalPaid).toLocaleString("en-IN")}
+📈 ${feesLabel}: ₹${Math.round(msgTotalSales).toLocaleString("en-IN")}
+✅ ${paidLabel}: ₹${Math.round(msgTotalPaid).toLocaleString("en-IN")}
 ────────────────${balanceBreakdown}
 💵 *Outstanding: ₹${Math.abs(Math.round(effectiveBalance)).toLocaleString("en-IN")}${effectiveBalance < 0 ? " (Advance)" : ""}*${txnSummary}
 
 Please clear your dues at the earliest. Thank you!`;
 
     sendWhatsApp(selectedCustomer.phone, message);
-  }, [selectedCustomer, transactions, startDate, endDate, sendWhatsApp]);
+  }, [selectedCustomer, transactions, startDate, endDate, sendWhatsApp, ledgerDerivedStats]);
 
   const handleExportToExcel = async () => {
     if (!selectedCustomer || !transactions) return;
