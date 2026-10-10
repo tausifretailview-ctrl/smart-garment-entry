@@ -375,7 +375,8 @@ const SalesmanOrderEntry = () => {
         .is("deleted_at", null)
         .is("products.deleted_at", null)
         .or(`barcode.ilike.%${term}%,color.ilike.%${term}%`)
-        .gt("stock_qty", 0)
+        .eq("active", true)
+        .order("stock_qty", { ascending: false })
         .limit(50);
 
       // Fetch variants for matching products
@@ -393,8 +394,9 @@ const SalesmanOrderEntry = () => {
           .is("deleted_at", null)
           .is("products.deleted_at", null)
           .in("product_id", productIds)
-          .gt("stock_qty", 0)
-          .limit(100);
+          .eq("active", true)
+          .order("stock_qty", { ascending: false })
+          .limit(300);
 
         if (!variantsError && variants) {
           productVariants = variants;
@@ -428,7 +430,8 @@ const SalesmanOrderEntry = () => {
             barcode: v.barcode,
             mrp: v.mrp,
             sale_price: v.sale_price,
-            stock_qty: v.stock_qty,
+            // Oversold (negative) rows count as 0 so totals match the old in-stock-only list
+            stock_qty: Math.max(0, v.stock_qty || 0),
           } as Variant);
         }
       });
@@ -466,12 +469,6 @@ const SalesmanOrderEntry = () => {
         const updated = [...prevItems];
         const currentItem = updated[existingIndex];
         const newQty = currentItem.quantity + qty;
-
-        // Skip stock validation for custom sizes
-        if (!variant.isCustomSize && newQty > variant.stock_qty) {
-          toast.error(`Insufficient stock for ${variant.size}`);
-          return prevItems;
-        }
 
         updated[existingIndex] = {
           ...currentItem,
@@ -548,11 +545,12 @@ const SalesmanOrderEntry = () => {
           .in("product_id", productIds)
           .eq("active", true)
           .is("deleted_at", null)
-          .gt("stock_qty", 0)
           .order("id")
           .range(offset, offset + pageSize - 1);
         if (error) throw error;
-        raw.push(...(data || []));
+        // All sizes, out-of-stock included, so salesmen can book any size.
+        // Oversold (negative) rows count as 0 so a size's total isn't pulled down.
+        raw.push(...(data || []).map((row) => ({ ...row, stock_qty: Math.max(0, row.stock_qty || 0) })));
         if (!data || data.length < pageSize) break;
       }
       if (sizeGridLoadRef.current !== loadId || raw.length === 0) return;
@@ -610,9 +608,8 @@ const SalesmanOrderEntry = () => {
   const updateQuantity = (itemId: string, delta: number) => {
     const updated = orderItems.map(item => {
       if (item.id === itemId) {
-        // For custom sizes, no stock limit
-        const maxQty = item.isCustomSize ? Infinity : item.variant.stock_qty;
-        const newQty = Math.max(1, Math.min(maxQty, item.quantity + delta));
+        // Orders can be booked beyond stock (out-of-stock sizes included)
+        const newQty = Math.max(1, item.quantity + delta);
         return { ...item, quantity: newQty, line_total: newQty * item.unit_price };
       }
       return item;
@@ -928,7 +925,6 @@ const SalesmanOrderEntry = () => {
                     size="icon"
                     className="h-10 w-10 rounded-lg"
                     onClick={() => updateQuantity(item.id, 1)}
-                    disabled={!item.isCustomSize && item.quantity >= item.variant.stock_qty}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>

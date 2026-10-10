@@ -35,4 +35,14 @@ describe("salesman order size grid", () => {
     expect(grid).toHaveLength(2);
     expect(grid.map((cell) => cell.color).sort()).toEqual(["BK", "RD"]);
   });
+
+  it("keeps out-of-stock sizes so they can still be booked", () => {
+    const rows = [
+      { id: "s3", product_id: "p", size: "3", color: "BK", stock_qty: 0, sale_price: 500 },
+      { id: "s4", product_id: "p", size: "4", color: "BK", stock_qty: 5, sale_price: 500 },
+    ];
+    const grid = variantsForSalesmanSizeGrid(rows);
+    expect(grid).toHaveLength(2);
+    expect(grid.find((cell) => cell.size === "3")?.stock_qty).toBe(0);
+  });
 });
