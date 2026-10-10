@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPosGarmentGstToItem } from "./lineMath";
+import { applyPosGarmentGstForBill, applyPosGarmentGstToItem } from "./lineMath";
 import type { PosCartItem } from "./types";
 
 function baseItem(overrides: Partial<PosCartItem>): PosCartItem {
@@ -82,5 +82,40 @@ describe("applyPosGarmentGstToItem — garment/footwear GST threshold rule", () 
     });
     const result = applyPosGarmentGstToItem(item, { garment_gst_rule_enabled: false });
     expect(result.gstPer).toBe(5);
+  });
+});
+
+describe("applyPosGarmentGstForBill — bill discount and exclusive basis", () => {
+  const line = (o: Partial<PosCartItem>) =>
+    baseItem({ mrp: 2999, unitCost: 2999, netAmount: 2999, gstPer: 18, ...o });
+
+  it("does nothing on an inclusive bill with no flat discount", () => {
+    const items = [line({})];
+    expect(applyPosGarmentGstForBill(items, SETTINGS_ON, { flatDiscountAmount: 0, taxType: "inclusive" })).toBe(items);
+  });
+
+  it("drops to 5% when the flat discount share brings the piece to/below the threshold, and restores after", () => {
+    const items = [line({})];
+    const discounted = applyPosGarmentGstForBill(items, SETTINGS_ON, { flatDiscountAmount: 450, taxType: "inclusive" });
+    expect(discounted[0].gstPer).toBe(5);
+    const restored = applyPosGarmentGstForBill(discounted, SETTINGS_ON, { flatDiscountAmount: 0, taxType: "inclusive" });
+    expect(restored[0].gstPer).toBe(18);
+    expect(restored[0].billSlabApplied).toBeUndefined();
+  });
+
+  it("keeps a GST picked by hand", () => {
+    const items = [line({ gstManual: true })];
+    expect(applyPosGarmentGstForBill(items, SETTINGS_ON, { flatDiscountAmount: 450, taxType: "inclusive" })).toBe(items);
+  });
+
+  it("judges exclusive prices on ₹2500 taxable", () => {
+    const items = [line({ mrp: 2600, unitCost: 2600, netAmount: 2600, gstPer: 5 })];
+    const out = applyPosGarmentGstForBill(items, SETTINGS_ON, { flatDiscountAmount: 0, taxType: "exclusive" });
+    expect(out[0].gstPer).toBe(18);
+  });
+
+  it("is off when the org rule is off", () => {
+    const items = [line({})];
+    expect(applyPosGarmentGstForBill(items, { garment_gst_rule_enabled: false }, { flatDiscountAmount: 450, taxType: "inclusive" })).toBe(items);
   });
 });

@@ -1,4 +1,9 @@
-import { resolveGarmentGstForLine, type GarmentGstRuleSettings } from "@/utils/gstRules";
+import {
+  getGarmentSlabPrice,
+  isGarmentGstRuleEnabled,
+  resolveGarmentGstForLine,
+  type GarmentGstRuleSettings,
+} from "@/utils/gstRules";
 import type { PosCartItem } from "./types";
 
 const SCHEME_EXTRA_EPS = 0.005;
@@ -49,7 +54,57 @@ export function applyPosGarmentGstToItem(
   // Same sale-price slab as goods when the org setting is on: above threshold
   // → 18%, at/below → configured slab (e.g. 5%). Services use the price entered
   // at POS / sale time, so they must follow this too — not keep a master 18%.
-  return { ...withNet, gstPer: resolvedGst };
+  // Re-judging the line ends a hand-picked GST, as it always has for line edits.
+  const updated: PosCartItem = { ...withNet, gstPer: resolvedGst };
+  delete updated.gstManual;
+  return updated;
+}
+
+/**
+ * Bill-wide garment GST pass: re-judge each line's slab on its per-piece price
+ * after the bill (flat) discount share, in the threshold's incl. GST basis.
+ * Line mutators judge one line without the flat discount; this pass runs after
+ * them. It only touches lines while a flat discount is on or the bill is
+ * exclusive (plus lines it changed before, so removing the discount restores
+ * them), and never a line whose GST the cashier picked by hand.
+ * Returns the same array when nothing changes.
+ */
+export function applyPosGarmentGstForBill(
+  items: PosCartItem[],
+  garmentGstSettings: GarmentGstRuleSettings | null | undefined,
+  opts: { flatDiscountAmount: number; taxType: string },
+): PosCartItem[] {
+  if (!isGarmentGstRuleEnabled(garmentGstSettings)) return items;
+  const subtotal = items.reduce((sum, item) => sum + (Number(item.netAmount) || 0), 0);
+  const flat = Math.max(0, Number(opts.flatDiscountAmount) || 0);
+  // Same proportional split as computePosBillGst: each line loses flat/subtotal of its net.
+  const billDiscountRatio = subtotal > 0.005 ? Math.min(1, flat / subtotal) : 0;
+  const priceIncludesGst = opts.taxType !== "exclusive";
+  const active = billDiscountRatio > 0 || !priceIncludesGst;
+
+  let changed = false;
+  const next = items.map((item) => {
+    if (item.gstManual) return item;
+    if (!active && !item.billSlabApplied) return item;
+    const slabPrice = getGarmentSlabPrice(
+      posLineNetUnitPrice(item),
+      { billDiscountRatio, priceIncludesGst },
+      garmentGstSettings,
+    );
+    const gstPer = resolveGarmentGstForLine(
+      slabPrice,
+      item.purchaseGstPer ?? item.gstPer,
+      item.gstPer,
+      garmentGstSettings,
+    );
+    if (gstPer === item.gstPer && !!item.billSlabApplied === active) return item;
+    changed = true;
+    const updated: PosCartItem = { ...item, gstPer };
+    if (active) updated.billSlabApplied = true;
+    else delete updated.billSlabApplied;
+    return updated;
+  });
+  return changed ? next : items;
 }
 
 export function sumLineDiscount(rows: PosCartItem[]): number {

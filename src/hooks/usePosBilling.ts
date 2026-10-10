@@ -14,6 +14,7 @@ import type { GarmentGstRuleSettings } from "@/utils/gstRules";
 import { maxSaleReturnAdjustForPayable } from "@/utils/saleSettlement";
 import {
   addLine as addLinePure,
+  applyPosGarmentGstForBill,
   type AddLineProduct,
   type AddLineVariant,
   buildPosSalePersistPayload,
@@ -255,6 +256,19 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
       calculateRedemptionValue,
     ],
   );
+
+  // Garment GST slab follows the bill (flat) discount and the exclusive price basis
+  // too — line mutators judge one line on its own, this pass covers the whole bill.
+  useEffect(() => {
+    const next = applyPosGarmentGstForBill(itemsRef.current, garmentGstSettings, {
+      flatDiscountAmount: totals.flatDiscountAmount,
+      taxType,
+    });
+    if (next !== itemsRef.current) {
+      itemsRef.current = next;
+      setItemsState(next);
+    }
+  }, [items, totals.flatDiscountAmount, taxType, garmentGstSettings]);
 
   // Auto-update roundOff when calculation changes (only if not manual) — same as POSSales.
   useEffect(() => {

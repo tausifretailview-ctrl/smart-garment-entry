@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { isDecimalUOM } from "@/constants/uom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
-import { resolveGarmentGstForLine } from "@/utils/gstRules";
+import { getGarmentSlabPrice, resolveGarmentGstForLine } from "@/utils/gstRules";
 import { GST_SLABS } from "@/utils/gstRegisterUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
@@ -508,6 +508,8 @@ export default function SalesInvoice() {
   const [financerDetails, setFinancerDetails] = useState<FinancerDetails | null>(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const isInitializingEditRef = useRef(false);
+  /** Share of each line removed by the bill-level (flat) discount — set from totals each render. */
+  const billDiscountRatioRef = useRef(0);
   const hasManuallyAddedNewItemRef = useRef(false);
   const [originalItemsForEdit, setOriginalItemsForEdit] = useState<Array<{ variantId: string; quantity: number }>>([]);
   const [recordedReceiptAmount, setRecordedReceiptAmount] = useState(0);
@@ -2675,8 +2677,15 @@ export default function SalesInvoice() {
     const amountAfterDiscount = Math.round((baseAmount - discountAmount) * 100) / 100;
     const effectiveUnitPrice = mult > 0 ? amountAfterDiscount / mult : amountAfterDiscount;
     const purchaseGst = item.purchaseGstPercent ?? item.gstPercent;
-    const gstPercent = resolveGarmentGstForLine(
+    // Slab is judged on the per-piece price after line discount and the bill
+    // (flat / customer master) discount, in the threshold's incl. GST basis.
+    const slabPrice = getGarmentSlabPrice(
       effectiveUnitPrice,
+      { billDiscountRatio: billDiscountRatioRef.current, priceIncludesGst: taxType === "inclusive" },
+      garmentGstSettings,
+    );
+    const gstPercent = resolveGarmentGstForLine(
+      slabPrice,
       purchaseGst,
       item.gstPercent,
       garmentGstSettings,
@@ -4013,6 +4022,29 @@ Thank you for choosing us!`;
   const flatDiscountAmount = flatDiscountPercentAmount + flatDiscountRupees;
   const totalDiscount = lineItemDiscount + flatDiscountAmount;
   const amountAfterDiscount = grossAmount - totalDiscount + otherCharges;
+  // Same proportional split as totalGST below: each line loses flat/gross of its net.
+  const billDiscountRatio = grossAmount > 0 ? Math.min(1, Math.max(0, flatDiscountAmount / grossAmount)) : 0;
+  billDiscountRatioRef.current = billDiscountRatio;
+  const billDiscountRatioKey = Math.round(billDiscountRatio * 1e6);
+
+  // A bill discount changes every line's per-piece price, so re-judge the garment
+  // GST slab on all lines when it changes (lines keep their GST when the slab holds).
+  useEffect(() => {
+    if (isInitializingEditRef.current) return;
+    if (!garmentGstSettings.garment_gst_rule_enabled) return;
+    setLineItems((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (!item.productId) return item;
+        const recalculated = calculateLineTotal(item);
+        if (recalculated.gstPercent === item.gstPercent) return item;
+        changed = true;
+        return recalculated;
+      });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billDiscountRatioKey, garmentGstSettings.garment_gst_rule_enabled]);
   
   const totalGST = lineItems.reduce((sum, item) => {
     const baseAmount = item.salePrice * getMtrMultiplier(item) - item.discountAmount;
