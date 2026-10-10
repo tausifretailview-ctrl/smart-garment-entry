@@ -1,13 +1,12 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, type KeyboardEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
-import { Search, Grid3X3, X, Check, FileText, Loader2 } from "lucide-react";
+import { Search, Grid3X3, X, FileText, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { sizeMatrixKey, sortSizes } from "@/utils/sizeSort";
@@ -70,8 +69,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [sizeWiseData, setSizeWiseData] = useState<{ sizes: string[]; rows: SizeWiseRow[] }>({ sizes: [], rows: [] });
   const [productDisplayLimit, setProductDisplayLimit] = useState(100);
-  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const resultsListRef = useRef<HTMLDivElement>(null);
 
   // Size groups (reference data) — standalone cached query, shared via React Query with
   // SalesInvoice / DeliveryChallanEntry (identical ['size-groups', orgId] key → warm cache).
@@ -108,10 +109,10 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
       setProducts([]);
       setSelectedProducts([]);
       setSizeWiseData({ sizes: [], rows: [] });
-      setPopoverOpen(false);
+      setHighlightIndex(0);
     } else {
-      // Auto-open search popover so cursor lands in the input
-      const t = setTimeout(() => setPopoverOpen(true), 80);
+      // Land the cursor in the search box
+      const t = setTimeout(() => searchInputRef.current?.focus(), 80);
       return () => clearTimeout(t);
     }
   }, [open]);
@@ -120,6 +121,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
   const searchProducts = useCallback(async (query: string) => {
     if (!currentOrganization?.id || query.length < 2) {
       setProducts([]);
+      setProductsLoading(false);
       return;
     }
 
@@ -296,6 +298,7 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
       setProducts(Array.from(grouped.values()).slice(0, 100));
       setProductDisplayLimit(100); // Reset on new search
+      setHighlightIndex(0);
     } catch (error) {
       console.error("Error searching products:", error);
     } finally {
@@ -305,6 +308,8 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
   const handleProductSearchChange = (value: string) => {
     setProductSearch(value);
+    // Show "Searching..." during the debounce instead of stale or empty results
+    setProductsLoading(value.trim().length >= 2);
 
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -315,19 +320,47 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
     }, 300);
   };
 
-  // Add product to selection (grouped - use grouping key to avoid duplicates)
+  // Pick one product (all its colour records) and show its size stock
   const handleSelectProduct = (product: Product) => {
-    const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
-    if (!selectedProducts.find(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` === groupKey)) {
-      setSelectedProducts(prev => [...prev, product]);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
     }
-    setPopoverOpen(false);
+    setSelectedProducts([product]);
     setProductSearch("");
+    setProducts([]);
+    setHighlightIndex(0);
   };
 
-  // Remove product from selection
-  const handleRemoveProduct = (groupKey: string) => {
-    setSelectedProducts(prev => prev.filter(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` !== groupKey));
+  const handleChangeProduct = () => {
+    setSelectedProducts([]);
+    setProductSearch("");
+    setProducts([]);
+    searchInputRef.current?.focus();
+  };
+
+  const visibleProducts = products.slice(0, productDisplayLimit);
+  const showResults = productSearch.trim().length > 0;
+
+  // Keep the highlighted row in view while using the arrow keys
+  useEffect(() => {
+    const el = resultsListRef.current?.querySelector<HTMLElement>(`[data-index="${highlightIndex}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [highlightIndex]);
+
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex(i => Math.min(i + 1, Math.max(visibleProducts.length - 1, 0)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex(i => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      const product = visibleProducts[highlightIndex];
+      if (product && !productsLoading) {
+        e.preventDefault();
+        handleSelectProduct(product);
+      }
+    }
   };
 
   // Load stock data when products are selected
@@ -569,7 +602,17 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[600px] md:max-w-[800px] max-h-[80vh] flex flex-col p-0 gap-0">
+      <DialogContent
+        className="max-w-[95vw] sm:max-w-[600px] md:max-w-[800px] max-h-[80vh] flex flex-col p-0 gap-0"
+        onEscapeKeyDown={(e) => {
+          // First Esc clears the search; the next one closes the dialog
+          if (productSearch) {
+            e.preventDefault();
+            setProductSearch("");
+            setProducts([]);
+          }
+        }}
+      >
         {/* Compact Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
           <div className="flex items-center gap-1.5">
@@ -602,153 +645,125 @@ export function SizeStockDialog({ open, onOpenChange }: SizeStockDialogProps) {
           </div>
         </div>
         
-        {/* Compact Search */}
-        <div className="px-3 py-2 border-b bg-background">
-          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                role="combobox"
-                aria-expanded={popoverOpen}
-                className="w-full justify-start h-8 text-xs font-normal"
+        {/* Search */}
+        <div className="px-3 py-2 border-b bg-background space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <Input
+              ref={searchInputRef}
+              value={productSearch}
+              onChange={(e) => handleProductSearchChange(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search products..."
+              aria-label="Search products by name, brand, style or barcode"
+              className="h-10 pl-9 pr-9 text-sm"
+              autoComplete="off"
+            />
+            {productSearch && (
+              <button
+                type="button"
+                onClick={() => { setProductSearch(""); setProducts([]); searchInputRef.current?.focus(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted"
+                aria-label="Clear search"
               >
-                <Search className="mr-1.5 h-3 w-3 shrink-0 opacity-50" />
-                <span className="text-muted-foreground">Search products...</span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput 
-                  placeholder="Search by barcode, product name, brand, style..." 
-                  value={productSearch}
-                  onValueChange={handleProductSearchChange}
-                  className="h-8 text-xs"
-                />
-                <CommandList className="max-h-48">
-                  {productsLoading ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      Searching...
-                    </div>
-                  ) : productSearch.length < 1 ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      Type to search...
-                    </div>
-                  ) : products.length === 0 ? (
-                    <CommandEmpty className="text-xs py-4">No products found.</CommandEmpty>
-                  ) : (
-                    <>
-                      {products.length > productDisplayLimit && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground bg-muted/50 border-b flex items-center justify-between">
-                          <span>Showing {productDisplayLimit} of {products.length} results</span>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setProductDisplayLimit(prev => prev + 100);
-                            }}
-                            className="text-primary font-medium hover:underline text-sm"
-                          >
-                            Load More
-                          </button>
-                        </div>
-                      )}
-                      <CommandGroup>
-                        {products.slice(0, productDisplayLimit).map((product) => {
-                        const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
-                        const isSelected = selectedProducts.some(p => `${p.product_name}||${p.brand}||${p.category}||${p.style}` === groupKey);
-                        // Show description without color (color shown separately as badges)
-                        const descParts = [product.product_name];
-                        if (product.brand) descParts.push(product.brand);
-                        if (product.category) descParts.push(product.category);
-                        if (product.style) descParts.push(product.style);
-                        const description = descParts.join(' | ');
-                        return (
-                          <CommandItem
-                            key={groupKey}
-                            value={groupKey}
-                            onSelect={() => handleSelectProduct(product)}
-                            className="cursor-pointer py-2"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-1.5 h-3 w-3",
-                                isSelected ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col flex-1 gap-0.5">
-                              {/* Line 1: Product description (without color) + size group badges */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-xs font-medium">
-                                  {description}
-                                </span>
-                                {product.allSizeGroups.map(sg => (
-                                  <span key={sg} className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold shrink-0">
-                                    {sg}
-                                  </span>
-                                ))}
-                              </div>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            )}
+          </div>
 
-                              {/* Line 2: Colors as badges */}
-                              {product.allColors.length > 0 && (
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <span className="text-[10px] font-semibold text-foreground">Colors:</span>
-                                  {product.allColors.map(c => (
-                                    <span key={c} className="text-[10px] px-1.5 py-0 rounded bg-secondary text-foreground font-bold">
-                                      {c}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </CommandItem>
-                        );
-                      })}
-                      </CommandGroup>
-                    </>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-
-          {/* Selected Products Tags - Compact */}
-          {selectedProducts.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {selectedProducts.map((product) => {
-                const groupKey = `${product.product_name}||${product.brand}||${product.category}||${product.style}`;
-                return (
-                <div
-                  key={groupKey}
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-medium"
-                >
-                  <span>{product.product_name}{product.allColors.length > 0 ? ` (${product.allColors.join(', ')})` : ''}</span>
-                  <button
-                    onClick={() => handleRemoveProduct(groupKey)}
-                    className="ml-0.5 hover:bg-primary/20 rounded p-0.5"
-                  >
-                    <X className="h-2.5 w-2.5" />
-                  </button>
+          {/* Selected product */}
+          {selectedProducts.length > 0 && !showResults && (() => {
+            const product = selectedProducts[0];
+            const details = [product.brand, product.category, product.style].filter(Boolean).join(" · ");
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-primary/5 px-3 py-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-foreground truncate">{product.product_name}</div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {[details, product.allSizeGroups.join(", "), product.allColors.join(", ")].filter(Boolean).join("  |  ")}
+                  </div>
                 </div>
-                );
-              })}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-5 px-1.5 text-[10px]"
-                onClick={() => setSelectedProducts([])}
-              >
-                Clear
-              </Button>
-            </div>
-          )}
+                <Button variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={handleChangeProduct}>
+                  Change product
+                </Button>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Content Area */}
         <div className="flex-1 overflow-hidden">
-          {selectedProducts.length === 0 ? (
+          {showResults ? (
+            <div ref={resultsListRef} className="h-[calc(80vh-150px)] overflow-y-auto" role="listbox">
+              {productsLoading ? (
+                <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Searching...
+                </div>
+              ) : productSearch.trim().length < 2 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">Keep typing...</div>
+              ) : products.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">No products found.</div>
+              ) : (
+                <>
+                  {visibleProducts.map((product, idx) => {
+                    const details = [product.brand, product.category, product.style].filter(Boolean).join(" · ");
+                    const isHighlighted = idx === highlightIndex;
+                    return (
+                      <button
+                        type="button"
+                        key={`${product.product_name}||${product.brand}||${product.category}||${product.style}`}
+                        data-index={idx}
+                        role="option"
+                        aria-selected={isHighlighted}
+                        onMouseEnter={() => setHighlightIndex(idx)}
+                        onClick={() => handleSelectProduct(product)}
+                        className={cn(
+                          "w-full text-left px-4 py-2.5 border-b border-border/60 flex items-start justify-between gap-3",
+                          isHighlighted ? "bg-primary/10" : "hover:bg-muted/60"
+                        )}
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-foreground truncate">{product.product_name}</div>
+                          {details && <div className="text-xs text-muted-foreground truncate">{details}</div>}
+                          {product.allColors.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {product.allColors.map(c => (
+                                <span key={c} className="text-[11px] px-1.5 py-0.5 rounded border bg-background text-foreground font-medium">
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {product.allSizeGroups.length > 0 && (
+                          <div className="flex flex-wrap justify-end gap-1 shrink-0">
+                            {product.allSizeGroups.map(sg => (
+                              <span key={sg} className="text-[11px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                                {sg}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                  {products.length > productDisplayLimit && (
+                    <button
+                      type="button"
+                      onClick={() => setProductDisplayLimit(prev => prev + 100)}
+                      className="w-full py-2 text-sm text-primary font-medium hover:underline"
+                    >
+                      Showing {productDisplayLimit} of {products.length}. Load more
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : selectedProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
               <Grid3X3 className="h-8 w-8 mb-2 opacity-30" />
-              <p className="text-xs">Select products to view stock</p>
+              <p className="text-sm">Type a product name, brand, style or barcode, then pick one product</p>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center h-40">
