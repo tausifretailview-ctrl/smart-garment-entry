@@ -8,8 +8,10 @@
 --     must stay as before (CN not deducted), but was deducted a second time -> balance too low.
 -- The app's JS twin (customerBalanceCore.ts fullBillByHeader, |net - full| <= 0.5) is already right.
 --
--- Fix: "> 0.5 )" -> "<= 0.5 )" inside the gate, on the LIVE definitions (pg_get_functiondef ->
--- regexp_replace -> EXECUTE), so anything else applied in production is preserved.
+-- Production (checked 2026-10-10) carries a variant, ABS(net + CN - full) > 0.5, which deducts the CN on
+-- every bill except one already reduced by exactly the CN, so VELVET / SACCHI still lose it twice.
+-- Fix: both known forms -> ABS(net - full) <= 0.5 inside the gate, on the LIVE definitions
+-- (pg_get_functiondef -> plain replace -> EXECUTE), so anything else applied in production is preserved.
 -- Only functions that carry the old gate and not the v2 marker are touched. If 20270109120000 was
 -- never applied (or was applied from the corrected copy), there is nothing to patch and this is a no-op.
 --
@@ -24,11 +26,12 @@ DECLARE
   v_def text;
   v_new text;
   v_patched int := 0;
-  v_pattern constant text :=
-    '(/\* cn-header-gate \*/ AND NOT \( COALESCE\(s\.gross_amount, 0\) > 0 AND ABS\(s\.net_amount '
-    || '- \(COALESCE\(s\.gross_amount, 0\) '
-    || '- \(COALESCE\(s\.discount_amount, 0\) \+ COALESCE\(s\.flat_discount_amount, 0\) \+ COALESCE\(s\.points_redeemed_amount, 0\)\) '
-    || '\+ COALESCE\(s\.round_off, 0\)\)\)) > 0\.5 \)';
+  v_live constant text :=
+    '/* cn-header-gate */ AND NOT ( COALESCE(s.gross_amount, 0) > 0 AND ABS(s.net_amount + COALESCE(s.sale_return_adjust, 0) - (COALESCE(s.gross_amount, 0) - (COALESCE(s.discount_amount, 0) + COALESCE(s.flat_discount_amount, 0) + COALESCE(s.points_redeemed_amount, 0)) + COALESCE(s.round_off, 0))) > 0.5 )';
+  v_repo constant text :=
+    '/* cn-header-gate */ AND NOT ( COALESCE(s.gross_amount, 0) > 0 AND ABS(s.net_amount - (COALESCE(s.gross_amount, 0) - (COALESCE(s.discount_amount, 0) + COALESCE(s.flat_discount_amount, 0) + COALESCE(s.points_redeemed_amount, 0)) + COALESCE(s.round_off, 0))) > 0.5 )';
+  v_fixed constant text :=
+    '/* cn-header-gate */ AND NOT ( COALESCE(s.gross_amount, 0) > 0 AND ABS(s.net_amount - (COALESCE(s.gross_amount, 0) - (COALESCE(s.discount_amount, 0) + COALESCE(s.flat_discount_amount, 0) + COALESCE(s.points_redeemed_amount, 0)) + COALESCE(s.round_off, 0))) <= 0.5 /* cn-header-gate-v2 */ )';
 BEGIN
   FOR v_fn IN
     SELECT p.oid::regprocedure
@@ -41,9 +44,9 @@ BEGIN
     ORDER BY p.oid::regprocedure::text
   LOOP
     v_def := pg_get_functiondef(v_fn);
-    v_new := regexp_replace(v_def, v_pattern, '\1 <= 0.5 /* cn-header-gate-v2 */ )', 'g');
+    v_new := replace(replace(v_def, v_live, v_fixed), v_repo, v_fixed);
     IF v_new = v_def THEN
-      RAISE EXCEPTION 'cn-header-gate-v2: gate found but not in the expected form in %', v_fn;
+      RAISE EXCEPTION 'cn-header-gate-v2: gate found but not in a known form in %', v_fn;
     END IF;
     EXECUTE v_new;
     v_patched := v_patched + 1;
@@ -58,5 +61,5 @@ $fix$;
 --   SELECT p.oid::regprocedure FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 --   WHERE n.nspname = 'public' AND p.prosrc LIKE '%cn-header-gate */%'
 --     AND p.prosrc NOT LIKE '%cn-header-gate-v2%';      -- expect 0 rows
--- SONI SHOES (KS Footwear) should drop by 2,390 versus before 20270109120000; VELVET / SACCHI / DEMO
--- customers return to their values from before 20270109120000.
+-- SONI SHOES (KS Footwear) keeps the CN deducted (2,390 below its pre-20270109120000 value);
+-- VELVET / SACCHI / DEMO customers return to their values from before 20270109120000.
