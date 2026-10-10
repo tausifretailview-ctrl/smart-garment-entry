@@ -580,16 +580,12 @@ export default function InstallApp() {
                 </Button>
               </Card>
             )}
-            {windowsPortableConfigured && (
+            {windowsPortableConfigured && windowsPortableStatus !== "unavailable" && (
               <Button
                 variant="outline"
                 className="w-full"
                 size="sm"
-                disabled={
-                  windowsDownloadBusy ||
-                  windowsPortableStatus === "checking" ||
-                  windowsPortableStatus === "unavailable"
-                }
+                disabled={windowsDownloadBusy || windowsPortableStatus === "checking"}
                 onClick={() =>
                   void handleWindowsDownload(
                     windowsPortableUrl,
@@ -602,11 +598,6 @@ export default function InstallApp() {
                   ? "Checking portable…"
                   : "Portable version (no install needed)"}
               </Button>
-            )}
-            {windowsPortableStatus === "unavailable" && (
-              <p className="text-xs text-center text-destructive">
-                Portable file <span className="font-mono">{WINDOWS_PORTABLE_FILE}</span> is not on the server yet.
-              </p>
             )}
             <div className="flex items-center gap-2 bg-muted rounded-md px-3 py-2">
               <span className="text-xs flex-1 truncate font-mono">{windowsSetupUrl}</span>

@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, app } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 // Mark the document so Electron-only CSS can scope itself with `html.desktop-shell`.
 // Browser users never get this class, so the website is untouched.
@@ -45,7 +45,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   /** Packaged app version (hint bar / About). Additive — existing callers unchanged. */
   appVersion: (() => {
     try {
-      return app.getVersion();
+      const arg = (process.argv || []).find((a) => a.startsWith('--ezzy-app-version='));
+      return arg ? arg.slice('--ezzy-app-version='.length) : undefined;
     } catch {
       return undefined;
     }

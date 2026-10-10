@@ -119,6 +119,9 @@ export const useDirectPrint = (billBarcodeSettings?: DirectPrintSettings | null)
           }
           if (result.error) {
             console.warn('Electron silent print failed:', result.error);
+            toast.error('Direct print failed, opening the print dialog', {
+              description: result.error,
+            });
           }
         }
 

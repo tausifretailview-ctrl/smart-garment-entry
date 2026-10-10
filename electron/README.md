@@ -30,15 +30,28 @@ Node 18 LTS or newer is required.
 ## Auto-update
 
 Wired via `electron-updater` to GitHub Releases (see `package.json` →
-`build.publish`). To ship an update:
+`build.publish`, `releaseType: release` so the release is live, not a draft).
+Only the installed **Setup** build updates itself; the portable `.exe` never does.
 
-```bash
-npm version patch          # bumps package.json version
-npm run electron:publish   # builds + uploads to GitHub Releases
-```
+Installed clients check on launch and every 4 hours, download in the
+background, and install when EzzyERP is next quit. No modal dialog appears
+while billing (a scanner's Enter would press it): a Windows notification and a
+tray item **Restart to install update…** offer an early restart.
 
-Installed clients check on launch, download in the background, and prompt to
-restart when ready.
+## Release checklist (each new desktop version)
+
+1. Bump `version` in `package.json` (and the root entry in `package-lock.json`).
+2. On the Windows PC: `npm install`, then `$env:GH_TOKEN="<token with repo scope>"; npm run electron:publish`.
+   This builds `release/EzzyERP-Setup-x.y.z.exe`, `EzzyERP-Portable-x.y.z.exe`,
+   `latest.yml` and the `.blockmap`, and publishes them as a GitHub Release
+   (that is what installed apps update from).
+3. Upload both `.exe` files to the private Supabase storage bucket `app-downloads`
+   (that is what the install page serves to new shops).
+4. Bump `CURRENT_VERSION` (and keep old names in `ALLOWED_FILES`) in
+   `supabase/functions/download-windows/index.ts`, redeploy `download-windows`,
+   then bump `APP_VERSION` in `src/config/downloads.ts`.
+5. Install page → Download → install on a test PC, open the DEMO shop, and run
+   Settings → Desktop Print Settings → Test Print Invoice / Receipt / Label.
 
 ## Web app updates vs desktop installer
 
@@ -83,4 +96,5 @@ cache is discarded after reload.
 | "Not responding" dialog | Click **Reload now** — work on the current screen may be lost. |
 | App stays in background after Close | That's intentional. Right-click tray icon → **Quit** to fully exit. |
 | Printing dialog still appears | The web app calls `electronAPI.silentPrint()` only when running inside the desktop shell. Verify `window.electronAPI?.isElectron === true` in DevTools. |
-| Auto-update never prompts | Only works in the installed **Setup** `.exe` (not portable, not `electron:dev`). Confirm `app-update.yml` is present next to the executable. Bump `package.json` version and run `npm run electron:publish` to ship a new installer. |
+| Auto-update never arrives | Only works in the installed **Setup** `.exe` (not portable, not `electron:dev`). Confirm `app-update.yml` is in the install folder's `resources`, and that the GitHub Release for the new version is published (not a draft) with `latest.yml` attached. |
+| Direct print goes to the dialog instead | The pinned printer is not connected or was renamed. The toast names it; re-pick it in Settings → Desktop Print Settings (a "not connected" note shows there). |
