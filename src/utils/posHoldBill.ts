@@ -27,3 +27,20 @@ export function shouldPromoteHoldNumberToPos(
   if (!isHoldSaleNumber(saleNumber)) return false;
   return String(nextPaymentStatus || "") !== "hold";
 }
+
+/**
+ * A Hold/ number whose status is no longer "hold" is still a parked bill only while it is
+ * pay_later (F7 Hold always saves pay_later; the S/R-exchange refund case keeps it).
+ * Bills completed from Hold before Hold/ → POS/ promotion existed keep their Hold/ number
+ * with a real tender method (cash / upi / card / multiple) and are real sales.
+ * Unknown method (column not selected) keeps the old "any Hold/ is held" behaviour.
+ */
+export function isParkedHoldNumberSale(sale: {
+  sale_number?: string | null;
+  payment_method?: string | null;
+}): boolean {
+  if (!isHoldSaleNumber(sale.sale_number)) return false;
+  const method = sale.payment_method;
+  if (method == null || String(method).trim() === "") return true;
+  return String(method).trim().toLowerCase() === "pay_later";
+}
