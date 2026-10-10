@@ -1,8 +1,8 @@
 {
   "generatedBy": "scripts/check-schema-migrations-drift.mjs",
   "generatedAt": "2026-10-10",
-  "count": 844,
-  "fileCount": 862,
+  "count": 845,
+  "fileCount": 863,
   "versions": [
     "20251106190718",
     "20251106190735",
@@ -847,7 +847,8 @@
     "20270116120000",
     "20270117120000",
     "20270118120000",
-    "20270119120000"
+    "20270119120000",
+    "20270120120000"
   ],
   "files": [
     "20251106190718_ff858ff9-7711-4517-9041-0985e2b8127a.sql",
@@ -1711,7 +1712,8 @@
     "20270116120000_website_customer_perks.sql",
     "20270117120000_wappconnect_single_message.sql",
     "20270118120000_fix_cn_header_gate_direction.sql",
-    "20270119120000_supplier_on_account_payments_kept.sql"
+    "20270119120000_supplier_on_account_payments_kept.sql",
+    "20270120120000_sales_header_search_trgm.sql"
   ],
   "duplicateVersions": [
     {

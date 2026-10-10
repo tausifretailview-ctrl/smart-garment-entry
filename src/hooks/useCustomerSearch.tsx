@@ -35,6 +35,9 @@ const CUSTOMER_SEARCH_COLUMNS =
 /** First page size for POS/Sales customer picker (range 0..PAGE; +1 row detects hasMore). */
 const CUSTOMER_SEARCH_PAGE_SIZE = 200;
 
+/** Terms whose characters can change how PostgREST parses the .or() filter. */
+const hasOrFilterSpecialChars = (term: string) => /[\\,()"]/.test(term);
+
 /**
  * Reliable customer search hook with server-side search
  * Handles 2000+ customers efficiently by searching on the server
@@ -136,8 +139,10 @@ export const useCustomerSearch = (searchTerm: string = "", options: UseCustomerS
         throw queryError;
       }
       
-      // If .or() returned 0 results but we had a search term, try fallback
-      if (term && (!data || data.length === 0)) {
+      // .or() already holds the same name ilike, so a name-only retry finds more only
+      // when the term has characters the .or() string treats specially. Skipping it
+      // otherwise saves one request on every no-match search.
+      if (term && (!data || data.length === 0) && hasOrFilterSpecialChars(term)) {
         const { data: fallbackData, error: fallbackError } = await supabase
           .from("customers")
           .select(CUSTOMER_SEARCH_COLUMNS)
