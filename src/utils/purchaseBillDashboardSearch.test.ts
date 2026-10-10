@@ -5,7 +5,7 @@ import {
 } from "./purchaseBillDashboardSearch";
 
 describe("purchase item search shape", () => {
-  it("treats 4+ digits as barcode-like (exact then prefix)", () => {
+  it("treats 4+ digits as barcode-like (exact, then contains)", () => {
     expect(isPurchaseBarcodeLikeSearch("4500")).toBe(true);
     expect(isPurchaseBarcodeLikeSearch("8901234567890")).toBe(true);
     expect(isPurchaseBarcodeLikeSearch("205")).toBe(false);

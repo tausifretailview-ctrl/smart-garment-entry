@@ -78,10 +78,11 @@ export async function fetchPurchaseBillIdsMatchingLineItems(
         .in("bill_id", batch)
         .limit(itemLimit);
 
-    // Numeric 4+ digits: exact barcode, then prefix. Not %barcode% (410 ms class).
-    // Product text keeps 6-field contains — dashboard placeholder is substring search.
+    // Numeric 4+ digits: exact barcode first (fast path, stops on a hit), then the same
+    // 6-field contains search as text so last digits of a barcode or a numeric style/name
+    // still match. Bounded by the 200-bill batch above.
     const queries = barcodeLike
-      ? [base().eq("barcode", t), base().ilike("barcode", `${t}%`)]
+      ? [base().eq("barcode", t), base().or(purchaseItemTextSearchOr(t))]
       : [base().or(purchaseItemTextSearchOr(t))];
 
     for (const q of queries) {
