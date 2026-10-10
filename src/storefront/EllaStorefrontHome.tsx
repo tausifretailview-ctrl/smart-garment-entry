@@ -23,7 +23,7 @@ import {
   type EllaSortKey,
   type EllaStorefrontProduct,
 } from "./ellaProduct";
-import { resolveEllaHeaderNav, isEllaHomeNav, type EllaHeaderNavItem } from "./ellaNav";
+import { resolveEllaHeaderNav, resolveEllaCtaTarget, isEllaHomeNav, type EllaHeaderNavItem } from "./ellaNav";
 import { ellaCopy, storefrontLocationLine } from "./storefrontTheme";
 import { InstagramStrokeIcon, WhatsAppStrokeIcon } from "./storefrontSocialIcons";
 import "./ella-home.css";
@@ -406,7 +406,7 @@ export function EllaStorefrontHome({
     }
   };
 
-  const byId = (id: string) => nav.find((n) => n.id === id) || nav[0];
+  const byId = (id: string) => resolveEllaCtaTarget(nav, id);
 
   const heroSlides = HERO_COPY.map((copy) => ({
     ...copy,

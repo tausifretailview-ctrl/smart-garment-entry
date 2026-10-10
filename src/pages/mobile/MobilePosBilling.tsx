@@ -732,6 +732,11 @@ export default function MobilePosBilling() {
             mode={kpMode}
             onModeChange={setKpMode}
             onClose={() => setSelIndex(null)}
+            onRemove={() => {
+              const i = selIndex;
+              setSelIndex(null);
+              removeLine(i);
+            }}
             formatMoney={(n) => `₹${formatInr(n)}`}
             onCommit={(mode, value) => {
               const i = selIndex;

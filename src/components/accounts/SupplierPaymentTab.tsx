@@ -59,7 +59,6 @@ import {
   voucherSettlementCredit,
 } from "@/utils/paymentSettlementBreakdown";
 import {
-  syncPurchaseBillPaymentFromVouchers,
   syncPurchaseBillPaymentsFromVouchersBatch,
 } from "@/utils/purchaseBillSettlement";
 import { confirmSupplierOverpaymentIfNeeded } from "@/utils/supplierOverpaymentGuard";
@@ -584,69 +583,77 @@ export function SupplierPaymentTab({
       const createdSupplierVoucherIds: string[] = [];
 
       if (processedBills.length > 0) {
-        for (let i = 0; i < processedBills.length; i++) {
-          const processed = processedBills[i];
-          const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
-          const billRef =
-            processed.bill.supplier_invoice_no ||
-            processed.bill.software_bill_no ||
-            processed.bill.id.slice(0, 8);
-          const billDiscountSuffix =
-            processed.discountApplied > 0
-              ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
-              : "";
-          const baseDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
-          const voucherDescription = description
-            ? `${description} | ${baseDescription}${billDiscountSuffix}`
-            : `${baseDescription}${billDiscountSuffix}`;
-          const { data: ins, error: voucherError } = await supabase
-            .from("voucher_entries")
-            .insert({
-              organization_id: organizationId,
-              voucher_number: vNum,
-              voucher_type: "payment",
-              voucher_date: format(voucherDate, "yyyy-MM-dd"),
-              reference_type: "supplier",
-              reference_id: processed.bill.id,
-              description: voucherDescription,
-              total_amount: processed.cashApplied,
-              discount_amount: processed.discountApplied,
-              discount_reason: processed.discountApplied > 0 ? discountReason.trim() || null : null,
-              payment_method: paymentMethod,
-              created_by: user?.id ?? null,
-            })
-            .select("id")
-            .single();
-          if (voucherError) throw voucherError;
-          if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
-          createdSupplierVoucherIds.push(ins.id);
-          await syncPurchaseBillPaymentFromVouchers(processed.bill.id, organizationId, supabase);
-          if (postLedger) {
-            try {
-              await recordSupplierPaymentJournalEntry(
-                ins.id,
-                organizationId,
-                processed.cashApplied,
-                processed.discountApplied,
-                paymentMethod,
-                format(voucherDate, "yyyy-MM-dd"),
-                voucherDescription,
-                supabase
-              );
-            } catch (glErr) {
-              for (const vid of createdSupplierVoucherIds) {
-                await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
-                await supabase.from("voucher_entries").delete().eq("id", vid);
+        // Bill paid/partial is synced from vouchers only after every voucher (and its ledger
+        // post) succeeded. Syncing per voucher bumped paid_amount before the ledger post, and a
+        // rollback could not lower it again (effective paid keeps the stored amount).
+        const billIds = processedBills.map((p) => p.bill.id);
+        try {
+          for (let i = 0; i < processedBills.length; i++) {
+            const processed = processedBills[i];
+            const vNum = processedBills.length > 1 ? `${voucherNumber}-${i + 1}` : voucherNumber;
+            const billRef =
+              processed.bill.supplier_invoice_no ||
+              processed.bill.software_bill_no ||
+              processed.bill.id.slice(0, 8);
+            const billDiscountSuffix =
+              processed.discountApplied > 0
+                ? ` | Discount: ₹${processed.discountApplied.toFixed(2)}${discountReason ? ` (${discountReason})` : ""}`
+                : "";
+            const baseDescription = `Payment for Bill: ${billRef} | Supplier: ${processed.bill.supplier_name || suppliersWithBalance?.find((s: any) => s.id === referenceId)?.supplier_name || ""}${paymentDetails}`;
+            const voucherDescription = description
+              ? `${description} | ${baseDescription}${billDiscountSuffix}`
+              : `${baseDescription}${billDiscountSuffix}`;
+            const { data: ins, error: voucherError } = await supabase
+              .from("voucher_entries")
+              .insert({
+                organization_id: organizationId,
+                voucher_number: vNum,
+                voucher_type: "payment",
+                voucher_date: format(voucherDate, "yyyy-MM-dd"),
+                reference_type: "supplier",
+                reference_id: processed.bill.id,
+                description: voucherDescription,
+                total_amount: processed.cashApplied,
+                discount_amount: processed.discountApplied,
+                discount_reason: processed.discountApplied > 0 ? discountReason.trim() || null : null,
+                payment_method: paymentMethod,
+                created_by: user?.id ?? null,
+              })
+              .select("id")
+              .single();
+            if (voucherError) throw voucherError;
+            if (!ins?.id) throw new Error("Supplier payment voucher insert failed");
+            createdSupplierVoucherIds.push(ins.id);
+            if (postLedger) {
+              try {
+                await recordSupplierPaymentJournalEntry(
+                  ins.id,
+                  organizationId,
+                  processed.cashApplied,
+                  processed.discountApplied,
+                  paymentMethod,
+                  format(voucherDate, "yyyy-MM-dd"),
+                  voucherDescription,
+                  supabase
+                );
+              } catch (glErr) {
+                for (const vid of createdSupplierVoucherIds) {
+                  await deleteJournalEntryByReference(organizationId, "SupplierPayment", vid, supabase);
+                  await supabase.from("voucher_entries").delete().eq("id", vid);
+                }
+                createdSupplierVoucherIds.length = 0;
+                throw glErr;
               }
-              await syncPurchaseBillPaymentsFromVouchersBatch(
-                processedBills.map((p) => p.bill.id),
-                organizationId,
-                supabase,
-              );
-              throw glErr;
             }
           }
+        } catch (loopErr) {
+          // Vouchers that were saved before a later insert failed stay; keep their bills in step.
+          if (createdSupplierVoucherIds.length > 0) {
+            await syncPurchaseBillPaymentsFromVouchersBatch(billIds, organizationId, supabase);
+          }
+          throw loopErr;
         }
+        await syncPurchaseBillPaymentsFromVouchersBatch(billIds, organizationId, supabase);
       } else {
         const obDescription = finalDescription + discountSuffix;
         const { data: ins, error } = await supabase

@@ -6,7 +6,7 @@
  * Prior-day sale receipts and true customer/OB receipts still count in full.
  */
 
-import { isHoldSaleNumber } from "@/utils/posHoldBill";
+import { isParkedHoldNumberSale } from "@/utils/posHoldBill";
 import { isNonCashSettlementReceiptMethod } from "@/utils/saleSettlement";
 import {
   buildCashierReceiptModeMap,
@@ -283,7 +283,7 @@ function resolveMode(paymentMethod: string | null | undefined, description: stri
 
 function isHoldLikeSale(sale: CashierSaleRow): boolean {
   if (sale.payment_status === "hold") return true;
-  return isHoldSaleNumber(sale.sale_number);
+  return isParkedHoldNumberSale(sale);
 }
 
 export type CashierAdvanceRow = {

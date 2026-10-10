@@ -5743,6 +5743,17 @@ const PurchaseEntry = () => {
     // onto that product — the Recycle Bin row is the old copy, not the one being billed.
     let saveLines = lineItems;
     if (!isEditMode && currentOrganization?.id) {
+      // Size-grid SKUs recycled while the bill was open are restored first, so the
+      // deleted check below does not refuse them or move them onto another variant.
+      // The restore after the line checks still runs; failing here never blocks the save.
+      try {
+        await restoreRecycledPurchaseDraftSkus({
+          organizationId: currentOrganization.id,
+          skuIds: saveLines.map((item) => item.sku_id),
+        });
+      } catch {
+        /* retried by the restore step later in the save */
+      }
       const deletedLines = await findDeletedPurchaseLines(
         supabase as unknown as DeletedRefsClient,
         currentOrganization.id,

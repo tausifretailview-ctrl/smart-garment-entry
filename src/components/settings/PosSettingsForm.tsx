@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import {
   isPosThermalBillFormat,
+  isThermal80mmInvoiceTemplate,
   paperPatchesForInvoiceTemplate,
   posInvoiceTemplateForBillFormat,
   resolvePosInvoiceTemplate,
@@ -439,9 +440,17 @@ export function PosSettingsForm<T extends PosSettingsFormState>({
               value={resolvedPosTemplate}
               onValueChange={(value) => {
                 onFocusPosPreview();
+                const paper = paperPatchesForInvoiceTemplate(value, "pos");
+                // A full-page design picked while POS Bill Format is Thermal: leave thermal,
+                // otherwise the thermal guard above snaps the choice back to Kids 80mm.
+                const leaveThermal =
+                  posThermal && !isThermal80mmInvoiceTemplate(value) && !paper.pos_bill_format
+                    ? { pos_bill_format: (/a5/i.test(value) ? "a5-vertical" : "a4") as SaleSlice["pos_bill_format"] }
+                    : {};
                 patchSale({
                   pos_invoice_template: value as InvoiceTemplateId,
-                  ...paperPatchesForInvoiceTemplate(value, "pos"),
+                  ...paper,
+                  ...leaveThermal,
                 });
               }}
             >

@@ -125,3 +125,23 @@ describe("S/R exchange — SRA baked into net_amount", () => {
     ).toBe(200);
   });
 });
+
+describe("old bill completed from Hold before Hold/ → POS/ promotion", () => {
+  it("counts a Hold/ bill settled in cash as a real sale, not a held bill", () => {
+    const legacyCompleted = {
+      sale_number: "Hold/25-26/14",
+      payment_status: "completed",
+      payment_method: "cash",
+      gross_amount: 1200,
+      net_amount: 1200,
+      paid_amount: 1200,
+      cash_amount: 1200,
+    };
+    expect(isHoldLikePosSale(legacyCompleted)).toBe(false);
+    expect(isPosSalePaidCompleted(legacyCompleted)).toBe(true);
+  });
+
+  it("still treats a Hold/ row with no method loaded as held", () => {
+    expect(isHoldLikePosSale({ sale_number: "Hold/26-27/9", payment_status: "pending" })).toBe(true);
+  });
+});

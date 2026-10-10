@@ -729,6 +729,11 @@ export default function MobilePurchaseEntry() {
             mode={kpMode === "disc" ? "price" : kpMode}
             onModeChange={setKpMode}
             onClose={() => setSelIndex(null)}
+            onRemove={() => {
+              const i = selIndex;
+              setSelIndex(null);
+              setItems((prev) => prev.filter((_, k) => k !== i));
+            }}
             showDiscount={false}
             formatMoney={(n) => `₹${formatInr(n)}`}
             onCommit={(mode, value) => {

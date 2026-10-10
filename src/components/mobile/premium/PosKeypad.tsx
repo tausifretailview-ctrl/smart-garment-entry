@@ -25,6 +25,7 @@ export function PosKeypad({
   onModeChange,
   onCommit,
   onClose,
+  onRemove,
   showDiscount = true,
   formatMoney,
 }: {
@@ -38,6 +39,8 @@ export function PosKeypad({
   /** value is a number; commit on every keystroke so the total tracks live */
   onCommit: (mode: KeypadMode, value: number) => void;
   onClose: () => void;
+  /** removes the selected line from the bill */
+  onRemove?: () => void;
   showDiscount?: boolean;
   formatMoney: (n: number) => string;
 }) {
@@ -85,9 +88,16 @@ export function PosKeypad({
         <p className="min-w-0 truncate text-[11px] font-bold leading-[1.2]">
           {title} · {fieldLabel}
         </p>
-        <button type="button" onClick={onClose} className="ez-btn-label text-[10px] text-[var(--ez-muted-2)]">
-          Done
-        </button>
+        <div className="flex shrink-0 items-center gap-4">
+          {onRemove ? (
+            <button type="button" onClick={onRemove} className="ez-btn-label text-[10px] text-[var(--ez-debit)]">
+              Delete line
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className="ez-btn-label text-[10px] text-[var(--ez-muted-2)]">
+            Done
+          </button>
+        </div>
       </div>
 
       <div className={cn("grid border-b border-[var(--ez-rule-thin)]", showDiscount ? "grid-cols-3" : "grid-cols-2")}>

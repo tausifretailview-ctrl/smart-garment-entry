@@ -110,6 +110,7 @@ export async function resendSaleInvoiceWhatsApp(
     return;
   }
 
+  let templateSent = false;
   if (waSettings.invoice_template_name) {
     await sendMessageAsync({
       phone,
@@ -120,10 +121,17 @@ export async function resendSaleInvoiceWhatsApp(
       referenceType: "sale",
       saleData,
     });
+    templateSent = true;
   }
 
   if (capturePdfBase64) {
-    const pdfBase64 = await capturePdfBase64();
+    let pdfBase64: string | null | undefined = null;
+    try {
+      pdfBase64 = await capturePdfBase64();
+    } catch (err) {
+      // The invoice template already reached the customer: a missing PDF is not a failed send.
+      if (!templateSent) throw err;
+    }
     if (pdfBase64) {
       await sendMessageAsync({
         phone,
@@ -139,6 +147,9 @@ export async function resendSaleInvoiceWhatsApp(
       return;
     }
   }
+
+  // Template delivered; only the PDF follow-up could not be attached.
+  if (templateSent) return;
 
   throw new Error(
     "WhatsApp send could not start. Check Settings → WhatsApp API (provider, templates, and PDF options).",

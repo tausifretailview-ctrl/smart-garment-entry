@@ -51,23 +51,23 @@ export function normalizeThermalReceiptMoney(input: {
     credit = 0;
   }
 
-  const modeSum = round2(cash + upi + card + credit);
-  if (modeSum > paid + 0.5) {
+  // Credit is the part left on the customer's account (owed, not paid), so only the
+  // tender modes are clamped to paid. A ₹500 cash + ₹500 credit bill keeps 500 / 500.
+  const tenderSum = round2(cash + upi + card);
+  if (tenderSum > paid + 0.5) {
     if (paid <= 0.5) {
       cash = 0;
       upi = 0;
       card = 0;
-      credit = 0;
     } else {
-      const scale = paid / modeSum;
+      const scale = paid / tenderSum;
       cash = round2(cash * scale);
       upi = round2(upi * scale);
-      card = round2(card * scale);
-      credit = round2(Math.max(0, paid - cash - upi - card));
+      card = round2(Math.max(0, paid - cash - upi));
     }
   }
 
-  const collected = round2(cash + upi + card + credit);
+  const collected = round2(cash + upi + card);
   const shown = trendzoDisplayedSettlement({
     grandTotal: grand,
     saleReturnAdjust: input.saleReturnAdjust,
