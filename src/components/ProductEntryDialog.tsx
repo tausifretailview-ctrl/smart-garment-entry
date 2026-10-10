@@ -2239,6 +2239,31 @@ export const ProductEntryDialog = ({
       setFormData((prev) => ({ ...prev, product_name: nameMatch.product_name }));
     }
 
+    // Purchase, serialised: a scanned IMEI that already exists belongs to that
+    // product's unit. Route there before the name gate, which would otherwise pick
+    // a same-name product by stock and then fail with "IMEI … is already used on
+    // another product" (e.g. two look-alike products, IMEI on the one with less stock).
+    if (onUseExistingProductSizes && formData.requires_imei === true) {
+      const typedImeis = variants
+        .filter((v) => (Number(v.purchase_qty) || 0) > 0 && !disabledSizes.has(v.size))
+        .map((v) => String(v.barcode || "").trim())
+        .filter(Boolean);
+      if (typedImeis.length > 0) {
+        try {
+          const imeiOwners = await findBarcodeConflictsInOrg(typedImeis, currentOrganization.id, {
+            forceUnique: true,
+          });
+          const ownerId = imeiOwners.find((c) => c.productId)?.productId;
+          if (ownerId) {
+            useExistingProductForTypedSizes(ownerId);
+            return;
+          }
+        } catch {
+          // Lookup failed: fall through to the normal checks below.
+        }
+      }
+    }
+
     // Name-dupe gate: same normalized name + category already in the org →
     // confirm before inserting. Bypass ("Create anyway") is an explicit second
     // click recorded per name+category; the default path stops here.
