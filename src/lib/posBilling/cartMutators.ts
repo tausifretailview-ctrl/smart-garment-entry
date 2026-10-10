@@ -301,7 +301,7 @@ export function updateGstPer(items: PosCartItem[], index: number, newGstPer: num
   if (!updatedItems[index]) {
     return { items, error: { code: "INVALID_DISCOUNT", message: "Line not found" } };
   }
-  updatedItems[index] = { ...updatedItems[index], gstPer: newGstPer };
+  updatedItems[index] = { ...updatedItems[index], gstPer: newGstPer, gstManual: true };
   return { items: updatedItems };
 }
 

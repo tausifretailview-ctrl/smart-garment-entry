@@ -27,7 +27,6 @@ import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, ShoppingCart, Plus, X, CalendarIcon, Copy, Printer, ChevronDown, FileSpreadsheet, ChevronLeft, ChevronRight, Check, AlertTriangle, SkipBack, Search, Save, Trash2, Pencil, Lock, LockOpen, RotateCcw } from "lucide-react";
-import { applyGarmentGstRule, type GarmentGstRuleSettings } from "@/utils/gstRules";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -2296,11 +2295,6 @@ const PurchaseEntry = () => {
   const autoFocusSearch = (settings?.purchase_settings as any)?.auto_focus_search || false;
   const sizeGridReviewMode = (settings?.purchase_settings as any)?.size_grid_review_mode || false;
   const rollWiseMtrEntry = (settings?.purchase_settings as any)?.roll_wise_mtr_entry || false;
-  const garmentGstSettings: GarmentGstRuleSettings = {
-    garment_gst_rule_enabled: (settings?.purchase_settings as any)?.garment_gst_rule_enabled === true,
-    garment_gst_threshold: (settings?.purchase_settings as any)?.garment_gst_threshold,
-    garment_gst_below_rate: (settings?.purchase_settings as any)?.garment_gst_below_rate,
-  };
   
   const focusSearchBar = useCallback(() => {
     if (autoFocusSearch) {
@@ -5114,13 +5108,9 @@ const PurchaseEntry = () => {
           if (field === "qty" || field === "pur_price" || field === "discount_percent" || field === "size") {
             return recalcLineTotal(updated);
           }
-          // Garment / Footwear GST auto-bump rule on sale price change
-          if (field === "sale_price") {
-            const newGst = applyGarmentGstRule(updated.sale_price, updated.gst_per, garmentGstSettings);
-            if (newGst !== updated.gst_per) {
-              updated.gst_per = newGst;
-            }
-          }
+          // No garment GST auto-rule here: gst_per is the Purchase GST the supplier
+          // billed, so the purchase amount tallies. Sale GST follows the sale price
+          // at billing time (Sale bill / POS) and in the product's Sale GST field.
           return updated;
         }
         return item;

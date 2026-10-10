@@ -163,3 +163,25 @@ export function resolveGarmentGstForLine(
 
   return subThresholdGst;
 }
+/**
+ * Per-piece price the slab is judged on, in the threshold's basis (incl. GST).
+ *
+ * - `billDiscountRatio`: share of the line's net removed by a bill-level discount
+ *   (flat % / ₹, or a customer master Disc % applied as flat). A discount shown on
+ *   the bill lowers the transaction value of every piece, so it counts too.
+ * - Exclusive bills price lines before GST, while the threshold is set incl. GST
+ *   (₹2500 taxable + 5% = ₹2625), so they are grossed up at the below-threshold rate.
+ */
+export function getGarmentSlabPrice(
+  netUnitPrice: number,
+  opts: { billDiscountRatio?: number; priceIncludesGst?: boolean },
+  settings?: GarmentGstRuleSettings | null,
+): number {
+  const ratio = Math.min(Math.max(Number(opts.billDiscountRatio) || 0, 0), 1);
+  const afterBill = Math.max(0, (Number(netUnitPrice) || 0) * (1 - ratio));
+  if (opts.priceIncludesGst === false) {
+    // Rounded to paise so ₹2500 × 1.05 lands on ₹2625, not a float hair above.
+    return Math.round(afterBill * (100 + getGarmentGstBelowRate(settings))) / 100;
+  }
+  return afterBill;
+}

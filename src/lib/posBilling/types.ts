@@ -44,6 +44,10 @@ export interface PosCartItem {
    * 'unit' = typed unit price (Disc% cleared); 'discount' = Disc% / Disc Rs / scan default.
    */
   rateAuthority?: "unit" | "discount";
+  /** Cart-only: GST % picked by hand — the bill-wide garment GST pass leaves it alone. */
+  gstManual?: boolean;
+  /** Cart-only: GST slab last set by the bill-wide pass (flat discount / exclusive basis). */
+  billSlabApplied?: boolean;
   netAmount: number;
   productId: string;
   variantId: string;
