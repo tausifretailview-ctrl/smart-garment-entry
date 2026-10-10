@@ -126,11 +126,21 @@ export default function SalesmanCommission() {
   const { data: commissions = [], isLoading: commissionsLoading } = useQuery({
     queryKey: ["salesman-commissions-page", currentOrganization?.id, start, end, filterSalesman, filterStatus],
     queryFn: async () => {
-      let q = (supabase.from("salesman_commissions" as any) as any).select("*").eq("organization_id", currentOrganization!.id).gte("sale_date", start).lte("sale_date", end).order("sale_date", { ascending: false });
-      if (filterSalesman !== "all") q = q.eq("employee_name", filterSalesman);
-      if (filterStatus !== "all") q = q.eq("payment_status", filterStatus);
-      const { data } = await q;
-      return data || [];
+      const page = (from: number) => {
+        let q = (supabase.from("salesman_commissions" as any) as any).select("*").eq("organization_id", currentOrganization!.id).gte("sale_date", start).lte("sale_date", end).order("sale_date", { ascending: false }).order("id");
+        if (filterSalesman !== "all") q = q.eq("employee_name", filterSalesman);
+        if (filterStatus !== "all") q = q.eq("payment_status", filterStatus);
+        return q.range(from, from + 999);
+      };
+      // Page past the 1000-row API cap so a busy month keeps every commission.
+      const rows: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await page(from);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      return rows;
     },
     enabled: !!currentOrganization?.id,
   });
@@ -140,18 +150,30 @@ export default function SalesmanCommission() {
     [commissions],
   );
 
-  const { data: saleItems = [] } = useQuery({
+  const { data: saleItems = [], isSuccess: saleItemsLoaded } = useQuery({
     queryKey: ["commission-sale-items-discount", currentOrganization?.id, saleIds.join(",")],
     queryFn: async () => {
       if (saleIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("sale_items")
-        .select("id, sale_id, product_id, product_name, quantity, line_total, discount_share, net_after_discount, discount_percent, salesman")
-        .eq("organization_id", currentOrganization!.id)
-        .in("sale_id", saleIds)
-        .is("deleted_at", null);
-      if (error) throw error;
-      return data || [];
+      // Chunk the sale ids (URL length) and page each chunk past the 1000-row cap:
+      // a commission whose items are missing here is hidden as a deleted sale below.
+      const rows: any[] = [];
+      for (let i = 0; i < saleIds.length; i += 200) {
+        const chunk = saleIds.slice(i, i + 200);
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabase
+            .from("sale_items")
+            .select("id, sale_id, product_id, product_name, quantity, line_total, discount_share, net_after_discount, discount_percent, salesman")
+            .eq("organization_id", currentOrganization!.id)
+            .in("sale_id", chunk)
+            .is("deleted_at", null)
+            .order("id")
+            .range(from, from + 999);
+          if (error) throw error;
+          rows.push(...(data || []));
+          if (!data || data.length < 1000) break;
+        }
+      }
+      return rows;
     },
     enabled: !!currentOrganization?.id && saleIds.length > 0,
   });
@@ -180,9 +202,14 @@ export default function SalesmanCommission() {
     () => new Set(saleItems.map((si: any) => si.sale_id)),
     [saleItems],
   );
+  // Only drop rows once the items have loaded: while loading or after a failed
+  // fetch, show every commission rather than silently hiding them all.
   const commissionsForLiveSales = useMemo(
-    () => commissions.filter((c: any) => !c.sale_id || liveSaleIdsWithItems.has(c.sale_id)),
-    [commissions, liveSaleIdsWithItems],
+    () =>
+      saleItemsLoaded
+        ? commissions.filter((c: any) => !c.sale_id || liveSaleIdsWithItems.has(c.sale_id))
+        : commissions,
+    [commissions, liveSaleIdsWithItems, saleItemsLoaded],
   );
 
   const enrichedCommissions = useMemo(
