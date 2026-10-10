@@ -32,6 +32,12 @@ export type CustomerLedgerListRow = {
   gst_number?: string | null;
   points_balance?: number | null;
   discount_percent?: number | null;
+  /**
+   * false until the canonical enricher has filled Total Sales / Total Paid for this row.
+   * The party RPC carries no per-customer lifetime totals, so the seed row's 0 is "not loaded",
+   * not "nothing billed": the list and exports show "—" for it instead of ₹0.
+   */
+  salesPaidKnown?: boolean;
 };
 
 /** Per-row money from party RPC / canonical enricher. Never copy window total_dr/total_cr. */
@@ -40,7 +46,7 @@ export function partyLedgerListMoneyFields(
   phone: string,
 ): Pick<
   CustomerLedgerListRow,
-  "totalSales" | "totalPaid" | "balance" | "unusedAdvanceTotal" | "totalCashPaid"
+  "totalSales" | "totalPaid" | "balance" | "unusedAdvanceTotal" | "totalCashPaid" | "salesPaidKnown"
 > {
   const aligned: CustomerPartyBalanceAlignedRow =
     "gross_outstanding" in party
@@ -54,6 +60,7 @@ export function partyLedgerListMoneyFields(
     balance: aligned.gross_outstanding,
     unusedAdvanceTotal: aligned.advance_available,
     totalCashPaid: totalPaid,
+    salesPaidKnown: aligned.lifetime_total_sales != null || aligned.lifetime_total_paid != null,
   };
 }
 
@@ -194,6 +201,7 @@ export async function buildCustomerLedgerListFromPartyBalances(
         opening_balance: openingBalance,
         totalSales: 0,
         totalPaid: 0,
+        salesPaidKnown: false,
         balance: openingBalance,
         unusedAdvanceTotal: 0,
         totalCashPaid: 0,

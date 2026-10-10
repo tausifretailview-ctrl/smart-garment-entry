@@ -171,6 +171,8 @@ interface Customer {
   balance: number;
   unusedAdvanceTotal?: number;
   totalCashPaid?: number;
+  /** false = Total Sales / Paid not loaded yet for this list row (show "—", not ₹0). */
+  salesPaidKnown?: boolean;
   totalAdvanceApplied?: number;
   totalCnApplied?: number;
   adjustmentTotal?: number;
@@ -1978,8 +1980,8 @@ export function CustomerLedger({
         Phone: c.phone || "",
         Email: c.email || "",
         "Opening Balance": Math.round(c.opening_balance || 0),
-        "Total Sales": salesPaidLeaked ? "—" : Math.round(c.totalSales),
-        "Total Paid": salesPaidLeaked ? "—" : Math.round(c.totalPaid),
+        "Total Sales": salesPaidLeaked || c.salesPaidKnown === false ? "—" : Math.round(c.totalSales),
+        "Total Paid": salesPaidLeaked || c.salesPaidKnown === false ? "—" : Math.round(c.totalPaid),
         Outstanding: f.outstanding,
         "Unused Advance": f.unusedAdvance,
         Net: f.netPosition,
@@ -2055,8 +2057,8 @@ export function CustomerLedger({
         String(idx + 1),
         c.customer_name.substring(0, 28),
         (c.phone || "").substring(0, 12),
-        salesPaidLeaked ? "—" : `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
-        salesPaidLeaked ? "—" : `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
+        salesPaidLeaked || c.salesPaidKnown === false ? "—" : `₹${Math.round(c.totalSales).toLocaleString("en-IN")}`,
+        salesPaidLeaked || c.salesPaidKnown === false ? "—" : `₹${Math.round(c.totalPaid).toLocaleString("en-IN")}`,
         `₹${Math.round(f.outstanding).toLocaleString("en-IN")}`,
         `₹${Math.round(f.unusedAdvance).toLocaleString("en-IN")}`,
         formatNetFacetLabel(f.netPosition).replace("₹", ""),
@@ -5867,12 +5869,12 @@ Please clear your dues at the earliest. Thank you!`;
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {salesPaidLeaked
+                          {salesPaidLeaked || customer.salesPaidKnown === false
                             ? "—"
                             : `₹${customer.totalSales.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-green-600 dark:text-green-400">
-                          {salesPaidLeaked
+                          {salesPaidLeaked || customer.salesPaidKnown === false
                             ? "—"
                             : `₹${customer.totalPaid.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
                         </TableCell>
