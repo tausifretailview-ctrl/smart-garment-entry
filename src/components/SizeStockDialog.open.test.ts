@@ -47,7 +47,7 @@ describe("SizeStockDialog", () => {
 
     const text = document.body.textContent ?? "";
     expect(text).toContain("Size Stock");
-    expect(text).toContain("Search products...");
+    expect(document.querySelector('input[placeholder="Search products..."]')).not.toBeNull();
     expect(text).not.toContain("Could not open size stock");
     expect(text).not.toContain("Loading size stock");
   });
