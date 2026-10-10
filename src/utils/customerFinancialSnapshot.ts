@@ -37,6 +37,13 @@ const EMPTY_SNAPSHOT: CustomerFinancialSnapshot = {
 const SNAPSHOT_BATCH_CHUNK = 10;
 
 /**
+ * Above this many ids, one set-based get_customer_financial_snapshot_all call beats
+ * the per-customer batch (10 ids per ~1.7s call). pg_stat_statements 2026-10-10:
+ * the batch was the top DB cost (20k calls, 8s max) from whole-org lists.
+ */
+export const SNAPSHOT_ORG_WIDE_MIN_IDS = 50;
+
+/**
  * Customers that may have a non-zero financial position (sales, advances, returns,
  * adjustments, vouchers, or non-zero opening balance).
  * Used to skip snapshot RPCs for customers with no possible balance activity.
@@ -231,9 +238,21 @@ export async function fetchCustomerFinancialSnapshotMap(
   const unique = [...new Set(customerIds.filter(Boolean))];
   if (!organizationId || unique.length === 0) return map;
 
+  let pending = unique;
+  if (unique.length >= SNAPSHOT_ORG_WIDE_MIN_IDS) {
+    const orgMap = await fetchOrganizationFinancialSnapshotMap(organizationId, client);
+    for (const id of unique) {
+      const snap = orgMap.get(id);
+      if (snap) map.set(id, snap);
+    }
+    // Ids the org-wide call did not return (RPC missing, a failed page, deleted
+    // customer) go through the per-customer batch as before.
+    pending = unique.filter((id) => !map.has(id));
+  }
+
   try {
-    for (let i = 0; i < unique.length; i += SNAPSHOT_BATCH_CHUNK) {
-      const chunk = unique.slice(i, i + SNAPSHOT_BATCH_CHUNK);
+    for (let i = 0; i < pending.length; i += SNAPSHOT_BATCH_CHUNK) {
+      const chunk = pending.slice(i, i + SNAPSHOT_BATCH_CHUNK);
       try {
         const { data, error } = await (client.rpc as any)("get_customer_financial_snapshot_batch", {
           p_organization_id: organizationId,
