@@ -840,7 +840,7 @@ export const ProductEntryDialog = ({
   // Name-dupe gate: fresh confirmation state each time the dialog opens.
   useEffect(() => {
     if (open) {
-      setNameDupeConfirmedKey(null);
+      nameDupeConfirmedKeyRef.current = null;
       setShowNameDupeDialog(false);
       setNameDupeMatches([]);
     }
