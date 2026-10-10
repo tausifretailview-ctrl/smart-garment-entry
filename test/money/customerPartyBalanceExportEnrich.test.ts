@@ -33,9 +33,9 @@ describe("enrichPartyRowsWithCanonicalBalance export override", () => {
     vi.mocked(fetchCustomerAuditBundle).mockReset();
   });
 
-  it("keeps the browse cap at 100 and export batches at 20", () => {
+  it("keeps the browse cap at 100 and export batches at 10", () => {
     expect(PARTY_BALANCE_CANONICAL_ENRICH_MAX).toBe(100);
-    expect(PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE).toBe(20);
+    expect(PARTY_BALANCE_CANONICAL_ENRICH_BATCH_SIZE).toBe(10);
   });
 
   it("still no-ops above the cap without allowBeyondCap (no audit fetches)", async () => {
