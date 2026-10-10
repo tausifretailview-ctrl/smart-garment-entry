@@ -106,4 +106,27 @@ describe("thermal receipt money shared by POS, dashboard, and WhatsApp", () => {
       paidAmount: 0,
     });
   });
+
+  it("cash + credit split keeps the cash handed over and the credit owed", () => {
+    expect(
+      normalizeThermalReceiptMoney({
+        grandTotal: 1000,
+        paidAmount: 500,
+        cashPaid: 500,
+        creditPaid: 500,
+      }),
+    ).toMatchObject({
+      grandTotal: 1000,
+      paidAmount: 500,
+      cashPaid: 500,
+      creditPaid: 500,
+      balanceDue: 500,
+    });
+  });
+
+  it("still clamps a full-bill cash figure back to the amount paid", () => {
+    expect(
+      normalizeThermalReceiptMoney({ grandTotal: 1000, paidAmount: 400, cashPaid: 1000 }),
+    ).toMatchObject({ cashPaid: 400, paidAmount: 400, balanceDue: 600 });
+  });
 });
