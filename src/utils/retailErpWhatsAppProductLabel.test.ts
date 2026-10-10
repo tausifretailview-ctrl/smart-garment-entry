@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatMobileErpSizeCell,
   formatRetailErpInvoiceSize,
   retailErpWhatsAppProductLabel,
 } from "./retailErpWhatsAppProductLabel";
@@ -40,5 +41,16 @@ describe("formatRetailErpInvoiceSize", () => {
   it("returns empty for blank", () => {
     expect(formatRetailErpInvoiceSize("")).toBe("");
     expect(formatRetailErpInvoiceSize(null)).toBe("");
+  });
+});
+
+describe("formatMobileErpSizeCell", () => {
+  it("hides None and IMEI unit labels", () => {
+    expect(formatMobileErpSizeCell("None")).toBe("");
+    expect(formatMobileErpSizeCell("IMEI-1")).toBe("");
+    expect(formatMobileErpSizeCell("imei-12")).toBe("");
+  });
+  it("keeps real sizes", () => {
+    expect(formatMobileErpSizeCell("8/128")).toBe("8/128");
   });
 });

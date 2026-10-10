@@ -37,3 +37,13 @@ export function formatRetailErpInvoiceSize(size?: string | null): string {
   }
   return s;
 }
+
+/**
+ * Mobile ERP purchase grid size cell. Phones have no size: the "None" placeholder
+ * and the "IMEI-1", "IMEI-2" unit labels Add Product gives each scanned phone are
+ * internal, so show them blank. Real sizes (e.g. "8/128") still show.
+ */
+export function formatMobileErpSizeCell(size?: string | null): string {
+  const s = formatRetailErpInvoiceSize(size);
+  return /^imei-\d+$/i.test(s) ? "" : s;
+}

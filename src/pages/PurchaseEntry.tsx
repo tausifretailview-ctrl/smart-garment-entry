@@ -199,6 +199,7 @@ import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillCon
 import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/components/DuplicatePurchaseBillDialog";
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { formatMobileErpSizeCell } from "@/utils/retailErpWhatsAppProductLabel";
 import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
@@ -8290,7 +8291,7 @@ const PurchaseEntry = () => {
                     <div key={item.temp_id} className="flex items-center justify-between px-3.5 py-2.5">
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-foreground truncate">{item.product_name || item.barcode}</p>
-                        <p className="text-[11px] text-muted-foreground">{item.size} {item.color}</p>
+                        <p className="text-[11px] text-muted-foreground">{isMobileERPMode ? formatMobileErpSizeCell(item.size) : item.size} {item.color}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <button onClick={() => {
                             const u = [...lineItems];
@@ -9082,7 +9083,7 @@ const PurchaseEntry = () => {
                         </TableCell>
                         {showPurCol.size && (
                           <TableCell className="pur-col-size w-[4.5rem] text-center text-[15px] font-bold">
-                            {item.size || "—"}
+                            {(isMobileERPMode ? formatMobileErpSizeCell(item.size) : item.size) || "—"}
                           </TableCell>
                         )}
                         <TableCell className="pur-col-barcode w-[9rem]">
