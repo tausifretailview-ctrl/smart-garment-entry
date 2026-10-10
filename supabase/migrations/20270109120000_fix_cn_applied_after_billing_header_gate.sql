@@ -1,6 +1,8 @@
 -- Applied CN / S/R adjust ignored on discounted bills (KS Footwear: SONI SHOES Net Position 5,014 vs ledger 2,624).
 --
 -- NOT YET APPLIED to production. Apply to a non-production copy first and compare balances.
+-- 2026-10-10: the first copy of this file had the gate reversed (> 0.5). If that copy was already
+-- applied, 20270118120000_fix_cn_header_gate_direction.sql corrects the live functions.
 --
 -- Problem: the balance SQL treats sales.sale_return_adjust (sra) as "already baked into net_amount"
 -- whenever  net + sra <= SUM(qty * mrp) + 1.  On discounted / wholesale bills MRP totals are far above
@@ -38,7 +40,7 @@ DECLARE
     || 'AND ABS(s.net_amount '
     || '- (COALESCE(s.gross_amount, 0) '
     || '- (COALESCE(s.discount_amount, 0) + COALESCE(s.flat_discount_amount, 0) + COALESCE(s.points_redeemed_amount, 0)) '
-    || '+ COALESCE(s.round_off, 0))) > 0.5 )';
+    || '+ COALESCE(s.round_off, 0))) <= 0.5 /* cn-header-gate-v2 */ )';
 BEGIN
   FOR v_fn IN
     SELECT p.oid::regprocedure
