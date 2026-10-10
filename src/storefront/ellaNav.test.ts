@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ELLA_HOME_NAV, ELLA_LUXURY_NAV, inferEllaNavAvailability, isEllaHomeNav, resolveEllaHeaderNav } from "./ellaNav";
+import {
+  ELLA_HOME_NAV,
+  ELLA_LUXURY_NAV,
+  inferEllaNavAvailability,
+  isEllaHomeNav,
+  resolveEllaCtaTarget,
+  resolveEllaHeaderNav,
+} from "./ellaNav";
 
 describe("ELLA_LUXURY_NAV", () => {
   it("starts with a Home item", () => {
@@ -66,5 +73,31 @@ describe("inferEllaNavAvailability", () => {
     expect(inferEllaNavAvailability("Ready to wear", null)).toBe("in-stock");
     expect(inferEllaNavAvailability("Made to order", null)).toBe("made-to-order");
     expect(inferEllaNavAvailability("Sale", null)).toBe("all");
+  });
+});
+
+describe("resolveEllaCtaTarget", () => {
+  it("opens the built-in views on the default nav, including Bridal", () => {
+    expect(resolveEllaCtaTarget(ELLA_LUXURY_NAV, "ready").id).toBe("ready");
+    expect(resolveEllaCtaTarget(ELLA_LUXURY_NAV, "new-in").id).toBe("new-in");
+    const bridal = resolveEllaCtaTarget(ELLA_LUXURY_NAV, "bridal");
+    expect(bridal.chip).toBe("Bridal");
+    expect(isEllaHomeNav(bridal)).toBe(false);
+  });
+
+  it("matches Website menu items by label when their ids are row ids", () => {
+    const nav = resolveEllaHeaderNav([
+      { id: "m1", label: "New Arrivals", category_filter: null, display_order: 0 },
+      { id: "m2", label: "Ready to Wear", category_filter: "Ready", display_order: 1 },
+      { id: "m3", label: "Festive", category_filter: "Festive", display_order: 2 },
+    ]);
+    expect(resolveEllaCtaTarget(nav, "ready").id).toBe("m2");
+    expect(resolveEllaCtaTarget(nav, "formals").id).toBe("m3");
+    expect(resolveEllaCtaTarget(nav, "new-in").id).toBe("m1");
+    expect(isEllaHomeNav(resolveEllaCtaTarget(nav, "bridal"))).toBe(false);
+  });
+
+  it("falls back to the first nav item for unknown targets", () => {
+    expect(resolveEllaCtaTarget(ELLA_LUXURY_NAV, "nope")).toEqual(ELLA_HOME_NAV);
   });
 });

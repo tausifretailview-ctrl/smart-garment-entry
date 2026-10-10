@@ -121,3 +121,35 @@ export function resolveEllaHeaderNav(
   }));
   return mapped.some((item) => isEllaHomeNav(item)) ? mapped : [ELLA_HOME_NAV, ...mapped];
 }
+
+/** Built-in shop views the home page buttons (hero, tiles, lookbook) point at. */
+const ELLA_CTA_TARGETS: Record<string, { match: RegExp; item: EllaHeaderNavItem }> = {
+  "new-in": { match: /\bnew\b/i, item: ELLA_LUXURY_NAV[1] },
+  ready: { match: /ready/i, item: ELLA_LUXURY_NAV[2] },
+  formals: { match: /formal|festive/i, item: ELLA_LUXURY_NAV[3] },
+  bridal: {
+    match: /bridal/i,
+    item: {
+      id: "bridal",
+      label: "Bridal",
+      chip: "Bridal",
+      title: "Bridal",
+      lead: "Bridal couture, hand-worked in our atelier.",
+      availability: "all",
+      sort: "featured",
+    },
+  },
+};
+
+/**
+ * Resolve a home-page button target ("ready", "formals", "bridal", "new-in") to a shop view.
+ * Website → Menus items carry their row id, so match the id first, then the menu label,
+ * then a built-in view, and only fall back to the first nav item for unknown ids.
+ */
+export function resolveEllaCtaTarget(nav: EllaHeaderNavItem[], id: string): EllaHeaderNavItem {
+  const exact = nav.find((n) => n.id === id);
+  if (exact) return exact;
+  const target = ELLA_CTA_TARGETS[id];
+  if (!target) return nav[0] ?? ELLA_HOME_NAV;
+  return nav.find((n) => !isEllaHomeNav(n) && target.match.test(n.label)) || target.item;
+}
