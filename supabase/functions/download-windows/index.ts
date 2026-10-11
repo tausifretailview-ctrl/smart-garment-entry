@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 /** Keep in sync with APP_VERSION in src/config/downloads.ts */
-const CURRENT_VERSION = "1.2.0";
+const CURRENT_VERSION = "1.2.1";
 const DEFAULT_FILE = `EzzyERP-Setup-${CURRENT_VERSION}.exe`;
 const BUCKET_ID = "app-downloads";
 const SIGNED_URL_TTL_SEC = 3600;
