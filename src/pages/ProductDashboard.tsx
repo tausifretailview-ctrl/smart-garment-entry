@@ -52,6 +52,7 @@ import { ProductRelationDialog, type ProductStockOnHandRow } from "@/components/
 import { softDeleteOrphanedProducts } from "@/utils/fetchAllRows";
 import { collectProductsWithBlockingStock } from "@/utils/productDashboardDeleteGuard";
 import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
+import { isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
 import { useContextMenu, useIsDesktop } from "@/hooks/useContextMenu";
 import { DesktopContextMenu, PageContextMenu, ContextMenuItem } from "@/components/DesktopContextMenu";
 import { ProductImageGallery, ProductImage } from "@/components/ProductImageGallery";
@@ -719,6 +720,7 @@ const ProductDashboard = () => {
     isLoading: catalogLoading,
     isFetching: catalogFetching,
     error: catalogError,
+    refetch: refetchCatalog,
   } = useQuery({
     queryKey: [
       "product-catalog",
@@ -922,6 +924,14 @@ const ProductDashboard = () => {
       setFetchError(null);
       return;
     }
+    // A disk-restored catalog page refetched before this screen subscribed —
+    // not a real failure. Load it through this screen's queryFn instead of
+    // showing "Missing queryFn: [product-catalog, …]".
+    if (isMissingQueryFnError(catalogError)) {
+      setFetchError(null);
+      void refetchCatalog();
+      return;
+    }
     const message =
       catalogError instanceof Error ? catalogError.message : "Failed to load products";
     setFetchError(message);
@@ -930,7 +940,7 @@ const ProductDashboard = () => {
       description: message,
       variant: "destructive",
     });
-  }, [catalogError, toast]);
+  }, [catalogError, refetchCatalog, toast]);
 
   // Barcode search: auto-expand single product so the matching variant row is visible
   const barcodeAutoExpandRef = useRef<string | null>(null);

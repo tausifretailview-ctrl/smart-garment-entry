@@ -9,9 +9,11 @@ describe("invalidateProductDashboardQueries", () => {
   it("refetches product-catalog even when Product Dashboard is unmounted", () => {
     const src = readFileSync(resolve(here, "./invalidateDashboardQueries.ts"), "utf8");
     expect(src).toContain("export function invalidateProductDashboardQueries");
-    expect(src).toContain('["product-catalog"');
-    expect(src).toContain('["product-dashboard-stats"');
-    expect(src).toContain('refetchType: "all"');
+    expect(src).toContain('orgKey("product-catalog")');
+    expect(src).toContain('orgKey("product-dashboard-stats")');
+    // Refetches unmounted panes, but only queries that have a queryFn.
+    expect(src).toMatch(/invalidateQueriesWithQueryFn\(queryClient, orgKey\("product-catalog"\)\)/);
+    expect(src).not.toContain('refetchType: "all"');
   });
 
   it("is called from Product Entry save/import and the dashboard Refresh path", () => {

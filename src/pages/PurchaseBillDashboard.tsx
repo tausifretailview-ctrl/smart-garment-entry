@@ -100,6 +100,7 @@ import { fetchProductsByIds, fetchPurchaseItemsByBillId } from "@/utils/fetchAll
 import { barcodePrintingPathWithBill } from "@/utils/barcodePurchaseBillItems";
 import { normalizePurchaseBillDate } from "@/utils/purchaseCodeEncoder";
 import { stashPurchaseBarcodePrintPayload } from "@/utils/barcodePurchaseBillContext";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 /** Purchase bills table — hidden by default; enable via Columns menu. */
 const PURCHASE_BILLS_DEFAULT_COLUMN_VISIBILITY: Record<string, boolean> = {
@@ -840,7 +841,7 @@ const PurchaseBillDashboard = () => {
     if (currentOrganization?.id) {
       invalidatePurchaseDashboardQueries(queryClient, currentOrganization.id);
     } else {
-      void queryClient.invalidateQueries({ queryKey: ["purchase-bills"], refetchType: "all" });
+      invalidateAndRefetchWithQueryFn(queryClient, ["purchase-bills"]);
     }
     void refetchBills();
   }, [checkDraft, currentOrganization?.id, queryClient, refetchBills, refreshBrowserDraftMeta]);

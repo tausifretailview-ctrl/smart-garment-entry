@@ -1,6 +1,7 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryCache, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
+  clearMissingQueryFnError,
   invalidateAndRefetchWithQueryFn,
   isMissingQueryFnError,
 } from "./refetchQueriesWithFn";
@@ -97,5 +98,43 @@ describe("invalidateAndRefetchWithQueryFn", () => {
       .getQueryCache()
       .find({ queryKey: ["invoice-dashboard-unified", "org"] });
     expect(query?.state.isInvalidated).toBe(true);
+  });
+});
+
+describe("clearMissingQueryFnError (global QueryCache guard)", () => {
+  const catalogKey = [
+    "product-catalog",
+    "4bc73037-e877-4000-8000-000000000000",
+    1,
+    50,
+    { debouncedSearch: "", maxPrice: "", minPrice: "", selectedCategory: "all" },
+    5,
+  ] as const;
+
+  it("undoes a Missing queryFn error on a restored catalog page", async () => {
+    const queryClient = new QueryClient({
+      queryCache: new QueryCache({
+        onError: (error, query) => {
+          clearMissingQueryFnError(query, error);
+        },
+      }),
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(catalogKey, { rows: [{ product_id: "p1" }], totalCount: 1 });
+
+    await queryClient.invalidateQueries({ queryKey: ["product-catalog"], refetchType: "all" });
+
+    const query = queryClient.getQueryCache().find({ queryKey: catalogKey });
+    expect(query?.state.error).toBeNull();
+    expect(query?.state.status).toBe("success");
+    expect(query?.state.isInvalidated).toBe(true);
+    expect(query?.state.data).toEqual({ rows: [{ product_id: "p1" }], totalCount: 1 });
+  });
+
+  it("leaves real errors alone", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(["product-catalog", "org"], { rows: [], totalCount: 0 });
+    const query = queryClient.getQueryCache().find({ queryKey: ["product-catalog", "org"] })!;
+    expect(clearMissingQueryFnError(query, new Error("permission denied"))).toBe(false);
   });
 });
