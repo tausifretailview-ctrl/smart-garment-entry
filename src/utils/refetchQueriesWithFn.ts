@@ -57,7 +57,7 @@ export function invalidateAndRefetchWithQueryFn(
  * Returns true when the error was cleared.
  */
 export function clearMissingQueryFnError(
-  query: Pick<Query, "state" | "setState">,
+  query: Pick<Query<unknown, unknown>, "state" | "setState">,
   error: unknown,
 ): boolean {
   if (!isMissingQueryFnError(error)) return false;
