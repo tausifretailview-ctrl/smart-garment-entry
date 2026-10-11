@@ -10,7 +10,10 @@ import {
 } from "@/utils/posDashboardSales";
 import { notifyPosSalesChanged } from "@/utils/posSalesRefresh";
 import { invalidateMoneyViewFreshness } from "@/utils/moneyViewFreshnessInvalidation";
-import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
+import {
+  invalidateAndRefetchWithQueryFn,
+  invalidateQueriesWithQueryFn,
+} from "@/utils/refetchQueriesWithFn";
 
 /** Sales invoice list + unified dashboard table pages. */
 export function invalidateInvoiceDashboardQueries(queryClient: QueryClient) {
@@ -34,45 +37,24 @@ export function invalidateStockReportQueries(
   queryClient: QueryClient,
   organizationId?: string,
 ) {
-  const opts = { refetchType: "all" as const };
-  void queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? ["stock-report-global-totals", organizationId]
-      : ["stock-report-global-totals"],
-    ...opts,
-  });
-  void queryClient.invalidateQueries({ queryKey: ["stock-report-filtered-totals"], ...opts });
-  void queryClient.invalidateQueries({ queryKey: ["stock-report"], ...opts });
-  void queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? ["stock-report-filter-options", organizationId]
-      : ["stock-report-filter-options"],
-    ...opts,
-  });
+  // Also refetch unmounted cached screens, but only queries with a queryFn —
+  // disk-restored ones would fail with "Missing queryFn" (see refetchQueriesWithFn).
+  const refetch = (key: readonly unknown[]) =>
+    invalidateAndRefetchWithQueryFn(queryClient, key);
+  const orgKey = (head: string) => (organizationId ? [head, organizationId] : [head]);
+  refetch(orgKey("stock-report-global-totals"));
+  refetch(["stock-report-filtered-totals"]);
+  refetch(["stock-report"]);
+  refetch(orgKey("stock-report-filter-options"));
   // Product Name Wise Closing Stock + related
-  void queryClient.invalidateQueries({ queryKey: ["item-wise-stock"], ...opts });
-  void queryClient.invalidateQueries({ queryKey: ["item-wise-stock-totals"], ...opts });
-  void queryClient.invalidateQueries({ queryKey: ["item-stock-filters"], ...opts });
-  void queryClient.invalidateQueries({ queryKey: ["product-wise-stock"], ...opts });
+  refetch(["item-wise-stock"]);
+  refetch(["item-wise-stock-totals"]);
+  refetch(["item-stock-filters"]);
+  refetch(["product-wise-stock"]);
   // Report attribute / party filter dropdowns (product brand/category/style/color + price-history parties)
-  void queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? ["item-wise-filter-options", organizationId]
-      : ["item-wise-filter-options"],
-    ...opts,
-  });
-  void queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? ["product-tracking-filters", organizationId]
-      : ["product-tracking-filters"],
-    ...opts,
-  });
-  void queryClient.invalidateQueries({
-    queryKey: organizationId
-      ? ["price-history-filter-options", organizationId]
-      : ["price-history-filter-options"],
-    ...opts,
-  });
+  refetch(orgKey("item-wise-filter-options"));
+  refetch(orgKey("product-tracking-filters"));
+  refetch(orgKey("price-history-filter-options"));
   invalidateStatusBarSummary(queryClient, organizationId);
 }
 
@@ -84,19 +66,12 @@ export function invalidateProductDashboardQueries(
   queryClient: QueryClient,
   organizationId?: string,
 ) {
-  const opts = { refetchType: "all" as const };
-  const catalog = queryClient.invalidateQueries({
-    queryKey: organizationId ? ["product-catalog", organizationId] : ["product-catalog"],
-    ...opts,
-  });
-  const stats = queryClient.invalidateQueries({
-    queryKey: organizationId ? ["product-dashboard-stats", organizationId] : ["product-dashboard-stats"],
-    ...opts,
-  });
-  const filters = queryClient.invalidateQueries({
-    queryKey: organizationId ? ["product-filter-options", organizationId] : ["product-filter-options"],
-    ...opts,
-  });
+  // Refetch unmounted cached panes too, skipping disk-restored queries with no
+  // queryFn — those threw "Missing queryFn: [product-catalog, …]" after a save.
+  const orgKey = (head: string) => (organizationId ? [head, organizationId] : [head]);
+  const catalog = invalidateQueriesWithQueryFn(queryClient, orgKey("product-catalog"));
+  const stats = invalidateQueriesWithQueryFn(queryClient, orgKey("product-dashboard-stats"));
+  const filters = invalidateQueriesWithQueryFn(queryClient, orgKey("product-filter-options"));
   invalidateStockReportQueries(queryClient, organizationId);
   return Promise.all([catalog, stats, filters]);
 }
@@ -109,19 +84,18 @@ export function invalidatePurchaseDashboardQueries(
   queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
   queryClient.invalidateQueries({ queryKey: ["net-profit-kpis"] });
   queryClient.invalidateQueries({ queryKey: ["purchase-trend"] });
-  queryClient.invalidateQueries({
-    queryKey: organizationId ? ["purchase-bills", organizationId] : ["purchase-bills"],
-    // Refetch inactive tab-cached list queries when Entry saves while dashboard is unmounted.
-    refetchType: "all",
-  });
-  queryClient.invalidateQueries({
-    queryKey: organizationId ? ["purchase-bills-summary", organizationId] : ["purchase-bills-summary"],
-    refetchType: "all",
-  });
-  queryClient.invalidateQueries({
-    queryKey: organizationId ? ["purchase-summary", organizationId] : ["purchase-summary"],
-    refetchType: "all",
-  });
+  invalidateAndRefetchWithQueryFn(
+    queryClient,
+    organizationId ? ["purchase-bills", organizationId] : ["purchase-bills"],
+  );
+  invalidateAndRefetchWithQueryFn(
+    queryClient,
+    organizationId ? ["purchase-bills-summary", organizationId] : ["purchase-bills-summary"],
+  );
+  invalidateAndRefetchWithQueryFn(
+    queryClient,
+    organizationId ? ["purchase-summary", organizationId] : ["purchase-summary"],
+  );
   queryClient.invalidateQueries({ queryKey: ["last-purchase-bill"] });
   queryClient.invalidateQueries({ queryKey: ["all-purchase-bill-ids"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });

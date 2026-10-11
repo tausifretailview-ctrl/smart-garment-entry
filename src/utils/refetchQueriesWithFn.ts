@@ -17,6 +17,23 @@ export function isMissingQueryFnError(error: unknown): boolean {
 
 /**
  * Mark every match stale, then refetch only queries that still have a queryFn.
+ * Returns a promise that settles when the refetch is done (never rejects).
+ */
+export async function invalidateQueriesWithQueryFn(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  type: "all" | "active" = "all",
+): Promise<void> {
+  await queryClient.invalidateQueries({ queryKey, refetchType: "none" });
+  await queryClient.refetchQueries({
+    queryKey,
+    type,
+    predicate: (query) => queryHasQueryFn(query),
+  });
+}
+
+/**
+ * Fire-and-forget form of {@link invalidateQueriesWithQueryFn}.
  * refetchType "all" on a restored Sales dashboard cache stores
  * "Missing queryFn: [invoice-dashboard-unified, …]" and the screen shows that
  * as "Sales dashboard load failed".
@@ -29,12 +46,28 @@ export function invalidateAndRefetchWithQueryFn(
   queryKey: QueryKey,
   type: "all" | "active" = "all",
 ): void {
-  void (async () => {
-    await queryClient.invalidateQueries({ queryKey, refetchType: "none" });
-    await queryClient.refetchQueries({
-      queryKey,
-      type,
-      predicate: (query) => queryHasQueryFn(query),
-    });
-  })();
+  void invalidateQueriesWithQueryFn(queryClient, queryKey, type);
+}
+
+/**
+ * Global safety net (QueryCache onError). A refetch of a disk-restored query
+ * that no screen has subscribed yet fails with "Missing queryFn" — nothing was
+ * actually wrong with the data. Undo the error so no screen ever shows it as a
+ * load failure; the query stays stale and refetches when its screen opens.
+ * Returns true when the error was cleared.
+ */
+export function clearMissingQueryFnError(
+  query: Pick<Query, "state" | "setState">,
+  error: unknown,
+): boolean {
+  if (!isMissingQueryFnError(error)) return false;
+  query.setState({
+    error: null,
+    status: query.state.data === undefined ? "pending" : "success",
+    fetchStatus: "idle",
+    fetchFailureCount: 0,
+    fetchFailureReason: null,
+    isInvalidated: true,
+  });
+  return true;
 }

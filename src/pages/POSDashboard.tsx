@@ -197,6 +197,7 @@ import {
   restoreDashboardFilters,
 } from "@/lib/dashboardFilterPersistence";
 import { ResetPersistedFiltersButton } from "@/components/ResetPersistedFiltersButton";
+import { invalidateAndRefetchWithQueryFn } from "@/utils/refetchQueriesWithFn";
 
 interface SaleItem {
   id: string;
@@ -1230,10 +1231,10 @@ const POSDashboard = () => {
         }
       }
 
-      void queryClient.invalidateQueries({
-        queryKey: ["pos-dashboard-sales", currentOrganization?.id],
-        refetchType: "all",
-      });
+      invalidateAndRefetchWithQueryFn(queryClient, [
+        "pos-dashboard-sales",
+        currentOrganization?.id,
+      ]);
     };
     window.addEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);
     return () => window.removeEventListener(POS_SALES_REFRESH_EVENT, onPosSalesChanged);

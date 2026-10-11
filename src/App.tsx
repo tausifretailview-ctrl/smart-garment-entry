@@ -14,6 +14,7 @@ import {
 } from "@/utils/statementTimeout";
 import { toast as showToast } from "@/hooks/use-toast";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { clearMissingQueryFnError, isMissingQueryFnError } from "@/utils/refetchQueriesWithFn";
 import { APP_BUILD_BUSTER, isVolatileOrSensitiveKey, persister, readPersistCacheCharLength } from "@/lib/queryPersister";
 import { markPersistRestoreComplete } from "@/lib/mainThreadViolationProbe";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
@@ -411,6 +412,9 @@ const App = () => {
     return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        // Restored-from-disk queries have no queryFn until their screen mounts;
+        // a background refetch of one is not a real failure — never surface it.
+        if (clearMissingQueryFnError(query, error)) return;
         if (!isStatementTimeout(error)) return;
         if (query.state.data !== undefined && query.state.data !== null) return;
         const head = String(query.queryKey[0] ?? "").toLowerCase();
@@ -434,7 +438,7 @@ const App = () => {
         // the wait before the same failure. Short-circuit them; everything
         // else keeps the previous single retry.
         retry: (failureCount, error) =>
-          !isStatementTimeout(error) && failureCount < 1,
+          !isStatementTimeout(error) && !isMissingQueryFnError(error) && failureCount < 1,
         // Tally/Vyapar feel: keep showing the previous data while a refetch runs
         // in the background. Combined with the always-mounted window tabs, this
         // makes switching dashboards instant — no skeleton flash, no scroll jump.
