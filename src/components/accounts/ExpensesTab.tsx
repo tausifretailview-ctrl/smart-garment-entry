@@ -16,11 +16,9 @@ import { restoreDashboardFilters, WINDOW_FILTER_IDS } from "@/lib/dashboardFilte
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useSettings } from "@/hooks/useSettings";
-import {
-  deleteJournalEntryByReference,
-  recordExpenseVoucherJournalEntry,
-} from "@/utils/accounting/journalService";
+import { recordExpenseVoucherJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import { EXPENSE_PAYMENT_METHODS, useExpenseVoucherActions } from "@/components/accounts/ExpenseVoucherActions";
 import { toast } from "sonner";
 import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
@@ -49,13 +47,7 @@ interface ExpensesTabProps {
   onExpenseRecorded?: (expenseId: string) => void;
 }
 
-const PAYMENT_METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "upi", label: "UPI" },
-  { value: "card", label: "Card" },
-  { value: "bank_transfer", label: "Bank Transfer" },
-  { value: "cheque", label: "Cheque" },
-];
+const PAYMENT_METHODS = EXPENSE_PAYMENT_METHODS;
 
 const EXPENSE_PAGE_SIZE = 100;
 const EXPENSE_VOUCHER_COLUMNS =
@@ -150,17 +142,8 @@ export function ExpensesTab({
     },
   );
 
-  // Edit dialog state
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editingVoucher, setEditingVoucher] = useState<any>(null);
-  const [editDate, setEditDate] = useState<Date>(new Date());
-  const [editCategory, setEditCategory] = useState("");
-  const [editPayment, setEditPayment] = useState("cash");
-  const [editAmount, setEditAmount] = useState("");
-  const [editNarration, setEditNarration] = useState("");
+  const expenseActions = useExpenseVoucherActions(organizationId, tabActive);
 
-  // Delete confirm
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<{
     id: string;
     name: string;
@@ -429,90 +412,6 @@ export function ExpensesTab({
     onError: (error: any) => toast.error(error.message),
   });
 
-  // Update expense
-  const updateExpense = useMutation({
-    mutationFn: async () => {
-      if (!editingVoucher) return;
-      const { error } = await supabase
-        .from("voucher_entries")
-        .update({
-          voucher_date: format(editDate, "yyyy-MM-dd"),
-          category: editCategory,
-          description: editNarration || editCategory,
-          payment_method: editPayment,
-          total_amount: parseFloat(editAmount),
-        })
-        .eq("id", editingVoucher.id);
-      if (error) throw error;
-
-      const { data: acctSettings } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      const postLedger = isAccountingEngineEnabled(
-        acctSettings as { accounting_engine_enabled?: boolean } | null
-      );
-
-      const editCategoryLedgerId =
-        categories?.find((c) => c.name === editCategory)?.ledger_account_id ?? null;
-
-      if (postLedger) {
-        await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", editingVoucher.id, supabase);
-        await recordExpenseVoucherJournalEntry(
-          editingVoucher.id,
-          organizationId,
-          parseFloat(editAmount),
-          editPayment,
-          format(editDate, "yyyy-MM-dd"),
-          editNarration || editCategory,
-          supabase,
-          editCategoryLedgerId
-        );
-      }
-    },
-    onSuccess: () => {
-      toast.success("Expense updated");
-      queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      setEditDialogOpen(false);
-    },
-    onError: (error: any) => toast.error(error.message),
-  });
-
-  // Delete expense (soft)
-  const deleteExpense = useMutation({
-    mutationFn: async (id: string) => {
-      const { data: acctSettings } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      const postLedger = isAccountingEngineEnabled(
-        acctSettings as { accounting_engine_enabled?: boolean } | null
-      );
-      if (postLedger) {
-        await deleteJournalEntryByReference(organizationId, "ExpenseVoucher", id, supabase);
-      }
-      const { error } = await supabase
-        .from("voucher_entries")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Expense deleted");
-      queryClient.invalidateQueries({ queryKey: ["expense-vouchers"] });
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["expense-category-usage", organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-      setDeleteId(null);
-    },
-    onError: (error: any) => toast.error(error.message),
-  });
-
   const resetForm = () => {
     setVoucherDate(new Date());
     setCategory("");
@@ -522,16 +421,6 @@ export function ExpensesTab({
     setNarration("");
     setPaidBy("");
     setBillNo("");
-  };
-
-  const openEdit = (v: any) => {
-    setEditingVoucher(v);
-    setEditDate(new Date(v.voucher_date));
-    setEditCategory(v.category || v.description || "");
-    setEditPayment(v.payment_method || "cash");
-    setEditAmount(String(v.total_amount));
-    setEditNarration(v.description || "");
-    setEditDialogOpen(true);
   };
 
   // Filter expenses
@@ -882,9 +771,13 @@ export function ExpensesTab({
                       <TableCell className={cn("text-right", paymentPickerAmountClass)}>₹{Number(v.total_amount).toLocaleString("en-IN")}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-0.5">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          {expenseActions.canModify && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit expense" onClick={() => expenseActions.openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
+                          )}
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => printVoucher(v)}><Printer className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(v.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          {expenseActions.canDelete && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Delete expense" onClick={() => expenseActions.requestDelete(v)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1022,68 +915,7 @@ export function ExpensesTab({
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-base">Edit Expense</DialogTitle>
-            <DialogDescription className="text-xs">Voucher: {editingVoucher?.voucher_number}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-xs h-9">
-                    <CalendarIcon className="mr-2 h-3.5 w-3.5" />{format(editDate, "dd/MM/yyyy")}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={editDate} onSelect={(d) => d && setEditDate(d)} className="pointer-events-auto" /></PopoverContent>
-              </Popover>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Category</Label>
-              <Input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} className="h-9 text-xs" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Payment Method</Label>
-              <Select value={editPayment} onValueChange={setEditPayment}>
-                <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>{PAYMENT_METHODS.map((m) => <SelectItem key={m.value} value={m.value} className="text-xs">{m.label}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Amount (₹)</Label>
-              <Input type="number" step="0.01" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="h-9 text-xs" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Narration</Label>
-              <Input value={editNarration} onChange={(e) => setEditNarration(e.target.value)} className="h-9 text-xs" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button size="sm" onClick={() => updateExpense.mutate()} disabled={updateExpense.isPending}>
-              {updateExpense.isPending ? "Saving..." : "Save Changes"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete expense confirmation */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-base">Delete Expense?</DialogTitle>
-            <DialogDescription className="text-xs">This expense voucher will be moved to the recycle bin.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>Cancel</Button>
-            <Button variant="destructive" size="sm" onClick={() => deleteId && deleteExpense.mutate(deleteId)} disabled={deleteExpense.isPending}>
-              {deleteExpense.isPending ? "Deleting..." : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {expenseActions.dialogs}
 
       {/* Delete expense category confirmation */}
       <Dialog open={!!deleteCategoryTarget} onOpenChange={() => setDeleteCategoryTarget(null)}>

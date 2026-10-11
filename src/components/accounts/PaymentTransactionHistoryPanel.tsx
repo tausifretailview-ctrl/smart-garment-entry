@@ -8,6 +8,7 @@ import {
   Printer,
   RotateCcw,
   SkipBack,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { resolveReceiptReprintBalances } from "@/utils/customerBalanceUtils";
 import { fetchSuppliersByIds } from "@/utils/supplierSearch";
+import { useExpenseVoucherActions } from "@/components/accounts/ExpenseVoucherActions";
 
 const TAB_LABELS: Record<AccountsPaymentTabId, string> = {
   "customer-payment": "Customer receipts",
@@ -76,6 +78,11 @@ export function PaymentTransactionHistoryPanel({
 }: PaymentTransactionHistoryPanelProps) {
   const { isAdmin } = useUserRoles();
   const [search, setSearch] = useState("");
+  const isExpenses = tab === "expenses";
+  const expenseActions = useExpenseVoucherActions(organizationId, isExpenses);
+  const canEditExpense = isExpenses && !!organizationId && expenseActions.canModify;
+  const canDeleteExpense = isExpenses && !!organizationId && expenseActions.canDelete;
+  const showExpenseActions = canEditExpense || canDeleteExpense;
 
   const supplierIdsForHistory = useMemo(() => {
     if (tab !== "supplier-payment" || !vouchers?.length) return [] as string[];
@@ -331,6 +338,24 @@ export function PaymentTransactionHistoryPanel({
                   Edit
                 </Button>
               )}
+              {canEditExpense && (
+                <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => expenseActions.openEdit(selected)}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  Edit
+                </Button>
+              )}
+              {canDeleteExpense && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-destructive hover:text-destructive"
+                  onClick={() => expenseActions.requestDelete(selected)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Delete
+                </Button>
+              )}
               {tab === "customer-payment" && onShowReceipt && (
                 <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => buildCustomerReceipt(selected)}>
                   <Printer className="h-3.5 w-3.5 mr-1" />
@@ -349,12 +374,15 @@ export function PaymentTransactionHistoryPanel({
               <TableHead className={accountsHistoryThClass}>Party</TableHead>
               <TableHead className={cn(accountsHistoryThClass, "text-right")}>Amount</TableHead>
               <TableHead className={accountsHistoryThClass}>Method</TableHead>
+              {showExpenseActions && (
+                <TableHead className={cn(accountsHistoryThClass, "w-[80px] text-center")}>Actions</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={showExpenseActions ? 6 : 5} className="text-center text-muted-foreground py-8">
                   No transactions found
                 </TableCell>
               </TableRow>
@@ -386,12 +414,43 @@ export function PaymentTransactionHistoryPanel({
                     ₹{Number(v.total_amount || 0).toLocaleString("en-IN")}
                   </TableCell>
                   <TableCell className="text-sm uppercase">{v.payment_method || "—"}</TableCell>
+                  {showExpenseActions && (
+                    <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-0.5">
+                        {canEditExpense && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Edit expense"
+                            onClick={() => expenseActions.openEdit(v)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                        {canDeleteExpense && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            title="Delete expense"
+                            onClick={() => expenseActions.requestDelete(v)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </AccountsHistoryPanel>
+      {isExpenses && expenseActions.dialogs}
     </div>
   );
 }
