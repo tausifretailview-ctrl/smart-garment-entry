@@ -2,7 +2,7 @@
 // add filenames to ALLOWED_FILES in download-apk / download-windows -> bump versions below.
 
 /** Windows installer / install-page version label (Setup + Portable). */
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.2.1";
 
 /** Android APK version — keep until a matching EzzyERP-{ver}.apk is uploaded + allowlisted. */
 export const ANDROID_APK_VERSION = "1.1.0";
