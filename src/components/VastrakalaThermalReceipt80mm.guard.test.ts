@@ -20,8 +20,8 @@ describe("Vastrakala 80mm receipt layout", () => {
     );
   });
 
-  it("adds compact, consistent spacing between all receipt sections", () => {
-    expect(tsx).toContain("sectionGap: is58 ? 3 : 5");
+  it("adds roomy, consistent spacing between all receipt sections", () => {
+    expect(tsx).toContain("sectionGap: is58 ? 5 : 9");
     expect(tsx).toContain("margin: `${layout.sectionGap}px 0`");
     expect(tsx).toContain('className="vk-header vk-section"');
     expect(tsx).toContain('className="vk-meta vk-section"');

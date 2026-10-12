@@ -138,7 +138,9 @@ function layoutForPaper(paper: PosThermalPaper, showMrp: boolean) {
     // Height matches the name + address + contact block; width follows the logo's shape.
     logoHeight: is58 ? "16mm" : "26mm",
     logoMaxWidth: is58 ? "14mm" : "22mm",
-    sectionGap: is58 ? 3 : 5,
+    // Space above and below each dashed divider (and between sections); roomy like the
+    // shop's old Retail Click bill.
+    sectionGap: is58 ? 5 : 9,
     /**
      * Chars on line 1 in the narrow column before QTY; rest goes on wide line 2.
      * Sized to what the column actually fits (it clips, no wrap): with MRP on, the
