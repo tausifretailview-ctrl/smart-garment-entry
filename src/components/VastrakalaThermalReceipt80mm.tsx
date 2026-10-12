@@ -296,7 +296,7 @@ export const VastrakalaThermalReceipt80mm = React.forwardRef<
     color: "#000",
     fontFamily: "Arial, Helvetica, sans-serif",
     fontSize: layout.baseFont,
-    fontWeight: 400,
+    fontWeight: 700,
     lineHeight: 1.35,
     letterSpacing: 0,
     boxSizing: "border-box",

@@ -50,4 +50,11 @@ describe("Vastrakala 80mm receipt layout", () => {
     // Inline fallback: width derived from the logo's shape, since height is forced to auto in print.
     expect(tsx).toContain("naturalWidth / naturalHeight");
   });
+
+  it("prints every line bold so the bill comes out dark on thermal paper", () => {
+    expect(css).not.toMatch(/font-weight:\s*(400|normal)/);
+    expect(css).not.toContain("antialiased");
+    expect(tsx).toContain("fontWeight: 700,");
+    expect(tsx).not.toContain("fontWeight: 400");
+  });
 });
