@@ -95,6 +95,7 @@ import { ProductEntryDialogGate } from "@/components/ProductEntryDialogGate";
 import { prefetchProductEntryDialog } from "@/lib/productEntryDialogLoad";
 import { scheduleIdleWork } from "@/lib/chunkLoadRetry";
 import QuickEditPopover from "@/components/QuickEditPopover";
+import { fillBlankVariantColorsFromPurchaseLines } from "@/utils/purchaseVariantColorSync";
 import { resolveBarcodeScanPicker } from "@/utils/barcodeMrpPicker";
 import {
   barcodeTierLookupKey,
@@ -6539,6 +6540,13 @@ const PurchaseEntry = () => {
         const priorSavedTempIds = new Set(originalLineItems.map((i) => i.temp_id));
         insertedNewItems = workingLineItems.filter((item) => !priorSavedTempIds.has(item.temp_id));
 
+        // Bill line colour → variants saved without one, so Product Dashboard shows it too.
+        try {
+          await fillBlankVariantColorsFromPurchaseLines(supabase, currentOrganization!.id, workingLineItems);
+        } catch (colorErr) {
+          console.warn("[PurchaseEntry] variant colour sync after edit failed:", colorErr);
+        }
+
         // Store items for barcode printing (edit mode)
         // Batch-fetch product details instead of N individual queries
         const editUniqueProductIds = [...new Set(workingLineItems.map(i => i.product_id))];
@@ -7029,6 +7037,13 @@ const PurchaseEntry = () => {
           }
         } catch (syncErr) {
           console.warn("[PurchaseEntry] last_purchase sync after create failed:", syncErr);
+        }
+
+        // Bill line colour → variants saved without one, so Product Dashboard shows it too.
+        try {
+          await fillBlankVariantColorsFromPurchaseLines(supabase, currentOrganization!.id, saveLines);
+        } catch (colorErr) {
+          console.warn("[PurchaseEntry] variant colour sync after create failed:", colorErr);
         }
 
         // Batch-fetch product details instead of N individual queries

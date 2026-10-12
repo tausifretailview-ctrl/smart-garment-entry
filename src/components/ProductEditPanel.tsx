@@ -28,7 +28,7 @@ import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { validateIMEI } from "@/utils/imeiValidation";
 import { getNetSoldQtyForVariant } from "@/utils/variantNetSoldQty";
-import { invalidateStockReportQueries } from "@/utils/invalidateDashboardQueries";
+import { invalidateProductDashboardQueries } from "@/utils/invalidateDashboardQueries";
 import { resolveVariantColor } from "@/utils/resolveVariantColor";
 import {
   applyPurchaseMarkupPricing,
@@ -471,7 +471,8 @@ const ProductEditPanel = ({
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
 
-      invalidateStockReportQueries(queryClient, currentOrganization?.id);
+      // Product Dashboard too (colour chips, name, brand); includes stock reports.
+      void invalidateProductDashboardQueries(queryClient, currentOrganization?.id);
 
       toast({
         title: "Product Updated",
@@ -645,7 +646,9 @@ const ProductEditPanel = ({
                     renderField(fieldLabel("category", "Category"), "category")}
                   {isFieldEnabled("style") &&
                     renderField(fieldLabel("style", "Style / Model"), "style")}
-                  {isFieldEnabled("color") && (
+                  {/* Colour stays editable when this barcode already has one, even if the
+                      Color field is switched off in Product settings. */}
+                  {(isFieldEnabled("color") || !!original?.color?.trim() || !!item?.color?.trim()) && (
                     <div className="space-y-1">
                       {renderField(fieldLabel("color", "Color"), "color")}
                       <p className="text-[10px] text-muted-foreground leading-snug">

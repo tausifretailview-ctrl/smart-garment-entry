@@ -72,8 +72,13 @@ export function invalidateProductDashboardQueries(
   const catalog = invalidateQueriesWithQueryFn(queryClient, orgKey("product-catalog"));
   const stats = invalidateQueriesWithQueryFn(queryClient, orgKey("product-dashboard-stats"));
   const filters = invalidateQueriesWithQueryFn(queryClient, orgKey("product-filter-options"));
+  // Colour chips come from product_variants (purchase / Edit Product can change them).
+  const colors = invalidateQueriesWithQueryFn(
+    queryClient,
+    orgKey("product-dashboard-color-labels"),
+  );
   invalidateStockReportQueries(queryClient, organizationId);
-  return Promise.all([catalog, stats, filters]);
+  return Promise.all([catalog, stats, filters, colors]);
 }
 
 /** Purchase bill list + summary tiles + shared dashboard stats. */
@@ -99,8 +104,10 @@ export function invalidatePurchaseDashboardQueries(
   queryClient.invalidateQueries({ queryKey: ["last-purchase-bill"] });
   queryClient.invalidateQueries({ queryKey: ["all-purchase-bill-ids"] });
   queryClient.invalidateQueries({ queryKey: ["pos-products"] });
-  queryClient.invalidateQueries({ queryKey: ["product-dashboard"] });
   queryClient.invalidateQueries({ queryKey: ["products"] });
+  // New units / colours from the bill must show on Product Dashboard (its catalog
+  // does not refetch on mount, so a stale mark alone is not enough).
+  void invalidateProductDashboardQueries(queryClient, organizationId);
 }
 
 export type AfterSaleSaveOptions = {
