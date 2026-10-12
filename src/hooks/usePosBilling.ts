@@ -21,6 +21,7 @@ import {
   type CartMutatorResult,
   clearCart as clearCartPure,
   computePosBillTotals,
+  snapRoundOffToWholeRupee,
   mapSaleItemsToPosCart,
   normalizeFlatDiscountInput,
   type PosBillingError,
@@ -216,8 +217,14 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
   );
   const [saleReturnAdjust, setSaleReturnAdjust] = useState(0);
   const [creditApplied, setCreditApplied] = useState(0);
-  const [roundOff, setRoundOff] = useState(0);
+  const [roundOff, setRoundOffState] = useState(0);
   const [isManualRoundOff, setIsManualRoundOff] = useState(false);
+  /** True while the round-off came from the cashier's Round / Net Amount box (not a saved bill). */
+  const manualWholeRupeeRef = useRef(false);
+  const setRoundOff: Dispatch<SetStateAction<number>> = useCallback((value) => {
+    manualWholeRupeeRef.current = false;
+    setRoundOffState(value);
+  }, []);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [lastError, setLastError] = useState<PosBillingError | null>(null);
 
@@ -271,36 +278,50 @@ export function usePosBilling(params: UsePosBillingParams): UsePosBillingResult 
   }, [items, totals.flatDiscountAmount, taxType, garmentGstSettings]);
 
   // Auto-update roundOff when calculation changes (only if not manual) — same as POSSales.
+  // A cashier-typed round-off keeps the bill on a whole rupee when the cart or discount
+  // changes afterwards (e.g. -7 typed, then 10% off adds paise). Saved-bill round-offs
+  // (edit / hold restore) are left exactly as stored.
   useEffect(() => {
     if (!isManualRoundOff) {
       if (items.length > 0) {
         const newRoundOff = parseFloat(totals.calculatedRoundOff.toFixed(2));
         if (Math.abs(newRoundOff - roundOff) > 0.001) {
-          setRoundOff(newRoundOff);
+          setRoundOffState(newRoundOff);
         }
       } else if (roundOff !== 0) {
-        setRoundOff(0);
+        setRoundOffState(0);
+      }
+    } else if (manualWholeRupeeRef.current && items.length > 0) {
+      const snapped = snapRoundOffToWholeRupee(totals.amountBeforeRoundOff, roundOff);
+      if (Math.abs(snapped - roundOff) > 0.001) {
+        setRoundOffState(snapped);
       }
     }
   }, [totals.amountBeforeRoundOff, totals.calculatedRoundOff, items.length, isManualRoundOff, roundOff]);
 
-  const handleRoundOffChange = useCallback((value: number) => {
-    setRoundOff(parseFloat(value.toFixed(2)));
-    setIsManualRoundOff(true);
-  }, []);
+  const handleRoundOffChange = useCallback(
+    (value: number) => {
+      manualWholeRupeeRef.current = true;
+      setRoundOffState(snapRoundOffToWholeRupee(totals.amountBeforeRoundOff, value));
+      setIsManualRoundOff(true);
+    },
+    [totals.amountBeforeRoundOff],
+  );
 
   const handleFinalAmountChange = useCallback(
     (enteredAmount: number) => {
       const newRoundOff = enteredAmount - totals.amountBeforeRoundOff;
-      setRoundOff(parseFloat(newRoundOff.toFixed(2)));
+      manualWholeRupeeRef.current = true;
+      setRoundOffState(snapRoundOffToWholeRupee(totals.amountBeforeRoundOff, newRoundOff));
       setIsManualRoundOff(true);
     },
     [totals.amountBeforeRoundOff],
   );
 
   const handleResetRoundOff = useCallback(() => {
+    manualWholeRupeeRef.current = false;
     setIsManualRoundOff(false);
-    setRoundOff(parseFloat(totals.calculatedRoundOff.toFixed(2)));
+    setRoundOffState(parseFloat(totals.calculatedRoundOff.toFixed(2)));
   }, [totals.calculatedRoundOff]);
 
   const applyMutator = useCallback(

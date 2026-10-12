@@ -307,12 +307,13 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
       <div className="tz-sep-solid" />
 
       <div className="tz-meta">
+        {/* Invoice No + Customer on one row overlapped on 80mm; pair the short Date/Time instead. */}
         <PairRow
           left={<>Invoice No: {billNo}</>}
-          right={partyName ? <>Customer: {partyName}</> : null}
+          right={<>Date: {format(date, "dd/MM/yyyy")}</>}
         />
         <PairRow
-          left={<>Date: {format(date, "dd/MM/yyyy")}</>}
+          left={partyName ? <>Customer: {partyName}</> : null}
           right={<>Time: {format(date, "hh:mm a")}</>}
         />
         <PairRow
@@ -405,7 +406,9 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
       <div className="tz-terms-title">TERMS &amp; CONDITIONS</div>
       <div className="tz-terms-list">
         {termsToPrint.map((term) => (
-          <div key={term}>• {term}</div>
+          <div key={term} className="tz-term">
+            • {term}
+          </div>
         ))}
       </div>
       {declaration ? (

@@ -56,6 +56,17 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toMatch(/\.tz-header-ids \{[\s\S]*white-space:\s*nowrap/);
   });
 
+  it("pairs Invoice No with Date and Customer with Time so they never overlap", () => {
+    expect(tsx).toMatch(/left=\{<>Invoice No: \{billNo\}<\/>\}\s*right=\{<>Date:/);
+    expect(tsx).toMatch(/Customer: \{partyName\}[\s\S]{0,40}right=\{<>Time:/);
+    expect(css).toMatch(/\.tz-meta \.tz-pair-left \{[\s\S]*white-space:\s*normal/);
+  });
+
+  it("wraps terms with a hanging indent under the bullet", () => {
+    expect(tsx).toContain('className="tz-term"');
+    expect(css).toMatch(/\.tz-term \{[\s\S]*text-indent:\s*-0\.9em/);
+  });
+
   it("prints mix payment amounts and Prev Bal / Advance on one pair-row each", () => {
     expect(tsx).toContain("trendzoDocumentTitle");
     expect(tsx).toContain("formatTrendzoPaymentModeLabel");

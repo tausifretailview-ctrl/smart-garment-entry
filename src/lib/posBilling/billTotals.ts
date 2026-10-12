@@ -110,3 +110,15 @@ export function computePosBillTotals(input: ComputePosBillTotalsInput): PosBillT
     amountBeforeCredit,
   };
 }
+
+/**
+ * A cashier round-off typed as whole rupees (e.g. -7 on ₹7,307.10) must still land the
+ * bill on a whole rupee: keep the rupee the cashier aimed for and absorb the paise.
+ * -7 on 7307.10 → -7.10 (bill 7300.00). Returns the round-off to 2 decimals.
+ */
+export function snapRoundOffToWholeRupee(amountBeforeRoundOff: number, roundOff: number): number {
+  const base = Number(amountBeforeRoundOff) || 0;
+  const ro = Number(roundOff) || 0;
+  const target = Math.round(Math.round((base + ro) * 100) / 100);
+  return Math.round((target - base) * 100) / 100;
+}
