@@ -925,6 +925,12 @@ export default function POSSales() {
     maxSrFromBill: billingMaxSrFromBill,
   } = billing;
 
+  /** Text while the cashier types in Round (the stored round-off is snapped to a whole-rupee bill). */
+  const [roundOffDraft, setRoundOffDraft] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isManualRoundOff) setRoundOffDraft(null);
+  }, [isManualRoundOff]);
+
   const hydrateCartPurchasePrices = useCallback(
     async (variantIds: Array<string | null | undefined>) => {
       const orgId = currentOrganization?.id;
@@ -8898,9 +8904,13 @@ export default function POSSales() {
                   <Input 
                     type="number"
                     className={`w-24 h-10 text-center text-lg font-semibold border-0 rounded-md ${roundOff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-                    value={roundOff || ""}
+                    value={roundOffDraft ?? (roundOff || "")}
                     placeholder="0"
-                    onChange={(e) => handleRoundOffChange(parseFloat(e.target.value) || 0)}
+                    onChange={(e) => {
+                      setRoundOffDraft(e.target.value);
+                      handleRoundOffChange(parseFloat(e.target.value) || 0);
+                    }}
+                    onBlur={() => setRoundOffDraft(null)}
                     step="1"
                   />
                 </div>
