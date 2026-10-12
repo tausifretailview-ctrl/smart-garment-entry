@@ -145,7 +145,9 @@ cd android
 
 **Output:** `android/app/build/outputs/apk/release/app-release.apk`
 
-Copy/rename to `public/downloads/EzzyERP-1.1.0.apk` and deploy to Vercel so org install pages can link it (e.g. `https://app.inventoryshop.in/ella-noor/install`).
+Rename to `EzzyERP-<versionName>.apk` and upload it to the private Supabase storage bucket `app-downloads`. Then set `CURRENT_APK_VERSION` in `supabase/functions/download-apk/index.ts` and `ANDROID_APK_VERSION` in `src/config/downloads.ts` to the same version, and redeploy `download-apk`. Install pages (e.g. `https://app.inventoryshop.in/ella-noor/install`) download through that function.
+
+Do **not** keep APK/EXE files in `public/downloads/`: the web build copies `public/` into `dist/`, and `cap sync` copies `dist/` into the next APK. `build.gradle` now skips installer files when packaging, but delete any old ones there anyway.
 
 Play Store AAB: `.\gradlew.bat bundleRelease` → `android/app/build/outputs/bundle/release/app-release.aab`
 
