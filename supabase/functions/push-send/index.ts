@@ -326,13 +326,13 @@ const handler = async (req: Request): Promise<Response> => {
             supabase.from("organizations").select("public_subdomain").eq("id", organizationId).maybeSingle(),
             supabaseAuth.rpc("create_customer_link", { p_sale_id: sale.id }),
           ]);
-          const token = (linkData as { token?: string } | null)?.token;
-          billUrl = buildCustomerBillUrl(org?.public_subdomain, domain, token) ?? "";
+          const linkToken = (linkData as { token?: string } | null)?.token;
+          billUrl = buildCustomerBillUrl(org?.public_subdomain, domain, linkToken) ?? "";
           if (!billUrl) {
             console.error("push-send: no bill link", {
               saleId: sale.id,
               hasSubdomain: !!org?.public_subdomain,
-              hasToken: !!token,
+              hasToken: !!linkToken,
             });
           }
         } catch (linkError) {
