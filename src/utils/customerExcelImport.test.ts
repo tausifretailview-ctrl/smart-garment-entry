@@ -80,3 +80,16 @@ describe("validateMappedData for party masters", () => {
     expect(result.validRowCount).toBe(2);
   });
 });
+
+describe("customer import cell cleanup", () => {
+  it("treats (blank) as empty and decodes &amp; in names", () => {
+    const { rows } = prepareCustomerImportRows([
+      { customer_name: "VINAYAK SWEET &amp;amp; SNACKS", address: "(blank)", state: "Maharashtra", phone: "(blank)" },
+      { customer_name: "TESTY STORE", address: "(Blank)", state: "(blank)" },
+    ]);
+    expect(rows.map((r) => [r.customer_name, r.address, r.phone])).toEqual([
+      ["VINAYAK SWEET & SNACKS", "Maharashtra", null],
+      ["TESTY STORE", "", null],
+    ]);
+  });
+});

@@ -560,7 +560,9 @@ const CustomerMaster = () => {
       let query = applySearchAndLocation(
         supabase
           .from("customers")
-          .select(CUSTOMER_LIST_COLUMNS, { count: "planned" })
+          // Exact, not "planned": the planner estimate stays at the old size after a bulk
+          // Excel import (showed "1 of 1 records" with 650 customers and no next page).
+          .select(CUSTOMER_LIST_COLUMNS, { count: "exact" })
           .eq("organization_id", orgId)
           .is("deleted_at", null),
       );
@@ -662,6 +664,8 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segment-counts"] });
       invalidateCustomers(currentOrganization?.id);
       if (enablePointsSystem && parseCustomerPointsInput(variables.points_balance) > 0) {
         invalidateCustomerPointsRelatedQueries(queryClient, {
@@ -735,6 +739,8 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segment-counts"] });
       invalidateCustomerPointsRelatedQueries(queryClient, {
         organizationId: currentOrganization?.id,
         customerId: variables.id,
@@ -759,6 +765,8 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segment-counts"] });
       toast({ title: "Customer moved to recycle bin" });
     },
     onError: (error: any) => {
@@ -776,6 +784,8 @@ const CustomerMaster = () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
       queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+      queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+      queryClient.invalidateQueries({ queryKey: ["customer-segment-counts"] });
       toast({ title: `${count} customers moved to recycle bin` });
       setSelectedCustomers(new Set());
     },
@@ -974,6 +984,8 @@ const CustomerMaster = () => {
     queryClient.invalidateQueries({ queryKey: ["customers"] });
     queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
     queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
+    queryClient.invalidateQueries({ queryKey: ["customers-count"] });
+    queryClient.invalidateQueries({ queryKey: ["customer-segment-counts"] });
     let description = `${successCount} customers imported`;
     if (skippedCount > 0) description += `, ${skippedCount} already existed (skipped)`;
     if (prepared.blankRows > 0) description += `, ${prepared.blankRows} rows with no name or mobile skipped`;
