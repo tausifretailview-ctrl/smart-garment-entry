@@ -5,6 +5,7 @@
  * Everything here is a no-op on web / Electron.
  */
 import { Capacitor } from "@capacitor/core";
+import { PushNotifications } from "@capacitor/push-notifications";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -44,21 +45,26 @@ function storeToken(token: string | null) {
   }
 }
 
-async function plugin() {
-  const mod = await import("@capacitor/push-notifications");
-  return mod.PushNotifications;
-}
+/**
+ * Imported statically on purpose: a Capacitor plugin is a Proxy that answers every property,
+ * including `then`, so returning it from an async function (or awaiting it) never resolves.
+ * That is what left "Turn on alerts" spinning forever.
+ */
+const Push = PushNotifications;
 
 /** Ask Android for an FCM token (requires notification permission). */
 async function registerForToken(): Promise<string> {
-  const Push = await plugin();
-  await Push.createChannel({
-    id: OWNER_ALERT_CHANNEL_ID,
-    name: "Owner alerts",
-    description: "Cashier report, low stock, bills and day-end summary",
-    importance: 4,
-    visibility: 1,
-  }).catch(() => undefined);
+  await withTimeout(
+    Push.createChannel({
+      id: OWNER_ALERT_CHANNEL_ID,
+      name: "Owner alerts",
+      description: "Cashier report, low stock, bills and day-end summary",
+      importance: 4,
+      visibility: 1,
+    }),
+    10_000,
+    "channel timeout",
+  ).catch(() => undefined);
 
   return new Promise<string>((resolve, reject) => {
     let done = false;
@@ -78,7 +84,10 @@ async function registerForToken(): Promise<string> {
     void Push.addListener("registrationError", (e) =>
       finish(() => reject(new Error(e?.error || "Notification registration failed"))),
     ).then((h) => handles.push(h));
-    void Push.register();
+    // A native failure here (e.g. Firebase not set up in the APK) rejects instead of firing registrationError.
+    void Push.register().catch((e: unknown) =>
+      finish(() => reject(new Error(`Android could not register for notifications: ${e instanceof Error ? e.message : String(e)}`))),
+    );
   });
 }
 
@@ -126,9 +135,12 @@ export async function enableOwnerAlertsOnThisPhone(
   onStep?: (step: OwnerPushStep) => void,
 ): Promise<void> {
   if (!isOwnerPushSupported()) throw new Error("Open EzzyERP in the Android app to turn on phone alerts.");
-  const Push = await plugin();
   onStep?.("permission");
-  let perm = await Push.checkPermissions();
+  let perm = await withTimeout(
+    Push.checkPermissions(),
+    10_000,
+    "The phone did not answer the notification check (step 1). Close and reopen the app, then try again.",
+  );
   if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
     // A dismissed Android dialog can leave this pending; never keep the button stuck.
     perm = await withTimeout(Push.requestPermissions(), 60_000, "No answer to the notification permission. Tap the button again and choose Allow.");
@@ -138,7 +150,7 @@ export async function enableOwnerAlertsOnThisPhone(
   const token = await registerForToken();
   onStep?.("saving");
   try {
-    await saveDevice(organizationId, userId, token);
+    await withTimeout(saveDevice(organizationId, userId, token), 20_000, "no answer from the server in 20 seconds");
   } catch (e) {
     const msg = e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e);
     throw new Error(`The phone was not saved on the server: ${msg}`);
@@ -191,7 +203,6 @@ export function thisPhoneHasOwnerAlerts(): boolean {
 export async function refreshOwnerAlertsToken(organizationId: string, userId: string): Promise<void> {
   if (!isOwnerPushSupported() || !storedToken()) return;
   try {
-    const Push = await plugin();
     const perm = await Push.checkPermissions();
     if (perm.receive !== "granted") return;
     const token = await registerForToken();
@@ -205,7 +216,6 @@ export async function refreshOwnerAlertsToken(organizationId: string, userId: st
 /** Tapping an alert opens its screen (data.route set by owner-alerts). */
 export async function listenForOwnerAlertTaps(navigate: (path: string) => void): Promise<() => void> {
   if (!isOwnerPushSupported()) return () => undefined;
-  const Push = await plugin();
   const handle = await Push.addListener("pushNotificationActionPerformed", (action) => {
     const route = (action.notification?.data as { route?: string } | undefined)?.route;
     if (route && route.startsWith("/")) navigate(route);
