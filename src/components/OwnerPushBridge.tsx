@@ -17,6 +17,7 @@ import {
   enableOwnerAlertsOnThisPhone,
   isOwnerPushSupported,
   listenForOwnerAlertTaps,
+  ownerAlertErrorText,
   refreshOwnerAlertsToken,
   shouldOfferOwnerAlertsPrompt,
 } from "@/lib/ownerPush";
@@ -81,7 +82,7 @@ export function OwnerPushBridge() {
       setPromptOpen(false);
     } catch (e) {
       toast.error("Could not turn on alerts", {
-        description: `${e instanceof Error ? e.message : String(e)} You can try again in Settings → POS → Owner alerts.`,
+        description: `${ownerAlertErrorText(e)} You can try again in Settings → POS → Owner alerts.`,
       });
       notNow();
     } finally {

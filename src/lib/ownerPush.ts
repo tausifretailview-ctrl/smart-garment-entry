@@ -152,8 +152,7 @@ export async function enableOwnerAlertsOnThisPhone(
   try {
     await withTimeout(saveDevice(organizationId, userId, token), 20_000, "no answer from the server in 20 seconds");
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e);
-    throw new Error(`The phone was not saved on the server: ${msg}`);
+    throw new Error(`The phone was not saved on the server: ${ownerAlertErrorText(e)}`);
   }
   storeToken(token);
   dismissOwnerAlertsPrompt();
@@ -268,9 +267,26 @@ export function notifyOwnersOfNewBill(organizationId: string, saleId: string): v
  * Plain words for a failed owner-alerts call. "Failed to send a request to the Edge Function"
  * (FunctionsFetchError) means the owner-alerts function is not deployed / not reachable.
  */
+/** Supabase/PostgREST errors are plain objects, so String(e) gives "[object Object]". */
+function rawErrorText(e: unknown): { msg: string; code: string } {
+  if (e instanceof Error) return { msg: e.message, code: String((e as { code?: unknown }).code ?? "") };
+  if (e && typeof e === "object") {
+    const o = e as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const msg = [o.message, o.details, o.hint].filter((x) => typeof x === "string" && x).join(" · ");
+    return { msg: msg || JSON.stringify(e), code: String(o.code ?? "") };
+  }
+  return { msg: String(e ?? ""), code: "" };
+}
+
 export function ownerAlertErrorText(e: unknown): string {
   const name = e && typeof e === "object" && "name" in e ? String((e as { name?: unknown }).name) : "";
-  const msg = e instanceof Error ? e.message : String(e ?? "");
+  const { msg, code } = rawErrorText(e);
+  if (code === "42P01" || code === "PGRST205" || /relation .*owner_.* does not exist|could not find the table/i.test(msg)) {
+    return `Owner alerts are not set up in the database yet (owner alerts SQL not run). Details: ${msg}`;
+  }
+  if (code === "42501" || /row-level security/i.test(msg)) {
+    return `Only an admin of this shop can change owner alerts. Details: ${msg}`;
+  }
   if (name === "FunctionsFetchError" || /failed to send a request to the edge function/i.test(msg)) {
     return "The owner alerts service is not set up on the server yet (owner-alerts function not deployed). Ask your EzzyERP admin to deploy it, then try again.";
   }

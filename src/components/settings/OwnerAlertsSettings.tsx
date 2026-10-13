@@ -129,7 +129,7 @@ export function OwnerAlertsSettings() {
       clearOwnerInvoiceAlertCache(orgId);
       toast.success("Owner alerts saved");
     } catch (e) {
-      toast.error("Could not save owner alerts", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Could not save owner alerts", { description: ownerAlertErrorText(e) });
     } finally {
       setSaving(false);
     }
@@ -145,7 +145,7 @@ export function OwnerAlertsSettings() {
       toast.success("This phone will get owner alerts");
       void load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+      const msg = ownerAlertErrorText(e);
       setPhoneError(msg);
       toast.error("Could not turn on alerts", { description: msg });
     } finally {
