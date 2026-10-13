@@ -512,6 +512,7 @@ const fieldAliases: Record<string, string[]> = {
   phone: ['phone', 'mobile', 'mobileno', 'phoneno', 'contact', 'tel', 'telephone', 'cell', 'mob', 'phno', 'contactno', 'mobilenumber', 'phonenumber'],
   email: ['email', 'emailid', 'emailaddress', 'mail', 'emailadd', 'emailaddr'],
   address: ['address', 'addr', 'fulladdress', 'location', 'city', 'area', 'place', 'add', 'officeaddress', 'shopaddress'],
+  state: ['state', 'statename', 'province'],
   gst_number: ['gstnumber', 'gst', 'gstno', 'gstin', 'taxno', 'gstnum', 'gstnoin', 'tin', 'tinno', 'vatno', 'vat'],
   supplier_code: ['suppliercode', 'code', 'vendorcode', 'partycode', 'invno', 'invoiceno', 'supplierinvno', 'suppcode', 'vendcode', 'refno', 'reference', 'refcode', 'invoicenumber', 'billno', 'billnumber'],
   opening_balance: ['openingbalance', 'opening', 'balance', 'ob', 'openingbal', 'outstandingbal', 'outstanding', 'opbal', 'openbal', 'balancedue'],
@@ -812,6 +813,12 @@ export const validateMappedData = (
   // Validate each row
   let invalidRowCount = 0;
   let skippedSummaryRows = 0;
+  // Summary/total-row detection is for product sheets. Party masters (customers,
+  // suppliers) have no product name and often only 2-3 filled cells per row, so
+  // there only fully blank rows are skipped; their import handlers check names.
+  const isProductImport = targetFields.some(f => f.key === 'product_name');
+  const isBlankRow = (row: Record<string, any>) =>
+    Object.values(row).every(v => v === undefined || v === null || String(v).trim() === '');
   mappedData.forEach((row, index) => {
     // Excel row number:
     // - headerRowIndex is 0-based worksheet index of the header row
@@ -822,13 +829,13 @@ export const validateMappedData = (
     let rowHasError = false;
 
     // Skip summary/total/empty/blank-product-name rows — not validation errors
-    if (isSummaryOrEmptyRow(row)) {
+    if (isProductImport ? isSummaryOrEmptyRow(row) : isBlankRow(row)) {
       skippedSummaryRows++;
       return;
     }
 
     // Check required fields have values (blank product_name already skipped above)
-    requiredFields.forEach(field => {
+    if (isProductImport) requiredFields.forEach(field => {
       if (field.key === "product_name") return;
       if (mappedFieldKeys.includes(field.key)) {
         const value = row[field.key];
@@ -981,9 +988,11 @@ export const productEntrySampleData = [
 // Customer Master Fields
 export const customerMasterFields: TargetField[] = [
   { key: 'customer_name', label: 'Customer Name', type: 'text' },
-  { key: 'phone', label: 'Mobile Number', type: 'text', required: true },
+  // Optional: a party with only a name is imported without a mobile (same as Add customer).
+  { key: 'phone', label: 'Mobile Number', type: 'text' },
   { key: 'email', label: 'Email', type: 'text' },
   { key: 'address', label: 'Address', type: 'text' },
+  { key: 'state', label: 'State (added to address)', type: 'text' },
   { key: 'gst_number', label: 'GST Number', type: 'text' },
   { key: 'opening_balance', label: 'Opening Balance', type: 'number' },
 ];

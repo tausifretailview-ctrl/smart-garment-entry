@@ -74,6 +74,7 @@ import { syncUnlinkedSalesIntoCustomerMaster } from "@/utils/salePartyCustomerMa
 import { useSoftDelete } from "@/hooks/useSoftDelete";
 import { ExcelImportDialog, ImportProgress } from "@/components/ExcelImportDialog";
 import { customerMasterFields, customerMasterSampleData, normalizePhoneNumber } from "@/utils/excelImportUtils";
+import { prepareCustomerImportRows, splitNewCustomers } from "@/utils/customerExcelImport";
 import { mobileNumberError } from "@/utils/mobileNumberValidation";
 import { assertNoCustomerDuplicate, findExistingCustomerByNameOrPhone } from "@/utils/customerUtils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -921,60 +922,62 @@ const CustomerMaster = () => {
       toast({ title: "No organization selected", variant: "destructive" });
       return;
     }
-    const BATCH_SIZE = 50;
+    // 100 rows per insert keeps each statement well inside the statement timeout.
+    const BATCH_SIZE = 100;
     let successCount = 0;
     let errorCount = 0;
-    let skippedCount = 0;
 
-    const validRows = mappedData.filter(row => {
-      const phone = normalizePhoneNumber(row.phone);
-      return phone && phone.length > 0;
-    });
+    const prepared = prepareCustomerImportRows(mappedData);
 
-    const { data: existingCustomers } = await supabase
-      .from("customers")
-      .select("phone")
-      .eq("organization_id", currentOrganization.id)
-      .is("deleted_at", null);
-    
-    const existingPhones = new Set(
-      (existingCustomers || []).map(c => normalizePhoneNumber(c.phone)).filter(Boolean)
-    );
-
-    for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
-      const batch = validRows.slice(i, i + BATCH_SIZE);
-      const customersToInsert: any[] = [];
-
-      for (const row of batch) {
-        const phone = normalizePhoneNumber(row.phone);
-        if (existingPhones.has(phone)) { skippedCount++; continue; }
-        customersToInsert.push({
-          customer_name: (row.customer_name?.toString().trim() || phone).toUpperCase(),
-          phone, email: row.email?.toString().trim() || '', address: row.address?.toString().trim() || '',
-          gst_number: row.gst_number?.toString().trim() || '',
-          opening_balance: row.opening_balance ? parseFloat(row.opening_balance) : 0,
-          organization_id: currentOrganization.id,
-        });
-        existingPhones.add(phone);
+    // Page through every existing customer: a single select stops at 1,000 rows,
+    // which let duplicates through for shops with bigger customer lists.
+    const existingCustomers: { customer_name: string | null; phone: string | null }[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("customer_name, phone")
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (error) {
+        toast({ title: "Could not check existing customers", description: error.message, variant: "destructive" });
+        return;
       }
+      existingCustomers.push(...(data || []));
+      if (!data || data.length < PAGE) break;
+    }
 
-      if (customersToInsert.length > 0) {
-        const { error } = await supabase.from("customers").insert(customersToInsert);
-        if (error) { errorCount += customersToInsert.length; } else { successCount += customersToInsert.length; }
+    const { fresh, duplicates: skippedCount } = splitNewCustomers(prepared.rows, existingCustomers);
+    const toInsertRow = (row: (typeof fresh)[number]) => ({ ...row, organization_id: currentOrganization.id });
+
+    for (let i = 0; i < fresh.length; i += BATCH_SIZE) {
+      const batch = fresh.slice(i, i + BATCH_SIZE).map(toInsertRow);
+      const { error } = await supabase.from("customers").insert(batch);
+      if (!error) {
+        successCount += batch.length;
+      } else {
+        // One bad row fails the whole batch; retry row by row so the rest still import.
+        for (const row of batch) {
+          const { error: rowError } = await supabase.from("customers").insert(row);
+          if (rowError) errorCount++;
+          else successCount++;
+        }
       }
 
       if (onProgress) {
-        onProgress({ current: Math.min(i + BATCH_SIZE, validRows.length), total: validRows.length, successCount, errorCount, skippedCount, isImporting: true });
+        onProgress({ current: Math.min(i + BATCH_SIZE, fresh.length), total: fresh.length, successCount, errorCount, skippedCount, isImporting: true });
       }
     }
 
     queryClient.invalidateQueries({ queryKey: ["customers"] });
     queryClient.invalidateQueries({ queryKey: ["customer-locations"] });
     queryClient.invalidateQueries({ queryKey: ["customer-segments"] });
-    const skippedEmptyRows = mappedData.length - validRows.length;
     let description = `${successCount} customers imported`;
-    if (skippedCount > 0) description += `, ${skippedCount} duplicates skipped`;
-    if (skippedEmptyRows > 0) description += `, ${skippedEmptyRows} empty rows skipped`;
+    if (skippedCount > 0) description += `, ${skippedCount} already existed (skipped)`;
+    if (prepared.blankRows > 0) description += `, ${prepared.blankRows} rows with no name or mobile skipped`;
+    if (prepared.invalidPhones > 0) description += `, ${prepared.invalidPhones} mobiles were not 10 digits (saved without mobile)`;
     if (errorCount > 0) description += `, ${errorCount} failed`;
     toast({ title: "Import completed", description });
     setShowExcelImport(false);
@@ -1668,7 +1671,7 @@ const CustomerMaster = () => {
           </DialogContent>
         </Dialog>
 
-        <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={customerMasterFields} onImport={handleExcelImport} sampleData={customerMasterSampleData} sampleFileName="Customer_Master_Sample.xlsx" title="Import Customers" />
+        <ExcelImportDialog open={showExcelImport} onClose={() => setShowExcelImport(false)} targetFields={customerMasterFields} onImport={handleExcelImport} sampleData={customerMasterSampleData} sampleFileName="Customer_Master_Sample.xlsx" title="Import Customers" importType="customer" />
         {currentOrganization?.id && <LegacyInvoiceImportDialog open={showLegacyImport} onOpenChange={setShowLegacyImport} organizationId={currentOrganization.id} />}
         <RelinkLegacyInvoicesDialog open={showRelinkDialog} onOpenChange={setShowRelinkDialog} />
         <UpdateLegacyPhonesDialog open={showUpdatePhonesDialog} onOpenChange={setShowUpdatePhonesDialog} />
@@ -2007,6 +2010,7 @@ const CustomerMaster = () => {
         sampleData={customerMasterSampleData}
         sampleFileName="Customer_Master_Sample.xlsx"
         title="Import Customers"
+        importType="customer"
       />
 
       {currentOrganization?.id && (
