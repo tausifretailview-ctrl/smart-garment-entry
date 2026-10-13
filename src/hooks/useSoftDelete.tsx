@@ -17,6 +17,7 @@ import {
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { parsePurchaseBillDeleteResult } from "@/utils/purchaseBillDeleteResult";
+import { resyncBillAfterSupplierPaymentRestore } from "@/utils/supplierPaymentDelete";
 import {
   restoreExchangeRefundsForSale,
   softDeleteExchangeRefundsForSale,
@@ -529,6 +530,11 @@ export function useSoftDelete() {
         case "voucher_entries": {
           const { error: vError } = await supabase.rpc("restore_voucher", { p_voucher_id: id });
           if (vError) throw vError;
+          try {
+            await resyncBillAfterSupplierPaymentRestore(id, supabase);
+          } catch (billErr) {
+            console.error("Resync purchase bill after supplier payment restore:", billErr);
+          }
           try {
             await repostJournalForRestoredVoucher(id, supabase);
           } catch (glErr) {
