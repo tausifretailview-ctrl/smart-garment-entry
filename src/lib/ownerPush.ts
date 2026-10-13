@@ -8,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { ownerAlertTapTarget, type OwnerAlertTap } from "@/lib/ownerAlertTap";
 
 /**
  * owner_* tables come from migration 20261231170000, applied by hand. Lovable regenerates
@@ -212,12 +213,12 @@ export async function refreshOwnerAlertsToken(organizationId: string, userId: st
   }
 }
 
-/** Tapping an alert opens its screen (data.route set by owner-alerts). */
-export async function listenForOwnerAlertTaps(navigate: (path: string) => void): Promise<() => void> {
+/** Tapping an alert opens its screen or bill (see ownerAlertTapTarget). */
+export async function listenForOwnerAlertTaps(onTap: (target: OwnerAlertTap) => void): Promise<() => void> {
   if (!isOwnerPushSupported()) return () => undefined;
   const handle = await Push.addListener("pushNotificationActionPerformed", (action) => {
-    const route = (action.notification?.data as { route?: string } | undefined)?.route;
-    if (route && route.startsWith("/")) navigate(route);
+    const target = ownerAlertTapTarget(action.notification?.data);
+    if (target) onTap(target);
   });
   return () => void handle.remove();
 }

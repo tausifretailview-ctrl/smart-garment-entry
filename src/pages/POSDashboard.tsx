@@ -3194,7 +3194,7 @@ const POSDashboard = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
+          <div className="flex shrink-0 gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
             {mobilePaymentMethodChips.map((s) => (
               <button
                 key={s.v}
@@ -3212,7 +3212,7 @@ const POSDashboard = () => {
             ))}
           </div>
 
-          <div className="flex gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
+          <div className="flex shrink-0 gap-2 px-4 py-1 overflow-x-auto no-scrollbar">
             {mobileStatusChips.map((s) => (
               <button
                 key={s.v}
