@@ -5,7 +5,7 @@
 export const APP_VERSION = "1.2.1";
 
 /** Android APK version — keep until a matching EzzyERP-{ver}.apk is uploaded + allowlisted. */
-export const ANDROID_APK_VERSION = "1.1.0";
+export const ANDROID_APK_VERSION = "1.2.1";
 
 const DEFAULT_SUPABASE_FUNCTIONS_ORIGIN = "https://lkbbrqcsbhqjvsxiorvp.supabase.co";
 
