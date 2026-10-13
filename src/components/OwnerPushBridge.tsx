@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,11 @@ import {
   shouldOfferOwnerAlertsPrompt,
 } from "@/lib/ownerPush";
 
+// Bill details for a tapped invoice alert; loaded only when one is tapped.
+const MobileInvoiceDetail = lazy(() =>
+  import("@/components/mobile/MobileInvoiceDetail").then((m) => ({ default: m.MobileInvoiceDetail })),
+);
+
 /** Wait after login before asking, so the prompt doesn't cover the first screen while it loads. */
 const PROMPT_DELAY_MS = 4_000;
 
@@ -40,6 +45,7 @@ export function OwnerPushBridge() {
   const userId = user?.id;
   const [promptOpen, setPromptOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [billId, setBillId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOwnerPushSupported() || !orgId || !userId) return;
@@ -56,7 +62,10 @@ export function OwnerPushBridge() {
     if (!isOwnerPushSupported()) return;
     let cleanup: (() => void) | null = null;
     let cancelled = false;
-    void listenForOwnerAlertTaps((path) => navigateRef.current(path)).then((fn) => {
+    void listenForOwnerAlertTaps((target) => {
+      if ("saleId" in target) setBillId(target.saleId);
+      else navigateRef.current(target.path);
+    }).then((fn) => {
       if (cancelled) fn();
       else cleanup = fn;
     });
@@ -90,9 +99,23 @@ export function OwnerPushBridge() {
     }
   };
 
-  if (!promptOpen) return null;
+  const bill = billId ? (
+    <Suspense fallback={null}>
+      <MobileInvoiceDetail
+        saleId={billId}
+        open
+        onOpenChange={(open) => {
+          if (!open) setBillId(null);
+        }}
+      />
+    </Suspense>
+  ) : null;
+
+  if (!promptOpen) return bill;
 
   return (
+    <>
+    {bill}
     <Dialog open={promptOpen} onOpenChange={(open) => {
         if (!open) notNow();
       }}>
@@ -114,5 +137,6 @@ export function OwnerPushBridge() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

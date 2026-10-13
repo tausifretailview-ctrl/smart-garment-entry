@@ -21,7 +21,8 @@ export const MobilePeriodChips = ({
   onChange: (v: string) => void;
   periods?: Period[];
 }) => (
-  <div className="flex gap-2 px-4 overflow-x-auto no-scrollbar">
+  // shrink-0: a scroll row inside a flex column can otherwise be squashed, cutting the chips in half.
+  <div className="flex shrink-0 gap-2 px-4 overflow-x-auto no-scrollbar">
     {periods.map((p) => (
       <button
         key={p.value}
