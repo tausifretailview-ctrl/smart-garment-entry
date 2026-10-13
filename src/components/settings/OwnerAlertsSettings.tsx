@@ -40,6 +40,7 @@ interface AlertSettings {
   invoice_min_amount: number;
   day_end_enabled: boolean;
   day_end_time: string;
+  salesman_summary_enabled: boolean;
 }
 
 const DEFAULTS: AlertSettings = {
@@ -55,6 +56,7 @@ const DEFAULTS: AlertSettings = {
   invoice_min_amount: 0,
   day_end_enabled: true,
   day_end_time: "22:15",
+  salesman_summary_enabled: false,
 };
 
 interface Device {
@@ -118,16 +120,30 @@ export function OwnerAlertsSettings() {
     if (!orgId) return;
     setSaving(true);
     try {
-      const { error } = await ownerAlertsDb.from("owner_alert_settings").upsert({
+      const row = {
         organization_id: orgId,
         ...form,
         low_stock_times: form.low_stock_times.filter((t) => /^\d{2}:\d{2}$/.test(t)),
         updated_at: new Date().toISOString(),
         updated_by: user?.id ?? null,
-      });
+      };
+      let { error } = await ownerAlertsDb.from("owner_alert_settings").upsert(row);
+      // Before the salesman-summary SQL runs the column is missing: save the rest.
+      const missingSalesmanColumn = !!error && /salesman_summary_enabled/.test(error.message ?? "");
+      if (missingSalesmanColumn) {
+        const rest: Partial<typeof row> = { ...row };
+        delete rest.salesman_summary_enabled;
+        ({ error } = await ownerAlertsDb.from("owner_alert_settings").upsert(rest));
+      }
       if (error) throw error;
       clearOwnerInvoiceAlertCache(orgId);
-      toast.success("Owner alerts saved");
+      if (missingSalesmanColumn && form.salesman_summary_enabled) {
+        toast.warning("Owner alerts saved, except Salesman summary", {
+          description: "Salesman summary needs a database update first (owner alerts salesman SQL).",
+        });
+      } else {
+        toast.success("Owner alerts saved");
+      }
     } catch (e) {
       toast.error("Could not save owner alerts", { description: ownerAlertErrorText(e) });
     } finally {
@@ -338,6 +354,14 @@ export function OwnerAlertsSettings() {
           <Input type="time" className="h-8 w-[110px]" value={form.day_end_time} disabled={disabled} onChange={(e) => set("day_end_time", e.target.value)} />
           <Switch checked={form.day_end_enabled} disabled={disabled} onCheckedChange={(v) => set("day_end_enabled", v)} />
         </div>
+      </SettingsRow>
+
+      <SettingsRow label="Salesman summary" description="Add each salesman's sales today to the cashier report and day-end alerts.">
+        <Switch
+          checked={form.salesman_summary_enabled}
+          disabled={disabled}
+          onCheckedChange={(v) => set("salesman_summary_enabled", v)}
+        />
       </SettingsRow>
 
       {isAdmin && (

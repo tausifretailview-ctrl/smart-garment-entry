@@ -12,6 +12,8 @@ import {
   shouldSendInvoiceAlert,
   type OwnerAlertSettings,
   reviewMessage,
+  salesmanLine,
+  salesmanTotals,
 } from "../supabase/functions/_shared/ownerAlertSchedule";
 
 const base: OwnerAlertSettings = {
@@ -123,5 +125,34 @@ describe("reviewMessage", () => {
       title: "⚠️ ★☆☆☆☆ review · A customer",
       body: "Prices · WhatsApp",
     });
+  });
+});
+
+describe("salesman summary", () => {
+  const rows = [
+    { salesman: "Ravi", net_amount: 1000 },
+    { salesman: "amit", net_amount: 3000 },
+    { salesman: "Ravi ", net_amount: 500 },
+    { salesman: null, net_amount: 700 },
+    { salesman: "Sana", net_amount: 200 },
+    { salesman: "Joy", net_amount: 100 },
+  ];
+
+  it("groups by salesman, biggest first", () => {
+    const list = salesmanTotals(rows);
+    expect(list[0]).toEqual({ name: "amit", amount: 3000, bills: 1 });
+    expect(list[1]).toEqual({ name: "Ravi", amount: 1500, bills: 2 });
+    expect(list.find((s) => s.name === "No salesman")?.amount).toBe(700);
+  });
+
+  it("shows the top 3 named salesmen", () => {
+    expect(salesmanLine(salesmanTotals(rows))).toBe("Salesmen: amit ₹3,000 · Ravi ₹1,500 · Sana ₹200 +1 more");
+    expect(salesmanLine(salesmanTotals([{ salesman: "", net_amount: 10 }]))).toBe("");
+  });
+
+  it("adds the line to the cashier report only when given", () => {
+    const t = { totalBills: 1, totalAmount: 100, totalCash: 100, totalUpi: 0, totalCard: 0, totalBalance: 0, refundAmount: 0, totalSaleReturnAdjust: 0 };
+    expect(cashierMessage(720, t).body).not.toContain("Salesmen");
+    expect(cashierMessage(720, t, salesmanTotals(rows)).body).toContain("\nSalesmen: amit");
   });
 });
