@@ -98,20 +98,74 @@ async function saveDevice(organizationId: string, userId: string, token: string)
   if (error) throw error;
 }
 
-/** Button in Settings: ask permission (from the click), register, save this phone. */
-export async function enableOwnerAlertsOnThisPhone(organizationId: string, userId: string): Promise<void> {
+export type OwnerPushStep = "permission" | "token" | "saving";
+
+export const OWNER_PUSH_BLOCKED_TEXT =
+  "Notifications are blocked for EzzyERP. Open Android Settings → Apps → EzzyERP → Notifications, turn them on, then tap the button again.";
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+/** Button in Settings / first-run prompt: ask permission (from the tap), register, save this phone. */
+export async function enableOwnerAlertsOnThisPhone(
+  organizationId: string,
+  userId: string,
+  onStep?: (step: OwnerPushStep) => void,
+): Promise<void> {
   if (!isOwnerPushSupported()) throw new Error("Open EzzyERP in the Android app to turn on phone alerts.");
   const Push = await plugin();
+  onStep?.("permission");
   let perm = await Push.checkPermissions();
   if (perm.receive === "prompt" || perm.receive === "prompt-with-rationale") {
-    perm = await Push.requestPermissions();
+    // A dismissed Android dialog can leave this pending; never keep the button stuck.
+    perm = await withTimeout(Push.requestPermissions(), 60_000, "No answer to the notification permission. Tap the button again and choose Allow.");
   }
-  if (perm.receive !== "granted") {
-    throw new Error("Notifications are blocked for EzzyERP. Allow them in Android Settings → Apps → EzzyERP → Notifications.");
-  }
+  if (perm.receive !== "granted") throw new Error(OWNER_PUSH_BLOCKED_TEXT);
+  onStep?.("token");
   const token = await registerForToken();
-  await saveDevice(organizationId, userId, token);
+  onStep?.("saving");
+  try {
+    await saveDevice(organizationId, userId, token);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? e);
+    throw new Error(`The phone was not saved on the server: ${msg}`);
+  }
   storeToken(token);
+  dismissOwnerAlertsPrompt();
+}
+
+// ---- One-time "turn on alerts?" prompt in the Android app ----
+
+const PROMPT_KEY = "ezzy_owner_push_prompted";
+
+export function shouldOfferOwnerAlertsPrompt(): boolean {
+  if (!isOwnerPushSupported() || storedToken()) return false;
+  try {
+    return !localStorage.getItem(PROMPT_KEY);
+  } catch {
+    return false;
+  }
+}
+
+export function dismissOwnerAlertsPrompt() {
+  try {
+    localStorage.setItem(PROMPT_KEY, new Date().toISOString());
+  } catch {
+    /* storage blocked: the prompt may show again, which is harmless */
+  }
 }
 
 export async function disableOwnerAlertsOnThisPhone(organizationId: string): Promise<void> {

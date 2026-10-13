@@ -1,26 +1,55 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { isOwnerPushSupported, listenForOwnerAlertTaps, refreshOwnerAlertsToken } from "@/lib/ownerPush";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  dismissOwnerAlertsPrompt,
+  enableOwnerAlertsOnThisPhone,
+  isOwnerPushSupported,
+  listenForOwnerAlertTaps,
+  refreshOwnerAlertsToken,
+  shouldOfferOwnerAlertsPrompt,
+} from "@/lib/ownerPush";
+
+/** Wait after login before asking, so the prompt doesn't cover the first screen while it loads. */
+const PROMPT_DELAY_MS = 4_000;
 
 /**
- * Android app only: keep this phone's owner-alert token fresh and open the right
- * screen when an alert is tapped. Renders nothing; does nothing on web / Electron.
+ * Android app only: keep this phone's owner-alert token fresh, open the right
+ * screen when an alert is tapped, and ask an admin once whether to turn alerts on.
+ * Renders nothing on web / Electron.
  */
 export function OwnerPushBridge() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
   const { orgNavigate } = useOrgNavigation();
   const navigateRef = useRef(orgNavigate);
   navigateRef.current = orgNavigate;
   const orgId = currentOrganization?.id;
   const userId = user?.id;
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!isOwnerPushSupported() || !orgId || !userId) return;
     void refreshOwnerAlertsToken(orgId, userId);
   }, [orgId, userId]);
+
+  useEffect(() => {
+    if (!orgId || !userId || organizationRole !== "admin" || !shouldOfferOwnerAlertsPrompt()) return;
+    const timer = window.setTimeout(() => setPromptOpen(true), PROMPT_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [orgId, userId, organizationRole]);
 
   useEffect(() => {
     if (!isOwnerPushSupported()) return;
@@ -36,5 +65,53 @@ export function OwnerPushBridge() {
     };
   }, []);
 
-  return null;
+  const notNow = () => {
+    dismissOwnerAlertsPrompt();
+    setPromptOpen(false);
+  };
+
+  const turnOn = async () => {
+    if (!orgId || !userId) return;
+    setBusy(true);
+    try {
+      await enableOwnerAlertsOnThisPhone(orgId, userId);
+      toast.success("This phone will get owner alerts", {
+        description: "Choose which alerts in Settings → POS → Owner alerts.",
+      });
+      setPromptOpen(false);
+    } catch (e) {
+      toast.error("Could not turn on alerts", {
+        description: `${e instanceof Error ? e.message : String(e)} You can try again in Settings → POS → Owner alerts.`,
+      });
+      notNow();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!promptOpen) return null;
+
+  return (
+    <Dialog open={promptOpen} onOpenChange={(open) => {
+        if (!open) notNow();
+      }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Get shop alerts on this phone?</DialogTitle>
+          <DialogDescription>
+            Cashier report, low stock, big bills and the day-end summary, even when the app is closed. Tap Turn on, then
+            choose Allow.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" disabled={busy} onClick={notNow}>
+            Not now
+          </Button>
+          <Button disabled={busy} onClick={() => void turnOn()}>
+            {busy ? "Turning on…" : "Turn on"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }

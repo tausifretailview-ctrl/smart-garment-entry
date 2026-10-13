@@ -16,7 +16,14 @@ import {
   sendOwnerTestAlert,
   ownerAlertErrorText,
   thisPhoneHasOwnerAlerts,
+  type OwnerPushStep,
 } from "@/lib/ownerPush";
+
+const STEP_TEXT: Record<OwnerPushStep, string> = {
+  permission: "Waiting for you to tap Allow…",
+  token: "Connecting this phone…",
+  saving: "Saving this phone…",
+};
 
 type InvoiceMode = "off" | "all" | "above";
 
@@ -70,6 +77,8 @@ export function OwnerAlertsSettings() {
   const [saving, setSaving] = useState(false);
   const [phoneBusy, setPhoneBusy] = useState(false);
   const [phoneOn, setPhoneOn] = useState(thisPhoneHasOwnerAlerts());
+  const [phoneStep, setPhoneStep] = useState<OwnerPushStep | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
   const nativeApp = isOwnerPushSupported();
 
   const load = useCallback(async () => {
@@ -129,15 +138,19 @@ export function OwnerAlertsSettings() {
   const turnOnThisPhone = async () => {
     if (!orgId || !user?.id) return;
     setPhoneBusy(true);
+    setPhoneError(null);
     try {
-      await enableOwnerAlertsOnThisPhone(orgId, user.id);
+      await enableOwnerAlertsOnThisPhone(orgId, user.id, setPhoneStep);
       setPhoneOn(true);
       toast.success("This phone will get owner alerts");
       void load();
     } catch (e) {
-      toast.error("Could not turn on alerts", { description: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      setPhoneError(msg);
+      toast.error("Could not turn on alerts", { description: msg });
     } finally {
       setPhoneBusy(false);
+      setPhoneStep(null);
     }
   };
 
@@ -161,6 +174,13 @@ export function OwnerAlertsSettings() {
   const test = async () => {
     if (!orgId) return;
     if (activeDevices.length === 0) {
+      if (nativeApp) {
+        toast.warning("This phone is not added yet", {
+          description: "Tap Turn on to add it, then send the test again.",
+          action: { label: "Turn on", onClick: () => void turnOnThisPhone() },
+        });
+        return;
+      }
       toast.warning("No phone added yet", {
         description:
           "On the owner's phone, open the EzzyERP Android app, log in, go to Settings → POS → Owner alerts and tap \"Turn on alerts on this phone\".",
@@ -181,21 +201,33 @@ export function OwnerAlertsSettings() {
 
   return (
     <SettingsSection title="Owner alerts (mobile app)" subtitle="Cashier report, low stock, bills and day-end on the owner's phone">
-      <SettingsRow label="This phone" description={nativeApp ? "Get alerts on this phone, even when the app is closed." : "Open EzzyERP in the Android app on the owner's phone to turn alerts on there."}>
+      {/* Full width so the button and its status fit on a phone screen. */}
+      <div className="space-y-2 border-b px-3 py-3">
+        <div className="text-sm font-semibold text-slate-800">This phone</div>
         {nativeApp ? (
-          phoneOn ? (
-            <Button size="sm" variant="outline" disabled={phoneBusy} onClick={() => void turnOffThisPhone()}>
-              Turn off on this phone
-            </Button>
-          ) : (
-            <Button size="sm" disabled={phoneBusy} onClick={() => void turnOnThisPhone()}>
-              Turn on alerts on this phone
-            </Button>
-          )
+          <>
+            <div className="text-xs text-muted-foreground">
+              {phoneOn
+                ? "This phone gets owner alerts, even when the app is closed."
+                : "Tap the button and choose Allow to get alerts on this phone, even when the app is closed."}
+            </div>
+            {phoneOn ? (
+              <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={phoneBusy} onClick={() => void turnOffThisPhone()}>
+                Turn off on this phone
+              </Button>
+            ) : (
+              <Button className="w-full sm:w-auto" disabled={phoneBusy} onClick={() => void turnOnThisPhone()}>
+                {phoneBusy ? STEP_TEXT[phoneStep ?? "permission"] : "Turn on alerts on this phone"}
+              </Button>
+            )}
+            {phoneError && <div className="rounded-md bg-red-50 px-2 py-1.5 text-xs text-red-700">{phoneError}</div>}
+          </>
         ) : (
-          <span className="text-xs text-muted-foreground">Android app only</span>
+          <div className="text-xs text-muted-foreground">
+            Open EzzyERP in the Android app on the owner's phone to turn alerts on there.
+          </div>
         )}
-      </SettingsRow>
+      </div>
 
       <SettingsRow label="Phones receiving alerts" description={activeDevices.length ? undefined : "No phone yet."}>
         <div className="flex flex-col items-end gap-1">
