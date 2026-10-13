@@ -7446,6 +7446,11 @@ const PurchaseEntry = () => {
         const parsedDate = parseExcelDate(firstRow.bill_date);
         if (parsedDate) {
           setBillDate(parsedDate);
+        } else {
+          toast({
+            title: "Bill date not imported",
+            description: `"${String(firstRow.bill_date)}" in the Bill Date column is not a valid date, so the bill date was left unchanged. Check the column mapping or pick the date manually.`,
+          });
         }
       }
       
