@@ -96,3 +96,45 @@ describe("purchase Excel import — PRate / SRate / MRP mapping", () => {
     expect(result.validRowCount).toBe(1);
   });
 });
+
+describe("purchase Excel import — bill date / GST fuzzy guards", () => {
+  it("does not map 'Pur Rate' to bill_date or 'Opening Stock' to GST", async () => {
+    const { purchaseBillFields } = await import("@/utils/excelImportUtils");
+    const mappings = autoMapFields(
+      ["Item Code", "Item Name", "Pur Rate", "Sale Rate", "Opening Stock"],
+      purchaseBillFields,
+    );
+    expect(mappings["Pur Rate"]).toBe("pur_price");
+    expect(mappings["Item Code"]).toBe("barcode");
+    expect(mappings["Opening Stock"]).not.toBe("gst_per");
+    expect(Object.values(mappings)).not.toContain("bill_date");
+  });
+
+  it("still fuzzy-maps real date and GST headers", async () => {
+    const { purchaseBillFields } = await import("@/utils/excelImportUtils");
+    const mappings = autoMapFields(["Product", "Date Of Purchase", "GST Rate %", "Qty"], purchaseBillFields);
+    expect(mappings["Date Of Purchase"]).toBe("bill_date");
+    expect(mappings["GST Rate %"]).toBe("gst_per");
+  });
+});
+
+describe("parseExcelDate", () => {
+  it("rejects prices read as Excel serials (37 → 1900)", async () => {
+    const { parseExcelDate } = await import("@/utils/excelImportUtils");
+    expect(parseExcelDate(37)).toBeNull();
+    expect(parseExcelDate("35.71")).toBeNull();
+    expect(parseExcelDate("")).toBeNull();
+  });
+
+  it("parses real serials and Indian date text to the same calendar day", async () => {
+    const { parseExcelDate } = await import("@/utils/excelImportUtils");
+    const fromSerial = parseExcelDate(46037); // 15 Jan 2026
+    expect(fromSerial?.getFullYear()).toBe(2026);
+    expect(fromSerial?.getMonth()).toBe(0);
+    expect(fromSerial?.getDate()).toBe(15);
+    const fromText = parseExcelDate("15/01/2026");
+    expect(fromText?.getDate()).toBe(15);
+    expect(parseExcelDate("31/02/2026")).toBeNull();
+    expect(parseExcelDate("2026-01-15")?.getMonth()).toBe(0);
+  });
+});

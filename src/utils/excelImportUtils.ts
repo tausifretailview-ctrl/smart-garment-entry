@@ -496,7 +496,7 @@ const fieldAliases: Record<string, string[]> = {
   uom: ['uom', 'unit', 'unitofmeasure', 'unitofmeasurement', 'measure', 'measurement', 'units'],
   size: ['size', 'sz', 'sized', 'productsize', 'itemsize', 'dimension'],
   barcode: ['barcode', 'bcodeno', 'bcode', 'bcodeo', 'barcodeno', 'barcodenumber', 'eancode', 'bar', 'sku', 'ean', 'upc', 'productcode', 'itemcode', 'skucode'],
-  pur_price: ['prate', 'purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
+  pur_price: ['prate', 'purrate', 'purprice', 'purchaseprice', 'cost', 'costprice', 'buyingprice', 'pp', 'cp', 'landingcost', 'basicrate', 'purchaserate', 'purchasrprice', 'purchasepkr', 'purchasingprice', 'buyprice', 'purchasprice'],
   sale_price: ['srate', 'saleprice', 'sellingprice', 'sp', 'retailprice', 'salerate', 'sellingrate'],
   mrp: ['mrp', 'maximumretailprice', 'maxprice', 'listprice'],
   qty: ['qty', 'quantity', 'stock', 'units', 'pcs', 'pieces', 'nos', 'qnty', 'stockqty', 'bqty'],
@@ -522,6 +522,23 @@ const aliasesForFuzzyMatch = (fieldKey: string, aliases: string[]): string[] => 
   const isPriceField = fieldKey === 'pur_price' || fieldKey === 'sale_price' || fieldKey === 'mrp';
   if (!isPriceField) return aliases;
   return aliases.filter((alias) => !FUZZY_EXCLUDED_ALIASES.has(alias));
+};
+
+/**
+ * Fuzzy guards for fields where a loose substring match does real damage:
+ * "Pur Rate" matched bill_date via the alias "purchasedate" (the bill date became
+ * the first row's price, e.g. 37 → 5 Feb 1900), and "Opening Stock" matched
+ * gst_per because "openin-gst-ock" contains "gst". These fields only fuzzy-match
+ * when the header actually names them; exact aliases still work.
+ */
+const FUZZY_HEADER_GUARDS: Record<string, RegExp> = {
+  bill_date: /date|\bdt\b/i,
+  gst_per: /(^|[^a-z])(gst|igst|cgst|sgst|tax)/i,
+};
+
+const passesFuzzyGuard = (fieldKey: string, header: string): boolean => {
+  const guard = FUZZY_HEADER_GUARDS[fieldKey];
+  return !guard || guard.test(header);
 };
 
 const exactAliasMatch = (normalizedHeader: string, aliases: string[]): boolean =>
@@ -598,6 +615,7 @@ export const autoMapFields = (
 
     for (const field of targetFields) {
       if (usedSystemFields.has(field.key)) continue;
+      if (!passesFuzzyGuard(field.key, header)) continue;
 
       const fuzzyAliases = aliasesForFuzzyMatch(field.key, getAliases(field));
       if (fuzzyMatchField(header, fuzzyAliases)) {
@@ -890,50 +908,68 @@ export const purchaseBillSampleData = [
   { bill_supplier_name: '', bill_supplier_invoice_no: '', bill_date: '', bill_other_charges: '', product_name: 'Denim Jeans', category: 'Jeans', brand: 'XYZ', style: 'Slim', color: 'Black', hsn_code: '6203', gst_per: 12, uom: 'PCS', size: '32', barcode: '', pur_price: 650, sale_price: 1299, qty: 20 },
 ];
 
-// Parse Excel date from various formats
+/** Bill dates outside this window are treated as a wrong column, not a real date. */
+const MIN_BILL_DATE_YEAR = 2000;
+
+const isPlausibleBillDate = (date: Date): boolean => {
+  if (isNaN(date.getTime())) return false;
+  const maxYear = new Date().getFullYear() + 1;
+  const year = date.getFullYear();
+  return year >= MIN_BILL_DATE_YEAR && year <= maxYear;
+};
+
+// Parse Excel date from various formats. Returns null for values that do not look
+// like a real bill date (e.g. a price like 37 read as Excel serial → 5 Feb 1900).
 export const parseExcelDate = (value: any): Date | null => {
-  if (!value) return null;
-  
-  // Handle Excel serial date number
+  if (value === null || value === undefined || value === '') return null;
+
+  // Handle Excel serial date number (days since 1899-12-30). Build the calendar
+  // day in local time so the browser time zone cannot shift it by a day.
   if (typeof value === 'number') {
-    const date = new Date((value - 25569) * 86400 * 1000);
-    return isNaN(date.getTime()) ? null : date;
+    if (!Number.isFinite(value)) return null;
+    const utc = new Date(Math.round((Math.floor(value) - 25569) * 86400 * 1000));
+    const date = new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+    return isPlausibleBillDate(date) ? date : null;
   }
-  
-  // Handle string formats
+
   const str = String(value).trim();
   if (!str) return null;
-  
+
+  // A bare number in a text cell is a serial or a stray price/qty, never DD/MM/YYYY.
+  if (/^\d+(\.\d+)?$/.test(str)) return parseExcelDate(Number(str));
+
   // Try DD/MM/YYYY or DD-MM-YYYY format first (common in India)
-  const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  const ddmmyyyyMatch = str.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
   if (ddmmyyyyMatch) {
-    let day = parseInt(ddmmyyyyMatch[1]);
-    let month = parseInt(ddmmyyyyMatch[2]) - 1; // JS months are 0-indexed
+    const day = parseInt(ddmmyyyyMatch[1]);
+    const month = parseInt(ddmmyyyyMatch[2]) - 1; // JS months are 0-indexed
     let year = parseInt(ddmmyyyyMatch[3]);
-    
+
     // Handle 2-digit year
     if (year < 100) {
       year += year > 50 ? 1900 : 2000;
     }
-    
+
     const date = new Date(year, month, day);
-    if (!isNaN(date.getTime())) return date;
+    if (date.getMonth() === month && date.getDate() === day && isPlausibleBillDate(date)) return date;
+    return null;
   }
-  
+
   // Try YYYY-MM-DD format
-  const yyyymmddMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  const yyyymmddMatch = str.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
   if (yyyymmddMatch) {
-    let year = parseInt(yyyymmddMatch[1]);
-    let month = parseInt(yyyymmddMatch[2]) - 1;
-    let day = parseInt(yyyymmddMatch[3]);
-    
+    const year = parseInt(yyyymmddMatch[1]);
+    const month = parseInt(yyyymmddMatch[2]) - 1;
+    const day = parseInt(yyyymmddMatch[3]);
+
     const date = new Date(year, month, day);
-    if (!isNaN(date.getTime())) return date;
+    if (date.getMonth() === month && date.getDate() === day && isPlausibleBillDate(date)) return date;
+    return null;
   }
-  
-  // Fallback to Date.parse
+
+  // Fallback to Date.parse (e.g. "15 Jan 2026")
   const parsed = new Date(str);
-  return isNaN(parsed.getTime()) ? null : parsed;
+  return isPlausibleBillDate(parsed) ? parsed : null;
 };
 
 export const productEntrySampleData = [
