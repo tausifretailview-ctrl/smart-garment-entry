@@ -9,6 +9,7 @@ import { parseServiceAccount, sendFcmAndroidNotification, type ServiceAccount } 
 import {
   type CashierTotals,
   type OwnerAlertSettings,
+  type SalesmanTotal,
   cashierMessage,
   dayEndMessage,
   dueCashierSlot,
@@ -20,6 +21,7 @@ import {
   lowStockMessage,
   REVIEW_LOOKBACK_MIN,
   reviewMessage,
+  salesmanTotals,
   shouldSendInvoiceAlert,
   slotMinutes,
 } from "../_shared/ownerAlertSchedule.ts";
@@ -130,6 +132,29 @@ async function todayTotals(db: Db, organizationId: string, now: Date): Promise<C
   };
 }
 
+/** Today's bills per salesman (IST day so far), only when the shop turned the summary on. */
+async function salesmenToday(db: Db, s: OwnerAlertSettings, organizationId: string, now: Date): Promise<SalesmanTotal[] | undefined> {
+  if (!s.salesman_summary_enabled) return undefined;
+  const { date } = istClock(now);
+  const { data, error } = await db
+    .from("sales")
+    .select("salesman, net_amount")
+    .eq("organization_id", organizationId)
+    .is("deleted_at", null)
+    .eq("is_cancelled", false)
+    .neq("payment_status", "hold")
+    .gte("sale_date", istDayStartUtc(date).toISOString())
+    .lte("sale_date", now.toISOString())
+    .limit(5000);
+  if (error) return undefined;
+  return salesmanTotals(data ?? []);
+}
+
+/** Screen a tapped cashier / day-end alert opens (the app's colour report for that IST day). */
+function reportRoute(now: Date): string {
+  return `/owner-alert/report?date=${istClock(now).date}`;
+}
+
 /** New customer reviews since the last runs, each sent once (owner_push_log kind "review"). */
 async function sendNewReviews(db: Db, sa: ServiceAccount, org: string, now: Date, out: Record<string, unknown>[]) {
   const since = new Date(now.getTime() - REVIEW_LOOKBACK_MIN * 60_000).toISOString();
@@ -164,8 +189,8 @@ async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
       if (cashierKey) {
         const logId = await claim(db, org, "cashier", cashierKey);
         if (logId) {
-          const msg = cashierMessage(slotMinutes(cashierKey), await todayTotals(db, org, now));
-          out.push({ org, kind: "cashier", ...(await sendToOwners(db, sa, org, logId, msg, { route: "/pos-dashboard" })) });
+          const msg = cashierMessage(slotMinutes(cashierKey), await todayTotals(db, org, now), await salesmenToday(db, s, org, now));
+          out.push({ org, kind: "cashier", ...(await sendToOwners(db, sa, org, logId, msg, { route: reportRoute(now) })) });
         }
       }
       const lowKey = dueLowStockSlot(s, now);
@@ -181,8 +206,8 @@ async function runScheduled(db: Db, sa: ServiceAccount, now: Date) {
       if (endKey) {
         const logId = await claim(db, org, "day_end", endKey);
         if (logId) {
-          const msg = dayEndMessage(istClock(now).date, await todayTotals(db, org, now));
-          out.push({ org, kind: "day_end", ...(await sendToOwners(db, sa, org, logId, msg, { route: "/pos-dashboard" })) });
+          const msg = dayEndMessage(istClock(now).date, await todayTotals(db, org, now), await salesmenToday(db, s, org, now));
+          out.push({ org, kind: "day_end", ...(await sendToOwners(db, sa, org, logId, msg, { route: reportRoute(now) })) });
         }
       }
       await sendNewReviews(db, sa, org, now, out);
@@ -228,7 +253,7 @@ Deno.serve(async (req) => {
       if (!shouldSendInvoiceAlert(settings, Number(sale.net_amount))) return json(200, { ok: true, skipped: "below_threshold" });
       const logId = await claim(db, organizationId, "invoice", sale.id);
       if (!logId) return json(200, { ok: true, skipped: "already_sent" });
-      const r = await sendToOwners(db, sa, organizationId, logId, invoiceMessage(sale), { route: "/pos-dashboard", sale_id: sale.id });
+      const r = await sendToOwners(db, sa, organizationId, logId, invoiceMessage(sale), { route: `/owner-alert/bill/${sale.id}`, sale_id: sale.id });
       return json(200, { ok: true, ...r });
     }
 
@@ -241,7 +266,7 @@ Deno.serve(async (req) => {
         organizationId,
         logId,
         { title: "EzzyERP owner alerts are on", body: "You will get cashier reports, stock and bill alerts here." },
-        { route: "/pos-dashboard" },
+        { route: reportRoute(new Date()) },
       );
       return json(200, { ok: true, ...r });
     }

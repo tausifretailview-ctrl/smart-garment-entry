@@ -106,6 +106,12 @@ const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
 const PlatformAdmin = lazyWithRetry(() => import("./pages/PlatformAdmin"));
 const PlatformDataIntegrity = lazyWithRetry(() => import("./pages/PlatformDataIntegrity"));
 const PublicInvoiceView = lazyWithRetry(() => import("./pages/PublicInvoiceView"));
+const OwnerAlertBill = lazyWithRetry(() =>
+  import("./pages/OwnerAlertView").then((m) => ({ default: m.OwnerAlertBill })),
+);
+const OwnerAlertReport = lazyWithRetry(() =>
+  import("./pages/OwnerAlertView").then((m) => ({ default: m.OwnerAlertReport })),
+);
 const PublicPaymentPage = lazyWithRetry(() => import("./pages/PublicPaymentPage"));
 const PaymentStatusPage = lazyWithRetry(() => import("./pages/PaymentStatusPage"));
 const ItemWiseSalesReport = lazyWithRetry(() => import("./pages/ItemWiseSalesReport"));
@@ -1009,6 +1015,27 @@ const App = () => {
                       <PosDeliveryChallanLayout>
                         <PosDeliveryChallan />
                       </PosDeliveryChallanLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Owner alert taps on the phone: just the bill, or the colour day report (no menus) */}
+                <Route
+                  path="owner-alert/bill/:saleId"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <OwnerAlertBill />
+                      </Suspense>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="owner-alert/report"
+                  element={
+                    <ProtectedRoute>
+                      <Suspense fallback={<LazyFallback />}>
+                        <OwnerAlertReport />
+                      </Suspense>
                     </ProtectedRoute>
                   }
                 />

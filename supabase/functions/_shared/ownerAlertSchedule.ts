@@ -20,6 +20,8 @@ export interface OwnerAlertSettings {
   day_end_enabled: boolean;
   /** "HH:MM" IST */
   day_end_time: string;
+  /** Add sales per salesman to cashier and day-end alerts (column may be missing before its SQL runs). */
+  salesman_summary_enabled?: boolean | null;
 }
 
 export interface CashierTotals {
@@ -133,12 +135,49 @@ function totalsLine(t: CashierTotals): string {
   return parts.join(" · ");
 }
 
-export function cashierMessage(slotMinutes: number, t: CashierTotals): { title: string; body: string } {
-  return { title: `Cashier report ${formatHm(slotMinutes)}`, body: totalsLine(t) };
+export interface SalesmanTotal {
+  name: string;
+  amount: number;
+  bills: number;
 }
 
-export function dayEndMessage(date: string, t: CashierTotals): { title: string; body: string } {
-  return { title: `Day-end summary ${date.split("-").reverse().join("-")}`, body: totalsLine(t) };
+/** Group bills by salesman, biggest first. Bills without a salesman count as "No salesman". */
+export function salesmanTotals(rows: Array<{ salesman?: string | null; net_amount?: number | null }>): SalesmanTotal[] {
+  const map = new Map<string, SalesmanTotal>();
+  for (const r of rows) {
+    const name = r.salesman?.trim() || "No salesman";
+    const cur = map.get(name.toLowerCase()) ?? { name, amount: 0, bills: 0 };
+    cur.amount += Number(r.net_amount) || 0;
+    cur.bills += 1;
+    map.set(name.toLowerCase(), cur);
+  }
+  return [...map.values()].sort((a, b) => b.amount - a.amount);
+}
+
+/** "Salesmen: Ravi ₹12,300 · Amit ₹8,100 +2 more" (top 3). Empty when there is nothing to show. */
+export function salesmanLine(list: SalesmanTotal[]): string {
+  const named = list.filter((s) => s.name !== "No salesman");
+  if (!named.length) return "";
+  const top = named.slice(0, 3).map((s) => `${s.name} ${formatInr(s.amount)}`);
+  const more = named.length - top.length;
+  return `Salesmen: ${top.join(" · ")}${more > 0 ? ` +${more} more` : ""}`;
+}
+
+function withSalesmen(body: string, salesmen?: SalesmanTotal[]): string {
+  const line = salesmen ? salesmanLine(salesmen) : "";
+  return line ? `${body}\n${line}` : body;
+}
+
+export function cashierMessage(
+  slotMinutes: number,
+  t: CashierTotals,
+  salesmen?: SalesmanTotal[],
+): { title: string; body: string } {
+  return { title: `Cashier report ${formatHm(slotMinutes)}`, body: withSalesmen(totalsLine(t), salesmen) };
+}
+
+export function dayEndMessage(date: string, t: CashierTotals, salesmen?: SalesmanTotal[]): { title: string; body: string } {
+  return { title: `Day-end summary ${date.split("-").reverse().join("-")}`, body: withSalesmen(totalsLine(t), salesmen) };
 }
 
 export function lowStockMessage(rows: Array<{ product_name: string; brand?: string | null }>): {
