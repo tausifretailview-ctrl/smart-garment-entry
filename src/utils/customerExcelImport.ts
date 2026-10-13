@@ -29,7 +29,21 @@ export interface PreparedCustomerImport {
 
 const GSTIN_PATTERN = /^\d{2}[A-Z0-9]{13}$/;
 
-const text = (v: unknown): string => (v === undefined || v === null ? "" : String(v).trim());
+/** Placeholder cells other software exports for "no value" (e.g. pivot "(blank)"). */
+const EMPTY_PLACEHOLDERS = new Set(["(blank)", "blank", "-", "--", "na", "n/a", "nil", "null", "none"]);
+
+const HTML_ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&apos;": "'" };
+
+/** Cell text, trimmed; literal HTML entities ("SWEET &amp; SNACKS") decoded; placeholders → "". */
+const text = (v: unknown): string => {
+  if (v === undefined || v === null) return "";
+  let value = String(v).trim();
+  // Decode repeatedly: some exports double-escape ("&amp;amp;").
+  for (let i = 0; i < 3 && /&(amp|lt|gt|quot|apos|#39);/i.test(value); i++) {
+    value = value.replace(/&(amp|lt|gt|quot|apos|#39);/gi, (m) => HTML_ENTITIES[m.toLowerCase()] ?? m);
+  }
+  return EMPTY_PLACEHOLDERS.has(value.toLowerCase()) ? "" : value;
+};
 
 export const cleanImportGstin = (raw: unknown): string => {
   const value = text(raw).toUpperCase().replace(/\s+/g, "");
