@@ -25,6 +25,10 @@ import {
   recordSupplierPaymentJournalEntry,
 } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
+import {
+  invalidateSupplierPaymentQueries,
+  useSupplierPaymentDelete,
+} from "@/components/accounts/SupplierPaymentDeleteActions";
 import { paymentSubmitFooterClass, resolvePaymentPickerGridHeight, resolvePaymentTabLayout } from "@/utils/paymentTabLayout";
 import { AccountsExportButtons } from "@/components/accounts/AccountsExportButtons";
 import { AccountsHistoryPanel } from "@/components/accounts/AccountsHistoryPanel";
@@ -119,6 +123,7 @@ export function SupplierPaymentTab({
   const queryClient = useQueryClient();
   const { isAdmin } = useUserRoles();
   const { user } = useAuth();
+  const paymentDelete = useSupplierPaymentDelete(organizationId, vouchers);
 
   // Form states
   const [voucherDate, setVoucherDate] = useState<Date>(new Date());
@@ -149,7 +154,6 @@ export function SupplierPaymentTab({
   const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const bulkDeleteSilentRef = useRef(false);
   const [paymentSearchTerm, setPaymentSearchTerm] = useState("");
 
   const { data: supplierBalanceMapLocal } = useQuery({
@@ -717,106 +721,18 @@ export function SupplierPaymentTab({
     },
   });
 
-  // Delete supplier payment
-  const deletePayment = useMutation({
-    mutationFn: async (voucher: any) => {
-      const voucherAmount = voucherSettlementCredit(voucher);
-
-      // Reverse bill paid_amount if this voucher is linked to specific bills
-      if (voucher.reference_type === "supplier" && voucher.reference_id) {
-        // Check if reference_id is a bill ID (not a supplier ID)
-        const { data: linkedBill } = await supabase
-          .from("purchase_bills")
-          .select("id, paid_amount, net_amount")
-          .eq("id", voucher.reference_id)
-          .is("deleted_at", null)
-          .maybeSingle();
-
-        if (linkedBill) {
-          // Direct bill-linked payment — reverse on that single bill
-          const newPaid = Math.max(0, (linkedBill.paid_amount || 0) - voucherAmount);
-          const newStatus = newPaid >= (linkedBill.net_amount || 0) ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
-          await supabase.from("purchase_bills").update({ paid_amount: newPaid, payment_status: newStatus }).eq("id", linkedBill.id);
-        } else {
-          // Supplier-level payment — try to find bills from description
-          const desc = voucher.description || "";
-          const billMatch = desc.match(/Bills?:\s*(.+?)(?:\s*\||$)/i);
-          if (billMatch) {
-            const billRefs = billMatch[1].split(",").map((s: string) => s.trim()).filter(Boolean);
-            if (billRefs.length > 0) {
-              // Find matching bills by invoice number
-              const { data: matchedBills } = await supabase
-                .from("purchase_bills")
-                .select("id, paid_amount, net_amount, supplier_invoice_no, software_bill_no")
-                .eq("supplier_id", voucher.reference_id)
-                .is("deleted_at", null);
-
-              let remaining = voucherAmount;
-              for (const bill of (matchedBills || [])) {
-                if (remaining <= 0) break;
-                const billRef = bill.supplier_invoice_no || bill.software_bill_no || bill.id.slice(0, 8);
-                if (billRefs.includes(billRef)) {
-                  const amountToReverse = Math.min(remaining, bill.paid_amount || 0);
-                  const newPaid = Math.max(0, (bill.paid_amount || 0) - amountToReverse);
-                  const newStatus = newPaid >= (bill.net_amount || 0) ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
-                  await supabase.from("purchase_bills").update({ paid_amount: newPaid, payment_status: newStatus }).eq("id", bill.id);
-                  remaining -= amountToReverse;
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const { data: acctDel } = await supabase
-        .from("settings")
-        .select("accounting_engine_enabled")
-        .eq("organization_id", organizationId)
-        .maybeSingle();
-      if (isAccountingEngineEnabled(acctDel as { accounting_engine_enabled?: boolean } | null)) {
-        await deleteJournalEntryByReference(organizationId, "SupplierPayment", voucher.id, supabase);
-      }
-
-      // Soft-delete the voucher
-      const { error } = await supabase.from("voucher_entries").update({ deleted_at: new Date().toISOString() }).eq("id", voucher.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      if (!bulkDeleteSilentRef.current) {
-        toast.success("Payment deleted");
-      }
-      queryClient.invalidateQueries({ queryKey: ["voucher-entries"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance-map"] });
-      queryClient.invalidateQueries({ queryKey: ["suppliers-with-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-ledger"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-balance-snapshot"] });
-      queryClient.invalidateQueries({ queryKey: ["supplier-bill-payment-voucher-drift"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase-summary"] });
-      queryClient.invalidateQueries({ queryKey: ["journal-vouchers"] });
-    },
-    onError: (error: any) => {
-      if (!bulkDeleteSilentRef.current) {
-        toast.error(error.message);
-      }
-    },
-  });
-
   const handleBulkDeletePayments = async () => {
-    if (bulkDeleting) return;
+    if (bulkDeleting || !paymentDelete.canDelete) return;
     const selected = supplierPayments.filter((v) => selectedPaymentIds.includes(v.id));
     if (selected.length === 0) return;
 
     setBulkDeleting(true);
-    bulkDeleteSilentRef.current = true;
     const succeededIds: string[] = [];
     const failures: string[] = [];
     try {
       for (const voucher of selected) {
         try {
-          await deletePayment.mutateAsync(voucher);
+          await paymentDelete.deleteOne(voucher);
           succeededIds.push(voucher.id);
         } catch {
           failures.push(String(voucher.voucher_number || voucher.id));
@@ -835,7 +751,7 @@ export function SupplierPaymentTab({
         setBulkDeleteOpen(false);
       }
     } finally {
-      bulkDeleteSilentRef.current = false;
+      invalidateSupplierPaymentQueries(queryClient);
       setBulkDeleting(false);
     }
   };
@@ -1421,7 +1337,7 @@ export function SupplierPaymentTab({
         searchValue={paymentSearchTerm}
         onSearchChange={(v) => { setPaymentSearchTerm(v); setPaymentsPage(1); }}
         toolbar={
-          isAdmin && selectedPaymentIds.length > 0 ? (
+          isAdmin && paymentDelete.canDelete && selectedPaymentIds.length > 0 ? (
             <AlertDialog
               open={bulkDeleteOpen}
               onOpenChange={(open) => {
@@ -1438,7 +1354,10 @@ export function SupplierPaymentTab({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Selected Payments?</AlertDialogTitle>
-                  <AlertDialogDescription>This will delete {selectedPaymentIds.length} payment(s).</AlertDialogDescription>
+                  <AlertDialogDescription>
+                    This will move {selectedPaymentIds.length} payment(s) to the Recycle Bin, put their bills back to
+                    pending, raise the supplier balance and remove their day book entries.
+                  </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel disabled={bulkDeleting}>Cancel</AlertDialogCancel>
@@ -1568,6 +1487,17 @@ export function SupplierPaymentTab({
                           <Button variant="ghost" size="icon" title="Print" onClick={() => window.print()}>
                             <Printer className="h-4 w-4" />
                           </Button>
+                          {paymentDelete.canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Delete Payment"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => paymentDelete.requestDelete(voucher)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     )}
@@ -1578,6 +1508,8 @@ export function SupplierPaymentTab({
           </Table>
       </AccountsHistoryPanel>
       )}
+
+      {paymentDelete.dialog}
 
       <ChequePrintDialog
         open={showChequePrintDialog}

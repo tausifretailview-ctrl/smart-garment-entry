@@ -41,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveReceiptReprintBalances } from "@/utils/customerBalanceUtils";
 import { fetchSuppliersByIds } from "@/utils/supplierSearch";
 import { useExpenseVoucherActions } from "@/components/accounts/ExpenseVoucherActions";
+import { useSupplierPaymentDelete } from "@/components/accounts/SupplierPaymentDeleteActions";
 
 const TAB_LABELS: Record<AccountsPaymentTabId, string> = {
   "customer-payment": "Customer receipts",
@@ -82,7 +83,10 @@ export function PaymentTransactionHistoryPanel({
   const expenseActions = useExpenseVoucherActions(organizationId, isExpenses);
   const canEditExpense = isExpenses && !!organizationId && expenseActions.canModify;
   const canDeleteExpense = isExpenses && !!organizationId && expenseActions.canDelete;
-  const showExpenseActions = canEditExpense || canDeleteExpense;
+  const isSupplierPayments = tab === "supplier-payment";
+  const supplierPaymentDelete = useSupplierPaymentDelete(organizationId, isSupplierPayments ? vouchers : undefined);
+  const canDeleteSupplierPayment = isSupplierPayments && !!organizationId && isAdmin && supplierPaymentDelete.canDelete;
+  const showExpenseActions = canEditExpense || canDeleteExpense || canDeleteSupplierPayment;
 
   const supplierIdsForHistory = useMemo(() => {
     if (tab !== "supplier-payment" || !vouchers?.length) return [] as string[];
@@ -356,6 +360,18 @@ export function PaymentTransactionHistoryPanel({
                   Delete
                 </Button>
               )}
+              {canDeleteSupplierPayment && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-destructive hover:text-destructive"
+                  onClick={() => supplierPaymentDelete.requestDelete(selected)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  Delete
+                </Button>
+              )}
               {tab === "customer-payment" && onShowReceipt && (
                 <Button type="button" size="sm" variant="outline" className="h-8" onClick={() => buildCustomerReceipt(selected)}>
                   <Printer className="h-3.5 w-3.5 mr-1" />
@@ -441,6 +457,18 @@ export function PaymentTransactionHistoryPanel({
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
+                        {canDeleteSupplierPayment && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive"
+                            title="Delete payment"
+                            onClick={() => supplierPaymentDelete.requestDelete(v)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   )}
@@ -451,6 +479,7 @@ export function PaymentTransactionHistoryPanel({
         </Table>
       </AccountsHistoryPanel>
       {isExpenses && expenseActions.dialogs}
+      {isSupplierPayments && supplierPaymentDelete.dialog}
     </div>
   );
 }
