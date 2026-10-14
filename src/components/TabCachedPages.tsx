@@ -45,6 +45,7 @@ import { resolveTabLoadShell } from "@/lib/tabLoadShell";
 import { isElectronShell, shouldElectronMountOnlyActiveTab } from "@/lib/electronShell";
 import { beginUserPriorityLoad, pauseBackgroundPrefetch } from "@/lib/chunkLoadRetry";
 import { recordPaneTimelineEvent } from "@/lib/pwaColdOpenDiagnostics";
+import { foregroundStepMs } from "@/lib/foregroundTimer";
 import {
   isTabCachePaneContentReady,
   isTabCachePaneMounted,
@@ -318,7 +319,9 @@ function TabPageFallback({
       const delta = now - lastTick;
       lastTick = now;
       if (document.hidden) return;
-      elapsed += delta;
+      // A frozen main thread delivers one late tick: count it as one step, not the
+      // whole gap, or a 20s freeze fires soft retry + timeout at once.
+      elapsed += foregroundStepMs(delta, false, 2 * TICK_MS);
       if (shouldSoftRetryChunk(elapsed)) {
         setShowSoftHint(true);
         if (!softFired) {
