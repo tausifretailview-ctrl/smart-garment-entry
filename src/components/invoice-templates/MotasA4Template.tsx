@@ -103,6 +103,12 @@ const rupee = (amount: string) => `₹${amount}`;
 
 const clean = (v?: string | null) => (v && String(v).trim() ? String(v).trim() : "");
 
+/** Size / colour for the line under a product — "None" / "null" placeholders print nothing. */
+const variantText = (v?: string | null) => {
+  const t = clean(v);
+  return /^(none|null|undefined|n\/a|-)$/i.test(t) ? "" : t;
+};
+
 const formatInvoiceDate = (date?: Date | string | null): string => {
   if (!date) return EM_DASH;
   const d = date instanceof Date ? date : new Date(date);
@@ -138,7 +144,7 @@ const wrappedLines = (text: string | undefined, charsPerLine: number) =>
 
 export const estimateMotasRowMm = (item: Pick<InvoiceItem, "particulars" | "size" | "color">) => {
   const nameLines = Math.max(1, Math.ceil(clean(item.particulars).length / DESC_CHARS_PER_LINE));
-  const hasVariant = Boolean(clean(item.color) || clean(item.size));
+  const hasVariant = Boolean(variantText(item.color) || variantText(item.size));
   return ROW_BASE_MM + (nameLines - 1) * ROW_EXTRA_LINE_MM + (hasVariant ? 3.2 : 0);
 };
 
@@ -215,13 +221,11 @@ type MotasLine = {
   item: InvoiceItem;
   index: number;
   calc: InvoiceGstLineComputation;
-  unit: number;
-  discountAmt: number;
 };
 
 /**
  * Motas A4 — tax invoice modelled on the MOTAS sample: # · Description ·
- * Qty · HSN · Unit · Discount · Taxable · Tax % · Total, billing block with
+ * Qty · HSN · Unit · Taxable · Tax % · Total, billing block with
  * Invoice No / Date / Place of Supply / Due Date, HSN-wise tax summary.
  * Explicit A4 sheets so the header repeats on every page in print and PDF.
  */
@@ -267,23 +271,13 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   });
   const { isInterState, taxableTotal, taxTotal } = breakdown;
 
-  const lines: MotasLine[] = items.map((item, index) => {
-    const calc = breakdown.lines[index];
-    const lineTotal = Number(item.total) || 0;
-    const qty = Number(item.qty) || 0;
-    const safeQty = qty > 0 ? qty : 1;
-    // Rate × qty − line total is the line discount, in the same basis as the
-    // line total; scale it to taxable so Unit × Qty − Discount = Taxable.
-    const gross = (Number(item.rate) || 0) * qty;
-    const rawDisc = gross - lineTotal;
-    const toTaxable = lineTotal > 0 ? calc.taxable / lineTotal : 1;
-    const discountAmt = rawDisc > 0.005 ? rawDisc * toTaxable : 0;
-    const unit = (calc.taxable + discountAmt) / safeQty;
-    return { item, index, calc, unit, discountAmt };
-  });
+  const lines: MotasLine[] = items.map((item, index) => ({
+    item,
+    index,
+    calc: breakdown.lines[index],
+  }));
 
   const totalQty = items.reduce((s, i) => s + (Number(i.qty) || 0), 0);
-  const totalDiscount = lines.reduce((s, l) => s + l.discountAmt, 0);
   const totalAmount = lines.reduce((s, l) => s + (Number(l.calc.amount) || 0), 0);
 
   // HSN-wise tax summary (one row per HSN + rate).
@@ -402,7 +396,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const b = `1px solid ${GRID}`;
   const frameLine = `1.4px solid ${NAVY}`;
 
-  const colWidths = ["5%", undefined, "7.5%", "7.5%", "9%", "9.5%", "11%", "8%", "12%"];
+  const colWidths = ["5%", undefined, "8%", "8%", "10.5%", "12.5%", "9%", "13%"];
   const colGroup = (
     <colgroup>
       {colWidths.map((w, i) => (
@@ -492,6 +486,13 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     color: INK,
     whiteSpace: "nowrap",
     fontVariantNumeric: "tabular-nums",
+  };
+  // Explicit sizes on cells: print iframes in quirks mode don't pass table font-size down.
+  const bankCell: React.CSSProperties = {
+    padding: "0 6px 0 0",
+    fontSize: "11px",
+    lineHeight: 1.3,
+    verticalAlign: "top",
   };
   const taxHead: React.CSSProperties = {
     border: b,
@@ -658,7 +659,6 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         <th style={hCell}>Qty</th>
         <th style={hCell}>HSN</th>
         <th style={{ ...hCell, textAlign: "right" }}>Unit</th>
-        <th style={{ ...hCell, textAlign: "right" }}>Discount</th>
         <th style={{ ...hCell, textAlign: "right" }}>Taxable</th>
         <th style={hCell}>Tax (%)</th>
         <th style={{ ...hCell, borderRight: "none", textAlign: "right" }}>Total</th>
@@ -667,7 +667,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   );
 
   const renderRow = (l: MotasLine, zebra: boolean) => {
-    const variant = [l.item.color, l.item.size].filter((v) => clean(v)).join(" / ");
+    const variant = [l.item.color, l.item.size].map(variantText).filter(Boolean).join(" / ");
     const bg: React.CSSProperties = zebra ? { background: ZEBRA, ...printExact } : {};
     return (
       <tr key={`${l.item.sr}-${l.index}`}>
@@ -681,8 +681,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
           {l.item.uom ? <span style={{ fontWeight: 400, color: MUTED }}> {l.item.uom}</span> : null}
         </td>
         <td style={{ ...cell, ...bg, textAlign: "center" }}>{clean(l.item.hsn) || EM_DASH}</td>
-        <td style={{ ...num, ...bg }}>{fmt(l.unit)}</td>
-        <td style={{ ...num, ...bg, color: l.discountAmt > 0 ? INK : MUTED }}>{fmt(l.discountAmt)}</td>
+        <td style={{ ...num, ...bg }}>{fmt(l.calc.unitRate)}</td>
         <td style={{ ...num, ...bg }}>{fmt(l.calc.taxable)}</td>
         <td style={{ ...num, ...bg, textAlign: "center", color: MUTED }}>{fmtPct(l.calc.gstPercent)}</td>
         <td style={{ ...num, ...bg, borderRight: "none", fontWeight: 800 }}>{fmt(l.calc.amount)}</td>
@@ -705,7 +704,6 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
             <td style={{ ...totalCell, textAlign: "center" }}>{fmtQty(totalQty)}</td>
             <td style={totalCell} />
             <td style={totalCell} />
-            <td style={{ ...totalCell, textAlign: "right" }}>{fmt(totalDiscount)}</td>
             <td style={{ ...totalCell, textAlign: "right" }}>{fmt(taxableTotal)}</td>
             <td style={{ ...totalCell, textAlign: "center" }}>{fmt(taxTotal)}</td>
             <td style={{ ...totalCell, borderRight: "none", textAlign: "right" }}>{fmt(totalAmount)}</td>
@@ -731,11 +729,11 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
                     .filter(([, v]) => v)
                     .map(([label, value]) => (
                       <tr key={label}>
-                        <td style={{ color: MUTED, padding: "0 6px 0 0", whiteSpace: "nowrap", verticalAlign: "top" }}>
+                        <td style={{ ...bankCell, color: MUTED, whiteSpace: "nowrap" }}>
                           {label}
                         </td>
-                        <td style={{ color: MUTED, padding: "0 6px 0 0", verticalAlign: "top" }}>:</td>
-                        <td style={{ fontWeight: 700, padding: 0, wordBreak: "break-word" }}>{value}</td>
+                        <td style={{ ...bankCell, color: MUTED }}>:</td>
+                        <td style={{ ...bankCell, padding: 0, fontWeight: 700, color: INK, wordBreak: "break-word" }}>{value}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -909,14 +907,15 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   return (
     <div className="motas-a4-invoice-root" style={{ position: "relative", width: "210mm", background: "#fff", color: INK }}>
       <style>{`
-        @page { size: A4 portrait; margin: 6mm; }
+        @page { size: A4 portrait; margin: 0 !important; }
         @media print {
-          .motas-a4-invoice-root { width: 198mm !important; margin: 0 !important; padding: 0 !important; }
+          .motas-a4-invoice-root { width: 210mm !important; margin: 0 !important; padding: 0 !important; }
           .motas-a4-page {
-            width: 198mm !important;
-            height: 284mm !important;
+            width: 210mm !important;
+            height: 296.5mm !important;
             min-height: 0 !important;
-            padding: 0 !important;
+            padding: 6mm !important;
+            box-sizing: border-box !important;
             margin: 0 !important;
             overflow: hidden !important;
             page-break-inside: avoid;
