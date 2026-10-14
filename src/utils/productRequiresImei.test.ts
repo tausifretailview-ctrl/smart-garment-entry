@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getRequiresImeiFormDefault,
   hasRequiresImeiStoredPreference,
+  purchaseLineNeedsImeiPerUnit,
   rememberRequiresImeiFormChoice,
 } from "./productRequiresImei";
 
@@ -49,5 +50,26 @@ describe("requires_imei form preference helpers", () => {
     rememberRequiresImeiFormChoice(true, "MOBILE");
     expect(hasRequiresImeiStoredPreference("MOBILE")).toBe(true);
     expect(hasRequiresImeiStoredPreference("TABLET")).toBe(true);
+  });
+});
+
+describe("purchaseLineNeedsImeiPerUnit", () => {
+  const on = { enabled: true, imei_scan_enforcement: true };
+
+  it("accessory line on a universal barcode (EAN) does not need per-unit IMEI", () => {
+    expect(purchaseLineNeedsImeiPerUnit({ requires_imei: true, barcode: "8906086576427" }, on)).toBe(false);
+    expect(purchaseLineNeedsImeiPerUnit({ requires_imei: true, barcode: "012345678905" }, on)).toBe(false);
+  });
+
+  it("phone line on a real IMEI or with no barcode yet still needs per-unit IMEI", () => {
+    expect(purchaseLineNeedsImeiPerUnit({ requires_imei: true, barcode: "356938035643809" }, on)).toBe(true);
+    expect(purchaseLineNeedsImeiPerUnit({ requires_imei: true, barcode: "" }, on)).toBe(true);
+  });
+
+  it("non-serialized product or enforcement off never needs per-unit IMEI", () => {
+    expect(purchaseLineNeedsImeiPerUnit({ requires_imei: false, barcode: "356938035643809" }, on)).toBe(false);
+    expect(
+      purchaseLineNeedsImeiPerUnit({ requires_imei: true, barcode: "356938035643809" }, { enabled: true, imei_scan_enforcement: false }),
+    ).toBe(false);
   });
 });

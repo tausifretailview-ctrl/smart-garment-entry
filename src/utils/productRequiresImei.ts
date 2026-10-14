@@ -1,3 +1,5 @@
+import { isLikelyUniversalProductCode } from "@/utils/imeiValidation";
+
 /**
  * Mobile ERP: effective IMEI requirement for a product.
  * Org master switch narrows only — never widens.
@@ -74,4 +76,18 @@ export function hasRequiresImeiStoredPreference(category?: string | null): boole
   const cat = (category || "").trim().toLowerCase();
   if (cat && Object.prototype.hasOwnProperty.call(prefs.byCategory, cat)) return true;
   return prefs.lastValueSet === true;
+}
+
+/**
+ * Purchase bill line: does each unit need its own IMEI row (qty locked to 1)?
+ * A line on a universal product code (EAN/UPC, e.g. an accessory's box barcode)
+ * is never an IMEI unit, so its qty can be changed like normal stock even when
+ * the product itself is still flagged requires_imei.
+ */
+export function purchaseLineNeedsImeiPerUnit(
+  line: { requires_imei?: boolean | null; barcode?: string | null },
+  mobileErp: { enabled?: boolean; imei_scan_enforcement?: boolean } | null | undefined,
+): boolean {
+  if (!productRequiresImei(line, mobileErp)) return false;
+  return !isLikelyUniversalProductCode(String(line.barcode || ""));
 }

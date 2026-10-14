@@ -138,7 +138,7 @@ import {
 } from "@/utils/alignPurchaseLineBarcode";
 import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
-import { getRequiresImeiFormDefault, productRequiresImei, rememberRequiresImeiFormChoice } from "@/utils/productRequiresImei";
+import { getRequiresImeiFormDefault, productRequiresImei, purchaseLineNeedsImeiPerUnit, rememberRequiresImeiFormChoice } from "@/utils/productRequiresImei";
 import {
   resolvePurchaseLineItemsForPriceTiers,
   syncLastPurchaseFromBillLines,
@@ -3478,7 +3478,7 @@ const PurchaseEntry = () => {
         const unitIdx = findPurchaseScanSameUnitIndex(prev, { skuId: variant.id, barcode: variant.barcode });
         if (
           unitIdx >= 0 &&
-          productRequiresImei({ requires_imei: prev[unitIdx].requires_imei }, mobileERPSettings)
+          purchaseLineNeedsImeiPerUnit(prev[unitIdx], mobileERPSettings)
         ) {
           conflictCode = (prev[unitIdx].barcode || variant.barcode || "").trim();
           scan.outcome = "duplicate_imei";
@@ -3503,7 +3503,7 @@ const PurchaseEntry = () => {
           }
 
           // Serialised (IMEI): re-scan of the same unit is a duplicate, not qty+1.
-          if (productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)) {
+          if (purchaseLineNeedsImeiPerUnit(item, mobileERPSettings)) {
             scan.outcome = "duplicate_imei";
             return prev;
           }
@@ -5096,7 +5096,7 @@ const PurchaseEntry = () => {
         const item = lineItems.find((i) => i.temp_id === temp_id);
         if (
           item?.product_id &&
-          productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)
+          purchaseLineNeedsImeiPerUnit(item, mobileERPSettings)
         ) {
           openImeiScanForLine(item, qty);
           return;
@@ -6140,7 +6140,7 @@ const PurchaseEntry = () => {
       const multiQtyLine = activeLines.find(
         (item) =>
           Number(item.qty) > 1 &&
-          productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings),
+          purchaseLineNeedsImeiPerUnit(item, mobileERPSettings),
       );
       if (multiQtyLine) {
         toast({
@@ -6173,7 +6173,7 @@ const PurchaseEntry = () => {
       for (const item of activeLines) {
         if (
           !(Number(item.qty) > 0) ||
-          !productRequiresImei({ requires_imei: item.requires_imei }, mobileERPSettings)
+          !purchaseLineNeedsImeiPerUnit(item, mobileERPSettings)
         ) {
           continue;
         }
