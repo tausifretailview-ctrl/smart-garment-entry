@@ -1065,6 +1065,7 @@ const PurchaseEntry = () => {
   const [imeiScanQueue, setImeiScanQueue] = useState<{ tempId: string; qty: number; item: LineItem }[]>([]);
   // Self-serve "not serialized" fix progress.
   const [isMarkingNotSerialized, setIsMarkingNotSerialized] = useState(false);
+  const [isUsingNormalBarcode, setIsUsingNormalBarcode] = useState(false);
   /**
    * Per-IMEI variant rows created during this bill's IMEI sessions, by product.
    * Only freshly inserted rows are tracked (reused pre-existing SKUs are not),
@@ -5331,6 +5332,108 @@ const PurchaseEntry = () => {
     }
   };
 
+  // Accessory unblock (any role): the box's universal barcode (EAN/UPC) was
+  // scanned into the IMEI box. Bill the whole quantity on one normal variant with
+  // that barcode instead of one IMEI unit per piece. Admin/manager also untick
+  // "requires IMEI" on the product so later bills and POS treat it as normal stock.
+  const handleUseUniversalBarcode = async (rawBarcode: string) => {
+    if (!imeiScanItem || !currentOrganization || isUsingNormalBarcode) return;
+    const { tempId, item, qty } = imeiScanItem;
+    if (!item.product_id) return;
+    const barcode = String(rawBarcode || "").replace(/\s/g, "").toUpperCase();
+    if (!barcode) return;
+    setIsUsingNormalBarcode(true);
+    try {
+      const otherProductLine = lineItems.find(
+        (l) =>
+          l.temp_id !== tempId &&
+          l.product_id !== item.product_id &&
+          (l.barcode || "").trim().toUpperCase() === barcode,
+      );
+      if (otherProductLine) {
+        throw new Error(`Barcode ${barcode} is already on "${otherProductLine.product_name}" in this bill.`);
+      }
+
+      const { data: existingRows, error: existingError } = await supabase
+        .from("product_variants")
+        .select("id, product_id, products!inner(id, product_name)")
+        .eq("barcode", barcode)
+        .eq("organization_id", currentOrganization.id)
+        .is("deleted_at", null)
+        .is("products.deleted_at", null);
+      if (existingError) throw existingError;
+
+      let variantId = (existingRows || []).find((r) => r.product_id === item.product_id)?.id;
+      if (!variantId && (existingRows || []).length > 0) {
+        const owner = (existingRows as any[])[0]?.products?.product_name;
+        throw new Error(
+          `Barcode ${barcode} belongs to another product${owner ? ` ("${owner}")` : ""}. Search that product instead.`,
+        );
+      }
+      if (!variantId) {
+        const { data: newVariant, error: varError } = await supabase
+          .from("product_variants")
+          .insert({
+            organization_id: currentOrganization.id,
+            product_id: item.product_id,
+            size: (item.size || "").trim() || "None",
+            color: (item.color || "").trim() || null,
+            barcode,
+            barcode_source: "external",
+            pur_price: item.pur_price,
+            sale_price: item.sale_price,
+            mrp: item.mrp || 0,
+            stock_qty: 0,
+            active: true,
+          })
+          .select("id")
+          .single();
+        if (varError) throw varError;
+        variantId = newVariant.id;
+      }
+
+      let productUnflagged = false;
+      if (canFixImeiFlag) {
+        const { error: flagError } = await supabase
+          .from("products")
+          .update({ requires_imei: false })
+          .eq("id", item.product_id)
+          .eq("organization_id", currentOrganization.id);
+        if (!flagError) {
+          productUnflagged = true;
+          rememberRequiresImeiFormChoice(false, item.category);
+        }
+      }
+
+      const lineQty = Math.max(1, Number(qty) || 1);
+      setLineItems((prev) =>
+        prev.map((l) =>
+          l.temp_id === tempId
+            ? recalcLineTotal({ ...l, qty: lineQty, sku_id: variantId!, barcode, requires_imei: false })
+            : l,
+        ),
+      );
+
+      toast({
+        title: "Added as normal stock",
+        description: productUnflagged
+          ? `${lineQty} × "${item.product_name}" on barcode ${barcode}. IMEI scan is now off for this product.`
+          : `${lineQty} × "${item.product_name}" on barcode ${barcode}. Ask an admin to untick "Requires IMEI" on this product to skip this step next time.`,
+      });
+      advanceImeiScanQueue();
+    } catch (error: unknown) {
+      const info = extractErrorInfo(error);
+      toast({
+        title: "Could not use this barcode",
+        description: info.message || "Failed to add as normal stock",
+        variant: "destructive",
+        duration: 10000,
+      });
+    } finally {
+      setIsUsingNormalBarcode(false);
+    }
+  };
+
   const handleImeiCorrection = useCallback(
     async (item: LineItem, rawBarcode: string) => {
       if (!currentOrganization?.id || !mobileERPSettings?.allow_imei_edit_after_save || !item.sku_id) return;
@@ -8454,6 +8557,8 @@ const PurchaseEntry = () => {
             canFix={canFixImeiFlag}
             onMarkNotSerialized={handleMarkNotSerialized}
             isMarkingNotSerialized={isMarkingNotSerialized}
+            onUseAsNormalBarcode={handleUseUniversalBarcode}
+            isUsingNormalBarcode={isUsingNormalBarcode}
           />
         )}
       </div>
@@ -10019,6 +10124,8 @@ const PurchaseEntry = () => {
           canFix={canFixImeiFlag}
           onMarkNotSerialized={handleMarkNotSerialized}
           isMarkingNotSerialized={isMarkingNotSerialized}
+          onUseAsNormalBarcode={handleUseUniversalBarcode}
+          isUsingNormalBarcode={isUsingNormalBarcode}
         />
       )}
     </div>

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Check, Smartphone, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getUniversalCodeScanWarning } from "@/utils/imeiValidation";
+import { getUniversalCodeScanWarning, isLikelyUniversalProductCode } from "@/utils/imeiValidation";
 import { checkBarcodeExists } from "@/utils/barcodeValidation";
 import { validateIMEI } from "@/hooks/useMobileERP";
 
@@ -26,6 +26,14 @@ interface IMEIScanDialogProps {
   canFix?: boolean;
   onMarkNotSerialized?: () => void;
   isMarkingNotSerialized?: boolean;
+  /**
+   * Accessory unblock (PurchaseEntry only): a universal product code (EAN/UPC)
+   * scanned into an IMEI box becomes the line's normal barcode for the whole
+   * quantity — no per-unit IMEI rows. Open to every role; real phones still
+   * need real IMEIs because nothing here auto-accepts an EAN.
+   */
+  onUseAsNormalBarcode?: (barcode: string) => void;
+  isUsingNormalBarcode?: boolean;
 }
 
 export function IMEIScanDialog({
@@ -40,6 +48,8 @@ export function IMEIScanDialog({
   canFix = false,
   onMarkNotSerialized,
   isMarkingNotSerialized = false,
+  onUseAsNormalBarcode,
+  isUsingNormalBarcode = false,
 }: IMEIScanDialogProps) {
   const [imeiValues, setImeiValues] = useState<string[]>([]);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -70,6 +80,9 @@ export function IMEIScanDialog({
   const allFilled = imeiValues.length === quantity && imeiValues.every(isValid);
   const hasDuplicates = new Set(imeiValues.filter(v => v.length > 0)).size !== imeiValues.filter(v => v.length > 0).length;
   const filledCount = imeiValues.filter(isValid).length;
+  const scannedUniversalCode = onUseAsNormalBarcode
+    ? imeiValues.find((v) => v.length > 0 && isLikelyUniversalProductCode(v)) ?? null
+    : null;
 
   const handleConfirm = () => {
     if (!allFilled || hasDuplicates) return;
@@ -155,6 +168,21 @@ export function IMEIScanDialog({
         </div>
 
         <DialogFooter className="gap-2 pt-2 flex-col sm:flex-col items-stretch">
+          {scannedUniversalCode && onUseAsNormalBarcode && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-2 space-y-2">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                Accessory (watch, charger, earphones)? It has no IMEI. Add all {quantity} as normal stock
+                with barcode <span className="font-mono font-semibold">{scannedUniversalCode}</span>.
+              </p>
+              <Button
+                onClick={() => onUseAsNormalBarcode(scannedUniversalCode)}
+                disabled={isUsingNormalBarcode}
+                className="w-full"
+              >
+                {isUsingNormalBarcode ? "Adding…" : `Not an IMEI item, add ${quantity} as normal stock`}
+              </Button>
+            </div>
+          )}
           {canFix && productId && onMarkNotSerialized && (
             <Button
               variant="ghost"
