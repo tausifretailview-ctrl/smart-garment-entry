@@ -3026,8 +3026,9 @@ main:has(.supplier-party-balances-workspace) {
   .sale-bill-readable .text-\[15px\] { font-size: 16px !important; }
   .sale-bill-readable .text-\[17px\] { font-size: 17px !important; }
   .sale-bill-readable .text-sm { font-size: 15px !important; }
-  .sale-bill-readable table th { font-size: 14px !important; }
-  .sale-bill-readable table td { font-size: 15px !important; }
+  /* Hidden invoice copies (Motas measures row heights) keep their own sizes. */
+  .sale-bill-readable table:not(.motas-a4-invoice-root table) th { font-size: 14px !important; }
+  .sale-bill-readable table:not(.motas-a4-invoice-root table) td { font-size: 15px !important; }
   .sale-bill-readable input,
   .sale-bill-readable [role="combobox"],
   .sale-bill-readable button[role="combobox"] {
