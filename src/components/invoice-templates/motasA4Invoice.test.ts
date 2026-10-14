@@ -106,25 +106,37 @@ describe("MotasA4Template", () => {
     expect(countPages(html)).toBe(1);
   });
 
-  it("prints the sample columns with line discount and taxable values", () => {
+  it("prints the sample columns without a Discount column", () => {
     const html = renderToStaticMarkup(
       createElement(MotasA4Template, {
         ...baseProps,
-        // 3 × ₹250 less 10% = ₹675 incl. 5% GST → taxable 642.86, discount 71.43 (taxable basis)
+        // 3 × ₹250 less 10% = ₹675 incl. 5% GST → taxable 642.86, net unit 214.29
         items: [item(0, { total: 675, discountPercent: 10 })],
         grandTotal: 675,
       }),
     );
-    for (const head of ["Description", "Qty", "HSN", "Unit", "Discount", "Taxable", "Tax (%)", "Total"]) {
+    for (const head of ["Description", "Qty", "HSN", "Unit", "Taxable", "Tax (%)", "Total"]) {
       expect(html).toContain(`>${head}</th>`);
     }
-    expect(html).toContain("238.10");
-    expect(html).toContain("71.43");
+    expect(html).not.toContain(">Discount</th>");
+    expect(html).toContain("214.29");
     expect(html).toContain("642.86");
     expect(html).toContain("5.0%");
     expect(html).toContain("675.00");
     expect(html).toContain("Central Tax");
     expect(html).toContain("State Tax");
+  });
+
+  it("prints no size line when the size is empty or the placeholder None", () => {
+    const html = renderToStaticMarkup(
+      createElement(MotasA4Template, {
+        ...baseProps,
+        items: [item(0, { size: "None", color: "" }), item(1, { size: "XL", color: "none" })],
+        grandTotal: 1500,
+      }),
+    );
+    expect(html).not.toMatch(/>None</i);
+    expect(html).toContain(">XL</div>");
   });
 
   it("repeats the header on every sheet of a long bill and numbers the pages", () => {
