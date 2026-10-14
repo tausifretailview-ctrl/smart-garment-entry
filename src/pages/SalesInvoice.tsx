@@ -1956,7 +1956,7 @@ export default function SalesInvoice() {
     // Targeted DB barcode lookup (fires on scan only, not on mount).
     // No `active` filter — resolve inactive variants too if the barcode matches.
     if (currentOrganization?.id) {
-      const { data: dbVariants, error: dbError } = await supabase
+      const lookupByBarcode = (applyBarcodeFilter: (q: any) => any) => applyBarcodeFilter(supabase
         .from('product_variants')
         .select(`
           id, barcode, size, color, stock_qty, sale_price, mrp, pur_price, product_id, active,
@@ -1968,13 +1968,24 @@ export default function SalesInvoice() {
           )
         `)
         .eq('organization_id', currentOrganization.id)
-        .eq('barcode', searchTerm.trim())
         .is('deleted_at', null)
         .eq('products.organization_id', currentOrganization.id)
         .eq('products.status', 'active')
-        .is('products.deleted_at', null)
+        .is('products.deleted_at', null))
         .order('stock_qty', { ascending: false })
         .limit(50);
+
+      let { data: dbVariants, error: dbError } = await lookupByBarcode((q) =>
+        q.eq('barcode', searchTerm.trim()),
+      );
+      // Inputs show text in capitals (CSS only), so a typed "k40" looks like "K40" but
+      // misses a saved "K40" on the exact match. Retry letter codes ignoring case.
+      if (!dbError && (dbVariants || []).length === 0 && /[a-z]/i.test(searchTerm)) {
+        const likeExact = searchTerm.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
+        ({ data: dbVariants, error: dbError } = await lookupByBarcode((q) =>
+          q.ilike('barcode', likeExact),
+        ));
+      }
 
       if (dbError) {
         console.error('Barcode lookup failed:', dbError);
