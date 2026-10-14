@@ -100,6 +100,7 @@ import {
 import { applyExistingAdvanceToSale } from "@/utils/posApplyAdvance";
 import { invalidateMoneyViewsAfterMutation } from "@/utils/moneyViewFreshnessInvalidation";
 import { useSettings } from "@/hooks/useSettings";
+import { fetchSalePrintFirm, resolveSecondFirm, type PrintFirm } from "@/utils/secondFirm";
 import { useDashboardColumnSettings } from "@/hooks/useDashboardColumnSettings";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useWhatsAppAPI } from "@/hooks/useWhatsAppAPI";
@@ -688,6 +689,8 @@ const POSDashboard = () => {
 
   // Fetch company settings (centralized, cached 5min)
   const { data: settings } = useSettings();
+  const secondFirmEnabled = useMemo(() => !!resolveSecondFirm(settings as Record<string, any> | null), [settings]);
+  const [previewPrintFirm, setPreviewPrintFirm] = useState<PrintFirm>(null);
 
   // Get item display settings from settings
   const saleSettings = settings?.sale_settings as any;
@@ -1959,7 +1962,7 @@ const POSDashboard = () => {
       if (currentOrganization?.id) {
         financerQuery = financerQuery.eq("organization_id", currentOrganization.id);
       }
-      const [{ data: finData }, { data: customerData }, accountFacets] = await Promise.all([
+      const [{ data: finData }, { data: customerData }, accountFacets, printFirm] = await Promise.all([
         financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from("customers").select("gst_number, transport_details, points_balance").eq("id", sale.customer_id).maybeSingle()
@@ -1979,6 +1982,7 @@ const POSDashboard = () => {
             return { previousBalance: 0, unusedAdvance: 0 };
           }
         })(),
+        secondFirmEnabled ? fetchSalePrintFirm(sale.id) : Promise.resolve(null as PrintFirm),
       ]);
 
       financerDetails = mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>);
@@ -2043,9 +2047,10 @@ const POSDashboard = () => {
         pointsBalance: sale.customer_id ? Number(customerData?.points_balance ?? 0) : undefined,
         taxType: normalizeGstTaxType(sale.tax_type),
         financerDetails,
+        printFirm,
       };
     },
-    [currentOrganization?.id],
+    [currentOrganization?.id, secondFirmEnabled],
   );
 
   const capturePosSalePdfForWhatsApp = useCallback(
@@ -2332,6 +2337,7 @@ const POSDashboard = () => {
     setPreviewCustomerData(null);
     setPreviewVoucherRefund(0);
     setPreviewAccount({ previousBalance: 0, unusedAdvance: 0 });
+    setPreviewPrintFirm(null);
     setPreviewHydrating(true);
     setShowPreviewDialog(true);
     try {
@@ -2340,7 +2346,7 @@ const POSDashboard = () => {
       if (currentOrganization?.id) {
         financerQuery = financerQuery.eq('organization_id', currentOrganization.id);
       }
-      const [{ data: finData }, { data: custData }, accountFacets] = await Promise.all([
+      const [{ data: finData }, { data: custData }, accountFacets, printFirm] = await Promise.all([
         financerQuery.maybeSingle(),
         sale.customer_id
           ? supabase.from('customers').select('gst_number, transport_details, address, points_balance').eq('id', sale.customer_id).maybeSingle()
@@ -2353,9 +2359,11 @@ const POSDashboard = () => {
               saleInvoicePrintAccountOpts(sale),
             ).catch(() => ({ previousBalance: 0, unusedAdvance: 0 }))
           : Promise.resolve({ previousBalance: 0, unusedAdvance: 0 }),
+        secondFirmEnabled ? fetchSalePrintFirm(sale.id) : Promise.resolve(null as PrintFirm),
       ]);
       setPreviewFinancerDetails(mapSaleFinancerDetailsForInvoice(finData as Record<string, unknown>));
       setPreviewCustomerData(custData);
+      setPreviewPrintFirm(printFirm);
       setPreviewAccount({
         previousBalance: accountFacets.previousBalance ?? 0,
         unusedAdvance: accountFacets.unusedAdvance ?? 0,
@@ -4751,6 +4759,7 @@ const POSDashboard = () => {
                 previewSale.tax_type ?? resolvePosDefaultTaxType(saleSettings),
               )}
               financerDetails={previewFinancerDetails}
+              printFirm={previewPrintFirm}
             />
             )
           )}
@@ -4965,6 +4974,7 @@ const POSDashboard = () => {
               printData.taxType ?? resolvePosDefaultTaxType(saleSettings),
             )}
             financerDetails={printData.financerDetails || null}
+            printFirm={printData.printFirm ?? null}
                   format={posInvoiceWrapperFormat}
                   template={printData.wappConnectTemplate ?? posInvoiceTemplate}
                   thermalPaper={posThermalPaper}

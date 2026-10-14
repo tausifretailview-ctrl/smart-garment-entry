@@ -86,7 +86,7 @@ const itemAmt: React.CSSProperties = {
   overflow: 'visible',
 };
 
-export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernThermalReceipt80mmProps>(
+export const ModernThermalReceipt80mm = React.forwardRef<HTMLDivElement, ModernThermalReceipt80mmPropsExt>(
   (props, ref) => {
     const {
       billNo, date, customerName, customerPhone, customerAddress,

@@ -64,6 +64,7 @@ import {
 } from '@/utils/organizationBankAccounts';
 import { organizationBankAccountsQueryKey } from '@/hooks/useOrganizationBankAccounts';
 import { formatInvoiceProductDescription, type InvoiceDescriptionSequence } from '@/utils/invoiceProductDescription';
+import { applyPrintFirmToSettings, type PrintFirm } from '@/utils/secondFirm';
 
 interface InvoiceItem {
   sr: number;
@@ -206,6 +207,8 @@ interface InvoiceWrapperProps {
   } | null;
   /** When provided (e.g. Settings preview), skips org-settings fetch. */
   orgSettings?: Record<string, unknown> | null;
+  /** 'second' prints the 2nd firm header (Settings > Reports > 2nd billing details). */
+  printFirm?: PrintFirm;
 }
 
 export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperProps>(
@@ -273,8 +276,8 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     useEffect(() => {
       const source = useParentOrgSettings ? props.orgSettings : fetchedOrgSettings;
-      if (source) setSettings(source);
-    }, [useParentOrgSettings, props.orgSettings, fetchedOrgSettings]);
+      if (source) setSettings(applyPrintFirmToSettings(source as Record<string, any>, props.printFirm));
+    }, [useParentOrgSettings, props.orgSettings, fetchedOrgSettings, props.printFirm]);
 
     useEffect(() => {
       if (resolveInvoiceUpiId(settings?.bill_barcode_settings, props.isDcInvoice)) {
@@ -712,6 +715,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
     });
 
     // Select template component based on settings
+    // Thermal receipts that load org settings themselves need the 2nd firm header passed in.
+    const secondFirmSettings = props.printFirm === 'second' && settings ? settings : undefined;
+
     const renderTemplate = () => {
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
       if (format === 'thermal-receipt' || format === 'thermal') {
@@ -746,6 +752,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
+              settingsOverride={secondFirmSettings}
             />
           );
         }
@@ -927,6 +934,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showMrp={props.showMRP ?? true}
+              settingsOverride={secondFirmSettings}
             />
           );
         }
@@ -1006,6 +1014,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             {...(ThermalComponent === ThermalPrint80mm
               ? { documentTitle, showHSN, showBarcode }
               : {})}
+            settingsOverride={secondFirmSettings}
           />
         );
       }
