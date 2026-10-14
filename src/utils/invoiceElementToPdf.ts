@@ -69,7 +69,8 @@ async function rasterizeElement(
 }
 
 /**
- * Retail ERP / multi-page invoices render one `.retail-erp-invoice-template` per
+ * Retail ERP / Motas multi-page invoices render one `.retail-erp-invoice-template`
+ * (or `.motas-a4-page`) per
  * physical page — capture each at exact page size instead of slicing one tall image.
  */
 async function capturePagedInvoiceTemplatesToPdfBlob(
@@ -79,7 +80,7 @@ async function capturePagedInvoiceTemplatesToPdfBlob(
   wappConnectPdf = false,
 ): Promise<Blob | null> {
   const pageEls = Array.from(
-    element.querySelectorAll<HTMLElement>(".retail-erp-invoice-template"),
+    element.querySelectorAll<HTMLElement>(".retail-erp-invoice-template, .motas-a4-page"),
   );
   if (pageEls.length === 0) return null;
 

@@ -122,13 +122,14 @@ export function SettingsInvoicePreview<T extends SettingsLike>({
           previewTemplate === "gift_tally" ||
           previewTemplate === "a4-gst-classic" ||
           previewTemplate === "wholesale-gst-a4" ||
-          previewTemplate === "klear-a4"
+          previewTemplate === "klear-a4" ||
+          previewTemplate === "motas-a4"
         ? "a4"
         : (previewPaper as "a4" | "a5-vertical" | "a5-horizontal" | "thermal");
   const previewScale =
     previewFormat === "thermal" || isThermal80mmInvoiceTemplate(previewTemplate)
       ? "scale(0.9)"
-      : previewTemplate === "klear-a4" || previewTemplate === "wholesale-gst-a4"
+      : previewTemplate === "klear-a4" || previewTemplate === "wholesale-gst-a4" || previewTemplate === "motas-a4"
         ? "scale(0.78)"
         : previewFormat === "a4"
           ? "scale(0.6)"

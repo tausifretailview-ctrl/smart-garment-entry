@@ -127,6 +127,12 @@ export function InvoiceTemplateSelectItems({
             Klear A4 — Size-column tax invoice
           </span>
         </SelectItem>
+        <SelectItem value="motas-a4">
+          <span className="flex items-center gap-2">
+            <span className="text-cyan-900 font-bold text-xs w-5">MTS</span>
+            Motas — Premium A4 tax invoice
+          </span>
+        </SelectItem>
         <SelectItem value="a4-electronic">A4 Electronic</SelectItem>
         <SelectItem value="retail">
           <span className="flex items-center gap-2">

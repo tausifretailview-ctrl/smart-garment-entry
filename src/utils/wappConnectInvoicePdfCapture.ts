@@ -87,6 +87,16 @@ export function applyWappConnectInvoicePdfCloneFixes(
     node = node.parentElement;
   }
 
+  // Motas A4 sheets are fixed 297mm pages laid out for canvas already; the
+  // padding / overflow bumps below would push rows past the sheet frame.
+  if (
+    clonedElement.classList.contains("motas-a4-page") ||
+    clonedElement.classList.contains("motas-a4-invoice-root") ||
+    clonedElement.querySelector(".motas-a4-invoice-root")
+  ) {
+    return;
+  }
+
   clonedElement.style.backgroundColor = "#ffffff";
   clonedElement.style.color = "#000000";
   clonedElement.style.fontFamily = "Arial, Helvetica, sans-serif";
