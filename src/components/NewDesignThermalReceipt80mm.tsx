@@ -46,6 +46,12 @@ interface NewDesignThermalReceipt80mmProps {
   salesman?: string;
   counter?: string;
   settingsOverride?: any;
+  // Passed by InvoiceWrapper to every thermal style; this layout doesn't show them.
+  pointsRedeemed?: number;
+  pointsRedemptionValue?: number;
+  pointsBalance?: number;
+  isDcInvoice?: boolean;
+  showYouSaved?: boolean;
 }
 
 const FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
