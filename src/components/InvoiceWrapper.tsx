@@ -716,8 +716,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
 
     // Select template component based on settings
     // Thermal receipts that load org settings themselves need the 2nd firm header passed in.
-    const secondFirmOverride =
-      props.printFirm === 'second' && settings ? { settingsOverride: settings } : {};
+    const secondFirmSettings = props.printFirm === 'second' && settings ? settings : undefined;
 
     const renderTemplate = () => {
       // Use thermal format (handles both 'thermal' and 'thermal-receipt')
@@ -753,7 +752,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               documentType={props.documentType || 'pos'}
               salesman={props.salesman}
               thermalPaper={thermalPaper}
-              {...secondFirmOverride}
+              settingsOverride={secondFirmSettings}
             />
           );
         }
@@ -935,7 +934,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               salesman={props.salesman}
               thermalPaper={thermalPaper}
               showMrp={props.showMRP ?? true}
-              {...secondFirmOverride}
+              settingsOverride={secondFirmSettings}
             />
           );
         }
@@ -1015,7 +1014,7 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
             {...(ThermalComponent === ThermalPrint80mm
               ? { documentTitle, showHSN, showBarcode }
               : {})}
-            {...secondFirmOverride}
+            settingsOverride={secondFirmSettings}
           />
         );
       }
