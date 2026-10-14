@@ -47,6 +47,17 @@ export function readConfiguredDefaultTaxRate(
   return normalizeGstPercent(settings!.default_tax_rate, fallback);
 }
 
+/**
+ * GST % for an imported Excel cell. A blank cell takes the fallback (the org's
+ * Default Tax Rate); a typed 0 stays 0 instead of being treated as "missing".
+ */
+export function resolveImportGstPercent(cell: unknown, fallback: number): number {
+  if (cell === null || cell === undefined) return fallback;
+  if (typeof cell === "string" && cell.trim() === "") return fallback;
+  const n = Number(typeof cell === "string" ? cell.trim().replace(/%$/, "") : cell);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export function isGarmentGstRuleEnabled(
   settings?: GarmentGstRuleSettings | null
 ): boolean {
