@@ -1124,9 +1124,13 @@ export const ProductEntryDialog = ({
             setVariants(newVariants);
             setShowVariants(true);
           } else {
-            // Preserve qty and per-cell sale prices when colors/sizes change
+            // Preserve qty and per-cell prices when colors/sizes change. Pur price and
+            // MRP were reset to the header value, so adding a colour or size wiped the
+            // MRP typed on other cells (KS Footwear).
             const existingQtyMap = new Map<string, number>();
             const existingSalePriceMap = new Map<string, number>();
+            const existingPurPriceMap = new Map<string, number>();
+            const existingMrpMap = new Map<string, number>();
             variants.forEach(v => {
               const key = `${v.color}||${v.size}`;
               if ((v.purchase_qty || 0) > 0) {
@@ -1134,6 +1138,12 @@ export const ProductEntryDialog = ({
               }
               if ((v.sale_price || 0) > 0) {
                 existingSalePriceMap.set(key, v.sale_price);
+              }
+              if ((v.pur_price || 0) > 0) {
+                existingPurPriceMap.set(key, v.pur_price);
+              }
+              if (v.mrp != null && v.mrp > 0) {
+                existingMrpMap.set(key, v.mrp);
               }
             });
             const newVariants: ProductVariant[] = [];
@@ -1144,9 +1154,9 @@ export const ProductEntryDialog = ({
                 newVariants.push({
                   color,
                   size,
-                  pur_price: formData.default_pur_price ?? 0,
+                  pur_price: existingPurPriceMap.get(key) ?? formData.default_pur_price ?? 0,
                   sale_price: existingSalePriceMap.get(key) ?? formData.default_sale_price ?? 0,
-                  mrp: formData.default_mrp ?? null,
+                  mrp: existingMrpMap.get(key) ?? formData.default_mrp ?? null,
                   barcode: "",
                   active: true,
                   opening_qty: 0,
