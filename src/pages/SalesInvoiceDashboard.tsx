@@ -567,6 +567,10 @@ export default function SalesInvoiceDashboard() {
   
   // Draft save hook
   const { hasDraft, draftData, deleteDraft, lastSaved } = useDraftSave('sale_invoice');
+  // Draft rows include the blank grid rows; count only lines with a product.
+  const draftFilledItemCount = Array.isArray(draftData?.lineItems)
+    ? draftData.lineItems.filter((item: { productId?: string }) => item?.productId).length
+    : 0;
   const { getAvailableAdvanceBalance, applyAdvance } = useCustomerAdvances(currentOrganization?.id || null);
   
   // Bulk advance adjust state
@@ -3903,8 +3907,8 @@ export default function SalesInvoiceDashboard() {
                     </h3>
                     <CardDescription className="text-xs text-amber-700 font-medium mt-0 leading-tight">
                       {lastSaved ? `Draft available • Last saved ${formatDistanceToNow(lastSaved, { addSuffix: true })}` : 'Draft available'}
-                      {draftData.lineItems?.length > 0 && ` • ${draftData.lineItems.length} item(s)`}
-                      {draftData.billData?.customer_name && ` • ${draftData.billData.customer_name}`}
+                      {draftFilledItemCount > 0 && ` • ${draftFilledItemCount} item(s)`}
+                      {draftData.selectedCustomer?.customer_name && ` • ${draftData.selectedCustomer.customer_name}`}
                     </CardDescription>
                   </div>
                 </div>

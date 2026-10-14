@@ -44,6 +44,74 @@ function prepareDraftPayload(data: any, draftType: DraftType): any {
   };
 }
 
+/**
+ * Draft types that keep a browser copy and live-sync the dashboard card. Opt-in: other entry
+ * pages reload their form whenever draftData changes, so they must not get extra updates.
+ */
+const LIVE_DRAFT_TYPES = new Set<DraftType>(['sale_invoice']);
+
+/** Every hook instance (entry page + dashboard card) hears saves/deletes of the same draft. */
+const DRAFT_CHANGED_EVENT = 'ezzy:draft-changed';
+
+type DraftChangedDetail = {
+  orgId: string;
+  userId: string;
+  draftType: DraftType;
+  data: any | null;
+  savedAt: number | null;
+};
+
+function dispatchDraftChanged(detail: DraftChangedDetail) {
+  if (!LIVE_DRAFT_TYPES.has(detail.draftType)) return;
+  try {
+    window.dispatchEvent(new CustomEvent<DraftChangedDetail>(DRAFT_CHANGED_EVENT, { detail }));
+  } catch {
+    /* non-browser */
+  }
+}
+
+/**
+ * Browser copy of the draft, written synchronously. The database upsert in beforeunload or
+ * a stalled network often never lands, so a reload would otherwise lose the bill.
+ * Only LIVE_DRAFT_TYPES; purchase keeps its own browser copy (purchaseEntryPersistence).
+ */
+function localBackupKey(orgId: string, userId: string, draftType: DraftType) {
+  return `ezzy-draft-backup:${orgId}:${userId}:${draftType}`;
+}
+
+function writeLocalBackup(orgId: string, userId: string, draftType: DraftType, data: any) {
+  if (!LIVE_DRAFT_TYPES.has(draftType)) return;
+  try {
+    localStorage.setItem(
+      localBackupKey(orgId, userId, draftType),
+      JSON.stringify({ savedAt: Date.now(), data }),
+    );
+  } catch {
+    /* storage full or blocked */
+  }
+}
+
+function readLocalBackup(orgId: string, userId: string, draftType: DraftType): any | null {
+  if (!LIVE_DRAFT_TYPES.has(draftType)) return null;
+  try {
+    const raw = localStorage.getItem(localBackupKey(orgId, userId, draftType));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function clearLocalBackup(orgId: string, userId: string, draftType: DraftType) {
+  if (!LIVE_DRAFT_TYPES.has(draftType)) return;
+  try {
+    localStorage.removeItem(localBackupKey(orgId, userId, draftType));
+  } catch {
+    /* blocked */
+  }
+}
+
 interface UseDraftSaveOptions {
   autoSaveInterval?: number; // in milliseconds, default 30000 (30 seconds)
   onDraftLoaded?: (data: any) => void;
@@ -60,6 +128,14 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentDataRef = useRef<any>(null);
   const draftClearedRef = useRef(false); // Track when draft was intentionally cleared
+  // Draft writes run one at a time, so an autosave still in flight can't re-create a draft
+  // that a later delete (bill saved) already removed.
+  const opChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueue = useCallback(<T,>(op: () => Promise<T>): Promise<T> => {
+    const run = opChainRef.current.then(op, op);
+    opChainRef.current = run.catch(() => undefined);
+    return run;
+  }, []);
 
   // Check if draft exists on mount
   const checkDraft = useCallback(async () => {
@@ -79,6 +155,27 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       if (data) {
         setHasDraft(true);
         setDraftData(data.draft_data);
+        if (LIVE_DRAFT_TYPES.has(draftType) && data.updated_at) setLastSaved(new Date(data.updated_at));
+        return;
+      }
+
+      // Database copy never landed (page closed / network dropped): put the browser copy back.
+      const backup = readLocalBackup(currentOrganization.id, user.id, draftType);
+      if (backup) {
+        setHasDraft(true);
+        setDraftData(backup);
+        const orgId = currentOrganization.id;
+        const userId = user.id;
+        void enqueue(async () => {
+          const { error: upsertError } = await supabase.from('drafts').upsert({
+            organization_id: orgId,
+            draft_type: draftType,
+            created_by: userId,
+            draft_data: backup,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'organization_id,draft_type,created_by' });
+          if (upsertError) console.error('Error restoring draft backup:', upsertError);
+        });
       } else {
         setHasDraft(false);
         setDraftData(null);
@@ -86,11 +183,38 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     } catch (error) {
       console.error('Error checking draft:', error);
     }
-  }, [currentOrganization?.id, user?.id, draftType]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
 
   useEffect(() => {
     checkDraft();
   }, [checkDraft]);
+
+  // Pages stay mounted as tabs, so a mount-time check goes stale: re-check when the window
+  // comes back, and mirror saves/deletes made by the other instance (entry page ↔ dashboard).
+  useEffect(() => {
+    if (!LIVE_DRAFT_TYPES.has(draftType)) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void checkDraft();
+    };
+    const onDraftChanged = (event: Event) => {
+      const detail = (event as CustomEvent<DraftChangedDetail>).detail;
+      if (
+        !detail ||
+        detail.draftType !== draftType ||
+        detail.orgId !== currentOrganization?.id ||
+        detail.userId !== user?.id
+      ) return;
+      setHasDraft(detail.data != null);
+      setDraftData(detail.data);
+      setLastSaved(detail.savedAt ? new Date(detail.savedAt) : null);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener(DRAFT_CHANGED_EVENT, onDraftChanged);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener(DRAFT_CHANGED_EVENT, onDraftChanged);
+    };
+  }, [checkDraft, currentOrganization?.id, user?.id, draftType]);
 
   // Purchase Entry may save/delete draft in another tab — keep dashboard banner in sync.
   useEffect(() => {
@@ -123,26 +247,32 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       return false;
     }
 
+    const orgId = currentOrganization.id;
+    const userId = user.id;
+    writeLocalBackup(orgId, userId, draftType, data);
+
     setIsSaving(true);
     try {
       const draftPayload = prepareDraftPayload(data, draftType);
-      const { error } = await supabase
+      const { error } = await enqueue(async () => supabase
         .from('drafts')
         .upsert({
-          organization_id: currentOrganization.id,
+          organization_id: orgId,
           draft_type: draftType,
-          created_by: user.id,
+          created_by: userId,
           draft_data: draftPayload,
           updated_at: new Date().toISOString(),
         }, {
           onConflict: 'organization_id,draft_type,created_by'
-        });
+        }));
 
       if (error) throw error;
 
+      const savedAt = Date.now();
       setHasDraft(true);
       setDraftData(draftPayload);
-      setLastSaved(new Date());
+      setLastSaved(new Date(savedAt));
+      dispatchDraftChanged({ orgId, userId, draftType, data: draftPayload, savedAt });
       
       if (showToast) {
         toast({
@@ -158,7 +288,7 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
     } finally {
       setIsSaving(false);
     }
-  }, [currentOrganization?.id, user?.id, draftType]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
 
   // Load draft
   const loadDraft = useCallback(() => {
@@ -171,28 +301,35 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
   // Delete draft
   const deleteDraft = useCallback(async (): Promise<boolean> => {
     if (!currentOrganization?.id || !user?.id) return false;
+    const orgId = currentOrganization.id;
+    const userId = user.id;
+
+    // Mark cleared before the network call: if it is done after, a bill the user starts
+    // meanwhile gets its pending data wiped and never autosaves.
+    currentDataRef.current = null;
+    draftClearedRef.current = true;
+    clearLocalBackup(orgId, userId, draftType);
 
     try {
-      const { error } = await supabase
+      const { error } = await enqueue(async () => supabase
         .from('drafts')
         .delete()
-        .eq('organization_id', currentOrganization.id)
+        .eq('organization_id', orgId)
         .eq('draft_type', draftType)
-        .eq('created_by', user.id);
+        .eq('created_by', userId));
 
       if (error) throw error;
 
       setHasDraft(false);
       setDraftData(null);
       setLastSaved(null);
-      currentDataRef.current = null; // Clear current data
-      draftClearedRef.current = true; // Mark as intentionally cleared
+      dispatchDraftChanged({ orgId, userId, draftType, data: null, savedAt: null });
       return true;
     } catch (error) {
       console.error('Error deleting draft:', error);
       return false;
     }
-  }, [currentOrganization?.id, user?.id, draftType]);
+  }, [currentOrganization?.id, user?.id, draftType, enqueue]);
 
   // Update current data reference for auto-save
   const updateCurrentData = useCallback((data: any) => {
@@ -237,15 +374,20 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
 
   // Handle beforeunload to save draft (only if not intentionally cleared)
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       // Don't save if draft was intentionally cleared
       if (currentDataRef.current && !draftClearedRef.current) {
-        saveDraft(currentDataRef.current, false);
+        // saveDraft writes the browser copy synchronously; its network upsert may not land.
+        void saveDraft(currentDataRef.current, false);
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleBeforeUnload);
+    };
   }, [saveDraft]);
 
   return {
