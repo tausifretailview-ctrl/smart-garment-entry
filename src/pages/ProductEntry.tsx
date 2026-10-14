@@ -53,6 +53,7 @@ import {
   hasConfiguredDefaultTaxRate,
   normalizeGstPercent,
   readConfiguredDefaultTaxRate,
+  resolveImportGstPercent,
   type GarmentGstRuleSettings,
 } from "@/utils/gstRules";
 import {
@@ -133,6 +134,8 @@ const ProductEntry = () => {
   const [fieldSettings, setFieldSettings] = useState<any>(null);
   const [showMrp, setShowMrp] = useState(false);
   const [garmentGstSettings, setGarmentGstSettings] = useState<GarmentGstRuleSettings>({});
+  // Settings > Purchase "Default Tax Rate" — used for Excel import rows with a blank GST cell.
+  const [importDefaultGst, setImportDefaultGst] = useState(18);
   const productNameInputRef = useRef<HTMLInputElement>(null);
   const variantsSectionRef = useRef<HTMLDivElement>(null);
   const autoGenerateBtnRef = useRef<HTMLButtonElement>(null);
@@ -447,6 +450,7 @@ const ProductEntry = () => {
           garment_gst_below_rate: purchaseSettings.garment_gst_below_rate,
         };
         setGarmentGstSettings(loadedGarmentGstSettings);
+        setImportDefaultGst(readConfiguredDefaultTaxRate(purchaseSettings, 18));
         if (!editingProductId) {
           setFormData((prev) => {
             const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
@@ -1839,6 +1843,8 @@ const ProductEntry = () => {
           let productId = existingProductMap.get(key);
           
           if (!productId) {
+            // Blank GST cell → org Default Tax Rate; a typed 0 stays 0.
+            const importGst = resolveImportGstPercent(firstRow.gst_per, importDefaultGst);
             // Create new product
             const { data: newProduct, error: productError } = await supabase
               .from('products')
@@ -1850,9 +1856,9 @@ const ProductEntry = () => {
                 style: firstRow.style?.toString().trim() || null,
                 color: firstRow.color?.toString().trim() || null,
                 hsn_code: firstRow.hsn_code?.toString().trim() || null,
-                gst_per: parseLocalizedNumber(firstRow.gst_per) || 18,
-                purchase_gst_percent: parseLocalizedNumber(firstRow.purchase_gst_percent || firstRow.gst_per) || 18,
-                sale_gst_percent: parseLocalizedNumber(firstRow.sale_gst_percent || firstRow.gst_per) || 18,
+                gst_per: importGst,
+                purchase_gst_percent: resolveImportGstPercent(firstRow.purchase_gst_percent, importGst),
+                sale_gst_percent: resolveImportGstPercent(firstRow.sale_gst_percent, importGst),
                 default_pur_price: parseLocalizedNumber(firstRow.default_pur_price) || 0,
                 default_sale_price: parseLocalizedNumber(firstRow.default_sale_price) || 0,
                 status: 'active',
