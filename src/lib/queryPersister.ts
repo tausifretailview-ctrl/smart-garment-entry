@@ -35,6 +35,8 @@ const VOLATILE_PREFIXES = [
   "product-stock-movements",
   "stock-movements",
   "stock-adjustment-variants",
+  // Stock Summary rows (up to 10k variants) — always refetched live, never persisted.
+  "stock-summary",
   "floating-stock-search",
   "owner-low-stock",
   "todays-sales",

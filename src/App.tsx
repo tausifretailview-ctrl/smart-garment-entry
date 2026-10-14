@@ -63,6 +63,7 @@ const PurchaseReturnDashboard = lazyWithRetry(() => import("./pages/PurchaseRetu
 const PurchaseReturnEntry = lazyWithRetry(() => import("./pages/PurchaseReturnEntry"));
 const BarcodePrinting = lazyWithRetry(() => import("./pages/BarcodePrinting"));
 const StockReport = lazyWithRetry(() => import("./pages/StockReport"));
+const StockSummary = lazyWithRetry(() => import("./pages/StockSummary"));
 const Settings = lazyWithRetry(() => import("./pages/Settings"));
 const Profile = lazyWithRetry(() => import("./pages/Profile"));
 const POSSales = lazyWithRetry(() => import("./pages/POSSales"));
@@ -738,6 +739,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <StockReport />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="stock-summary"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <StockSummary />
                       </Layout>
                     </ProtectedRoute>
                   }

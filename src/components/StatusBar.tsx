@@ -18,6 +18,7 @@ const getCurrentPageName = (path: string): string => {
     'purchase-entry': 'Purchase Entry',
     'purchase-bills': 'Purchase Dashboard',
     'stock-report': 'Stock Report',
+    'stock-summary': 'Stock Summary',
     'stock-analysis': 'Stock Analysis',
     'accounts': 'Accounts',
     'fee-collection': 'Fee Collection',

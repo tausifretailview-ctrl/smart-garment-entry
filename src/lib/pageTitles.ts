@@ -37,6 +37,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "stock-settlement": { label: "Stock Settlement", icon: "Package" },
   "stock-adjustment": { label: "Stock Adjustment", icon: "Package" },
   "stock-report": { label: "Stock Report", icon: "BarChart3" },
+  "stock-summary": { label: "Stock Summary", icon: "Package" },
   "stock-ageing": { label: "Stock Ageing", icon: "BarChart3" },
   "stock-analysis": { label: "Stock Analysis", icon: "BarChart3" },
   reports: { label: "Reports Hub", icon: "BarChart3" },
