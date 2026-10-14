@@ -463,8 +463,10 @@ export default function StockReport() {
     enabled: showMrp && activeTab === "all" && !!currentOrganization?.id && mrpVariantIds.length > 0,
     staleTime: 60_000,
     placeholderData: keepPreviousData,
+    // Plain object, not a Map: this query is persisted, and a Map comes back from
+    // the saved cache as a plain object with no .get() (crashed the tab).
     queryFn: async () => {
-      const map = new Map<string, number>();
+      const map: Record<string, number> = {};
       for (let i = 0; i < mrpVariantIds.length; i += 200) {
         const { data, error } = await supabase
           .from("product_variants")
@@ -473,13 +475,19 @@ export default function StockReport() {
           .in("id", mrpVariantIds.slice(i, i + 200));
         if (error) throw error;
         for (const v of data ?? []) {
-          if (v.mrp != null) map.set(v.id, Number(v.mrp));
+          if (v.mrp != null) map[v.id] = Number(v.mrp);
         }
       }
       return map;
     },
   });
-  const mrpOf = useCallback((id: string): number | null => mrpByVariantId?.get(id) ?? null, [mrpByVariantId]);
+  const mrpOf = useCallback(
+    (id: string): number | null => {
+      const mrp = mrpByVariantId && typeof mrpByVariantId === "object" ? mrpByVariantId[id] : undefined;
+      return typeof mrp === "number" ? mrp : null;
+    },
+    [mrpByVariantId],
+  );
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [brandFilter, setBrandFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
