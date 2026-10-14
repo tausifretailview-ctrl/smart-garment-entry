@@ -18,6 +18,8 @@ interface QuickServiceProductDialogProps {
   defaultMrp?: number;
   /** Show Discount (₹) field — used for regular goods qty dialog; service codes may hide it. */
   showDiscountField?: boolean;
+  /** Quantity pre-filled when the popup opens (Settings > Reports > Service product default qty). */
+  defaultQuantity?: number;
   onAdd: (data: {
     code: string;
     quantity: number;
@@ -34,9 +36,11 @@ export const QuickServiceProductDialog = ({
   productName,
   defaultMrp,
   showDiscountField = false,
+  defaultQuantity = 1,
   onAdd,
 }: QuickServiceProductDialogProps) => {
-  const [quantity, setQuantity] = useState("1");
+  const defaultQtyText = String(Number.isFinite(defaultQuantity) && defaultQuantity >= 1 ? Math.floor(defaultQuantity) : 1);
+  const [quantity, setQuantity] = useState(defaultQtyText);
   const [mrp, setMrp] = useState<string>("");
   const [discountAmount, setDiscountAmount] = useState<string>("");
   const [description, setDescription] = useState("");
@@ -50,13 +54,13 @@ export const QuickServiceProductDialog = ({
       setMrp(defaultMrp && defaultMrp > 0 ? String(defaultMrp) : "");
       setDiscountAmount("");
       setDescription("");
-      setQuantity("1");
+      setQuantity(defaultQtyText);
       setTimeout(() => {
         quantityInputRef.current?.focus();
         quantityInputRef.current?.select();
       }, 100);
     }
-  }, [open, defaultMrp]);
+  }, [open, defaultMrp, defaultQtyText]);
 
   const parsedQuantity = parseInt(quantity, 10);
 
@@ -131,7 +135,7 @@ export const QuickServiceProductDialog = ({
               }}
               onBlur={() => {
                 if (!quantity.trim() || parsedQuantity <= 0) {
-                  setQuantity("1");
+                  setQuantity(defaultQtyText);
                 }
               }}
               onKeyDown={handleQuantityKeyDown}

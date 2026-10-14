@@ -381,6 +381,7 @@ export function PosDeliveryChallanWorkspace({ dc, variant = "page" }: PosDeliver
         serviceCode={dc.quickServiceCode}
         productName={dc.quickServiceProductName}
         defaultMrp={dc.quickServiceDialogDefaultMrp}
+        defaultQuantity={dc.quickServiceDefaultQty}
         onAdd={dc.handleQuickServiceAdd}
       />
     </>

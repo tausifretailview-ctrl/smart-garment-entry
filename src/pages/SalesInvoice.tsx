@@ -139,6 +139,7 @@ import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { pickLastPurchaseScanPrice, resolveSaleScanPriceSource } from "@/utils/saleScanPricePreference";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
+import { resolveServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { StockIssueAlertDialog } from "@/components/StockIssueAlertDialog";
 import { CustomerPhoneLookupInput, type CustomerPhoneLookupRow } from "@/components/CustomerPhoneLookupInput";
 import {
@@ -919,6 +920,7 @@ export default function SalesInvoice() {
 
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData, isFetched: settingsFetched } = useSettings();
+  const serviceDefaultQty = useMemo(() => resolveServiceDefaultQty(settingsData as Record<string, any> | null), [settingsData]);
   const saleInvoicePrintTemplate = useMemo(
     () =>
       resolveSaleInvoiceTemplate(
@@ -4380,6 +4382,7 @@ Thank you for choosing us!`;
           }}
           serviceCode={quickServiceCode}
           productName={quickServiceProductForAdd?.product?.product_name}
+          defaultQuantity={serviceDefaultQty}
           defaultMrp={
             quickServiceProductForAdd?.variant
               ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
@@ -5990,6 +5993,7 @@ Thank you for choosing us!`;
         }}
         serviceCode={quickServiceCode}
         productName={quickServiceProductForAdd?.product?.product_name}
+        defaultQuantity={serviceDefaultQty}
         defaultMrp={
           quickServiceProductForAdd?.variant
             ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
