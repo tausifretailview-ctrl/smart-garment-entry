@@ -273,6 +273,7 @@ import { MixPaymentDialog } from "@/components/MixPaymentDialog";
 import { PriceSelectionDialog } from "@/components/PriceSelectionDialog";
 import { MrpTierSelectionDialog, toMrpTierSelectionChoices } from "@/components/MrpTierSelectionDialog";
 import { QuickServiceProductDialog } from "@/components/QuickServiceProductDialog";
+import { resolveServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { printInvoicePDF, generateInvoiceFromHTML, printInvoiceDirectly, printA5BillFormat, generateInvoiceBase64 } from "@/utils/pdfGenerator";
 import { captureElementToPdfBase64 } from "@/utils/captureInvoicePdf";
 import type { SaveSaleRuntimeOptions } from "@/utils/saveSaleRuntimeOptions";
@@ -806,6 +807,7 @@ export default function POSSales() {
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
   // 2nd firm header (Settings > Reports). Per bill; resets to the main firm after each bill.
   const secondFirm = useMemo(() => resolveSecondFirm(settingsData as Record<string, any> | null), [settingsData]);
+  const serviceDefaultQty = useMemo(() => resolveServiceDefaultQty(settingsData as Record<string, any> | null), [settingsData]);
   const [useSecondFirm, setUseSecondFirm] = useState(false);
   // undefined = feature off, so saves never write sales.print_firm.
   const posPrintFirm: PrintFirm | undefined = secondFirm ? (useSecondFirm ? "second" : null) : undefined;
@@ -9684,6 +9686,12 @@ export default function POSSales() {
           showDiscountField={
             quickServiceProductForAdd != null &&
             quickServiceProductForAdd.product?.product_type !== "service"
+          }
+          defaultQuantity={
+            quickServiceProductForAdd != null &&
+            quickServiceProductForAdd.product?.product_type !== "service"
+              ? 1
+              : serviceDefaultQty
           }
           onAdd={handleQuickServiceAdd}
         />

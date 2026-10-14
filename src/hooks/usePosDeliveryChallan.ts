@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
+import { resolveServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { useStockValidation } from "@/hooks/useStockValidation";
 import { computePosFlatDiscount } from "@/utils/posGstTotals";
 import { saleDateIsoIst, saleDateIsoIstForDay } from "@/lib/localDayBounds";
@@ -826,6 +827,7 @@ export function usePosDeliveryChallan(options?: { enabled?: boolean }) {
     quickServiceCode,
     quickServiceProductName: quickServiceProductForAdd?.product?.product_name as string | undefined,
     quickServiceDialogDefaultMrp,
+    quickServiceDefaultQty: resolveServiceDefaultQty(orgSettings as Record<string, any> | null),
     handleQuickServiceAdd,
   };
 }

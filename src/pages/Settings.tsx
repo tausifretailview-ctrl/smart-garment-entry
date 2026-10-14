@@ -25,6 +25,7 @@ import {
   SETTINGS_TAB_SUBTITLE,
   coerceSettingsTab,
 } from "@/components/settings/settingsChrome";
+import { normalizeServiceDefaultQty } from "@/utils/serviceDefaultQty";
 import { SETTINGS_TAB_LIST_CLASS, SETTINGS_TAB_TRIGGER_CLASS, SettingsSection } from "@/components/settings/settingsLayout";
 import { OwnerAlertsSettings } from "@/components/settings/OwnerAlertsSettings";
 import { cn } from "@/lib/utils";
@@ -416,6 +417,8 @@ interface ReportSettings {
   purchase_report_columns?: string[];
   /** 2nd firm header for POS bills (same stock/accounts; header only). */
   second_firm?: SecondFirmSettings;
+  /** Quantity pre-filled in the service product popup on Sale bill / POS (1 when unset). */
+  service_default_qty?: number;
 }
 
 interface Settings {
@@ -6303,6 +6306,45 @@ export default function Settings() {
                       </div>
                     </div>
                   )}
+                </SettingsSection>
+                <SettingsSection title="Service product default qty">
+                  <p className="text-xs text-muted-foreground">
+                    Quantity filled in the service product popup (Quantity / MRP / Add to Cart) on
+                    Sale bill and POS. Default is 1.
+                  </p>
+                  <div className="space-y-1 max-w-[10rem]">
+                    <Label htmlFor="service_default_qty">Default qty</Label>
+                    <Input
+                      id="service_default_qty"
+                      type="text"
+                      inputMode="numeric"
+                      value={
+                        settings.report_settings?.service_default_qty == null
+                          ? ""
+                          : String(settings.report_settings.service_default_qty)
+                      }
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 4);
+                        setSettings((prev) => ({
+                          ...prev,
+                          report_settings: {
+                            ...(prev.report_settings || {}),
+                            service_default_qty: digits ? parseInt(digits, 10) : undefined,
+                          },
+                        }));
+                      }}
+                      onBlur={() => {
+                        setSettings((prev) => ({
+                          ...prev,
+                          report_settings: {
+                            ...(prev.report_settings || {}),
+                            service_default_qty: normalizeServiceDefaultQty(prev.report_settings?.service_default_qty),
+                          },
+                        }));
+                      }}
+                      placeholder="1"
+                    />
+                  </div>
                 </SettingsSection>
                 <SettingsSection title="Reports">
                 <div className="text-center py-8 text-muted-foreground">
