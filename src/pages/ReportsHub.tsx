@@ -209,6 +209,15 @@ const ALL_REPORTS: ReportItem[] = [
     permission: "stock_report",
   },
   {
+    icon: Package,
+    label: "Stock Summary",
+    path: "/stock-summary",
+    desc: "Article-wise stock, cut sizes, colours",
+    tab: "inventory",
+    favourite: true,
+    permission: "stock_report",
+  },
+  {
     icon: Layers,
     label: "Item-wise Stock",
     path: "/item-wise-stock",

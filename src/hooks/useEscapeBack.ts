@@ -26,6 +26,7 @@ const BACK_MAP: Record<string, string> = {
   "delivery-challan-entry":   "delivery-challan-dashboard",
   // Reports → Dashboard
   "stock-report":             "/",
+  "stock-summary":            "/reports",
   "stock-adjustment":         "stock-report",
   "stock-settlement":         "stock-report",
   "stock-ageing":             "stock-report",

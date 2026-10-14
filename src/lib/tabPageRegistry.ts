@@ -103,6 +103,7 @@ export const TAB_PAGE_REGISTRY: Record<string, TabPageDef> = {
     roles: ["admin", "manager"],
   },
   "stock-report": { loader: () => import("@/pages/StockReport"), layout: "layout" },
+  "stock-summary": { loader: () => import("@/pages/StockSummary"), layout: "layout" },
   reports: { loader: () => import("@/pages/ReportsHub"), layout: "layout" },
   "stock-adjustment": {
     loader: () => import("@/pages/StockAdjustment"),
