@@ -10,6 +10,7 @@ import { Plus, X } from "lucide-react";
 import { compareSizes } from "@/utils/sizeSort";
 import { displaySaleStockQty, isNonStockTrackedProduct } from "@/utils/productStockDisplay";
 import { advanceSizeQtyFocus } from "@/components/sizeGridEnter";
+import { sizeGridNewSizePrices, typedPriceOr } from "@/utils/sizeGridNewSizePrices";
 
 interface Variant {
   id: string;
@@ -63,6 +64,11 @@ interface SizeGridDialogProps {
   onColorAdded?: (color: string) => void;
   reviewMode?: boolean;
   showPurPrice?: boolean;
+  /**
+   * Purchase: Pur / Sale / MRP boxes on the per-colour "Add Size" form, so a new
+   * colour can carry its own prices. Off elsewhere (Sale Order shows Size + Qty only).
+   */
+  newSizePriceFields?: boolean;
   /** When true, dialog is open while variants are still loading. */
   isLoading?: boolean;
   /**
@@ -98,6 +104,7 @@ export function SizeGridDialog({
   reviewMode = false,
   showPurPrice = false,
   isLoading = false,
+  newSizePriceFields = false,
   enterAdvancesSize = false,
   reservedByVariant,
 }: SizeGridDialogProps) {
@@ -105,6 +112,7 @@ export function SizeGridDialog({
   const [sizeQty, setSizeQty] = useState<{ [size: string]: string }>({});
   const [sizePrices, setSizePrices] = useState<{ [variantId: string]: string }>({});
   const [sizePurPrices, setSizePurPrices] = useState<{ [variantId: string]: string }>({});
+  const [sizeMrps, setSizeMrps] = useState<{ [variantId: string]: string }>({});
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [customSizes, setCustomSizes] = useState<CustomSizeEntry[]>([]);
   const [showAddCustom, setShowAddCustom] = useState(false);
@@ -119,6 +127,8 @@ export function SizeGridDialog({
   // Multi-color mode state: { [color]: { [variantId]: qty } }
   const [multiColorQty, setMultiColorQty] = useState<{ [color: string]: { [variantId: string]: string } }>({});
   const [multiColorPrices, setMultiColorPrices] = useState<{ [color: string]: { [variantId: string]: string } }>({});
+  const [multiColorPurPrices, setMultiColorPurPrices] = useState<{ [color: string]: { [variantId: string]: string } }>({});
+  const [multiColorMrps, setMultiColorMrps] = useState<{ [color: string]: { [variantId: string]: string } }>({});
   const [multiColorCustomSizes, setMultiColorCustomSizes] = useState<{ [color: string]: CustomSizeEntry[] }>({});
   const [activeCustomSizeColor, setActiveCustomSizeColor] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
@@ -158,9 +168,28 @@ export function SizeGridDialog({
   }, [variants, selectedColor, hasMultipleColors]);
 
   // Get default prices
-  const effectivePurPrice = defaultPurPrice || product?.default_pur_price || filteredVariants[0]?.pur_price || 0;
-  const effectiveSalePrice = defaultSalePrice || product?.default_sale_price || filteredVariants[0]?.sale_price || 0;
-  const effectiveMrp = defaultMrp || effectiveSalePrice;
+  // Prices a new size starts with: this colour's own sizes / last typed new size first,
+  // never the sale price as MRP while the product has a real MRP.
+  const newSizePricesFor = (colorVariants: Variant[], addedSizes: CustomSizeEntry[]) =>
+    sizeGridNewSizePrices({
+      colorVariants,
+      allVariants: variants,
+      addedSizes,
+      defaultPurPrice,
+      defaultSalePrice,
+      defaultMrp,
+      productPurPrice: product?.default_pur_price,
+      productSalePrice: product?.default_sale_price,
+    });
+  const singleNewSizePrices = newSizePricesFor(filteredVariants, customSizes);
+  const effectivePurPrice = singleNewSizePrices.pur_price;
+  const effectiveSalePrice = singleNewSizePrices.sale_price;
+  const effectiveMrp = singleNewSizePrices.mrp;
+  const multiColorNewSizePrices = (color: string) =>
+    newSizePricesFor(
+      variants.filter((v) => v.color === color),
+      multiColorCustomSizes[color] || [],
+    );
   /** Service/combo virtual stock (999999…) → show 1 in size grid. */
   const stockForDisplay = (raw: number | null | undefined) =>
     displaySaleStockQty(product?.product_type, raw);
@@ -184,6 +213,7 @@ export function SizeGridDialog({
       setSizeQty({});
       setSizePrices({});
       setSizePurPrices({});
+      setSizeMrps({});
       setCustomSizes([]);
       setShowAddCustom(false);
       setShowAddColor(false);
@@ -196,6 +226,8 @@ export function SizeGridDialog({
       setAddedColors([]);
       setMultiColorQty({});
       setMultiColorPrices({});
+      setMultiColorPurPrices({});
+      setMultiColorMrps({});
       setMultiColorCustomSizes({});
       setActiveCustomSizeColor(null);
       // If only one color, auto-select it (for single-color mode)
@@ -269,9 +301,9 @@ export function SizeGridDialog({
       return;
     }
 
-    const purPrice = Number(newPurPrice) || effectivePurPrice;
-    const salePrice = Number(newSalePrice) || effectiveSalePrice;
-    const mrpValue = Number(newMrp) || effectiveMrp;
+    const purPrice = typedPriceOr(newPurPrice, effectivePurPrice);
+    const salePrice = typedPriceOr(newSalePrice, effectiveSalePrice);
+    const mrpValue = typedPriceOr(newMrp, effectiveMrp);
 
     // Check if size already exists in variants or custom sizes
     const existsInVariants = filteredVariants.some(v => v.size.toLowerCase() === newSize.trim().toLowerCase());
@@ -329,11 +361,15 @@ export function SizeGridDialog({
           if (qty > 0) {
             const variant = colorVariants.find(v => v.id === variantId);
             if (variant) {
-              const colorPriceMap = multiColorPrices[color] || {};
-              const overridePrice = colorPriceMap[variantId];
-              const updatedVariant = overridePrice && Number(overridePrice) > 0
-                ? { ...variant, sale_price: Number(overridePrice) }
-                : variant;
+              const overridePrice = (multiColorPrices[color] || {})[variantId];
+              const overridePurPrice = (multiColorPurPrices[color] || {})[variantId];
+              const overrideMrp = (multiColorMrps[color] || {})[variantId];
+              const updatedVariant = {
+                ...variant,
+                ...(overridePrice && Number(overridePrice) > 0 ? { sale_price: Number(overridePrice) } : {}),
+                ...(overridePurPrice && Number(overridePurPrice) > 0 ? { pur_price: Number(overridePurPrice) } : {}),
+                ...(overrideMrp && Number(overrideMrp) > 0 ? { mrp: Number(overrideMrp) } : {}),
+              };
               items.push({ variant: updatedVariant, qty });
             }
           }
@@ -418,10 +454,12 @@ export function SizeGridDialog({
         if (variant) {
           const overridePrice = sizePrices[variant.id];
           const overridePurPrice = sizePurPrices[variant.id];
+          const overrideMrp = sizeMrps[variant.id];
           const updatedVariant = {
             ...variant,
             ...(overridePrice && Number(overridePrice) > 0 ? { sale_price: Number(overridePrice) } : {}),
             ...(overridePurPrice && Number(overridePurPrice) > 0 ? { pur_price: Number(overridePurPrice) } : {}),
+            ...(overrideMrp && Number(overrideMrp) > 0 ? { mrp: Number(overrideMrp) } : {}),
           };
           items.push({ variant: updatedVariant, qty });
         }
@@ -543,13 +581,14 @@ export function SizeGridDialog({
     };
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
-  }, [open, sizeQty, sizePrices, sizePurPrices, customSizes]);
+  }, [open, sizeQty, sizePrices, sizePurPrices, sizeMrps, customSizes]);
 
   const handleColorSelect = (color: string) => {
     setSelectedColor(color);
     setSizeQty({});
     setSizePrices({});
     setSizePurPrices({});
+    setSizeMrps({});
     setCustomSizes([]);
   };
 
@@ -573,9 +612,10 @@ export function SizeGridDialog({
       return;
     }
 
-    const purPrice = Number(newPurPrice) || effectivePurPrice;
-    const salePrice = Number(newSalePrice) || effectiveSalePrice;
-    const mrpValue = Number(newMrp) || effectiveMrp;
+    const colorDefaults = multiColorNewSizePrices(color);
+    const purPrice = typedPriceOr(newPurPrice, colorDefaults.pur_price);
+    const salePrice = typedPriceOr(newSalePrice, colorDefaults.sale_price);
+    const mrpValue = typedPriceOr(newMrp, colorDefaults.mrp);
 
     const colorVariants = variants.filter(v => v.color === color);
     const existingCustom = multiColorCustomSizes[color] || [];
@@ -741,6 +781,40 @@ export function SizeGridDialog({
                                 title="Sale Price"
                               />
                             )}
+                            {showSizePrices && (reviewMode || showPurPrice) && (
+                              <input
+                                type="number"
+                                min="0"
+                                tabIndex={-1}
+                                className="w-16 text-center border rounded p-1 text-xs bg-background border-orange-300"
+                                value={(multiColorPurPrices[color] || {})[v.id] ?? (v.pur_price || "")}
+                                onChange={(e) =>
+                                  setMultiColorPurPrices(prev => ({
+                                    ...prev,
+                                    [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
+                                  }))
+                                }
+                                placeholder="Pur₹"
+                                title="Purchase Price"
+                              />
+                            )}
+                            {showSizePrices && showMrp && (
+                              <input
+                                type="number"
+                                min="0"
+                                tabIndex={-1}
+                                className="w-16 text-center border rounded p-1 text-xs bg-background border-sky-300"
+                                value={(multiColorMrps[color] || {})[v.id] ?? (v.mrp || "")}
+                                onChange={(e) =>
+                                  setMultiColorMrps(prev => ({
+                                    ...prev,
+                                    [color]: { ...(prev[color] || {}), [v.id]: e.target.value }
+                                  }))
+                                }
+                                placeholder="MRP"
+                                title="MRP"
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -753,6 +827,12 @@ export function SizeGridDialog({
                           <div key={custom.id} className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded border border-amber-200 dark:border-amber-800">
                             <span className="text-sm">{custom.size}</span>
                             <span className="text-sm font-semibold">×{custom.qty}</span>
+                            {newSizePriceFields && (
+                              <span className="text-xs text-muted-foreground">
+                                ₹{custom.pur_price} / ₹{custom.sale_price}
+                                {showMrp && ` / MRP ₹${custom.mrp}`}
+                              </span>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
@@ -812,6 +892,15 @@ export function SizeGridDialog({
                                 if (e.key === "Enter") {
                                   e.preventDefault();
                                   e.stopPropagation();
+                                  // MRP next (new colours carry their own MRP), then Add.
+                                  const mrpInput = e.currentTarget.parentElement?.querySelector<HTMLInputElement>(
+                                    'input[data-new-size-mrp="1"]',
+                                  );
+                                  if (mrpInput) {
+                                    mrpInput.focus();
+                                    mrpInput.select();
+                                    return;
+                                  }
                                   handleAddMultiColorCustomSize(color);
                                   return;
                                 }
@@ -821,6 +910,50 @@ export function SizeGridDialog({
                                 }
                               }}
                             />
+                            {newSizePriceFields && (() => {
+                              const colorDefaults = multiColorNewSizePrices(color);
+                              const addOnEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleAddMultiColorCustomSize(color);
+                                }
+                              };
+                              return (
+                                <>
+                                  <Input
+                                    type="number"
+                                    placeholder={`Pur ₹${colorDefaults.pur_price}`}
+                                    title="Purchase Price"
+                                    value={newPurPrice}
+                                    onChange={(e) => setNewPurPrice(e.target.value)}
+                                    onKeyDown={addOnEnter}
+                                    className="w-24"
+                                  />
+                                  <Input
+                                    type="number"
+                                    placeholder={`Sale ₹${colorDefaults.sale_price}`}
+                                    title="Sale Price"
+                                    value={newSalePrice}
+                                    onChange={(e) => setNewSalePrice(e.target.value)}
+                                    onKeyDown={addOnEnter}
+                                    className="w-24"
+                                  />
+                                  {showMrp && (
+                                    <Input
+                                      type="number"
+                                      data-new-size-mrp="1"
+                                      placeholder={`MRP ₹${colorDefaults.mrp}`}
+                                      title="MRP"
+                                      value={newMrp}
+                                      onChange={(e) => setNewMrp(e.target.value)}
+                                      onKeyDown={addOnEnter}
+                                      className="w-24"
+                                    />
+                                  )}
+                                </>
+                              );
+                            })()}
                             <Button
                               ref={addMultiColorSizeBtnRef}
                               type="button"
@@ -842,6 +975,9 @@ export function SizeGridDialog({
                                 setActiveCustomSizeColor(null);
                                 setNewSize("");
                                 setNewQty("");
+                                setNewPurPrice("");
+                                setNewSalePrice("");
+                                setNewMrp("");
                               }}
                             >
                               Cancel
@@ -1158,6 +1294,20 @@ export function SizeGridDialog({
                             }
                             placeholder="Pur₹"
                             title="Purchase Price"
+                          />
+                        )}
+                        {showSizePrices && showMrp && (
+                          <input
+                            type="number"
+                            min="0"
+                            tabIndex={-1}
+                            className="w-16 text-center border rounded p-1 text-xs bg-background border-sky-300"
+                            value={sizeMrps[v.id] ?? (v.mrp || "")}
+                            onChange={(e) =>
+                              setSizeMrps({ ...sizeMrps, [v.id]: e.target.value })
+                            }
+                            placeholder="MRP"
+                            title="MRP"
                           />
                         )}
                       </div>

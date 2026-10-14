@@ -8529,7 +8529,7 @@ const PurchaseEntry = () => {
             await handleSave();
           }}
         />
-        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
+        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} newSizePriceFields allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
         <LazyOpen open={showRepurchaseDialog}>
         <RepurchaseDialog
           open={showRepurchaseDialog}
@@ -9658,7 +9658,9 @@ const PurchaseEntry = () => {
         </div>
       </footer>
 
-        {/* Size Grid Dialog with Color Selection */}
+        {/* Size Grid Dialog with Color Selection. No defaultPur/Sale/Mrp: the first
+            size's MRP used to go to every new size and colour (KS Footwear); the grid
+            now takes each colour's own prices. */}
         <LazyOpen open={showSizeGrid}>
         <SizeGridDialog
           open={showSizeGrid}
@@ -9670,11 +9672,9 @@ const PurchaseEntry = () => {
           validateStock={false}
           title="Enter Size-wise Qty"
           allowCustomSizes={true}
+          newSizePriceFields
           allowAddColor={isColorFieldEnabled}
           allowMultiColor={true}
-          defaultPurPrice={selectedProduct?.default_pur_price}
-          defaultSalePrice={selectedProduct?.default_sale_price}
-          defaultMrp={sizeGridVariants[0]?.mrp || selectedProduct?.default_sale_price}
           showMrp={sizeGridReviewMode ? true : showMrp}
           showSizePrices={sizeGridReviewMode ? true : false}
           reviewMode={sizeGridReviewMode}
