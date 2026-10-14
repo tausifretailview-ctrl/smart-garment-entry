@@ -72,6 +72,8 @@ interface ThermalReceiptCompactProps {
   counter?: string;
   /** When false, omit the "You Saved" banner (POS enable_mrp display gate). */
   showYouSaved?: boolean;
+  /** Settings row to print with instead of org settings (e.g. 2nd firm header). */
+  settingsOverride?: Record<string, unknown>;
 }
 
 const fmtAmt = (n: number): string => Math.round(n).toLocaleString('en-IN');
@@ -89,7 +91,7 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
       cashAmount = 0, upiAmount = 0, cardAmount = 0,
       documentType = 'invoice', termsConditions, notes,
       pointsRedeemed = 0, pointsRedemptionValue = 0, pointsBalance = 0,
-      cashier, salesman, counter, isDcInvoice, showYouSaved = true,
+      cashier, salesman, counter, isDcInvoice, showYouSaved = true, settingsOverride,
     } = props;
 
     const { currentOrganization } = useOrganization();
@@ -98,8 +100,9 @@ export const ThermalReceiptCompact = React.forwardRef<HTMLDivElement, ThermalRec
     const { data: orgSettings } = useSettings();
 
     useEffect(() => {
-      if (orgSettings) setSettings(orgSettings);
-    }, [orgSettings]);
+      if (settingsOverride) setSettings(settingsOverride);
+      else if (orgSettings) setSettings(orgSettings);
+    }, [orgSettings, settingsOverride]);
 
     useEffect(() => {
       const upiId = resolveInvoiceUpiId(settings?.bill_barcode_settings, isDcInvoice);

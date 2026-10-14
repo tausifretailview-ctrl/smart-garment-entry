@@ -206,6 +206,8 @@ import { useDashboardInvalidation } from "@/hooks/useDashboardInvalidation";
 import { POS_DEFERRED_INVALIDATION_OPTS, type PosWhatsAppPdfCaptureMeta } from "@/utils/saveSaleRuntimeOptions";
 import { invalidatePosDashboardQueries } from "@/utils/posDashboardSales";
 import { autoCorrectFY, generateOrgEstimateNumber, minSequenceFromSeriesStart, saleFormatToLikePattern } from "@/utils/saleNumber";
+import { Checkbox } from "@/components/ui/checkbox";
+import { fetchSalePrintFirm, normalizePrintFirm, resolveSecondFirm, type PrintFirm } from "@/utils/secondFirm";
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
 import { getAvailableCN, maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
@@ -802,6 +804,11 @@ export default function POSSales() {
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  // 2nd firm header (Settings > Reports). Per bill; resets to the main firm after each bill.
+  const secondFirm = useMemo(() => resolveSecondFirm(settingsData as Record<string, any> | null), [settingsData]);
+  const [useSecondFirm, setUseSecondFirm] = useState(false);
+  // undefined = feature off, so saves never write sales.print_firm.
+  const posPrintFirm: PrintFirm | undefined = secondFirm ? (useSecondFirm ? "second" : null) : undefined;
   // Owner (admin without custom User Rights) also sees it when the org opted in; new orgs start opted in.
   const showPosMarginIndicator =
     hasSpecialPermission("pos_margin_indicator") ||
@@ -1571,6 +1578,8 @@ export default function POSSales() {
       // Check if this is a held sale (support legacy pending Hold/* rows)
       const isHeld = isHoldLikeBill(sale);
       setIsHeldSale(isHeld);
+      const loadedPrintFirm = normalizePrintFirm((sale as { print_firm?: unknown }).print_firm);
+      setUseSecondFirm(loadedPrintFirm === "second");
 
       // Populate form with sale data
       setCurrentSaleId(saleId);
@@ -1686,6 +1695,7 @@ export default function POSSales() {
           roundOff: Number(sale.round_off) || 0,
           notes: sale.notes || null,
           taxType: loadedTaxType,
+          printFirm: loadedPrintFirm,
         });
       }
 
@@ -2101,6 +2111,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setSelectedSalesman("");
       setSaleNotes("");
+      setUseSecondFirm(false);
       setFinancerDetails(null);
       toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
       setTimeout(() => {
@@ -2112,6 +2123,7 @@ export default function POSSales() {
       hasManuallyAddedNewItemRef.current = false;
       setItems([]);
       setSaleNotes("");
+      setUseSecondFirm(false);
       toast.success("Cart Cleared", { description: "All items removed from cart" });
     });
 
@@ -4489,6 +4501,7 @@ export default function POSSales() {
       unusedAdvance: estimateAccount.unusedAdvance,
       isEstimate: true,
       taxType,
+      printFirm: posPrintFirm ?? null,
     };
     
     // flushSync: print portal must commit snapshot before waitForPrintReady polls DOM
@@ -4530,7 +4543,7 @@ export default function POSSales() {
         }
       }
     }, 150);
-  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, customerUnusedAdvance, isDirectPrintEnabled, posBillFormat, directPrint, currentOrganization?.id, taxType]);
+  }, [items, totals, flatDiscountAmount, saleReturnAdjust, finalAmount, customerName, customerPhone, customerId, roundOff, creditApplied, saleNotes, customerBalance, customerUnusedAdvance, isDirectPrintEnabled, posBillFormat, directPrint, currentOrganization?.id, taxType, posPrintFirm]);
 
   // Register estimate print in POS header and ref for keyboard shortcut
   useEffect(() => {
@@ -4675,6 +4688,7 @@ export default function POSSales() {
       })),
       ...posCrmPointsForPrint,
       financerDetails: financerDetails || null,
+      printFirm: posPrintFirm,
     };
 
     await attachSameBillReturnsToCustomer();
@@ -4792,6 +4806,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]); // Clear original items for edit
       clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
+      setUseSecondFirm(false);
       setFinancerDetails(null);
     }
   };
@@ -4945,6 +4960,7 @@ export default function POSSales() {
       refundAmount: cashExchangeRefund,
       ...posCrmPointsForPrint,
       financerDetails: financerDetails || null,
+      printFirm: posPrintFirm,
     };
     const exchangeBreakdown =
       cashExchangeRefund > 0.005
@@ -5024,6 +5040,7 @@ export default function POSSales() {
       const invoiceDataForPrint = {
         invoiceNumber: result.sale_number,
         saleId: result.id,
+        printFirm: posPrintFirm ?? null,
         items: items,
         totals: posPrintTotals(totals),
         flatDiscountAmount: flatDiscountAmount,
@@ -5103,6 +5120,7 @@ export default function POSSales() {
       // Same clear rule for all save paths (no auto-print divergence).
       clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
+      setUseSecondFirm(false);
       setFinancerDetails(null);
       setIsHeldSale(false);
       setPointsToRedeem(0);
@@ -5210,6 +5228,7 @@ export default function POSSales() {
       refundAmount: paymentData.issueCreditNote ? 0 : paymentData.refundAmount,
       ...posCrmPointsForPrint,
       financerDetails: financerDetails || null,
+      printFirm: posPrintFirm,
     };
 
     const paymentMethodType: 'multiple' = 'multiple';
@@ -5355,6 +5374,7 @@ export default function POSSales() {
       const invoiceDataForPrint = !isCreditNote ? {
         invoiceNumber: result.sale_number,
         saleId: result.id,
+        printFirm: posPrintFirm ?? null,
         items: items,
         totals: posPrintTotals(totals),
         flatDiscountAmount: flatDiscountAmount,
@@ -5431,6 +5451,7 @@ export default function POSSales() {
       setOriginalItemsForEdit([]);
       clearSalesmanAfterSaveIfNeeded();
       setSaleNotes("");
+      setUseSecondFirm(false);
       setFinancerDetails(null);
       setIsHeldSale(false);
       setPointsToRedeem(0);
@@ -5854,6 +5875,7 @@ export default function POSSales() {
             salesman={savedInvoiceData?.salesman || selectedSalesman || ''}
             taxType={invoiceTaxType}
             financerDetails={savedInvoiceData?.financerDetails || financerDetails}
+            printFirm={savedInvoiceData ? normalizePrintFirm(savedInvoiceData.printFirm) : (posPrintFirm ?? null)}
           />
         </div>
       </div>
@@ -6126,6 +6148,12 @@ export default function POSSales() {
 
     const navTaxType = normalizeGstTaxType((sale as { tax_type?: string }).tax_type);
     setTaxType(navTaxType);
+    const navPrintFirm: PrintFirm = !secondFirm
+      ? null
+      : "print_firm" in sale
+        ? normalizePrintFirm(sale.print_firm)
+        : await fetchSalePrintFirm(sale.id);
+    setUseSecondFirm(navPrintFirm === "second");
     setCurrentSaleId(sale.id);
     setCurrentInvoiceNumber(sale.sale_number);
     isInitializingEditRef.current = false;
@@ -6169,6 +6197,7 @@ export default function POSSales() {
       creditAmount: Number((sale as any).credit_amount) || 0,
       salesman: sale.salesman || null,
       taxType: navTaxType,
+      printFirm: navPrintFirm,
     });
 
     toast.success(`Invoice #${sale.sale_number} loaded successfully`);
@@ -6296,6 +6325,7 @@ export default function POSSales() {
     setOriginalItemsForEdit([]);
     setSelectedSalesman("");
     setSaleNotes("");
+    setUseSecondFirm(false);
     
     toast.success("Cart Cleared", { description: "All items removed from cart" });
   };
@@ -6324,6 +6354,7 @@ export default function POSSales() {
     setIsHeldSale(false);
     setSelectedSalesman("");
     setSaleNotes("");
+    setUseSecondFirm(false);
     
     toast.success("New Invoice", { description: "Cart cleared. Ready for new sale." });
     
@@ -6377,6 +6408,7 @@ export default function POSSales() {
         netAmount: finalAmount,
         notes: saleNotes || null,
         taxType,
+        printFirm: posPrintFirm,
       };
       await holdSale(holdData);
     }
@@ -6418,12 +6450,15 @@ export default function POSSales() {
       return;
     }
 
-    const saleData = buildSaleData({
-      customerId,
-      customerName: customerName || "Walk in Customer",
-      customerPhone,
-      notes: saleNotes || null,
-    });
+    const saleData = {
+      ...buildSaleData({
+        customerId,
+        customerName: customerName || "Walk in Customer",
+        customerPhone,
+        notes: saleNotes || null,
+      }),
+      printFirm: posPrintFirm,
+    };
 
     const result = await holdSale(saleData);
     
@@ -6443,6 +6478,7 @@ export default function POSSales() {
       setCurrentInvoiceNumber("");
       setIsHeldSale(false);
       setSaleNotes("");
+      setUseSecondFirm(false);
       
       // Refetch today's sales, dashboard data, and held bills
       await queryClient.invalidateQueries({ queryKey: ['todays-sales', currentOrganization?.id] });
@@ -7844,6 +7880,20 @@ export default function POSSales() {
               </SelectContent>
             </Select>
           </div>
+
+          {secondFirm && (
+            <label
+              className="shrink-0 self-end mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground cursor-pointer select-none"
+              title={`Print this bill as ${secondFirm.name}`}
+            >
+              <Checkbox
+                checked={useSecondFirm}
+                onCheckedChange={(checked) => setUseSecondFirm(checked === true)}
+                className="h-4 w-4"
+              />
+              2nd firm
+            </label>
+          )}
 
           {/* Salesperson Search - After Customer Name */}
           <Popover

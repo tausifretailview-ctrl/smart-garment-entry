@@ -33,6 +33,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import type { SecondFirmSettings } from "@/utils/secondFirm";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   canSelectUpiSlot,
@@ -413,6 +414,8 @@ interface ReportSettings {
   export_formats?: string[];
   stock_report_columns?: string[];
   purchase_report_columns?: string[];
+  /** 2nd firm header for POS bills (same stock/accounts; header only). */
+  second_firm?: SecondFirmSettings;
 }
 
 interface Settings {
@@ -856,6 +859,16 @@ export default function Settings() {
     } catch (error) {
       console.error("Error fetching size groups:", error);
     }
+  };
+
+  const updateSecondFirm = (patch: Partial<SecondFirmSettings>) => {
+    setSettings((prev) => ({
+      ...prev,
+      report_settings: {
+        ...(prev.report_settings || {}),
+        second_firm: { ...(prev.report_settings?.second_firm || {}), ...patch },
+      },
+    }));
   };
 
   const handleSave = async () => {
@@ -6237,6 +6250,60 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                <SettingsSection title="2nd billing details">
+                  <p className="text-xs text-muted-foreground">
+                    For shops that bill under two names. Stock, accounts and bill numbers stay in this
+                    organization. When on, POS shows a small "2nd firm" checkbox; a ticked bill prints
+                    only these details in the header.
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="second_firm_enabled"
+                      checked={settings.report_settings?.second_firm?.enabled === true}
+                      onCheckedChange={(checked) => updateSecondFirm({ enabled: checked })}
+                    />
+                    <Label htmlFor="second_firm_enabled">Enable 2nd firm on POS bills</Label>
+                  </div>
+                  {settings.report_settings?.second_firm?.enabled === true && (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="second_firm_name">Company name</Label>
+                        <Input
+                          id="second_firm_name"
+                          value={settings.report_settings?.second_firm?.name || ""}
+                          onChange={(e) => updateSecondFirm({ name: e.target.value })}
+                          placeholder="e.g. KMS Kids"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="second_firm_phone">Phone number</Label>
+                        <Input
+                          id="second_firm_phone"
+                          value={settings.report_settings?.second_firm?.phone || ""}
+                          onChange={(e) => updateSecondFirm({ phone: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1 sm:col-span-2">
+                        <Label htmlFor="second_firm_address">Address</Label>
+                        <Textarea
+                          id="second_firm_address"
+                          rows={2}
+                          value={settings.report_settings?.second_firm?.address || ""}
+                          onChange={(e) => updateSecondFirm({ address: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="second_firm_gstin">GSTIN (optional)</Label>
+                        <Input
+                          id="second_firm_gstin"
+                          value={settings.report_settings?.second_firm?.gstin || ""}
+                          onChange={(e) => updateSecondFirm({ gstin: e.target.value.toUpperCase() })}
+                          placeholder="Leave blank to print no GSTIN"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </SettingsSection>
                 <SettingsSection title="Reports">
                 <div className="text-center py-8 text-muted-foreground">
                   <BarChart2 className="h-10 w-10 mx-auto mb-3 opacity-30" />

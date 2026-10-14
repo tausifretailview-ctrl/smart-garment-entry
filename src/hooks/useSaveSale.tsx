@@ -67,6 +67,7 @@ import {
 } from "@/utils/saleEmptyHeaderRollback";
 import { saleItemSalesmanInsertField } from "@/utils/posLineSalesman";
 import { linkOrCreateCustomerFromSaleParty } from "@/utils/salePartyCustomerMaster";
+import { salePrintFirmPatch, type PrintFirm } from "@/utils/secondFirm";
 
 interface CartItem {
   id: string;
@@ -117,6 +118,8 @@ interface SaleData {
   /** Points redeemed on this bill (count). Not written to sales. */
   pointsRedeemed?: number;
   taxType?: "inclusive" | "exclusive" | "no_gst";
+  /** POS "2nd firm" header. Omit when the 2nd firm is off so `print_firm` is never written. */
+  printFirm?: PrintFirm;
   /**
    * Optional caller-supplied sale_date (timestamptz ISO, +05:30 shape).
    * When provided (e.g. POS "allow date change" is ON and the cashier picked a
@@ -1277,6 +1280,7 @@ export const useSaveSale = () => {
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
+          ...salePrintFirmPatch(saleData.printFirm),
           created_by: user.id,
           organization_id: currentOrganization.id,
           shop_name: shopName || null,
@@ -2127,6 +2131,7 @@ export const useSaveSale = () => {
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
+          ...salePrintFirmPatch(saleData.printFirm),
           updated_at: new Date().toISOString(),
           ...saleDatePatch,
         })
@@ -2379,6 +2384,7 @@ export const useSaveSale = () => {
         held_cart_data: holdData as any,
         notes: saleData.notes || null,
         tax_type: saleData.taxType || "inclusive",
+        ...salePrintFirmPatch(saleData.printFirm),
         created_by: user.id,
         organization_id: currentOrganization.id,
         shop_name: shopName || null,
@@ -2601,6 +2607,7 @@ export const useSaveSale = () => {
           salesman: saleData.salesman || null,
           notes: saleData.notes || null,
           tax_type: saleData.taxType || "inclusive",
+          ...salePrintFirmPatch(saleData.printFirm),
           held_cart_data: null,
           updated_at: new Date().toISOString(),
         })
