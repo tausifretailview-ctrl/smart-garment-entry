@@ -25,6 +25,7 @@ import { A4ElectronicTemplate } from "@/components/invoice-templates/A4Electroni
 import { KrishnaMobileA5Template } from "@/components/invoice-templates/KrishnaMobileA5Template";
 import { WholesaleGstA4Template } from "@/components/invoice-templates/WholesaleGstA4Template";
 import { KlearA4Template } from "@/components/invoice-templates/KlearA4Template";
+import { MotasA4Template } from "@/components/invoice-templates/MotasA4Template";
 import { ThermalPrint80mm } from "@/components/ThermalPrint80mm";
 import { ModernThermalReceipt80mm } from "@/components/ModernThermalReceipt80mm";
 import { TvsThermalReceipt80mm } from "@/components/TvsThermalReceipt80mm";
@@ -387,6 +388,7 @@ export default function PublicInvoiceView() {
       case 'a4-gst-classic': return <A4GstClassicInvoiceTemplate {...templateProps} />;
       case 'wholesale-gst-a4': return <WholesaleGstA4Template {...templateProps} />;
       case 'klear-a4': return <KlearA4Template {...templateProps} />;
+      case 'motas-a4': return <MotasA4Template {...templateProps} />;
       case 'a4-electronic': return <A4ElectronicTemplate {...templateProps} />;
       case 'krishna-mobile-a5': return <KrishnaMobileA5Template {...templateProps} />;
       case 'retail': return <RetailTemplate {...templateProps} />;

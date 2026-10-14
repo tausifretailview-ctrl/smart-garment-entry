@@ -3622,6 +3622,8 @@ export default function Settings() {
                           ? 'Wholesale GST A4 is a named A4 layout any organization can select — logo, customer GSTIN, per-rate CGST/SGST (or IGST) rows, bank details, UPI QR and editable terms. Paper is A4 only.'
                         : settings.sale_settings?.invoice_template === 'klear-a4'
                           ? 'Klear A4 is a named A4 layout any organization can select — one row per product with a quantity column per size, blended CGST/SGST, bank details and UPI QR. Paper is A4 only.'
+                        : settings.sale_settings?.invoice_template === 'motas-a4'
+                          ? 'Motas is a premium A4 tax invoice any organization can select — # / Description / Qty / HSN / Unit / Discount / Taxable / Tax % / Total, billing address with Invoice No, Date, Place of Supply and Due Date, HSN-wise tax summary, bank details and terms. Long bills continue on new sheets that repeat the header. Paper is A4 only.'
                         : settings.sale_settings?.invoice_template === 'modern-wholesale'
                           ? 'Modern Wholesale is optimized for bulk orders with size grouping (e.g., 38/2, 40/3, 42/1).'
                           : `Sale: ${resolveSaleInvoiceTemplate(settings.sale_settings)} · POS: ${resolvePosInvoiceTemplate(settings.sale_settings)}`}

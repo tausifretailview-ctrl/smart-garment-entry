@@ -37,6 +37,7 @@ export const PRINT_DOCUMENT_ROOT_SELECTORS = [
   ".gift-tally-invoice-root",
   ".wholesale-gst-a4-invoice-root",
   ".klear-a4-invoice-root",
+  ".motas-a4-invoice-root",
   ".print-document",
 ] as const;
 
