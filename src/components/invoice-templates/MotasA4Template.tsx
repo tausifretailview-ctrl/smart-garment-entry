@@ -134,7 +134,7 @@ const PAGE_FOOTER_MM = 6;
 const TABLE_HEAD_MM = 8;
 const ROW_BASE_MM = 6.4;
 const ROW_EXTRA_LINE_MM = 3.9;
-const DESC_CHARS_PER_LINE = 30;
+const DESC_CHARS_PER_LINE = 35;
 
 const wrappedLines = (text: string | undefined, charsPerLine: number) =>
   String(text || "")
@@ -171,12 +171,11 @@ export const estimateMotasClosingMm = (opts: {
   hasWordsOverflow: boolean;
 }) => {
   const totalRow = 7.5;
-  const bankBand = 36;
-  const notes = opts.hasNotes ? 6.5 : 0;
+  // Amount in words + note sit beside the totals; bank details sit under the terms.
+  const amountsBand = 30 + (opts.hasNotes ? 6 : 0) + (opts.hasWordsOverflow ? 4 : 0);
   const taxSummary = 15 + Math.max(1, opts.taxRows) * 5.2;
-  const words = opts.hasWordsOverflow ? 11 : 7;
-  const termsBand = Math.max(33, 9 + opts.terms.reduce((n, t) => n + wrappedLines(t, 82), 0) * 4);
-  return totalRow + bankBand + notes + taxSummary + words + termsBand;
+  const termsBand = Math.max(33, 9 + opts.terms.reduce((n, t) => n + wrappedLines(t, 82), 0) * 4 + 28);
+  return totalRow + amountsBand + taxSummary + termsBand;
 };
 
 /**
@@ -396,7 +395,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const b = `1px solid ${GRID}`;
   const frameLine = `1.4px solid ${NAVY}`;
 
-  const colWidths = ["5%", undefined, "8%", "8%", "10.5%", "12.5%", "9%", "13%"];
+  const colWidths = ["4.5%", undefined, "7%", "7%", "9.5%", "12%", "8%", "12%"];
   const colGroup = (
     <colgroup>
       {colWidths.map((w, i) => (
@@ -711,43 +710,30 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         </tbody>
       </table>
 
-      {/* Bank | amounts */}
+      {/* Amount in words · note | amounts */}
       <div style={{ display: "flex", borderBottom: b }}>
-        <div style={{ flex: 1, minWidth: 0, padding: "5px 12px", borderRight: b, display: "flex", gap: "8px" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ ...sectionLabel, marginBottom: "3px" }}>Bank Details</div>
-            {hasBank ? (
-              <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.3 }}>
-                <tbody>
-                  {[
-                    ["Bank Name", bankName],
-                    ["A/c Name", bankHolder],
-                    ["A/c No.", bankAc],
-                    ["IFSC", bankIfsc],
-                    ["Branch", bankBranch],
-                  ]
-                    .filter(([, v]) => v)
-                    .map(([label, value]) => (
-                      <tr key={label}>
-                        <td style={{ ...bankCell, color: MUTED, whiteSpace: "nowrap" }}>
-                          {label}
-                        </td>
-                        <td style={{ ...bankCell, color: MUTED }}>:</td>
-                        <td style={{ ...bankCell, padding: 0, fontWeight: 700, color: INK, wordBreak: "break-word" }}>{value}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            ) : (
-              <div style={{ fontSize: "11px", color: MUTED }}>{EM_DASH}</div>
-            )}
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            padding: "6px 12px",
+            borderRight: b,
+            background: TINT,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            gap: "5px",
+            ...printExact,
+          }}
+        >
+          <div style={{ fontSize: "11.5px", lineHeight: 1.4 }}>
+            <div style={{ ...sectionLabel, marginBottom: "2px" }}>Amount in Words</div>
+            <span style={{ fontWeight: 700, fontStyle: "italic", color: INK }}>{amountWords}</span>
           </div>
-          {qrCodeUrl ? (
-            <div style={{ width: "24mm", flexShrink: 0, textAlign: "center" }}>
-              <img src={qrCodeUrl} alt="UPI QR" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} />
-              <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#2d3748", wordBreak: "break-all", lineHeight: 1.15 }}>
-                {upiId || "Scan & Pay"}
-              </div>
+          {clean(notes) ? (
+            <div style={{ fontSize: "11px", lineHeight: 1.35, whiteSpace: "pre-line", color: INK }}>
+              <span style={{ color: MUTED, fontWeight: 700 }}>Note : </span>
+              {notes}
             </div>
           ) : null}
         </div>
@@ -799,13 +785,6 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
           </div>
         </div>
       </div>
-
-      {clean(notes) ? (
-        <div style={{ padding: "4px 12px", borderBottom: b, fontSize: "11px", lineHeight: 1.35, whiteSpace: "pre-line" }}>
-          <span style={{ color: MUTED, fontWeight: 700 }}>Note : </span>
-          {notes}
-        </div>
-      ) : null}
 
       {/* Tax summary */}
       <div style={{ padding: "4px 0 0", borderBottom: b }}>
@@ -871,13 +850,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         </table>
       </div>
 
-      {/* Amount in words */}
-      <div style={{ padding: "5px 12px", borderBottom: b, fontSize: "11.5px", lineHeight: 1.35, background: TINT, ...printExact }}>
-        <span style={{ ...sectionLabel, marginRight: "8px" }}>Amount in Words</span>
-        <span style={{ fontWeight: 700, fontStyle: "italic" }}>{amountWords}</span>
-      </div>
-
-      {/* Terms | signature */}
+      {/* Terms · bank details | signature */}
       <div style={{ display: "flex", minHeight: "33mm" }}>
         <div style={{ flex: 1, padding: "5px 12px", borderRight: b, minWidth: 0 }}>
           <div style={{ ...sectionLabel, marginBottom: "3px" }}>Terms &amp; Conditions</div>
@@ -887,6 +860,46 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
                 <li key={i}>{t}</li>
               ))}
             </ol>
+          ) : null}
+          {hasBank || qrCodeUrl ? (
+            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginTop: terms.length > 0 ? "6px" : 0 }}>
+              {hasBank ? (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ ...sectionLabel, marginBottom: "3px" }}>Bank Details</div>
+                  <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.3 }}>
+                    <tbody>
+                      {[
+                        ["Bank Name", bankName],
+                        ["A/c Name", bankHolder],
+                        ["A/c No.", bankAc],
+                        ["IFSC", bankIfsc],
+                        ["Branch", bankBranch],
+                      ]
+                        .filter(([, v]) => v)
+                        .map(([label, value]) => (
+                          <tr key={label}>
+                            <td style={{ ...bankCell, color: MUTED, whiteSpace: "nowrap" }}>{label}</td>
+                            <td style={{ ...bankCell, color: MUTED }}>:</td>
+                            <td style={{ ...bankCell, padding: 0, fontWeight: 700, color: INK, wordBreak: "break-word" }}>
+                              {value}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div style={{ flex: 1 }} />
+              )}
+              {qrCodeUrl ? (
+                <div style={{ width: "24mm", flexShrink: 0, textAlign: "center" }}>
+                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} />
+                  <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#2d3748", wordBreak: "break-all", lineHeight: 1.15 }}>
+                    {upiId || "Scan & Pay"}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           ) : null}
         </div>
         <div style={{ width: "62mm", flexShrink: 0, padding: "6px 10px", textAlign: "center", display: "flex", flexDirection: "column" }}>
