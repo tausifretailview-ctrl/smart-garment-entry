@@ -171,11 +171,14 @@ export const estimateMotasClosingMm = (opts: {
   hasWordsOverflow: boolean;
 }) => {
   const totalRow = 7.5;
-  // Amount in words + note sit beside the totals; bank details sit under the terms.
-  const amountsBand = 30 + (opts.hasNotes ? 6 : 0) + (opts.hasWordsOverflow ? 4 : 0);
-  const taxSummary = 15 + Math.max(1, opts.taxRows) * 5.2;
-  const termsBand = Math.max(33, 9 + opts.terms.reduce((n, t) => n + wrappedLines(t, 82), 0) * 4 + 28);
-  return totalRow + amountsBand + taxSummary + termsBand;
+    // Amount in words, tax summary and note share the band beside the totals.
+  const amountsBand = Math.max(
+    30,
+    12 + Math.max(1, opts.taxRows) * 4.6 + (opts.hasNotes ? 5 : 0) + (opts.hasWordsOverflow ? 4 : 0),
+  );
+  // Terms and bank details sit side by side, next to the signature.
+  const termsBand = Math.max(33, 9 + opts.terms.reduce((n, t) => n + wrappedLines(t, 40), 0) * 4);
+  return totalRow + amountsBand + termsBand;
 };
 
 /**
@@ -495,8 +498,8 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   };
   const taxHead: React.CSSProperties = {
     border: b,
-    padding: "3px 4px",
-    fontSize: "10px",
+    padding: "2px 3px",
+    fontSize: "9px",
     fontWeight: 700,
     letterSpacing: "0.5px",
     textTransform: "uppercase",
@@ -507,8 +510,8 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   };
   const taxCell: React.CSSProperties = {
     border: b,
-    padding: "3px 4px",
-    fontSize: "11px",
+    padding: "2px 3px",
+    fontSize: "10.5px",
     textAlign: "center",
     color: INK,
     fontVariantNumeric: "tabular-nums",
@@ -710,26 +713,83 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         </tbody>
       </table>
 
-      {/* Amount in words · note | amounts */}
+      {/* Amount in words · tax summary · note | amounts */}
       <div style={{ display: "flex", borderBottom: b }}>
         <div
           style={{
             flex: 1,
             minWidth: 0,
-            padding: "6px 12px",
+            padding: "5px 8px",
             borderRight: b,
             background: TINT,
             display: "flex",
             flexDirection: "column",
             justifyContent: "center",
-            gap: "5px",
+            gap: "4px",
             ...printExact,
           }}
         >
-          <div style={{ fontSize: "11.5px", lineHeight: 1.4 }}>
-            <div style={{ ...sectionLabel, marginBottom: "2px" }}>Amount in Words</div>
+          <div style={{ fontSize: "11px", lineHeight: 1.35 }}>
+            <span style={{ ...sectionLabel, marginRight: "6px" }}>Amount in Words</span>
             <span style={{ fontWeight: 700, fontStyle: "italic", color: INK }}>{amountWords}</span>
           </div>
+          <table style={{ width: "100%", borderCollapse: "collapse", background: "#fff" }}>
+            <thead>
+              <tr>
+                <th rowSpan={2} style={{ ...taxHead, width: "15%" }}>HSN</th>
+                <th rowSpan={2} style={{ ...taxHead, width: "19%" }}>Taxable Value</th>
+                {isInterState ? (
+                  <th colSpan={2} style={taxHead}>Integrated Tax</th>
+                ) : (
+                  <>
+                    <th colSpan={2} style={taxHead}>Central Tax</th>
+                    <th colSpan={2} style={taxHead}>State Tax</th>
+                  </>
+                )}
+                <th rowSpan={2} style={{ ...taxHead, width: "15%" }}>Total Tax</th>
+              </tr>
+              <tr>
+                <th style={taxHead}>Rate</th>
+                <th style={taxHead}>Amount</th>
+                {isInterState ? null : (
+                  <>
+                    <th style={taxHead}>Rate</th>
+                    <th style={taxHead}>Amount</th>
+                  </>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {hsnRows.length === 0 ? (
+                <tr>
+                  <td colSpan={isInterState ? 5 : 7} style={{ ...taxCell, color: MUTED }}>
+                    No tax on this bill
+                  </td>
+                </tr>
+              ) : (
+                hsnRows.map((r) => (
+                  <tr key={`${r.hsn}-${r.rate}`}>
+                    <td style={taxCell}>{r.hsn}</td>
+                    <td style={taxCell}>{fmt(r.taxable)}</td>
+                    {isInterState ? (
+                      <>
+                        <td style={taxCell}>{fmtPct(r.rate)}</td>
+                        <td style={taxCell}>{fmt(r.tax)}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={taxCell}>{fmtPct(r.rate / 2)}</td>
+                        <td style={taxCell}>{fmt(r.tax / 2)}</td>
+                        <td style={taxCell}>{fmtPct(r.rate / 2)}</td>
+                        <td style={taxCell}>{fmt(r.tax / 2)}</td>
+                      </>
+                    )}
+                    <td style={{ ...taxCell, fontWeight: 700 }}>{fmt(r.tax)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
           {clean(notes) ? (
             <div style={{ fontSize: "11px", lineHeight: 1.35, whiteSpace: "pre-line", color: INK }}>
               <span style={{ color: MUTED, fontWeight: 700 }}>Note : </span>
@@ -786,73 +846,9 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         </div>
       </div>
 
-      {/* Tax summary */}
-      <div style={{ padding: "4px 0 0", borderBottom: b }}>
-        <div style={{ ...sectionLabel, textAlign: "center", marginBottom: "3px" }}>Tax Summary</div>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              <th rowSpan={2} style={{ ...taxHead, borderLeft: "none", width: "8%" }}>Sr. No.</th>
-              <th rowSpan={2} style={{ ...taxHead, width: "14%" }}>HSN</th>
-              <th rowSpan={2} style={{ ...taxHead, width: "20%" }}>Taxable Value</th>
-              {isInterState ? (
-                <th colSpan={2} style={taxHead}>Integrated Tax</th>
-              ) : (
-                <>
-                  <th colSpan={2} style={taxHead}>Central Tax</th>
-                  <th colSpan={2} style={taxHead}>State Tax</th>
-                </>
-              )}
-              <th rowSpan={2} style={{ ...taxHead, borderRight: "none", width: "14%" }}>Total Tax</th>
-            </tr>
-            <tr>
-              <th style={taxHead}>Rate</th>
-              <th style={taxHead}>Amount</th>
-              {isInterState ? null : (
-                <>
-                  <th style={taxHead}>Rate</th>
-                  <th style={taxHead}>Amount</th>
-                </>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {hsnRows.length === 0 ? (
-              <tr>
-                <td colSpan={isInterState ? 6 : 8} style={{ ...taxCell, borderLeft: "none", borderRight: "none", color: MUTED }}>
-                  No tax on this bill
-                </td>
-              </tr>
-            ) : (
-              hsnRows.map((r, i) => (
-                <tr key={`${r.hsn}-${r.rate}`}>
-                  <td style={{ ...taxCell, borderLeft: "none" }}>{i + 1}</td>
-                  <td style={taxCell}>{r.hsn}</td>
-                  <td style={taxCell}>{fmt(r.taxable)}</td>
-                  {isInterState ? (
-                    <>
-                      <td style={taxCell}>{fmtPct(r.rate)}</td>
-                      <td style={taxCell}>{fmt(r.tax)}</td>
-                    </>
-                  ) : (
-                    <>
-                      <td style={taxCell}>{fmtPct(r.rate / 2)}</td>
-                      <td style={taxCell}>{fmt(r.tax / 2)}</td>
-                      <td style={taxCell}>{fmtPct(r.rate / 2)}</td>
-                      <td style={taxCell}>{fmt(r.tax / 2)}</td>
-                    </>
-                  )}
-                  <td style={{ ...taxCell, borderRight: "none", fontWeight: 700 }}>{fmt(r.tax)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Terms · bank details | signature */}
-      <div style={{ display: "flex", minHeight: "33mm" }}>
-        <div style={{ flex: 1, padding: "5px 12px", borderRight: b, minWidth: 0 }}>
+      {/* Terms | bank details | signature */}
+      <div style={{ display: "flex", minHeight: "28mm" }}>
+        <div style={{ flex: 1, padding: "5px 12px", borderRight: `1px dashed ${GRID}`, minWidth: 0 }}>
           <div style={{ ...sectionLabel, marginBottom: "3px" }}>Terms &amp; Conditions</div>
           {terms.length > 0 ? (
             <ol style={{ margin: 0, paddingLeft: "16px", fontSize: "10px", lineHeight: 1.35, color: "#2d3748", fontWeight: 600 }}>
@@ -861,48 +857,54 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
               ))}
             </ol>
           ) : null}
-          {hasBank || qrCodeUrl ? (
-            <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginTop: terms.length > 0 ? "6px" : 0 }}>
-              {hasBank ? (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ ...sectionLabel, marginBottom: "3px" }}>Bank Details</div>
-                  <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.3 }}>
-                    <tbody>
-                      {[
-                        ["Bank Name", bankName],
-                        ["A/c Name", bankHolder],
-                        ["A/c No.", bankAc],
-                        ["IFSC", bankIfsc],
-                        ["Branch", bankBranch],
-                      ]
-                        .filter(([, v]) => v)
-                        .map(([label, value]) => (
-                          <tr key={label}>
-                            <td style={{ ...bankCell, color: MUTED, whiteSpace: "nowrap" }}>{label}</td>
-                            <td style={{ ...bankCell, color: MUTED }}>:</td>
-                            <td style={{ ...bankCell, padding: 0, fontWeight: 700, color: INK, wordBreak: "break-word" }}>
-                              {value}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div style={{ flex: 1 }} />
-              )}
-              {qrCodeUrl ? (
-                <div style={{ width: "24mm", flexShrink: 0, textAlign: "center" }}>
-                  <img src={qrCodeUrl} alt="UPI QR" style={{ width: "20mm", height: "20mm", objectFit: "contain" }} />
-                  <div style={{ fontSize: "8.5px", fontWeight: 700, color: "#2d3748", wordBreak: "break-all", lineHeight: 1.15 }}>
-                    {upiId || "Scan & Pay"}
-                  </div>
-                </div>
-              ) : null}
+        </div>
+        <div style={{ flex: 1.3, padding: "5px 10px 5px 12px", borderRight: b, minWidth: 0, display: "flex", gap: "6px", alignItems: "flex-start" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ ...sectionLabel, marginBottom: "3px" }}>Bank Details</div>
+            {hasBank ? (
+              <table style={{ borderCollapse: "collapse", fontSize: "11px", lineHeight: 1.3 }}>
+                <tbody>
+                  {[
+                    ["Bank Name", bankName],
+                    ["A/c Name", bankHolder],
+                    ["A/c No.", bankAc],
+                    ["IFSC", bankIfsc],
+                    ["Branch", bankBranch],
+                  ]
+                    .filter(([, v]) => v)
+                    .map(([label, value]) => (
+                      <tr key={label}>
+                        <td style={{ ...bankCell, color: MUTED, whiteSpace: "nowrap" }}>{label}</td>
+                        <td style={{ ...bankCell, color: MUTED }}>:</td>
+                        <td
+                          style={{
+                            ...bankCell,
+                            padding: 0,
+                            fontWeight: 700,
+                            color: INK,
+                            ...(label === "A/c No." || label === "IFSC" ? { whiteSpace: "nowrap" } : { wordBreak: "break-word" }),
+                          }}
+                        >
+                          {value}
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            ) : (
+              <div style={{ fontSize: "11px", color: MUTED }}>{EM_DASH}</div>
+            )}
+          </div>
+          {qrCodeUrl ? (
+            <div style={{ width: "21mm", flexShrink: 0, textAlign: "center" }}>
+              <img src={qrCodeUrl} alt="UPI QR" style={{ width: "18mm", height: "18mm", objectFit: "contain" }} />
+              <div style={{ fontSize: "8px", fontWeight: 700, color: "#2d3748", wordBreak: "break-all", lineHeight: 1.15 }}>
+                {upiId || "Scan & Pay"}
+              </div>
             </div>
           ) : null}
         </div>
-        <div style={{ width: "62mm", flexShrink: 0, padding: "6px 10px", textAlign: "center", display: "flex", flexDirection: "column" }}>
+        <div style={{ width: "46mm", flexShrink: 0, padding: "5px 8px", textAlign: "center", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 800, fontSize: "12px", color: NAVY }}>For, {businessName}</div>
           <div style={{ flex: 1, minHeight: "14mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
             {stampImageBase64 ? (
