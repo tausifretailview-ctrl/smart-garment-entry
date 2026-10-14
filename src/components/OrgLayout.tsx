@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
+import { OutletLoadFallback } from "@/components/OutletLoadFallback";
 import { LazyChunkGate } from "@/components/LazyChunkGate";
 import { storeOrgSlug } from "@/lib/orgSlug";
 import { applyOrgPwaManifest } from "@/lib/orgPwaManifest";
@@ -54,6 +55,7 @@ import {
   recordPaneTimelineEvent,
 } from "@/lib/pwaColdOpenDiagnostics";
 import { cn } from "@/lib/utils";
+import { startForegroundTimer } from "@/lib/foregroundTimer";
 import { invoiceDashboardPrefetchQueryOptions } from "@/utils/invoiceDashboardData";
 import {
   isTabCachePaneContentReady,
@@ -451,8 +453,9 @@ export const OrgLayout = () => {
     // 4s of *workspace* time — not splash. OrgLayout early-returns while
     // orgLoading / !isOrgSynced, so a timer started then ate the fetch window
     // (ELLA NOOR 2026-08-30: 4.4s wall, ~2.5s of actual Index import).
+    // Foreground time only: a frozen main thread must not fire this the instant it wakes.
     const timeoutMs = OUTLET_FALLBACK_MS;
-    const timer = window.setTimeout(() => {
+    return startForegroundTimer(timeoutMs, () => {
       // Read chunk flags BEFORE resetTabPageChunk — that delete makes
       // isTabPageChunkLoaded("") look false even when the module had resolved.
       const chunkLoadedBeforeReset = isTabPageChunkLoaded(resolvedCurrentPath);
@@ -480,8 +483,7 @@ export const OrgLayout = () => {
       // lazyWithRetry — same Vite URL, so the browser may still share a hung import().
       resetTabPageChunk(resolvedCurrentPath);
       setForceOutletFallback(true);
-    }, timeoutMs);
-    return () => window.clearTimeout(timer);
+    });
   }, [
     wantsTabCache,
     effectiveTabPaneReady,
@@ -557,7 +559,7 @@ export const OrgLayout = () => {
    */
   useEffect(() => {
     if (usesLongLoadBudget || forceOutletFallback) return;
-    const timer = window.setTimeout(() => {
+    return startForegroundTimer(BLANK_FRAME_GRACE_MS, () => {
       const el = workspaceRef.current;
       if (!el || hasPaintedWorkspaceContent(el)) return;
       const canRescue = renderOwner === "tab-cache";
@@ -566,8 +568,7 @@ export const OrgLayout = () => {
         resetTabPageChunk(resolvedCurrentPath);
         setForceOutletFallback(true);
       }
-    }, BLANK_FRAME_GRACE_MS);
-    return () => window.clearTimeout(timer);
+    });
   }, [currentPath, resolvedCurrentPath, renderOwner, usesLongLoadBudget, forceOutletFallback]);
 
   /**
@@ -586,7 +587,7 @@ export const OrgLayout = () => {
     ) {
       return;
     }
-    const timer = window.setTimeout(() => {
+    return startForegroundTimer(CACHEABLE_ENTRY_STUCK_RESCUE_MS, () => {
       if (isTabCachePaneContentReady(resolvedCurrentPath)) return;
       if (cacheableEntryRescuedPathRef.current === resolvedCurrentPath) return;
       cacheableEntryRescuedPathRef.current = resolvedCurrentPath;
@@ -596,8 +597,7 @@ export const OrgLayout = () => {
       );
       resetTabPageChunk(resolvedCurrentPath);
       setCacheableEntryRescueKey((k) => k + 1);
-    }, CACHEABLE_ENTRY_STUCK_RESCUE_MS);
-    return () => window.clearTimeout(timer);
+    });
   }, [
     isCacheableEntryActive,
     currentPath,
@@ -617,9 +617,7 @@ export const OrgLayout = () => {
     if (isCacheableEntryActive) return;
     if (!isLongBudgetOutletEntryPath(resolvedCurrentPath)) return;
     if (!shouldArmLongBudgetStuckRescue({ usesLongLoadBudget })) return;
-    const startedAt = Date.now();
-    const timer = window.setTimeout(() => {
-      const elapsedMs = Date.now() - startedAt;
+    return startForegroundTimer(LONG_BUDGET_STUCK_RESCUE_MS, (elapsedMs) => {
       const ready = workspaceHasCommittedEntryUi(workspaceRef.current);
       if (
         !shouldFireLongBudgetStuckRescue({
@@ -637,8 +635,7 @@ export const OrgLayout = () => {
       );
       resetTabPageChunk(resolvedCurrentPath);
       setOutletRescueKey((k) => k + 1);
-    }, LONG_BUDGET_STUCK_RESCUE_MS);
-    return () => window.clearTimeout(timer);
+    });
   }, [
     isOrgSynced,
     user,
@@ -882,7 +879,10 @@ export const OrgLayout = () => {
                 : "contents"
           }
         >
-          <Outlet key={outletRescueKey} />
+          {/* Local boundary: a suspending route keeps the app chrome on screen. */}
+          <Suspense fallback={<OutletLoadFallback path={currentPath} />}>
+            <Outlet key={outletRescueKey} />
+          </Suspense>
         </div>
       )}
       {/* Never leave a pure white workspace while the active tab chunk is still cold. */}
