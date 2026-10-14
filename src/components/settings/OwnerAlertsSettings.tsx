@@ -67,7 +67,7 @@ interface Device {
   last_seen_at: string;
 }
 
-/** Settings → POS: owner phone alerts (Android app). Saved on its own button, not the page Save. */
+/** Settings → Reports: owner phone alerts (Android app). Saved on its own button, not the page Save. */
 export function OwnerAlertsSettings() {
   const { currentOrganization, organizationRole } = useOrganization();
   const { user } = useAuth();
@@ -199,7 +199,7 @@ export function OwnerAlertsSettings() {
       }
       toast.warning("No phone added yet", {
         description:
-          "On the owner's phone, open the EzzyERP Android app, log in, go to Settings → POS → Owner alerts and tap \"Turn on alerts on this phone\".",
+          "On the owner's phone, open the EzzyERP Android app, log in, go to Settings → Reports → Owner alerts and tap \"Turn on alerts on this phone\".",
       });
       return;
     }

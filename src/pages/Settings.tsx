@@ -4826,7 +4826,6 @@ export default function Settings() {
                   setSettings={setSettings}
                   onFocusPosPreview={() => setInvoicePreviewChannel("pos")}
                 />
-                <OwnerAlertsSettings />
               </div>
               <SettingsInvoicePreview
                 settings={settings}
@@ -6224,6 +6223,10 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="reports">
+            <div className="mb-3">
+              <OwnerAlertsSettings />
+            </div>
+
             <Card className="h-fit settings-panel-card">
               <CardHeader>
                 <CardTitle>Report Settings</CardTitle>

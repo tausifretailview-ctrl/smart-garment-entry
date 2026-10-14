@@ -89,12 +89,12 @@ export function OwnerPushBridge() {
     try {
       await enableOwnerAlertsOnThisPhone(orgId, userId);
       toast.success("This phone will get owner alerts", {
-        description: "Choose which alerts in Settings → POS → Owner alerts.",
+        description: "Choose which alerts in Settings → Reports → Owner alerts.",
       });
       setPromptOpen(false);
     } catch (e) {
       toast.error("Could not turn on alerts", {
-        description: `${ownerAlertErrorText(e)} You can try again in Settings → POS → Owner alerts.`,
+        description: `${ownerAlertErrorText(e)} You can try again in Settings → Reports → Owner alerts.`,
       });
       notNow();
     } finally {
