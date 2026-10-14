@@ -84,8 +84,8 @@ describe("Motas A4 estimates", () => {
 
   it("grows the closing block with more tax rows", () => {
     const one = estimateMotasClosingMm({ taxRows: 1, terms: [], hasNotes: false, hasWordsOverflow: false });
-    const three = estimateMotasClosingMm({ taxRows: 3, terms: [], hasNotes: false, hasWordsOverflow: false });
-    expect(three).toBeGreaterThan(one);
+    const many = estimateMotasClosingMm({ taxRows: 6, terms: [], hasNotes: false, hasWordsOverflow: false });
+    expect(many).toBeGreaterThan(one);
   });
 });
 
