@@ -310,7 +310,8 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
   const hasBank = Boolean(showBankDetails && (bankName || bankAc || bankIfsc || bankHolder || bankBranch));
 
   const titleText = grandTotal < 0 ? "Credit Note" : documentTitle?.trim() || "Tax Invoice";
-  const stampW = stampSize === "small" ? "72px" : stampSize === "large" ? "120px" : "96px";
+  // Stamp box inside the signatory column (46mm wide); the image keeps its aspect ratio.
+  const stampMaxH = stampSize === "small" ? "13mm" : stampSize === "large" ? "21mm" : "17mm";
   const hasRoundOff = Math.abs(Number(roundOff) || 0) >= 0.005;
   const amountWords = numberToWords(grandTotal);
 
@@ -657,7 +658,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     <thead>
       <tr>
         <th style={{ ...hCell, borderLeft: "none" }}>#</th>
-        <th style={hCell}>Description</th>
+        <th style={{ ...hCell, textAlign: "left", paddingLeft: "8px" }}>Description</th>
         <th style={hCell}>Qty</th>
         <th style={hCell}>HSN</th>
         <th style={{ ...hCell, textAlign: "right" }}>Unit</th>
@@ -674,7 +675,7 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
     return (
       <tr key={`${l.item.sr}-${l.index}`}>
         <td style={{ ...cell, ...bg, borderLeft: "none", textAlign: "center", color: MUTED }}>{l.index + 1}</td>
-        <td style={{ ...cell, ...bg, textAlign: "center", wordBreak: "break-word" }}>
+        <td style={{ ...cell, ...bg, textAlign: "left", paddingLeft: "8px", wordBreak: "break-word" }}>
           <div style={{ fontWeight: 700 }}>{l.item.particulars}</div>
           {variant ? <div style={{ fontSize: "10px", color: MUTED }}>{variant}</div> : null}
         </td>
@@ -906,9 +907,22 @@ export const MotasA4Template: React.FC<MotasA4TemplateProps> = ({
         </div>
         <div style={{ width: "46mm", flexShrink: 0, padding: "5px 8px", textAlign: "center", display: "flex", flexDirection: "column" }}>
           <div style={{ fontWeight: 800, fontSize: "12px", color: NAVY }}>For, {businessName}</div>
-          <div style={{ flex: 1, minHeight: "14mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div
+            style={{
+              flex: 1,
+              minHeight: stampImageBase64 ? `calc(${stampMaxH} + 4px)` : "14mm",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "2px 0",
+            }}
+          >
             {stampImageBase64 ? (
-              <img src={stampImageBase64} alt="" style={{ width: stampW, maxWidth: "100%", maxHeight: "60px", objectFit: "contain" }} />
+              <img
+                src={stampImageBase64}
+                alt=""
+                style={{ display: "block", width: "auto", height: "auto", maxWidth: "100%", maxHeight: stampMaxH }}
+              />
             ) : null}
           </div>
           <div style={{ borderTop: `1px solid ${GRID}`, paddingTop: "3px", fontWeight: 700, fontSize: "11px", color: "#2d3748" }}>
