@@ -4182,6 +4182,7 @@ export type Database = {
           low_stock_threshold: number
           low_stock_times: string[]
           organization_id: string
+          salesman_summary_enabled: boolean
           shop_close: string
           shop_open: string
           updated_at: string
@@ -4199,6 +4200,7 @@ export type Database = {
           low_stock_threshold?: number
           low_stock_times?: string[]
           organization_id: string
+          salesman_summary_enabled?: boolean
           shop_close?: string
           shop_open?: string
           updated_at?: string
@@ -4216,6 +4218,7 @@ export type Database = {
           low_stock_threshold?: number
           low_stock_times?: string[]
           organization_id?: string
+          salesman_summary_enabled?: boolean
           shop_close?: string
           shop_open?: string
           updated_at?: string
