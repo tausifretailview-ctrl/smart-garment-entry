@@ -2416,6 +2416,29 @@ export default function Settings() {
                   (e.g. SEWN), so staff can see the cost after scanning. Uses the GST and extra %
                   options above. Not printed on the invoice. Default is off.
                 </p>
+
+                <div className="flex items-center space-x-2 pt-4">
+                  <Checkbox
+                    id="pos_margin_indicator_for_owner"
+                    checked={(settings.sale_settings as any)?.pos_margin_indicator_for_owner === true}
+                    onCheckedChange={(checked) =>
+                      setSettings({
+                        ...settings,
+                        sale_settings: {
+                          ...settings.sale_settings,
+                          pos_margin_indicator_for_owner: checked === true,
+                        } as any,
+                      })
+                    }
+                  />
+                  <Label htmlFor="pos_margin_indicator_for_owner" className="font-normal cursor-pointer">
+                    POS margin indicator for owner
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground ml-6">
+                  Shows live margin % and profit on the POS screen for the owner (admin without custom
+                  User Rights). Staff still need the POS Margin Indicator right in User Rights.
+                </p>
                 
                 <div className="flex items-center space-x-2 pt-4">
                   <Checkbox

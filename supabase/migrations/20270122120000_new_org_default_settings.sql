@@ -1,6 +1,7 @@
 -- New organizations only: start with these defaults.
 --   Sale settings: Invoice Preview Dialog OFF, Ask Price When Last Purchase Differs OFF,
---   Size Grid in Sales Invoice OFF.
+--   Size Grid in Sales Invoice OFF, POS margin indicator for owner ON.
+--   Purchase settings: Default Tax Rate 0%, Show Purchase Code on POS product rows ON.
 --   WhatsApp: send provider WappConnect, bill text with the PDF as 1 message ON.
 --
 -- Works through BEFORE INSERT triggers on public.settings and public.whatsapp_api_settings,
@@ -38,8 +39,14 @@ BEGIN
   NEW.sale_settings := jsonb_build_object(
     'show_invoice_preview', false,
     'ask_price_on_scan', false,
-    'enable_size_grid_sales', false
+    'enable_size_grid_sales', false,
+    'pos_margin_indicator_for_owner', true
   ) || COALESCE(NEW.sale_settings, '{}'::jsonb);
+
+  NEW.purchase_settings := jsonb_build_object(
+    'default_tax_rate', 0,
+    'show_purchase_code_on_pos', true
+  ) || COALESCE(NEW.purchase_settings, '{}'::jsonb);
 
   RETURN NEW;
 END;
