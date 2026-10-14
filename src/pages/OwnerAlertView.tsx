@@ -139,7 +139,7 @@ export function OwnerAlertReport() {
   const topSalesman = data?.salesmen[0]?.amount || 0;
 
   return (
-    <div className="min-h-[100dvh] bg-muted/30 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="h-[100dvh] overflow-y-auto overscroll-contain bg-muted/30 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-6 rounded-b-3xl shadow-md">
         <div className="flex items-center justify-between">
           <div>
