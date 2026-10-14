@@ -715,7 +715,7 @@ export default function POSSales() {
   useEntryViewportSync();
   const { user } = useAuth();
   const { currentOrganization, organizationRole } = useOrganization();
-  const { hasSpecialPermission } = useUserPermissions();
+  const { hasSpecialPermission, isAdmin: isFullAccessAdmin } = useUserPermissions();
   const { setOnNewSale, setOnClearCart, setOnOpenCashierReport, setOnOpenStockReport, setOnOpenSaleReturn, setOnSaveChanges, setOnEstimatePrint, setHasItems, setIsEditing, setIsSavingChanges } = usePOS();
   const { saveSale, updateSale, holdSale, resumeHeldSale, isSaving } = useSaveSale();
   const { flushScheduledSalesInvalidation } = useDashboardInvalidation();
@@ -802,6 +802,10 @@ export default function POSSales() {
   // Settings first so grossBasis / garment GST are explicit params into the billing engine.
   const { data: settingsData } = useSettings();
   const _posSaleSettings = (settingsData as any)?.sale_settings || {};
+  // Owner (admin without custom User Rights) also sees it when the org opted in; new orgs start opted in.
+  const showPosMarginIndicator =
+    hasSpecialPermission("pos_margin_indicator") ||
+    (isFullAccessAdmin && _posSaleSettings.pos_margin_indicator_for_owner === true);
   // Settings → POS: when "Default POS flat discount in rupees" is on, every fresh
   // bill starts with the Flat Disc box in ₹ mode. The cashier can still tap %/₹
   // to switch per bill; edit/held/customer restores keep their saved mode.
@@ -7940,7 +7944,7 @@ export default function POSSales() {
           
           {/* Running Total / live margin (opt-in) */}
           <div className="h-10 bg-gradient-to-r from-green-600 to-emerald-600 rounded-md px-3 flex items-center justify-center min-w-[120px] shadow-sm shrink-0">
-            {hasSpecialPermission("pos_margin_indicator") && liveMargin.totalSale > 0 ? (
+            {showPosMarginIndicator && liveMargin.totalSale > 0 ? (
               <div className="flex items-center gap-2 text-sm font-semibold text-white tabular-nums">
                 <span
                   className={cn(
