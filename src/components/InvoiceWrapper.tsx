@@ -992,7 +992,9 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
               sgst: sgstAmount,
               igst: igstAmount,
             }}
-            gstRateBreakdown={gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined}
+            {...(ThermalComponent !== NewDesignThermalReceipt80mm
+              ? { gstRateBreakdown: gstRateBreakdown.length > 0 ? gstRateBreakdown : undefined }
+              : {})}
             paymentMethod={props.paymentMethod}
             cashPaid={thermalMoney.cashPaid}
             upiPaid={thermalMoney.upiPaid}
