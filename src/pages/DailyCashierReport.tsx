@@ -28,6 +28,7 @@ const loadJsPdf = (): Promise<typeof jsPDFType> =>
 import { useIsMobile } from "@/hooks/use-mobile";
 import { MobilePageHeader } from "@/components/mobile/MobilePageHeader";
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav";
+import { mobilePageScrollWithNavClass } from "@/lib/mobileShell";
 import { addDays, subDays } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -1389,7 +1390,8 @@ const DailyCashierReport = () => {
 
   if (isMobile) {
     return (
-      <div className="flex flex-col min-h-screen bg-muted/30 pb-24">
+      // The shell clips this route (fill-height page), so the phone view scrolls itself.
+      <div className={cn(mobilePageScrollWithNavClass, "flex-1 flex flex-col bg-muted/30")}>
         <MobilePageHeader title="Cashier Report" backTo="/" subtitle={getPeriodLabel()} />
 
         {/* Date navigator */}
