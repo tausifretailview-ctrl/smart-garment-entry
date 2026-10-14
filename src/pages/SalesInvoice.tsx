@@ -3212,16 +3212,9 @@ Thank you for choosing us!`;
       return;
     }
 
-    // Check if customer mobile is required (for any sale with pending/partial payment)
-    // Since Sales Invoice defaults to pay_later, customer mobile is mandatory
-    if (!selectedCustomer.phone || !selectedCustomer.phone.trim()) {
-      toast({
-        variant: "destructive",
-        title: "Customer Details Required",
-        description: "Please enter customer details first for balance invoice. Mobile number is mandatory for invoices.",
-      });
-      return;
-    }
+    // A saved Customer Master party is enough for a balance invoice, mobile or not
+    // (parties imported from Excel often have none; same rule as POS).
+    // WhatsApp sending below already skips customers without a mobile.
 
     const filledItems = lineItems.filter(item => item.productId !== '');
     if (filledItems.length === 0) {
@@ -4586,7 +4579,7 @@ Thank you for choosing us!`;
                     className="flex-1 justify-between h-11 text-base font-semibold"
                   >
                     {selectedCustomer ? (
-                      <span>{selectedCustomer.customer_name} - {selectedCustomer.phone}</span>
+                      <span>{selectedCustomer.customer_name}{selectedCustomer.phone ? ` - ${selectedCustomer.phone}` : ''}</span>
                     ) : (
                       <span className="text-muted-foreground">Search customer by name, phone...</span>
                     )}
