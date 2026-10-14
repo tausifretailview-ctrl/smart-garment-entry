@@ -199,6 +199,8 @@ interface LineItem {
 
 const SALE_BILL_MIN_DISPLAY_ROWS = 7;
 const SALE_BILL_ROW_HEIGHT_PX = 44;
+/** After this long without a save result, warn the cashier and park the bill in Drafts. */
+const SLOW_SAVE_WARNING_MS = 20_000;
 
 type InvoiceUnavailableVariantRow = {
   id: string;
@@ -403,7 +405,7 @@ export default function SalesInvoice() {
   const [pointsToRedeem, setPointsToRedeem] = useState<number>(0);
   const [invoiceDate, setInvoiceDate] = useState<Date>(new Date());
   const [dueDate, setDueDate] = useState<Date>(new Date());
-  const invoiceSavedRef = useRef(false); // Track if invoice was saved to prevent draft re-save
+  const handleSaveInvoiceRef = useRef<(() => Promise<void>) | null>(null);
   const savingLockRef = useRef(false); // Synchronous lock to prevent duplicate saves from rapid clicks
   const printRef = useRef<HTMLDivElement>(null);
   const tableContainerRef = useRef<HTMLDivElement>(null);
@@ -697,7 +699,12 @@ export default function SalesInvoice() {
 
   // Load draft automatically if navigated from dashboard with loadDraft flag
   useEffect(() => {
-    if (location.state?.loadDraft && hasDraft && draftData && !initialDraftCheckDone.current) {
+    // This page stays mounted as a tab: re-arm so a later "Resume Draft" loads again.
+    if (!location.state?.loadDraft) {
+      initialDraftCheckDone.current = false;
+      return;
+    }
+    if (hasDraft && draftData && !initialDraftCheckDone.current) {
       initialDraftCheckDone.current = true;
       loadDraftData(draftData);
       deleteDraft(); // Clear the draft from database after loading
@@ -714,30 +721,35 @@ export default function SalesInvoice() {
 
   useEntryViewportSync();
 
-  // Update current data for auto-save whenever form data changes
+  const buildDraftSnapshot = () => ({
+    invoiceDate: invoiceDate.toISOString(),
+    dueDate: dueDate.toISOString(),
+    lineItems,
+    selectedCustomerId,
+    selectedCustomer,
+    paymentTerm,
+    termsConditions,
+    notes,
+    shippingAddress,
+    shippingInstructions,
+    taxType,
+    salesman,
+    flatDiscountPercent,
+    flatDiscountRupees,
+    otherCharges,
+    roundOff,
+  });
+
+  // Update current data for auto-save whenever form data changes.
+  // Not gated on savedInvoiceData: the WhatsApp auto-send sets it again after the print
+  // dialog closes, which used to switch off drafts for the next bill.
   useEffect(() => {
     const filledItems = lineItems.filter(item => item.productId !== '');
-    if (!editingInvoiceId && !savedInvoiceData && filledItems.length > 0) {
-      updateCurrentData({
-        invoiceDate: invoiceDate.toISOString(),
-        dueDate: dueDate.toISOString(),
-        lineItems,
-        selectedCustomerId,
-        selectedCustomer,
-        paymentTerm,
-        termsConditions,
-        notes,
-        shippingAddress,
-        shippingInstructions,
-        taxType,
-        salesman,
-        flatDiscountPercent,
-        flatDiscountRupees,
-        otherCharges,
-        roundOff,
-      });
+    if (!editingInvoiceId && filledItems.length > 0) {
+      updateCurrentData(buildDraftSnapshot());
     }
-  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, editingInvoiceId, savedInvoiceData, updateCurrentData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceDate, dueDate, lineItems, selectedCustomerId, selectedCustomer, paymentTerm, termsConditions, notes, shippingAddress, shippingInstructions, taxType, salesman, flatDiscountPercent, flatDiscountRupees, otherCharges, roundOff, editingInvoiceId, updateCurrentData]);
 
   // Start auto-save when not in edit mode
   useEffect(() => {
@@ -755,39 +767,6 @@ export default function SalesInvoice() {
       isInitializingEditRef.current = false;
     }
   }, [editingInvoiceId]);
-
-  // Separate effect for saving draft on unmount - uses ref to avoid stale closure issues
-  useEffect(() => {
-    return () => {
-      // Don't save draft if invoice was successfully saved
-      if (invoiceSavedRef.current) {
-        return;
-      }
-      // Save draft immediately when component unmounts (tab switch, navigation)
-      const filledItems = lineItems.filter(item => item.productId !== '');
-      if (!editingInvoiceId && filledItems.length > 0) {
-        saveDraft({
-          invoiceDate: invoiceDate.toISOString(),
-          dueDate: dueDate.toISOString(),
-          lineItems,
-          selectedCustomerId,
-          selectedCustomer,
-          paymentTerm,
-          termsConditions,
-          notes,
-          shippingAddress,
-          shippingInstructions,
-          taxType,
-          salesman,
-          flatDiscountPercent,
-          flatDiscountRupees,
-          otherCharges,
-          roundOff,
-        }, false);
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Keyboard shortcut for printing
   useEffect(() => {
@@ -813,7 +792,8 @@ export default function SalesInvoice() {
         e.preventDefault();
         const filledItems = lineItems.filter(item => item.productId !== '');
         if (filledItems.length > 0 && !isSaving && !savingLockRef.current) {
-          handleSaveInvoice();
+          // Latest handler: a captured one saved the customer/discounts from before the last edit.
+          void handleSaveInvoiceRef.current?.();
         }
       }
     };
@@ -3312,6 +3292,18 @@ Thank you for choosing us!`;
 
     setIsSaving(true);
     let newSaleIdForRollback: string | null = null;
+    // Keep the bill in Drafts if the save stalls (shop network) or fails, so a reload or
+    // closed tab doesn't lose it. A successful save deletes the draft right after.
+    const draftSnapshotAtSave = editingInvoiceId ? null : buildDraftSnapshot();
+    // Once the bill is (or may be) in the database, a draft copy would only invite a duplicate.
+    let keepDraftOnFailure = true;
+    const slowSaveTimer = setTimeout(() => {
+      if (draftSnapshotAtSave) void saveDraft(draftSnapshotAtSave, false);
+      toast({
+        title: "Still saving…",
+        description: "The network is slow. Please wait and don't close this page; the bill is kept in Drafts.",
+      });
+    }, SLOW_SAVE_WARNING_MS);
     try {
       if (editingInvoiceId) {
         // Update existing invoice - correct order for stock triggers:
@@ -3489,8 +3481,6 @@ Thank you for choosing us!`;
 
         scheduleInvoiceDashboardRefresh();
 
-        // Mark invoice as saved to prevent draft re-save on unmount
-        invoiceSavedRef.current = true;
         // Clear any existing draft after successful save
         void deleteDraft();
         stopAutoSave();
@@ -3613,6 +3603,7 @@ Thank you for choosing us!`;
 
         await insertSaleItemsInChunks(supabase, saleItems as Record<string, unknown>[]);
         newSaleIdForRollback = null;
+        keepDraftOnFailure = false;
 
         // Post after sale_items exist: the journal reads them for GST, revenue and COGS.
         if (accountingEngineOn) {
@@ -3817,11 +3808,9 @@ Thank you for choosing us!`;
             .catch((pushError) => console.error("Customer push send failed (SalesInvoice):", pushError));
         }
 
-        // Mark invoice as saved to prevent draft re-save on unmount
-        invoiceSavedRef.current = true;
-        // Clear any existing draft after successful save
+        // Clear any existing draft after successful save. Autosave keeps running (it idles
+        // until the next bill has items); stopping it here left every later bill without a draft.
         void deleteDraft();
-        stopAutoSave();
         updateCurrentData(null);
 
         scheduleInvoiceDashboardRefresh();
@@ -3884,6 +3873,7 @@ Thank you for choosing us!`;
               description: EMPTY_HEADER_ROLLBACK_TOAST.description,
             });
           } else {
+            keepDraftOnFailure = false;
             console.error(
               "[SalesInvoice] skipped auto-rollback",
               decision.reason,
@@ -3897,6 +3887,7 @@ Thank you for choosing us!`;
             });
           }
         } catch (rollbackErr) {
+          keepDraftOnFailure = false;
           console.error(
             "[SalesInvoice] auto-rollback guard failed — sale left in place",
             rollbackErr,
@@ -3924,13 +3915,16 @@ Thank you for choosing us!`;
           : (error?.message || "Failed to save invoice"),
       });
       setPaymentOverride(null);
+      if (draftSnapshotAtSave && keepDraftOnFailure) void saveDraft(draftSnapshotAtSave, false);
     } finally {
+      clearTimeout(slowSaveTimer);
       setIsSaving(false);
     }
     } finally {
       savingLockRef.current = false;
     }
   };
+  handleSaveInvoiceRef.current = handleSaveInvoice;
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -4500,7 +4494,6 @@ Thank you for choosing us!`;
                 setSearchInput("");
                 setProductSearchResults([]);
                 deleteDraft();
-                invoiceSavedRef.current = false;
                 savingLockRef.current = false;
               }}
               className="h-8 text-white hover:text-white hover:bg-white/20 border border-white/30 text-xs gap-1 px-2 sm:px-2.5"
