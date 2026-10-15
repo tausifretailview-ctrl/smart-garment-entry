@@ -1703,6 +1703,7 @@ export default function Settings() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="last">Same as last product</SelectItem>
                       {sizeGroups.map((group) => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.group_name}
@@ -1711,7 +1712,7 @@ export default function Settings() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Default size group for new products
+                    Size group Add Product starts with for new products
                   </p>
                 </div>
 

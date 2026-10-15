@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { cleanProductName } from "@/utils/productNameMerge";
+import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId, sizeGroupIdForSave } from "@/utils/defaultSizeGroup";
 import { classifyBarcodeSource } from "@/utils/barcodeChecksum";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -435,9 +436,9 @@ const ProductEntry = () => {
     if (data) {
       // Apply default size group
       if (typeof data.product_settings === 'object' && data.product_settings !== null) {
-        const productSettings = data.product_settings as any;
-        if (productSettings.default_size_group && !editingProductId) {
-          setFormData(prev => ({ ...prev, size_group_id: productSettings.default_size_group }));
+        const defaultSizeGroupId = resolveDefaultSizeGroupId(data.product_settings);
+        if (defaultSizeGroupId && !editingProductId) {
+          setFormData(prev => ({ ...prev, size_group_id: defaultSizeGroupId }));
         }
       }
       
@@ -1009,7 +1010,10 @@ const ProductEntry = () => {
       return;
     }
 
-    const selectedGroup = sizeGroups.find((g) => g.id === formData.size_group_id);
+    const selectedGroup =
+      formData.size_group_id === NO_SIZE_GROUP_ID
+        ? { sizes: ["None"] }
+        : sizeGroups.find((g) => g.id === formData.size_group_id);
     if (!selectedGroup) {
       toast({
         title: "Error",
@@ -1360,7 +1364,7 @@ const ProductEntry = () => {
           default_sale_price: formData.default_sale_price,
           status: formData.status,
           image_url: imageUrl,
-          size_group_id: formData.size_group_id || null,
+          size_group_id: sizeGroupIdForSave(formData.size_group_id),
           purchase_discount_type: formData.purchase_discount_value > 0 ? (formData.purchase_discount_type || 'percent') : null,
           purchase_discount_value: formData.purchase_discount_value || 0,
           sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
@@ -1590,7 +1594,7 @@ const ProductEntry = () => {
           status: formData.status,
           image_url: imageUrl,
           organization_id: currentOrganization.id,
-          size_group_id: formData.size_group_id || null,
+          size_group_id: sizeGroupIdForSave(formData.size_group_id),
           purchase_discount_type: formData.purchase_discount_value > 0 ? (formData.purchase_discount_type || 'percent') : null,
           purchase_discount_value: formData.purchase_discount_value || 0,
           sale_discount_type: formData.sale_discount_value > 0 ? (formData.sale_discount_type || 'percent') : null,
@@ -2456,6 +2460,7 @@ const ProductEntry = () => {
                       <SelectValue placeholder="Select size group" />
                     </SelectTrigger>
                     <SelectContent className="bg-background">
+                      <SelectItem value={NO_SIZE_GROUP_ID}>None (no sizes)</SelectItem>
                       <SelectItem value="__create_new__" className="text-primary font-medium">
                         <span className="flex items-center gap-1">
                           <Plus className="h-3 w-3" />
