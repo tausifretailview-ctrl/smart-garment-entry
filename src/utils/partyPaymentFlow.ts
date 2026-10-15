@@ -681,3 +681,52 @@ export async function loadSupplierPaymentFlow(
   const vouchers = await fetchVoucherMeta(voucherIds);
   return buildSupplierPaymentFlow(rows, { vouchers, returns });
 }
+
+/* ───────────────────────── One bill: how it was paid ───────────────────────── */
+
+export interface BillPaymentStep {
+  /** null for the "bill raised" row. */
+  kind: FlowKind | "bill";
+  sourceId: string | null;
+  reference: string;
+  label: string;
+  date: string;
+  amount: number;
+  /** Still due on the bill after this step. */
+  dueAfter: number;
+  /** For a source split over several bills: its full amount. */
+  sourceTotal?: number;
+}
+
+/** Bill raised, then each part that settled it in ledger order, with the due after each. */
+export function billPaymentSteps(bill: FlowBill, sources: FlowSource[]): BillPaymentStep[] {
+  const byId = new Map(sources.map((s) => [s.id, s]));
+  const steps: BillPaymentStep[] = [
+    {
+      kind: "bill",
+      sourceId: null,
+      reference: bill.reference,
+      label: bill.isOpening ? "Opening balance" : "Bill raised",
+      date: bill.date,
+      amount: bill.amount,
+      dueAfter: bill.amount,
+    },
+  ];
+  let due = bill.amount;
+  const parts = [...bill.parts].sort((a, b) => a.step - b.step);
+  for (const p of parts) {
+    const s = p.sourceId ? byId.get(p.sourceId) : undefined;
+    due = r2(Math.max(0, due - p.amount));
+    steps.push({
+      kind: p.kind,
+      sourceId: p.sourceId,
+      reference: s ? s.reference : "Account balance",
+      label: s ? s.label : "Cleared from account balance",
+      date: s ? s.date : bill.date,
+      amount: p.amount,
+      dueAfter: due,
+      sourceTotal: s && s.amount - p.amount > 0.5 ? s.amount : undefined,
+    });
+  }
+  return steps;
+}
