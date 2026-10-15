@@ -1,7 +1,9 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Outlet, useParams, useLocation } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
 import { useOrganization } from "@/contexts/OrganizationContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
 import { AppBootSplash } from "@/components/AppBootSplash";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
@@ -189,8 +191,13 @@ export const OrgLayout = () => {
   const isEntryPage = isEntryTabPath(currentPath);
   const isCacheableEntryActive = isCacheableEntryTabPath(currentPath);
 
+  // Phones open the mobile home via MobileOrgIndexRedirect; a cached desktop Index pane
+  // would otherwise paint the old Dashboard when going back to the org root.
+  const isPhoneHome = useIsMobile() || Capacitor.isNativePlatform();
   const isCacheableTabPath = (path: string) =>
-    isTabCachePath(path) && (!isEntryTabPath(path) || isCacheableEntryTabPath(path));
+    isTabCachePath(path) &&
+    (!isEntryTabPath(path) || isCacheableEntryTabPath(path)) &&
+    !(isPhoneHome && (path === "" || path === "dashboard"));
 
   /**
    * Keep cacheable entry screens (purchase-entry) mounted after first visit even when
