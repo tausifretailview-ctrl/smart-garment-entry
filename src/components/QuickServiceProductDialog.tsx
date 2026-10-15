@@ -8,6 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { DECIMAL_QTY_PATTERN, parseQtyValue } from "@/utils/qtyInput";
 
 interface QuickServiceProductDialogProps {
   open: boolean;
@@ -20,6 +21,8 @@ interface QuickServiceProductDialogProps {
   showDiscountField?: boolean;
   /** Quantity pre-filled when the popup opens (Settings > Reports > Service product default qty). */
   defaultQuantity?: number;
+  /** Service lines: accept up to 3 decimals (0.5 kg). Off where qty must stay whole (goods, delivery challan). */
+  allowDecimalQty?: boolean;
   onAdd: (data: {
     code: string;
     quantity: number;
@@ -37,9 +40,11 @@ export const QuickServiceProductDialog = ({
   defaultMrp,
   showDiscountField = false,
   defaultQuantity = 1,
+  allowDecimalQty = false,
   onAdd,
 }: QuickServiceProductDialogProps) => {
   const defaultQtyText = String(Number.isFinite(defaultQuantity) && defaultQuantity >= 1 ? Math.floor(defaultQuantity) : 1);
+  const qtyUnit = allowDecimalQty ? { productType: "service" } : null;
   const [quantity, setQuantity] = useState(defaultQtyText);
   const [mrp, setMrp] = useState<string>("");
   const [discountAmount, setDiscountAmount] = useState<string>("");
@@ -62,7 +67,7 @@ export const QuickServiceProductDialog = ({
     }
   }, [open, defaultMrp, defaultQtyText]);
 
-  const parsedQuantity = parseInt(quantity, 10);
+  const parsedQuantity = parseQtyValue(quantity, qtyUnit) ?? NaN;
 
   const handleSubmit = () => {
     const mrpValue = parseFloat(mrp);
@@ -126,15 +131,17 @@ export const QuickServiceProductDialog = ({
             <Input
               ref={quantityInputRef}
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
+              inputMode={allowDecimalQty ? "decimal" : "numeric"}
               value={quantity}
               onChange={(e) => {
-                const next = e.target.value.replace(/\D/g, "");
-                setQuantity(next);
+                if (allowDecimalQty) {
+                  if (DECIMAL_QTY_PATTERN.test(e.target.value)) setQuantity(e.target.value);
+                  return;
+                }
+                setQuantity(e.target.value.replace(/\D/g, ""));
               }}
               onBlur={() => {
-                if (!quantity.trim() || parsedQuantity <= 0) {
+                if (!quantity.trim() || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
                   setQuantity(defaultQtyText);
                 }
               }}

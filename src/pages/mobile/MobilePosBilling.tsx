@@ -742,7 +742,7 @@ export default function MobilePosBilling() {
               const i = selIndex;
               const r =
                 mode === "qty"
-                  ? updateQty(i, Math.max(minQtyForUom(items[i].uom), value))
+                  ? updateQty(i, Math.max(minQtyForUom(items[i]), value))
                   : mode === "price"
                     ? updatePrice(i, value)
                     : updateDiscountPercent(i, value);
@@ -1015,7 +1015,7 @@ export default function MobilePosBilling() {
                     size="icon"
                     className="h-11 w-11"
                     onClick={() => {
-                      const next = adjustQtyByStep(editItem.quantity, -1, editItem.uom);
+                      const next = adjustQtyByStep(editItem.quantity, -1, editItem);
                       const r = updateQty(editIndex, next);
                       if (r.error) toast.warning(r.error.message);
                     }}
@@ -1032,7 +1032,7 @@ export default function MobilePosBilling() {
                     onBlur={(e) => {
                       const v = Number(e.target.value);
                       if (!Number.isFinite(v)) return;
-                      const r = updateQty(editIndex, Math.max(minQtyForUom(editItem.uom), v));
+                      const r = updateQty(editIndex, Math.max(minQtyForUom(editItem), v));
                       if (r.error) toast.warning(r.error.message);
                     }}
                   />
@@ -1042,7 +1042,7 @@ export default function MobilePosBilling() {
                     size="icon"
                     className="h-11 w-11"
                     onClick={() => {
-                      const next = adjustQtyByStep(editItem.quantity, 1, editItem.uom);
+                      const next = adjustQtyByStep(editItem.quantity, 1, editItem);
                       const r = updateQty(editIndex, next);
                       if (r.error) toast.warning(r.error.message);
                     }}

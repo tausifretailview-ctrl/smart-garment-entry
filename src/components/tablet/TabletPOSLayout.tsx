@@ -372,15 +372,16 @@ export function TabletPOSLayout({
                           className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
                           onTouchStart={(e) => {
                             e.preventDefault();
-                            updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item.uom));
+                            updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item));
                           }}
-                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item.uom))}
+                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, -1, item))}
                         >
                           −
                         </button>
                         <QtyInput
                           uom={item.uom}
-                          value={item.quantity || minQtyForUom(item.uom)}
+                          productType={item.productType}
+                          value={item.quantity || minQtyForUom(item)}
                           onChange={(val) => updateQuantity(idx, val)}
                           className="h-10 w-16 text-center text-[14px] font-bold px-1 bg-muted/30 border-border/60"
                           selectOnFocus={false}
@@ -389,9 +390,9 @@ export function TabletPOSLayout({
                           className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center text-[18px] font-bold active:bg-muted/60 select-none transition-colors"
                           onTouchStart={(e) => {
                             e.preventDefault();
-                            updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item.uom));
+                            updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item));
                           }}
-                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item.uom))}
+                          onClick={() => updateQuantity(idx, adjustQtyByStep(item.quantity, 1, item))}
                         >
                           +
                         </button>

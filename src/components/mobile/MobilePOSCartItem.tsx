@@ -48,7 +48,7 @@ export const MobilePOSCartItem = ({
   enableMrp = true,
   purchaseCode,
 }: MobilePOSCartItemProps) => {
-  const minQty = minQtyForUom(item.uom);
+  const minQty = minQtyForUom(item);
 
   return (
     <Card className="p-3 mb-2 bg-card border-border">
@@ -88,13 +88,14 @@ export const MobilePOSCartItem = ({
               variant="outline" 
               size="icon"
               className="h-10 w-10 text-lg font-bold"
-              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, -1, item.uom))}
+              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, -1, item))}
               disabled={item.quantity <= minQty}
             >
               <Minus className="h-4 w-4" />
             </Button>
             <QtyInput
               uom={item.uom}
+              productType={item.productType}
               value={item.quantity || minQty}
               onChange={(val) => onQuantityChange(index, val)}
               className="h-10 w-16 text-center text-base font-bold px-1 bg-muted/30 border-border/60"
@@ -104,7 +105,7 @@ export const MobilePOSCartItem = ({
               variant="outline" 
               size="icon"
               className="h-10 w-10 text-lg font-bold"
-              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, 1, item.uom))}
+              onClick={() => onQuantityChange(index, adjustQtyByStep(item.quantity, 1, item))}
             >
               <Plus className="h-4 w-4" />
             </Button>

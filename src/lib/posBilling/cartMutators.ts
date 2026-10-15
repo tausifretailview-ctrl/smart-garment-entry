@@ -75,8 +75,8 @@ export function updateQty(
   if (!item) {
     return { items, error: { code: "INVALID_QTY", message: "Line not found" } };
   }
-  const clampedQty = clampQty(newQty, item.uom);
-  if (clampedQty < minQtyForUom(item.uom)) {
+  const clampedQty = clampQty(newQty, item);
+  if (clampedQty < minQtyForUom(item)) {
     return { items, error: { code: "INVALID_QTY", message: "Quantity below minimum" } };
   }
   const updatedItems = [...items];
