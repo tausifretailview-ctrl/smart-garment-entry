@@ -20,6 +20,7 @@ import {
   TrendingUp,
   Truck,
   Percent,
+  Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -404,6 +405,12 @@ export function HeaderMenubar({
               >
                 <Truck className="h-3.5 w-3.5 mr-2 opacity-60" />
                 Supplier Balances
+              </MenubarItem>
+            )}
+            {(can("customer_ledger") || can("accounts_dashboard") || can("purchase_dashboard")) && (
+              <MenubarItem onClick={() => orgNavigate("/payment-flow")}>
+                <Workflow className="h-3.5 w-3.5 mr-2 opacity-60" />
+                Payment Flow
               </MenubarItem>
             )}
             {can("stock_report") && (

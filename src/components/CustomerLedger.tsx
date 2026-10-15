@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2, Scale, Printer } from "lucide-react";
+import { Search, ArrowLeft, Download, Phone, Mail, MapPin, IndianRupee, Calendar, FileText, CalendarIcon, CreditCard, Banknote, Wallet, FileDown, Send, MessageCircle, Users, AlertCircle, AlertTriangle, TrendingUp, BookOpen, Undo2, Loader2, Trash2, Scale, Printer, Workflow } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +54,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useWhatsAppSend } from "@/hooks/useWhatsAppSend";
 import { useIsNarrowViewport } from "@/hooks/use-mobile";
+import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useOpenCustomerAccount } from "@/hooks/useOpenCustomerAccount";
 import { useCustomerBalance } from "@/hooks/useCustomerBalance";
 import { CustomerLedgerBalanceHeader } from "@/components/CustomerLedgerBalanceHeader";
@@ -422,6 +423,7 @@ export function CustomerLedger({
 
   /** Phone / APK even when force-desktop makes innerWidth look like a PC. */
   const isMobile = useIsNarrowViewport();
+  const { orgNavigate } = useOrgNavigation();
   const { sendWhatsApp } = useWhatsAppSend();
   const { isSchool } = useSchoolFeatures();
   const businessInfo = useBusinessInfo();
@@ -3619,6 +3621,19 @@ Please clear your dues at the earliest. Thank you!`;
               <Printer className="mr-1.5 h-4 w-4 shrink-0" />
               Print
             </Button>
+
+            {!isSchool && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => orgNavigate(`/payment-flow?type=customer&id=${selectedCustomer.id}`)}
+                className="h-9 min-w-0 border-violet-300 text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/40"
+                title="See which payment, CN or advance settled each bill"
+              >
+                <Workflow className="mr-1.5 h-4 w-4 shrink-0" />
+                {isMobile ? "Flow" : "Payment Flow"}
+              </Button>
+            )}
 
             {selectedCustomer.phone && (
               <Button

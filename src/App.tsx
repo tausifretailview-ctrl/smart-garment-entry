@@ -158,6 +158,7 @@ const CustomerPartyBalancesPage = lazyWithRetry(() => import("./pages/CustomerPa
 const CustomerOutstandingReport = lazyWithRetry(() => import("./pages/CustomerOutstandingReport"));
 const AccountsPaymentsPage = lazyWithRetry(() => import("./pages/AccountsPaymentsPage"));
 const SupplierPartyBalancesPage = lazyWithRetry(() => import("./pages/SupplierPartyBalancesPage"));
+const PartyPaymentFlowPage = lazyWithRetry(() => import("./pages/PartyPaymentFlowPage"));
 const OrphanedProductsPage = lazyWithRetry(() => import("./pages/OrphanedProductsPage"));
 const CustomerReconciliation = lazyWithRetry(() => import("./pages/CustomerReconciliation"));
 const StockReconciliationReport = lazyWithRetry(() => import("./pages/StockReconciliationReport"));
@@ -1533,6 +1534,16 @@ const App = () => {
                     <ProtectedRoute>
                       <Layout>
                         <SupplierPartyBalancesPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="payment-flow"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <PartyPaymentFlowPage />
                       </Layout>
                     </ProtectedRoute>
                   }
