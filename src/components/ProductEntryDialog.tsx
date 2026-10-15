@@ -40,6 +40,7 @@ import {
   readConfiguredDefaultTaxRate,
   type GarmentGstRuleSettings,
 } from "@/utils/gstRules";
+import { NO_SIZE_GROUP_ID, resolveDefaultSizeGroupId } from "@/utils/defaultSizeGroup";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -150,7 +151,7 @@ function variantWithGeneratedBarcode<T extends ProductVariant>(variant: T, barco
 }
 
 /** Sentinel size_group_id for "no sizes" products (single "None" variant). */
-const NO_SIZE_GROUP = "none";
+const NO_SIZE_GROUP = NO_SIZE_GROUP_ID;
 
 interface ProductForm {
   product_type: ProductType;
@@ -573,6 +574,8 @@ export const ProductEntryDialog = ({
     mobileERPQty: number;
   } | null>(null);
   const skipUnsavedDraftPersistRef = useRef(false);
+  /** True when this open restored an unsaved draft: shop defaults must not overwrite it. */
+  const restoredUnsavedDraftRef = useRef(false);
 
   // Purchase bill: after first qty entry, scroll variant details into view
   useEffect(() => {
@@ -811,6 +814,7 @@ export const ProductEntryDialog = ({
         !skipRestore && currentOrganization?.id
           ? readProductEntryUnsavedDraft(currentOrganization.id)
           : null;
+      restoredUnsavedDraftRef.current = Boolean(draft);
       if (draft) {
         applyUnsavedProductDraft(draft);
         toast({
@@ -1725,9 +1729,9 @@ export const ProductEntryDialog = ({
 
       if (data) {
         if (typeof data.product_settings === "object" && data.product_settings !== null) {
-          const productSettings = data.product_settings as any;
-          if (productSettings.default_size_group) {
-            setFormData((prev) => ({ ...prev, size_group_id: productSettings.default_size_group }));
+          const defaultSizeGroupId = resolveDefaultSizeGroupId(data.product_settings);
+          if (defaultSizeGroupId && !restoredUnsavedDraftRef.current) {
+            setFormData((prev) => ({ ...prev, size_group_id: defaultSizeGroupId }));
           }
         }
 
@@ -1739,23 +1743,26 @@ export const ProductEntryDialog = ({
             garment_gst_below_rate: purchaseSettings.garment_gst_below_rate,
           };
           setGarmentGstSettings(loadedGarmentGstSettings);
+          // A restored unsaved draft keeps the GST the user had picked.
+          const applyDefaultGst =
+            hasConfiguredDefaultTaxRate(purchaseSettings) && !restoredUnsavedDraftRef.current;
           setFormData((prev) => {
             const prevPurchaseGst = normalizeGstPercent(prev.purchase_gst_percent, 18);
             const prevSaleGst = normalizeGstPercent(prev.sale_gst_percent, 18);
-            const purchaseGst = hasConfiguredDefaultTaxRate(purchaseSettings)
+            const purchaseGst = applyDefaultGst
               ? readConfiguredDefaultTaxRate(purchaseSettings, prevPurchaseGst)
               : prevPurchaseGst;
             const saleGst = resolveGarmentGstForLine(
               prev.default_sale_price ?? 0,
               purchaseGst,
-              hasConfiguredDefaultTaxRate(purchaseSettings)
+              applyDefaultGst
                 ? readConfiguredDefaultTaxRate(purchaseSettings, prevSaleGst)
                 : prevSaleGst,
               loadedGarmentGstSettings,
             );
             return {
               ...prev,
-              ...(hasConfiguredDefaultTaxRate(purchaseSettings)
+              ...(applyDefaultGst
                 ? { gst_per: purchaseGst, purchase_gst_percent: purchaseGst }
                 : {}),
               sale_gst_percent: saleGst,
