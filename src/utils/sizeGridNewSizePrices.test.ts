@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sizeGridNewSizePrices, typedPriceOr } from "./sizeGridNewSizePrices";
+import { pricesForTypedMrp, sizeGridNewSizePrices, typedPriceOr } from "./sizeGridNewSizePrices";
 
 const black = [
   { pur_price: 500, sale_price: 999, mrp: 1299 },
@@ -65,5 +65,22 @@ describe("typedPriceOr", () => {
     expect(typedPriceOr("", 1299)).toBe(1299);
     expect(typedPriceOr("0", 1299)).toBe(1299);
     expect(typedPriceOr("abc", 1299)).toBe(1299);
+  });
+});
+
+describe("pricesForTypedMrp", () => {
+  const start = { pur_price: 127, sale_price: 157.68, mrp: 219 };
+
+  it("keeps the margin when only a new MRP is typed (KS IRE2 219 → 249)", () => {
+    expect(pricesForTypedMrp(start, 249)).toEqual({ pur_price: 144.4, sale_price: 179.28, mrp: 249 });
+  });
+
+  it("leaves the starting prices alone for the same MRP or none typed", () => {
+    expect(pricesForTypedMrp(start, 219)).toEqual(start);
+    expect(pricesForTypedMrp(start, 0)).toEqual(start);
+  });
+
+  it("sale equal to MRP stays equal to the new MRP", () => {
+    expect(pricesForTypedMrp({ pur_price: 300, sale_price: 645, mrp: 645 }, 699).sale_price).toBe(699);
   });
 });

@@ -81,3 +81,29 @@ export function typedPriceOr(typed: string | undefined, fallback: number): numbe
   const n = Number(typed);
   return typed != null && typed.trim() !== "" && Number.isFinite(n) && n > 0 ? n : fallback;
 }
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * MRP typed for a new size / colour, Pur and Sale left blank: keep the same margin
+ * as the starting prices instead of the old ₹ amounts. KS Footwear sells at MRP −28%
+ * and buys at ~58% of MRP, so MRP 249 on a ₹219 product must give Sale 179.28, not
+ * the old 157.68. Same MRP (or none typed) → starting prices unchanged.
+ */
+export function pricesForTypedMrp(
+  start: SizeGridNewSizePrices,
+  typedMrp: number,
+): SizeGridNewSizePrices {
+  if (!(typedMrp > 0)) return start;
+  if (!(start.mrp > 0) || Math.abs(typedMrp - start.mrp) < 0.005) {
+    return { ...start, mrp: typedMrp };
+  }
+  const ratio = typedMrp / start.mrp;
+  return {
+    mrp: typedMrp,
+    sale_price: start.sale_price > 0 ? round2(start.sale_price * ratio) : 0,
+    pur_price: start.pur_price > 0 ? round2(start.pur_price * ratio) : 0,
+  };
+}
