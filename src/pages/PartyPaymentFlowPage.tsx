@@ -5,7 +5,12 @@ import { format, parseISO, subDays, startOfMonth } from "date-fns";
 import {
   ArrowLeft,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  FileDown,
+  LayoutList,
   Loader2,
+  Receipt,
   Pause,
   Play,
   RotateCcw,
@@ -21,7 +26,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
+  billPaymentSteps,
   loadCustomerPaymentFlow,
   loadSupplierPaymentFlow,
   type FlowBill,
@@ -335,6 +342,7 @@ function BillCard({
   dim,
   active,
   onSelect,
+  onOpen,
   sourceRef,
   refCb,
 }: {
@@ -344,6 +352,8 @@ function BillCard({
   dim: boolean;
   active: boolean;
   onSelect: () => void;
+  /** Open in the one-bill view. */
+  onOpen?: () => void;
   sourceRef: (id: string | null) => string;
   refCb?: (el: HTMLDivElement | null) => void;
 }) {
@@ -372,6 +382,18 @@ function BillCard({
         <span className="font-bold truncate">{bill.reference}</span>
         <span className="text-xs text-muted-foreground whitespace-nowrap">{fmtDate(bill.date)}</span>
         <span className={cn("ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap", st.cls)}>{st.label}</span>
+        {onOpen && (
+          <button
+            type="button"
+            className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/40"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen();
+            }}
+          >
+            Open
+          </button>
+        )}
       </div>
       <div className="ppf-bar my-2 flex h-3 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-950/50">
         {visibleParts.map((p, i) => (
@@ -421,11 +443,13 @@ function FlowBoard({
   playStep,
   selected,
   onSelect,
+  onOpenBill,
 }: {
   model: PartyFlowModel;
   playStep: number | null;
   selected: string | null;
   onSelect: (id: string | null) => void;
+  onOpenBill: (billId: string) => void;
 }) {
   const boardRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLDivElement>());
@@ -511,7 +535,7 @@ function FlowBoard({
   return (
     <div
       ref={boardRef}
-      className="relative grid grid-cols-[minmax(260px,340px)_minmax(60px,1fr)_minmax(320px,460px)] rounded-2xl border bg-card p-4"
+      className="relative grid grid-cols-[minmax(300px,1fr)_minmax(80px,0.7fr)_minmax(380px,1.1fr)] rounded-2xl border bg-card p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onSelect(null);
       }}
@@ -572,6 +596,7 @@ function FlowBoard({
             dim={!!connected && !connected.has(`b:${bill.id}`)}
             active={selected === `b:${bill.id}`}
             onSelect={() => onSelect(selected === `b:${bill.id}` ? null : `b:${bill.id}`)}
+            onOpen={() => onOpenBill(bill.id)}
             sourceRef={sourceRef}
             refCb={setRef(`b:${bill.id}`)}
           />
@@ -635,16 +660,22 @@ function StoryStrip({
   model,
   playStep,
   onJump,
+  highlight,
+  hint,
 }: {
   model: PartyFlowModel;
   playStep: number | null;
   onJump: (step: number) => void;
+  /** Steps of the bill in focus. */
+  highlight?: Set<number> | null;
+  hint: string;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const steps = model.steps.filter((s) => !s.memo || s.kind === "opening");
   const current = playStep === null ? null : [...steps].reverse().find((s) => s.step <= playStep) ?? null;
 
-  const currentStep = current?.step ?? null;
+  const firstHighlight = highlight && highlight.size ? Math.min(...highlight) : null;
+  const currentStep = current?.step ?? firstHighlight;
   useEffect(() => {
     if (currentStep === null || !scroller.current) return;
     const box = scroller.current;
@@ -655,15 +686,16 @@ function StoryStrip({
 
   if (steps.length === 0) return null;
   return (
-    <div className="rounded-2xl border bg-card p-4">
+    <div className="rounded-2xl border bg-card px-4 py-3">
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        Story · balance after each step (tap a step to replay up to it)
+        Story · balance after each step ({hint})
       </div>
       <div ref={scroller} className="relative flex overflow-x-auto pb-2">
         {steps.map((st: FlowStep) => {
           const color = KIND_COLOR[st.kind === "bill" ? "bill" : st.kind];
           const isNow = current?.step === st.step;
           const future = playStep !== null && st.step > playStep;
+          const lit = highlight ? highlight.has(st.step) : true;
           return (
             <button
               key={st.id}
@@ -671,21 +703,297 @@ function StoryStrip({
               data-step={st.step}
               onClick={() => onJump(st.step)}
               className={cn(
-                "relative min-w-[96px] flex-1 px-1 text-center text-[11px] text-muted-foreground transition-opacity",
-                future && "opacity-30",
+                "relative min-w-[112px] flex-1 shrink-0 px-2 text-center text-[11px] text-muted-foreground transition-opacity",
+                (future || !lit) && "opacity-35",
               )}
             >
+              {highlight && lit && <span className="absolute inset-x-1 -top-0.5 bottom-0 rounded-lg bg-violet-500/10" />}
               <span className="absolute left-0 right-0 top-[9px] h-0.5 bg-border" />
               <span
                 className={cn("relative mx-auto mb-1.5 block h-5 w-5 rounded-full border-[3px] border-card", isNow && "scale-125")}
                 style={{ background: color, boxShadow: `0 0 0 ${isNow ? 4 : 1}px ${color}${isNow ? "55" : ""}`, transition: "transform .2s" }}
               />
-              <b className="block truncate text-xs text-foreground">{st.reference}</b>
-              <span className="block">{st.date.startsWith("1900") ? "Opening" : fmtDate(st.date).slice(0, 6)}</span>
-              <span className="block tabular-nums font-semibold text-foreground">{balanceText(model.party, st.balance)}</span>
+              <b className="relative block whitespace-nowrap text-xs text-foreground">{st.reference}</b>
+              <span className="relative block whitespace-nowrap">{st.date.startsWith("1900") ? "Opening" : fmtDate(st.date)}</span>
+              <span className="relative block whitespace-nowrap tabular-nums font-semibold text-foreground">
+                {balanceText(model.party, st.balance)}
+              </span>
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────── one bill ─────────────────────────── */
+
+function BillPicker({
+  bills,
+  focusId,
+  onFocus,
+}: {
+  bills: FlowBill[];
+  focusId: string | null;
+  onFocus: (id: string) => void;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const idx = bills.findIndex((b) => b.id === focusId);
+  useEffect(() => {
+    const box = scroller.current;
+    const el = box?.querySelector<HTMLElement>(`[data-bill="${CSS.escape(focusId ?? "")}"]`);
+    if (box && el) box.scrollTo({ left: el.offsetLeft - box.clientWidth / 2 + el.clientWidth / 2, behavior: "smooth" });
+  }, [focusId]);
+  const dot: Record<FlowBill["status"], string> = {
+    paid: KIND_COLOR.payment,
+    partial: KIND_COLOR.due,
+    unpaid: KIND_COLOR.refund,
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0"
+        disabled={idx <= 0}
+        onClick={() => onFocus(bills[idx - 1].id)}
+        aria-label="Previous bill"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <div ref={scroller} className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1">
+        {bills.map((b) => {
+          const on = b.id === focusId;
+          return (
+            <button
+              key={b.id}
+              type="button"
+              data-bill={b.id}
+              onClick={() => onFocus(b.id)}
+              className={cn(
+                "flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors",
+                on ? "border-violet-500 bg-violet-600 text-white shadow" : "bg-card hover:bg-accent",
+              )}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot[b.status] }} />
+              <b className="whitespace-nowrap">{b.reference}</b>
+              <span className={cn("whitespace-nowrap tabular-nums", on ? "text-white/80" : "text-muted-foreground")}>
+                {b.due > 0.5 ? `due ${rs(b.due)}` : rs(b.amount)}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <Button
+        size="icon"
+        variant="outline"
+        className="h-9 w-9 shrink-0"
+        disabled={idx < 0 || idx >= bills.length - 1}
+        onClick={() => onFocus(bills[idx + 1].id)}
+        aria-label="Next bill"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+const FOCUS_CARD_H = 64;
+const FOCUS_GAP = 12;
+
+/** One bill: what paid it (left), lines into the bill (middle), the bill (right), then step by step. */
+function BillFocus({ model, bill, narrow }: { model: PartyFlowModel; bill: FlowBill; narrow: boolean }) {
+  const steps = useMemo(() => billPaymentSteps(bill, model.sources), [bill, model.sources]);
+  const payers = steps.slice(1);
+  // Replay this bill's steps one by one whenever the bill changes.
+  const [shownUpTo, setShownUpTo] = useState(0);
+  const [replayKey, setReplayKey] = useState(0);
+  useEffect(() => {
+    setShownUpTo(0);
+    if (payers.length === 0) return;
+    let i = 0;
+    const timer = setInterval(() => {
+      i += 1;
+      setShownUpTo(i);
+      if (i >= payers.length) clearInterval(timer);
+    }, 650);
+    return () => clearInterval(timer);
+  }, [bill.id, payers.length, replayKey]);
+
+  const visible = payers.slice(0, shownUpTo);
+  const settled = Math.min(bill.amount, visible.reduce((t, p) => t + p.amount, 0));
+  const due = Math.max(0, bill.amount - settled);
+  const status: FlowBill["status"] = shownUpTo >= payers.length ? bill.status : due <= 0.5 ? "paid" : settled > 0.5 ? "partial" : "unpaid";
+  const st = STATUS_STYLE[status];
+  const pct = bill.amount > 0 ? Math.round((settled / bill.amount) * 100) : 0;
+
+  const n = Math.max(1, payers.length);
+  const H = Math.max(240, n * (FOCUS_CARD_H + FOCUS_GAP) - FOCUS_GAP);
+  const maxPart = Math.max(1, ...payers.map((p) => p.amount));
+  const partyWord = model.party === "customer" ? "customer" : "supplier";
+
+  const billCard = (
+    <div className="ppf-pop w-full rounded-2xl border-2 bg-card p-5 shadow-sm" style={{ borderColor: bill.isOpening ? KIND_COLOR.opening : "hsl(var(--border))" }}>
+      <div className="flex items-start gap-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">
+          <Receipt className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-xl font-bold">{bill.reference}</div>
+          <div className="text-sm text-muted-foreground">
+            {bill.isOpening ? "Opening balance carried forward" : `${model.party === "customer" ? "Sale bill" : "Purchase bill"} · ${fmtDate(bill.date)}`}
+          </div>
+        </div>
+        <span className={cn("ml-auto rounded-full px-3 py-1 text-xs font-bold whitespace-nowrap", st.cls)}>{st.label}</span>
+      </div>
+      <div className="ppf-bar mt-4 flex h-5 overflow-hidden rounded-full bg-amber-100 dark:bg-amber-950/50">
+        {visible.map((p, i) => (
+          <i
+            key={`${p.sourceId}-${i}`}
+            title={`${p.reference} ${rs(p.amount)}`}
+            className="block h-full"
+            style={{ width: `${bill.amount > 0 ? (p.amount / bill.amount) * 100 : 0}%`, background: KIND_COLOR[p.kind], opacity: i % 2 ? 0.8 : 1 }}
+          />
+        ))}
+      </div>
+      <div className="mt-1 text-right text-xs text-muted-foreground">{pct}% settled</div>
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <div className="rounded-xl bg-muted/60 px-3 py-2">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{bill.isOpening ? "Amount" : "Bill amount"}</div>
+          <div className="text-lg font-bold tabular-nums">{rs(bill.amount)}</div>
+        </div>
+        <div className="rounded-xl bg-emerald-50 px-3 py-2 dark:bg-emerald-950/40">
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Settled</div>
+          <div className="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{rs(settled)}</div>
+        </div>
+        <div className={cn("rounded-xl px-3 py-2", due > 0.5 ? "bg-amber-50 dark:bg-amber-950/40" : "bg-muted/60")}>
+          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Due</div>
+          <div className={cn("text-lg font-bold tabular-nums", due > 0.5 ? "text-amber-700 dark:text-amber-400" : "")}>{rs(due)}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const payerCard = (p: (typeof payers)[number], i: number) => {
+    const color = KIND_COLOR[p.kind];
+    const on = i < shownUpTo;
+    return (
+      <div
+        key={`${p.sourceId}-${i}`}
+        className={cn("flex items-center gap-3 rounded-xl border bg-card px-3 transition-all duration-300", on ? "opacity-100" : "opacity-15")}
+        style={{ height: FOCUS_CARD_H, borderLeft: `5px solid ${color}` }}
+      >
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold" style={{ background: `${color}1f`, color }}>
+          {KIND_ICON[p.kind as FlowKind]}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold">{p.reference}</div>
+          <div className="truncate text-xs text-muted-foreground">
+            {p.label} · {fmtDate(p.date)}
+            {p.sourceTotal ? ` · ${rs(p.amount)} of ${rs(p.sourceTotal)} used here` : ""}
+          </div>
+        </div>
+        <div className="ml-auto pl-2 text-base font-bold tabular-nums whitespace-nowrap" style={{ color }}>
+          {rs(p.amount)}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      {narrow ? (
+        <div className="space-y-3">
+          {billCard}
+          <div className="space-y-2">{payers.map(payerCard)}</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-[minmax(320px,1fr)_minmax(120px,0.55fr)_minmax(420px,1.15fr)] items-center rounded-2xl border bg-card p-5">
+          <div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Paid by</div>
+            {payers.length === 0 ? (
+              <div className="grid place-items-center rounded-xl border border-dashed text-sm text-muted-foreground" style={{ height: H }}>
+                Nothing paid on this bill yet
+              </div>
+            ) : (
+              <div className="flex flex-col justify-center" style={{ height: H, gap: FOCUS_GAP }}>
+                {payers.map(payerCard)}
+              </div>
+            )}
+          </div>
+          <div className="self-end" style={{ height: H }}>
+            <svg width="100%" height={H} viewBox={`0 0 100 ${H}`} preserveAspectRatio="none" className="block overflow-visible">
+              {payers.map((p, i) => {
+                const blockH = payers.length * (FOCUS_CARD_H + FOCUS_GAP) - FOCUS_GAP;
+                const y1 = (H - blockH) / 2 + i * (FOCUS_CARD_H + FOCUS_GAP) + FOCUS_CARD_H / 2;
+                const y2 = H / 2 + (i - (payers.length - 1) / 2) * Math.min(10, 60 / Math.max(1, payers.length));
+                return (
+                  <path
+                    key={`${p.sourceId}-${i}`}
+                    d={`M0,${y1} C50,${y1} 50,${y2} 100,${y2}`}
+                    className="ppf-link"
+                    stroke={KIND_COLOR[p.kind]}
+                    strokeWidth={3 + (p.amount / maxPart) * 7}
+                    strokeOpacity={i < shownUpTo ? 0.6 : 0}
+                    vectorEffect="non-scaling-stroke"
+                    style={{ transition: "stroke-opacity .4s" }}
+                  />
+                );
+              })}
+            </svg>
+          </div>
+          <div className="flex items-center self-end" style={{ height: H }}>
+            {billCard}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-2xl border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          How {bill.reference} was paid
+          <button
+            type="button"
+            className="ml-auto flex items-center gap-1 normal-case text-violet-600 hover:underline"
+            onClick={() => setReplayKey((k) => k + 1)}
+          >
+            <RotateCcw className="h-3.5 w-3.5" /> Replay
+          </button>
+        </div>
+        <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
+          {steps.map((s, i) => {
+            const color = KIND_COLOR[s.kind === "bill" ? "bill" : s.kind];
+            const on = i === 0 || i <= shownUpTo;
+            return (
+              <div key={`${s.sourceId}-${i}`} className="flex shrink-0 items-center gap-2">
+                {i > 0 && <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />}
+                <div
+                  className={cn("min-w-[170px] rounded-xl border px-3 py-2 transition-opacity duration-300", on ? "opacity-100" : "opacity-25")}
+                  style={{ borderTop: `4px solid ${color}` }}
+                >
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="grid h-4 w-4 place-items-center rounded-full text-[10px] font-bold text-white" style={{ background: color }}>
+                      {i + 1}
+                    </span>
+                    {fmtDate(s.date)}
+                  </div>
+                  <div className="mt-0.5 whitespace-nowrap text-sm font-semibold">{s.reference}</div>
+                  <div className="whitespace-nowrap text-xs text-muted-foreground">{s.label}</div>
+                  <div className="mt-1 whitespace-nowrap text-sm font-bold tabular-nums" style={{ color }}>
+                    {i === 0 ? rs(s.amount) : `− ${rs(s.amount)}`}
+                  </div>
+                  <div className={cn("whitespace-nowrap text-xs font-semibold tabular-nums", s.dueAfter > 0.5 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400")}>
+                    {s.dueAfter > 0.5 ? `Due after: ${rs(s.dueAfter)}` : "Fully paid ✓"}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {steps.some((s) => s.kind === "account") && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            "Account balance" means the ledger shows this bill settled by an amount the {partyWord} paid on account, not against one bill.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -731,13 +1039,76 @@ export default function PartyPaymentFlowPage() {
   const [playStep, setPlayStep] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const view: "bill" | "all" = params.get("view") === "all" ? "all" : "bill";
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   // Reset playback when the party or period changes.
   useEffect(() => {
     setPlaying(false);
     setPlayStep(null);
     setSelected(null);
+    setFocusId(null);
   }, [party, partyId, rangeKey, from, to]);
+
+  // One-bill view opens on the oldest bill still due, else the latest bill.
+  const focusBill = useMemo(() => {
+    if (!model || model.bills.length === 0) return null;
+    return (
+      model.bills.find((b) => b.id === focusId) ??
+      model.bills.find((b) => b.due > 0.5) ??
+      model.bills[model.bills.length - 1]
+    );
+  }, [model, focusId]);
+
+  const focusSteps = useMemo(() => {
+    if (view !== "bill" || !focusBill) return null;
+    return new Set<number>([focusBill.step, ...focusBill.parts.map((p) => p.step)]);
+  }, [view, focusBill]);
+
+  const setView = (next: "bill" | "all") => {
+    const p = new URLSearchParams(params);
+    if (next === "all") p.set("view", "all");
+    else p.delete("view");
+    setParams(p, { replace: true });
+    setPlaying(false);
+    setPlayStep(null);
+  };
+
+  /** Bill whose own row or one of whose payments is this story step. */
+  const billAtStep = (step: number) =>
+    model?.bills.find((b) => b.step === step) ?? model?.bills.find((b) => b.parts.some((p) => p.step === step)) ?? null;
+
+  const periodLabel =
+    rangeKey === "all"
+      ? "All time"
+      : rangeKey === "fy"
+        ? "This financial year"
+        : rangeKey === "90d"
+          ? "Last 90 days"
+          : rangeKey === "month"
+            ? "This month"
+            : `${from ? fmtDate(from) : "Start"} to ${to ? fmtDate(to) : "today"}`;
+
+  const exportPdf = async () => {
+    if (!model || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      const { exportPaymentFlowPdf } = await import("@/utils/paymentFlowPdf");
+      await exportPaymentFlowPdf({
+        model,
+        partyName: partyRow?.name || (party === "customer" ? "Customer" : "Supplier"),
+        partyPhone: partyRow?.phone,
+        periodLabel,
+        businessName: currentOrganization?.name,
+        billId: view === "bill" ? focusBill?.id ?? null : null,
+      });
+    } catch (e) {
+      toast.error(`Could not make the PDF: ${(e as Error).message}`);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const lastStep = model ? model.steps.length - 1 : -1;
 
@@ -753,8 +1124,9 @@ export default function PartyPaymentFlowPage() {
     if (playing && playStep !== null && playStep >= lastStep) setPlaying(false);
   }, [playing, playStep, lastStep]);
 
-  const setParty = (next: PartyKind) => setParams({ type: next }, { replace: true });
-  const pick = (p: PartyOption) => setParams({ type: party, id: p.id }, { replace: true });
+  const keepView = view === "all" ? { view: "all" } : {};
+  const setParty = (next: PartyKind) => setParams({ type: next, ...keepView }, { replace: true });
+  const pick = (p: PartyOption) => setParams({ type: party, id: p.id, ...keepView }, { replace: true });
 
   const t = model?.totals;
   const tiles = t
@@ -782,7 +1154,7 @@ export default function PartyPaymentFlowPage() {
   ];
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-4 px-4 py-4 sm:px-6">
+    <div className="w-full space-y-3 px-3 py-3 sm:px-4">
       <style>{FLOW_CSS}</style>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -834,7 +1206,29 @@ export default function PartyPaymentFlowPage() {
           </div>
         )}
         {model && (
-          <div className="flex gap-2 sm:ml-auto">
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            <div className="flex rounded-lg bg-muted p-1">
+              {(
+                [
+                  ["bill", "One bill", Receipt],
+                  ["all", "All bills", LayoutList],
+                ] as const
+              ).map(([v, label, Icon]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-semibold",
+                    view === v ? "bg-background shadow-sm" : "text-muted-foreground",
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            {view === "all" && (
             <Button
               size="sm"
               className="h-9"
@@ -851,7 +1245,8 @@ export default function PartyPaymentFlowPage() {
               {playing ? <Pause className="mr-1.5 h-4 w-4" /> : <Play className="mr-1.5 h-4 w-4" />}
               {playing ? "Pause" : "Play story"}
             </Button>
-            {playStep !== null && (
+            )}
+            {view === "all" && playStep !== null && (
               <Button
                 size="sm"
                 variant="outline"
@@ -875,6 +1270,15 @@ export default function PartyPaymentFlowPage() {
               }
             >
               <BookOpen className="mr-1.5 h-4 w-4" /> Balances
+            </Button>
+            <Button
+              size="sm"
+              className="h-9 bg-gradient-to-r from-violet-600 to-teal-600 text-white hover:opacity-90"
+              onClick={() => void exportPdf()}
+              disabled={pdfBusy}
+            >
+              {pdfBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileDown className="mr-1.5 h-4 w-4" />}
+              PDF{view === "bill" && focusBill ? ` · ${focusBill.reference}` : ""}
             </Button>
           </div>
         )}
@@ -901,7 +1305,7 @@ export default function PartyPaymentFlowPage() {
 
       {model && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 lg:grid-cols-8">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
             {tiles.map((tile) => (
               <div key={tile.k} className="rounded-xl border bg-card px-3 py-2.5">
                 <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -933,20 +1337,47 @@ export default function PartyPaymentFlowPage() {
             )}
           </div>
 
-          {isNarrow ? (
-            <FlowList model={model} playStep={playStep} />
-          ) : (
-            <FlowBoard model={model} playStep={playStep} selected={selected} onSelect={setSelected} />
-          )}
-
           <StoryStrip
             model={model}
-            playStep={playStep}
+            playStep={view === "all" ? playStep : null}
+            highlight={focusSteps}
+            hint={view === "bill" ? "tap a step to open its bill" : "tap a step to replay up to it"}
             onJump={(s) => {
+              if (view === "bill") {
+                const b = billAtStep(s);
+                if (b) setFocusId(b.id);
+                return;
+              }
               setPlaying(false);
               setPlayStep(s);
             }}
           />
+
+          {view === "bill" ? (
+            focusBill ? (
+              <>
+                <BillPicker bills={model.bills} focusId={focusBill.id} onFocus={setFocusId} />
+                <BillFocus model={model} bill={focusBill} narrow={isNarrow} />
+              </>
+            ) : (
+              <div className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
+                No bills in this period.
+              </div>
+            )
+          ) : isNarrow ? (
+            <FlowList model={model} playStep={playStep} />
+          ) : (
+            <FlowBoard
+              model={model}
+              playStep={playStep}
+              selected={selected}
+              onSelect={setSelected}
+              onOpenBill={(id) => {
+                setFocusId(id);
+                setView("bill");
+              }}
+            />
+          )}
 
           <p className="text-xs text-muted-foreground">
             Amounts and balances are the same rows as the {party === "customer" ? "Customer" : "Supplier"} Ledger. When a

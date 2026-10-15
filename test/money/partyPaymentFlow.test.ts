@@ -199,3 +199,28 @@ describe("supplier payment flow", () => {
     expect(opening.status).toBe("paid");
   });
 });
+
+describe("one bill: how it was paid", () => {
+  it("lists bill raised then each part with the due after it", async () => {
+    const { billPaymentSteps } = await import("@/utils/partyPaymentFlow");
+    const bill = {
+      id: "b1", isOpening: false, date: "2026-05-01", reference: "INV/1", amount: 5000,
+      settled: 3500, due: 1500, status: "partial" as const, step: 1,
+      parts: [
+        { kind: "payment" as const, amount: 1500, sourceId: "v2", step: 4 },
+        { kind: "payment" as const, amount: 2000, sourceId: "v1", step: 2 },
+      ],
+    };
+    const sources = [
+      { id: "v1", kind: "payment" as const, date: "2026-05-01", reference: "Paid at sale", label: "Cash", amount: 2000, step: 2 },
+      { id: "v2", kind: "advance" as const, date: "2026-05-20", reference: "ADV/1", label: "Advance", amount: 4000, step: 4 },
+    ];
+    const steps = billPaymentSteps(bill, sources);
+    expect(steps.map((s) => [s.reference, s.amount, s.dueAfter])).toEqual([
+      ["INV/1", 5000, 5000],
+      ["Paid at sale", 2000, 3000],
+      ["ADV/1", 1500, 1500],
+    ]);
+    expect(steps[2].sourceTotal).toBe(4000);
+  });
+});
