@@ -2,20 +2,25 @@ import { supabase } from "@/integrations/supabase/client";
 import { isCustomerReceiptVoucher } from "@/utils/paymentVoucherFilters";
 import { fetchItemsGrossBySaleId as fetchItemsGrossBySaleIdRpc } from "@/utils/fetchItemsGrossBySaleId";
 
+const CUSTOMER_DIRECTORY_PAGE_SIZE = 1000;
+/** Pages requested at once after the first (big shops: 8 pages took 8 round trips in a row). */
+const CUSTOMER_DIRECTORY_PARALLEL_PAGES = 4;
+
 /**
  * Fetch all customers for an organization using range pagination.
- * This bypasses the default 1000-row limit.
+ * This bypasses the default 1000-row limit. The first page also returns the row
+ * count, so the remaining pages load in parallel instead of one after another.
  */
 export async function fetchAllCustomers(organizationId: string) {
-  const allRows: any[] = [];
-  let offset = 0;
-  const pageSize = 1000;
-  let hasMore = true;
+  const pageSize = CUSTOMER_DIRECTORY_PAGE_SIZE;
 
-  while (hasMore) {
-    const { data, error } = await supabase
+  const fetchPage = async (offset: number, withCount: boolean) => {
+    const { data, error, count } = await supabase
       .from("customers")
-      .select("id, customer_name, phone, email, gst_number, address, opening_balance, points_balance, discount_percent")
+      .select(
+        "id, customer_name, phone, email, gst_number, address, opening_balance, points_balance, discount_percent",
+        withCount ? { count: "exact" } : undefined,
+      )
       .eq("organization_id", organizationId)
       .is("deleted_at", null)
       .order("customer_name")
@@ -26,19 +31,40 @@ export async function fetchAllCustomers(organizationId: string) {
       console.error("Error fetching customers:", error);
       throw error;
     }
+    return { rows: (data ?? []) as any[], count: count ?? null };
+  };
 
-    if (data && data.length > 0) {
-      allRows.push(...data);
+  const first = await fetchPage(0, true);
+  const allRows: any[] = [...first.rows];
+  if (first.rows.length < pageSize) return allRows;
+
+  if (first.count != null) {
+    const offsets: number[] = [];
+    for (let offset = pageSize; offset < first.count; offset += pageSize) offsets.push(offset);
+    for (let i = 0; i < offsets.length; i += CUSTOMER_DIRECTORY_PARALLEL_PAGES) {
+      const batch = offsets.slice(i, i + CUSTOMER_DIRECTORY_PARALLEL_PAGES);
+      const pages = await Promise.all(batch.map((offset) => fetchPage(offset, false)));
+      for (const page of pages) allRows.push(...page.rows);
+    }
+    // Customers added while loading: pick up anything past the counted rows.
+    let offset = pageSize * (offsets.length + 1);
+    if (allRows.length < offset) return allRows;
+    while (true) {
+      const page = await fetchPage(offset, false);
+      allRows.push(...page.rows);
+      if (page.rows.length < pageSize) return allRows;
       offset += pageSize;
-      if (data.length < pageSize) {
-        hasMore = false;
-      }
-    } else {
-      hasMore = false;
     }
   }
 
-  return allRows;
+  // No count from the server: page one after another.
+  let offset = pageSize;
+  while (true) {
+    const page = await fetchPage(offset, false);
+    allRows.push(...page.rows);
+    if (page.rows.length < pageSize) return allRows;
+    offset += pageSize;
+  }
 }
 
 export type CustomerPartyBalanceRpcRow = {
