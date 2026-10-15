@@ -36,7 +36,7 @@ export async function gatewayRequest(
     return {
       ok: false,
       status: 503,
-      data: { error: "Built-in WhatsApp gateway is not configured (WA_GATEWAY_URL / WA_GATEWAY_KEY)" },
+      data: { error: "Ezzy ERP WhatsApp server is not configured (WA_GATEWAY_URL / WA_GATEWAY_KEY)" },
     };
   }
   try {
@@ -57,7 +57,9 @@ export async function gatewayRequest(
     return {
       ok: false,
       status: 502,
-      data: { error: error instanceof Error ? error.message : "Gateway unreachable" },
+      data: {
+        error: `Ezzy ERP WhatsApp server is not reachable (${error instanceof Error ? error.message : "network error"})`,
+      },
     };
   }
 }
@@ -100,11 +102,22 @@ export async function sendViaBuiltinGateway(
     if (!result.ok || result.data.success === false) {
       return {
         success: false,
-        error: String(result.data.error ?? `Gateway error (${result.status})`),
+        error: friendlyGatewayError(String(result.data.error ?? `Gateway error (${result.status})`)),
         responseData: responses,
       };
     }
     lastMessageId = (result.data.messageId as string | undefined) ?? lastMessageId;
   }
   return { success: true, messageId: lastMessageId, responseData: responses };
+}
+
+/** Turns gateway errors into steps a shop owner can act on. */
+export function friendlyGatewayError(raw: string): string {
+  if (/not connected/i.test(raw)) {
+    return "Ezzy ERP WhatsApp is not connected. Open Settings → WhatsApp and scan the QR code with the shop phone.";
+  }
+  if (/daily send limit/i.test(raw)) {
+    return `${raw}. Sending resumes tomorrow (this limit protects the shop number from a WhatsApp ban).`;
+  }
+  return raw;
 }

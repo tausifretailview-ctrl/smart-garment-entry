@@ -28,6 +28,7 @@ import {
   type WappConnectInboundMessage,
 } from "../_shared/wappConnectInbound.ts";
 import { sendViaWappConnect } from "../_shared/wappConnectSend.ts";
+import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -848,21 +849,24 @@ async function sendWhatsAppDocument(
 }
 
 /**
- * WappConnect customer reply. "OK" (to the bill's "Reply OK to save our number") gets the
- * star menu; a 1–5 reply after that menu is saved to Customer Reviews and thanked.
- * Only phones this shop billed over WappConnect in the last WHATSAPP_REVIEW_BILL_DAYS
- * get an answer, so an unsigned forged payload cannot make us message strangers.
+ * WappConnect / Ezzy ERP WhatsApp customer reply. "OK" (to the bill's "Reply OK to save our
+ * number") gets the star menu; a 1–5 reply after that menu is saved to Customer Reviews and
+ * thanked. Only phones this shop billed over the same provider in the last
+ * WHATSAPP_REVIEW_BILL_DAYS get an answer, so an unsigned forged payload cannot make us
+ * message strangers. Ezzy ERP WhatsApp (builtin) passes the org the gateway verified.
  */
 async function handleWappConnectInbound(
   supabase: any,
   inbound: WappConnectInboundMessage,
+  opts: { provider: 'wappconnect' | 'builtin'; organizationId?: string } = { provider: 'wappconnect' },
 ): Promise<void> {
+  const provider = opts.provider;
   const cleanPhone = inbound.from.slice(-10);
   if (cleanPhone.length !== 10) return;
   const since = new Date(Date.now() - WHATSAPP_REVIEW_BILL_DAYS * 86_400_000).toISOString();
 
-  let instanceOrgId = '';
-  if (inbound.instanceId) {
+  let instanceOrgId = opts.organizationId || '';
+  if (provider === 'wappconnect' && inbound.instanceId) {
     const { data: secret } = await supabase
       .from('whatsapp_wappconnect_secrets')
       .select('organization_id')
@@ -874,7 +878,7 @@ async function handleWappConnectInbound(
   let billQuery = supabase
     .from('whatsapp_logs')
     .select('organization_id, message, created_at')
-    .eq('provider', 'wappconnect')
+    .eq('provider', provider)
     .in('template_type', ['sales_invoice', 'sales_invoice_pdf', 'invoice_pdf', 'invoice'])
     .in('status', ['sent', 'delivered', 'read'])
     .ilike('phone_number', `%${cleanPhone}`)
@@ -885,18 +889,21 @@ async function handleWappConnectInbound(
   const { data: billLogs } = await billQuery;
   const billLog = billLogs?.[0];
   if (!billLog?.organization_id) {
-    console.log(`[wappconnect-inbound] no recent WappConnect bill for ...${cleanPhone.slice(-4)}; not replying`);
+    console.log(`[${provider}-inbound] no recent ${provider} bill for ...${cleanPhone.slice(-4)}; not replying`);
     return;
   }
   const organizationId = billLog.organization_id as string;
 
-  const { data: secretRow } = await supabase
-    .from('whatsapp_wappconnect_secrets')
-    .select('instance_id')
-    .eq('organization_id', organizationId)
-    .maybeSingle();
-  const instanceId = String(secretRow?.instance_id || '').trim();
-  if (!instanceId) return;
+  let instanceId = '';
+  if (provider === 'wappconnect') {
+    const { data: secretRow } = await supabase
+      .from('whatsapp_wappconnect_secrets')
+      .select('instance_id')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    instanceId = String(secretRow?.instance_id || '').trim();
+    if (!instanceId) return;
+  }
 
   const { data: settings } = await supabase
     .from('whatsapp_api_settings')
@@ -944,9 +951,11 @@ async function handleWappConnectInbound(
   const lastPromptAt = promptLogs?.[0]?.created_at ? new Date(promptLogs[0].created_at).getTime() : 0;
 
   const send = async (text: string) => {
-    const result = await sendViaWappConnect(instanceId, inbound.from, { message: text });
+    const result = provider === 'builtin'
+      ? await sendViaBuiltinGateway(organizationId, inbound.from, { message: text })
+      : await sendViaWappConnect(instanceId, inbound.from, { message: text });
     if (!result.success) {
-      console.error('[wappconnect-inbound] reply failed:', result.error);
+      console.error(`[${provider}-inbound] reply failed:`, result.error);
       return;
     }
     const wamid = result.messageId || null;
@@ -972,7 +981,7 @@ async function handleWappConnectInbound(
       status: 'sent',
       wamid,
       sent_at: nowIso,
-      provider: 'wappconnect',
+      provider,
     });
   };
 
@@ -1070,6 +1079,52 @@ Deno.serve(async (req) => {
   if (req.method === 'POST') {
     try {
       const rawBody = await req.text();
+
+      // Ezzy ERP WhatsApp gateway: customer text reply, signed with the shared gateway key.
+      const gatewayKey = req.headers.get('x-api-key');
+      if (gatewayKey) {
+        const cfg = getGatewayConfig();
+        if (!cfg || gatewayKey !== cfg.key) {
+          return new Response('Unauthorized', { status: 401, headers: corsHeaders });
+        }
+        let gw: Record<string, unknown> = {};
+        try {
+          gw = JSON.parse(rawBody);
+        } catch (_) { /* rejected below */ }
+        const from = String(gw.from ?? '').replace(/\D/g, '');
+        const text = String(gw.text ?? '').trim();
+        const organizationId = String(gw.organizationId ?? '').trim();
+        if (gw.event !== 'ezzy-gateway-inbound' || !from || !text || !organizationId) {
+          return new Response(JSON.stringify({ success: false, error: 'Invalid gateway event' }), {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        try {
+          // deno-lint-ignore no-explicit-any
+          const gwSupabase: any = createClient(
+            Deno.env.get('SUPABASE_URL')!,
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+          );
+          await handleWappConnectInbound(
+            gwSupabase,
+            {
+              from,
+              text,
+              messageId: String(gw.messageId ?? ''),
+              instanceId: '',
+              senderName: String(gw.senderName ?? ''),
+            },
+            { provider: 'builtin', organizationId },
+          );
+        } catch (e) {
+          console.error('Ezzy ERP WhatsApp inbound handling error:', e);
+        }
+        return new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
 
       // Handle third-party POST-based challenge verification
       try {

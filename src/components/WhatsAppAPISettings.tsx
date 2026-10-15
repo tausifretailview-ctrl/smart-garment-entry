@@ -26,6 +26,7 @@ import {
 import {
   selectableSendProviders,
   WHATSAPP_SEND_PROVIDER_LABELS,
+  BUILTIN_WHATSAPP_NAME,
   type WhatsAppSendProvider,
   isWappConnectSendProvider,
   normalizeSendProvider,
@@ -339,8 +340,22 @@ export const WhatsAppAPISettings = () => {
   const { data: recentWappConnectLogs, isFetching: recentLogsFetching, refetch: refetchRecentLogs } = useQuery({
     queryKey: ['whatsapp-recent-wappconnect-logs'],
     queryFn: () => fetchMessageLogs({ limit: 8 }),
-    enabled: formData.send_provider === 'wappconnect',
+    enabled: formData.send_provider === 'wappconnect' || formData.send_provider === 'builtin',
     staleTime: 30 * 1000,
+  });
+
+  // "Ezzy ERP WhatsApp" shows up once its gateway server is set up and answering.
+  const { data: gatewayReady = false } = useQuery({
+    queryKey: ['whatsapp-gateway-ready'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("whatsapp-gateway-proxy", {
+        body: { action: "config" },
+      });
+      if (error) return false;
+      return (data as { reachable?: boolean } | null)?.reachable === true;
+    },
+    staleTime: 10 * 60 * 1000,
+    retry: false,
   });
 
   const handleReloadWhatsAppLogs = async () => {
@@ -511,6 +526,7 @@ export const WhatsAppAPISettings = () => {
   };
 
   const isBuiltin = formData.send_provider === "builtin";
+  const providerName = isBuiltin ? BUILTIN_WHATSAPP_NAME : "WappConnect";
   // "Instance flow" = WappConnect or built-in gateway (plain text + PDF, no Meta templates).
   const isWappConnect = formData.send_provider === "wappconnect" || isBuiltin;
   const hasWappConnectInstance =
@@ -541,7 +557,7 @@ export const WhatsAppAPISettings = () => {
           </h3>
           <p className="text-sm text-muted-foreground">
             {isWappConnect
-              ? "Connect your shop's own WhatsApp number via WappConnect"
+              ? `Connect your shop's own WhatsApp number via ${providerName}`
               : "Configure Official WhatsApp Business API for automated messaging"}
           </p>
         </div>
@@ -615,7 +631,7 @@ export const WhatsAppAPISettings = () => {
                 <SelectValue placeholder="Select provider" />
               </SelectTrigger>
               <SelectContent>
-                {selectableSendProviders(settings?.send_provider).map((provider) => (
+                {selectableSendProviders(settings?.send_provider, gatewayReady).map((provider) => (
                   <SelectItem key={provider} value={provider}>
                     {WHATSAPP_SEND_PROVIDER_LABELS[provider]}
                   </SelectItem>
@@ -982,7 +998,7 @@ export const WhatsAppAPISettings = () => {
               <AlertTitle>Integration disabled</AlertTitle>
               <AlertDescription className="text-sm">
                 When this is off, no WhatsApp messages are sent — including invoice auto-send, test messages, and manual sends.
-                Turn it <strong>on</strong> and save to deliver invoices via WappConnect.
+                Turn it <strong>on</strong> and save to deliver invoices via {providerName}.
               </AlertDescription>
             </Alert>
           )}
@@ -992,7 +1008,7 @@ export const WhatsAppAPISettings = () => {
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
                 Invoice message text comes from <strong>Settings → WhatsApp → Message Templates → Sales Invoice / POS Billing Message</strong> (placeholders like {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}).
-                Enable <strong>Send Invoice PDF</strong> below to attach the PDF via WappConnect.
+                Enable <strong>Send Invoice PDF</strong> below to attach the PDF via {providerName}.
               </AlertDescription>
             </Alert>
           )}
@@ -1023,7 +1039,9 @@ export const WhatsAppAPISettings = () => {
             </div>
             {isWappConnect && (
               <p className="text-xs text-muted-foreground">
-                Save settings before testing — sends use your saved WappConnect instance id.
+                {isBuiltin
+                  ? "Save settings before testing — sends use the saved provider and the linked shop number."
+                  : "Save settings before testing — sends use your saved WappConnect instance id."}
               </p>
             )}
             {!formData.is_active && (
@@ -1466,7 +1484,7 @@ export const WhatsAppAPISettings = () => {
           </CardTitle>
           <CardDescription>
             {isWappConnect
-              ? "Attach invoice PDF via WappConnect (no Meta 24-hour window)"
+              ? `Attach invoice PDF via ${providerName} (no Meta 24-hour window)`
               : "Send invoice PDF document along with the WhatsApp template message"}
           </CardDescription>
         </CardHeader>
@@ -1524,14 +1542,16 @@ export const WhatsAppAPISettings = () => {
                 <Alert className="border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30">
                   <CheckCircle className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                   <AlertTitle className="text-emerald-900 dark:text-emerald-100 font-semibold">
-                    WappConnect PDF delivery
+                    {providerName} PDF delivery
                   </AlertTitle>
                   <AlertDescription className="text-sm text-emerald-800 dark:text-emerald-200">
                     Invoice text comes from <strong>Message Templates → Sales Invoice / POS Billing Message</strong>.
-                    WappConnect is unofficial — there is <strong>no Meta 24-hour reply window</strong>.
+                    {providerName} is unofficial — there is <strong>no Meta 24-hour reply window</strong>.
+                    {isBuiltin && " Bill text always goes as the PDF caption, so each bill is 1 message."}
                   </AlertDescription>
                 </Alert>
 
+                {!isBuiltin && (
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label htmlFor="wappconnect_single_message">Bill text with the PDF (1 message)</Label>
@@ -1553,6 +1573,7 @@ export const WhatsAppAPISettings = () => {
                     disabled={!formData.is_active || !settings || !("wappconnect_single_message" in settings)}
                   />
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="wappconnect_pdf_invoice_template">WhatsApp PDF template</Label>
@@ -1983,7 +2004,7 @@ export const WhatsAppAPISettings = () => {
               <div>
                 <CardTitle className="text-base flex items-center gap-2">
                   <MessageSquare className="h-4 w-4" />
-                  Recent WappConnect sends
+                  Recent {providerName} sends
                 </CardTitle>
                 <CardDescription>
                   Latest log entries for this org. Open WhatsApp Logs for full history and API response details.
@@ -2008,9 +2029,10 @@ export const WhatsAppAPISettings = () => {
           </CardHeader>
           <CardContent>
             {(() => {
-              const wappConnectOnly = recentWappConnectLogs?.filter((log) => log.provider === "wappconnect") ?? [];
+              const sendProviderKey = isBuiltin ? "builtin" : "wappconnect";
+              const wappConnectOnly = recentWappConnectLogs?.filter((log) => log.provider === sendProviderKey) ?? [];
               const metaMisrouted = recentWappConnectLogs?.filter(
-                (log) => log.provider !== "wappconnect" && log.status === "failed",
+                (log) => !isWappConnectSendProvider(log.provider) && log.status === "failed",
               ) ?? [];
               const needsEdgeDeploy = wappConnectOnly.some((log) =>
                 isWappConnectSignedStorageUrl(getWappConnectRequestUrl(log.provider_response)),
@@ -2018,7 +2040,7 @@ export const WhatsAppAPISettings = () => {
 
               return (
                 <>
-                  {needsEdgeDeploy && (
+                  {!isBuiltin && needsEdgeDeploy && (
                     <Alert className="mb-3 border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
                       <AlertCircle className="h-4 w-4 text-red-700" />
                       <AlertDescription className="text-sm text-red-900 dark:text-red-100">
@@ -2034,17 +2056,17 @@ export const WhatsAppAPISettings = () => {
                       <AlertCircle className="h-4 w-4 text-amber-700" />
                       <AlertDescription className="text-sm text-amber-900 dark:text-amber-100">
                         {metaMisrouted.length} recent failed send(s) used the <strong>Meta API path</strong> (Provider:
-                        Legacy), not WappConnect. Errors like &quot;Re-engagement message&quot; are Meta&apos;s 24-hour rule —
-                        they do <strong>not</strong> apply to WappConnect. Save Send provider = WappConnect, deploy{" "}
+                        Legacy), not {providerName}. Errors like &quot;Re-engagement message&quot; are Meta&apos;s 24-hour rule —
+                        they do <strong>not</strong> apply to {providerName}. Save Send provider = {providerName}, deploy{" "}
                         <code className="text-xs">send-whatsapp</code>, hard refresh (↻), then retry.
                       </AlertDescription>
                     </Alert>
                   )}
                   {!wappConnectOnly.length ? (
                     <p className="text-sm text-muted-foreground">
-                      No WappConnect sends logged yet.
+                      No {providerName} sends logged yet.
                       {metaMisrouted.length > 0
-                        ? " See the warning above — recent failures may be Meta path, not WappConnect."
+                        ? ` See the warning above — recent failures may be Meta path, not ${providerName}.`
                         : ""}
                     </p>
                   ) : (
@@ -2069,7 +2091,7 @@ export const WhatsAppAPISettings = () => {
                                 {effectiveStatus}
                               </Badge>
                               <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">
-                                WappConnect
+                                {providerName}
                               </Badge>
                               <span className="font-mono tabular-nums text-xs text-muted-foreground">
                                 {log.phone_number}

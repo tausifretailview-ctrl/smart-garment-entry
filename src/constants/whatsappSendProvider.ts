@@ -6,7 +6,7 @@ export type WhatsAppSendProvider = (typeof WHATSAPP_SEND_PROVIDERS)[number];
 export const WHATSAPP_SEND_PROVIDER_LABELS: Record<WhatsAppSendProvider, string> = {
   existing: 'Existing (Meta / Business API)',
   wappconnect: 'WappConnect',
-  builtin: 'Our WhatsApp (scan QR, no third party)',
+  builtin: 'Ezzy ERP WhatsApp (scan QR, no per-message charge)',
 };
 
 export function normalizeSendProvider(value: string | null | undefined): WhatsAppSendProvider {
@@ -29,12 +29,21 @@ export function isWappConnectSendProvider(
   return value === 'wappconnect' || value === 'builtin';
 }
 
-/** Non-secret rollout flag; "Our WhatsApp" stays hidden until the gateway + migration are live. */
+/** Short name for logs, badges and messages. */
+export const BUILTIN_WHATSAPP_NAME = 'Ezzy ERP WhatsApp';
+
+/**
+ * Non-secret override; normally "Ezzy ERP WhatsApp" appears on its own once the gateway
+ * server answers (whatsapp-gateway-proxy `config`).
+ */
 export const BUILTIN_WHATSAPP_ENABLED =
   import.meta.env.VITE_ENABLE_BUILTIN_WHATSAPP === 'true';
 
-export function selectableSendProviders(current?: string | null): WhatsAppSendProvider[] {
+export function selectableSendProviders(
+  current?: string | null,
+  gatewayReady = false,
+): WhatsAppSendProvider[] {
   return WHATSAPP_SEND_PROVIDERS.filter(
-    (p) => p !== 'builtin' || BUILTIN_WHATSAPP_ENABLED || current === 'builtin',
+    (p) => p !== 'builtin' || gatewayReady || BUILTIN_WHATSAPP_ENABLED || current === 'builtin',
   );
 }

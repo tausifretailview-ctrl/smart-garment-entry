@@ -21,7 +21,15 @@ interface ControlResponse {
 
 const POLL_MS = 3000;
 
-/** "Our WhatsApp" setup: link the shop's own number by scanning a QR (no third-party service). */
+const STATUS_LABELS: Record<GatewayStatus, string> = {
+  connected: "Connected",
+  connecting: "Connecting…",
+  qr: "Waiting for scan",
+  disconnected: "Not connected",
+  logged_out: "Not connected",
+};
+
+/** "Ezzy ERP WhatsApp" setup: link the shop's own number by scanning a QR (no third-party service). */
 export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | null }) {
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
@@ -70,9 +78,11 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
       try {
         const res = await call("status");
         apply(res);
-        if (res.status === "connected" || res.status === "logged_out") {
+        if (res.status === "connected" || res.status === "logged_out" || res.status === "disconnected") {
           setPolling(false);
           if (res.status === "connected") toast.success("WhatsApp linked");
+          // The server stops making QR codes after a while without a scan.
+          else toast.info("QR code expired. Click Connect WhatsApp to get a new one.");
           return;
         }
       } catch {
@@ -117,10 +127,16 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
     <div className="space-y-4">
       <Alert>
         <Smartphone className="h-4 w-4" />
-        <AlertTitle>Our WhatsApp — send from your own number</AlertTitle>
-        <AlertDescription className="text-sm">
-          Open WhatsApp on the shop phone → Settings → Linked devices → Link a device, then scan the QR below.
-          Messages are sent directly from your number — no Meta API or third-party service needed.
+        <AlertTitle>Ezzy ERP WhatsApp — send from your own number</AlertTitle>
+        <AlertDescription className="text-sm space-y-1">
+          <p>
+            Click Connect WhatsApp, then on the shop phone open WhatsApp → Settings → Linked devices → Link a
+            device and scan the QR below. Bills, reminders and offers then go from your own number, with no
+            per-message charge.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            After it shows Connected, turn the integration on and click Save Settings so sends use it.
+          </p>
         </AlertDescription>
       </Alert>
 
@@ -128,14 +144,15 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         <ShieldAlert className="h-4 w-4" />
         <AlertTitle>Use responsibly</AlertTitle>
         <AlertDescription className="text-xs">
-          ⚠️ Our WhatsApp uses the unofficial WhatsApp Web protocol. WhatsApp may restrict or ban numbers used for
-          bulk messaging or spam. For compliant business messaging, Meta WhatsApp Cloud API is recommended.
+          Ezzy ERP WhatsApp links through WhatsApp Web (unofficial), like WappConnect. WhatsApp may restrict or ban
+          numbers used for bulk messaging or spam. Messages are spaced a few seconds apart and capped per day to
+          lower that risk. For fully compliant business messaging, use the Meta WhatsApp Business API.
         </AlertDescription>
       </Alert>
 
       <div className="flex flex-wrap items-center gap-2">
         <Badge variant={connected ? "default" : "secondary"}>
-          {connected ? `Connected${number ? ` · +${number}` : ""}` : (status ?? "checking…")}
+          {connected ? `Connected${number ? ` · +${number}` : ""}` : status ? STATUS_LABELS[status] ?? status : "Checking…"}
         </Badge>
         {!connected && (
           <Button type="button" size="sm" disabled={busy || !orgId} onClick={() => void run("start")}>

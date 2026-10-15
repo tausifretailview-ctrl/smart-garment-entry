@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { CustomerAccountSummaryStrip } from "@/components/CustomerAccountSummaryStrip";
 import { createPortal, flushSync } from "react-dom";
 import { useLocation } from "react-router-dom";
@@ -2081,7 +2082,7 @@ const POSDashboard = () => {
                   ? "a5"
                   : "a4",
             thermalPaper: posThermalPaper,
-            wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
+            wappConnectPdf: isWappConnectSendProvider(whatsAppAPISettings?.send_provider),
           })) ||
           null
         );

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { isWappConnectSendProvider } from "@/constants/whatsappSendProvider";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "@/hooks/useSettings";
 import { STALE_DASHBOARD_TAB_RETURN, STALE_SETTINGS } from "@/lib/queryStaleTimes";
@@ -2401,7 +2402,7 @@ export default function SalesInvoiceDashboard() {
         return (
           (await captureElementToPdfBase64(el, {
             extraSettleMs: 300,
-            wappConnectPdf: whatsAppAPISettings?.send_provider === "wappconnect",
+            wappConnectPdf: isWappConnectSendProvider(whatsAppAPISettings?.send_provider),
           })) || null
         );
       } finally {

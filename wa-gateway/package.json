@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Multi-tenant WhatsApp (Baileys) gateway for EzzyERP 'Our WhatsApp' send option",
+  "description": "Multi-tenant WhatsApp (Baileys) gateway for Ezzy ERP WhatsApp send option",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",

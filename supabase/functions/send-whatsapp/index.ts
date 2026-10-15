@@ -655,20 +655,12 @@ serve(async (req) => {
           return new Response(
             JSON.stringify({
               success: false,
-              error: 'Built-in WhatsApp gateway is not configured on the server',
+              error: 'Ezzy ERP WhatsApp server is not set up yet (WA_GATEWAY_URL / WA_GATEWAY_KEY secrets missing)',
             }),
             { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
           );
         }
-        if (orgSettings?.builtin_status !== 'connected') {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'Our WhatsApp is not connected. Scan the QR code in Settings → WhatsApp first.',
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-          );
-        }
+        // No builtin_status check here: the saved status can lag a reconnect; the gateway answers live.
       } else {
         const { data: wappConnectSecret, error: secretError } = await supabase
           .from('whatsapp_wappconnect_secrets')
@@ -859,7 +851,9 @@ serve(async (req) => {
       }
 
       // Bill text as the PDF caption (1 message per customer) when the shop turned it on.
-      const wantsSingleMessage = orgSettings?.wappconnect_single_message === true;
+      // Ezzy ERP WhatsApp always does this: WhatsApp keeps document captions, and fewer sends
+      // per bill lowers the ban risk on the shop's number.
+      const wantsSingleMessage = isBuiltin || orgSettings?.wappconnect_single_message === true;
       const wappConnectResult = isBuiltin
         ? {
             ...(await sendViaBuiltinGateway(organizationId, formattedPhone, {
