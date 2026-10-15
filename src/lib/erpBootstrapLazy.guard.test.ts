@@ -50,7 +50,11 @@ describe("erpBootstrap lazy split (PR 1)", () => {
     expect(header).toMatch(/from "@\/components\/FloatingStockReport"/);
     expect(header).toContain("FloatingStockReport");
     expect(header).not.toContain("LazyFloatingStockReport");
-    expect(header).toContain("LazyFloatingSaleReport");
+    // Quick sale lookup is static: as a lazy chunk it could hang on "Loading sale lookup…".
+    expect(header).toMatch(/from "@\/components\/FloatingSaleReport"/);
+    expect(header).not.toContain("LazyFloatingSaleReport");
+    const saleLookup = src("src/components/FloatingSaleReport.tsx");
+    expect(saleLookup).not.toMatch(/from "@\/components\/FloatingPOSReports"/);
     const pos = src("src/components/POSLayout.tsx");
     expect(pos).toContain("LazyFloatingPayments");
     expect(pos).toContain("LazyFloatingCashTally");

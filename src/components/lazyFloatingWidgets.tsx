@@ -5,7 +5,6 @@ import { useChat } from "@/contexts/ChatContext";
 
 type PaymentsProps = ComponentProps<typeof import("@/components/FloatingPayments").FloatingPayments>;
 type CashTallyProps = ComponentProps<typeof import("@/components/FloatingCashTally").FloatingCashTally>;
-type SaleReportProps = ComponentProps<typeof import("@/components/FloatingPOSReports").FloatingSaleReport>;
 
 type OpenProps = { open: boolean; onOpenChange: (open: boolean) => void };
 
@@ -14,24 +13,6 @@ const loadFloatingPayments = () =>
 
 const loadFloatingCashTally = () =>
   import("@/components/FloatingCashTally").then((m) => ({ default: m.FloatingCashTally }));
-
-const loadFloatingSaleReport = () =>
-  import("@/components/FloatingPOSReports").then((m) => ({ default: m.FloatingSaleReport }));
-
-let saleReportWarm: Promise<unknown> | null = null;
-
-/**
- * Start downloading the Quick sale lookup panel before the click (button hover /
- * focus, or once on idle). Opening it used to wait for this download every first
- * time ("Loading sale lookup…"). Failures are ignored here; the click path shows
- * its own retry UI.
- */
-export function prefetchFloatingSaleReport(): void {
-  if (saleReportWarm) return;
-  saleReportWarm = loadFloatingSaleReport().catch(() => {
-    saleReportWarm = null;
-  });
-}
 
 const loadFloatingChatButton = () =>
   import("@/components/AIChatbot/FloatingChatButton").then((m) => ({ default: m.FloatingChatButton }));
@@ -90,19 +71,6 @@ export function LazyFloatingCashTally(props: CashTallyProps) {
       title="Cash tally"
       loadingMessage="Loading cash tally…"
       errorTitle="Could not open cash tally"
-      componentProps={props}
-    />
-  );
-}
-
-export function LazyFloatingSaleReport(props: SaleReportProps) {
-  return (
-    <OpenDialogGate
-      open={props.open}
-      loader={loadFloatingSaleReport}
-      title="Quick sale lookup"
-      loadingMessage="Loading sale lookup…"
-      errorTitle="Could not open sale lookup"
       componentProps={props}
     />
   );
