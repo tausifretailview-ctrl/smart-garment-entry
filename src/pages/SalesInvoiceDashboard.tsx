@@ -134,6 +134,14 @@ import { useSharedAppShell } from "@/contexts/SharedAppShellContext";
 import { mergeActivityNavigationState } from "@/lib/activityCenterNavigation";
 import { onWheelScrollContainer } from "@/lib/scrollWheel";
 import { waitForPrintReady } from "@/utils/printReady";
+import { appPrint, isElectron } from "@/utils/appPrint";
+import { extractInvoiceHTML } from "@/utils/directInvoicePrint";
+import {
+  BULK_INVOICE_PRINT_PAGE_CLASS,
+  BULK_INVOICE_PRINT_ROOT_CLASS,
+  buildBulkInvoicePrintCss,
+  injectCssIntoHtmlDocument,
+} from "@/utils/bulkInvoicePrint";
 import { whatsappPaymentReceiptDiscountLines } from "@/utils/paymentReceiptWhatsApp";
 import {
   applyCreditNoteFifoToSale,
@@ -364,10 +372,8 @@ export default function SalesInvoiceDashboard() {
   const [bulkProgressLabel, setBulkProgressLabel] = useState<string | null>(null);
   const [showBulkMarkPaidDialog, setShowBulkMarkPaidDialog] = useState(false);
   const [isBulkMarkingPaid, setIsBulkMarkingPaid] = useState(false);
-  const bulkPrintQueueRef = useRef<any[]>([]);
-  const bulkPrintResolveRef = useRef<(() => void) | null>(null);
-  const bulkPrintProgressRef = useRef({ current: 0, total: 0, ok: 0, fail: 0 });
-  const processBulkPrintNextRef = useRef<(() => Promise<void>) | null>(null);
+  /** Holds clones of every selected invoice so bulk Print is one print job. */
+  const bulkPrintRef = useRef<HTMLDivElement>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
   const [itemCountToDelete, setItemCountToDelete] = useState<number | null>(null);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
@@ -2051,13 +2057,6 @@ export default function SalesInvoiceDashboard() {
     pageStyle: getPageStyle(),
     onAfterPrint: () => {
       setInvoiceToPrint(null);
-      if (bulkPrintResolveRef.current) {
-        bulkPrintProgressRef.current.ok++;
-        bulkPrintResolveRef.current();
-        bulkPrintResolveRef.current = null;
-        void processBulkPrintNextRef.current?.();
-        return;
-      }
       toast({
         title: "Success",
         description: "Invoice printed successfully",
@@ -2174,51 +2173,94 @@ export default function SalesInvoiceDashboard() {
     }
   };
 
-  const processBulkPrintNext = useCallback(async () => {
-    const queue = bulkPrintQueueRef.current;
-    const prog = bulkPrintProgressRef.current;
-    if (queue.length === 0) {
+  const isThermalSaleBill = effectiveSaleBillFormat === "thermal";
+
+  const handleBulkPrintJob = useReactToPrint({
+    contentRef: bulkPrintRef,
+    pageStyle: `${getPageStyle()}\n${buildBulkInvoicePrintCss(isThermalSaleBill)}`,
+    onAfterPrint: () => {
+      bulkPrintRef.current?.replaceChildren();
+    },
+  });
+
+  /**
+   * Bulk Print: render each selected invoice once, keep a copy, then send all of
+   * them as ONE job. Desktop app prints straight to the printer (no dialog);
+   * the browser shows a single print dialog for every bill.
+   */
+  const handleBulkPrint = useCallback(async () => {
+    const container = bulkPrintRef.current;
+    if (!bulkSelectedRows.length || !container) return;
+    const rows = [...bulkSelectedRows];
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    let ready = 0;
+    let failed = 0;
+
+    setBulkBusyAction("print");
+    container.replaceChildren();
+    try {
+      for (let i = 0; i < rows.length; i++) {
+        setBulkProgressLabel(`Preparing ${i + 1}/${rows.length}…`);
+        try {
+          const withItems = await ensureSaleItems(rows[i]);
+          // Unmount the previous bill first so we never copy stale content.
+          setInvoiceToPrint(null);
+          await nextFrame();
+          setInvoiceToPrint(withItems);
+          await new Promise<void>((resolve) => waitForPrintReady(printRef, resolve));
+          const el = printRef.current;
+          if (!el) throw new Error("Invoice not rendered");
+          const page = document.createElement("div");
+          page.className = BULK_INVOICE_PRINT_PAGE_CLASS;
+          page.appendChild(el.cloneNode(true));
+          container.appendChild(page);
+          ready++;
+        } catch {
+          failed++;
+        }
+      }
+      setInvoiceToPrint(null);
+
+      if (ready === 0) {
+        toast({ title: "Print failed", description: "Could not prepare the selected invoices.", variant: "destructive" });
+        return;
+      }
+
+      setBulkProgressLabel(`Printing ${ready} invoice${ready === 1 ? "" : "s"}…`);
+      await nextFrame();
+
+      if (isElectron()) {
+        const html = injectCssIntoHtmlDocument(
+          extractInvoiceHTML(container, isThermalSaleBill ? { thermalPaper: saleThermalPaper } : undefined),
+          `${getPageStyle()}\n${buildBulkInvoicePrintCss(isThermalSaleBill)}`,
+        );
+        const result = await appPrint(
+          isThermalSaleBill
+            ? { type: "receipt", html, thermalPaper: saleThermalPaper }
+            : { type: "invoice", html, preferCSSPageSize: true },
+        );
+        if (result.success) {
+          container.replaceChildren();
+          toast({ title: "Sent to printer", description: describeBulkOutcome(ready, 0, failed, "printed") });
+          return;
+        }
+        toast({
+          title: "Direct print failed, opening the print dialog",
+          description: result.error || undefined,
+          variant: "destructive",
+        });
+      }
+
+      handleBulkPrintJob();
+      toast({
+        title: "Print ready",
+        description: describeBulkOutcome(ready, 0, failed, "in one print job"),
+      });
+    } finally {
       setBulkBusyAction(null);
       setBulkProgressLabel(null);
-      toast({
-        title: "Print complete",
-        description: describeBulkOutcome(prog.ok, 0, prog.fail, "printed"),
-      });
-      bulkPrintProgressRef.current = { current: 0, total: 0, ok: 0, fail: 0 };
-      return;
     }
-
-    prog.current++;
-    setBulkProgressLabel(`Printing ${prog.current}/${prog.total}…`);
-    const invoice = queue.shift()!;
-    try {
-      const withItems = await ensureSaleItems(invoice);
-      setInvoiceToPrint(withItems);
-      await new Promise<void>((resolve) => {
-        bulkPrintResolveRef.current = resolve;
-        waitForPrintReady(printRef, () => {
-          handlePrint();
-        });
-      });
-    } catch {
-      prog.fail++;
-      await processBulkPrintNext();
-    }
-  }, [describeBulkOutcome, handlePrint, toast]);
-  processBulkPrintNextRef.current = processBulkPrintNext;
-
-  const handleBulkPrint = useCallback(async () => {
-    if (!bulkSelectedRows.length) return;
-    setBulkBusyAction("print");
-    bulkPrintQueueRef.current = [...bulkSelectedRows];
-    bulkPrintProgressRef.current = {
-      current: 0,
-      total: bulkSelectedRows.length,
-      ok: 0,
-      fail: 0,
-    };
-    await processBulkPrintNext();
-  }, [bulkSelectedRows, processBulkPrintNext]);
+  }, [bulkSelectedRows, describeBulkOutcome, handleBulkPrintJob, isThermalSaleBill, saleThermalPaper, toast]);
 
   const handlePrintInvoice = async (invoice: any) => {
     const invoiceWithItems = await ensureSaleItems(invoice);
@@ -5394,6 +5436,11 @@ export default function SalesInvoiceDashboard() {
             renderInvoice={renderInvoiceForPreview}
           />
         )}
+
+        {/* Bulk Print: copies of every selected bill, printed as one job (filled imperatively) */}
+        <div className="invoice-print-source-screen" aria-hidden="true">
+          <div ref={bulkPrintRef} className={BULK_INVOICE_PRINT_ROOT_CLASS} />
+        </div>
 
         {/* Hidden invoice for direct print — must not use no-print or opacity:0 */}
         {invoiceToPrint && (
