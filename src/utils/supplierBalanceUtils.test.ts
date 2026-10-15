@@ -350,7 +350,7 @@ describe("computeSnapshotForSupplier", () => {
     expect(snap.balance).toBe(5000);
   });
 
-  it("SARASWATI: CN-on-bill is not cash; outstanding returns stay in account adjust", () => {
+  it("SARASWATI: CN-on-bill is not cash but still counts once as account adjust", () => {
     const snap = computeSnapshotForSupplier(
       SUPPLIER,
       0,
@@ -413,12 +413,15 @@ describe("computeSnapshotForSupplier", () => {
       0,
     );
 
+    // All 7 returns (₹1,04,790) reduce the payable: 6 adjusted to outstanding + 1 CN on bill 4507.
     expect(snap.totalPurchases).toBe(876810);
     expect(snap.totalPaid).toBe(706246.85);
     expect(snap.unreflectedReturns).toBe(87426.15);
-    expect(snap.totalCreditNotesNet).toBe(0);
-    expect(supplierAccountAdjustmentTotal(snap)).toBe(87426.15);
-    expect(snap.balance).toBe(83137);
+    expect(snap.totalCreditNotesNet).toBe(17363.85);
+    expect(snap.creditNotesAppliedToBills).toBe(17363.85);
+    expect(snap.unappliedCreditNotes).toBe(0);
+    expect(supplierAccountAdjustmentTotal(snap)).toBe(104790);
+    expect(snap.balance).toBe(65773.15);
   });
 
   it("does not treat a bill-referenced CN id as linking an outstanding return", () => {
@@ -455,7 +458,95 @@ describe("computeSnapshotForSupplier", () => {
   });
 });
 
+/** One ₹1,000 bill and one ₹118 purchase return with its CN voucher, settled each way. */
+describe("purchase return ₹118 settled three ways", () => {
+  const bill = {
+    id: "bill-1",
+    supplier_id: SUPPLIER,
+    net_amount: 1000,
+    paid_amount: 0,
+    software_bill_no: "B1",
+    supplier_invoice_no: "B1",
+  };
+  const cn = { id: "cn-1", reference_id: SUPPLIER, total_amount: 118 };
+  const ret = (over: Record<string, unknown>) => ({
+    supplier_id: SUPPLIER,
+    net_amount: 118,
+    credit_note_id: "cn-1",
+    credit_status: "pending",
+    linked_bill_id: null,
+    credit_available_balance: null,
+    ...over,
+  });
+
+  it("pending: CN already lowers the payable", () => {
+    const snap = computeSnapshotForSupplier(SUPPLIER, 0, [bill], [], [cn], [ret({})], 0);
+    expect(snap.balance).toBe(882);
+    expect(snap.unappliedCreditNotes).toBe(118);
+  });
+
+  it("adjust in outstanding: same balance, credit no longer unapplied", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER, 0, [bill], [], [cn], [ret({ credit_status: "adjusted_outstanding" })], 0,
+    );
+    expect(snap.balance).toBe(882);
+    expect(snap.unappliedCreditNotes).toBe(0);
+  });
+
+  it("adjust against bill: bill paid_amount +118 is not cash, return counts once", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [{ ...bill, paid_amount: 118 }],
+      [],
+      [cn],
+      [ret({ credit_status: "adjusted", linked_bill_id: "bill-1", credit_available_balance: 0 })],
+      0,
+    );
+    expect(snap.totalPaid).toBe(0);
+    expect(supplierAccountAdjustmentTotal(snap)).toBe(118);
+    expect(snap.balance).toBe(882);
+    expect(snap.unappliedCreditNotes).toBe(0);
+  });
+
+  it("adjust against bill, partly: remainder stays unapplied credit", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER,
+      0,
+      [{ ...bill, net_amount: 100, paid_amount: 100 }],
+      [],
+      [cn],
+      [ret({ credit_status: "adjusted", linked_bill_id: "bill-1", credit_available_balance: 18 })],
+      0,
+    );
+    expect(snap.totalPaid).toBe(0);
+    expect(snap.balance).toBe(-18);
+    expect(snap.unappliedCreditNotes).toBe(18);
+  });
+
+  it("refund: cash back from supplier cancels the CN, payable back to the bill", () => {
+    const snap = computeSnapshotForSupplier(
+      SUPPLIER, 0, [bill], [], [cn], [ret({ credit_status: "refunded" })], 118,
+    );
+    expect(snap.refundsReceived).toBe(118);
+    expect(snap.balance).toBe(1000);
+    expect(snap.unappliedCreditNotes).toBe(0);
+  });
+});
+
 describe("supplierLedgerReconFromTransactions", () => {
+  it("refund rows (credit on the payment side) are not counted as paid", () => {
+    const recon = supplierLedgerReconFromTransactions([
+      { type: "bill", reference: "B1", debit: 0, credit: 1000, balance: 1000 },
+      { type: "credit_note", reference: "SCN-00001", debit: 118, credit: 0, balance: 882 },
+      { type: "payment", reference: "RCP-00001", debit: 0, credit: 118, balance: 1000 },
+    ]);
+    expect(recon?.totalPaid).toBe(0);
+    expect(recon?.accountAdjust).toBe(118);
+    expect(recon?.refundsReceived).toBe(118);
+    expect(recon?.balance).toBe(1000);
+  });
+
   it("SARASWATI table grand total: paid cash, CN adj, close 83137", () => {
     const recon = supplierLedgerReconFromTransactions([
       { type: "bill", reference: "3480", debit: 0, credit: 876810, balance: 876810 },

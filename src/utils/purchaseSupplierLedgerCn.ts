@@ -17,24 +17,16 @@ export type CnVoucherRow = {
 };
 
 /**
- * Ledger debit for a supplier CN voucher.
- * When CN is applied to a bill, only the unapplied remainder (credit_available_balance) hits the ledger;
- * the applied portion is already reflected in the bill's paid_amount.
+ * Ledger debit for a supplier CN voucher: always the full voucher amount.
+ * When the CN is applied to a bill, the applied part also sits in the bill's paid_amount;
+ * the ledger and balance strip it from "Payment at purchase" / Paid instead
+ * (buildPurchaseReturnAdjustByBillId), so the return shows once, as a CN, not as cash.
  */
 export function supplierCreditNoteLedgerDebit(
   cnVoucherAmount: number,
-  linkedReturns: PurchaseReturnCnLink[]
+  _linkedReturns: PurchaseReturnCnLink[]
 ): number {
-  const gross = Number(cnVoucherAmount) || 0;
-  const onBill = linkedReturns.filter(
-    (pr) => pr.credit_status === "adjusted" && pr.linked_bill_id
-  );
-  if (onBill.length === 0) return gross;
-
-  if (onBill.every((pr) => pr.credit_available_balance != null)) {
-    return onBill.reduce((s, pr) => s + (Number(pr.credit_available_balance) || 0), 0);
-  }
-  return 0;
+  return Math.max(0, Number(cnVoucherAmount) || 0);
 }
 
 export function supplierCreditNoteLedgerDescriptionFromCn(

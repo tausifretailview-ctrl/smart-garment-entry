@@ -69,6 +69,25 @@ export function AdjustCreditNoteDialog({
 
   const balanceDisplayLoading = canLoadBalance && (balanceLoading || balanceFetching) && !balanceError;
 
+  // A live CN voucher (created when the return was saved) is already deducted from the
+  // supplier balance, so "Adjust in Outstanding" only labels it; without one, applying
+  // creates the voucher and the balance drops by the credit.
+  const { data: cnAlreadyInBalance } = useQuery({
+    queryKey: ["purchase-return-cn-live", creditNoteId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("voucher_entries")
+        .select("id")
+        .eq("id", creditNoteId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: open && !!creditNoteId,
+    staleTime: 0,
+  });
+
   // Fetch unpaid/partially paid bills for this supplier
   const { data: unpaidBills = [], isLoading: billsLoading } = useQuery({
     queryKey: ["unpaid-supplier-bills", supplierId, currentOrganization?.id],
@@ -388,7 +407,9 @@ export function AdjustCreditNoteDialog({
 
         toast({
           title: "Success",
-          description: `Credit note adjusted to supplier outstanding balance. ₹${creditAmount.toFixed(2)} deducted.`,
+          description: cnAlreadyInBalance
+            ? `Credit note marked as adjusted in outstanding. ₹${creditAmount.toFixed(2)} was already deducted from the supplier balance when the return was saved.`
+            : `Credit note adjusted to supplier outstanding balance. ₹${creditAmount.toFixed(2)} deducted.`,
         });
       }
 
@@ -549,14 +570,24 @@ export function AdjustCreditNoteDialog({
           {/* Refund Mode */}
           {adjustmentType === "outstanding" && canLoadBalance && !balanceDisplayLoading && !balanceError && (
             <div className="rounded-lg border bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800 p-3 text-sm">
-              <p className="text-violet-900 dark:text-violet-100">
-                After apply: supplier balance ≈ ₹
-                {Math.max(0, supplierOutstanding - creditAmount).toLocaleString("en-IN", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}{" "}
-                payable
-              </p>
+              {cnAlreadyInBalance ? (
+                <p className="text-violet-900 dark:text-violet-100">
+                  ₹{creditAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} is
+                  already deducted in the balance above (credit note made when the return was saved). After apply the
+                  balance stays ₹
+                  {supplierOutstanding.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                  payable and the return shows as Adjusted in Outstanding.
+                </p>
+              ) : (
+                <p className="text-violet-900 dark:text-violet-100">
+                  After apply: supplier balance ≈ ₹
+                  {(supplierOutstanding - creditAmount).toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  payable
+                </p>
+              )}
             </div>
           )}
 

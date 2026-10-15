@@ -16,32 +16,17 @@ export type PurchaseReturnLinkedRow = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
- * Return credit that was booked straight into `purchase_bills.paid_amount`
- * (Adjust CN → bill) but has NO credit-note voucher behind it.
- *
- * Those returns are surfaced separately in the supplier ledger as their own
- * "Purchase Return (Adj. Against Bill)" debit row, so the amount must be
- * removed from the bill's "paid" figure or the same money is subtracted twice.
- * Returns that DO have a CN voucher are already netted off the CN gross, so
- * they must NOT be excluded here.
+ * Return credit booked straight into `purchase_bills.paid_amount` (Adjust CN → bill),
+ * per bill. The supplier ledger strips it from "Payment at purchase" because the
+ * return already shows as its own CN / purchase-return debit row (full amount).
+ * Applies to returns with or without a CN voucher.
  */
-export function buildUnvoucheredReturnAdjustByBillId(
-  returns: Array<{
-    linked_bill_id?: string | null;
-    credit_status?: string | null;
-    net_amount?: number | null;
-    credit_note_id?: string | null;
-  }>,
-  creditNoteVoucherIds: Set<string>,
+export function buildAppliedReturnAdjustByBillIdMap(
+  returns: PurchaseReturnLinkedRow[],
 ): Map<string, number> {
   const map = new Map<string, number>();
-  for (const pr of returns || []) {
-    if (!pr?.linked_bill_id) continue;
-    if (String(pr.credit_status || "").toLowerCase() !== "adjusted") continue;
-    if (pr.credit_note_id && creditNoteVoucherIds.has(pr.credit_note_id)) continue;
-    const amt = Math.max(0, Number(pr.net_amount) || 0);
-    if (amt <= 0.005) continue;
-    map.set(pr.linked_bill_id, round2((map.get(pr.linked_bill_id) || 0) + amt));
+  for (const [billId, info] of Object.entries(buildPurchaseReturnAdjustByBillId(returns || []))) {
+    map.set(billId, info.purchase_return_adjust);
   }
   return map;
 }

@@ -24,7 +24,7 @@ import {
   supplierCreditNoteLedgerDebit,
   supplierCreditNoteLedgerDescriptionFromCn,
 } from "@/utils/purchaseSupplierLedgerCn";
-import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
+import { buildAppliedReturnAdjustByBillIdMap } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 
 interface FloatingSupplierLedgerProps {
@@ -190,10 +190,9 @@ export const FloatingSupplierLedger = ({
     });
 
     // Return credit already folded into bill.paid_amount but rendered as its own
-    // purchase-return row — exclude it from "Payment at purchase".
-    const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
-      (purchaseReturnsData || []) as unknown as Parameters<typeof buildUnvoucheredReturnAdjustByBillId>[0],
-      creditNoteVoucherIds,
+    // CN / purchase-return row — exclude it from "Payment at purchase".
+    const returnAdjustByBillId = buildAppliedReturnAdjustByBillIdMap(
+      (purchaseReturnsData || []) as unknown as Parameters<typeof buildAppliedReturnAdjustByBillIdMap>[0],
     );
 
     const billById = new Map(
@@ -304,16 +303,18 @@ export const FloatingSupplierLedger = ({
           balance: runningBalance,
         });
       } else if (item.type === "refund_received") {
+        // Money back from the supplier raises the payable again (the CN already lowered it).
         const r = item.data as any;
-        runningBalance -= r.total_amount;
+        const refundAmt = Number(r.total_amount) || 0;
+        runningBalance += refundAmt;
         allTransactions.push({
           id: r.id,
           date: r.voucher_date,
           type: "payment",
           reference: r.voucher_number,
           description: r.description || "Refund Received from Supplier",
-          debit: r.total_amount,
-          credit: 0,
+          debit: 0,
+          credit: refundAmt,
           balance: runningBalance,
         });
       } else if (item.type === "purchase_return") {
