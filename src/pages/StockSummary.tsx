@@ -27,7 +27,7 @@ import type * as XLSXType from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
-import { useProductFieldSettings, useSettings, type ProductFieldKey } from "@/hooks/useSettings";
+import { useProductFieldSettings, type ProductFieldKey } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -59,12 +59,27 @@ import {
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
 
-const VARIANTS_PER_PAGE = 100;
-const ARTICLES_PER_PAGE = 50;
+const VARIANT_PAGE_SIZES = [50, 100, 200, 500] as const;
+const ARTICLE_PAGE_SIZES = [25, 50, 100, 200] as const;
 /** Same cap as Stock Report's Size-wise tab (get_stock_report in one call). */
 const ARTICLE_FETCH_LIMIT = 10000;
 
 type ViewMode = "variants" | "articles";
+/** Stock qty filter: all, more than N, less than N (still in stock), or out of stock (0 or below). */
+type StockQtyMode = "all" | "gt" | "lt" | "out";
+
+/**
+ * Map the stock qty filter onto get_stock_report's existing flags so totals and rows stay
+ * identical to Stock Report: "gt N" = p_in_stock (stock > threshold N), "lt N" = p_low_stock_band
+ * (0 < stock <= N - 1), "out" = p_low_stock (stock <= 0).
+ */
+function stockQtyToRpc(mode: StockQtyMode, value: number): { stockStatusFilter: string; threshold: number } {
+  const n = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+  if (mode === "gt") return { stockStatusFilter: "in", threshold: n };
+  if (mode === "lt") return { stockStatusFilter: "low", threshold: Math.max(n - 1, 0) };
+  if (mode === "out") return { stockStatusFilter: "out", threshold: 0 };
+  return { stockStatusFilter: "all", threshold: 10 };
+}
 type ArticleStatusFilter = "all" | ArticleSizeStatus;
 
 interface SummaryRow extends StockSummaryVariant {
@@ -211,17 +226,17 @@ function KpiCard({
   loading?: boolean;
 }) {
   return (
-    <div className={cn("relative overflow-hidden rounded-xl px-4 py-3 text-white shadow-sm", tone)}>
+    <div className={cn("relative overflow-hidden rounded-xl px-3.5 py-2 text-white shadow-sm", tone)}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-white/80">{label}</span>
         <span className="opacity-80">{icon}</span>
       </div>
       {loading ? (
-        <Skeleton className="mt-1.5 h-7 w-24 bg-white/30" />
+        <Skeleton className="mt-1 h-6 w-24 bg-white/30" />
       ) : (
-        <div className="mt-0.5 text-2xl font-bold tabular-nums leading-tight">{value}</div>
+        <div className="text-xl font-bold tabular-nums leading-tight">{value}</div>
       )}
-      {sub && <div className="text-[11px] text-white/75 mt-0.5 truncate">{sub}</div>}
+      {sub && <div className="text-[10px] text-white/75 truncate">{sub}</div>}
     </div>
   );
 }
@@ -235,7 +250,6 @@ export default function StockSummary() {
   const { orgNavigate } = useOrgNavigation();
   const queryClient = useQueryClient();
   const productFieldSettings = useProductFieldSettings();
-  const { data: orgSettings } = useSettings();
   const fieldLabels = {
     brand: productFieldSettings.brand?.label || "Brand",
     category: productFieldSettings.category?.label || "Category",
@@ -247,13 +261,7 @@ export default function StockSummary() {
   const showCategory = isOn("category");
   const showStyle = isOn("style");
   const showColor = isOn("color");
-  const lowStockThreshold =
-    Number(
-      (orgSettings as { product_settings?: { low_stock_threshold?: number } } | undefined)?.product_settings
-        ?.low_stock_threshold,
-    ) || 10;
-
-  const [view, setView] = useState<ViewMode>("articles");
+  const [view, setView] = useState<ViewMode>("variants");
   const [searchDraft, setSearchDraft] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
@@ -264,7 +272,10 @@ export default function StockSummary() {
   const [colorFilter, setColorFilter] = useState("all");
   const [supplierFilter, setSupplierFilter] = useState("all");
   const [supplierInvoiceFilter, setSupplierInvoiceFilter] = useState("all");
-  const [stockStatusFilter, setStockStatusFilter] = useState("all");
+  const [stockQtyMode, setStockQtyMode] = useState<StockQtyMode>("all");
+  const [stockQtyValue, setStockQtyValue] = useState(0);
+  const [variantPageSize, setVariantPageSize] = useState<number>(100);
+  const [articlePageSize, setArticlePageSize] = useState<number>(50);
   const [variantPage, setVariantPage] = useState(1);
   const [articlePage, setArticlePage] = useState(1);
   const [byColor, setByColor] = useState(true);
@@ -272,6 +283,7 @@ export default function StockSummary() {
   const [articleQuickFind, setArticleQuickFind] = useState("");
   const [exporting, setExporting] = useState(false);
 
+  const { stockStatusFilter, threshold: lowStockThreshold } = stockQtyToRpc(stockQtyMode, stockQtyValue);
   const filterInput = useMemo((): StockReportRpcFilterInput | null => {
     if (!orgId) return null;
     return {
@@ -318,7 +330,10 @@ export default function StockSummary() {
   }, [filterInput]);
   useEffect(() => {
     setArticlePage(1);
-  }, [byColor, articleStatus, articleQuickFind]);
+  }, [byColor, articleStatus, articleQuickFind, articlePageSize]);
+  useEffect(() => {
+    setVariantPage(1);
+  }, [variantPageSize]);
 
   // ── Totals: same RPCs and cache keys as Stock Report, so both pages show the same figures ──
   const { data: globalTotals, isLoading: globalLoading } = useQuery({
@@ -411,10 +426,10 @@ export default function StockSummary() {
     isFetching: variantsFetching,
     error: variantsError,
   } = useQuery({
-    queryKey: ["stock-summary-variants", filterInput, variantPage],
+    queryKey: ["stock-summary-variants", filterInput, variantPage, variantPageSize],
     queryFn: async () => {
       if (!filterInput || !orgId) return { rows: [] as SummaryRow[], total: 0 };
-      const rows = await fetchStockReportRows(filterInput, VARIANTS_PER_PAGE, (variantPage - 1) * VARIANTS_PER_PAGE);
+      const rows = await fetchStockReportRows(filterInput, variantPageSize, (variantPage - 1) * variantPageSize);
       const suppliers = await fetchSupplierRecord(orgId, rows.map((r) => r.variant_id));
       return {
         total: Number(rows[0]?.total_rows ?? 0),
@@ -462,9 +477,9 @@ export default function StockSummary() {
       return tokens.every((t) => hay.includes(t));
     });
   }, [articles, articleStatus, articleQuickFind]);
-  const articlePageCount = Math.max(1, Math.ceil(visibleArticles.length / ARTICLES_PER_PAGE));
+  const articlePageCount = Math.max(1, Math.ceil(visibleArticles.length / articlePageSize));
   const pagedArticles = useMemo(
-    () => visibleArticles.slice((articlePage - 1) * ARTICLES_PER_PAGE, articlePage * ARTICLES_PER_PAGE),
+    () => visibleArticles.slice((articlePage - 1) * articlePageSize, articlePage * articlePageSize),
     [visibleArticles, articlePage],
   );
   const pagedArticleVariantIds = useMemo(() => pagedArticles.flatMap((a) => a.variantIds), [pagedArticles]);
@@ -492,7 +507,7 @@ export default function StockSummary() {
 
   const variantRows = variantPageData?.rows ?? [];
   const variantTotal = variantPageData?.total ?? 0;
-  const variantPageCount = Math.max(1, Math.ceil(variantTotal / VARIANTS_PER_PAGE));
+  const variantPageCount = Math.max(1, Math.ceil(variantTotal / variantPageSize));
   const variantPageTotals = useMemo(() => {
     const t = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0, saleValue: 0 };
     for (const r of variantRows) {
@@ -531,7 +546,8 @@ export default function StockSummary() {
     setColorFilter("all");
     setSupplierFilter("all");
     setSupplierInvoiceFilter("all");
-    setStockStatusFilter("all");
+    setStockQtyMode("all");
+    setStockQtyValue(0);
     setArticleStatus("all");
     setArticleQuickFind("");
   };
@@ -555,7 +571,11 @@ export default function StockSummary() {
   if (colorFilter !== "all") chips.push({ label: `${fieldLabels.color}: ${colorFilter}`, clear: () => setColorFilter("all") });
   if (supplierFilter !== "all") chips.push({ label: `Supplier: ${supplierFilter}`, clear: () => setSupplierFilter("all") });
   if (supplierInvoiceFilter !== "all") chips.push({ label: `Invoice: ${supplierInvoiceFilter}`, clear: () => setSupplierInvoiceFilter("all") });
-  if (stockStatusFilter !== "all") chips.push({ label: `Stock: ${stockStatusFilter}`, clear: () => setStockStatusFilter("all") });
+  if (stockQtyMode !== "all")
+    chips.push({
+      label: stockQtyMode === "out" ? "Stock: 0 or less" : `Stock ${stockQtyMode === "gt" ? ">" : "<"} ${stockQtyValue}`,
+      clear: () => setStockQtyMode("all"),
+    });
 
   // ── Export / print ──
   const exportExcel = async () => {
@@ -604,7 +624,7 @@ export default function StockSummary() {
           ...(showColor ? [fieldLabels.color] : []),
           ...(showStyle ? [fieldLabels.style] : []),
           "Barcode", "Opening Qty", "Purchase Qty", "Pur Return", "Sales Qty", "Sale Return", "Current Stock",
-          "Pur Price", "Stock Value", "Sale Price", "Status",
+          "Pur Price", "Stock Value", "Sale Price",
         ];
         const body = rpcRows.map((r, i) => {
           const v = toVariant(r);
@@ -617,7 +637,6 @@ export default function StockSummary() {
             ...(showStyle ? [v.style] : []),
             v.barcode, v.opening_qty, v.purchase_qty, v.purchase_return_qty, v.sales_qty, v.sale_return_qty, v.stock_qty,
             v.pur_price || 0, Math.round((v.pur_price || 0) * v.stock_qty), v.sale_price,
-            v.stock_qty <= 0 ? "Out of Stock" : v.stock_qty <= lowStockThreshold ? "Low Stock" : "In Stock",
           ];
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...body]), "Stock Summary");
@@ -655,7 +674,7 @@ export default function StockSummary() {
       rows = variantRows
         .map(
           (r, i) =>
-            `<tr><td>${(variantPage - 1) * VARIANTS_PER_PAGE + i + 1}</td><td>${esc(r.supplier_name)}</td><td>${esc(r.supplier_invoice_no)}</td><td>${esc(r.product_name)}</td>${showBrand ? `<td>${esc(r.brand)}</td>` : ""}<td>${esc(r.size)}</td>${showColor ? `<td>${esc(r.color)}</td>` : ""}<td>${esc(r.barcode)}</td><td style="text-align:right">${r.stock_qty}</td><td style="text-align:right">${r.pur_price ?? ""}</td><td style="text-align:right">${r.sale_price}</td></tr>`,
+            `<tr><td>${(variantPage - 1) * variantPageSize + i + 1}</td><td>${esc(r.supplier_name)}</td><td>${esc(r.supplier_invoice_no)}</td><td>${esc(r.product_name)}</td>${showBrand ? `<td>${esc(r.brand)}</td>` : ""}<td>${esc(r.size)}</td>${showColor ? `<td>${esc(r.color)}</td>` : ""}<td>${esc(r.barcode)}</td><td style="text-align:right">${r.stock_qty}</td><td style="text-align:right">${r.pur_price ?? ""}</td><td style="text-align:right">${r.sale_price}</td></tr>`,
         )
         .join("");
     }
@@ -756,7 +775,7 @@ export default function StockSummary() {
       {/* Filters */}
       <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm shrink-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[220px]">
+          <div className="relative w-full sm:w-[340px] lg:w-[380px] shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={searchDraft}
@@ -764,7 +783,7 @@ export default function StockSummary() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") applySearch();
               }}
-              placeholder="Search name, brand, category, style, barcode or supplier…"
+              placeholder="Search name, brand, barcode, supplier…"
               className="h-9 pl-9 uppercase placeholder:normal-case"
             />
           </div>
@@ -778,6 +797,32 @@ export default function StockSummary() {
               Clear all
             </Button>
           )}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setView("variants")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition",
+                  view === "variants" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-50",
+                )}
+              >
+                <Rows3 className="h-4 w-4" />
+                Variant list
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("articles")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition",
+                  view === "articles" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-50",
+                )}
+              >
+                <Scissors className="h-4 w-4" />
+                Article & cut size
+              </button>
+            </div>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">
           {filterField(
@@ -823,18 +868,37 @@ export default function StockSummary() {
             <SearchableSelect value={supplierInvoiceFilter} onValueChange={setSupplierInvoiceFilter} options={options.supplierInvoices} allLabel="All Invoices" placeholder="All Invoices" />,
           )}
           {filterField(
-            "Stock Status",
-            <Select value={stockStatusFilter} onValueChange={setStockStatusFilter}>
-              <SelectTrigger className="h-8 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="in">In stock (above {lowStockThreshold})</SelectItem>
-                <SelectItem value="low">Low stock (1–{lowStockThreshold})</SelectItem>
-                <SelectItem value="out">Out of stock</SelectItem>
-              </SelectContent>
-            </Select>,
+            "Stock Qty",
+            <div className="flex gap-1">
+              <Select
+                value={stockQtyMode}
+                onValueChange={(v) => {
+                  const mode = v as StockQtyMode;
+                  setStockQtyMode(mode);
+                  if (mode === "lt" && stockQtyValue < 2) setStockQtyValue(5);
+                }}
+              >
+                <SelectTrigger className="h-8 bg-white min-w-0 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All stock</SelectItem>
+                  <SelectItem value="gt">Greater than</SelectItem>
+                  <SelectItem value="lt">Less than (in stock)</SelectItem>
+                  <SelectItem value="out">0 or less</SelectItem>
+                </SelectContent>
+              </Select>
+              {(stockQtyMode === "gt" || stockQtyMode === "lt") && (
+                <Input
+                  type="number"
+                  min={0}
+                  value={stockQtyValue}
+                  onChange={(e) => setStockQtyValue(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                  className="h-8 w-16 px-2 text-center tabular-nums"
+                  aria-label="Stock quantity"
+                />
+              )}
+            </div>,
           )}
         </div>
         {chips.length > 0 && (
@@ -855,69 +919,44 @@ export default function StockSummary() {
         )}
       </div>
 
-      {/* View switch */}
-      <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm">
+      {/* Article view tools */}
+      {view === "articles" && !catalogTooBig && (
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-2">
+        {(
+          [
+            ["all", "All", statusCounts.all, "border-slate-300 text-slate-700", "bg-slate-800 text-white border-slate-800"],
+            ["cut", "Cut size", statusCounts.cut, "border-amber-300 text-amber-800", "bg-amber-500 text-white border-amber-500"],
+            ["full", "Full set", statusCounts.full, "border-emerald-300 text-emerald-700", "bg-emerald-600 text-white border-emerald-600"],
+            ["out", "Out", statusCounts.out, "border-rose-300 text-rose-700", "bg-rose-600 text-white border-rose-600"],
+            ["single", "Single size", statusCounts.single, "border-slate-300 text-slate-600", "bg-slate-600 text-white border-slate-600"],
+          ] as const
+        ).map(([key, label, count, idle, active]) => (
           <button
+            key={key}
             type="button"
-            onClick={() => setView("articles")}
+            onClick={() => setArticleStatus(key)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition",
-              view === "articles" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-50",
+              "inline-flex items-center gap-1.5 rounded-full border bg-white px-3 py-1 text-xs font-semibold transition",
+              articleStatus === key ? active : idle,
             )}
           >
-            <Scissors className="h-4 w-4" />
-            Article & cut size
+            {key === "cut" && <Scissors className="h-3.5 w-3.5" />}
+            {key === "full" && <CheckCircle2 className="h-3.5 w-3.5" />}
+            {key === "out" && <PackageX className="h-3.5 w-3.5" />}
+            {label}
+            <span className="tabular-nums opacity-80">{qty(count)}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setView("variants")}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-semibold transition",
-              view === "variants" ? "bg-indigo-600 text-white shadow" : "text-slate-600 hover:bg-slate-50",
-            )}
-          >
-            <Rows3 className="h-4 w-4" />
-            Variant list
-          </button>
-        </div>
-
-        {view === "articles" && !catalogTooBig && (
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                ["all", "All", statusCounts.all, "border-slate-300 text-slate-700", "bg-slate-800 text-white border-slate-800"],
-                ["cut", "Cut size", statusCounts.cut, "border-amber-300 text-amber-800", "bg-amber-500 text-white border-amber-500"],
-                ["full", "Full set", statusCounts.full, "border-emerald-300 text-emerald-700", "bg-emerald-600 text-white border-emerald-600"],
-                ["out", "Out", statusCounts.out, "border-rose-300 text-rose-700", "bg-rose-600 text-white border-rose-600"],
-                ["single", "Single size", statusCounts.single, "border-slate-300 text-slate-600", "bg-slate-600 text-white border-slate-600"],
-              ] as const
-            ).map(([key, label, count, idle, active]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setArticleStatus(key)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border bg-white px-3 py-1 text-xs font-semibold transition",
-                  articleStatus === key ? active : idle,
-                )}
-              >
-                {key === "cut" && <Scissors className="h-3.5 w-3.5" />}
-                {key === "full" && <CheckCircle2 className="h-3.5 w-3.5" />}
-                {key === "out" && <PackageX className="h-3.5 w-3.5" />}
-                {label}
-                <span className="tabular-nums opacity-80">{qty(count)}</span>
-              </button>
-            ))}
-            {showColor && (
-              <label className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                <Switch checked={byColor} onCheckedChange={setByColor} className="scale-75" />
-                Split by {fieldLabels.color.toLowerCase()}
-              </label>
-            )}
-          </div>
+        ))}
+        {showColor && (
+          <label className="ml-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
+            <Switch checked={byColor} onCheckedChange={setByColor} className="scale-75" />
+            Split by {fieldLabels.color.toLowerCase()}
+          </label>
         )}
       </div>
+        </div>
+      )}
 
       {/* Table card */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -1007,7 +1046,7 @@ export default function StockSummary() {
                               a.status === "cut" && "bg-amber-50/30",
                             )}
                           >
-                            <td className={cn(TD, "text-center text-xs text-slate-400")}>{(articlePage - 1) * ARTICLES_PER_PAGE + i + 1}</td>
+                            <td className={cn(TD, "text-center text-xs text-slate-400")}>{(articlePage - 1) * articlePageSize + i + 1}</td>
                             <td className={cn(TD, "text-xs text-slate-600 max-w-[180px]")}>
                               {sup === null ? (
                                 <Skeleton className="h-4 w-20" />
@@ -1110,7 +1149,15 @@ export default function StockSummary() {
                   )}
                 </table>
               </div>
-              <Pager page={articlePage} pageCount={articlePageCount} onPage={setArticlePage} label={`${qty(visibleArticles.length)} articles`} />
+              <Pager
+                page={articlePage}
+                pageCount={articlePageCount}
+                onPage={setArticlePage}
+                label={`${qty(visibleArticles.length)} articles`}
+                pageSize={articlePageSize}
+                pageSizes={ARTICLE_PAGE_SIZES}
+                onPageSize={setArticlePageSize}
+              />
             </>
           )
         ) : (
@@ -1138,28 +1185,27 @@ export default function StockSummary() {
                     <th className={cn(TH, "text-right")}>Pur Price</th>
                     <th className={cn(TH, "text-right")}>Stock Value</th>
                     <th className={cn(TH, "text-right")}>Sale Price</th>
-                    <th className={TH}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {variantsFetching && variantRows.length === 0 ? (
                     Array.from({ length: 10 }, (_, i) => (
                       <tr key={i}>
-                        <td colSpan={20} className="px-3 py-2">
+                        <td colSpan={19} className="px-3 py-2">
                           <Skeleton className="h-6 w-full" />
                         </td>
                       </tr>
                     ))
                   ) : variantRows.length === 0 ? (
                     <tr>
-                      <td colSpan={20} className="py-12 text-center text-slate-500">
+                      <td colSpan={19} className="py-12 text-center text-slate-500">
                         No stock matches these filters
                       </td>
                     </tr>
                   ) : (
                     variantRows.map((r, i) => (
                       <tr key={r.id} className="hover:bg-indigo-50/40">
-                        <td className={cn(TD, "text-center text-xs text-slate-400 border-b border-slate-100")}>{(variantPage - 1) * VARIANTS_PER_PAGE + i + 1}</td>
+                        <td className={cn(TD, "text-center text-xs text-slate-400 border-b border-slate-100")}>{(variantPage - 1) * variantPageSize + i + 1}</td>
                         <td className={cn(TD, "text-xs text-slate-600 border-b border-slate-100")}>{r.supplier_name || "—"}</td>
                         <td className={cn(TD, "font-mono text-xs border-b border-slate-100")}>{r.supplier_invoice_no || "—"}</td>
                         <td className={cn(TD, "font-bold text-slate-900 border-b border-slate-100")}>{r.product_name}</td>
@@ -1187,15 +1233,6 @@ export default function StockSummary() {
                           {r.pur_price ? `₹${(r.pur_price * r.stock_qty).toLocaleString("en-IN")}` : "-"}
                         </td>
                         <td className={cn(TD, "text-right border-b border-slate-100")}>₹{r.sale_price}</td>
-                        <td className={cn(TD, "border-b border-slate-100")}>
-                          {r.stock_qty <= 0 ? (
-                            <Badge variant="outline" className="h-5 border-rose-200 bg-rose-50 px-1.5 text-[10px] text-rose-700">Out</Badge>
-                          ) : r.stock_qty <= lowStockThreshold ? (
-                            <Badge variant="outline" className="h-5 border-amber-200 bg-amber-50 px-1.5 text-[10px] text-amber-800">Low</Badge>
-                          ) : (
-                            <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 px-1.5 text-[10px] text-emerald-700">In</Badge>
-                          )}
-                        </td>
                       </tr>
                     ))
                   )}
@@ -1218,7 +1255,6 @@ export default function StockSummary() {
                       <td className="px-3 py-2 text-right">—</td>
                       <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.stockValue)}</td>
                       <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.saleValue)}</td>
-                      <td className="px-3 py-2">—</td>
                     </tr>
                   </tfoot>
                 )}
@@ -1230,6 +1266,9 @@ export default function StockSummary() {
               onPage={setVariantPage}
               label={`${qty(variantTotal)} variants`}
               busy={variantsFetching}
+              pageSize={variantPageSize}
+              pageSizes={VARIANT_PAGE_SIZES}
+              onPageSize={setVariantPageSize}
             />
           </>
         )}
@@ -1238,25 +1277,62 @@ export default function StockSummary() {
   );
 }
 
+/** Page numbers around the current page, e.g. 1 … 4 5 [6] 7 8 … 120. */
+function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
+  const out: Array<number | "gap"> = [];
+  const from = Math.max(1, page - 2);
+  const to = Math.min(pageCount, page + 2);
+  if (from > 1) out.push(1);
+  if (from > 2) out.push("gap");
+  for (let p = from; p <= to; p++) out.push(p);
+  if (to < pageCount - 1) out.push("gap");
+  if (to < pageCount) out.push(pageCount);
+  return out;
+}
+
 function Pager({
   page,
   pageCount,
   onPage,
   label,
   busy,
+  pageSize,
+  pageSizes,
+  onPageSize,
 }: {
   page: number;
   pageCount: number;
   onPage: (p: number) => void;
   label: string;
   busy?: boolean;
+  pageSize: number;
+  pageSizes: readonly number[];
+  onPageSize: (n: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-1.5 shrink-0">
-      <span className="text-xs text-slate-500 tabular-nums inline-flex items-center gap-1.5">
-        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />}
-        {label}
-      </span>
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-1.5 shrink-0">
+      <div className="flex items-center gap-3 text-xs text-slate-500">
+        <span className="inline-flex items-center gap-1.5">
+          Show
+          <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
+            <SelectTrigger className="h-8 w-[76px] bg-white text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pageSizes.map((n) => (
+                <SelectItem key={n} value={String(n)}>
+                  {n}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          rows
+        </span>
+        <span className="tabular-nums inline-flex items-center gap-1.5">
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />}
+          {label}
+        </span>
+      </div>
       <div className="flex items-center gap-1">
         <Button variant="outline" size="sm" className="h-8 px-2" disabled={page <= 1} onClick={() => onPage(1)}>
           First
@@ -1264,9 +1340,23 @@ function Pager({
         <Button variant="outline" size="sm" className="h-8 px-2" disabled={page <= 1} onClick={() => onPage(page - 1)}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <span className="px-2 text-xs font-semibold text-slate-600 tabular-nums">
-          Page {page} of {pageCount}
-        </span>
+        {pageWindow(page, pageCount).map((p, i) =>
+          p === "gap" ? (
+            <span key={`gap-${i}`} className="px-1 text-xs text-slate-400">
+              …
+            </span>
+          ) : (
+            <Button
+              key={p}
+              variant={p === page ? "default" : "outline"}
+              size="sm"
+              className={cn("h-8 min-w-8 px-2 tabular-nums", p === page && "bg-indigo-600 hover:bg-indigo-700")}
+              onClick={() => onPage(p)}
+            >
+              {p}
+            </Button>
+          ),
+        )}
         <Button variant="outline" size="sm" className="h-8 px-2" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
           <ChevronRight className="h-4 w-4" />
         </Button>
