@@ -139,6 +139,12 @@ function formatDateForEInvoice(dateString: string): string {
 }
 
 // Helper function to extract state code from GSTIN (first 2 digits)
+/** First 6-digit run in an address as a PIN code (100000-999999), else null. */
+function extractPin(address: string | null | undefined): number | null {
+  const pin = parseInt((address || '').match(/\d{6}/)?.[0] || '', 10);
+  return pin >= 100000 && pin <= 999999 ? pin : null;
+}
+
 function getStateCodeFromGstin(gstin: string): string {
   if (!gstin || gstin.length < 2) return '29'; // Default to Karnataka
   return gstin.substring(0, 2);
@@ -354,6 +360,25 @@ Deno.serve(async (req) => {
       throw new Error('Buyer GSTIN is required for B2B e-Invoice generation');
     }
 
+    // The portal checks each PIN against its GST state. A made-up fallback PIN
+    // (it used to be 500001, Hyderabad) is rejected for every other state, so
+    // stop here with a message the shop can act on.
+    const sellerPin = extractPin(settingsData?.address as string);
+    const buyerPin = extractPin(sale.customer_address || sale.customers?.address);
+    if (!sellerPin || !buyerPin) {
+      const error = !sellerPin
+        ? 'Shop PIN code missing. Add the 6-digit PIN code to the address in Settings → Business Details'
+        : 'Customer PIN code missing. Add the 6-digit PIN code to this customer\'s address, then try again';
+      await supabase
+        .from('sales')
+        .update({ einvoice_status: 'failed', einvoice_error: error })
+        .eq('id', saleId);
+      return new Response(
+        JSON.stringify({ success: false, error, code: !sellerPin ? 'MISSING_SELLER_PIN' : 'MISSING_BUYER_PIN' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get public IP
     const ipAddress = await getPublicIP();
     console.log('Using IP address:', ipAddress);
@@ -488,8 +513,6 @@ Deno.serve(async (req) => {
       SellerDtls: (() => {
         const sellerAddr = (settingsData?.address as string || '').substring(0, 100);
         const safeSellerAddr = sellerAddr.length >= 3 ? sellerAddr : 'Address Line 1';
-        const sellerPin = parseInt((settingsData?.address as string || '').match(/\d{6}/)?.[0] || '000000');
-        const safeSellerPin = (sellerPin >= 100000 && sellerPin <= 999999) ? sellerPin : 500001;
         const rawSellerPhone = (settingsData?.mobile_number || '').replace(/\D/g, '');
         const sellerPhone = rawSellerPhone.length > 12 ? rawSellerPhone.slice(-10) : rawSellerPhone;
         const sellerLoc = ((settingsData?.address as string || '').split(',').pop()?.trim() || 'City').substring(0, 50);
@@ -500,7 +523,7 @@ Deno.serve(async (req) => {
           TrdNm: (settingsData?.business_name || orgData?.name || 'Business Name').substring(0, 100),
           Addr1: safeSellerAddr,
           Loc: safeSellerLoc,
-          Pin: safeSellerPin,
+          Pin: sellerPin,
           Stcd: sellerStateCode,
           ...(sellerPhone.length >= 6 ? { Ph: sellerPhone } : {}),
           ...(settingsData?.email_id ? { Em: settingsData.email_id } : {}),
@@ -509,8 +532,6 @@ Deno.serve(async (req) => {
       BuyerDtls: ((): any => {
         const buyerAddr = (sale.customer_address || sale.customers?.address || '').substring(0, 100);
         const safeAddr = buyerAddr.length >= 3 ? buyerAddr : 'Address Not Provided';
-        const buyerPin = parseInt((sale.customer_address || sale.customers?.address || '')?.match(/\d{6}/)?.[0] || '000000');
-        const safeBuyerPin = (buyerPin >= 100000 && buyerPin <= 999999) ? buyerPin : 500001;
         const rawBuyerPhone = (sale.customer_phone || sale.customers?.phone || '').replace(/\D/g, '');
         const buyerPhone = rawBuyerPhone.length > 12 ? rawBuyerPhone.slice(-10) : rawBuyerPhone;
         const safePhone = (buyerPhone.length >= 6 && buyerPhone.length <= 12) ? buyerPhone : undefined;
@@ -523,7 +544,7 @@ Deno.serve(async (req) => {
           Pos: buyerStateCode,
           Addr1: safeAddr,
           Loc: safeLoc,
-          Pin: safeBuyerPin,
+          Pin: buyerPin,
           Stcd: buyerStateCode,
           ...(safePhone ? { Ph: safePhone } : {}),
           ...(sale.customers?.email ? { Em: sale.customers.email } : {}),
