@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  FileDown,
   FileSpreadsheet,
   Filter,
   IndianRupee,
@@ -24,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type * as XLSXType from "xlsx";
+import type jsPDFType from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useOrgNavigation } from "@/hooks/useOrgNavigation";
@@ -54,10 +56,13 @@ import {
   type StockSummaryArticle,
   type StockSummaryVariant,
 } from "@/lib/stockSummaryArticles";
+import { buildStockSummaryPdf, type PdfCell, type PdfColumn, type PdfKpi } from "@/lib/stockSummaryPdf";
 
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
 let xlsxModulePromise: Promise<typeof XLSXType> | null = null;
 const loadXlsx = (): Promise<typeof XLSXType> => (xlsxModulePromise ??= import("xlsx"));
+let jsPdfPromise: Promise<typeof jsPDFType> | null = null;
+const loadJsPdf = (): Promise<typeof jsPDFType> => (jsPdfPromise ??= import("jspdf").then((m) => m.default));
 
 const VARIANT_PAGE_SIZES = [50, 100, 200, 500] as const;
 const ARTICLE_PAGE_SIZES = [25, 50, 100, 200] as const;
@@ -282,6 +287,7 @@ export default function StockSummary() {
   const [articleStatus, setArticleStatus] = useState<ArticleStatusFilter>("all");
   const [articleQuickFind, setArticleQuickFind] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   const { stockStatusFilter, threshold: lowStockThreshold } = stockQtyToRpc(stockQtyMode, stockQtyValue);
   const filterInput = useMemo((): StockReportRpcFilterInput | null => {
@@ -654,6 +660,161 @@ export default function StockSummary() {
     }
   };
 
+  const exportPdf = async () => {
+    if (!filterInput || !orgId) return;
+    setExportingPdf(true);
+    try {
+      const JsPdf = await loadJsPdf();
+      const stamp = format(new Date(), "yyyy-MM-dd");
+      const num = (n: number) => Math.round(n).toLocaleString("en-IN");
+      const kpis: PdfKpi[] = [
+        { label: hasFilters ? "Stock (filtered)" : "Total stock", value: num(totals?.totalStock ?? 0), fill: [37, 99, 235] },
+        { label: "Stock value (cost)", value: `Rs ${num(totals?.stockValue ?? 0)}`, fill: [234, 88, 12] },
+        { label: "Sale value", value: `Rs ${num(totals?.saleValue ?? 0)}`, fill: [5, 150, 105] },
+        { label: "Variants", value: num(totals?.variantCount ?? 0), fill: [139, 92, 246] },
+      ];
+      const base = {
+        orgName: currentOrganization?.name || "",
+        generatedAt: format(new Date(), "dd MMM yyyy, hh:mm a"),
+        filters: chips.map((c) => c.label),
+        kpis,
+      };
+      let doc;
+      if (view === "articles") {
+        const allSuppliers = await fetchSupplierRecord(orgId, visibleArticles.flatMap((a) => a.variantIds));
+        const columns: PdfColumn[] = [
+          { header: "#", weight: 3, align: "center", text: [100, 116, 139] },
+          { header: "Supplier", weight: 13 },
+          { header: "Product", weight: 12, bold: true },
+          ...(showBrand ? [{ header: fieldLabels.brand, weight: 8, bold: true }] : []),
+          ...(showCategory ? [{ header: fieldLabels.category, weight: 7 }] : []),
+          ...(showStyle ? [{ header: fieldLabels.style, weight: 7 }] : []),
+          ...(showColor ? [{ header: fieldLabels.color, weight: 10 }] : []),
+          { header: "Size-wise stock", weight: 32 },
+          { header: "Sizes", weight: 5, align: "center" },
+          { header: "Stock", weight: 6, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true },
+          { header: "Stock value", weight: 9, align: "right", text: [67, 56, 202] },
+          { header: "Sale value", weight: 9, align: "right" },
+          { header: "Status", weight: 7, bold: true },
+        ];
+        const statusBadge: Record<ArticleSizeStatus, PdfCell> = {
+          full: { badge: "Full set", fill: [209, 250, 229], text: [4, 120, 87] },
+          cut: { badge: "Cut size", fill: [254, 243, 199], text: [146, 64, 14] },
+          out: { badge: "Out", fill: [255, 228, 230], text: [190, 18, 60] },
+          single: { badge: "Single size", fill: [241, 245, 249], text: [71, 85, 105] },
+        };
+        const rows: PdfCell[][] = visibleArticles.map((a, i) => {
+          const names = [...new Set(a.variantIds.map((id) => allSuppliers[id]?.supplier_name).filter(Boolean))];
+          return [
+            i + 1,
+            names.join(", ") || "—",
+            a.productName,
+            ...(showBrand ? [a.brand || "—"] : []),
+            ...(showCategory ? [a.category || "—"] : []),
+            ...(showStyle ? [a.style || "—"] : []),
+            ...(showColor ? [{ color: a.colors.join(" / ") }] : []),
+            { sizes: a.sizes.map((s) => ({ size: s.size, qty: s.qty })) },
+            `${a.inStockSizes.length}/${a.sizes.length}`,
+            num(a.totalStock),
+            num(a.stockValue),
+            num(a.saleValue),
+            statusBadge[a.status],
+          ];
+        });
+        const lead = 3 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showStyle ? 1 : 0) + (showColor ? 1 : 0);
+        const totalRow: PdfCell[] = [
+          "", "", `TOTAL · ${num(visibleArticles.length)} ARTICLES`,
+          ...Array.from({ length: lead - 3 }, () => ""),
+          "", "",
+          num(articleTotals.stock), num(articleTotals.stockValue), num(articleTotals.saleValue), "",
+        ];
+        doc = buildStockSummaryPdf(JsPdf, { ...base, title: "Stock Summary · Article & cut size", columns, rows, totalRow });
+        doc.save(`Stock_Summary_Articles_${stamp}.pdf`);
+      } else {
+        const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
+        const suppliers = await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id));
+        const columns: PdfColumn[] = [
+          { header: "Sr", weight: 3, align: "center", text: [100, 116, 139] },
+          { header: "Supplier", weight: 11 },
+          { header: "Invoice", weight: 8 },
+          { header: "Product", weight: 9, bold: true },
+          ...(showBrand ? [{ header: fieldLabels.brand, weight: 6, bold: true }] : []),
+          ...(showCategory ? [{ header: fieldLabels.category, weight: 5 }] : []),
+          { header: "Size", weight: 4, bold: true },
+          ...(showColor ? [{ header: fieldLabels.color, weight: 8 }] : []),
+          ...(showStyle ? [{ header: fieldLabels.style, weight: 5 }] : []),
+          { header: "Barcode", weight: 8, bold: true },
+          { header: "Opening", weight: 4.5, align: "right", head: [30, 58, 138], tint: [239, 246, 255] },
+          { header: "Purchase", weight: 4.5, align: "right", head: [20, 83, 45], tint: [240, 253, 244], text: [21, 128, 61] },
+          { header: "Pur Ret", weight: 4.5, align: "right", head: [124, 45, 18], tint: [255, 247, 237], text: [194, 65, 12] },
+          { header: "Sales", weight: 4.5, align: "right", head: [127, 29, 29], tint: [254, 242, 242], text: [185, 28, 28] },
+          { header: "Sale Ret", weight: 4.5, align: "right", head: [6, 78, 59], tint: [236, 253, 245], text: [4, 120, 87] },
+          { header: "Stock", weight: 4.5, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true },
+          { header: "Pur Price", weight: 5, align: "right" },
+          { header: "Stock Value", weight: 6.5, align: "right", text: [67, 56, 202] },
+          { header: "Sale Price", weight: 5, align: "right" },
+        ];
+        const t = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0 };
+        const rows: PdfCell[][] = rpcRows.map((r, i) => {
+          const v = toVariant(r);
+          const value = (v.pur_price || 0) * v.stock_qty;
+          t.opening += v.opening_qty;
+          t.purchase += v.purchase_qty;
+          t.purReturn += v.purchase_return_qty;
+          t.sales += v.sales_qty;
+          t.saleReturn += v.sale_return_qty;
+          t.stock += v.stock_qty;
+          t.stockValue += value;
+          return [
+            i + 1,
+            suppliers[v.id]?.supplier_name || "—",
+            suppliers[v.id]?.supplier_invoice_no || "—",
+            v.product_name,
+            ...(showBrand ? [v.brand || "—"] : []),
+            ...(showCategory ? [v.category || "—"] : []),
+            v.size || "—",
+            ...(showColor ? [{ color: v.color }] : []),
+            ...(showStyle ? [v.style || "—"] : []),
+            v.barcode,
+            v.opening_qty,
+            `+${v.purchase_qty}`,
+            v.purchase_return_qty > 0 ? `-${v.purchase_return_qty}` : "0",
+            v.sales_qty > 0 ? `-${v.sales_qty}` : "0",
+            v.sale_return_qty > 0 ? `+${v.sale_return_qty}` : "0",
+            v.stock_qty,
+            v.pur_price ? num(v.pur_price) : "-",
+            v.pur_price ? num(value) : "-",
+            num(v.sale_price),
+          ];
+        });
+        const lead = 6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0) + (showStyle ? 1 : 0);
+        const totalRow: PdfCell[] = [
+          "", "", "", `TOTAL · ${num(rpcRows.length)}`,
+          ...Array.from({ length: lead - 4 }, () => ""),
+          num(t.opening), `+${num(t.purchase)}`, `-${num(t.purReturn)}`, `-${num(t.sales)}`, `+${num(t.saleReturn)}`,
+          num(t.stock), "", num(t.stockValue), "",
+        ];
+        const capped = Number(rpcRows[0]?.total_rows ?? 0) > rpcRows.length;
+        doc = buildStockSummaryPdf(JsPdf, {
+          ...base,
+          title: "Stock Summary · Variant list",
+          columns,
+          rows,
+          totalRow,
+          note: capped ? `First ${num(rpcRows.length)} variants, narrow the filters for the rest` : undefined,
+        });
+        doc.save(`Stock_Summary_${stamp}.pdf`);
+        if (capped) {
+          toast.warning(`PDF has the first ${qty(rpcRows.length)} variants`, { description: "Narrow the filters to export the rest." });
+        }
+      }
+    } catch (err: unknown) {
+      toast.error("PDF export failed", { description: err instanceof Error ? err.message : "Try again." });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
   const printView = () => {
     const w = window.open("", "_blank");
     if (!w) return;
@@ -729,6 +890,15 @@ export default function StockSummary() {
             {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
             Excel
           </Button>
+          <Button
+            size="sm"
+            className="h-9 gap-1.5 bg-gradient-to-r from-rose-600 to-fuchsia-600 text-white hover:from-rose-700 hover:to-fuchsia-700"
+            onClick={() => void exportPdf()}
+            disabled={exportingPdf || !orgId || (view === "articles" && catalogTooBig)}
+          >
+            {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+            PDF
+          </Button>
           <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={printView}>
             <Printer className="h-4 w-4" />
             Print
@@ -775,7 +945,7 @@ export default function StockSummary() {
       {/* Filters */}
       <div className="rounded-xl border border-slate-200 bg-white/90 p-2.5 shadow-sm shrink-0 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-[340px] lg:w-[380px] shrink-0">
+          <div className="relative w-full sm:w-[280px] xl:w-[320px] shrink-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input
               value={searchDraft}
@@ -822,7 +992,34 @@ export default function StockSummary() {
                 Article & cut size
               </button>
             </div>
+            {!(view === "articles" && catalogTooBig) && (
+              <RowsControl
+                pageSize={view === "variants" ? variantPageSize : articlePageSize}
+                pageSizes={view === "variants" ? VARIANT_PAGE_SIZES : ARTICLE_PAGE_SIZES}
+                onPageSize={view === "variants" ? setVariantPageSize : setArticlePageSize}
+                page={view === "variants" ? variantPage : articlePage}
+                pageCount={view === "variants" ? variantPageCount : articlePageCount}
+                label={view === "variants" ? `${qty(variantTotal)} variants` : `${qty(visibleArticles.length)} articles`}
+                busy={view === "variants" ? variantsFetching : articlesFetching}
+              />
+            )}
           </div>
+          {chips.length > 0 && (
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-slate-400" />
+              {chips.map((c) => (
+                <button
+                  key={c.label}
+                  type="button"
+                  onClick={c.clear}
+                  className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800 hover:bg-indigo-100"
+                >
+                  {c.label}
+                  <X className="h-3 w-3" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10">
           {filterField(
@@ -901,22 +1098,6 @@ export default function StockSummary() {
             </div>,
           )}
         </div>
-        {chips.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Filter className="h-3.5 w-3.5 text-slate-400" />
-            {chips.map((c) => (
-              <button
-                key={c.label}
-                type="button"
-                onClick={c.clear}
-                className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-800 hover:bg-indigo-100"
-              >
-                {c.label}
-                <X className="h-3 w-3" />
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Article view tools */}
@@ -1153,10 +1334,6 @@ export default function StockSummary() {
                 page={articlePage}
                 pageCount={articlePageCount}
                 onPage={setArticlePage}
-                label={`${qty(visibleArticles.length)} articles`}
-                pageSize={articlePageSize}
-                pageSizes={ARTICLE_PAGE_SIZES}
-                onPageSize={setArticlePageSize}
               />
             </>
           )
@@ -1264,11 +1441,6 @@ export default function StockSummary() {
               page={variantPage}
               pageCount={variantPageCount}
               onPage={setVariantPage}
-              label={`${qty(variantTotal)} variants`}
-              busy={variantsFetching}
-              pageSize={variantPageSize}
-              pageSizes={VARIANT_PAGE_SIZES}
-              onPageSize={setVariantPageSize}
             />
           </>
         )}
@@ -1290,49 +1462,65 @@ function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
   return out;
 }
 
+/** Rows-per-page selector and count, shown on the search row next to the view toggle. */
+function RowsControl({
+  pageSize,
+  pageSizes,
+  onPageSize,
+  page,
+  pageCount,
+  label,
+  busy,
+}: {
+  pageSize: number;
+  pageSizes: readonly number[];
+  onPageSize: (n: number) => void;
+  page: number;
+  pageCount: number;
+  label: string;
+  busy?: boolean;
+}) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-2 py-0.5 text-xs text-slate-600">
+      <span className="inline-flex items-center gap-1.5">
+        Show
+        <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
+          <SelectTrigger className="h-7 w-[70px] bg-white text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {pageSizes.map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        rows
+      </span>
+      <span className="h-4 w-px bg-slate-200" />
+      <span className="tabular-nums inline-flex items-center gap-1.5 font-semibold text-slate-700">
+        {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />}
+        {label}
+      </span>
+      <span className="tabular-nums text-slate-400">
+        Page {page}/{pageCount}
+      </span>
+    </div>
+  );
+}
+
 function Pager({
   page,
   pageCount,
   onPage,
-  label,
-  busy,
-  pageSize,
-  pageSizes,
-  onPageSize,
 }: {
   page: number;
   pageCount: number;
   onPage: (p: number) => void;
-  label: string;
-  busy?: boolean;
-  pageSize: number;
-  pageSizes: readonly number[];
-  onPageSize: (n: number) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-1.5 shrink-0">
-      <div className="flex items-center gap-3 text-xs text-slate-500">
-        <span className="inline-flex items-center gap-1.5">
-          Show
-          <Select value={String(pageSize)} onValueChange={(v) => onPageSize(Number(v))}>
-            <SelectTrigger className="h-8 w-[76px] bg-white text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizes.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          rows
-        </span>
-        <span className="tabular-nums inline-flex items-center gap-1.5">
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />}
-          {label}
-        </span>
-      </div>
+    <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-1 shrink-0">
       <div className="flex items-center gap-1">
         <Button variant="outline" size="sm" className="h-8 px-2" disabled={page <= 1} onClick={() => onPage(1)}>
           First
