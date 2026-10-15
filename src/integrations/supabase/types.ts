@@ -6928,6 +6928,7 @@ export type Database = {
           payment_status: string
           payment_term: string | null
           points_redeemed_amount: number | null
+          print_firm: string | null
           refund_amount: number | null
           round_off: number
           sale_date: string
@@ -6995,6 +6996,7 @@ export type Database = {
           payment_status?: string
           payment_term?: string | null
           points_redeemed_amount?: number | null
+          print_firm?: string | null
           refund_amount?: number | null
           round_off?: number
           sale_date?: string
@@ -7062,6 +7064,7 @@ export type Database = {
           payment_status?: string
           payment_term?: string | null
           points_redeemed_amount?: number | null
+          print_firm?: string | null
           refund_amount?: number | null
           round_off?: number
           sale_date?: string
@@ -10278,6 +10281,10 @@ export type Database = {
       _school_fee_map_payment_method: {
         Args: { p_raw: string }
         Returns: string
+      }
+      _stock_movement_is_reversed_purchase_line: {
+        Args: { p_reference_id: string; p_variant_id: string }
+        Returns: boolean
       }
       _supplier_invoice_serial_parts: {
         Args: { inv: string }
