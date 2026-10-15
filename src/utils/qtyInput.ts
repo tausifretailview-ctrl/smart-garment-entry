@@ -14,8 +14,12 @@ export type QtyUnit =
   | undefined
   | { uom?: string | null; productType?: string | null; quantity?: number | null };
 
+function uomOf(unit: QtyUnit): string | null | undefined {
+  return typeof unit === "object" && unit !== null ? unit.uom : (unit as string | null | undefined);
+}
+
 export function allowsDecimalQty(unit: QtyUnit): boolean {
-  if (unit == null || typeof unit === "string") return isDecimalUOM(unit);
+  if (typeof unit !== "object" || unit === null) return isDecimalUOM(uomOf(unit));
   if (isDecimalUOM(unit.uom)) return true;
   if (unit.productType === "service") return true;
   // A line already holding a fraction (e.g. a saved 0.5 service line loaded
@@ -34,8 +38,7 @@ export function qtyStepForUom(unit: QtyUnit): number {
 
 /** Step for +/− buttons: KG/MTR-type UOMs move by 0.001; service lines still move by 1. */
 function buttonStepFor(unit: QtyUnit): number {
-  const uom = unit == null || typeof unit === "string" ? unit : unit.uom;
-  return isDecimalUOM(uom) ? 0.001 : 1;
+  return isDecimalUOM(uomOf(unit)) ? 0.001 : 1;
 }
 
 export function formatQtyForDisplay(qty: number, unit?: QtyUnit): string {
