@@ -9,6 +9,7 @@ import {
   isSilentReloadSafe,
   startSilentUpdateWhenSafe,
 } from "./appReload";
+import { registerUnsavedWorkSource, resetUnsavedWorkSourcesForTests } from "./unsavedWorkGuard";
 
 vi.mock("@/lib/electronShell", () => ({
   isElectronShell: () => false,
@@ -116,6 +117,32 @@ describe("startSilentUpdateWhenSafe", () => {
     await vi.advanceTimersByTimeAsync(1_500);
     expect(onFallbackBanner).toHaveBeenCalledTimes(1);
     expect(window.location.reload).not.toHaveBeenCalled();
+  });
+
+  it("does not silent-reload a hidden tab while Purchase Entry has unsaved lines", async () => {
+    const onFallbackBanner = vi.fn();
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    let unsaved = true;
+    const unregister = registerUnsavedWorkSource("draft:purchase", () => unsaved);
+
+    startSilentUpdateWhenSafe({
+      getOrganizationId: () => null,
+      onFallbackBanner,
+      bannerFallbackMs: 120_000,
+      pollMs: 10_000,
+    });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(window.location.reload).not.toHaveBeenCalled();
+
+    // Bill saved — next poll may reload.
+    unsaved = false;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(window.location.reload).toHaveBeenCalled();
+    unregister();
+    resetUnsavedWorkSourcesForTests();
   });
 
   it("reloads when tab becomes hidden with empty cart", async () => {

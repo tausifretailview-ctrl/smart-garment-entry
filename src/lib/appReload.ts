@@ -1,5 +1,6 @@
 import { isElectronShell } from "@/lib/electronShell";
 import { readPosCartSnapshot } from "@/lib/posCartPersistence";
+import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
 
 type ElectronReloadApi = {
   isElectron?: boolean;
@@ -42,14 +43,21 @@ export function hasAnyPosCartItemsInSession(): boolean {
   return false;
 }
 
-/** Warn before reload when an unsaved POS bill may be open. */
+/** Warn before reload when an unsaved POS bill or entry screen (purchase, invoice, order) is open. */
 export function confirmReloadIfPosCartBusy(orgId?: string | null): boolean {
   const hasCart =
     (orgId && readPosCartSnapshot(orgId)) || hasAnyPosCartItemsInSession();
-  if (!hasCart) return true;
-  return window.confirm(
-    "You have an unsaved bill — reload anyway? Your cart is saved in this browser session and should restore after reload.",
-  );
+  if (hasCart) {
+    return window.confirm(
+      "You have an unsaved bill — reload anyway? Your cart is saved in this browser session and should restore after reload.",
+    );
+  }
+  if (hasUnsavedEntryWork()) {
+    return window.confirm(
+      "You have an unsaved bill on an entry screen — reload anyway? Its draft is kept in this browser; open the same screen again to resume it.",
+    );
+  }
+  return true;
 }
 
 /** True when POS cart session data would be disrupted by a reload. */
@@ -69,7 +77,11 @@ export function isBlockingUiOverlayOpen(): boolean {
 }
 
 export function isSilentReloadSafe(organizationId?: string | null): boolean {
-  return !isSilentReloadCartBusy(organizationId) && !isBlockingUiOverlayOpen();
+  return (
+    !isSilentReloadCartBusy(organizationId) &&
+    !hasUnsavedEntryWork() &&
+    !isBlockingUiOverlayOpen()
+  );
 }
 
 async function clearServiceWorkerAndCaches(): Promise<void> {
@@ -152,7 +164,8 @@ let silentReloadInFlight = false;
  * Does not show UI — callers show the existing banner only via onFallbackBanner
  * after {@link SILENT_UPDATE_BANNER_FALLBACK_MS}.
  *
- * Safe moment = no POS cart + no open dialog/sheet, and the tab is hidden
+ * Safe moment = no POS cart + no unsaved entry screen (purchase, invoice, order…)
+ * + no open dialog/sheet, and the tab is hidden
  * (minimize / switch app). A visible idle dashboard must stay put — shops
  * were losing the current page to auto-refresh after every deploy.
  *

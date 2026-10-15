@@ -7,6 +7,7 @@ import {
 } from "react";
 import { lazyWithRetry } from "@/lib/chunkLoadRetry";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
 import { claimNewerBuildReload, newerServerEntryScript } from "@/lib/appBuildCheck";
 import { FormPageSkeleton } from "@/components/skeletons/FormPageSkeleton";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,8 @@ function SettingsPanelLoading() {
     if (!slow) return;
     let cancelled = false;
     void newerServerEntryScript().then((serverEntry) => {
-      if (!cancelled && serverEntry && claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
+      if (cancelled || !serverEntry || hasUnsavedEntryWork()) return;
+      if (claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
     });
     return () => {
       cancelled = true;
