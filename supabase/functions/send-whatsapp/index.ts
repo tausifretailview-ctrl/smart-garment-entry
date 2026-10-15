@@ -6,7 +6,7 @@ import {
   parseWhatsAppProviderError,
 } from "../_shared/whatsappAuth.ts";
 import { normalizeWhatsAppApiBaseUrl, normalizeWhatsAppApiVersion } from "../_shared/whatsappUrl.ts";
-import { buildPublicInvoiceViewUrl } from "../_shared/publicInvoiceLink.ts";
+import { buildPublicInvoiceViewUrl, WHATSAPP_FALLBACK_HEADER_IMAGE_URL } from "../_shared/publicInvoiceLink.ts";
 import { formatPhoneNumber } from "../_shared/whatsappPhone.ts";
 import { getGatewayConfig, sendViaBuiltinGateway } from "../_shared/builtinGatewaySend.ts";
 import { isBspSendAccepted } from "../_shared/whatsappStatusWebhook.ts";
@@ -1601,30 +1601,34 @@ serve(async (req) => {
         const headerFormat = String(tplHeader?.format ?? '').toUpperCase();
         // invoice_shop_details is text-only. Do not put the shop logo in its header.
         if (headerFormat === 'IMAGE' && !invoiceTemplateOmitsShopLogo(cleanedTemplateName)) {
+          let shopLogoUrl: string | undefined;
           try {
             const { data: logoSettings } = await supabase
               .from('settings')
               .select('bill_barcode_settings')
               .eq('organization_id', organizationId)
               .maybeSingle();
-            const headerLogoUrl = (logoSettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url;
-            if (headerLogoUrl) {
-              components.push({
-                type: 'header',
-                parameters: [
-                  { type: 'image', image: { link: headerLogoUrl } },
-                ],
-              });
-              // Avoid sending the logo again as a separate image message
-              headerLogoEmbedded = true;
-              finalImageUrl = undefined;
-              finalImageCaption = undefined;
-              console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
-            } else {
-              console.warn('Template has IMAGE header but no org logo_url found in settings.bill_barcode_settings');
-            }
+            shopLogoUrl = (logoSettings?.bill_barcode_settings as Record<string, any> | null)?.logo_url || undefined;
           } catch (logoErr) {
             console.error('Failed to fetch org logo for IMAGE header:', logoErr);
+          }
+          // Meta rejects an IMAGE-header template sent without a header image
+          // (error 132012), so a shop with no logo gets a neutral image instead.
+          const headerLogoUrl = shopLogoUrl || WHATSAPP_FALLBACK_HEADER_IMAGE_URL;
+          components.push({
+            type: 'header',
+            parameters: [
+              { type: 'image', image: { link: headerLogoUrl } },
+            ],
+          });
+          // Avoid sending the logo again as a separate image message
+          headerLogoEmbedded = true;
+          finalImageUrl = undefined;
+          finalImageCaption = undefined;
+          if (shopLogoUrl) {
+            console.log('Embedded org logo into IMAGE header:', headerLogoUrl);
+          } else {
+            console.warn('Template has IMAGE header but no org logo_url; using fallback header image');
           }
         }
 

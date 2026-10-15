@@ -30,6 +30,9 @@ export function resolvePublicInvoicePaperFormat(
   );
 }
 
+/** Header image for IMAGE-header WhatsApp templates when the shop has no logo. */
+export const WHATSAPP_FALLBACK_HEADER_IMAGE_URL = "https://app.inventoryshop.in/icon-512.png";
+
 export function buildPublicInvoiceViewUrl(input: BuildPublicInvoiceViewUrlInput): string {
   const orgSlug = String(input.orgSlug || "").trim();
   const saleId = String(input.saleId || "").trim();
