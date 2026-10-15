@@ -1,14 +1,30 @@
+# Ezzy ERP WhatsApp server. One command on a small Linux VPS:
+#   cp .env.example .env   (fill it in)   then   docker compose up -d --build
+# Caddy gets a free HTTPS certificate for WA_DOMAIN automatically.
 services:
   wa-gateway:
     build: .
     restart: unless-stopped
-    ports:
-      - "8787:8787"
     environment:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY:?set a long random key}
-      APP_EVENT_URL: ${APP_EVENT_URL:?https://<project>.supabase.co/functions/v1/whatsapp-gateway-proxy}
+      APP_EVENT_URL: ${SUPABASE_FUNCTIONS_URL:?https://<project>.supabase.co/functions/v1}/whatsapp-gateway-proxy
+      APP_INBOUND_URL: ${SUPABASE_FUNCTIONS_URL}/whatsapp-webhook
       MAX_MSGS_PER_DAY: ${MAX_MSGS_PER_DAY:-300}
     volumes:
       - wa-data:/data
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command: caddy reverse-proxy --from ${WA_DOMAIN:?e.g. wa.yourdomain.com} --to wa-gateway:8787
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - wa-gateway
+
 volumes:
   wa-data:
+  caddy-data:

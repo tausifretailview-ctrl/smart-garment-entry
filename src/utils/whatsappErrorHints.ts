@@ -50,6 +50,33 @@ export function getWhatsAppErrorHint(
     (raw.includes("24 hours") && isMetaWhatsAppProviderResponse(providerResponse)) ||
     (raw.includes("24-hour") && isMetaWhatsAppProviderResponse(providerResponse));
 
+  // Ezzy ERP WhatsApp (own gateway) — never show Meta 24h / template hints
+  if (provider === "builtin") {
+    if (raw.includes("not connected") || raw.includes("scan the qr")) {
+      return {
+        title: "Ezzy ERP WhatsApp not linked",
+        reason: "The shop's WhatsApp number is not linked to the Ezzy ERP WhatsApp server right now.",
+        action:
+          "Settings → WhatsApp API → Connect WhatsApp → scan the QR from the shop phone (WhatsApp → Linked devices). Then retry.",
+      };
+    }
+    if (raw.includes("daily send limit")) {
+      return {
+        title: "Daily limit reached",
+        reason: "This shop sent its daily maximum. The limit protects the number from a WhatsApp ban.",
+        action: "Sending resumes tomorrow. Raise MAX_MSGS_PER_DAY on the server only if you must.",
+      };
+    }
+    if (raw.includes("not configured") || raw.includes("not set up") || raw.includes("not reachable")) {
+      return {
+        title: "Ezzy ERP WhatsApp server offline",
+        reason: "The send could not reach the Ezzy ERP WhatsApp server.",
+        action: "Check the server is running and the WA_GATEWAY_URL / WA_GATEWAY_KEY secrets are set in Supabase.",
+      };
+    }
+    return null;
+  }
+
   // WappConnect path — never show Meta 24h / template hints
   if (provider === "wappconnect") {
     const endpoint = String((providerResponse as Record<string, unknown> | undefined)?.endpoint ?? "");

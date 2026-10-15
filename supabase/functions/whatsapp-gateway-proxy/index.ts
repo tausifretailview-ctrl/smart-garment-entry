@@ -17,7 +17,7 @@ const json = (body: unknown, status = 200) =>
 const VALID_STATUS = new Set(["connected", "connecting", "qr", "disconnected", "logged_out"]);
 
 /**
- * Browser -> gateway control plane for "Our WhatsApp" (start/QR, status, logout), authorized
+ * Browser -> gateway control plane for "Ezzy ERP WhatsApp" (start/QR, status, logout), authorized
  * per org (admin/manager). The gateway posts connection events back with x-api-key.
  */
 serve(async (req) => {
@@ -36,6 +36,19 @@ serve(async (req) => {
     return json({ error: "Invalid JSON" }, 400);
   }
   const action = String(body.action ?? "");
+
+  // Settings page: show "Ezzy ERP WhatsApp" only when the gateway server is set up and answering.
+  if (action === "config") {
+    const cfg = getGatewayConfig();
+    if (!cfg) return json({ configured: false, reachable: false });
+    try {
+      const res = await fetch(`${cfg.url}/health`, { signal: AbortSignal.timeout(4000) });
+      return json({ configured: true, reachable: res.ok });
+    } catch {
+      return json({ configured: true, reachable: false });
+    }
+  }
+
   const organizationId = String(body.organizationId ?? "").trim();
   if (!organizationId) return json({ error: "organizationId is required" }, 400);
 

@@ -1,23 +1,34 @@
-# wa-gateway
+# wa-gateway (Ezzy ERP WhatsApp)
 
-Self-hosted multi-tenant WhatsApp gateway (Baileys) behind EzzyERP's **"Our WhatsApp"** send option.
-One QR-linked session per organization; auth state persists in `/data` (Docker volume).
+Self-hosted multi-tenant WhatsApp gateway (Baileys) behind the **Ezzy ERP WhatsApp** send option
+(`whatsapp_api_settings.send_provider = 'builtin'`). Each shop links its own number by scanning a QR
+in Settings → WhatsApp API. One session per organization; login state persists in `/data`.
 
-## Run
-```bash
-export GATEWAY_API_KEY=$(openssl rand -hex 32)
-export APP_EVENT_URL=https://<project>.supabase.co/functions/v1/whatsapp-gateway-proxy
-docker compose up -d --build
-```
-Put it behind HTTPS (Caddy/nginx). Then set Supabase edge function secrets and redeploy:
-```bash
-supabase secrets set WA_GATEWAY_URL=https://wa.example.com WA_GATEWAY_KEY=<GATEWAY_API_KEY>
-supabase functions deploy send-whatsapp whatsapp-gateway-proxy
-```
+Supabase edge functions cannot hold a WhatsApp session open, so this runs on its own server
+(any small Linux VPS with Docker, 1 GB RAM is enough for dozens of shops).
+
+## Setup
+1. Point a domain at the server (DNS A record), e.g. `wa.yourdomain.com`.
+2. On the server:
+   ```bash
+   git clone <this repo> && cd smart-garment-entry/wa-gateway
+   cp .env.example .env      # fill in WA_DOMAIN, GATEWAY_API_KEY (openssl rand -hex 32), SUPABASE_FUNCTIONS_URL
+   docker compose up -d --build
+   curl https://wa.yourdomain.com/health   # → {"ok":true}
+   ```
+3. Supabase → Edge Functions → Secrets: `WA_GATEWAY_URL=https://wa.yourdomain.com`,
+   `WA_GATEWAY_KEY=<same GATEWAY_API_KEY>`.
+4. Deploy edge functions `whatsapp-gateway-proxy`, `send-whatsapp`, `whatsapp-webhook`, and run
+   migration `20261001120000_whatsapp_builtin_send_provider.sql` if not applied yet.
+5. In the app: Settings → WhatsApp API → Send provider → **Ezzy ERP WhatsApp** (it appears once the
+   server answers) → Connect WhatsApp → scan → turn integration on → Save Settings → Send test.
+
+Update later: `git pull && docker compose up -d --build`. Linked shops reconnect on their own.
 
 ## API (header `x-api-key`)
 | Method | Path | Body |
 |---|---|---|
+| GET | `/health` | – (no key) |
 | POST | `/sessions/:orgId/start` | – (returns `qr` data URL) |
 | GET | `/sessions/:orgId/status` | – |
 | DELETE | `/sessions/:orgId` | – (logout) |
@@ -25,5 +36,11 @@ supabase functions deploy send-whatsapp whatsapp-gateway-proxy
 | POST | `/sessions/:orgId/send-file` | `{phone, fileUrl, filename, caption}` |
 | POST | `/sessions/:orgId/check-number` | `{phone}` → `{exists}` |
 
-Ban protection: sends are serialized per org with a 2–5 s random gap and a daily cap (`MAX_MSGS_PER_DAY`, default 300).
-Run a single replica (sessions live in memory). Uses the unofficial WhatsApp Web protocol; Meta may restrict numbers.
+Outgoing calls: connection changes → `APP_EVENT_URL` (whatsapp-gateway-proxy, `gateway-event`);
+customer text replies → `APP_INBOUND_URL` (whatsapp-webhook, `ezzy-gateway-inbound`, drives the
+OK → star review reply). Both carry the same `x-api-key`.
+
+Ban protection: sends are serialized per org with a 2–5 s random gap and a daily cap
+(`MAX_MSGS_PER_DAY`, default 300). An unscanned QR stops after WhatsApp's QR timeout instead of
+looping. Run a single replica (sessions live in memory). This uses the unofficial WhatsApp Web
+protocol, like WappConnect; WhatsApp may restrict or ban numbers that send bulk or spam.

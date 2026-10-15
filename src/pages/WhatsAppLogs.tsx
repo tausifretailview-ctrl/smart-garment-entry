@@ -64,6 +64,9 @@ const getProviderBadge = (provider?: string | null) => {
   if (provider === 'wappconnect') {
     return <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">WappConnect</Badge>;
   }
+  if (provider === 'builtin') {
+    return <Badge variant="outline" className="bg-emerald-50 text-emerald-800 border-emerald-300">Ezzy ERP WhatsApp</Badge>;
+  }
   if (provider === 'existing') {
     return <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-300">Meta/BSP</Badge>;
   }
@@ -127,6 +130,7 @@ const WhatsAppLogs = () => {
     if (providerFilter !== 'all') {
       const logProvider = log.provider || 'existing';
       if (providerFilter === 'wappconnect' && logProvider !== 'wappconnect') return false;
+      if (providerFilter === 'builtin' && logProvider !== 'builtin') return false;
       if (providerFilter === 'existing' && logProvider !== 'existing') return false;
     }
     if (!searchQuery) return true;
@@ -358,6 +362,7 @@ const WhatsAppLogs = () => {
                 <SelectContent>
                   <SelectItem value="all">All Providers</SelectItem>
                   <SelectItem value="wappconnect">WappConnect</SelectItem>
+                  <SelectItem value="builtin">Ezzy ERP WhatsApp</SelectItem>
                   <SelectItem value="existing">Meta/BSP</SelectItem>
                 </SelectContent>
               </Select>

@@ -58,7 +58,7 @@ export function getWappConnectProviderError(providerResponse?: unknown): string 
 
 /** Use provider_response to correct legacy rows; timestamps override stale status (WappConnect webhooks). */
 export function getEffectiveWhatsAppLogStatus(log: WhatsAppLogLike): string {
-  if (log.provider === "wappconnect") {
+  if (log.provider === "wappconnect" || log.provider === "builtin") {
     const providerError = getWappConnectProviderError(log.provider_response);
     if (providerError || log.error_message) {
       return "failed";
