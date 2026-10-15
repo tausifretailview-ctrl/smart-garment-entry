@@ -14,3 +14,15 @@ describe("Index profit cards", () => {
     expect(src).not.toMatch(/displayedDashStats\?\.gross_profit/);
   });
 });
+
+describe("Index hide figures toggle", () => {
+  it("defaults to shown, remembers the choice per device and masks cards + charts", () => {
+    const src = readFileSync(join(here, "Index.tsx"), "utf8");
+    expect(src).toContain('localStorage.getItem(DASHBOARD_HIDE_FIGURES_KEY) === "1"');
+    expect(src).toContain("DashboardFiguresHiddenContext.Provider value={figuresHidden}");
+    expect(src).toMatch(/figuresHidden && "pointer-events-none select-none blur-md"/);
+    const card = readFileSync(join(here, "../components/dashboard/DashboardMetricCard.tsx"), "utf8");
+    expect(card).toContain("useContext(DashboardFiguresHiddenContext)");
+    expect(card).toContain("HIDDEN_FIGURE_MASK");
+  });
+});

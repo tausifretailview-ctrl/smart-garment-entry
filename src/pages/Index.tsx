@@ -50,13 +50,19 @@ import {
   Percent,
   Building2,
   Archive,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { StatsChartsSection } from "@/components/dashboard/StatsChartsSection";
-import { DashboardMetricCard as AnimatedMetricCard } from "@/components/dashboard/DashboardMetricCard";
+import {
+  DashboardMetricCard as AnimatedMetricCard,
+  DashboardFiguresHiddenContext,
+  HIDDEN_FIGURE_MASK,
+} from "@/components/dashboard/DashboardMetricCard";
 import { useSlowMovingStock } from "@/hooks/useBusinessInsights";
 import {
   DASHBOARD_SLOW_MOVING_IDLE_DAYS,
@@ -166,6 +172,17 @@ const getDateRange = (type: DateRangeType, referenceDate?: Date) => {
   }
 };
 
+/** Per-device "Hide figures" choice for the main dashboard (default: shown). */
+const DASHBOARD_HIDE_FIGURES_KEY = "ezzy.dashboard.hideFigures";
+
+function readDashboardFiguresHidden(): boolean {
+  try {
+    return localStorage.getItem(DASHBOARD_HIDE_FIGURES_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 const DesktopDashboard = () => {
   const { currentOrganization, organizationRole } = useOrganization();
   const { orgNavigate: navigate } = useOrgNavigation();
@@ -206,6 +223,19 @@ const DesktopDashboard = () => {
   const [cacheTick, setCacheTick] = useState(0);
   const queryClient = useQueryClient();
   const [showSizeStock, setShowSizeStock] = useState(false);
+  const [figuresHidden, setFiguresHidden] = useState(readDashboardFiguresHidden);
+  const toggleFiguresHidden = () => {
+    setFiguresHidden((prev) => {
+      const next = !prev;
+      try {
+        if (next) localStorage.setItem(DASHBOARD_HIDE_FIGURES_KEY, "1");
+        else localStorage.removeItem(DASHBOARD_HIDE_FIGURES_KEY);
+      } catch {
+        /* storage blocked — choice lasts for this session only */
+      }
+      return next;
+    });
+  };
   
   // Context menu for desktop right-click
   const isDesktop = useIsDesktop();
@@ -827,6 +857,7 @@ const DesktopDashboard = () => {
 
   return (
     <>
+    <DashboardFiguresHiddenContext.Provider value={figuresHidden}>
     <TooltipProvider>
     <div 
       className="dashboard-workspace flex w-full min-h-0 flex-1 flex-col bg-slate-50 px-2 pb-2 pt-0 sm:px-3"
@@ -895,6 +926,21 @@ const DesktopDashboard = () => {
           >
             <RefreshCw className={cn("mr-1.5 h-4 w-4", (isRefreshing || isLoading) && "animate-spin")} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleFiguresHidden}
+            aria-pressed={figuresHidden}
+            title={figuresHidden ? "Show dashboard figures" : "Hide dashboard figures"}
+            className="h-9 shrink-0 border-slate-200 bg-white text-sm hover:bg-slate-50"
+          >
+            {figuresHidden ? (
+              <Eye className="mr-1.5 h-4 w-4" />
+            ) : (
+              <EyeOff className="mr-1.5 h-4 w-4" />
+            )}
+            {figuresHidden ? "Show" : "Hide"}
           </Button>
           {canViewNetProfit && (
             <Button
@@ -1240,7 +1286,27 @@ const DesktopDashboard = () => {
           )}
 
           {/* Charts Section */}
-          <StatsChartsSection loadEnabled={metricsLoadRequested && auxiliaryMetricsEnabled} />
+          <div className="relative">
+            <div
+              className={cn(figuresHidden && "pointer-events-none select-none blur-md")}
+              aria-hidden={figuresHidden || undefined}
+            >
+              <StatsChartsSection loadEnabled={metricsLoadRequested && auxiliaryMetricsEnabled} />
+            </div>
+            {figuresHidden && (
+              <button
+                type="button"
+                onClick={toggleFiguresHidden}
+                className="absolute inset-0 flex items-center justify-center"
+                title="Show dashboard figures"
+              >
+                <span className="flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                  <EyeOff className="h-4 w-4" />
+                  Charts hidden · click to show
+                </span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Customer Category Cards */}
@@ -1254,6 +1320,8 @@ const DesktopDashboard = () => {
               <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-amber-900 sm:text-[1.65rem]">
                 {showPlaceholders ? (
                   <span className="text-slate-400">—</span>
+                ) : figuresHidden ? (
+                  HIDDEN_FIGURE_MASK
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
@@ -1272,6 +1340,8 @@ const DesktopDashboard = () => {
               <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-emerald-800 sm:text-[1.65rem]">
                 {showPlaceholders ? (
                   <span className="text-slate-400">—</span>
+                ) : figuresHidden ? (
+                  HIDDEN_FIGURE_MASK
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
@@ -1290,6 +1360,8 @@ const DesktopDashboard = () => {
               <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-orange-900 sm:text-[1.65rem]">
                 {showPlaceholders ? (
                   <span className="text-slate-400">—</span>
+                ) : figuresHidden ? (
+                  HIDDEN_FIGURE_MASK
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
@@ -1308,6 +1380,8 @@ const DesktopDashboard = () => {
               <div className="flex min-h-[32px] items-center justify-center text-2xl font-bold tabular-nums text-rose-800 sm:text-[1.65rem]">
                 {showPlaceholders ? (
                   <span className="text-slate-400">—</span>
+                ) : figuresHidden ? (
+                  HIDDEN_FIGURE_MASK
                 ) : segmentsBusy ? (
                   <Loader2 className="h-6 w-6 animate-spin opacity-70" />
                 ) : (
@@ -1334,6 +1408,7 @@ const DesktopDashboard = () => {
       </div>
     </div>
     </TooltipProvider>
+    </DashboardFiguresHiddenContext.Provider>
     <SizeStockDialog open={showSizeStock} onOpenChange={setShowSizeStock} />
     </>
   );
