@@ -3,6 +3,7 @@ import { useOrgNavigation } from "@/hooks/useOrgNavigation";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { allocateSupplierVoucherNumber } from "@/utils/supplierVoucherNumber";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSettings } from "@/hooks/useSettings";
@@ -1509,18 +1510,12 @@ const PurchaseReturnEntry = () => {
 
         // Auto-create credit note voucher for proper accounting
         try {
-          // Generate credit note number
-          const { data: lastVoucher } = await supabase
-            .from("voucher_entries")
-            .select("voucher_number")
-            .eq("organization_id", currentOrganization?.id)
-            .eq("voucher_type", "credit_note")
-            .eq("reference_type", "supplier")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-          const creditNoteNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+          // Global series: per-shop SCN-00001 numbers collided with other shops (unique index).
+          const creditNoteNumber = await allocateSupplierVoucherNumber(
+            supabase,
+            "credit_note",
+            format(returnDate, "yyyy-MM-dd"),
+          );
 
           // Create credit note voucher
           const { data: creditNote, error: creditNoteError } = await supabase
