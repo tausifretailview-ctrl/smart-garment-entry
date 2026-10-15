@@ -172,7 +172,7 @@ export default function DeliveryChallanEntry() {
 
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const { filteredCustomers, isLoading: isCustomersLoading, refetch: refetchCustomers } =
-    useCustomerSearch(customerSearchInput);
+    useCustomerSearch(customerSearchInput, { enabled: openCustomerSearch });
 
   const productSearch = useEntryBillProductSearch(currentOrganization?.id, entryMode);
   const barcodeScanner = useBarcodeScanner({

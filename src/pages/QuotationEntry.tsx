@@ -307,7 +307,9 @@ export default function QuotationEntry() {
     generateQuotationNumber();
   }, [currentOrganization?.id, editingQuotationId]);
 
-  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
+  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput, {
+    enabled: openCustomerSearch,
+  });
 
   useEffect(() => {
     if (settings && !entryModeInitialized) {
