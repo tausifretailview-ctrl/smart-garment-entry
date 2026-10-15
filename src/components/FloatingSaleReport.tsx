@@ -225,5 +225,3 @@ export function FloatingSaleReport({ open, onOpenChange }: { open: boolean; onOp
     </Dialog>
   );
 }
-
-export default FloatingPOSReports;

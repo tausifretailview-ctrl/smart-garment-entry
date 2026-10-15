@@ -684,3 +684,5 @@ function FloatingCashierReport({ open, onOpenChange }: { open: boolean; onOpenCh
     </Dialog>
   );
 }
+
+export default FloatingPOSReports;
