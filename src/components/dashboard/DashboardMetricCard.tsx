@@ -1,4 +1,4 @@
-import { memo, useCallback } from "react";
+import { createContext, memo, useCallback, useContext } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Tooltip,
@@ -8,6 +8,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/useCountUp";
 import { prefetchTabPage } from "@/lib/tabPageRegistry";
+
+/** Dashboard "Hide figures" toggle — cards show a mask instead of the amount. */
+export const DashboardFiguresHiddenContext = createContext(false);
+export const HIDDEN_FIGURE_MASK = "•••••";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("en-IN", {
@@ -45,22 +49,26 @@ const AnimatedMetricValue = memo(
     value,
     isCurrency,
     placeholder,
+    masked,
     className,
   }: {
     value: number;
     isCurrency: boolean;
     placeholder: boolean;
+    masked: boolean;
     className: string;
   }) => {
     const animated = useCountUp(value, {
       durationMs: 450,
       fromPrevious: true,
-      enabled: !placeholder,
+      enabled: !placeholder && !masked,
     });
 
     const displayValue = placeholder
       ? "—"
-      : isCurrency
+      : masked
+        ? HIDDEN_FIGURE_MASK
+        : isCurrency
         ? formatCurrency(animated)
         : Math.round(animated).toLocaleString("en-IN");
 
@@ -97,6 +105,7 @@ const DashboardMetricCardBase = ({
   loading?: boolean;
 }) => {
   const pastel = METRIC_PASTEL[accentColor] ?? METRIC_PASTEL["bg-blue-500"];
+  const masked = useContext(DashboardFiguresHiddenContext);
   const refreshing = loading && !placeholder;
 
   const warmPrefetch = useCallback(() => {
@@ -134,6 +143,7 @@ const DashboardMetricCardBase = ({
                 value={value}
                 isCurrency={isCurrency}
                 placeholder={placeholder}
+                masked={masked}
                 className={cn(
                   "mt-2 text-2xl font-bold tabular-nums leading-none sm:text-[1.65rem] transition-opacity duration-150",
                   placeholder ? "text-slate-400" : pastel.value,
