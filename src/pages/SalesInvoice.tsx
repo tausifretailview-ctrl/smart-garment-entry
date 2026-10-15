@@ -910,7 +910,7 @@ export default function SalesInvoice() {
     isError: isCustomersError,
     refetch: refetchCustomers,
     hasMore: hasMoreCustomers,
-  } = useCustomerSearch(customerSearchInput);
+  } = useCustomerSearch(customerSearchInput, { enabled: openCustomerSearch });
 
   const visibleCustomerIds = useMemo(
     () => filteredCustomers.map((c: { id: string }) => c.id).filter(Boolean),
@@ -918,6 +918,7 @@ export default function SalesInvoice() {
   );
   
   const { getCustomerBalance, getCustomerAdvance } = useCustomerBalances({
+    enabled: openCustomerSearch,
     customerIds: visibleCustomerIds,
   });
 

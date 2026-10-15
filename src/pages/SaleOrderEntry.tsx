@@ -343,7 +343,9 @@ export default function SaleOrderEntry() {
   // Server-side customer search (replaces fetch-all loop)
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [openCustomerSearch, setOpenCustomerSearch] = useState(false);
-  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput);
+  const { filteredCustomers, isLoading: isCustomersLoading } = useCustomerSearch(customerSearchInput, {
+    enabled: openCustomerSearch,
+  });
 
   // Stock / colour / UOM for just the variants on an order being loaded (edit or
   // from quotation). Replaces the old whole-catalogue load, which timed out for

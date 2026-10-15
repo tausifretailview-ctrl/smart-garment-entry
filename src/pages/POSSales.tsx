@@ -2497,7 +2497,13 @@ export default function POSSales() {
     isError: isCustomersError,
     refetch: refetchCustomers,
     hasMore: hasMoreCustomers,
-  } = useCustomerSearch(customerName, { enabled: !customerJustSelected.current });
+  } = useCustomerSearch(customerName, {
+    // A blank name only feeds the picker list (first 200 customers), so fetch it
+    // when the picker opens, not on every POS open / bill reset. A typed or
+    // selected name still loads: address, GSTIN and Disc % read these rows.
+    enabled:
+      !customerJustSelected.current && (openCustomerSearch || customerName.trim() !== ""),
+  });
 
   const visibleCustomerIds = useMemo(
     () => filteredCustomers.map((c: { id: string }) => c.id).filter(Boolean),
