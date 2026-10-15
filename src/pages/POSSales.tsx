@@ -211,6 +211,7 @@ import { fetchSalePrintFirm, normalizePrintFirm, resolveSecondFirm, type PrintFi
 import { posLineDisplayTotal } from "@/utils/posGstTotals";
 import { getAvailableCN, maxCombinedDiscountForGross } from "@/utils/saleSettlement";
 import { clampQty, minQtyForUom } from "@/utils/qtyInput";
+import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import {
   normalizeGstTaxType,
   resolvePosDefaultTaxType,
@@ -957,6 +958,26 @@ export default function POSSales() {
       }
     },
     [currentOrganization?.id, setItems],
+  );
+
+  /** Restored lines carry no product type; without it service lines can't take 0.5 qty. */
+  const hydrateCartQtyMeta = useCallback(
+    async (productIds: Array<string | null | undefined>) => {
+      try {
+        const meta = await fetchProductQtyMeta(supabase, productIds);
+        if (meta.size === 0) return;
+        setItems((prev) =>
+          prev.map((item) => {
+            const m = meta.get(item.productId);
+            if (!m || item.productType || !m.productType) return item;
+            return { ...item, productType: m.productType };
+          }),
+        );
+      } catch (err) {
+        console.warn("POS edit: could not load product type", err);
+      }
+    },
+    [setItems],
   );
 
   const [currentInvoiceIndex, setCurrentInvoiceIndex] = useState(0);
@@ -3511,7 +3532,8 @@ export default function POSSales() {
           const updated = [...prev];
           const merged = {
             ...updated[existingIndex],
-            quantity: updated[existingIndex].quantity + itemToAdd.quantity,
+            // Round so 0.5 + 0.3 stays 0.8 (not 0.7999…) for decimal service qty.
+            quantity: Math.round((updated[existingIndex].quantity + itemToAdd.quantity) * 1000) / 1000,
           };
           updated[existingIndex] = applyDiscRsToServiceItem(merged, lineDiscountRs);
           return updated;
@@ -3993,8 +4015,8 @@ export default function POSSales() {
 
   const updateQuantity = async (index: number, newQty: number) => {
     const item = items[index];
-    const clampedQty = clampQty(newQty, item?.uom);
-    if (clampedQty < minQtyForUom(item?.uom)) return;
+    const clampedQty = clampQty(newQty, item);
+    if (clampedQty < minQtyForUom(item)) return;
 
     // Real-time stock validation before updating quantity
     const stockCheck = await checkStock(item.variantId, clampedQty);
@@ -6115,6 +6137,7 @@ export default function POSSales() {
 
     setItems(loadedItems);
     void hydrateCartPurchasePrices(loadedItems.map((item) => item.variantId));
+    void hydrateCartQtyMeta(loadedItems.map((item) => item.productId));
 
     const flatRes = resolveBillFlatForPosEdit(sale, sale.sale_items || []);
     if (flatRes.percentLooksClean) {
@@ -8360,7 +8383,8 @@ export default function POSSales() {
                           <div>
                             <QtyInput
                               uom={item.uom}
-                              value={item.quantity || minQtyForUom(item.uom)}
+                              productType={item.productType}
+                              value={item.quantity || minQtyForUom(item)}
                               onChange={(val) => updateQuantity(index, val)}
                               className="h-8 text-sm w-full text-center bg-muted/30 border-border/60 px-1"
                               selectOnFocus={false}
@@ -9692,6 +9716,10 @@ export default function POSSales() {
             quickServiceProductForAdd.product?.product_type !== "service"
               ? 1
               : serviceDefaultQty
+          }
+          allowDecimalQty={
+            quickServiceProductForAdd == null ||
+            quickServiceProductForAdd.product?.product_type === "service"
           }
           onAdd={handleQuickServiceAdd}
         />

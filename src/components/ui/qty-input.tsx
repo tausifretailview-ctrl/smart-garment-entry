@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { isDecimalUOM } from "@/constants/uom";
 import {
+  allowsDecimalQty,
   clampQty,
   DECIMAL_QTY_PATTERN,
   formatQtyForDisplay,
@@ -15,6 +15,8 @@ import {
 interface QtyInputProps {
   value: number;
   uom?: string | null;
+  /** "service" lines accept decimals (0.5) whatever their UOM. */
+  productType?: string | null;
   onChange: (value: number) => void;
   className?: string;
   id?: string;
@@ -23,20 +25,22 @@ interface QtyInputProps {
 }
 
 const QtyInput = React.forwardRef<HTMLInputElement, QtyInputProps>(
-  ({ value, uom, onChange, className, id, onFocus, selectOnFocus = true }, ref) => {
-    const [displayValue, setDisplayValue] = useState(() => formatQtyForDisplay(value, uom));
+  ({ value, uom, productType, onChange, className, id, onFocus, selectOnFocus = true }, ref) => {
+    const unit = { uom, productType, quantity: value };
+    const [displayValue, setDisplayValue] = useState(() => formatQtyForDisplay(value, unit));
     const isFocusedRef = useRef(false);
 
     useEffect(() => {
       if (!isFocusedRef.current) {
-        setDisplayValue(formatQtyForDisplay(value, uom));
+        setDisplayValue(formatQtyForDisplay(value, unit));
       }
-    }, [value, uom]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unit is rebuilt from these each render
+    }, [value, uom, productType]);
 
     const commitValue = (raw: string) => {
-      const parsed = parseQtyValue(raw, uom);
-      const next = clampQty(parsed ?? minQtyForUom(uom), uom);
-      setDisplayValue(formatQtyForDisplay(next, uom));
+      const parsed = parseQtyValue(raw, unit);
+      const next = clampQty(parsed ?? minQtyForUom(unit), unit);
+      setDisplayValue(formatQtyForDisplay(next, unit));
       onChange(next);
     };
 
@@ -45,7 +49,7 @@ const QtyInput = React.forwardRef<HTMLInputElement, QtyInputProps>(
         ref={ref}
         id={id}
         type="text"
-        inputMode={isDecimalUOM(uom) ? "decimal" : "numeric"}
+        inputMode={allowsDecimalQty(unit) ? "decimal" : "numeric"}
         value={displayValue}
         onFocus={(e) => {
           isFocusedRef.current = true;
@@ -58,13 +62,13 @@ const QtyInput = React.forwardRef<HTMLInputElement, QtyInputProps>(
         }}
         onChange={(e) => {
           const raw = e.target.value;
-          const pattern = isDecimalUOM(uom) ? DECIMAL_QTY_PATTERN : INTEGER_QTY_PATTERN;
+          const pattern = allowsDecimalQty(unit) ? DECIMAL_QTY_PATTERN : INTEGER_QTY_PATTERN;
           if (!pattern.test(raw)) return;
 
           setDisplayValue(raw);
-          if (!isPartialQtyInput(raw, uom)) {
-            const parsed = parseQtyValue(raw, uom);
-            if (parsed !== null && parsed >= minQtyForUom(uom)) {
+          if (!isPartialQtyInput(raw, unit)) {
+            const parsed = parseQtyValue(raw, unit);
+            if (parsed !== null && parsed >= minQtyForUom(unit)) {
               onChange(parsed);
             }
           }

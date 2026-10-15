@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  adjustQtyByStep,
+  allowsDecimalQty,
   clampQty,
   formatQtyForDisplay,
   isPartialQtyInput,
@@ -37,5 +39,36 @@ describe("qtyInput", () => {
     expect(parseQtyValue("12", "NOS")).toBe(12);
     expect(isPartialQtyInput("0", "NOS")).toBe(false);
     expect(clampQty(0, "NOS")).toBe(1);
+  });
+
+  it("allows decimal qty on service lines whatever their UOM", () => {
+    const svc = { uom: "NOS", productType: "service" };
+    expect(allowsDecimalQty(svc)).toBe(true);
+    expect(parseQtyValue("0.5", svc)).toBe(0.5);
+    expect(parseQtyValue(".8", svc)).toBe(0.8);
+    expect(formatQtyForDisplay(0.5, svc)).toBe("0.5");
+    expect(formatQtyForDisplay(2, svc)).toBe("2");
+    expect(clampQty(0.5, svc)).toBe(0.5);
+  });
+
+  it("keeps whole numbers for normal stock items", () => {
+    const goods = { uom: "NOS", productType: "goods" };
+    expect(allowsDecimalQty(goods)).toBe(false);
+    expect(allowsDecimalQty({ uom: "PCS" })).toBe(false);
+    expect(clampQty(0.5, goods)).toBe(1);
+    expect(allowsDecimalQty({ uom: "KG", productType: "goods" })).toBe(true);
+  });
+
+  it("keeps an already fractional line editable as a fraction", () => {
+    expect(allowsDecimalQty({ uom: "NOS", quantity: 0.5 })).toBe(true);
+    expect(allowsDecimalQty({ uom: "NOS", quantity: 2 })).toBe(false);
+  });
+
+  it("steps service lines by 1 without dropping to the 0.001 floor", () => {
+    const svc = { uom: "NOS", productType: "service" };
+    expect(adjustQtyByStep(0.5, 1, svc)).toBe(1.5);
+    expect(adjustQtyByStep(1.5, -1, svc)).toBe(0.5);
+    expect(adjustQtyByStep(0.5, -1, svc)).toBe(0.5);
+    expect(adjustQtyByStep(2.5, 1, "KG")).toBe(2.501);
   });
 });

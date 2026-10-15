@@ -1,7 +1,8 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { CustomerBalanceBadge } from "@/components/CustomerBalanceBadge";
 import { flushSync } from "react-dom";
-import { isDecimalUOM } from "@/constants/uom";
+import { allowsDecimalQty, clampQty, minQtyForUom, parseQtyValue } from "@/utils/qtyInput";
+import { fetchProductQtyMeta } from "@/utils/productQtyMeta";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSettings, useProductFieldSettings } from "@/hooks/useSettings";
 import { getGarmentSlabPrice, resolveGarmentGstForLine } from "@/utils/gstRules";
@@ -184,6 +185,8 @@ interface LineItem {
   lineTotal: number;
   hsnCode: string;
   uom?: string;
+  /** products.product_type — "service" lines accept decimal qty (0.5). */
+  productType?: string;
   /** Product brand captured at add time so brand-wise customer discounts can be
    * reconciled without re-looking it up from productsData (which can miss). */
   brand?: string;
@@ -921,6 +924,35 @@ export default function SalesInvoice() {
   // Fetch settings (centralized, cached 5min)
   const { data: settingsData, isFetched: settingsFetched } = useSettings();
   const serviceDefaultQty = useMemo(() => resolveServiceDefaultQty(settingsData as Record<string, any> | null), [settingsData]);
+
+  // Lines restored from a saved bill, draft or duplicate carry no product type, so a
+  // service line couldn't take 0.5 qty. Look the type up once per product and fill it in.
+  const qtyMetaCheckedRef = useRef<Set<string>>(new Set());
+  const qtyMetaPendingKey = lineItems
+    .filter((li) => li.productId && li.productType === undefined && !qtyMetaCheckedRef.current.has(li.productId))
+    .map((li) => li.productId)
+    .join(",");
+  useEffect(() => {
+    if (!qtyMetaPendingKey) return;
+    const ids = [...new Set(qtyMetaPendingKey.split(","))];
+    ids.forEach((id) => qtyMetaCheckedRef.current.add(id));
+    // No cancel on re-run: marking ids as checked changes the key, which would drop this result.
+    fetchProductQtyMeta(supabase, ids)
+      .then((meta) => {
+        if (meta.size === 0) return;
+        setLineItems((prev) =>
+          prev.map((li) => {
+            const m = li.productType === undefined ? meta.get(li.productId) : undefined;
+            if (!m) return li;
+            return { ...li, productType: m.productType || "" };
+          }),
+        );
+      })
+      .catch((err) => {
+        ids.forEach((id) => qtyMetaCheckedRef.current.delete(id));
+        console.warn("Sale bill: could not load product type", err);
+      });
+  }, [qtyMetaPendingKey]);
   const saleInvoicePrintTemplate = useMemo(
     () =>
       resolveSaleInvoiceTemplate(
@@ -2326,7 +2358,11 @@ export default function SalesInvoice() {
     const salePrice = appliedOverride?.sale_price ?? masterSalePrice;
     const mrpToUse = appliedOverride?.mrp ?? masterMrp;
     const addQty =
-      options?.quantity && options.quantity > 0 ? Math.max(1, Math.floor(options.quantity)) : 1;
+      options?.quantity && options.quantity > 0
+        ? isServiceProduct
+          ? clampQty(options.quantity, { productType: "service" })
+          : Math.max(1, Math.floor(options.quantity))
+        : 1;
     const descNote = (options?.description || "").trim();
     const displayName = descNote
       ? `${buildProductDisplayName(product)} — ${descNote}`
@@ -2367,7 +2403,7 @@ export default function SalesInvoice() {
         const updatedItems = [...prev];
         updatedItems[existingIndex] = calculateLineTotal({
           ...updatedItems[existingIndex],
-          quantity: updatedItems[existingIndex].quantity + addQty,
+          quantity: Math.round((updatedItems[existingIndex].quantity + addQty) * 1000) / 1000,
         });
         touchedItemId = updatedItems[existingIndex].id;
         next = updatedItems;
@@ -2391,6 +2427,7 @@ export default function SalesInvoice() {
           lineTotal: 0,
           hsnCode: product.hsn_code || '',
           uom: product.uom || 'NOS',
+          productType: product.product_type || undefined,
           brand: product.brand || '',
           autoDiscount: true,
           autoDiscountFallback: productSaleDiscount > 0 ? productSaleDiscount : 0,
@@ -2702,7 +2739,7 @@ export default function SalesInvoice() {
 
   const updateQuantity = async (id: string, quantity: number) => {
     const item = lineItems.find(i => i.id === id);
-    const isDecimal = isDecimalUOM(item?.uom);
+    const isDecimal = allowsDecimalQty(item);
     if (isDecimal ? quantity <= 0 : quantity < 1) return;
     
     // Find the item being updated
@@ -2747,14 +2784,13 @@ export default function SalesInvoice() {
   const handleQtyInputChange = (id: string, raw: string) => {
     const item = lineItems.find(i => i.id === id);
     if (!item) return;
-    const isDecimal = isDecimalUOM(item.uom);
     if (raw.trim() === "") {
       // Transient empty — set to 0 so the input shows blank (value = quantity || "").
       setLineItems(prev => prev.map(li => li.id === id ? calculateLineTotal({ ...li, quantity: 0 }) : li));
       return;
     }
-    const parsed = isDecimal ? parseFloat(raw) : parseInt(raw, 10);
-    if (Number.isNaN(parsed)) return;
+    const parsed = parseQtyValue(raw, item);
+    if (parsed == null) return;
     void updateQuantity(id, parsed);
   };
 
@@ -2762,8 +2798,7 @@ export default function SalesInvoice() {
   const handleQtyInputBlur = (id: string) => {
     const item = lineItems.find(i => i.id === id);
     if (!item) return;
-    const isDecimal = isDecimalUOM(item.uom);
-    const min = isDecimal ? 0.001 : 1;
+    const min = minQtyForUom(item);
     if (!item.quantity || item.quantity < min) {
       void updateQuantity(id, min);
     }
@@ -4383,6 +4418,7 @@ Thank you for choosing us!`;
           serviceCode={quickServiceCode}
           productName={quickServiceProductForAdd?.product?.product_name}
           defaultQuantity={serviceDefaultQty}
+          allowDecimalQty
           defaultMrp={
             quickServiceProductForAdd?.variant
               ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)
@@ -5180,8 +5216,8 @@ Thank you for choosing us!`;
                           <Input
                             ref={qtyEditing ? lineGrid.editInputRef : undefined}
                             type="number"
-                            min={isDecimalUOM(item.uom) ? "0.001" : "1"}
-                            step={isDecimalUOM(item.uom) ? "0.001" : "1"}
+                            min={allowsDecimalQty(item) ? "0.001" : "1"}
+                            step={allowsDecimalQty(item) ? "0.001" : "1"}
                             value={item.quantity || ""}
                             placeholder="1"
                             onChange={(e) => handleQtyInputChange(item.id, e.target.value)}
@@ -5994,6 +6030,7 @@ Thank you for choosing us!`;
         serviceCode={quickServiceCode}
         productName={quickServiceProductForAdd?.product?.product_name}
         defaultQuantity={serviceDefaultQty}
+        allowDecimalQty
         defaultMrp={
           quickServiceProductForAdd?.variant
             ? resolveServiceVariantDefaultMrp(quickServiceProductForAdd.variant)

@@ -209,7 +209,7 @@ export const MobilePOSLayout = ({
                 item={item}
                 index={index}
                 onQuantityChange={(idx, qty) => {
-                  if (qty >= minQtyForUom(items[idx]?.uom)) updateQuantity(idx, qty);
+                  if (qty >= minQtyForUom(items[idx])) updateQuantity(idx, qty);
                 }}
                 onRemove={removeItem}
                 enableMrp={enableMrp}
