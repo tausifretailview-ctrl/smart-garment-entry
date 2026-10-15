@@ -802,7 +802,18 @@ const FOCUS_CARD_H = 64;
 const FOCUS_GAP = 12;
 
 /** One bill: what paid it (left), lines into the bill (middle), the bill (right), then step by step. */
-function BillFocus({ model, bill, narrow }: { model: PartyFlowModel; bill: FlowBill; narrow: boolean }) {
+function BillFocus({
+  model,
+  bill,
+  narrow,
+  onDone,
+}: {
+  model: PartyFlowModel;
+  bill: FlowBill;
+  narrow: boolean;
+  /** All of this bill's payments have shown. */
+  onDone?: () => void;
+}) {
   const steps = useMemo(() => billPaymentSteps(bill, model.sources), [bill, model.sources]);
   const payers = steps.slice(1);
   // Replay this bill's steps one by one whenever the bill changes.
@@ -820,6 +831,13 @@ function BillFocus({ model, bill, narrow }: { model: PartyFlowModel; bill: FlowB
     return () => clearInterval(timer);
   }, [bill.id, payers.length, replayKey]);
 
+  const done = shownUpTo >= payers.length;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  useEffect(() => {
+    if (done) onDoneRef.current?.();
+  }, [done, bill.id, replayKey]);
+
   const visible = payers.slice(0, shownUpTo);
   const settled = Math.min(bill.amount, visible.reduce((t, p) => t + p.amount, 0));
   const due = Math.max(0, bill.amount - settled);
@@ -828,7 +846,7 @@ function BillFocus({ model, bill, narrow }: { model: PartyFlowModel; bill: FlowB
   const pct = bill.amount > 0 ? Math.round((settled / bill.amount) * 100) : 0;
 
   const n = Math.max(1, payers.length);
-  const H = Math.max(240, n * (FOCUS_CARD_H + FOCUS_GAP) - FOCUS_GAP);
+  const H = Math.max(200, n * (FOCUS_CARD_H + FOCUS_GAP) - FOCUS_GAP);
   const maxPart = Math.max(1, ...payers.map((p) => p.amount));
   const partyWord = model.party === "customer" ? "customer" : "supplier";
 
@@ -1036,43 +1054,66 @@ export default function PartyPaymentFlowPage() {
         : loadSupplierPaymentFlow(orgId!, { id: partyId!, opening_balance: partyRow!.opening_balance }, range),
   });
 
-  const [playStep, setPlayStep] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const view: "bill" | "all" = params.get("view") === "all" ? "all" : "bill";
+  /** Bill shown in the one-bill view; null = the all-bills flow chart. */
   const [focusId, setFocusId] = useState<string | null>(null);
+  /** Play: walk through the bills one by one. */
+  const [playing, setPlaying] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  // Reset playback when the party or period changes.
+  // Back to the chart when the party or period changes.
   useEffect(() => {
     setPlaying(false);
-    setPlayStep(null);
     setSelected(null);
     setFocusId(null);
   }, [party, partyId, rangeKey, from, to]);
 
-  // One-bill view opens on the oldest bill still due, else the latest bill.
-  const focusBill = useMemo(() => {
-    if (!model || model.bills.length === 0) return null;
-    return (
-      model.bills.find((b) => b.id === focusId) ??
-      model.bills.find((b) => b.due > 0.5) ??
-      model.bills[model.bills.length - 1]
-    );
-  }, [model, focusId]);
+  const focusBill = useMemo(
+    () => (model && focusId ? model.bills.find((b) => b.id === focusId) ?? null : null),
+    [model, focusId],
+  );
 
   const focusSteps = useMemo(() => {
-    if (view !== "bill" || !focusBill) return null;
+    if (!focusBill) return null;
     return new Set<number>([focusBill.step, ...focusBill.parts.map((p) => p.step)]);
-  }, [view, focusBill]);
+  }, [focusBill]);
 
-  const setView = (next: "bill" | "all") => {
-    const p = new URLSearchParams(params);
-    if (next === "all") p.set("view", "all");
-    else p.delete("view");
-    setParams(p, { replace: true });
+  const openBill = (id: string) => {
     setPlaying(false);
-    setPlayStep(null);
+    setFocusId(id);
+  };
+  const backToChart = () => {
+    setPlaying(false);
+    setFocusId(null);
+  };
+
+  // While playing, move to the next bill a moment after this one's payments have shown.
+  const [focusDone, setFocusDone] = useState(false);
+  useEffect(() => setFocusDone(false), [focusId]);
+  useEffect(() => {
+    if (!playing || !focusDone || !model) return;
+    const idx = model.bills.findIndex((b) => b.id === focusId);
+    if (idx < 0 || idx >= model.bills.length - 1) {
+      setPlaying(false);
+      return;
+    }
+    const timer = setTimeout(() => setFocusId(model.bills[idx + 1].id), 1800);
+    return () => clearTimeout(timer);
+  }, [playing, focusDone, focusId, model]);
+
+  const togglePlay = () => {
+    if (!model || model.bills.length === 0) return;
+    if (playing) {
+      setPlaying(false);
+      return;
+    }
+    if (!focusBill) setFocusId(model.bills[0].id);
+    else if (focusDone) {
+      const idx = model.bills.findIndex((b) => b.id === focusBill.id);
+      if (idx >= model.bills.length - 1) setFocusId(model.bills[0].id);
+      else setFocusId(model.bills[idx + 1].id);
+    }
+    setPlaying(true);
   };
 
   /** Bill whose own row or one of whose payments is this story step. */
@@ -1101,7 +1142,7 @@ export default function PartyPaymentFlowPage() {
         partyPhone: partyRow?.phone,
         periodLabel,
         businessName: currentOrganization?.name,
-        billId: view === "bill" ? focusBill?.id ?? null : null,
+        billId: focusBill?.id ?? null,
       });
     } catch (e) {
       toast.error(`Could not make the PDF: ${(e as Error).message}`);
@@ -1110,23 +1151,8 @@ export default function PartyPaymentFlowPage() {
     }
   };
 
-  const lastStep = model ? model.steps.length - 1 : -1;
-
-  useEffect(() => {
-    if (!playing || !model) return;
-    const timer = setInterval(() => {
-      setPlayStep((cur) => Math.min(lastStep, cur === null ? 0 : cur + 1));
-    }, 850);
-    return () => clearInterval(timer);
-  }, [playing, model, lastStep]);
-
-  useEffect(() => {
-    if (playing && playStep !== null && playStep >= lastStep) setPlaying(false);
-  }, [playing, playStep, lastStep]);
-
-  const keepView = view === "all" ? { view: "all" } : {};
-  const setParty = (next: PartyKind) => setParams({ type: next, ...keepView }, { replace: true });
-  const pick = (p: PartyOption) => setParams({ type: party, id: p.id, ...keepView }, { replace: true });
+  const setParty = (next: PartyKind) => setParams({ type: next }, { replace: true });
+  const pick = (p: PartyOption) => setParams({ type: party, id: p.id }, { replace: true });
 
   const t = model?.totals;
   const tiles = t
@@ -1154,7 +1180,7 @@ export default function PartyPaymentFlowPage() {
   ];
 
   return (
-    <div className="w-full space-y-3 px-3 py-3 sm:px-4">
+    <div className="h-full min-h-0 w-full space-y-3 overflow-y-auto px-3 py-3 sm:px-4">
       <style>{FLOW_CSS}</style>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -1207,58 +1233,15 @@ export default function PartyPaymentFlowPage() {
         )}
         {model && (
           <div className="flex flex-wrap gap-2 sm:ml-auto">
-            <div className="flex rounded-lg bg-muted p-1">
-              {(
-                [
-                  ["bill", "One bill", Receipt],
-                  ["all", "All bills", LayoutList],
-                ] as const
-              ).map(([v, label, Icon]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-semibold",
-                    view === v ? "bg-background shadow-sm" : "text-muted-foreground",
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-            {view === "all" && (
-            <Button
-              size="sm"
-              className="h-9"
-              onClick={() => {
-                if (playing) {
-                  setPlaying(false);
-                  return;
-                }
-                if (playStep === null || playStep >= lastStep) setPlayStep(0);
-                setPlaying(true);
-              }}
-              disabled={lastStep < 0}
-            >
-              {playing ? <Pause className="mr-1.5 h-4 w-4" /> : <Play className="mr-1.5 h-4 w-4" />}
-              {playing ? "Pause" : "Play story"}
-            </Button>
-            )}
-            {view === "all" && playStep !== null && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-9"
-                onClick={() => {
-                  setPlaying(false);
-                  setPlayStep(null);
-                }}
-              >
-                <RotateCcw className="mr-1.5 h-4 w-4" /> Show all
+            {focusBill && (
+              <Button size="sm" variant="outline" className="h-9" onClick={backToChart}>
+                <LayoutList className="mr-1.5 h-4 w-4" /> All bills chart
               </Button>
             )}
+            <Button size="sm" className="h-9" onClick={togglePlay} disabled={model.bills.length === 0}>
+              {playing ? <Pause className="mr-1.5 h-4 w-4" /> : <Play className="mr-1.5 h-4 w-4" />}
+              {playing ? "Pause" : focusBill ? "Play next bills" : "Play bill by bill"}
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -1278,7 +1261,7 @@ export default function PartyPaymentFlowPage() {
               disabled={pdfBusy}
             >
               {pdfBusy ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <FileDown className="mr-1.5 h-4 w-4" />}
-              PDF{view === "bill" && focusBill ? ` · ${focusBill.reference}` : ""}
+              PDF{focusBill ? ` · ${focusBill.reference}` : ""}
             </Button>
           </div>
         )}
@@ -1305,7 +1288,7 @@ export default function PartyPaymentFlowPage() {
 
       {model && (
         <>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(128px,1fr))]">
             {tiles.map((tile) => (
               <div key={tile.k} className="rounded-xl border bg-card px-3 py-2.5">
                 <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -1339,44 +1322,24 @@ export default function PartyPaymentFlowPage() {
 
           <StoryStrip
             model={model}
-            playStep={view === "all" ? playStep : null}
+            playStep={null}
             highlight={focusSteps}
-            hint={view === "bill" ? "tap a step to open its bill" : "tap a step to replay up to it"}
-            onJump={(s) => {
-              if (view === "bill") {
-                const b = billAtStep(s);
-                if (b) setFocusId(b.id);
-                return;
-              }
-              setPlaying(false);
-              setPlayStep(s);
+            hint="tap a step to see that bill's paid details"
+            onJump={(st) => {
+              const b = billAtStep(st);
+              if (b) openBill(b.id);
             }}
           />
 
-          {view === "bill" ? (
-            focusBill ? (
-              <>
-                <BillPicker bills={model.bills} focusId={focusBill.id} onFocus={setFocusId} />
-                <BillFocus model={model} bill={focusBill} narrow={isNarrow} />
-              </>
-            ) : (
-              <div className="rounded-2xl border border-dashed bg-card p-8 text-center text-sm text-muted-foreground">
-                No bills in this period.
-              </div>
-            )
+          {focusBill ? (
+            <>
+              <BillPicker bills={model.bills} focusId={focusBill.id} onFocus={openBill} />
+              <BillFocus key={focusBill.id} model={model} bill={focusBill} narrow={isNarrow} onDone={() => setFocusDone(true)} />
+            </>
           ) : isNarrow ? (
-            <FlowList model={model} playStep={playStep} />
+            <FlowList model={model} playStep={null} />
           ) : (
-            <FlowBoard
-              model={model}
-              playStep={playStep}
-              selected={selected}
-              onSelect={setSelected}
-              onOpenBill={(id) => {
-                setFocusId(id);
-                setView("bill");
-              }}
-            />
+            <FlowBoard model={model} playStep={null} selected={selected} onSelect={setSelected} onOpenBill={openBill} />
           )}
 
           <p className="text-xs text-muted-foreground">

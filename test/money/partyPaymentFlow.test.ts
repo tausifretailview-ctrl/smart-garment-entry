@@ -224,3 +224,10 @@ describe("one bill: how it was paid", () => {
     expect(steps[2].sourceTotal).toBe(4000);
   });
 });
+
+describe("payment flow page chrome", () => {
+  it("hides the global header and window tabs for a full view", async () => {
+    const { isHideGlobalHeaderPath } = await import("@/lib/entryPageLayout");
+    expect(isHideGlobalHeaderPath("/demo/payment-flow")).toBe(true);
+  });
+});
