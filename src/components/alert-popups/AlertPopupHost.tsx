@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Archive, IndianRupee, ShoppingBag, Truck, X } from "lucide-react";
+import { AlertTriangle, Archive, ArrowRight, BellOff, IndianRupee, ShoppingBag, Truck, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganization } from "@/contexts/OrganizationContext";
 import { useWindowTabs } from "@/contexts/WindowTabsContext";
@@ -44,6 +44,7 @@ import {
   DASHBOARD_SLOW_MOVING_IDLE_DAYS,
   INSIGHTS_DEAD_SLOW_MOVING_STATE,
 } from "@/utils/dashboardStockHealth";
+import { TodaySalesWindow } from "./TodaySalesWindow";
 
 /** Wait after login before the first check so it never competes with the first screen. */
 const FIRST_CHECK_DELAY_MS = 20_000;
@@ -61,13 +62,53 @@ interface AlertPopup {
   navState?: Record<string, unknown>;
 }
 
-const KIND_ICON: Record<AlertPopupKind, { icon: typeof AlertTriangle; tone: string }> = {
-  low_stock: { icon: AlertTriangle, tone: "bg-amber-50 text-amber-600" },
-  customer_dues: { icon: IndianRupee, tone: "bg-red-50 text-red-600" },
-  supplier_dues: { icon: Truck, tone: "bg-blue-50 text-blue-600" },
-  dead_stock: { icon: Archive, tone: "bg-slate-100 text-slate-600" },
-  today_sold: { icon: ShoppingBag, tone: "bg-emerald-50 text-emerald-600" },
+const KIND_STYLE: Record<
+  AlertPopupKind,
+  { icon: typeof AlertTriangle; label: string; header: string; accent: string; button: string }
+> = {
+  low_stock: {
+    icon: AlertTriangle,
+    label: "Stock alert",
+    header: "from-amber-500 via-orange-500 to-orange-600",
+    accent: "bg-orange-500",
+    button: "from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700",
+  },
+  customer_dues: {
+    icon: IndianRupee,
+    label: "Payments",
+    header: "from-rose-500 via-red-500 to-red-600",
+    accent: "bg-red-500",
+    button: "from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700",
+  },
+  supplier_dues: {
+    icon: Truck,
+    label: "Suppliers",
+    header: "from-blue-600 via-indigo-600 to-violet-600",
+    accent: "bg-indigo-500",
+    button: "from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700",
+  },
+  dead_stock: {
+    icon: Archive,
+    label: "Stock health",
+    header: "from-slate-600 via-slate-700 to-slate-800",
+    accent: "bg-slate-500",
+    button: "from-slate-600 to-slate-800 hover:from-slate-700 hover:to-slate-900",
+  },
+  today_sold: {
+    icon: ShoppingBag,
+    label: "Today's sales",
+    header: "from-emerald-500 via-teal-500 to-cyan-600",
+    accent: "bg-emerald-500",
+    button: "from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700",
+  },
 };
+
+function stockPill(stock: number | null): string {
+  if (stock === null) return "bg-slate-100 text-slate-500";
+  if (stock <= 0) return "bg-red-100 text-red-700";
+  if (stock <= DEFAULT_ACTIVITY_LOW_STOCK_THRESHOLD) return "bg-amber-100 text-amber-800";
+  return "bg-emerald-100 text-emerald-700";
+}
 
 function plural(n: number, word: string): string {
   return `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -294,15 +335,35 @@ export function AlertPopupHost() {
     return () => window.clearTimeout(timer);
   }, [current, paused, dismiss]);
 
+  const [salesWindowOpen, setSalesWindowOpen] = useState(false);
+
+  const goTo = useCallback(
+    (path: string, extraState?: Record<string, unknown>) => {
+      const navState = { ...(extraState ?? {}), activityNavTs: Date.now() };
+      if (orgId) queueActivityNavigation(orgId, path, navState);
+      const tabPath = normalizeActivityPath(path);
+      if (tabPath) openWindow(tabPath);
+      orgNavigate(path, { state: navState });
+    },
+    [orgId, openWindow, orgNavigate],
+  );
+
   const open = useCallback(() => {
-    if (!current?.path) return;
-    const navState = { ...(current.navState ?? {}), activityNavTs: Date.now() };
-    if (orgId) queueActivityNavigation(orgId, current.path, navState);
-    const tabPath = normalizeActivityPath(current.path);
-    if (tabPath) openWindow(tabPath);
-    orgNavigate(current.path, { state: navState });
+    if (!current) return;
+    if (current.kind === "today_sold") {
+      setSalesWindowOpen(true);
+      dismiss();
+      return;
+    }
+    if (!current.path) return;
+    goTo(current.path, current.navState);
     dismiss();
-  }, [current, orgId, openWindow, orgNavigate, dismiss]);
+  }, [current, goTo, dismiss]);
+
+  const openItemWiseSales = useCallback(() => {
+    setSalesWindowOpen(false);
+    goTo("/item-wise-sales");
+  }, [goTo]);
 
   const turnOff = useCallback(() => {
     if (!current || !orgId || !userId) return;
@@ -312,81 +373,134 @@ export function AlertPopupHost() {
     saveAlertPopupPrefs(orgId, userId, { ...prefs, [current.kind]: false });
   }, [current, orgId, userId]);
 
-  const iconMeta = useMemo(() => (current ? KIND_ICON[current.kind] : null), [current]);
+  const style = useMemo(() => (current ? KIND_STYLE[current.kind] : null), [current]);
 
-  if (!current || !iconMeta) return null;
-  const Icon = iconMeta.icon;
+  const salesWindow = (
+    <TodaySalesWindow
+      open={salesWindowOpen}
+      onOpenChange={setSalesWindowOpen}
+      orgId={orgId}
+      onOpenItemWiseSales={hasMenuAccess("item_wise_sales") ? openItemWiseSales : undefined}
+    />
+  );
+
+  if (!current || !style) return salesWindow;
+  const Icon = style.icon;
+  const canOpen = current.kind === "today_sold" || !!current.path;
+  const maxLineQty = Math.max(1, ...(current.lines ?? []).map((l) => l.qty));
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      onFocus={() => setPaused(true)}
-      className={cn(
-        "fixed z-[80] inset-x-2 top-[calc(env(safe-area-inset-top)+0.5rem)]",
-        "sm:inset-x-auto sm:top-auto sm:right-24 sm:bottom-12 sm:w-[340px]",
-        "rounded-xl border border-border bg-popover text-popover-foreground shadow-lg",
-        "p-3 animate-in fade-in slide-in-from-bottom-2 duration-200",
-      )}
-    >
-      <div className="flex gap-2.5">
-        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0", iconMeta.tone)}>
-          <Icon className="h-4 w-4" />
+    <>
+      {salesWindow}
+      <div
+        role="status"
+        aria-live="polite"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        onFocus={() => setPaused(true)}
+        className={cn(
+          "fixed z-[80] inset-x-2 top-[calc(env(safe-area-inset-top)+0.5rem)]",
+          "sm:inset-x-auto sm:top-auto sm:right-24 sm:bottom-12 sm:w-[360px]",
+          "overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-2xl ring-1 ring-black/5",
+          "animate-in fade-in slide-in-from-bottom-3 duration-300",
+        )}
+      >
+        {/* Coloured header */}
+        <div className={cn("relative bg-gradient-to-r px-3.5 py-3 text-white", style.header)}>
+          <div className="pointer-events-none absolute -right-6 -top-8 h-24 w-24 rounded-full bg-white/10" />
+          <div className="relative flex items-start gap-2.5 pr-7">
+            <div className="h-9 w-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+              <Icon className="h-[18px] w-[18px]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-white/80">{style.label}</p>
+              <p className="text-[14px] font-bold leading-snug">{current.title}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Close alert"
+            className="absolute top-2.5 right-2.5 h-7 w-7 rounded-lg flex items-center justify-center text-white/90 bg-white/15 hover:bg-white/30"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          {/* Auto-close countdown; restarts with the timer after a hover. */}
+          <div className="absolute inset-x-0 bottom-0 h-[3px] bg-white/20">
+            {!paused && (
+              <div key={current.kind} className="h-full origin-left bg-white/80 animate-alert-countdown" />
+            )}
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold leading-snug pr-5">{current.title}</p>
-          <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-2">{current.body}</p>
+
+        <div className="px-3.5 pt-2.5 pb-3">
+          <p className="text-[12px] text-muted-foreground line-clamp-2">{current.body}</p>
           {current.lines && current.lines.length > 0 && (
-            <ul className="mt-1.5 space-y-0.5">
-              {current.lines.map((line) => (
-                <li key={line.variantId} className="flex items-baseline gap-2 text-[12px]">
-                  <span className="flex-1 min-w-0 truncate">{line.name}</span>
-                  <span className="text-muted-foreground shrink-0">sold {line.qty}</span>
+            <ul className="mt-2 space-y-1.5">
+              {current.lines.map((line, i) => (
+                <li key={line.variantId} className="flex items-center gap-2 text-[12px]">
                   <span
                     className={cn(
-                      "shrink-0 font-semibold tabular-nums",
-                      line.stock !== null && line.stock <= 0 ? "text-red-600" : "text-foreground",
+                      "h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0",
+                      i === 0 ? "bg-amber-400 text-white" : "bg-slate-100 text-slate-600",
                     )}
                   >
-                    {line.stock === null ? "—" : `${line.stock} left`}
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate font-medium">{line.name}</div>
+                    <div className="mt-0.5 h-1 rounded-full bg-emerald-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                        style={{ width: `${(line.qty / maxLineQty) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700 tabular-nums">
+                    sold {line.qty}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums",
+                      stockPill(line.stock),
+                    )}
+                  >
+                    {line.stock === null ? "—" : `${Math.max(0, line.stock)} left`}
                   </span>
                 </li>
               ))}
             </ul>
           )}
-          <div className="flex items-center gap-3 mt-2">
-            {current.path && (
+          <div className="flex items-center gap-2 mt-3">
+            {canOpen && (
               <button
                 type="button"
                 onClick={open}
-                className="text-[12px] font-bold text-primary hover:underline"
+                className={cn(
+                  "inline-flex items-center gap-1 h-8 px-3.5 rounded-lg text-[12px] font-bold text-white shadow-sm bg-gradient-to-r",
+                  style.button,
+                )}
               >
-                Open →
+                {current.kind === "today_sold" ? "Open details" : "Open"}
+                <ArrowRight className="h-3.5 w-3.5" />
               </button>
             )}
             <button
               type="button"
               onClick={turnOff}
-              className="text-[11px] text-muted-foreground hover:text-foreground hover:underline"
+              className="inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground"
             >
+              <BellOff className="h-3.5 w-3.5" />
               Don&apos;t show this
             </button>
             {queue.length > 1 && (
-              <span className="ml-auto text-[10px] text-muted-foreground">+{queue.length - 1} more</span>
+              <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                <span className={cn("h-1.5 w-1.5 rounded-full", style.accent)} />+{queue.length - 1} more
+              </span>
             )}
           </div>
         </div>
       </div>
-      <button
-        type="button"
-        onClick={dismiss}
-        aria-label="Close alert"
-        className="absolute top-2 right-2 h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
-    </div>
+    </>
   );
 }
