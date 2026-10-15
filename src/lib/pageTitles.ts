@@ -63,6 +63,7 @@ export const PAGE_TITLE_CONFIG: Record<string, { label: string; icon: string }> 
   "customer-balance-activity": { label: "Balance Activity", icon: "BarChart3" },
   "customer-party-balances": { label: "Customer Balances", icon: "Users" },
   "supplier-party-balances": { label: "Supplier Balances", icon: "Building2" },
+  "payment-flow": { label: "Payment Flow", icon: "BarChart3" },
   "customer-audit-report": { label: "Customer Audit", icon: "History" },
   "cn-sr-adjustment-register": { label: "CN / S-R Register", icon: "FileSpreadsheet" },
   "customer-reviews": { label: "Customer Reviews", icon: "FileSpreadsheet" },
