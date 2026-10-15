@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Boxes,
+  Columns3,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -34,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,6 +59,14 @@ import {
   type StockSummaryArticle,
   type StockSummaryVariant,
 } from "@/lib/stockSummaryArticles";
+import {
+  ARTICLE_HIDEABLE,
+  VARIANT_HIDEABLE,
+  loadHiddenColumns,
+  saveHiddenColumns,
+  toggleHiddenColumn,
+  type HiddenColumns,
+} from "@/lib/stockSummaryColumns";
 import { buildStockSummaryPdf, type PdfCell, type PdfColumn, type PdfKpi } from "@/lib/stockSummaryPdf";
 
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -267,6 +278,41 @@ export default function StockSummary() {
   const showStyle = isOn("style");
   const showColor = isOn("color");
   const [view, setView] = useState<ViewMode>("variants");
+  // Columns this user has hidden, per view; remembered per organisation on this device.
+  const [hiddenCols, setHiddenCols] = useState<HiddenColumns>(() => loadHiddenColumns(orgId));
+  useEffect(() => {
+    setHiddenCols(loadHiddenColumns(orgId));
+  }, [orgId]);
+  const updateHiddenCols = (next: HiddenColumns) => {
+    setHiddenCols(next);
+    saveHiddenColumns(orgId, next);
+  };
+  const fieldOn: Record<string, boolean> = { brand: showBrand, category: showCategory, style: showStyle, color: showColor };
+  /** Variant-list column visible: product field enabled for the shop and not hidden by the user. */
+  const vc = (key: string) => (fieldOn[key] ?? true) && !hiddenCols.variants.includes(key);
+  /** Article-view column visible. */
+  const ac = (key: string) => (fieldOn[key] ?? true) && !hiddenCols.articles.includes(key);
+  const columnLabels: Record<string, string> = {
+    supplier: "Supplier",
+    invoice: "Supplier Invoice",
+    brand: fieldLabels.brand,
+    category: fieldLabels.category,
+    size: "Size",
+    color: fieldLabels.color,
+    style: fieldLabels.style,
+    barcode: "Barcode",
+    opening: "Opening",
+    purchase: "Purchase",
+    purReturn: "Pur Return",
+    sales: "Sales",
+    saleReturn: "Sale Return",
+    purPrice: "Pur Price",
+    stockValue: "Stock Value",
+    salePrice: "Sale Price",
+    sizes: "Sizes (in stock / total)",
+    saleValue: "Sale Value",
+    status: "Status",
+  };
   const [searchDraft, setSearchDraft] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [productNameFilter, setProductNameFilter] = useState("");
@@ -583,6 +629,86 @@ export default function StockSummary() {
       clear: () => setStockQtyMode("all"),
     });
 
+  // ── Column specs shared by Excel, PDF and Print (only the columns the user shows) ──
+  type SupplierInfo = { supplier_name: string; supplier_invoice_no: string } | undefined;
+  type VariantSpec = {
+    key: string | null;
+    label: string;
+    excel: (v: StockSummaryVariant, s: SupplierInfo) => string | number;
+    pdf: Omit<PdfColumn, "header">;
+    pdfCell?: (v: StockSummaryVariant, s: SupplierInfo) => PdfCell;
+    pdfTotal?: (t: VariantTotals, count: number) => string;
+  };
+  type VariantTotals = { opening: number; purchase: number; purReturn: number; sales: number; saleReturn: number; stock: number; stockValue: number };
+  const num = (n: number) => Math.round(n).toLocaleString("en-IN");
+  const variantSpecs = (): VariantSpec[] =>
+    (
+      [
+        { key: "supplier", label: "Supplier", excel: (_v, s) => s?.supplier_name || "", pdf: { weight: 11 } },
+        { key: "invoice", label: "Supplier Invoice", excel: (_v, s) => s?.supplier_invoice_no || "", pdf: { weight: 8 } },
+        { key: null, label: "Product", excel: (v) => v.product_name, pdf: { weight: 9, bold: true }, pdfTotal: (_t, n) => `TOTAL · ${num(n)}` },
+        { key: "brand", label: fieldLabels.brand, excel: (v) => v.brand, pdf: { weight: 6, bold: true } },
+        { key: "category", label: fieldLabels.category, excel: (v) => v.category, pdf: { weight: 5 } },
+        { key: "size", label: "Size", excel: (v) => v.size, pdf: { weight: 4, bold: true } },
+        { key: "color", label: fieldLabels.color, excel: (v) => v.color, pdf: { weight: 8 }, pdfCell: (v) => ({ color: v.color }) },
+        { key: "style", label: fieldLabels.style, excel: (v) => v.style, pdf: { weight: 5 } },
+        { key: "barcode", label: "Barcode", excel: (v) => v.barcode, pdf: { weight: 8, bold: true } },
+        { key: "opening", label: "Opening Qty", excel: (v) => v.opening_qty, pdf: { weight: 4.5, align: "right", head: [30, 58, 138], tint: [239, 246, 255] }, pdfTotal: (t) => num(t.opening) },
+        { key: "purchase", label: "Purchase Qty", excel: (v) => v.purchase_qty, pdf: { weight: 4.5, align: "right", head: [20, 83, 45], tint: [240, 253, 244], text: [21, 128, 61] }, pdfCell: (v) => `+${v.purchase_qty}`, pdfTotal: (t) => `+${num(t.purchase)}` },
+        { key: "purReturn", label: "Pur Return", excel: (v) => v.purchase_return_qty, pdf: { weight: 4.5, align: "right", head: [124, 45, 18], tint: [255, 247, 237], text: [194, 65, 12] }, pdfCell: (v) => (v.purchase_return_qty > 0 ? `-${v.purchase_return_qty}` : "0"), pdfTotal: (t) => `-${num(t.purReturn)}` },
+        { key: "sales", label: "Sales Qty", excel: (v) => v.sales_qty, pdf: { weight: 4.5, align: "right", head: [127, 29, 29], tint: [254, 242, 242], text: [185, 28, 28] }, pdfCell: (v) => (v.sales_qty > 0 ? `-${v.sales_qty}` : "0"), pdfTotal: (t) => `-${num(t.sales)}` },
+        { key: "saleReturn", label: "Sale Return", excel: (v) => v.sale_return_qty, pdf: { weight: 4.5, align: "right", head: [6, 78, 59], tint: [236, 253, 245], text: [4, 120, 87] }, pdfCell: (v) => (v.sale_return_qty > 0 ? `+${v.sale_return_qty}` : "0"), pdfTotal: (t) => `+${num(t.saleReturn)}` },
+        { key: null, label: "Current Stock", excel: (v) => v.stock_qty, pdf: { weight: 4.5, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true }, pdfTotal: (t) => num(t.stock) },
+        { key: "purPrice", label: "Pur Price", excel: (v) => v.pur_price || 0, pdf: { weight: 5, align: "right" }, pdfCell: (v) => (v.pur_price ? num(v.pur_price) : "-") },
+        { key: "stockValue", label: "Stock Value", excel: (v) => Math.round((v.pur_price || 0) * v.stock_qty), pdf: { weight: 6.5, align: "right", text: [67, 56, 202] }, pdfCell: (v) => (v.pur_price ? num(v.pur_price * v.stock_qty) : "-"), pdfTotal: (t) => num(t.stockValue) },
+        { key: "salePrice", label: "Sale Price", excel: (v) => v.sale_price, pdf: { weight: 5, align: "right" }, pdfCell: (v) => num(v.sale_price) },
+      ] as VariantSpec[]
+    ).filter((c) => c.key === null || vc(c.key));
+
+  type ArticleSupplier = { names: string[]; invoices: string[] };
+  type ArticleSpec = {
+    key: string | null;
+    label: string;
+    excel: (a: StockSummaryArticle, s: ArticleSupplier) => string | number;
+    pdf: Omit<PdfColumn, "header">;
+    pdfCell?: (a: StockSummaryArticle, s: ArticleSupplier) => PdfCell;
+    pdfTotal?: () => string;
+  };
+  const statusLabel: Record<ArticleSizeStatus, string> = { full: "Full set", cut: "Cut size", out: "Out", single: "Single size" };
+  const statusBadge: Record<ArticleSizeStatus, PdfCell> = {
+    full: { badge: "Full set", fill: [209, 250, 229], text: [4, 120, 87] },
+    cut: { badge: "Cut size", fill: [254, 243, 199], text: [146, 64, 14] },
+    out: { badge: "Out", fill: [255, 228, 230], text: [190, 18, 60] },
+    single: { badge: "Single size", fill: [241, 245, 249], text: [71, 85, 105] },
+  };
+  const articleSpecs = (): ArticleSpec[] =>
+    (
+      [
+        { key: "supplier", label: "Supplier", excel: (_a, s) => s.names.join(", "), pdf: { weight: 13 }, pdfCell: (_a, s) => s.names.join(", ") || "—" },
+        { key: "supplier", label: "Supplier Invoice", excel: (_a, s) => s.invoices.join(", "), pdf: { weight: 0 } },
+        { key: null, label: "Product", excel: (a) => a.productName, pdf: { weight: 12, bold: true }, pdfTotal: () => `TOTAL · ${num(visibleArticles.length)} ARTICLES` },
+        { key: "brand", label: fieldLabels.brand, excel: (a) => a.brand, pdf: { weight: 8, bold: true } },
+        { key: "category", label: fieldLabels.category, excel: (a) => a.category, pdf: { weight: 7 } },
+        { key: "style", label: fieldLabels.style, excel: (a) => a.style, pdf: { weight: 7 } },
+        { key: "color", label: fieldLabels.color, excel: (a) => a.colors.join(", "), pdf: { weight: 10 }, pdfCell: (a) => ({ color: a.colors.join(" / ") }) },
+        { key: null, label: "Size-wise stock", excel: (a) => a.sizes.map((s) => `${s.size}:${s.qty}`).join("  "), pdf: { weight: 32 }, pdfCell: (a) => ({ sizes: a.sizes.map((s) => ({ size: s.size, qty: s.qty })) }) },
+        { key: null, label: "Cut sizes", excel: (a) => a.cutSizes.join(", "), pdf: { weight: 0 } },
+        { key: "sizes", label: "Sizes in stock", excel: (a) => `${a.inStockSizes.length}/${a.sizes.length}`, pdf: { weight: 5, align: "center" } },
+        { key: null, label: "Total Stock", excel: (a) => a.totalStock, pdf: { weight: 6, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true }, pdfCell: (a) => num(a.totalStock), pdfTotal: () => num(articleTotals.stock) },
+        { key: "stockValue", label: "Stock Value", excel: (a) => Math.round(a.stockValue), pdf: { weight: 9, align: "right", text: [67, 56, 202] }, pdfCell: (a) => num(a.stockValue), pdfTotal: () => num(articleTotals.stockValue) },
+        { key: "saleValue", label: "Sale Value", excel: (a) => Math.round(a.saleValue), pdf: { weight: 9, align: "right" }, pdfCell: (a) => num(a.saleValue), pdfTotal: () => num(articleTotals.saleValue) },
+        { key: "status", label: "Status", excel: (a) => statusLabel[a.status], pdf: { weight: 7, bold: true }, pdfCell: (a) => statusBadge[a.status] },
+      ] as ArticleSpec[]
+    ).filter((c) => c.key === null || ac(c.key));
+
+  const articleSupplierInfo = (
+    a: StockSummaryArticle,
+    all: Record<string, { supplier_name: string; supplier_invoice_no: string }>,
+  ): ArticleSupplier => ({
+    names: [...new Set(a.variantIds.map((id) => all[id]?.supplier_name).filter(Boolean))],
+    invoices: [...new Set(a.variantIds.map((id) => all[id]?.supplier_invoice_no).filter(Boolean))],
+  });
+
   // ── Export / print ──
   const exportExcel = async () => {
     if (!filterInput || !orgId) return;
@@ -592,58 +718,26 @@ export default function StockSummary() {
       const wb = XLSX.utils.book_new();
       const stamp = format(new Date(), "yyyy-MM-dd");
       if (view === "articles") {
-        const allSuppliers = await fetchSupplierRecord(orgId, visibleArticles.flatMap((a) => a.variantIds));
-        const header = [
-          "Sr No", "Supplier", "Supplier Invoice", "Product",
-          ...(showBrand ? [fieldLabels.brand] : []),
-          ...(showCategory ? [fieldLabels.category] : []),
-          ...(showStyle ? [fieldLabels.style] : []),
-          ...(showColor ? [fieldLabels.color] : []),
-          "Size-wise stock", "Cut sizes", "Sizes in stock", "Total Stock", "Stock Value", "Sale Value", "Status",
-        ];
+        const allSuppliers = ac("supplier")
+          ? await fetchSupplierRecord(orgId, visibleArticles.flatMap((a) => a.variantIds))
+          : {};
+        const specs = articleSpecs();
+        const header = ["Sr No", ...specs.map((c) => c.label)];
         const body = visibleArticles.map((a, i) => {
-          const names = [...new Set(a.variantIds.map((id) => allSuppliers[id]?.supplier_name).filter(Boolean))];
-          const invs = [...new Set(a.variantIds.map((id) => allSuppliers[id]?.supplier_invoice_no).filter(Boolean))];
-          return [
-            i + 1, names.join(", "), invs.join(", "), a.productName,
-            ...(showBrand ? [a.brand] : []),
-            ...(showCategory ? [a.category] : []),
-            ...(showStyle ? [a.style] : []),
-            ...(showColor ? [a.colors.join(", ")] : []),
-            a.sizes.map((s) => `${s.size}:${s.qty}`).join("  "),
-            a.cutSizes.join(", "),
-            `${a.inStockSizes.length}/${a.sizes.length}`,
-            a.totalStock, Math.round(a.stockValue), Math.round(a.saleValue),
-            { full: "Full set", cut: "Cut size", out: "Out", single: "Single size" }[a.status],
-          ];
+          const sup = articleSupplierInfo(a, allSuppliers);
+          return [i + 1, ...specs.map((c) => c.excel(a, sup))];
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...body]), "Article Summary");
         XLSX.writeFile(wb, `Stock_Summary_Articles_${stamp}.xlsx`);
       } else {
         const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
-        const suppliers = await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id));
-        const header = [
-          "Sr No", "Supplier", "Supplier Invoice", "Product",
-          ...(showBrand ? [fieldLabels.brand] : []),
-          ...(showCategory ? [fieldLabels.category] : []),
-          "Size",
-          ...(showColor ? [fieldLabels.color] : []),
-          ...(showStyle ? [fieldLabels.style] : []),
-          "Barcode", "Opening Qty", "Purchase Qty", "Pur Return", "Sales Qty", "Sale Return", "Current Stock",
-          "Pur Price", "Stock Value", "Sale Price",
-        ];
+        const specs = variantSpecs();
+        const needSuppliers = vc("supplier") || vc("invoice");
+        const suppliers = needSuppliers ? await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id)) : {};
+        const header = ["Sr No", ...specs.map((c) => c.label)];
         const body = rpcRows.map((r, i) => {
           const v = toVariant(r);
-          return [
-            i + 1, suppliers[v.id]?.supplier_name || "", suppliers[v.id]?.supplier_invoice_no || "", v.product_name,
-            ...(showBrand ? [v.brand] : []),
-            ...(showCategory ? [v.category] : []),
-            v.size,
-            ...(showColor ? [v.color] : []),
-            ...(showStyle ? [v.style] : []),
-            v.barcode, v.opening_qty, v.purchase_qty, v.purchase_return_qty, v.sales_qty, v.sale_return_qty, v.stock_qty,
-            v.pur_price || 0, Math.round((v.pur_price || 0) * v.stock_qty), v.sale_price,
-          ];
+          return [i + 1, ...specs.map((c) => c.excel(v, suppliers[v.id]))];
         });
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...body]), "Stock Summary");
         XLSX.writeFile(wb, `Stock_Summary_${stamp}.xlsx`);
@@ -666,7 +760,6 @@ export default function StockSummary() {
     try {
       const JsPdf = await loadJsPdf();
       const stamp = format(new Date(), "yyyy-MM-dd");
-      const num = (n: number) => Math.round(n).toLocaleString("en-IN");
       const kpis: PdfKpi[] = [
         { label: hasFilters ? "Stock (filtered)" : "Total stock", value: num(totals?.totalStock ?? 0), fill: [37, 99, 235] },
         { label: "Stock value (cost)", value: `Rs ${num(totals?.stockValue ?? 0)}`, fill: [234, 88, 12] },
@@ -679,123 +772,50 @@ export default function StockSummary() {
         filters: chips.map((c) => c.label),
         kpis,
       };
-      let doc;
+      const srCol: PdfColumn = { header: "Sr", weight: 3, align: "center", text: [100, 116, 139] };
       if (view === "articles") {
-        const allSuppliers = await fetchSupplierRecord(orgId, visibleArticles.flatMap((a) => a.variantIds));
-        const columns: PdfColumn[] = [
-          { header: "#", weight: 3, align: "center", text: [100, 116, 139] },
-          { header: "Supplier", weight: 13 },
-          { header: "Product", weight: 12, bold: true },
-          ...(showBrand ? [{ header: fieldLabels.brand, weight: 8, bold: true }] : []),
-          ...(showCategory ? [{ header: fieldLabels.category, weight: 7 }] : []),
-          ...(showStyle ? [{ header: fieldLabels.style, weight: 7 }] : []),
-          ...(showColor ? [{ header: fieldLabels.color, weight: 10 }] : []),
-          { header: "Size-wise stock", weight: 32 },
-          { header: "Sizes", weight: 5, align: "center" },
-          { header: "Stock", weight: 6, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true },
-          { header: "Stock value", weight: 9, align: "right", text: [67, 56, 202] },
-          { header: "Sale value", weight: 9, align: "right" },
-          { header: "Status", weight: 7, bold: true },
-        ];
-        const statusBadge: Record<ArticleSizeStatus, PdfCell> = {
-          full: { badge: "Full set", fill: [209, 250, 229], text: [4, 120, 87] },
-          cut: { badge: "Cut size", fill: [254, 243, 199], text: [146, 64, 14] },
-          out: { badge: "Out", fill: [255, 228, 230], text: [190, 18, 60] },
-          single: { badge: "Single size", fill: [241, 245, 249], text: [71, 85, 105] },
-        };
+        const allSuppliers = ac("supplier")
+          ? await fetchSupplierRecord(orgId, visibleArticles.flatMap((a) => a.variantIds))
+          : {};
+        // Weight 0 marks Excel-only columns (invoice list, cut sizes) that the PDF leaves out.
+        const specs = articleSpecs().filter((c) => c.pdf.weight > 0);
+        const columns: PdfColumn[] = [srCol, ...specs.map((c) => ({ header: c.label, ...c.pdf }))];
         const rows: PdfCell[][] = visibleArticles.map((a, i) => {
-          const names = [...new Set(a.variantIds.map((id) => allSuppliers[id]?.supplier_name).filter(Boolean))];
-          return [
-            i + 1,
-            names.join(", ") || "—",
-            a.productName,
-            ...(showBrand ? [a.brand || "—"] : []),
-            ...(showCategory ? [a.category || "—"] : []),
-            ...(showStyle ? [a.style || "—"] : []),
-            ...(showColor ? [{ color: a.colors.join(" / ") }] : []),
-            { sizes: a.sizes.map((s) => ({ size: s.size, qty: s.qty })) },
-            `${a.inStockSizes.length}/${a.sizes.length}`,
-            num(a.totalStock),
-            num(a.stockValue),
-            num(a.saleValue),
-            statusBadge[a.status],
-          ];
+          const sup = articleSupplierInfo(a, allSuppliers);
+          return [i + 1, ...specs.map((c) => (c.pdfCell ? c.pdfCell(a, sup) : String(c.excel(a, sup) || "—")))];
         });
-        const lead = 3 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showStyle ? 1 : 0) + (showColor ? 1 : 0);
-        const totalRow: PdfCell[] = [
-          "", "", `TOTAL · ${num(visibleArticles.length)} ARTICLES`,
-          ...Array.from({ length: lead - 3 }, () => ""),
-          "", "",
-          num(articleTotals.stock), num(articleTotals.stockValue), num(articleTotals.saleValue), "",
-        ];
-        doc = buildStockSummaryPdf(JsPdf, { ...base, title: "Stock Summary · Article & cut size", columns, rows, totalRow });
+        const totalRow: PdfCell[] = ["", ...specs.map((c) => c.pdfTotal?.() ?? "")];
+        const doc = buildStockSummaryPdf(JsPdf, { ...base, title: "Stock Summary · Article & cut size", columns, rows, totalRow });
         doc.save(`Stock_Summary_Articles_${stamp}.pdf`);
       } else {
         const rpcRows = await fetchStockReportRows(filterInput, ARTICLE_FETCH_LIMIT, 0);
-        const suppliers = await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id));
-        const columns: PdfColumn[] = [
-          { header: "Sr", weight: 3, align: "center", text: [100, 116, 139] },
-          { header: "Supplier", weight: 11 },
-          { header: "Invoice", weight: 8 },
-          { header: "Product", weight: 9, bold: true },
-          ...(showBrand ? [{ header: fieldLabels.brand, weight: 6, bold: true }] : []),
-          ...(showCategory ? [{ header: fieldLabels.category, weight: 5 }] : []),
-          { header: "Size", weight: 4, bold: true },
-          ...(showColor ? [{ header: fieldLabels.color, weight: 8 }] : []),
-          ...(showStyle ? [{ header: fieldLabels.style, weight: 5 }] : []),
-          { header: "Barcode", weight: 8, bold: true },
-          { header: "Opening", weight: 4.5, align: "right", head: [30, 58, 138], tint: [239, 246, 255] },
-          { header: "Purchase", weight: 4.5, align: "right", head: [20, 83, 45], tint: [240, 253, 244], text: [21, 128, 61] },
-          { header: "Pur Ret", weight: 4.5, align: "right", head: [124, 45, 18], tint: [255, 247, 237], text: [194, 65, 12] },
-          { header: "Sales", weight: 4.5, align: "right", head: [127, 29, 29], tint: [254, 242, 242], text: [185, 28, 28] },
-          { header: "Sale Ret", weight: 4.5, align: "right", head: [6, 78, 59], tint: [236, 253, 245], text: [4, 120, 87] },
-          { header: "Stock", weight: 4.5, align: "right", head: [109, 40, 217], tint: [245, 243, 255], text: [76, 29, 149], bold: true },
-          { header: "Pur Price", weight: 5, align: "right" },
-          { header: "Stock Value", weight: 6.5, align: "right", text: [67, 56, 202] },
-          { header: "Sale Price", weight: 5, align: "right" },
-        ];
-        const t = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0 };
+        const specs = variantSpecs();
+        const needSuppliers = vc("supplier") || vc("invoice");
+        const suppliers = needSuppliers ? await fetchSupplierRecord(orgId, rpcRows.map((r) => r.variant_id)) : {};
+        const columns: PdfColumn[] = [srCol, ...specs.map((c) => ({ header: c.label, ...c.pdf }))];
+        const t: VariantTotals = { opening: 0, purchase: 0, purReturn: 0, sales: 0, saleReturn: 0, stock: 0, stockValue: 0 };
         const rows: PdfCell[][] = rpcRows.map((r, i) => {
           const v = toVariant(r);
-          const value = (v.pur_price || 0) * v.stock_qty;
           t.opening += v.opening_qty;
           t.purchase += v.purchase_qty;
           t.purReturn += v.purchase_return_qty;
           t.sales += v.sales_qty;
           t.saleReturn += v.sale_return_qty;
           t.stock += v.stock_qty;
-          t.stockValue += value;
+          t.stockValue += (v.pur_price || 0) * v.stock_qty;
+          const s = suppliers[v.id];
           return [
             i + 1,
-            suppliers[v.id]?.supplier_name || "—",
-            suppliers[v.id]?.supplier_invoice_no || "—",
-            v.product_name,
-            ...(showBrand ? [v.brand || "—"] : []),
-            ...(showCategory ? [v.category || "—"] : []),
-            v.size || "—",
-            ...(showColor ? [{ color: v.color }] : []),
-            ...(showStyle ? [v.style || "—"] : []),
-            v.barcode,
-            v.opening_qty,
-            `+${v.purchase_qty}`,
-            v.purchase_return_qty > 0 ? `-${v.purchase_return_qty}` : "0",
-            v.sales_qty > 0 ? `-${v.sales_qty}` : "0",
-            v.sale_return_qty > 0 ? `+${v.sale_return_qty}` : "0",
-            v.stock_qty,
-            v.pur_price ? num(v.pur_price) : "-",
-            v.pur_price ? num(value) : "-",
-            num(v.sale_price),
+            ...specs.map((c) => {
+              if (c.pdfCell) return c.pdfCell(v, s);
+              const value = c.excel(v, s);
+              return typeof value === "number" ? value : value || "—";
+            }),
           ];
         });
-        const lead = 6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0) + (showStyle ? 1 : 0);
-        const totalRow: PdfCell[] = [
-          "", "", "", `TOTAL · ${num(rpcRows.length)}`,
-          ...Array.from({ length: lead - 4 }, () => ""),
-          num(t.opening), `+${num(t.purchase)}`, `-${num(t.purReturn)}`, `-${num(t.sales)}`, `+${num(t.saleReturn)}`,
-          num(t.stock), "", num(t.stockValue), "",
-        ];
+        const totalRow: PdfCell[] = ["", ...specs.map((c) => c.pdfTotal?.(t, rpcRows.length) ?? "")];
         const capped = Number(rpcRows[0]?.total_rows ?? 0) > rpcRows.length;
-        doc = buildStockSummaryPdf(JsPdf, {
+        const doc = buildStockSummaryPdf(JsPdf, {
           ...base,
           title: "Stock Summary · Variant list",
           columns,
@@ -820,22 +840,37 @@ export default function StockSummary() {
     if (!w) return;
     const esc = (s: string | number) =>
       String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+    const right = (value: string | number) => (typeof value === "number" ? ' style="text-align:right"' : "");
     let head = "";
     let rows = "";
     if (view === "articles") {
-      head = `<tr><th>#</th><th>Product</th>${showBrand ? `<th>${esc(fieldLabels.brand)}</th>` : ""}${showColor ? `<th>${esc(fieldLabels.color)}</th>` : ""}<th>Size-wise stock</th><th>Cut sizes</th><th>Total</th><th>Status</th></tr>`;
+      // Supplier names are not loaded for a print, so print leaves the supplier columns out.
+      const specs = articleSpecs().filter((c) => c.key !== "supplier");
+      head = `<tr><th>#</th>${specs.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
+      const noSup = { names: [], invoices: [] };
       rows = visibleArticles
         .map(
           (a, i) =>
-            `<tr><td>${i + 1}</td><td>${esc(a.productName)}</td>${showBrand ? `<td>${esc(a.brand)}</td>` : ""}${showColor ? `<td>${esc(a.colors.join(", "))}</td>` : ""}<td>${a.sizes.map((s) => `${esc(s.size)}:<b>${s.qty}</b>`).join(" &nbsp; ")}</td><td>${esc(a.cutSizes.join(", "))}</td><td style="text-align:right">${a.totalStock}</td><td>${esc(a.status)}</td></tr>`,
+            `<tr><td>${i + 1}</td>${specs
+              .map((c) => {
+                const value = c.excel(a, noSup);
+                return `<td${right(value)}>${esc(value)}</td>`;
+              })
+              .join("")}</tr>`,
         )
         .join("");
     } else {
-      head = `<tr><th>#</th><th>Supplier</th><th>Invoice</th><th>Product</th>${showBrand ? `<th>${esc(fieldLabels.brand)}</th>` : ""}<th>Size</th>${showColor ? `<th>${esc(fieldLabels.color)}</th>` : ""}<th>Barcode</th><th>Stock</th><th>Pur Price</th><th>Sale Price</th></tr>`;
+      const specs = variantSpecs();
+      head = `<tr><th>#</th>${specs.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr>`;
       rows = variantRows
         .map(
           (r, i) =>
-            `<tr><td>${(variantPage - 1) * variantPageSize + i + 1}</td><td>${esc(r.supplier_name)}</td><td>${esc(r.supplier_invoice_no)}</td><td>${esc(r.product_name)}</td>${showBrand ? `<td>${esc(r.brand)}</td>` : ""}<td>${esc(r.size)}</td>${showColor ? `<td>${esc(r.color)}</td>` : ""}<td>${esc(r.barcode)}</td><td style="text-align:right">${r.stock_qty}</td><td style="text-align:right">${r.pur_price ?? ""}</td><td style="text-align:right">${r.sale_price}</td></tr>`,
+            `<tr><td>${(variantPage - 1) * variantPageSize + i + 1}</td>${specs
+              .map((c) => {
+                const value = c.excel(r, r);
+                return `<td${right(value)}>${esc(value)}</td>`;
+              })
+              .join("")}</tr>`,
         )
         .join("");
     }
@@ -1008,6 +1043,14 @@ export default function StockSummary() {
                 onPage={view === "variants" ? setVariantPage : setArticlePage}
               />
             )}
+            <ColumnChooser
+              options={(view === "variants" ? VARIANT_HIDEABLE : ARTICLE_HIDEABLE)
+                .filter((key) => fieldOn[key] ?? true)
+                .map((key) => ({ key, label: columnLabels[key] ?? key }))}
+              hidden={hiddenCols[view]}
+              onToggle={(key) => updateHiddenCols(toggleHiddenColumn(hiddenCols, view, key))}
+              onShowAll={() => updateHiddenCols({ ...hiddenCols, [view]: [] })}
+            />
           </div>
           {chips.length > 0 && (
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -1192,18 +1235,18 @@ export default function StockSummary() {
                   <thead>
                     <tr>
                       <th className={cn(TH, "w-12 text-center")}>#</th>
-                      <th className={TH}>Supplier</th>
+                      {ac("supplier") && <th className={TH}>Supplier</th>}
                       <th className={TH}>Product</th>
-                      {showBrand && <th className={TH}>{fieldLabels.brand}</th>}
-                      {showCategory && <th className={TH}>{fieldLabels.category}</th>}
-                      {showStyle && <th className={TH}>{fieldLabels.style}</th>}
-                      {showColor && <th className={TH}>{fieldLabels.color}</th>}
+                      {ac("brand") && <th className={TH}>{fieldLabels.brand}</th>}
+                      {ac("category") && <th className={TH}>{fieldLabels.category}</th>}
+                      {ac("style") && <th className={TH}>{fieldLabels.style}</th>}
+                      {ac("color") && <th className={TH}>{fieldLabels.color}</th>}
                       <th className={cn(TH, "min-w-[260px]")}>Size-wise stock</th>
-                      <th className={cn(TH, "text-center")}>Sizes</th>
+                      {ac("sizes") && <th className={cn(TH, "text-center")}>Sizes</th>}
                       <th className={cn(TH, "text-right bg-violet-700")}>Stock</th>
-                      <th className={cn(TH, "text-right")}>Stock Value</th>
-                      <th className={cn(TH, "text-right")}>Sale Value</th>
-                      <th className={TH}>Status</th>
+                      {ac("stockValue") && <th className={cn(TH, "text-right")}>Stock Value</th>}
+                      {ac("saleValue") && <th className={cn(TH, "text-right")}>Sale Value</th>}
+                      {ac("status") && <th className={TH}>Status</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -1233,6 +1276,7 @@ export default function StockSummary() {
                             )}
                           >
                             <td className={cn(TD, "text-center text-xs text-slate-400")}>{(articlePage - 1) * articlePageSize + i + 1}</td>
+                            {ac("supplier") && (
                             <td className={cn(TD, "text-xs text-slate-600 max-w-[180px]")}>
                               {sup === null ? (
                                 <Skeleton className="h-4 w-20" />
@@ -1253,11 +1297,12 @@ export default function StockSummary() {
                                 </div>
                               )}
                             </td>
+                            )}
                             <td className={cn(TD, "font-bold text-slate-900")}>{a.productName}</td>
-                            {showBrand && <td className={cn(TD, "font-semibold text-slate-700")}>{a.brand || "—"}</td>}
-                            {showCategory && <td className={cn(TD, "text-slate-600")}>{a.category || "—"}</td>}
-                            {showStyle && <td className={cn(TD, "text-slate-600")}>{a.style || "—"}</td>}
-                            {showColor && (
+                            {ac("brand") && <td className={cn(TD, "font-semibold text-slate-700")}>{a.brand || "—"}</td>}
+                            {ac("category") && <td className={cn(TD, "text-slate-600")}>{a.category || "—"}</td>}
+                            {ac("style") && <td className={cn(TD, "text-slate-600")}>{a.style || "—"}</td>}
+                            {ac("color") && (
                               <td className={TD}>
                                 {a.colors.length === 0 ? (
                                   <span className="text-slate-400">—</span>
@@ -1290,6 +1335,7 @@ export default function StockSummary() {
                                 ))}
                               </div>
                             </td>
+                            {ac("sizes") && (
                             <td className={cn(TD, "text-center text-xs")}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1307,12 +1353,15 @@ export default function StockSummary() {
                                 </TooltipContent>
                               </Tooltip>
                             </td>
+                            )}
                             <td className={cn(TD, "text-right text-base font-bold text-violet-800 bg-violet-50/70")}>{qty(a.totalStock)}</td>
-                            <td className={cn(TD, "text-right text-slate-700")}>{inr(a.stockValue)}</td>
-                            <td className={cn(TD, "text-right text-slate-700")}>{inr(a.saleValue)}</td>
-                            <td className={TD}>
-                              <StatusBadge status={a.status} />
-                            </td>
+                            {ac("stockValue") && <td className={cn(TD, "text-right text-slate-700")}>{inr(a.stockValue)}</td>}
+                            {ac("saleValue") && <td className={cn(TD, "text-right text-slate-700")}>{inr(a.saleValue)}</td>}
+                            {ac("status") && (
+                              <td className={TD}>
+                                <StatusBadge status={a.status} />
+                              </td>
+                            )}
                           </tr>
                         );
                       })
@@ -1321,15 +1370,15 @@ export default function StockSummary() {
                   {visibleArticles.length > 0 && (
                     <tfoot>
                       <tr className="sticky bottom-0 bg-amber-100 font-extrabold">
-                        <td colSpan={3 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showStyle ? 1 : 0) + (showColor ? 1 : 0)} className="bg-slate-800 px-3 py-2 text-center text-white tracking-wide">
+                        <td colSpan={["supplier", "brand", "category", "style", "color"].filter(ac).length + 2} className="bg-slate-800 px-3 py-2 text-center text-white tracking-wide">
                           TOTAL · {qty(visibleArticles.length)} ARTICLES
                         </td>
                         <td className="px-3 py-2" />
-                        <td className="px-3 py-2" />
+                        {ac("sizes") && <td className="px-3 py-2" />}
                         <td className="px-3 py-2 text-right tabular-nums bg-violet-200 text-violet-950">{qty(articleTotals.stock)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{inr(articleTotals.stockValue)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{inr(articleTotals.saleValue)}</td>
-                        <td className="px-3 py-2" />
+                        {ac("stockValue") && <td className="px-3 py-2 text-right tabular-nums">{inr(articleTotals.stockValue)}</td>}
+                        {ac("saleValue") && <td className="px-3 py-2 text-right tabular-nums">{inr(articleTotals.saleValue)}</td>}
+                        {ac("status") && <td className="px-3 py-2" />}
                       </tr>
                     </tfoot>
                   )}
@@ -1344,24 +1393,24 @@ export default function StockSummary() {
                 <thead>
                   <tr>
                     <th className={cn(TH, "w-14 text-center")}>Sr No</th>
-                    <th className={TH}>Supplier</th>
-                    <th className={TH}>Supplier Invoice</th>
+                    {vc("supplier") && <th className={TH}>Supplier</th>}
+                    {vc("invoice") && <th className={TH}>Supplier Invoice</th>}
                     <th className={TH}>Product</th>
-                    {showBrand && <th className={TH}>{fieldLabels.brand}</th>}
-                    {showCategory && <th className={TH}>{fieldLabels.category}</th>}
-                    <th className={TH}>Size</th>
-                    {showColor && <th className={TH}>{fieldLabels.color}</th>}
-                    {showStyle && <th className={TH}>{fieldLabels.style}</th>}
-                    <th className={TH}>Barcode</th>
-                    <th className={cn(TH, "text-right bg-blue-900")}>Opening</th>
-                    <th className={cn(TH, "text-right bg-green-900")}>Purchase</th>
-                    <th className={cn(TH, "text-right bg-orange-900")}>Pur Return</th>
-                    <th className={cn(TH, "text-right bg-red-900")}>Sales</th>
-                    <th className={cn(TH, "text-right bg-emerald-900")}>Sale Return</th>
+                    {vc("brand") && <th className={TH}>{fieldLabels.brand}</th>}
+                    {vc("category") && <th className={TH}>{fieldLabels.category}</th>}
+                    {vc("size") && <th className={TH}>Size</th>}
+                    {vc("color") && <th className={TH}>{fieldLabels.color}</th>}
+                    {vc("style") && <th className={TH}>{fieldLabels.style}</th>}
+                    {vc("barcode") && <th className={TH}>Barcode</th>}
+                    {vc("opening") && <th className={cn(TH, "text-right bg-blue-900")}>Opening</th>}
+                    {vc("purchase") && <th className={cn(TH, "text-right bg-green-900")}>Purchase</th>}
+                    {vc("purReturn") && <th className={cn(TH, "text-right bg-orange-900")}>Pur Return</th>}
+                    {vc("sales") && <th className={cn(TH, "text-right bg-red-900")}>Sales</th>}
+                    {vc("saleReturn") && <th className={cn(TH, "text-right bg-emerald-900")}>Sale Return</th>}
                     <th className={cn(TH, "text-right bg-violet-700")}>Current Stock</th>
-                    <th className={cn(TH, "text-right")}>Pur Price</th>
-                    <th className={cn(TH, "text-right")}>Stock Value</th>
-                    <th className={cn(TH, "text-right")}>Sale Price</th>
+                    {vc("purPrice") && <th className={cn(TH, "text-right")}>Pur Price</th>}
+                    {vc("stockValue") && <th className={cn(TH, "text-right")}>Stock Value</th>}
+                    {vc("salePrice") && <th className={cn(TH, "text-right")}>Sale Price</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1383,33 +1432,35 @@ export default function StockSummary() {
                     variantRows.map((r, i) => (
                       <tr key={r.id} className="hover:bg-indigo-50/40">
                         <td className={cn(TD, "text-center text-xs text-slate-400 border-b border-slate-100")}>{(variantPage - 1) * variantPageSize + i + 1}</td>
-                        <td className={cn(TD, "text-xs text-slate-600 border-b border-slate-100")}>{r.supplier_name || "—"}</td>
-                        <td className={cn(TD, "font-mono text-xs border-b border-slate-100")}>{r.supplier_invoice_no || "—"}</td>
+                        {vc("supplier") && <td className={cn(TD, "text-xs text-slate-600 border-b border-slate-100")}>{r.supplier_name || "—"}</td>}
+                        {vc("invoice") && <td className={cn(TD, "font-mono text-xs border-b border-slate-100")}>{r.supplier_invoice_no || "—"}</td>}
                         <td className={cn(TD, "font-bold text-slate-900 border-b border-slate-100")}>{r.product_name}</td>
-                        {showBrand && <td className={cn(TD, "font-semibold text-slate-700 border-b border-slate-100")}>{r.brand || "—"}</td>}
-                        {showCategory && <td className={cn(TD, "text-slate-600 border-b border-slate-100")}>{r.category || "—"}</td>}
-                        <td className={cn(TD, "font-semibold border-b border-slate-100")}>{r.size || "—"}</td>
-                        {showColor && (
+                        {vc("brand") && <td className={cn(TD, "font-semibold text-slate-700 border-b border-slate-100")}>{r.brand || "—"}</td>}
+                        {vc("category") && <td className={cn(TD, "text-slate-600 border-b border-slate-100")}>{r.category || "—"}</td>}
+                        {vc("size") && <td className={cn(TD, "font-semibold border-b border-slate-100")}>{r.size || "—"}</td>}
+                        {vc("color") && (
                           <td className={cn(TD, "border-b border-slate-100")}>
                             <ColorChip name={r.color} />
                           </td>
                         )}
-                        {showStyle && <td className={cn(TD, "text-slate-600 border-b border-slate-100")}>{r.style || "—"}</td>}
-                        <td className={cn(TD, "font-mono font-semibold border-b border-slate-100")}>{r.barcode}</td>
-                        <td className={cn(TD, "text-right bg-blue-50/70 border-b border-slate-100")}>{r.opening_qty}</td>
-                        <td className={cn(TD, "text-right bg-green-50/70 text-green-700 font-medium border-b border-slate-100")}>+{r.purchase_qty}</td>
-                        <td className={cn(TD, "text-right bg-orange-50/70 text-orange-700 border-b border-slate-100")}>{r.purchase_return_qty > 0 ? `-${r.purchase_return_qty}` : "0"}</td>
-                        <td className={cn(TD, "text-right bg-red-50/70 text-red-700 border-b border-slate-100")}>{r.sales_qty > 0 ? `-${r.sales_qty}` : "0"}</td>
-                        <td className={cn(TD, "text-right bg-emerald-50/70 text-emerald-700 border-b border-slate-100")}>{r.sale_return_qty > 0 ? `+${r.sale_return_qty}` : "0"}</td>
+                        {vc("style") && <td className={cn(TD, "text-slate-600 border-b border-slate-100")}>{r.style || "—"}</td>}
+                        {vc("barcode") && <td className={cn(TD, "font-mono font-semibold border-b border-slate-100")}>{r.barcode}</td>}
+                        {vc("opening") && <td className={cn(TD, "text-right bg-blue-50/70 border-b border-slate-100")}>{r.opening_qty}</td>}
+                        {vc("purchase") && <td className={cn(TD, "text-right bg-green-50/70 text-green-700 font-medium border-b border-slate-100")}>+{r.purchase_qty}</td>}
+                        {vc("purReturn") && <td className={cn(TD, "text-right bg-orange-50/70 text-orange-700 border-b border-slate-100")}>{r.purchase_return_qty > 0 ? `-${r.purchase_return_qty}` : "0"}</td>}
+                        {vc("sales") && <td className={cn(TD, "text-right bg-red-50/70 text-red-700 border-b border-slate-100")}>{r.sales_qty > 0 ? `-${r.sales_qty}` : "0"}</td>}
+                        {vc("saleReturn") && <td className={cn(TD, "text-right bg-emerald-50/70 text-emerald-700 border-b border-slate-100")}>{r.sale_return_qty > 0 ? `+${r.sale_return_qty}` : "0"}</td>}
                         <td className={cn(TD, "text-right text-base font-bold bg-violet-50 text-violet-900 border-b border-slate-100")}>
                           {r.stock_qty}
                           {r.uom && r.uom !== "NOS" && r.uom !== "PCS" ? ` ${r.uom}` : ""}
                         </td>
-                        <td className={cn(TD, "text-right border-b border-slate-100")}>{r.pur_price ? `₹${r.pur_price}` : "-"}</td>
-                        <td className={cn(TD, "text-right font-medium text-indigo-700 border-b border-slate-100")}>
-                          {r.pur_price ? `₹${(r.pur_price * r.stock_qty).toLocaleString("en-IN")}` : "-"}
-                        </td>
-                        <td className={cn(TD, "text-right border-b border-slate-100")}>₹{r.sale_price}</td>
+                        {vc("purPrice") && <td className={cn(TD, "text-right border-b border-slate-100")}>{r.pur_price ? `₹${r.pur_price}` : "-"}</td>}
+                        {vc("stockValue") && (
+                          <td className={cn(TD, "text-right font-medium text-indigo-700 border-b border-slate-100")}>
+                            {r.pur_price ? `₹${(r.pur_price * r.stock_qty).toLocaleString("en-IN")}` : "-"}
+                          </td>
+                        )}
+                        {vc("salePrice") && <td className={cn(TD, "text-right border-b border-slate-100")}>₹{r.sale_price}</td>}
                       </tr>
                     ))
                   )}
@@ -1418,20 +1469,20 @@ export default function StockSummary() {
                   <tfoot>
                     <tr className="sticky bottom-0 bg-amber-100 font-extrabold tabular-nums">
                       <td
-                        colSpan={6 + (showBrand ? 1 : 0) + (showCategory ? 1 : 0) + (showColor ? 1 : 0) + (showStyle ? 1 : 0)}
+                        colSpan={["supplier", "invoice", "brand", "category", "size", "color", "style", "barcode"].filter(vc).length + 2}
                         className="bg-slate-800 px-3 py-2 text-center text-white tracking-wide"
                       >
                         {variantPageCount > 1 ? "PAGE TOTAL" : "GRAND TOTAL"}
                       </td>
-                      <td className="px-3 py-2 text-right bg-blue-200">{qty(variantPageTotals.opening)}</td>
-                      <td className="px-3 py-2 text-right bg-green-200">+{qty(variantPageTotals.purchase)}</td>
-                      <td className="px-3 py-2 text-right bg-orange-200">-{qty(variantPageTotals.purReturn)}</td>
-                      <td className="px-3 py-2 text-right bg-red-200">-{qty(variantPageTotals.sales)}</td>
-                      <td className="px-3 py-2 text-right bg-emerald-200">+{qty(variantPageTotals.saleReturn)}</td>
+                      {vc("opening") && <td className="px-3 py-2 text-right bg-blue-200">{qty(variantPageTotals.opening)}</td>}
+                      {vc("purchase") && <td className="px-3 py-2 text-right bg-green-200">+{qty(variantPageTotals.purchase)}</td>}
+                      {vc("purReturn") && <td className="px-3 py-2 text-right bg-orange-200">-{qty(variantPageTotals.purReturn)}</td>}
+                      {vc("sales") && <td className="px-3 py-2 text-right bg-red-200">-{qty(variantPageTotals.sales)}</td>}
+                      {vc("saleReturn") && <td className="px-3 py-2 text-right bg-emerald-200">+{qty(variantPageTotals.saleReturn)}</td>}
                       <td className="px-3 py-2 text-right bg-violet-300">{qty(variantPageTotals.stock)}</td>
-                      <td className="px-3 py-2 text-right">—</td>
-                      <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.stockValue)}</td>
-                      <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.saleValue)}</td>
+                      {vc("purPrice") && <td className="px-3 py-2 text-right">—</td>}
+                      {vc("stockValue") && <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.stockValue)}</td>}
+                      {vc("salePrice") && <td className="px-3 py-2 text-right bg-amber-200">{inr(variantPageTotals.saleValue)}</td>}
                     </tr>
                   </tfoot>
                 )}
@@ -1455,6 +1506,55 @@ function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
   if (to < pageCount - 1) out.push("gap");
   if (to < pageCount) out.push(pageCount);
   return out;
+}
+
+/** "Columns" button: tick the columns to show; the choice is remembered on this device. */
+function ColumnChooser({
+  options,
+  hidden,
+  onToggle,
+  onShowAll,
+}: {
+  options: Array<{ key: string; label: string }>;
+  hidden: string[];
+  onToggle: (key: string) => void;
+  onShowAll: () => void;
+}) {
+  const hiddenCount = options.filter((o) => hidden.includes(o.key)).length;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs">
+          <Columns3 className="h-4 w-4" />
+          Columns
+          {hiddenCount > 0 && (
+            <span className="rounded-full bg-indigo-100 px-1.5 text-[10px] font-bold text-indigo-700">{hiddenCount} hidden</span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-56 p-2">
+        <div className="mb-1 flex items-center justify-between px-1">
+          <span className="text-xs font-bold uppercase tracking-wide text-slate-500">Show columns</span>
+          {hiddenCount > 0 && (
+            <button type="button" className="text-xs font-semibold text-indigo-600 hover:underline" onClick={onShowAll}>
+              Show all
+            </button>
+          )}
+        </div>
+        <div className="max-h-72 space-y-0.5 overflow-y-auto">
+          {options.map((o) => (
+            <label key={o.key} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-slate-50">
+              <Checkbox checked={!hidden.includes(o.key)} onCheckedChange={() => onToggle(o.key)} />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        <p className="mt-1.5 border-t border-slate-100 px-1 pt-1.5 text-[11px] text-slate-400">
+          Excel, PDF and Print use the same columns.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /** Rows-per-page selector and count, shown on the search row next to the view toggle. */
