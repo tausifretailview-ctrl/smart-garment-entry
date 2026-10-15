@@ -36,7 +36,7 @@ import {
   supplierCreditNoteLedgerDebit,
   supplierCreditNoteLedgerDescriptionFromCn,
 } from "@/utils/purchaseSupplierLedgerCn";
-import { buildUnvoucheredReturnAdjustByBillId } from "@/utils/purchaseBillReturnAdjust";
+import { buildAppliedReturnAdjustByBillIdMap } from "@/utils/purchaseBillReturnAdjust";
 import { linkedBillDisplayNo } from "@/utils/purchaseReturnCnDisplay";
 import type * as XLSXType from "xlsx";
 /** Lazily loaded on export — keeps the xlsx bundle off this page's initial chunk. */
@@ -455,11 +455,8 @@ export function SupplierLedger({
       });
 
       // Return credit already written into bill.paid_amount but shown as its own
-      // purchase-return row below — must not be counted as cash paid.
-      const returnAdjustByBillId = buildUnvoucheredReturnAdjustByBillId(
-        purchaseReturnsData || [],
-        creditNoteVoucherIds,
-      );
+      // CN / purchase-return row below — must not be counted as cash paid.
+      const returnAdjustByBillId = buildAppliedReturnAdjustByBillIdMap(purchaseReturnsData || []);
 
       // Combine and sort transactions
       const allTransactions: Transaction[] = [];
@@ -587,16 +584,18 @@ export function SupplierLedger({
             category: 'cn-adjusted',
           });
         } else if (item.type === 'refund_received') {
+          // Money back from the supplier raises the payable again (the CN already lowered it).
           const r = item.data as any;
-          runningBalance -= r.total_amount;
+          const refundAmt = Number(r.total_amount) || 0;
+          runningBalance += refundAmt;
           allTransactions.push({
             id: r.id,
             date: r.voucher_date,
             type: 'payment',
             reference: r.voucher_number,
             description: r.description || 'Refund Received from Supplier',
-            debit: r.total_amount,
-            credit: 0,
+            debit: 0,
+            credit: refundAmt,
             balance: runningBalance,
             category: 'payments',
           });
@@ -685,7 +684,7 @@ export function SupplierLedger({
   );
 
   const cardRecon = useMemo(() => {
-    if (tableRecon) return { ...tableRecon, refundsReceived: 0 };
+    if (tableRecon) return tableRecon;
     if (!selectedSupplierSnapshot) return null;
     const snap = selectedSupplierSnapshot;
     return {
@@ -1000,7 +999,7 @@ export function SupplierLedger({
         ["(=) Net Purchases", netPurchases],
         ["(-) Paid (Cash / Bank)", -recon.totalPaid],
         ...(recon.refundsReceived > 0
-          ? [["(-) Refunds Received", -recon.refundsReceived] as [string, number]]
+          ? [["(+) Refunds Received from Supplier", recon.refundsReceived] as [string, number]]
           : []),
       ];
       const labelX = margin + 4;
@@ -1510,8 +1509,8 @@ export function SupplierLedger({
                       <span className="font-medium">₹{Math.round(recon.totalPaid).toLocaleString("en-IN")}</span>
                     </div>
                     {recon.refundsReceived > 0 && (
-                      <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
-                        <span>(−) Refunds Received from Supplier</span>
+                      <div className="flex justify-between">
+                        <span>(+) Refunds Received from Supplier</span>
                         <span className="font-medium">₹{Math.round(recon.refundsReceived).toLocaleString("en-IN")}</span>
                       </div>
                     )}

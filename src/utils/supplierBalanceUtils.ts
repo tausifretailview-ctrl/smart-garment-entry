@@ -8,17 +8,18 @@ import { supplierCreditNoteLedgerDebit } from "@/utils/purchaseSupplierLedgerCn"
  * Single source of truth for supplier (payables) balance used by Supplier Ledger,
  * Accounts supplier payment tab, and floating supplier payment.
  *
- * ## CN adjusted against bill (double-count fix)
+ * ## CN adjusted against bill
  * When "Adjust Credit Note" applies a return to a bill, `purchase_bills.paid_amount`
- * increases AND a supplier-level `credit_note` voucher remains. Counting both would
- * over-reduce payables. We subtract CN voucher amounts linked to `purchase_returns` rows
- * with `credit_status = 'adjusted'` and `linked_bill_id` set (those amounts are already
- * reflected in bill paid totals). If `credit_available_balance` is set on the return,
- * only the portion already applied to the bill (`voucher_amount - remainder`) is netted.
+ * increases AND the supplier-level `credit_note` voucher remains. The applied part is
+ * stripped from Paid (it is not cash, see below), so the CN voucher counts in full here.
+ * Netting it off the CN as well made the return vanish from the balance entirely.
+ * `creditNotesAppliedToBills` only keeps it out of the unapplied credit pool.
  *
  * ## Refunds from supplier
- * `voucher_type = 'receipt'` with `reference_type = 'supplier'` reduces net payable
- * (cash/bank refund) and must be included in the list balance to match ledger running total.
+ * `voucher_type = 'receipt'` with `reference_type = 'supplier'` is money the supplier
+ * paid back to us. The return's CN already lowered the payable; the refund settles that
+ * credit in cash, so it ADDS back to the payable (otherwise a refunded ₹118 return
+ * lowers the balance by ₹236).
  *
  * ## Reconciliation vs ledger table
  * `paid_amount` on bills already includes cash-at-purchase and payments that
@@ -41,7 +42,7 @@ export type SupplierBalanceSnapshot = {
   totalPurchases: number;
   totalPaid: number;
   totalCreditNotesGross: number;
-  /** CN voucher amounts already netted into bill paid via Adjust CN → bill. */
+  /** CN voucher amounts applied to a bill via Adjust CN → bill (kept out of the unapplied pool). */
   creditNotesAppliedToBills: number;
   /** CN voucher amounts whose return was adjusted to the supplier outstanding balance. */
   creditNotesAppliedToOutstanding: number;
@@ -84,6 +85,8 @@ export type SupplierLedgerReconTotals = {
   totalPurchases: number;
   totalPaid: number;
   accountAdjust: number;
+  /** Money the supplier paid back to us (ledger credit rows on the payment side). */
+  refundsReceived: number;
   balance: number;
 };
 
@@ -100,13 +103,17 @@ export function supplierLedgerReconFromTransactions(
   let totalPurchases = 0;
   let totalPaid = 0;
   let accountAdjust = 0;
+  let refundsReceived = 0;
   for (const t of txns) {
     if (t.type === "bill" && t.reference === "Opening") {
       openingBalance += Number(t.credit) || 0;
       continue;
     }
     if (t.type === "bill") totalPurchases += Number(t.credit) || 0;
-    else if (t.type === "payment") totalPaid += Number(t.debit) || 0;
+    else if (t.type === "payment") {
+      totalPaid += Number(t.debit) || 0;
+      refundsReceived += Number(t.credit) || 0;
+    }
     else if (t.type === "credit_note") accountAdjust += Number(t.debit) || 0;
   }
   return {
@@ -114,6 +121,7 @@ export function supplierLedgerReconFromTransactions(
     totalPurchases: roundMoney(totalPurchases),
     totalPaid: roundMoney(totalPaid),
     accountAdjust: roundMoney(accountAdjust),
+    refundsReceived: roundMoney(refundsReceived),
     balance: roundMoney(Number(txns[txns.length - 1]?.balance) || 0),
   };
 }
@@ -370,6 +378,8 @@ export function computeSnapshotForSupplier(
     else creditNotesAppliedToBills += Math.max(0, vn - Number(rem));
   }
   creditNotesAppliedToBills = roundMoney(creditNotesAppliedToBills);
+  // Full CN voucher amounts: the bill-applied part is stripped from Paid below
+  // (returnAdjustByBillId), so it must be counted here exactly once.
   let totalCreditNotesNet = 0;
   for (const cn of supplierCreditNotes) {
     const linked = (allPurchaseReturns || []).filter(
@@ -396,7 +406,10 @@ export function computeSnapshotForSupplier(
   creditNotesAppliedToOutstanding = roundMoney(creditNotesAppliedToOutstanding);
   creditNotesRefunded = roundMoney(creditNotesRefunded);
   const unappliedCreditNotes = roundMoney(
-    Math.max(0, totalCreditNotesNet - creditNotesAppliedToOutstanding - creditNotesRefunded)
+    Math.max(
+      0,
+      totalCreditNotesNet - creditNotesAppliedToBills - creditNotesAppliedToOutstanding - creditNotesRefunded,
+    )
   );
 
   const allCreditNoteVoucherIds = new Set(supplierCreditNotes.map((cn) => cn.id));
@@ -452,7 +465,7 @@ export function computeSnapshotForSupplier(
   const refundsReceived = roundMoney(refundsBySupplier || 0);
 
   const balance = roundMoney(
-    openingBalance + totalPurchases - totalPaid - totalCreditNotesNet - unreflectedReturns - refundsReceived
+    openingBalance + totalPurchases - totalPaid - totalCreditNotesNet - unreflectedReturns + refundsReceived
   );
 
   return {
