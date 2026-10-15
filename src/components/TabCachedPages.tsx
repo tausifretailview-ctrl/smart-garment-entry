@@ -39,6 +39,7 @@ import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { SalesInvoiceDashboardLoadShell } from "@/components/skeletons/SalesInvoiceDashboardLoadShell";
 import { isIdleEvictableDashboardPath, READ_ONLY_IDLE_UNMOUNT_MS } from "@/lib/tabIdleEvict";
 import { reloadAppWithUpdateCheck } from "@/lib/appReload";
+import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
 import { claimNewerBuildReload, newerServerEntryScript } from "@/lib/appBuildCheck";
 import { tabLoadMessage } from "@/lib/tabLoadLabels";
 import { resolveTabLoadShell } from "@/lib/tabLoadShell";
@@ -290,6 +291,8 @@ function TabPageFallback({
     let cancelled = false;
     void newerServerEntryScript().then((serverEntry) => {
       if (cancelled || !serverEntry) return;
+      // Never auto-reload over an unsaved bill; the Refresh app button stays available.
+      if (hasUnsavedEntryWork()) return;
       if (claimNewerBuildReload(serverEntry)) void reloadAppWithUpdateCheck();
     });
     return () => {

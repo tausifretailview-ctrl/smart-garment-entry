@@ -1,4 +1,5 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from "react";
+import { hasUnsavedEntryWork } from "@/lib/unsavedWorkGuard";
 
 /** Legacy counter key — cleared on boot; superseded by one-shot session flag. */
 const SKEW_RELOAD_KEY = "skew_reload_count";
@@ -384,6 +385,9 @@ export function canAttemptSkewRecoveryReload(
  */
 export function attemptSkewRecoveryReload(chunkUrl?: string | null): boolean {
   try {
+    // An open purchase bill / invoice / order would be wiped by a reload the shop never
+    // asked for — stay put and let the error UI offer a manual Refresh instead.
+    if (hasUnsavedEntryWork()) return false;
     if (!canAttemptSkewRecoveryReload()) return false;
     sessionStorage.setItem(SKEW_RELOAD_BUILD_KEY, currentAppBuildId());
     sessionStorage.setItem(SKEW_RELOAD_AT_KEY, String(Date.now()));
@@ -437,6 +441,10 @@ export function didStartChunkReload(): boolean {
  */
 export function attemptStaleChunkRecovery(error: unknown): boolean {
   if (chunkReloadStarted) return true;
+  if (hasUnsavedEntryWork()) {
+    console.warn("[chunk-skew] unsaved entry work open — automatic reload skipped", error);
+    return false;
+  }
   const url = chunkUrlFromError(error);
   if (attemptSkewRecoveryReload(url)) {
     chunkReloadStarted = true;

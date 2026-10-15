@@ -230,6 +230,26 @@ describe("stale POS chunk recovery", () => {
     expect(navigations).toHaveLength(1);
   });
 
+  it("does not auto-reload while an entry screen holds an unsaved bill", async () => {
+    vi.resetModules();
+    const fresh = await import("./chunkLoadRetry");
+    const guard = await import("./unsavedWorkGuard");
+    const unregister = guard.registerUnsavedWorkSource("draft:purchase", () => true);
+    try {
+      expect(fresh.attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(false);
+      expect(fresh.attemptSkewRecoveryReload()).toBe(false);
+      await flush();
+      expect(navigations).toHaveLength(0);
+      // The once-per-build reload is not used up, so it still works after the bill is saved.
+      expect(fresh.canAttemptSkewRecoveryReload()).toBe(true);
+    } finally {
+      unregister();
+    }
+    expect(fresh.attemptStaleChunkRecovery(new Error(POS_CHUNK))).toBe(true);
+    await flush();
+    expect(navigations).toHaveLength(1);
+  });
+
   it("does not auto-reload again when that same POS file is still missing", async () => {
     sessionStorage.setItem("chunk_recovery_reloaded", "1");
     sessionStorage.setItem(

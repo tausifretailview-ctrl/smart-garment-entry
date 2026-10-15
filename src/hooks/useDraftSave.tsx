@@ -9,6 +9,7 @@ import {
   PURCHASE_DRAFT_SAVED_EVENT,
   type PurchaseDraftEventDetail,
 } from '@/lib/purchaseEntryPersistence';
+import { registerUnsavedWorkSource } from '@/lib/unsavedWorkGuard';
 
 export type DraftType = 'purchase' | 'quotation' | 'sale_order' | 'sale_invoice' | 'purchase_order' | 'salesman_sale_order' | 'purchase_return';
 
@@ -371,6 +372,16 @@ export const useDraftSave = (draftType: DraftType, options: UseDraftSaveOptions 
       stopAutoSave();
     };
   }, [stopAutoSave, saveDraft]);
+
+  // Entry screens with pending draft data block automatic reloads (deploy skew recovery,
+  // silent update). Dashboards using this hook never set current data, so they never block.
+  useEffect(
+    () =>
+      registerUnsavedWorkSource(`draft:${draftType}`, () =>
+        Boolean(currentDataRef.current) && !draftClearedRef.current,
+      ),
+    [draftType],
+  );
 
   // Handle beforeunload to save draft (only if not intentionally cleared)
   useEffect(() => {
