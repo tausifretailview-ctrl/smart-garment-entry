@@ -181,3 +181,59 @@ export function aggregateTodaySold(rows: SoldItemRow[], limit: number): TodaySol
   }
   return [...byVariant.values()].sort((a, b) => b.qty - a.qty).slice(0, limit);
 }
+
+export interface TodaySaleItemLine extends TodaySoldLine {
+  amount: number;
+  barcode: string | null;
+}
+
+type SoldItemDetailRow = SoldItemRow & {
+  line_total?: number | null;
+  barcode?: string | null;
+};
+
+/** Every item sold today per variant (qty + amount), biggest sellers first. */
+export function aggregateTodaySalesItems(rows: SoldItemDetailRow[]): TodaySaleItemLine[] {
+  const base = aggregateTodaySold(rows, Number.POSITIVE_INFINITY);
+  const byVariant = new Map<string, TodaySaleItemLine>(
+    base.map((l) => [l.variantId, { ...l, amount: 0, barcode: null }]),
+  );
+  for (const row of rows) {
+    if (!row.variant_id || Number(row.quantity || 0) <= 0) continue;
+    const line = byVariant.get(row.variant_id);
+    if (!line) continue;
+    line.amount += Number(row.line_total || 0);
+    if (!line.barcode && row.barcode) line.barcode = row.barcode;
+  }
+  return [...byVariant.values()].sort((a, b) => b.qty - a.qty || b.amount - a.amount);
+}
+
+export interface TodayPaymentMix {
+  cash: number;
+  upi: number;
+  card: number;
+  /** Net bill value not covered by cash / UPI / card (credit, wallet, other modes). */
+  other: number;
+}
+
+type SaleMoneyRow = {
+  net_amount: number | null;
+  cash_amount: number | null;
+  upi_amount: number | null;
+  card_amount: number | null;
+};
+
+export function summarizeTodayPayments(sales: SaleMoneyRow[]): TodayPaymentMix {
+  const mix: TodayPaymentMix = { cash: 0, upi: 0, card: 0, other: 0 };
+  for (const s of sales) {
+    const cash = Math.max(0, Number(s.cash_amount || 0));
+    const upi = Math.max(0, Number(s.upi_amount || 0));
+    const card = Math.max(0, Number(s.card_amount || 0));
+    const net = Math.max(0, Number(s.net_amount || 0));
+    mix.cash += cash;
+    mix.upi += upi;
+    mix.card += card;
+    mix.other += Math.max(0, net - cash - upi - card);
+  }
+  return mix;
+}

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   TODAY_SOLD_REPEAT_MS,
+  aggregateTodaySalesItems,
   aggregateTodaySold,
   formatInrShort,
   isAlertPopupDue,
+  summarizeTodayPayments,
 } from "./alertPopups";
 
 describe("isAlertPopupDue", () => {
@@ -61,5 +63,32 @@ describe("aggregateTodaySold", () => {
 describe("formatInrShort", () => {
   it("rounds and groups Indian style", () => {
     expect(formatInrShort(123456.7)).toBe("₹1,23,457");
+  });
+});
+
+describe("aggregateTodaySalesItems", () => {
+  it("keeps every variant with qty, amount and first barcode", () => {
+    const lines = aggregateTodaySalesItems([
+      { variant_id: "a", product_name: "Shirt", size: "M", color: null, quantity: 1, line_total: 500, barcode: "111" },
+      { variant_id: "b", product_name: "Jeans", size: null, color: null, quantity: 2, line_total: 1800, barcode: null },
+      { variant_id: "a", product_name: "Shirt", size: "M", color: null, quantity: 2, line_total: 1000, barcode: "111" },
+      { variant_id: "c", product_name: "Returned", size: null, color: null, quantity: -1, line_total: -300, barcode: "9" },
+    ]);
+    expect(lines).toEqual([
+      { variantId: "a", name: "Shirt (M)", qty: 3, stock: null, amount: 1500, barcode: "111" },
+      { variantId: "b", name: "Jeans", qty: 2, stock: null, amount: 1800, barcode: null },
+    ]);
+  });
+});
+
+describe("summarizeTodayPayments", () => {
+  it("splits cash / UPI / card and puts the rest in other", () => {
+    expect(
+      summarizeTodayPayments([
+        { net_amount: 1000, cash_amount: 1000, upi_amount: 0, card_amount: 0 },
+        { net_amount: 2000, cash_amount: 500, upi_amount: 1000, card_amount: null },
+        { net_amount: 700, cash_amount: 0, upi_amount: 0, card_amount: 0 },
+      ]),
+    ).toEqual({ cash: 1500, upi: 1000, card: 0, other: 1200 });
   });
 });
