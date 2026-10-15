@@ -101,6 +101,12 @@ import {
   barcodeTierLookupKey,
   makePurchaseImportProductKey,
 } from "@/utils/purchaseImportBarcodeTier";
+import {
+  describeImportDbError,
+  formatImportFailureSummary,
+  normalizeImportGstPercent,
+  type ImportRowFailure,
+} from "@/utils/purchaseImportErrors";
 import { cleanProductName } from "@/utils/productNameMerge";
 import { productNameMatchKey } from "@/utils/productNameDedupe";
 import { useDraftSave } from "@/hooks/useDraftSave";
@@ -7478,7 +7484,8 @@ const PurchaseEntry = () => {
   // Handle Excel import for purchase bill with batch processing
   const handleExcelImport = async (
     mappedData: Record<string, any>[],
-    onProgress?: (progress: ImportProgress) => void
+    onProgress?: (progress: ImportProgress) => void,
+    meta?: { headerRowIndex: number },
   ) => {
     if (!currentOrganization) return;
 
@@ -7607,17 +7614,31 @@ const PurchaseEntry = () => {
 
     // Filter valid rows - skip empty rows and summary/total rows.
     // Blank size → "None" (same as Product Entry no-size products).
-    const validRows = rowsWithoutFreight
-      .filter(
-        (row) =>
-          row.product_name?.toString().trim() &&
-          parseLocalizedNumber(row.qty) > 0 &&
-          !isSummaryOrEmptyRow(row),
-      )
-      .map((row): Record<string, any> => ({
-        ...row,
-        size: row.size?.toString().trim() || "None",
-      }));
+    const validSourceRows = rowsWithoutFreight.filter(
+      (row) =>
+        row.product_name?.toString().trim() &&
+        parseLocalizedNumber(row.qty) > 0 &&
+        !isSummaryOrEmptyRow(row),
+    );
+    // Excel row number of each valid row (header row + 1-based + data offset),
+    // so failures can name the exact row in the user's sheet.
+    const headerRowIndex = meta?.headerRowIndex ?? 0;
+    const excelRowByRef = new Map<Record<string, any>, number>();
+    mappedData.forEach((row, idx) => excelRowByRef.set(row, headerRowIndex + 2 + idx));
+    const validRowExcelNumbers = validSourceRows.map((row) => excelRowByRef.get(row) ?? 0);
+    const validRows = validSourceRows.map((row): Record<string, any> => ({
+      ...row,
+      size: row.size?.toString().trim() || "None",
+    }));
+
+    const importFailures: ImportRowFailure[] = [];
+    const recordImportFailure = (rowIndex: number, reason: string) => {
+      importFailures.push({
+        excelRow: validRowExcelNumbers[rowIndex] || rowIndex + 2,
+        productName: validRows[rowIndex]?.product_name?.toString().trim() || "",
+        reason,
+      });
+    };
 
     // Show clear error if no valid rows found after filtering
     if (validRows.length === 0) {
@@ -7682,7 +7703,7 @@ const PurchaseEntry = () => {
         qty,
         pur_price: effectivePurPrice,
         sale_price: parseLocalizedNumber(row.sale_price) || 0,
-        gst_per: parseLocalizedNumber(row.gst_per) || 0,
+        gst_per: normalizeImportGstPercent(parseLocalizedNumber(row.gst_per)),
         hsn_code: row.hsn_code?.toString().trim() || '',
         barcode,
         discount_percent: 0,
@@ -7700,6 +7721,8 @@ const PurchaseEntry = () => {
     const productMap = new Map<string, string>();
     /** Product name spelling already in the catalog, by productNameMatchKey. */
     const catalogNameByKey = new Map<string, string>();
+    /** Existing product id by LOWER(TRIM(name)) — the live DB allows one active product per name. */
+    const catalogIdByNameKey = new Map<string, string>();
     const PRODUCT_PAGE = 1000;
     let productOffset = 0;
     while (true) {
@@ -7717,6 +7740,8 @@ const PurchaseEntry = () => {
       page.forEach((p) => {
         const nameKey = productNameMatchKey(p.product_name);
         if (nameKey && !catalogNameByKey.has(nameKey)) catalogNameByKey.set(nameKey, p.product_name);
+        const exactNameKey = p.product_name?.toString().trim().toLowerCase();
+        if (exactNameKey && !catalogIdByNameKey.has(exactNameKey)) catalogIdByNameKey.set(exactNameKey, p.id);
         productMap.set(
           makePurchaseImportProductKey(
             { ...p, sale_price: p.default_sale_price, mrp: null },
@@ -7813,7 +7838,7 @@ const PurchaseEntry = () => {
             style: row.style?.toString().trim() || null,
             color: row.color?.toString().trim() || null,
             hsn_code: row.hsn_code?.toString().trim() || null,
-            gst_per: parseLocalizedNumber(row.gst_per),
+            gst_per: Math.round(normalizeImportGstPercent(parseLocalizedNumber(row.gst_per))),
             default_pur_price: parseLocalizedNumber(row.pur_price),
             default_sale_price: parseLocalizedNumber(row.sale_price),
             status: 'active',
@@ -7825,6 +7850,28 @@ const PurchaseEntry = () => {
         });
       }
     }
+
+    // Product create failed → reuse the active product with the same name. The
+    // catalog key also carries brand/colour/style/price tier, so an item bought
+    // before (e.g. now with an MRP column) misses the key and its insert hits the
+    // one-name-per-shop rule; that must not fail every row of the bill.
+    const findExistingProductIdByName = async (name: string): Promise<string | null> => {
+      const nameKey = name.trim().toLowerCase();
+      if (!nameKey) return null;
+      const cached = catalogIdByNameKey.get(nameKey);
+      if (cached) return cached;
+      const { data } = await supabase
+        .from('products')
+        .select('id, product_name')
+        .eq('organization_id', currentOrganization.id)
+        .is('deleted_at', null)
+        .ilike('product_name', name.trim().replace(/[\\%_]/g, (c) => `\\${c}`))
+        .limit(5);
+      const hit = (data || []).find((p) => p.product_name?.trim().toLowerCase() === nameKey);
+      if (hit) catalogIdByNameKey.set(nameKey, hit.id);
+      return hit?.id ?? null;
+    };
+    const productInsertErrorByKey = new Map<string, string>();
 
     const PRODUCT_BATCH_SIZE = 200;
     for (let i = 0; i < newProductsToInsert.length; i += PRODUCT_BATCH_SIZE) {
@@ -7845,6 +7892,8 @@ const PurchaseEntry = () => {
       if (!productBatchErr && createdProducts) {
         createdProducts.forEach((product: { id: string }, idx: number) => {
           if (batch[idx]) productMap.set(batch[idx].key, product.id);
+          const createdName = String(batch[idx]?.insertData.product_name ?? '').trim().toLowerCase();
+          if (createdName && !catalogIdByNameKey.has(createdName)) catalogIdByNameKey.set(createdName, product.id);
         });
       } else {
         for (const entry of batch) {
@@ -7852,12 +7901,27 @@ const PurchaseEntry = () => {
             [entry.insertData as Record<string, unknown>],
             { select: "id", single: true },
           );
+          const entryName = String(entry.insertData.product_name ?? '');
           if (!singleErr && single) {
             productMap.set(entry.key, single.id);
+            const createdName = entryName.trim().toLowerCase();
+            if (createdName && !catalogIdByNameKey.has(createdName)) catalogIdByNameKey.set(createdName, single.id);
           } else if (productMap.has(entry.key)) {
             // already mapped from catalog page fetch
           } else {
-            console.error('Product insert error:', singleErr);
+            const existingId = await findExistingProductIdByName(entryName);
+            if (existingId) {
+              productMap.set(entry.key, existingId);
+            } else {
+              console.error('Product insert error:', singleErr);
+              productInsertErrorByKey.set(
+                entry.key,
+                describeImportDbError(singleErr, {
+                  what: 'product',
+                  gstPer: Number(entry.insertData.gst_per) || 0,
+                }),
+              );
+            }
           }
         }
       }
@@ -7871,9 +7935,14 @@ const PurchaseEntry = () => {
     const claimedGeneratedImport = new Set<string>();
     for (let i = 0; i < validRows.length; i++) {
       const row = validRows[i];
-      const productId = productMap.get(makeProductKey(row));
+      const productKey = makeProductKey(row);
+      const productId = productMap.get(productKey);
       if (!productId) {
         errorCount++;
+        recordImportFailure(
+          i,
+          productInsertErrorByKey.get(productKey) ?? 'Product could not be created',
+        );
         continue;
       }
       let barcode = barcodePool[i] || `IMP${Date.now()}${i}`;
@@ -7931,6 +8000,8 @@ const PurchaseEntry = () => {
       return items;
     };
 
+    /** Why a variant row could not be created, by validRows index. */
+    const variantErrorByRow = new Map<number, string>();
     const resolveVariantId = async (
       variantData: Record<string, unknown>,
       rowIndex: number,
@@ -7951,7 +8022,7 @@ const PurchaseEntry = () => {
         );
         const { data: existingRows } = await supabase
           .from('product_variants')
-          .select('id, mrp, sale_price')
+          .select('id, mrp, sale_price, product_id, size, color')
           .eq('organization_id', currentOrganization.id)
           .eq('barcode', barcode)
           .is('deleted_at', null);
@@ -7960,13 +8031,25 @@ const PurchaseEntry = () => {
             barcodeTierLookupKey(barcode, row.mrp, row.sale_price) === tierKey,
         );
         if (matched) return matched.id;
+        // Same barcode + size + colour already on this product at another price:
+        // it is the same SKU, so the purchase line uses it (the bill keeps the Excel prices).
+        const norm = (v: unknown) => String(v ?? '').trim().toLowerCase();
+        const sameSku = (existingRows || []).find(
+          (row) =>
+            row.product_id === variantData.product_id &&
+            norm(row.size) === norm(variantData.size) &&
+            norm(row.color) === norm(variantData.color),
+        );
+        if (sameSku) return sameSku.id;
       }
       console.error('Variant insert error:', singleErr);
+      variantErrorByRow.set(rowIndex, describeImportDbError(singleErr, { what: 'item' }));
       return null;
     };
+    const recordVariantFailure = (rowIndex: number) => {
+      recordImportFailure(rowIndex, variantErrorByRow.get(rowIndex) ?? 'Item could not be created');
+    };
 
-    // Track Excel row numbers (header is row 1) that fail to import, so the user can retry just those rows.
-    const failedExcelRows: number[] = [];
     const totalBatches = Math.ceil(variantRowsToInsert.length / VARIANT_BATCH_SIZE);
     for (let i = 0; i < variantRowsToInsert.length; i += VARIANT_BATCH_SIZE) {
       const batchIndex = Math.floor(i / VARIANT_BATCH_SIZE) + 1;
@@ -8018,7 +8101,7 @@ const PurchaseEntry = () => {
                 successCount++;
               } else {
                 errorCount++;
-                failedExcelRows.push(item.rowIndex + 2);
+                recordVariantFailure(item.rowIndex);
               }
             }
           }
@@ -8037,12 +8120,12 @@ const PurchaseEntry = () => {
                 successCount++;
               } else {
                 errorCount++;
-                failedExcelRows.push(item.rowIndex + 2);
+                recordVariantFailure(item.rowIndex);
               }
             } catch (rowErr) {
               console.error(`[ExcelImport] Row ${item.rowIndex + 2} resolve failed:`, rowErr);
               errorCount++;
-              failedExcelRows.push(item.rowIndex + 2);
+              recordImportFailure(item.rowIndex, describeImportDbError(rowErr, { what: 'item' }));
             }
           }
         }
@@ -8058,12 +8141,12 @@ const PurchaseEntry = () => {
               successCount++;
             } else {
               errorCount++;
-              failedExcelRows.push(item.rowIndex + 2);
+              recordVariantFailure(item.rowIndex);
             }
           } catch (rowErr) {
             console.error(`[ExcelImport] Row ${item.rowIndex + 2} resolve failed:`, rowErr);
             errorCount++;
-            failedExcelRows.push(item.rowIndex + 2);
+            recordImportFailure(item.rowIndex, describeImportDbError(rowErr, { what: 'item' }));
           }
         }
       }
@@ -8093,11 +8176,8 @@ const PurchaseEntry = () => {
       );
     }
 
-    if (failedExcelRows.length > 0) {
-      console.warn(
-        `[ExcelImport] ${failedExcelRows.length} rows failed to import. Excel row numbers:`,
-        failedExcelRows,
-      );
+    if (importFailures.length > 0) {
+      console.warn(`[ExcelImport] ${importFailures.length} rows failed to import:`, importFailures);
     }
 
     const newLineItems = buildLineItemsFromMap();
@@ -8147,7 +8227,11 @@ const PurchaseEntry = () => {
     toast({
       title: isPartial ? "Import Partially Completed" : "Import Completed",
       description: isPartial
-        ? `${description} · Imported ${successCount} of ${validRows.length} rows. ${failedExcelRows.length > 0 ? `${failedExcelRows.length} failed rows logged to browser console (Excel row numbers) — re-import those rows.` : 'Check console for details.'}`
+        ? `${description} · Imported ${successCount} of ${validRows.length} rows.${
+            importFailures.length > 0
+              ? `\n\nNot added:\n${formatImportFailureSummary(importFailures)}`
+              : ''
+          }`
         : description,
       variant: isPartial ? "destructive" : undefined,
     });

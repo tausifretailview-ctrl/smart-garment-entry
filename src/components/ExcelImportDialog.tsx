@@ -54,7 +54,11 @@ interface ExcelImportDialogProps {
   open: boolean;
   onClose: () => void;
   targetFields: TargetField[];
-  onImport: (mappedData: Record<string, any>[], onProgress?: (progress: ImportProgress) => void) => Promise<void>;
+  onImport: (
+    mappedData: Record<string, any>[],
+    onProgress?: (progress: ImportProgress) => void,
+    meta?: { headerRowIndex: number },
+  ) => Promise<void>;
   title: string;
   sampleData: Record<string, any>[];
   sampleFileName: string;
@@ -357,9 +361,13 @@ export const ExcelImportDialog = ({
     });
 
     try {
-      await onImport(mappedData, (progress) => {
-        setImportProgress(progress);
-      });
+      await onImport(
+        mappedData,
+        (progress) => {
+          setImportProgress(progress);
+        },
+        { headerRowIndex: parsedData.detectedHeaderRow ?? 0 },
+      );
       handleClose();
     } catch (error) {
       console.error('Import error:', error);

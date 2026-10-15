@@ -100,7 +100,7 @@ export function ErrorDialog({
           {/* Body with icon + message */}
           <div className="flex items-start gap-4 px-6 py-6">
             <Icon className={cn("h-10 w-10 flex-shrink-0", iconColor)} />
-            <AlertDialogPrimitive.Description className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words">
+            <AlertDialogPrimitive.Description className="text-sm text-foreground leading-relaxed whitespace-pre-wrap break-words max-h-[60vh] overflow-y-auto min-w-0">
               {message}
             </AlertDialogPrimitive.Description>
           </div>
