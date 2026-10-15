@@ -8613,7 +8613,7 @@ const PurchaseEntry = () => {
             await handleSave();
           }}
         />
-        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode ? true : showMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} newSizePriceFields allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
+        <LazyOpen open={showSizeGrid}><SizeGridDialog open={showSizeGrid} onClose={() => { setShowSizeGrid(false); setSizeGridLoading(false); }} product={selectedProduct} variants={sizeGridVariants} onConfirm={handleSizeGridConfirm} reviewMode={sizeGridReviewMode} showPurPrice={sizeGridReviewMode} showSizePrices={sizeGridReviewMode} showMrp={sizeGridReviewMode || purchaseShowMrp} isLoading={sizeGridLoading} allowMultiColor={true} allowCustomSizes={true} newSizePriceFields allowAddColor={isColorFieldEnabled} showStock={false} validateStock={false} title="Enter Size-wise Qty" /></LazyOpen>
         <LazyOpen open={showRepurchaseDialog}>
         <RepurchaseDialog
           open={showRepurchaseDialog}
@@ -9744,7 +9744,8 @@ const PurchaseEntry = () => {
 
         {/* Size Grid Dialog with Color Selection. No defaultPur/Sale/Mrp: the first
             size's MRP used to go to every new size and colour (KS Footwear); the grid
-            now takes each colour's own prices. */}
+            now takes each colour's own prices. MRP box follows the org's MRP setting, not
+            the bill's MRP column, so a hidden column never hides a new colour's MRP. */}
         <LazyOpen open={showSizeGrid}>
         <SizeGridDialog
           open={showSizeGrid}
@@ -9759,7 +9760,7 @@ const PurchaseEntry = () => {
           newSizePriceFields
           allowAddColor={isColorFieldEnabled}
           allowMultiColor={true}
-          showMrp={sizeGridReviewMode ? true : showMrp}
+          showMrp={sizeGridReviewMode || purchaseShowMrp}
           showSizePrices={sizeGridReviewMode ? true : false}
           reviewMode={sizeGridReviewMode}
           isLoading={sizeGridLoading}
