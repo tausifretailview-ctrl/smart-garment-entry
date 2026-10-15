@@ -997,10 +997,15 @@ export default function StockSummary() {
                 pageSize={view === "variants" ? variantPageSize : articlePageSize}
                 pageSizes={view === "variants" ? VARIANT_PAGE_SIZES : ARTICLE_PAGE_SIZES}
                 onPageSize={view === "variants" ? setVariantPageSize : setArticlePageSize}
-                page={view === "variants" ? variantPage : articlePage}
-                pageCount={view === "variants" ? variantPageCount : articlePageCount}
                 label={view === "variants" ? `${qty(variantTotal)} variants` : `${qty(visibleArticles.length)} articles`}
                 busy={view === "variants" ? variantsFetching : articlesFetching}
+              />
+            )}
+            {!(view === "articles" && catalogTooBig) && (
+              <Pager
+                page={view === "variants" ? variantPage : articlePage}
+                pageCount={view === "variants" ? variantPageCount : articlePageCount}
+                onPage={view === "variants" ? setVariantPage : setArticlePage}
               />
             )}
           </div>
@@ -1330,11 +1335,6 @@ export default function StockSummary() {
                   )}
                 </table>
               </div>
-              <Pager
-                page={articlePage}
-                pageCount={articlePageCount}
-                onPage={setArticlePage}
-              />
             </>
           )
         ) : (
@@ -1437,11 +1437,6 @@ export default function StockSummary() {
                 )}
               </table>
             </div>
-            <Pager
-              page={variantPage}
-              pageCount={variantPageCount}
-              onPage={setVariantPage}
-            />
           </>
         )}
       </div>
@@ -1449,11 +1444,11 @@ export default function StockSummary() {
   );
 }
 
-/** Page numbers around the current page, e.g. 1 … 4 5 [6] 7 8 … 120. */
+/** Page numbers around the current page, e.g. 1 … 5 [6] 7 … 120. */
 function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
   const out: Array<number | "gap"> = [];
-  const from = Math.max(1, page - 2);
-  const to = Math.min(pageCount, page + 2);
+  const from = Math.max(1, page - 1);
+  const to = Math.min(pageCount, page + 1);
   if (from > 1) out.push(1);
   if (from > 2) out.push("gap");
   for (let p = from; p <= to; p++) out.push(p);
@@ -1467,16 +1462,12 @@ function RowsControl({
   pageSize,
   pageSizes,
   onPageSize,
-  page,
-  pageCount,
   label,
   busy,
 }: {
   pageSize: number;
   pageSizes: readonly number[];
   onPageSize: (n: number) => void;
-  page: number;
-  pageCount: number;
   label: string;
   busy?: boolean;
 }) {
@@ -1503,13 +1494,11 @@ function RowsControl({
         {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />}
         {label}
       </span>
-      <span className="tabular-nums text-slate-400">
-        Page {page}/{pageCount}
-      </span>
     </div>
   );
 }
 
+/** Compact page buttons on the search row: First ‹ 1 … 4 [5] 6 … 31 › Last. */
 function Pager({
   page,
   pageCount,
@@ -1519,39 +1508,38 @@ function Pager({
   pageCount: number;
   onPage: (p: number) => void;
 }) {
+  const btn = "h-7 px-2 text-xs";
   return (
-    <div className="flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/60 px-3 py-1 shrink-0">
-      <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" className="h-8 px-2" disabled={page <= 1} onClick={() => onPage(1)}>
-          First
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 px-2" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        {pageWindow(page, pageCount).map((p, i) =>
-          p === "gap" ? (
-            <span key={`gap-${i}`} className="px-1 text-xs text-slate-400">
-              …
-            </span>
-          ) : (
-            <Button
-              key={p}
-              variant={p === page ? "default" : "outline"}
-              size="sm"
-              className={cn("h-8 min-w-8 px-2 tabular-nums", p === page && "bg-indigo-600 hover:bg-indigo-700")}
-              onClick={() => onPage(p)}
-            >
-              {p}
-            </Button>
-          ),
-        )}
-        <Button variant="outline" size="sm" className="h-8 px-2" disabled={page >= pageCount} onClick={() => onPage(page + 1)}>
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="sm" className="h-8 px-2" disabled={page >= pageCount} onClick={() => onPage(pageCount)}>
-          Last
-        </Button>
-      </div>
+    <div className="inline-flex items-center gap-1">
+      <Button variant="outline" size="sm" className={btn} disabled={page <= 1} onClick={() => onPage(1)}>
+        First
+      </Button>
+      <Button variant="outline" size="sm" className={btn} disabled={page <= 1} onClick={() => onPage(page - 1)} aria-label="Previous page">
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      {pageWindow(page, pageCount).map((p, i) =>
+        p === "gap" ? (
+          <span key={`gap-${i}`} className="px-0.5 text-xs text-slate-400">
+            …
+          </span>
+        ) : (
+          <Button
+            key={p}
+            variant={p === page ? "default" : "outline"}
+            size="sm"
+            className={cn(btn, "min-w-7 tabular-nums", p === page && "bg-indigo-600 hover:bg-indigo-700")}
+            onClick={() => onPage(p)}
+          >
+            {p}
+          </Button>
+        ),
+      )}
+      <Button variant="outline" size="sm" className={btn} disabled={page >= pageCount} onClick={() => onPage(page + 1)} aria-label="Next page">
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+      <Button variant="outline" size="sm" className={btn} disabled={page >= pageCount} onClick={() => onPage(pageCount)}>
+        Last
+      </Button>
     </div>
   );
 }
