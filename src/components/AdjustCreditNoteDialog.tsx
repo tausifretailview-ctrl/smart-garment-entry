@@ -13,6 +13,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { format } from "date-fns";
 import { Loader2, IndianRupee } from "lucide-react";
 import { fetchSupplierBalanceSnapshot } from "@/utils/supplierBalanceUtils";
+import { allocateSupplierVoucherNumber } from "@/utils/supplierVoucherNumber";
 import {
   derivePurchaseBillDisplayStatus,
   getPurchaseBillPendingAmount,
@@ -243,17 +244,7 @@ export function AdjustCreditNoteDialog({
           } else {
           // Create credit_note voucher now (was not auto-created at return save time)
           const today = format(new Date(), "yyyy-MM-dd");
-          const { data: lastVoucher } = await supabase
-            .from("voucher_entries")
-            .select("voucher_number")
-            .eq("organization_id", currentOrganization?.id)
-            .eq("voucher_type", "credit_note")
-            .eq("reference_type", "supplier")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-          const newVoucherNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+          const newVoucherNumber = await allocateSupplierVoucherNumber(supabase, "credit_note", today);
 
           const { data: newVoucher, error: vnError } = await supabase
             .from("voucher_entries")
@@ -289,17 +280,7 @@ export function AdjustCreditNoteDialog({
         // Mark as refund - create a receipt voucher
         const today = format(new Date(), "yyyy-MM-dd");
 
-        // Generate receipt voucher number
-        const { data: lastVoucher } = await supabase
-          .from("voucher_entries")
-          .select("voucher_number")
-          .eq("organization_id", currentOrganization?.id)
-          .eq("voucher_type", "receipt")
-          .order("created_at", { ascending: false })
-          .limit(1);
-
-        const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-        const newVoucherNumber = `RCP-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+        const newVoucherNumber = await allocateSupplierVoucherNumber(supabase, "receipt", today);
 
         // Create receipt voucher
         const { error: receiptError } = await supabase
@@ -367,17 +348,7 @@ export function AdjustCreditNoteDialog({
           } else {
           // No credit_note voucher was created at save time — create one now
           const today = format(new Date(), "yyyy-MM-dd");
-          const { data: lastVoucher } = await supabase
-            .from("voucher_entries")
-            .select("voucher_number")
-            .eq("organization_id", currentOrganization?.id)
-            .eq("voucher_type", "credit_note")
-            .eq("reference_type", "supplier")
-            .order("created_at", { ascending: false })
-            .limit(1);
-
-          const lastNum = lastVoucher?.[0]?.voucher_number?.match(/\d+$/)?.[0] || "0";
-          const newVoucherNumber = `SCN-${String(parseInt(lastNum) + 1).padStart(5, "0")}`;
+          const newVoucherNumber = await allocateSupplierVoucherNumber(supabase, "credit_note", today);
 
           const { data: newVoucher, error: vnError } = await supabase
             .from("voucher_entries")
