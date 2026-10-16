@@ -11,6 +11,8 @@ import {
   buildPosDashboardSummaryScopeFilters,
   computePosDashboardSummaryStats,
   normalizePosSalesmanFilter,
+  parsePosPaymentMethodFilter,
+  serializePosPaymentMethodFilter,
   posDashboardPeopleFilterLabel,
   posDashboardStatsRpcHonorsSalesmanFilter,
   patchPosDashboardSaleDelete,
@@ -150,6 +152,28 @@ describe("POS dashboard credit-note filters", () => {
     expect(mix.ops.some((op) => op[0] === "eq" && op[1] === "payment_method" && op[2] === "multiple")).toBe(
       true,
     );
+  });
+});
+
+describe("POS dashboard multi payment method filter", () => {
+  it("parses and serializes the comma list", () => {
+    expect(parsePosPaymentMethodFilter("all")).toEqual([]);
+    expect(parsePosPaymentMethodFilter("card, upi,card")).toEqual(["card", "upi"]);
+    expect(parsePosPaymentMethodFilter("cash,x.y")).toEqual(["cash"]);
+    expect(serializePosPaymentMethodFilter([])).toBe("all");
+    expect(serializePosPaymentMethodFilter(["card", "upi"])).toBe("card,upi");
+  });
+
+  it("ORs every ticked method, including mix rows tendered in that mode", () => {
+    const q = recordingQuery();
+    applyPosDashboardFilters(q, { ...baseFilters(), paymentMethodFilter: "card,upi,pay_later" });
+    const ors = q.ops.filter((op) => op[0] === "or").map((op) => String(op[1]));
+    const methodOr = ors.find((o) => o.includes("payment_method.eq.card"));
+    expect(methodOr).toBeDefined();
+    expect(methodOr).toContain("and(payment_method.eq.multiple,card_amount.gt.0)");
+    expect(methodOr).toContain("and(payment_method.eq.multiple,upi_amount.gt.0)");
+    expect(methodOr).toContain("payment_method.eq.pay_later");
+    expect(q.ops.some((op) => op[0] === "eq" && op[1] === "payment_method")).toBe(false);
   });
 });
 

@@ -16,6 +16,8 @@ import {
   patchPosDashboardSaleDelete,
   type PosDashboardDeletedSaleFigures,
   POS_DASHBOARD_UNPAID_STATUS_FILTER,
+  parsePosPaymentMethodFilter,
+  serializePosPaymentMethodFilter,
   normalizePosSalesmanFilter,
   posDashboardPeopleFilterLabel,
   posDashboardSummaryLooksValid,
@@ -3063,6 +3065,33 @@ const POSDashboard = () => {
     { v: "pay_later", l: "Later" },
   ];
 
+  const selectedPaymentMethods = parsePosPaymentMethodFilter(paymentMethodFilter);
+  const togglePaymentMethod = (method: string) => {
+    if (method === "all") {
+      setPaymentMethodFilter("all");
+      return;
+    }
+    setPaymentMethodFilter((prev) => {
+      const current = parsePosPaymentMethodFilter(prev);
+      return serializePosPaymentMethodFilter(
+        current.includes(method) ? current.filter((m) => m !== method) : [...current, method],
+      );
+    });
+  };
+  const paymentMethodOptions = [
+    { v: "cash", l: "Cash" },
+    { v: "upi", l: "UPI" },
+    { v: "card", l: "Card" },
+    { v: "multiple", l: "Mix Payment" },
+    { v: "pay_later", l: "Pay Later" },
+  ];
+  const paymentMethodFilterLabel =
+    selectedPaymentMethods.length === 0
+      ? "All Methods"
+      : selectedPaymentMethods
+          .map((m) => paymentMethodOptions.find((o) => o.v === m)?.l ?? m)
+          .join(" + ");
+
   const mobileStatusChips = [
     { v: "all", l: "All" },
     { v: "completed", l: "Paid" },
@@ -3208,10 +3237,12 @@ const POSDashboard = () => {
               <button
                 key={s.v}
                 type="button"
-                onClick={() => setPaymentMethodFilter(s.v)}
+                onClick={() => togglePaymentMethod(s.v)}
                 className={cn(
                   "flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold border transition-all touch-manipulation",
-                  paymentMethodFilter === s.v
+                  (s.v === "all"
+                    ? selectedPaymentMethods.length === 0
+                    : selectedPaymentMethods.includes(s.v))
                     ? "bg-foreground text-background border-transparent"
                     : "bg-card text-muted-foreground border-border",
                 )}
@@ -3602,19 +3633,38 @@ const POSDashboard = () => {
                   </div>
                 ))}
               <div className="flex-1 min-w-[88px]">
-              <Select value={paymentMethodFilter} onValueChange={setPaymentMethodFilter}>
-                <SelectTrigger className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white">
-                  <SelectValue placeholder="Method" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover z-50">
-                  <SelectItem value="all">All Methods</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="upi">UPI</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="multiple">Mix Payment</SelectItem>
-                  <SelectItem value="pay_later">Pay Later</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full h-9 text-sm border-slate-200 bg-slate-50 hover:bg-white justify-between px-2"
+                    title={paymentMethodFilterLabel}
+                  >
+                    <span className="truncate">{paymentMethodFilterLabel}</span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[180px] p-2" align="start">
+                  <div className="space-y-1">
+                    <label className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                      <Checkbox
+                        checked={selectedPaymentMethods.length === 0}
+                        onCheckedChange={() => togglePaymentMethod("all")}
+                      />
+                      All Methods
+                    </label>
+                    {paymentMethodOptions.map((m) => (
+                      <label key={m.v} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                        <Checkbox
+                          checked={selectedPaymentMethods.includes(m.v)}
+                          onCheckedChange={() => togglePaymentMethod(m.v)}
+                        />
+                        {m.l}
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
               </div>
               <div className="flex-1 min-w-[100px]">
               <Popover>
