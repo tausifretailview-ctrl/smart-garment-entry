@@ -1,4 +1,6 @@
 FROM node:20-alpine AS build
+# Baileys pulls libsignal from GitHub, so npm needs git.
+RUN apk add --no-cache git
 WORKDIR /app
 COPY package.json ./
 RUN npm install
@@ -7,6 +9,7 @@ COPY src ./src
 RUN npm run build
 
 FROM node:20-alpine
+RUN apk add --no-cache git
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json ./
