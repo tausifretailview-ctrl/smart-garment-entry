@@ -13,6 +13,7 @@ import {
   formatTrendzoMoney,
   formatTrendzoPaymentModeLabel,
   trendzoDisplayedSettlement,
+  trendzoGstSummary,
   trendzoMixAmountPair,
   trendzoPartyAccountPair,
 } from "@/utils/trendzoThermalPayment";
@@ -55,6 +56,8 @@ interface TrendzoPosThermalReceipt80mmProps {
     igst?: number;
   };
   gstRateBreakdown?: GSTRateEntry[];
+  /** Bill taxable value (after discount) for the one-row GST summary. */
+  taxableAmount?: number;
   paymentMethod?: string;
   cashPaid?: number;
   upiPaid?: number;
@@ -118,13 +121,15 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
     saleReturnAdjust = 0,
     roundOff = 0,
     grandTotal,
+    gstBreakdown,
+    gstRateBreakdown,
+    taxableAmount,
     paymentMethod,
     cashPaid = 0,
     upiPaid = 0,
     cardPaid = 0,
     creditPaid = 0,
     paidAmount = 0,
-    previousBalance = 0,
     unusedAdvance = 0,
     refundCash = 0,
     documentType = "pos",
@@ -264,10 +269,12 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
   });
   const paymentModeLabel = formatTrendzoPaymentModeLabel(paymentLines, paymentMethod);
   const mixAmountPair = trendzoMixAmountPair(paymentLines);
+  // VELVET asked to drop "Prev Bal" from this bill; advance still prints.
   const partyAccountPair = trendzoPartyAccountPair({
-    previousBalance,
+    previousBalance: 0,
     unusedAdvance,
   });
+  const gstSummary = trendzoGstSummary({ gstBreakdown, gstRateBreakdown, taxableAmount });
 
   if (!settings) {
     return (
@@ -365,6 +372,26 @@ export const TrendzoPosThermalReceipt80mm = React.forwardRef<
         <span>GRAND TOTAL</span>
         <span>{fmtMoney(displayGrandTotal)}</span>
       </div>
+
+      {/* One-row GST summary; a blank line when the bill has no GST. */}
+      {gstSummary ? (
+        <div className="tz-gst-row">
+          <span>Taxable {fmtDec(gstSummary.taxable)}</span>
+          {gstSummary.igst >= 0.005 ? (
+            <span>IGST {fmtDec(gstSummary.igst)}</span>
+          ) : (
+            <>
+              <span>CGST {fmtDec(gstSummary.cgst)}</span>
+              <span>SGST {fmtDec(gstSummary.sgst)}</span>
+            </>
+          )}
+          <span>GST {fmtDec(gstSummary.total)}</span>
+        </div>
+      ) : (
+        <div className="tz-gst-row tz-gst-row-blank" aria-hidden="true">
+          &nbsp;
+        </div>
+      )}
 
       <div className="tz-payment">
         <PairRow
