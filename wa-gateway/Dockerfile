@@ -12,7 +12,6 @@ ENV NODE_ENV=production
 COPY package.json ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
-VOLUME /data
 ENV AUTH_DIR=/data/sessions PORT=8787
 EXPOSE 8787
 CMD ["node", "dist/server.js"]
