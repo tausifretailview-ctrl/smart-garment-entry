@@ -15,6 +15,7 @@ function tableReturning(rows: Record<string, unknown>) {
     const chain = {
       select: () => chain,
       eq: () => chain,
+      limit: () => chain,
       maybeSingle: () => Promise.resolve({ data: rows[table] ?? null, error: null }),
     };
     return chain;
@@ -94,5 +95,51 @@ describe("credit note redeemed on the bill", () => {
     const template = "Hi\nCN: {cn_adjusted}\nAmount: {amount}";
     expect(applyWhatsAppTemplatePlaceholders(template, cnSale, "Shop")).toBe("Hi\nCN: ₹3,600\nAmount: ₹4,300");
     expect(applyWhatsAppTemplatePlaceholders(template, { net_amount: 500 }, "Shop")).toBe("Hi\nAmount: ₹500");
+  });
+});
+
+describe("points and shop links on the bill message", () => {
+  beforeEach(() => fromMock.mockReset());
+
+  const pointsShop = {
+    settings: {
+      business_name: "Shop",
+      sale_settings: { enable_points_system: true, points_ratio_amount: 100, points_per_ratio: 1 },
+    },
+    sales: { customer_id: "c-1", net_amount: 714 },
+    customers: { points_balance: 40 },
+  };
+
+  it("adds points under Payment, counting this bill when it is not awarded yet", async () => {
+    tableReturning(pointsShop);
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-1", net_amount: 714 }, "Shop");
+    expect(text).toContain("💳 *Payment:* Completed\n🎁 *Points earned:* 7\n🏆 *Total points:* 47");
+  });
+
+  it("uses the awarded points row when it exists", async () => {
+    tableReturning({ ...pointsShop, customer_points_history: { points: 7 }, customers: { points_balance: 47 } });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-1" }, "Shop");
+    expect(text).toContain("🎁 *Points earned:* 7\n🏆 *Total points:* 47");
+  });
+
+  it("leaves points out when the shop has points off or the bill has no customer", async () => {
+    tableReturning({ ...pointsShop, sales: { customer_id: null, net_amount: 714 } });
+    const text = await buildSalesInvoiceWhatsAppCaption("org-1", { ...sale, sale_id: "s-1" }, "Shop");
+    expect(text).not.toContain("Points");
+  });
+
+  it("adds Google review and Instagram under the bill links", async () => {
+    tableReturning({
+      settings: { business_name: "Shop" },
+      whatsapp_api_settings: { social_links: { google_review: "https://g.page/r/x/review", instagram: "@myshop" } },
+    });
+    const text = await buildSalesInvoiceWhatsAppCaption(
+      "org-1",
+      { ...sale, customer_page_link: "https://a.ezzy.shop/t/abc" },
+      "Shop",
+    );
+    expect(text.endsWith(
+      "🧾 View your bill: https://a.ezzy.shop/t/abc\n⭐ Review your shopping: https://a.ezzy.shop/t/abc#rate\n📍 Review us on Google: https://g.page/r/x/review\n📷 Follow us on Instagram: https://instagram.com/myshop",
+    )).toBe(true);
   });
 });

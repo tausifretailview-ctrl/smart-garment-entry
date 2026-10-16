@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useState } from "react";
 import { MessageCircle, Save } from "lucide-react";
+import { DEFAULT_SALES_INVOICE } from "@/utils/whatsappInvoiceCaption";
 
 interface Template {
   id: string;
@@ -54,24 +55,8 @@ Order Details:
 
 We will deliver it soon. Thank you for your patience!`,
   
-  sales_invoice: `👋 Hello {customer_name},
-
-🧾 Invoice Generated Successfully
-
-🏢 {organization_name} has generated the following invoice for your order.
-
-🔢 Invoice No: {invoice_number}
-📅 Date: {invoice_date}
-💰 Invoice Amount: {amount}
-⏳ Payment Status: {payment_status}
-📊 Outstanding Balance: {outstanding_amount}
-
-🔗 View / Download Invoice:
-{invoice_link}
-
-💳 Kindly arrange payment at your convenience.
-
-🙏 Thank you for your continued business with us.`,
+  // Same text the bill PDF caption uses when no template is saved (icons + WhatsApp bold).
+  sales_invoice: DEFAULT_SALES_INVOICE,
   
   payment_reminder: `👋 Hello {customer_name},
 
@@ -282,7 +267,7 @@ export const WhatsAppTemplateSettings = () => {
           <CardTitle>WhatsApp Message Templates</CardTitle>
         </div>
       <CardDescription>
-          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{invoice_link}"}, {"{organization_name}"}, {"{organization_address}"}, {"{organization_phone}"}, {"{outstanding_amount}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}, {"{social_links}"}, {"{instagram_link}"}, {"{website_link}"}, {"{google_review_link}"}, {"{customer_page_link}"}
+          Customize WhatsApp messages for delivery updates, invoices, quotations, sale orders, and payment reminders. Available placeholders: {"{customer_name}"}, {"{invoice_number}"}, {"{amount}"}, {"{payment_status}"}, {"{invoice_date}"}, {"{invoice_items}"}, {"{invoice_link}"}, {"{organization_name}"}, {"{organization_address}"}, {"{organization_phone}"}, {"{outstanding_amount}"}, {"{paid_amount}"}, {"{pending_amount}"}, {"{due_date}"}, {"{quotation_number}"}, {"{quotation_date}"}, {"{valid_until}"}, {"{quotation_items}"}, {"{order_number}"}, {"{order_date}"}, {"{expected_delivery}"}, {"{order_items}"}, {"{status}"}, {"{social_links}"}, {"{instagram_link}"}, {"{website_link}"}, {"{google_review_link}"}, {"{customer_page_link}"}, {"{points_earned}"}, {"{points_balance}"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
