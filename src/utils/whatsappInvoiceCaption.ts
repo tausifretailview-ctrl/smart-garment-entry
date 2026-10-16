@@ -227,8 +227,9 @@ async function loadBillPoints(
 function instagramUrl(value: string): string {
   const v = value.trim();
   if (!v) return "";
-  if (/^https?:\/\//i.test(v)) return v;
-  if (/instagram\.com\//i.test(v)) return `https://${v.replace(/^\/+/, "")}`;
+  // Instagram addresses are case-insensitive; "HTTPS://WWW.INSTAGRAM.COM/SHOP" reads badly.
+  if (/^https?:\/\//i.test(v)) return /instagram\.com/i.test(v) ? v.toLowerCase() : v;
+  if (/instagram\.com\//i.test(v)) return `https://${v.replace(/^\/+/, "").toLowerCase()}`;
   const handle = v.replace(/^@/, "").replace(/\/+$/, "");
   return /^[A-Za-z0-9._]+$/.test(handle) ? `https://instagram.com/${handle}` : "";
 }
@@ -294,7 +295,7 @@ export async function buildSalesInvoiceWhatsAppCaption(
   const billLink = String(saleData.customer_page_link || "");
   const googleReview = String(withShop.google_review_link || "");
   const withBillLinks = billLink
-    ? appendCustomerPageLinkLine(message, billLink)
+    ? appendCustomerPageLinkLine(message, billLink, { billLine: false })
     : appendGoogleReviewLine(message, googleReview);
   return appendSocialLinkLines(withBillLinks, googleReview, String(withShop.instagram_link || ""));
 }

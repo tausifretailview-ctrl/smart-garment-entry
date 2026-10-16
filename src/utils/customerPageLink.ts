@@ -124,11 +124,16 @@ export function customerPageReviewUrl(link: string): string {
  * Every bill message also asks for a review: WappConnect sends plain text (no
  * buttons), so the "Review shopping" button is a link to the bill's stars.
  */
-export function appendCustomerPageLinkLine(message: string, link: string): string {
+export function appendCustomerPageLinkLine(
+  message: string,
+  link: string,
+  opts: { billLine?: boolean } = {},
+): string {
   if (!link) return message;
   const reviewUrl = customerPageReviewUrl(link);
   const lines: string[] = [];
-  if (!message.includes(link)) lines.push(`🧾 View your bill: ${link}`);
+  // The PDF caption already carries the bill, so it asks only for the review.
+  if (opts.billLine !== false && !message.includes(link)) lines.push(`🧾 View your bill: ${link}`);
   if (!message.includes(reviewUrl)) lines.push(`⭐ Review your shopping: ${reviewUrl}`);
   return lines.length ? `${message.trimEnd()}\n\n${lines.join("\n")}` : message;
 }
