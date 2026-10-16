@@ -55,6 +55,10 @@ describe("customer page link helpers", () => {
     expect(appendCustomerPageLinkLine("See https://x/t/1", "https://x/t/1")).toBe(
       "See https://x/t/1\n\n⭐ Review your shopping: https://x/t/1#rate",
     );
+    // PDF caption: review line only.
+    expect(appendCustomerPageLinkLine("Hi", "https://x/t/1", { billLine: false })).toBe(
+      "Hi\n\n⭐ Review your shopping: https://x/t/1#rate",
+    );
     const once = appendCustomerPageLinkLine("Hi", "https://x/t/1");
     expect(appendCustomerPageLinkLine(once, "https://x/t/1")).toBe(once);
   });

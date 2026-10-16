@@ -131,7 +131,7 @@ describe("points and shop links on the bill message", () => {
   it("adds Google review and Instagram under the bill links", async () => {
     tableReturning({
       settings: { business_name: "Shop" },
-      whatsapp_api_settings: { social_links: { google_review: "https://g.page/r/x/review", instagram: "@myshop" } },
+      whatsapp_api_settings: { social_links: { google_review: "https://g.page/r/x/review", instagram: "HTTPS://WWW.INSTAGRAM.COM/MY_SHOP/" } },
     });
     const text = await buildSalesInvoiceWhatsAppCaption(
       "org-1",
@@ -139,7 +139,7 @@ describe("points and shop links on the bill message", () => {
       "Shop",
     );
     expect(text.endsWith(
-      "🧾 View your bill: https://a.ezzy.shop/t/abc\n⭐ Review your shopping: https://a.ezzy.shop/t/abc#rate\n📍 Review us on Google: https://g.page/r/x/review\n📷 Follow us on Instagram: https://instagram.com/myshop",
+      "⭐ Review your shopping: https://a.ezzy.shop/t/abc#rate\n📍 Review us on Google: https://g.page/r/x/review\n📷 Follow us on Instagram: https://www.instagram.com/my_shop/",
     )).toBe(true);
   });
 });
