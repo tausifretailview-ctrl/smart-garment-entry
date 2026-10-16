@@ -692,6 +692,25 @@ export function buildPosDashboardPaymentMethodOrFilter(
   return null;
 }
 
+/**
+ * Method filter is a comma-separated list ("card,upi") so persisted filters and
+ * query keys stay plain strings; "all" (or empty) means no method filter.
+ */
+export function parsePosPaymentMethodFilter(value: string | null | undefined): string[] {
+  const out: string[] = [];
+  for (const raw of String(value ?? "").split(",")) {
+    const m = raw.trim().toLowerCase();
+    if (!m || m === "all" || !/^[a-z_]+$/.test(m) || out.includes(m)) continue;
+    out.push(m);
+  }
+  return out;
+}
+
+export function serializePosPaymentMethodFilter(methods: readonly string[]): string {
+  const list = parsePosPaymentMethodFilter(methods.join(","));
+  return list.length > 0 ? list.join(",") : "all";
+}
+
 /** KPI strip: keep Paid/Pending/Cash totals for the date range while the table is filtered. */
 export function buildPosDashboardSummaryScopeFilters(
   filters: PosDashboardFilters,
@@ -730,13 +749,20 @@ export function applyPosDashboardFilters(query: any, filters: PosDashboardFilter
     q = q.eq("customer_id", filters.customerId);
   }
 
-  if (filters.paymentMethodFilter !== "all") {
-    const methodOr = buildPosDashboardPaymentMethodOrFilter(filters.paymentMethodFilter);
+  const paymentMethods = parsePosPaymentMethodFilter(filters.paymentMethodFilter);
+  if (paymentMethods.length === 1) {
+    const methodOr = buildPosDashboardPaymentMethodOrFilter(paymentMethods[0]);
     if (methodOr) {
       q = q.or(methodOr);
     } else {
-      q = q.eq("payment_method", filters.paymentMethodFilter);
+      q = q.eq("payment_method", paymentMethods[0]);
     }
+  } else if (paymentMethods.length > 1) {
+    q = q.or(
+      paymentMethods
+        .map((m) => buildPosDashboardPaymentMethodOrFilter(m) ?? `payment_method.eq.${m}`)
+        .join(","),
+    );
   }
 
   if (filters.paymentStatusFilter.length > 0) {
