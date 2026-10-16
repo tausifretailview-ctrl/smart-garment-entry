@@ -439,7 +439,8 @@ export const useWhatsAppAPI = () => {
 
       if (error) {
         console.error('Edge function error:', error);
-        throw new Error(error.message || 'Edge function returned an error');
+        // Show the server's reason (e.g. "not connected", "integration is disabled"), not "non-2xx".
+        throw new Error(await getEdgeFunctionErrorMessage(error, data, 'Edge function returned an error'));
       }
       if (!data?.success) {
         throw new Error(data?.error || 'Connection test failed');
