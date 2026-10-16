@@ -53,17 +53,26 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
     [orgId],
   );
 
-  const apply = useCallback(
-    (res: ControlResponse) => {
-      setStatus(res.status ?? null);
-      setQr(res.qr ?? null);
-      setNumber(res.connectedNumber ?? null);
-      if (res.status === "connected") {
-        void queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
-      }
-    },
-    [queryClient],
-  );
+  const apply = useCallback((res: ControlResponse) => {
+    setStatus(res.status ?? null);
+    setQr(res.qr ?? null);
+    setNumber(res.connectedNumber ?? null);
+  }, []);
+
+  /**
+   * Linking the number means this shop sends through Ezzy ERP WhatsApp: save the provider first,
+   * so the settings reload below doesn't put the dropdown back on the old saved provider.
+   */
+  const onLinked = useCallback(async () => {
+    if (orgId) {
+      const { error } = await supabase.rpc("set_whatsapp_send_provider", {
+        p_organization_id: orgId,
+        p_send_provider: "builtin",
+      });
+      if (error) console.warn("set_whatsapp_send_provider failed:", error);
+    }
+    await queryClient.invalidateQueries({ queryKey: ["whatsapp-api-settings"] });
+  }, [orgId, queryClient]);
 
   // Initial status
   useEffect(() => {
@@ -80,7 +89,10 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
         apply(res);
         if (res.status === "connected" || res.status === "logged_out" || res.status === "disconnected") {
           setPolling(false);
-          if (res.status === "connected") toast.success("WhatsApp linked");
+          if (res.status === "connected") {
+            toast.success("WhatsApp linked");
+            void onLinked();
+          }
           // The server stops making QR codes after a while without a scan.
           else toast.info("QR code expired. Click Connect WhatsApp to get a new one.");
           return;
@@ -94,7 +106,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [polling, orgId, call, apply]);
+  }, [polling, orgId, call, apply, onLinked]);
 
   const run = async (action: "start" | "logout") => {
     setBusy(true);
@@ -110,6 +122,7 @@ export function BuiltinWhatsAppPanel({ lastStatus }: { lastStatus?: string | nul
       } else {
         apply(res);
         setPolling(res.status !== "connected");
+        if (res.status === "connected") void onLinked();
       }
       setError(null);
     } catch (e) {
