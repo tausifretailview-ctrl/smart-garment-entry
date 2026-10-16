@@ -83,4 +83,11 @@ describe("pricesForTypedMrp", () => {
   it("sale equal to MRP stays equal to the new MRP", () => {
     expect(pricesForTypedMrp({ pur_price: 300, sale_price: 645, mrp: 645 }, 699).sale_price).toBe(699);
   });
+
+  it("purchase line MRP edit: sale follows from the line's prices before the edit (KS TAN 399.5 → 499.5)", () => {
+    const before = { pur_price: 0, sale_price: 279.65, mrp: 399.5 };
+    expect(pricesForTypedMrp(before, 499.5).sale_price).toBe(349.65);
+    // Cleared box (0) while retyping keeps the old sale price.
+    expect(pricesForTypedMrp(before, 0).sale_price).toBe(279.65);
+  });
 });
