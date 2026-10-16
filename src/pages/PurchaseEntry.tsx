@@ -207,6 +207,7 @@ import { DuplicatePurchaseBillDialog, type ExistingDuplicateBill } from "@/compo
 import { deleteJournalEntryByReference, recordPurchaseJournalEntry } from "@/utils/accounting/journalService";
 import { isAccountingEngineEnabled } from "@/utils/accounting/isAccountingEngineEnabled";
 import { formatMobileErpSizeCell } from "@/utils/retailErpWhatsAppProductLabel";
+import { pricesForTypedMrp } from "@/utils/sizeGridNewSizePrices";
 import {
   deletedPurchaseLinesMessage,
   findDeletedPurchaseLines,
@@ -958,6 +959,12 @@ const PurchaseEntry = () => {
   const lineItemsRef = useRef(lineItems);
   const draftSkuGuardRef = useRef(createPurchaseDraftSkuGuard());
   const syncDebounceRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  // KS Footwear: MRP changed on a bill line (old item re-bought at a new MRP) kept the
+  // old sale price, so the new barcode sold at e.g. ₹279.65 on MRP ₹499.5. Until the
+  // sale price is typed on that line, an MRP edit keeps the line's MRP-to-sale margin,
+  // scaled from the prices the line had before the MRP edit (not per keystroke).
+  const lineMrpEditBaseRef = useRef<Map<string, { sale_price: number; mrp: number }>>(new Map());
+  const lineSaleTypedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     lineItemsRef.current = lineItems;
@@ -5110,10 +5117,27 @@ const PurchaseEntry = () => {
       }
     }
 
+    if (field === "sale_price") {
+      lineSaleTypedRef.current.add(temp_id);
+      lineMrpEditBaseRef.current.delete(temp_id);
+    }
+    const scaleSaleWithMrp = field === "mrp" && !lineSaleTypedRef.current.has(temp_id);
+
     setLineItems((items) =>
       items.map((item) => {
         if (item.temp_id === temp_id) {
           const updated = { ...item, [field]: value };
+          if (scaleSaleWithMrp) {
+            let base = lineMrpEditBaseRef.current.get(temp_id);
+            if (!base) {
+              base = { sale_price: Number(item.sale_price) || 0, mrp: Number(item.mrp) || 0 };
+              lineMrpEditBaseRef.current.set(temp_id, base);
+            }
+            updated.sale_price = pricesForTypedMrp(
+              { pur_price: 0, sale_price: base.sale_price, mrp: base.mrp },
+              Number(value) || 0,
+            ).sale_price;
+          }
           if (field === "qty" || field === "pur_price" || field === "discount_percent" || field === "size") {
             return recalcLineTotal(updated);
           }
