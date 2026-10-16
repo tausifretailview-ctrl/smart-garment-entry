@@ -25,6 +25,15 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(tsx).not.toContain('label="IGST"');
   });
 
+  it("prints a one-row GST summary under the grand total, blank when GST is 0", () => {
+    expect(tsx).toContain("trendzoGstSummary({");
+    expect(tsx).toContain('className="tz-gst-row"');
+    expect(tsx).toContain("tz-gst-row-blank");
+    expect(css).toMatch(/\.tz-gst-row \{[\s\S]*display:\s*flex/);
+    const wrapper = readFileSync(join(here, "InvoiceWrapper.tsx"), "utf8");
+    expect(wrapper).toContain("taxableAmount={taxableAmount}");
+  });
+
   it("renders UPI QR from the default company UPI ID", () => {
     expect(tsx).toContain("buildUpiPayLink");
     expect(tsx).toContain("resolveCompanyUpiId");
@@ -67,12 +76,12 @@ describe("Trendzo POS thermal receipt layout", () => {
     expect(css).toMatch(/\.tz-term \{[\s\S]*text-indent:\s*-0\.9em/);
   });
 
-  it("prints mix payment amounts and Prev Bal / Advance on one pair-row each", () => {
+  it("prints mix payment amounts and Advance on one pair-row each (no Prev Bal)", () => {
     expect(tsx).toContain("trendzoDocumentTitle");
     expect(tsx).toContain("formatTrendzoPaymentModeLabel");
     expect(tsx).toContain("trendzoMixAmountPair");
     expect(tsx).toContain("trendzoPartyAccountPair");
-    expect(tsx).toContain("previousBalance");
+    expect(tsx).toContain("previousBalance: 0,");
     expect(tsx).toContain("unusedAdvance");
     expect(tsx).not.toContain("tz-payment-grid");
 

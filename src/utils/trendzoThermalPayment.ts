@@ -156,3 +156,21 @@ export function trendzoPartyAccountPair(opts: {
   if (showPrev) return { left: `Prev Bal ${formatTrendzoMoney(prev)}` };
   return { left: `Advance ${formatTrendzoMoney(adv)}` };
 }
+
+/** One printed GST line: Taxable / CGST / SGST (or IGST) / total GST. Null when the bill has no GST. */
+export function trendzoGstSummary(opts: {
+  gstBreakdown?: { cgst: number; sgst: number; igst?: number };
+  gstRateBreakdown?: Array<{ taxableAmount: number }>;
+  taxableAmount?: number;
+}): { taxable: number; cgst: number; sgst: number; igst: number; total: number } | null {
+  const cgst = Number(opts.gstBreakdown?.cgst) || 0;
+  const sgst = Number(opts.gstBreakdown?.sgst) || 0;
+  const igst = Number(opts.gstBreakdown?.igst) || 0;
+  const total = cgst + sgst + igst;
+  if (!(total >= 0.005)) return null;
+  const taxable =
+    opts.taxableAmount != null && Number.isFinite(opts.taxableAmount)
+      ? Number(opts.taxableAmount)
+      : (opts.gstRateBreakdown || []).reduce((s, r) => s + (Number(r.taxableAmount) || 0), 0);
+  return { taxable, cgst, sgst, igst, total };
+}
