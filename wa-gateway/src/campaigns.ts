@@ -40,9 +40,16 @@ const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
 const CAMPAIGN_DIR = process.env.CAMPAIGN_DIR ?? path.join(path.dirname(AUTH_DIR), "campaigns");
 const API_KEY = process.env.GATEWAY_API_KEY ?? "";
 /** Defaults to the bulk-whatsapp function next to whatsapp-gateway-proxy, so no new setting is needed. */
-const APP_BULK_URL =
-  process.env.APP_BULK_URL ??
-  (process.env.APP_EVENT_URL ?? "").replace(/whatsapp-gateway-proxy\/?$/, "bulk-whatsapp");
+const APP_BULK_URL = process.env.APP_BULK_URL || bulkUrlFrom(process.env.APP_EVENT_URL || process.env.APP_INBOUND_URL);
+
+/** https://<project>.supabase.co/functions/v1/<any> → .../functions/v1/bulk-whatsapp */
+function bulkUrlFrom(other: string | undefined): string {
+  try {
+    return other ? `${new URL(other).origin}/functions/v1/bulk-whatsapp` : "";
+  } catch {
+    return "";
+  }
+}
 const ID_RE = /^[0-9a-fA-F-]{36}$/;
 const MAX_ITEMS = 5000;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024;
@@ -60,6 +67,7 @@ export class CampaignRunner {
   private receipts: { messageId: string; status: ReceiptStatus; at: string }[] = [];
 
   constructor(private sessions: SessionManager) {
+    console.log(`Bulk WhatsApp results go to ${APP_BULK_URL || "(not set)"}`);
     sessions.onReceipt = (_sessionId, messageId, status) => {
       this.receipts.push({ messageId, status, at: new Date().toISOString() });
     };
@@ -78,7 +86,10 @@ export class CampaignRunner {
   }
 
   private async post(body: Record<string, unknown>) {
-    if (!APP_BULK_URL) return;
+    if (!APP_BULK_URL) {
+      console.error("Bulk WhatsApp: set APP_BULK_URL (or APP_EVENT_URL) so results reach the app");
+      return;
+    }
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await fetch(APP_BULK_URL, {
@@ -87,9 +98,9 @@ export class CampaignRunner {
           body: JSON.stringify(body),
         });
         if (res.ok) return;
-        logger.warn({ status: res.status }, "bulk report rejected");
+        console.error(`Bulk WhatsApp report rejected (${res.status}): ${(await res.text()).slice(0, 300)}`);
       } catch (e) {
-        logger.warn({ err: e }, "bulk report failed");
+        console.error(`Bulk WhatsApp report failed: ${e instanceof Error ? e.message : String(e)}`);
       }
       await sleep(2000 * (attempt + 1));
     }
