@@ -266,6 +266,10 @@ export const ProductHistoryDialog = ({
       sale_delete:       { label: "Sale Deleted",    className: "bg-slate-100 text-slate-600 border-slate-300" },
       soft_delete_sale:  { label: "Sale Deleted",    className: "bg-slate-100 text-slate-600 border-slate-300" },
       soft_delete_purchase: { label: "Bill Deleted", className: "bg-slate-100 text-slate-600 border-slate-300" },
+      transfer_in:       { label: "Transfer In",     className: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+      transfer_out:      { label: "Transfer Out",    className: "bg-amber-100 text-amber-700 border-amber-300" },
+      transfer_in_cancel:  { label: "Transfer Cancelled", className: "bg-slate-100 text-slate-600 border-slate-300" },
+      transfer_out_cancel: { label: "Transfer Cancelled", className: "bg-slate-100 text-slate-600 border-slate-300" },
     };
     const cfg = config[type] 
       || { label: type, className: "bg-slate-100 text-slate-600 border-slate-300" };

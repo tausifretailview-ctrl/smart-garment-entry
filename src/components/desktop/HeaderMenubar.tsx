@@ -464,6 +464,11 @@ export function HeaderMenubar({
                 Stock Adjustment
               </MenubarItem>
             )}
+            {can("stock_adjustment") && (
+              <MenubarItem onClick={() => orgNavigate("/stock-transfer")}>
+                Stock Transfer
+              </MenubarItem>
+            )}
             {can("stock_settlement") && (
               <MenubarItem
                 {...tabPrefetchProps("stock-settlement")}
