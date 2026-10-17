@@ -10,6 +10,7 @@ import {
   buildInvoicePaymentModeParts,
   formatInvoicePaymentModeFallback,
 } from "@/utils/invoicePaymentModeDisplay";
+import { isValidImeiLuhn } from "@/utils/barcodeChecksum";
 
 interface InvoiceItem {
   sr: number;
@@ -100,8 +101,17 @@ interface TallyTaxInvoiceTemplateProps {
   } | null;
   stampImageBase64?: string;
   stampSize?: "small" | "medium" | "large";
+  /** Mobile ERP shop: a phone's barcode is its IMEI, so label it "IMEI". */
+  mobileErp?: boolean;
   [key: string]: any;
 }
+
+/** "IMEI" for a phone's IMEI (Mobile ERP 14–17 digits, or any Luhn-valid 15 digits), else "Barcode". */
+export const tallyItemCodeLabel = (barcode: string, mobileErp?: boolean): "IMEI" | "Barcode" => {
+  const code = String(barcode || "").replace(/[\s-]/g, "");
+  if (mobileErp && /^\d{14,17}$/.test(code)) return "IMEI";
+  return isValidImeiLuhn(code) ? "IMEI" : "Barcode";
+};
 
 const numberToIndianWords = (num: number): string => {
   if (num === 0) return "Zero";
@@ -292,6 +302,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
   salesman,
   taxType: taxTypeProp = "inclusive",
   items,
+  mobileErp = false,
   subtotal,
   discount,
   saleReturnAdjust = 0,
@@ -675,7 +686,7 @@ export const TallyTaxInvoiceTemplate: React.FC<TallyTaxInvoiceTemplateProps> = (
                       )}
                       {item.barcode && (
                         <div style={{ fontSize: "10px", color: "#000", fontFamily: "monospace", marginTop: "2px" }}>
-                          Barcode: {item.barcode}
+                          {tallyItemCodeLabel(item.barcode, mobileErp)}: {item.barcode}
                         </div>
                       )}
                     </td>

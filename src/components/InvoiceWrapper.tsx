@@ -1085,7 +1085,12 @@ export const InvoiceWrapper = React.forwardRef<HTMLDivElement, InvoiceWrapperPro
         case 'tax-invoice':
           return <TaxInvoiceTemplate {...commonProps} />;
         case 'tally-tax-invoice':
-          return <TallyTaxInvoiceTemplate {...commonProps} />;
+          return (
+            <TallyTaxInvoiceTemplate
+              {...commonProps}
+              mobileErp={settings?.product_settings?.mobile_erp?.enabled === true}
+            />
+          );
         case 'gift_tally':
           return <GiftTallyInvoiceTemplate {...commonProps} />;
         case 'a4-gst-classic':
