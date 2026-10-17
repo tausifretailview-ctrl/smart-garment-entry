@@ -132,7 +132,7 @@ const StockTransfer = () => {
   const addVariant = (v: TransferScanVariant) => {
     const r = addScanToLines(lines, v);
     if (!r.ok) {
-      toast.error(r.reason);
+      toast.error((r as { reason: string }).reason);
       return;
     }
     setLines(r.lines);
