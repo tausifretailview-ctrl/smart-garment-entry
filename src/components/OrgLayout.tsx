@@ -122,7 +122,7 @@ function WhatsAppOnlyNotice() {
           )}
           <Button
             variant="outline"
-            onClick={() => void supabase.auth.signOut().finally(() => window.location.reload())}
+            onClick={() => void supabase.auth.signOut({ scope: "local" }).finally(() => window.location.reload())}
           >
             Sign out
           </Button>

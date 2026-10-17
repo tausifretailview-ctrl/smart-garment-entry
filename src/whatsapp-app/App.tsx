@@ -72,7 +72,7 @@ function SignedIn({ session }: { session: Session }) {
 
   const list = shops.data ?? [];
   const shop = list.find((s) => s.id === shopId) ?? list[0];
-  const signOut = () => void supabase.auth.signOut();
+  const signOut = () => void supabase.auth.signOut({ scope: "local" });
 
   if (shops.isError || !shop) {
     return (
