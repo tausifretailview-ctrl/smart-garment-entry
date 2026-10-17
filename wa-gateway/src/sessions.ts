@@ -11,6 +11,39 @@ import makeWASocket, {
   type proto,
 } from "@whiskeysockets/baileys";
 
+/**
+ * Uploaded posters, so a bulk campaign uploads its poster to WhatsApp once instead of once per number
+ * (keeps the server light for bill sends). WhatsApp keeps uploaded media for a while, not forever,
+ * so entries expire and a long campaign uploads again the next day.
+ */
+const MEDIA_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+const MEDIA_CACHE_MAX = 50;
+
+function makeMediaCache() {
+  const items = new Map<string, { value: unknown; at: number }>();
+  return {
+    get<T>(key: string): T | undefined {
+      const hit = items.get(key);
+      if (!hit) return undefined;
+      if (Date.now() - hit.at > MEDIA_CACHE_TTL_MS) {
+        items.delete(key);
+        return undefined;
+      }
+      return hit.value as T;
+    },
+    set<T>(key: string, value: T) {
+      items.set(key, { value, at: Date.now() });
+      if (items.size > MEDIA_CACHE_MAX) items.delete(items.keys().next().value as string);
+    },
+    del(key: string) {
+      items.delete(key);
+    },
+    flushAll() {
+      items.clear();
+    },
+  };
+}
+
 export type SessionStatus = "connected" | "connecting" | "qr" | "disconnected" | "logged_out";
 
 interface Session {
@@ -28,6 +61,7 @@ interface Session {
   stopped: boolean;
   /** Recently sent messages, so WhatsApp retry requests can be answered (else "Waiting for this message"). */
   sent: Map<string, proto.IMessage>;
+  mediaCache: ReturnType<typeof makeMediaCache>;
 }
 
 const SENT_CACHE_SIZE = 3000;
@@ -65,10 +99,10 @@ export function toJid(phone: string): string {
   return `${full}@s.whatsapp.net`;
 }
 
-/** Message content for bulk sends: text alone, or a poster/file with the text as its caption. */
+/** Message content for bulk sends: text alone, or a poster/file (by https URL) with the text as its caption. */
 export interface BulkContent {
   text: string;
-  media?: { buffer: Buffer; mimetype: string; filename: string; kind: "image" | "video" | "document" };
+  media?: { url: string; mimetype: string; filename: string; kind: "image" | "video" | "document" };
 }
 
 export type ReceiptStatus = "delivered" | "read";
@@ -93,6 +127,7 @@ export class SessionManager {
         sock: null, status: "disconnected", qr: null, number: null, starting: false,
         sentToday: 0, day: today(), lastSendAt: 0, queue: Promise.resolve(), retries: 0, stopped: false,
         sent: new Map(),
+        mediaCache: makeMediaCache(),
       };
       this.sessions.set(orgId, s);
     }
@@ -151,6 +186,8 @@ export class SessionManager {
         syncFullHistory: false,
         // A recipient's phone that cannot decrypt the first copy asks for it again; answer from the cache.
         getMessage: async (key) => (key.id ? s.sent.get(key.id) : undefined),
+        // Media sent by URL (bulk posters) is uploaded once and reused from here.
+        mediaCache: s.mediaCache,
       });
       s.sock = sock;
       sock.ev.on("creds.update", saveCreds);
@@ -369,16 +406,18 @@ export class SessionManager {
       s,
       async () => {
         const { text, media } = content;
-        const msg = !media
+        // By URL, not bytes: Baileys then caches the upload (mediaCache) and reuses it for every number.
+        const file = media ? { url: media.url } : undefined;
+        const msg = !media || !file
           ? { text }
           : media.kind === "image"
-            ? { image: media.buffer, mimetype: media.mimetype, caption: text || undefined }
+            ? { image: file, mimetype: media.mimetype, caption: text || undefined }
             : media.kind === "video"
-              ? { video: media.buffer, mimetype: media.mimetype, caption: text || undefined }
-              : { document: media.buffer, mimetype: media.mimetype, fileName: media.filename, caption: text || undefined };
+              ? { video: file, mimetype: media.mimetype, caption: text || undefined }
+              : { document: file, mimetype: media.mimetype, fileName: media.filename, caption: text || undefined };
         const res = await s.sock!.sendMessage(jid, msg);
         remember(s, res);
-      return res?.key?.id ?? null;
+        return res?.key?.id ?? null;
       },
       this.dailyCap(id),
     );

@@ -235,15 +235,19 @@ export class CampaignRunner {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0];
   }
 
+  /** Checks the poster once per campaign; the send itself goes by URL so WhatsApp gets one upload. */
   private async loadMedia(job: CampaignJob): Promise<BulkContent["media"]> {
     if (!job.media) return undefined;
     const cached = this.media.get(job.campaignId);
     if (cached) return cached;
     const resp = await fetch(job.media.url);
+    // Only the headers are needed here; Baileys downloads the file itself on the first send.
+    await resp.body?.cancel().catch(() => undefined);
     if (!resp.ok) throw new Error(`Could not download the poster (${resp.status})`);
-    const buffer = Buffer.from(await resp.arrayBuffer());
-    if (buffer.length > MAX_MEDIA_BYTES) throw new Error("Poster file is too large (max 16 MB)");
-    const loaded = { buffer, mimetype: job.media.mimetype, filename: job.media.filename, kind: job.media.kind };
+    if (Number(resp.headers.get("content-length") ?? 0) > MAX_MEDIA_BYTES) {
+      throw new Error("Poster file is too large (max 16 MB)");
+    }
+    const loaded = { url: job.media.url, mimetype: job.media.mimetype, filename: job.media.filename, kind: job.media.kind };
     this.media.set(job.campaignId, loaded);
     return loaded;
   }
