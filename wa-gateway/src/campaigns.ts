@@ -34,6 +34,8 @@ interface CampaignJob {
   maxGapMs: number;
   items: CampaignItem[];
   createdAt: string;
+  /** Where results go, sent by the bulk-whatsapp function itself (no server setting needed). */
+  reportUrl?: string;
 }
 
 const AUTH_DIR = process.env.AUTH_DIR ?? "./data/sessions";
@@ -85,14 +87,18 @@ export class CampaignRunner {
     fs.renameSync(tmp, this.file(job.campaignId));
   }
 
-  private async post(body: Record<string, unknown>) {
-    if (!APP_BULK_URL) {
-      console.error("Bulk WhatsApp: set APP_BULK_URL (or APP_EVENT_URL) so results reach the app");
+  /** Last report URL a campaign brought; delivery / read ticks are not tied to one campaign. */
+  private lastReportUrl = "";
+
+  private async post(body: Record<string, unknown>, reportUrl?: string) {
+    const url = reportUrl || this.lastReportUrl || APP_BULK_URL;
+    if (!url) {
+      console.error("Bulk WhatsApp: no report URL, results cannot reach the app");
       return;
     }
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(APP_BULK_URL, {
+        const res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
           body: JSON.stringify(body),
@@ -113,7 +119,7 @@ export class CampaignRunner {
   }
 
   private report(job: CampaignJob, note: string | null = null) {
-    void this.post({ action: "gateway-campaign", campaignId: job.campaignId, status: job.status, note });
+    void this.post({ action: "gateway-campaign", campaignId: job.campaignId, status: job.status, note }, job.reportUrl);
   }
 
   /** Reload saved jobs after a restart; running ones continue once their number reconnects. */
@@ -128,6 +134,7 @@ export class CampaignRunner {
           continue;
         }
         this.jobs.set(job.campaignId, job);
+        if (job.reportUrl) this.lastReportUrl = job.reportUrl;
         if (job.status === "running") this.kick(job.sessionId);
       } catch (e) {
         logger.warn({ err: e, f }, "bad campaign file");
@@ -165,8 +172,16 @@ export class CampaignRunner {
     if (!media && items.every((i) => !i.text.trim())) throw new Error("Message or poster is required");
     const minGapMs = Math.max(3000, Number(input.minGapMs ?? 8000));
     const maxGapMs = Math.max(minGapMs, Number(input.maxGapMs ?? 20000));
+    let reportUrl: string | undefined;
+    if (input.reportUrl) {
+      const u = new URL(String(input.reportUrl));
+      if (u.protocol !== "https:") throw new Error("reportUrl must be https");
+      reportUrl = u.toString();
+      this.lastReportUrl = reportUrl;
+    }
     const job: CampaignJob = {
       campaignId, sessionId, status: "running", media, minGapMs, maxGapMs, items, createdAt: new Date().toISOString(),
+      reportUrl,
     };
     this.jobs.set(campaignId, job);
     this.save(job);
@@ -301,7 +316,7 @@ export class CampaignRunner {
         messageId,
         error,
         at: new Date().toISOString(),
-      });
+      }, job.reportUrl);
 
       // Random human-like gap only after a real send; "not on WhatsApp" checks need no wait.
       if (status === "sent" && job.items.some((i) => !i.done)) {
