@@ -28,6 +28,7 @@ const BACK_MAP: Record<string, string> = {
   "stock-report":             "/",
   "stock-summary":            "/reports",
   "stock-adjustment":         "stock-report",
+  "stock-transfer":           "stock-report",
   "stock-settlement":         "stock-report",
   "stock-ageing":             "stock-report",
   "item-wise-sales":          "/",
