@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCheck, FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, X } from "lucide-react";
+import { CheckCheck, FileSpreadsheet, ImagePlus, Loader2, MessagesSquare, Plus, Send, ShieldAlert, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import type * as XLSXType from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BulkWhatsAppLink } from "@/components/bulk-whatsapp/BulkWhatsAppLink";
 import { BulkWhatsAppReport, BulkWhatsAppStats } from "@/components/bulk-whatsapp/BulkWhatsAppReport";
 import { callBulkWhatsApp } from "@/components/bulk-whatsapp/bulkWhatsAppApi";
+import { CustomerMasterPicker } from "@/components/bulk-whatsapp/CustomerMasterPicker";
 import {
   estimateBulkMinutes,
   fillBulkMessage,
@@ -57,6 +58,7 @@ export default function BulkWhatsApp() {
   const [contacts, setContacts] = useState<BulkContact[]>([]);
   const [typed, setTyped] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
@@ -265,7 +267,7 @@ export default function BulkWhatsApp() {
           <StepTitle
             step={2}
             title="Numbers"
-            hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : "Excel import or type"}
+            hint={contacts.length ? `${contacts.length.toLocaleString("en-IN")} ready to send` : "Customer Master, Excel or type"}
             action={
               contacts.length > 0 && (
                 <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => setContacts([])}>
@@ -285,21 +287,35 @@ export default function BulkWhatsApp() {
               e.target.value = "";
             }}
           />
-          <button
-            type="button"
-            onClick={() => excelRef.current?.click()}
-            className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50"
-          >
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-              <FileSpreadsheet className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-sm font-semibold text-slate-800">Import Excel / CSV</span>
-              <span className="block text-[11px] text-slate-500">
-                A Mobile column (and Name if you use {"{name}"}). Duplicates are removed.
+          <div className="grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                <Users className="h-5 w-5" />
               </span>
-            </span>
-          </button>
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">Customer Master</span>
+                <span className="block text-[11px] text-slate-500">Pick your saved customers, or select all</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => excelRef.current?.click()}
+              className="flex w-full items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-emerald-300 hover:bg-emerald-50/50"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                <FileSpreadsheet className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-slate-800">Import Excel / CSV</span>
+                <span className="block text-[11px] text-slate-500">A Mobile column (and Name for {"{name}"})</span>
+              </span>
+            </button>
+          </div>
+          <p className="text-[11px] text-slate-500">Duplicate numbers are removed automatically.</p>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-600">Or type numbers, one per line (name optional)</Label>
             <Textarea
@@ -389,6 +405,13 @@ export default function BulkWhatsApp() {
       </Alert>
 
       <BulkWhatsAppReport organizationId={orgId} userId={user?.id} />
+
+      <CustomerMasterPicker
+        organizationId={orgId}
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        onAdd={(picked) => addContacts(picked, 0, "Customer Master")}
+      />
 
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !sending && setConfirmOpen(o)}>
         <AlertDialogContent>
