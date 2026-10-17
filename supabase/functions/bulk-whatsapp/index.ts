@@ -92,7 +92,12 @@ serve(async (req) => {
     }
     if (["completed", "stopped", "failed"].includes(c.status)) return json({ success: true, status: c.status });
     const result = await gatewayRequest(`/campaigns/${campaignId}/${action}`, { method: "POST" });
-    // The server forgets a campaign it already finished; stopping it here still cleans up the page.
+    // The server forgets a campaign once it finishes. If its results never arrived, close it here.
+    if (!result.ok && /not found/i.test(String(result.data.error ?? ""))) {
+      const note = "Finished on the WhatsApp server, but its results did not reach the app";
+      await setCampaignStatus(admin, campaignId, "failed", note);
+      return json({ success: true, status: "failed", note });
+    }
     if (!result.ok && action !== "stop") {
       return json({ error: result.data.error ?? "WhatsApp server error" }, result.status || 502);
     }
@@ -204,6 +209,8 @@ async function createCampaign(
     body: {
       campaignId: campaign.id,
       sessionId,
+      // The server posts results straight back here, whatever its own settings say.
+      reportUrl: `${(Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "")}/functions/v1/bulk-whatsapp`,
       message,
       minGapMs: MIN_GAP_MS,
       maxGapMs: MAX_GAP_MS,
